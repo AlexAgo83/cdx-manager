@@ -182,6 +182,47 @@ class CliPythonTests(unittest.TestCase):
         self.assertTrue(lines[2].startswith("credit"))
         self.assertTrue(lines[3].startswith("blocked"))
 
+    def test_status_small_hides_metadata_columns(self):
+        rows = [
+            {
+                "session_name": "main",
+                "provider": "codex",
+                "available_pct": 6,
+                "remaining_5h_pct": 100,
+                "remaining_week_pct": 6,
+                "credits": 453,
+                "reset_5h_at": "Apr 16 05:44",
+                "reset_week_at": "Apr 18 00:08",
+                "updated_at": "2026-04-15T10:00:00+00:00",
+            },
+            {
+                "session_name": "claude",
+                "provider": "claude",
+                "available_pct": 0,
+                "remaining_5h_pct": 0,
+                "remaining_week_pct": 75,
+                "credits": None,
+                "reset_5h_at": "Apr 16 02:00",
+                "reset_week_at": "Apr 21 14:00",
+                "updated_at": "2026-04-15T10:00:00+00:00",
+            },
+        ]
+
+        output = _format_status_rows(rows, small=True)
+        header = output.splitlines()[0]
+        self.assertIn("SESSION", header)
+        self.assertIn("OK", header)
+        self.assertIn("5H", header)
+        self.assertIn("WEEK", header)
+        self.assertIn("RESET 5H", header)
+        self.assertIn("RESET WEEK", header)
+        self.assertNotIn("PROV.", header)
+        self.assertNotIn("BLOCK", header)
+        self.assertNotIn("CR", header)
+        self.assertNotIn("UPDATED", header)
+        self.assertIn("Priority:", output)
+        self.assertIn("Tip:", output)
+
     def test_blocking_quota_formatting_identifies_lowest_limit(self):
         self.assertEqual(_format_blocking_quota({
             "remaining_5h_pct": 99,
@@ -460,6 +501,45 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("RESET WEEK", output)
         self.assertIn("Priority: use work1 first (60% OK).", output)
 
+    def test_status_small_flag_renders_compact_table(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main", "codex")
+        service["create_session"]("claude", "claude")
+        service["record_status"]("main", {
+            "remaining_5h_pct": 99,
+            "remaining_week_pct": 10,
+            "credits": 453,
+            "reset_5h_at": "Apr 16 02:21",
+            "reset_week_at": "Apr 17 10:10",
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+        service["record_status"]("claude", {
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 60,
+            "reset_5h_at": "Apr 16 02:21",
+            "reset_week_at": "Apr 17 10:10",
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status", "-s"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        output = status_io["stdout"].getvalue()
+        header = output.splitlines()[0]
+        self.assertIn("SESSION", header)
+        self.assertIn("RESET 5H", header)
+        self.assertNotIn("PROV.", header)
+        self.assertNotIn("BLOCK", header)
+        self.assertNotIn("CR", header)
+        self.assertNotIn("UPDATED", header)
+        self.assertIn("claude", output)
+        self.assertIn("main", output)
+
     def test_status_color_respects_env_flags(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -689,7 +769,13 @@ class CliPythonTests(unittest.TestCase):
     def test_invalid_status_syntax_raises_usage_error(self):
         with self.assertRaises(CdxError) as ctx:
             main(["status", "main", "extra"], self.make_io())
-        self.assertIn("Usage: cdx status [name] [--json]", str(ctx.exception))
+        self.assertIn("Usage: cdx status [--json]", str(ctx.exception))
+        with self.assertRaises(CdxError) as small_ctx:
+            main(["status", "main", "--small"], self.make_io())
+        self.assertIn("cdx status --small|-s", str(small_ctx.exception))
+        with self.assertRaises(CdxError) as json_ctx:
+            main(["status", "--small", "--json"], self.make_io())
+        self.assertIn("cdx status --small|-s", str(json_ctx.exception))
 
     def test_non_interactive_login_and_remove_are_rejected(self):
         temp_dir = self.make_temp_dir()
@@ -775,7 +861,7 @@ class CliPythonTests(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("\033[31m", result.stderr)
-        self.assertIn("Usage: cdx status [name] [--json]", result.stderr)
+        self.assertIn("Usage: cdx status [--json]", result.stderr)
 
         plain = subprocess.run(
             [sys.executable, "bin/cdx", "status", "main", "extra"],

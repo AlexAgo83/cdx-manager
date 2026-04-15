@@ -130,6 +130,7 @@ cdx status
 | `cdx rmv <name> [--force]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
 | `cdx clean [name]` | Clear launch transcript logs for one session or all sessions |
 | `cdx status [--json]` | Show token usage table for all sessions |
+| `cdx status --small` / `cdx status -s` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
 | `cdx status <name> [--json]` | Show detailed usage breakdown for one session |
 | `cdx --help` | Show usage |
 | `cdx --version` | Show version |
@@ -153,8 +154,11 @@ bin/
   cdx                   # Entry point — shebang + main() call
 
 src/
-  cli.py                # Command dispatch, output formatting, launch logic,
-                        # auth probe, signal forwarding
+  cli.py                # Command dispatch and argument handling
+  cli_render.py         # Terminal formatting, tables, colors, and errors
+  status_view.py        # Status table/detail rendering and priority ranking
+  provider_runtime.py   # Provider launch/auth commands, transcripts, signals
+  claude_refresh.py     # Claude usage refresh orchestration
   session_service.py    # Session lifecycle: create, copy, rename, launch, remove, status
                         # resolution, auth state management
   session_store.py      # JSON persistence layer: sessions.json + per-session
