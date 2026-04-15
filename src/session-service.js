@@ -1,6 +1,5 @@
 "use strict";
 
-const path = require("path");
 const { createSessionStore } = require("./session-store");
 const { getCdxHome } = require("./config");
 const { CdxError } = require("./errors");
@@ -31,6 +30,7 @@ function createSessionService(options = {}) {
       provider: normalizedProvider,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      lastLaunchedAt: null,
       lastStatus: null,
     };
     const result = store.addSession(session);
@@ -57,14 +57,16 @@ function createSessionService(options = {}) {
     if (!state) {
       throw new CdxError(`Session state missing for ${name}. Reconnect required.`);
     }
+    const rehydratedAt = new Date().toISOString();
     store.writeSessionState(name, {
       ...state,
-      rehydratedAt: new Date().toISOString(),
+      rehydratedAt,
     });
-    return {
-      ...session,
-      state: store.readSessionState(name),
-    };
+    return store.updateSession(name, (current) => ({
+      ...current,
+      updatedAt: rehydratedAt,
+      lastLaunchedAt: rehydratedAt,
+    }));
   }
 
   function listSessions() {

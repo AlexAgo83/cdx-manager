@@ -27,6 +27,15 @@ test("create, list, and remove sessions", () => {
   assert.equal(service.listSessions().length, 1);
 });
 
+test("create session with explicit provider", () => {
+  const dir = makeTempDir();
+  const service = createSessionService({ baseDir: dir });
+
+  const session = service.createSession("work1", "claude");
+  assert.equal(session.provider, "claude");
+  assert.equal(service.getSession("work1").provider, "claude");
+});
+
 test("launch rehydrates a stored session state", () => {
   const dir = makeTempDir();
   const service = createSessionService({ baseDir: dir });
@@ -35,7 +44,7 @@ test("launch rehydrates a stored session state", () => {
   const launched = service.launchSession("main");
 
   assert.equal(launched.name, "main");
-  assert.equal(launched.state.status, "ready");
+  assert.equal(launched.lastLaunchedAt, launched.updatedAt);
   assert.equal(service.getSession("main").provider, "codex");
 });
 

@@ -1,10 +1,8 @@
 "use strict";
 
-const fs = require("fs");
-const path = require("path");
+const readline = require("readline");
 const { createSessionService } = require("./session-service");
 const { CdxError } = require("./errors");
-const { getCdxHome } = require("./config");
 
 const VERSION = "0.1.0";
 
@@ -35,7 +33,10 @@ function formatSessions(service) {
     headers.push("PROVIDER");
   }
   headers.push("UPDATED");
-  const lines = [headers.join("  ")];
+  const lines = [
+    "Known sessions:",
+    headers.join("  "),
+  ];
   for (const row of rows) {
     const parts = [row.name];
     if (hasProvider) {
@@ -44,6 +45,11 @@ function formatSessions(service) {
     parts.push(row.updatedAt || "-");
     lines.push(parts.join("  "));
   }
+  lines.push("");
+  lines.push("Next actions:");
+  lines.push("  cdx add <name>");
+  lines.push("  cdx <name>");
+  lines.push("  cdx status");
   return lines.join("\n");
 }
 
@@ -57,10 +63,24 @@ function parseAddArgs(args) {
   throw new CdxError("Usage: cdx add [provider] <name>");
 }
 
+function confirmRemoval(stdin, stdout, name) {
+  if (!stdin || !stdin.isTTY) {
+    throw new CdxError("Removal requires confirmation in an interactive terminal or --force in non-interactive mode.");
+  }
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: stdin, output: stdout });
+    rl.question(`Remove session ${name}? [y/N] `, (answer) => {
+      rl.close();
+      resolve(/^y(es)?$/i.test(answer.trim()));
+    });
+  });
+}
+
 async function main(argv, options = {}) {
   const env = options.env || process.env;
   const stdout = options.stdout || process.stdout;
   const stderr = options.stderr || process.stderr;
+  const stdin = options.stdin || process.stdin;
   const service = options.service || createSessionService({ env });
 
   if (argv.includes("--help") || argv.includes("-h")) {
@@ -94,7 +114,13 @@ async function main(argv, options = {}) {
       throw new CdxError("Usage: cdx rmv <name> [--force]");
     }
     if (forceIndex === -1) {
-      throw new CdxError("Removal confirmation is not implemented yet. Use --force.");
+      const confirmed = options.confirmRemove
+        ? await options.confirmRemove(name)
+        : await confirmRemoval(stdin, stdout, name);
+      if (!confirmed) {
+        stdout.write("Cancelled.\n");
+        return 0;
+      }
     }
     service.removeSession(name);
     stdout.write(`Removed session ${name}\n`);
@@ -109,9 +135,9 @@ async function main(argv, options = {}) {
         stdout.write(
           [
             session.name,
-            status.usagePct ? `${status.usagePct}%` : "n/a",
-            status.remaining5hPct ? `${status.remaining5hPct}%` : "n/a",
-            status.remainingWeekPct ? `${status.remainingWeekPct}%` : "n/a",
+            status.usagePct !== undefined ? `${status.usagePct}%` : "n/a",
+            status.remaining5hPct !== undefined ? `${status.remaining5hPct}%` : "n/a",
+            status.remainingWeekPct !== undefined ? `${status.remainingWeekPct}%` : "n/a",
             session.updatedAt || "-",
           ].join("  ") + "\n",
         );
@@ -124,9 +150,9 @@ async function main(argv, options = {}) {
     }
     stdout.write(`Session: ${session.name}\nProvider: ${session.provider}\n`);
     const status = session.lastStatus || {};
-    stdout.write(`Usage: ${status.usagePct ? `${status.usagePct}%` : "n/a"}\n`);
-    stdout.write(`5h left: ${status.remaining5hPct ? `${status.remaining5hPct}%` : "n/a"}\n`);
-    stdout.write(`Week left: ${status.remainingWeekPct ? `${status.remainingWeekPct}%` : "n/a"}\n`);
+    stdout.write(`Usage: ${status.usagePct !== undefined ? `${status.usagePct}%` : "n/a"}\n`);
+    stdout.write(`5h left: ${status.remaining5hPct !== undefined ? `${status.remaining5hPct}%` : "n/a"}\n`);
+    stdout.write(`Week left: ${status.remainingWeekPct !== undefined ? `${status.remainingWeekPct}%` : "n/a"}\n`);
     stdout.write(`Updated: ${session.updatedAt || "-"}\n`);
     return 0;
   }
