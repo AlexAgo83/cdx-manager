@@ -1,10 +1,10 @@
 ## task_004_cdx_implementation_execution_plan - cdx implementation execution plan
 > From version: 1.13.1
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: General
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -38,42 +38,42 @@ stateDiagram-v2
 ```
 
 # Plan
-- [ ] 1. Confirm the delivery order, dependencies, and exit criteria for all waves.
-- [ ] 2. Execute wave 1: persistence and core session manager.
-- [ ] 3. Execute wave 2: command ergonomics and safety.
-- [ ] 4. Execute wave 3: multi-provider support.
-- [ ] 5. Execute wave 4: `cdx status` global overview and output format.
-- [ ] 6. Run the final validation pass and close the execution plan only after all wave checks pass.
-- [ ] CHECKPOINT: after each wave, leave the repository commit-ready and update the linked Logics docs before moving on.
-- [ ] CHECKPOINT: if the shared AI runtime is active and healthy, run `python logics/skills/logics.py flow assist commit-all` at each wave checkpoint.
-- [ ] GATE: do not advance to the next wave until the current wave validations and quality checks have passed.
-- [ ] FINAL: Update the plan task report with wave-by-wave status and validation evidence.
+- [x] 1. Confirm the delivery order, dependencies, and exit criteria for all waves.
+- [x] 2. Execute wave 1: persistence and core session manager.
+- [x] 3. Execute wave 2: command ergonomics and safety.
+- [x] 4. Execute wave 3: multi-provider support.
+- [x] 5. Execute wave 4: `cdx status` global overview and output format.
+- [x] 6. Run the final validation pass and close the execution plan only after all wave checks pass.
+- [x] CHECKPOINT: after each wave, leave the repository commit-ready and update the linked Logics docs before moving on.
+- [x] CHECKPOINT: if the shared AI runtime is active and healthy, run `python logics/skills/logics.py flow assist commit-all` at each wave checkpoint.
+- [x] GATE: do not advance to the next wave until the current wave validations and quality checks have passed.
+- [x] FINAL: Update the plan task report with wave-by-wave status and validation evidence.
 
 # Execution checklist
 ## Wave 1: Persistence and core session manager
-- [ ] Implement session persistence and rehydration behavior.
-- [ ] Implement the core `cdx` commands: list, add, launch, remove, help, version.
-- [ ] Validate named session creation, launch, duplicate handling, and removal.
-- [ ] Capture validation evidence and leave the wave commit-ready.
+- [x] Implement session persistence and rehydration behavior.
+- [x] Implement the core `cdx` commands: list, add, launch, remove, help, version.
+- [x] Validate named session creation, launch, duplicate handling, and removal.
+- [x] Capture validation evidence and leave the wave commit-ready.
 
 ## Wave 2: Command ergonomics and safety
-- [ ] Stabilize help, version, invalid syntax, duplicate names, and unknown-name errors.
-- [ ] Confirm safe `rmv` behavior with confirmation and force handling.
-- [ ] Validate the CLI surface is readable and predictable.
-- [ ] Capture validation evidence and leave the wave commit-ready.
+- [x] Stabilize help, version, invalid syntax, duplicate names, and unknown-name errors.
+- [x] Confirm safe `rmv` behavior with confirmation and force handling.
+- [x] Validate the CLI surface is readable and predictable.
+- [x] Capture validation evidence and leave the wave commit-ready.
 
 ## Wave 3: Multi-provider support
-- [ ] Add explicit provider support for Codex and Claude.
-- [ ] Route launches to the correct provider.
-- [ ] Show provider information where it adds useful context.
-- [ ] Capture validation evidence and leave the wave commit-ready.
+- [x] Add explicit provider support for Codex and Claude.
+- [x] Route launches to the correct provider.
+- [x] Show provider information where it adds useful context.
+- [x] Capture validation evidence and leave the wave commit-ready.
 
 ## Wave 4: Status recall and output format
-- [ ] Implement `cdx status` as the global usage overview.
-- [ ] Implement `cdx status <name>` as the per-session detail view.
-- [ ] Normalize extracted usage fields and render the canonical table/detail format.
-- [ ] Validate the 5h and week remaining metrics, empty states, and ordering.
-- [ ] Capture validation evidence and leave the wave commit-ready.
+- [x] Implement `cdx status` as the global usage overview.
+- [x] Implement `cdx status <name>` as the per-session detail view.
+- [x] Normalize extracted usage fields and render the canonical table/detail format.
+- [x] Validate the 5h and week remaining metrics, empty states, and ordering.
+- [x] Capture validation evidence and leave the wave commit-ready.
 
 # Delivery checkpoints
 - Each completed wave should leave the repository in a coherent, commit-ready state.
@@ -110,11 +110,19 @@ stateDiagram-v2
 - Validate that the wave order remains: persistence/core, ergonomics/safety, multi-provider, status recall.
 
 # Definition of Done (DoD)
-- [ ] The four delivery waves were executed in order.
-- [ ] Validation commands were executed and results captured for each wave.
-- [ ] No wave was closed before its automated tests and quality checks passed.
-- [ ] Linked request/backlog/task docs were updated during completed waves and at closure.
-- [ ] Each completed wave left a commit-ready checkpoint or an explicit exception is documented.
-- [ ] Status is `Done` and progress is `100%`.
+- [x] The four delivery waves were executed in order.
+- [x] Validation commands were executed and results captured for each wave.
+- [x] No wave was closed before its automated tests and quality checks passed.
+- [x] Linked request/backlog/task docs were updated during completed waves and at closure.
+- [x] Each completed wave left a commit-ready checkpoint or an explicit exception is documented.
+- [x] Status is `Done` and progress is `100%`.
 
 # Report
+- Wave 1 completed: session persistence, core commands, and base CLI were bootstrapped and validated.
+- Wave 2 completed: CLI ergonomics, validation, and safe removal flows were hardened and tested.
+- Wave 3 completed: explicit Codex/Claude provider support was added and validated.
+- Wave 4 completed: `cdx status` now renders a normalized global overview and per-session detail view with usage metrics, remaining 5h/week percentages, ordering, and empty states.
+- Validation evidence:
+  - `node --test`
+  - `node --check bin/cdx && node --check src/cli.js && node --check src/session-store.js && node --check src/session-service.js && node --check test/session-service.test.js && node --check test/cli.test.js`
+  - `logics lint --require-status`

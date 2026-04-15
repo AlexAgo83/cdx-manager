@@ -61,6 +61,89 @@ function formatSessions(service) {
   return lines.join("\n");
 }
 
+function formatRelativeAge(isoValue) {
+  if (!isoValue) {
+    return "-";
+  }
+  const timestamp = Date.parse(isoValue);
+  if (Number.isNaN(timestamp)) {
+    return "-";
+  }
+  const deltaMs = Date.now() - timestamp;
+  if (deltaMs < 0) {
+    return "just now";
+  }
+  const minutes = Math.floor(deltaMs / 60000);
+  if (minutes < 1) {
+    return "just now";
+  }
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function formatPct(value) {
+  return value === null || value === undefined ? "n/a" : `${value}%`;
+}
+
+function padTable(columns) {
+  const widths = columns[0].map((_, columnIndex) =>
+    Math.max(...columns.map((row) => String(row[columnIndex]).length)),
+  );
+  return columns
+    .map((row) => row.map((value, index) => String(value).padEnd(widths[index])).join("  "))
+    .join("\n");
+}
+
+function formatStatusRows(rows) {
+  const hasProvider = new Set(rows.map((row) => row.provider)).size > 1;
+  const headers = hasProvider
+    ? ["SESSION", "PROVIDER", "USAGE", "5H LEFT", "WEEK LEFT", "UPDATED"]
+    : ["SESSION", "USAGE", "5H LEFT", "WEEK LEFT", "UPDATED"];
+  if (rows.length === 0) {
+    return ["SESSION  USAGE  5H LEFT  WEEK LEFT  UPDATED", "No saved sessions yet."].join("\n");
+  }
+  const tableRows = rows.map((row) => {
+    const base = [row.session_name];
+    if (hasProvider) {
+      base.push(row.provider || "n/a");
+    }
+    base.push(
+      formatPct(row.usage_pct),
+      formatPct(row.remaining_5h_pct),
+      formatPct(row.remaining_week_pct),
+      formatRelativeAge(row.updated_at),
+    );
+    return base;
+  });
+  return [padTable([headers, ...tableRows])].join("\n");
+}
+
+function formatStatusDetail(row) {
+  const lines = [
+    `Session: ${row.session_name}`,
+    `Provider: ${row.provider || "n/a"}`,
+    `Usage: ${formatPct(row.usage_pct)}`,
+    `5h left: ${formatPct(row.remaining_5h_pct)}`,
+    `Week left: ${formatPct(row.remaining_week_pct)}`,
+    `Updated: ${formatRelativeAge(row.updated_at)}`,
+    "",
+  ];
+  if (row.raw_status_text) {
+    lines.push("Raw last /status:");
+    lines.push(row.raw_status_text);
+  } else {
+    lines.push("Raw last /status: none");
+  }
+  return lines.join("\n");
+}
+
 function parseAddArgs(args) {
   if (args.length === 1) {
     return { provider: "codex", name: args[0] };
@@ -149,34 +232,18 @@ async function main(argv, options = {}) {
 
   if (command === "status") {
     if (rest.length === 0) {
-      stdout.write("SESSION  USAGE  5H LEFT  WEEK LEFT  UPDATED\n");
-      for (const session of service.listSessions()) {
-        const status = session.lastStatus || {};
-        stdout.write(
-          [
-            session.name,
-            status.usagePct !== undefined ? `${status.usagePct}%` : "n/a",
-            status.remaining5hPct !== undefined ? `${status.remaining5hPct}%` : "n/a",
-            status.remainingWeekPct !== undefined ? `${status.remainingWeekPct}%` : "n/a",
-            session.updatedAt || "-",
-          ].join("  ") + "\n",
-        );
-      }
+      stdout.write(`${formatStatusRows(service.getStatusRows())}\n`);
       return 0;
     }
     if (rest.length !== 1) {
       throw new CdxError("Usage: cdx status [name]");
     }
-    const session = service.getSession(rest[0]);
-    if (!session) {
+    const rows = service.getStatusRows();
+    const row = rows.find((item) => item.session_name === rest[0]);
+    if (!row) {
       throw new CdxError(`Unknown session: ${rest[0]}`);
     }
-    stdout.write(`Session: ${session.name}\nProvider: ${session.provider}\n`);
-    const status = session.lastStatus || {};
-    stdout.write(`Usage: ${status.usagePct !== undefined ? `${status.usagePct}%` : "n/a"}\n`);
-    stdout.write(`5h left: ${status.remaining5hPct !== undefined ? `${status.remaining5hPct}%` : "n/a"}\n`);
-    stdout.write(`Week left: ${status.remainingWeekPct !== undefined ? `${status.remainingWeekPct}%` : "n/a"}\n`);
-    stdout.write(`Updated: ${session.updatedAt || "-"}\n`);
+    stdout.write(`${formatStatusDetail(row)}\n`);
     return 0;
   }
 

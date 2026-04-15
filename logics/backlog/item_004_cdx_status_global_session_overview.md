@@ -1,10 +1,10 @@
 ## item_004_cdx_status_global_session_overview - cdx status global session overview
 > From version: 1.13.1
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 91%
 > Confidence: 91%
-> Progress: 5%
+> Progress: 100%
 > Complexity: Medium
 > Theme: CLI
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

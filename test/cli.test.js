@@ -6,6 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 const { main } = require("../src/cli");
+const { createSessionService } = require("../src/session-service");
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "cdx-cli-"));
@@ -123,4 +124,46 @@ test("invalid syntax is rejected with usage guidance", async () => {
     () => main(["status", "main", "extra"], { ...io, env: { CDX_HOME: dir } }),
     /Usage: cdx status \[name\]/,
   );
+});
+
+test("status renders normalized usage metrics globally and in detail", async () => {
+  const dir = makeTempDir();
+  const service = createSessionService({ baseDir: dir });
+  service.createSession("main");
+  service.createSession("work1", "claude");
+  service.recordStatus("main", {
+    usagePct: 61,
+    remaining5hPct: 39,
+    remainingWeekPct: 70,
+    updatedAt: "2026-04-15T09:00:00.000Z",
+    rawStatusText: "main raw",
+  });
+  service.recordStatus("work1", {
+    usagePct: 44,
+    remaining5hPct: 56,
+    remainingWeekPct: 81,
+    updatedAt: "2026-04-15T10:00:00.000Z",
+    rawStatusText: "work1 raw",
+  });
+
+  const globalIo = makeIo();
+  await main(["status"], { ...globalIo, service, env: { CDX_HOME: dir } });
+  assert.match(globalIo.getStdout(), /SESSION\s+PROVIDER\s+USAGE\s+5H LEFT\s+WEEK LEFT\s+UPDATED/);
+  assert.match(globalIo.getStdout(), /work1\s+claude\s+44%\s+56%\s+81%/);
+  assert.match(globalIo.getStdout(), /main\s+codex\s+61%\s+39%\s+70%/);
+
+  const detailIo = makeIo();
+  await main(["status", "work1"], { ...detailIo, service, env: { CDX_HOME: dir } });
+  assert.match(detailIo.getStdout(), /Session: work1/);
+  assert.match(detailIo.getStdout(), /Provider: claude/);
+  assert.match(detailIo.getStdout(), /Raw last \/status:/);
+  assert.match(detailIo.getStdout(), /work1 raw/);
+});
+
+test("status renders empty state when no sessions exist", async () => {
+  const dir = makeTempDir();
+  const service = createSessionService({ baseDir: dir });
+  const io = makeIo();
+  await main(["status"], { ...io, service, env: { CDX_HOME: dir } });
+  assert.match(io.getStdout(), /No saved sessions yet\./);
 });

@@ -86,3 +86,33 @@ test("reject duplicate names and unknown providers", () => {
   assert.throws(() => service.createSession("main"), /already exists/);
   assert.throws(() => service.createSession("work2", "other"), /Unsupported provider/);
 });
+
+test("status rows are normalized and sorted by recency", () => {
+  const dir = makeTempDir();
+  const service = createSessionService({ baseDir: dir });
+
+  service.createSession("main");
+  service.createSession("work1", "claude");
+  service.recordStatus("main", {
+    usagePct: 61,
+    remaining5hPct: 39,
+    remainingWeekPct: 70,
+    updatedAt: "2026-04-15T09:00:00.000Z",
+    rawStatusText: "main raw",
+  });
+  service.recordStatus("work1", {
+    usagePct: 44,
+    remaining5hPct: 56,
+    remainingWeekPct: 81,
+    updatedAt: "2026-04-15T10:00:00.000Z",
+    rawStatusText: "work1 raw",
+    sourceRef: "session-2.jsonl",
+  });
+
+  const rows = service.getStatusRows();
+  assert.equal(rows[0].session_name, "work1");
+  assert.equal(rows[0].provider, "claude");
+  assert.equal(rows[0].usage_pct, 44);
+  assert.equal(rows[0].raw_status_text, "work1 raw");
+  assert.equal(rows[1].session_name, "main");
+});
