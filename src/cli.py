@@ -141,11 +141,127 @@ def _format_status_rows(rows):
             _format_relative_age(r.get("updated_at")),
         ]
         table_rows.append(base)
+    priority = _recommend_priority_sessions(rows)
+    priority_line = (
+        f"Priority: use {priority[0]['session_name']} first "
+        f"({_priority_reason(priority[0])})"
+        + (
+            f", next {priority[1]['session_name']} "
+            f"({_priority_reason(priority[1])})."
+            if len(priority) > 1 else "."
+        )
+    ) if priority else "Priority: no usable session status yet."
     return "\n".join([
         _pad_table([headers] + table_rows),
         "",
         "Tip: run /status in codex to refresh. Claude sessions refresh automatically.",
+        priority_line,
     ])
+
+
+def _recommend_priority_sessions(rows):
+    if not rows:
+        return []
+
+    def rank(row):
+        has_credits = row.get("credits") is not None
+        available = row.get("available_pct")
+        usable_now = available is not None and available > 0
+        known_available = available is not None
+        reset_timestamp = _priority_reset_timestamp(row)
+        return (
+            0 if has_credits else 1,
+            1 if usable_now else 0,
+            1 if known_available else 0,
+            available if available is not None else -1,
+            -reset_timestamp if reset_timestamp is not None else float("-inf"),
+            row.get("session_name") or "",
+        )
+
+    return sorted(rows, key=rank, reverse=True)
+
+
+def _priority_reason(row):
+    available = row.get("available_pct")
+    if available is None:
+        return "status unknown"
+    if available > 0:
+        return f"{_format_pct(available)} OK"
+    label = _priority_reset_label(row)
+    if label:
+        return f"0% OK, {label} resets first"
+    return "0% OK"
+
+
+def _priority_reset_label(row):
+    remaining_5h = row.get("remaining_5h_pct")
+    remaining_week = row.get("remaining_week_pct")
+    candidates = []
+    if remaining_5h is not None:
+        candidates.append((remaining_5h, "5H", row.get("reset_5h_at")))
+    if remaining_week is not None:
+        candidates.append((remaining_week, "WEEK", row.get("reset_week_at")))
+    if not candidates:
+        return None
+    lowest_remaining = min(value for value, _label, _reset in candidates)
+    blocked = [
+        (label, reset)
+        for value, label, reset in candidates
+        if value == lowest_remaining and reset
+    ]
+    timestamps = [
+        (timestamp, label)
+        for label, reset in blocked
+        for timestamp in [_parse_reset_timestamp(reset)]
+        if timestamp is not None
+    ]
+    if timestamps:
+        return min(timestamps)[1]
+    if blocked:
+        return blocked[0][0]
+    return None
+
+
+def _priority_reset_timestamp(row):
+    remaining_5h = row.get("remaining_5h_pct")
+    remaining_week = row.get("remaining_week_pct")
+    candidates = []
+    if remaining_5h is not None:
+        candidates.append((remaining_5h, row.get("reset_5h_at")))
+    if remaining_week is not None:
+        candidates.append((remaining_week, row.get("reset_week_at")))
+    if not candidates:
+        return None
+    lowest_remaining = min(value for value, _reset in candidates)
+    reset_values = [_reset for value, _reset in candidates if value == lowest_remaining]
+    timestamps = [
+        timestamp
+        for timestamp in (_parse_reset_timestamp(reset_value) for reset_value in reset_values)
+        if timestamp is not None
+    ]
+    if not timestamps:
+        return None
+    return min(timestamps)
+
+
+def _parse_reset_timestamp(value):
+    if not value:
+        return None
+    text = str(value).strip()
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=datetime.now().astimezone().tzinfo)
+        return parsed.timestamp()
+    except (TypeError, ValueError):
+        pass
+    try:
+        parsed = datetime.strptime(text, "%b %d %H:%M")
+    except (TypeError, ValueError):
+        return None
+    now = datetime.now().astimezone()
+    parsed = parsed.replace(year=now.year, tzinfo=now.tzinfo)
+    return parsed.timestamp()
 
 
 def _format_status_detail(row):

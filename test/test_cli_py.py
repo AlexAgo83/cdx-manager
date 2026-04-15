@@ -309,6 +309,76 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("60%", output)
         self.assertIn("RESET 5H", output)
         self.assertIn("RESET WEEK", output)
+        self.assertIn("Priority: use work1 first (60% OK).", output)
+
+    def test_status_recommends_non_credit_session_first(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("credit")
+        service["create_session"]("regular")
+        service["record_status"]("credit", {
+            "remaining_5h_pct": 95,
+            "remaining_week_pct": 95,
+            "credits": 453,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+        service["record_status"]("regular", {
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 80,
+            "updated_at": "2026-04-15T09:00:00+00:00",
+        })
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        self.assertIn(
+            "Priority: use regular first (80% OK), next credit (95% OK).",
+            status_io["stdout"].getvalue(),
+        )
+
+    def test_status_recommends_earliest_blocking_reset_for_zero_ok(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("work1")
+        service["create_session"]("work2")
+        service["create_session"]("claude", "claude")
+        service["record_status"]("work1", {
+            "remaining_5h_pct": 100,
+            "remaining_week_pct": 6,
+            "reset_5h_at": "Apr 16 05:44",
+            "reset_week_at": "Apr 18 00:08",
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+        service["record_status"]("work2", {
+            "remaining_5h_pct": 0,
+            "remaining_week_pct": 69,
+            "reset_5h_at": "Apr 16 03:48",
+            "reset_week_at": "Apr 22 16:51",
+            "updated_at": "2026-04-15T10:01:00+00:00",
+        })
+        service["record_status"]("claude", {
+            "remaining_5h_pct": 0,
+            "remaining_week_pct": 75,
+            "reset_5h_at": "Apr 16 02:00",
+            "reset_week_at": "Apr 21 14:00",
+            "updated_at": "2026-04-15T10:02:00+00:00",
+        })
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        self.assertIn(
+            "Priority: use work1 first (6% OK), next claude (0% OK, 5H resets first).",
+            status_io["stdout"].getvalue(),
+        )
 
     def test_status_json_global_and_detail_contract(self):
         temp_dir = self.make_temp_dir()
