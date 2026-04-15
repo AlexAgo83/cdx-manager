@@ -16,6 +16,7 @@ function normalizeStatusPayload(payload = {}) {
     usagePct: payload.usagePct ?? null,
     remaining5hPct: payload.remaining5hPct ?? null,
     remainingWeekPct: payload.remainingWeekPct ?? null,
+    resetAt: payload.resetAt ?? null,
     updatedAt: payload.updatedAt || payload.capturedAt || now,
     rawStatusText: payload.rawStatusText ?? null,
     sourceRef: payload.sourceRef ?? null,
@@ -89,6 +90,48 @@ function createSessionService(options = {}) {
     return removed;
   }
 
+  function copySession(sourceName, destName) {
+    if (sourceName === destName) {
+      throw new CdxError("Source and destination session names must be different");
+    }
+    const source = store.getSession(sourceName);
+    if (!source) {
+      throw new CdxError(`Unknown session: ${sourceName}`);
+    }
+    const existing = store.getSession(destName);
+    if (existing) {
+      const destRoot = existing.sessionRoot || getSessionRoot(destName);
+      store.removeSession(destName);
+      fs.rmSync(destRoot, { recursive: true, force: true });
+    }
+    const sourceSessionRoot = source.sessionRoot || getSessionRoot(sourceName);
+    const destSessionRoot = getSessionRoot(destName);
+    const destAuthHome = getSessionAuthHome(destName, source.provider);
+    fs.cpSync(sourceSessionRoot, destSessionRoot, { recursive: true });
+    const now = new Date().toISOString();
+    const result = store.addSession({
+      name: destName,
+      provider: source.provider,
+      sessionRoot: destSessionRoot,
+      authHome: destAuthHome,
+      createdAt: now,
+      updatedAt: now,
+      lastLaunchedAt: null,
+      lastStatusAt: null,
+      lastStatus: null,
+      auth: {
+        status: "unknown",
+        lastCheckedAt: null,
+        lastAuthenticatedAt: null,
+        lastLoggedOutAt: null,
+      },
+    });
+    if (!result.ok) {
+      throw new CdxError(`Failed to create session: ${destName}`);
+    }
+    return { session: result.session, overwritten: Boolean(existing) };
+  }
+
   function launchSession(name) {
     const session = store.getSession(name);
     if (!session) {
@@ -136,7 +179,7 @@ function createSessionService(options = {}) {
       return session.lastStatus;
     }
     const sourceRoot = session.authHome || getSessionAuthHome(session.name, session.provider);
-    const artifact = findLatestStatusArtifact(sourceRoot);
+    const artifact = findLatestStatusArtifact(sourceRoot, session.provider);
     if (!artifact) {
       return null;
     }
@@ -144,6 +187,7 @@ function createSessionService(options = {}) {
       usagePct: artifact.usagePct,
       remaining5hPct: artifact.remaining5hPct,
       remainingWeekPct: artifact.remainingWeekPct,
+      resetAt: artifact.resetAt,
       updatedAt: artifact.updatedAt,
       rawStatusText: artifact.rawStatusText,
       sourceRef: artifact.sourceRef,
@@ -197,12 +241,10 @@ function createSessionService(options = {}) {
         session_name: session.name,
         provider: session.provider,
         auth_home: session.authHome || getSessionAuthHome(session.name, session.provider),
-        usage_pct: session.lastStatus ? session.lastStatus.usagePct : null,
         remaining_5h_pct: session.lastStatus ? session.lastStatus.remaining5hPct : null,
         remaining_week_pct: session.lastStatus ? session.lastStatus.remainingWeekPct : null,
+        reset_at: session.lastStatus ? session.lastStatus.resetAt : null,
         updated_at: session.lastStatusAt || null,
-        raw_status_text: session.lastStatus ? session.lastStatus.rawStatusText : null,
-        source_ref: session.lastStatus ? session.lastStatus.sourceRef : null,
       }));
   }
 
@@ -218,6 +260,7 @@ function createSessionService(options = {}) {
   }
 
   return {
+    copySession,
     createSession,
     formatListRows,
     getSession,

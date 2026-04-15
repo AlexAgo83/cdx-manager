@@ -1,20 +1,214 @@
-# cdx-manager
+# cdx
 
-Minimal bootstrap for the `cdx` terminal session manager.
+**Run multiple Codex and Claude sessions from one terminal. Switch between accounts instantly.**
 
-## Commands
+If you use AI coding tools at scale — multiple accounts, multiple providers — you know the friction: re-authenticating, losing context, juggling environment variables. `cdx` removes all of that.
 
-- `cdx`
-- `cdx add [provider] <name>`
-- `cdx rmv <name> --force`
-- `cdx <name>`
-- `cdx status`
-- `cdx status <name>`
-- `cdx --help`
-- `cdx --version`
+One command to launch any session. Zero auth juggling.
 
-## Development
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.1.0-4C8BF5) ![Node](https://img.shields.io/badge/node-20%2B-339933?logo=node.js&logoColor=white)
+
+---
+
+## Table of Contents
+
+- [What it does](#what-it-does)
+- [Technical Overview](#technical-overview)
+- [Getting Started](#getting-started)
+- [All Commands](#all-commands)
+- [Available Scripts](#available-scripts)
+- [Project Structure](#project-structure)
+- [Data Layout](#data-layout)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## What it does
+
+- **Multiple accounts, one tool.** Register as many Codex or Claude sessions as you need. Each one gets its own isolated auth environment — no cross-contamination between accounts.
+- **Instant launch.** `cdx work` opens your "work" session. `cdx personal` opens another. No config files to edit mid-flow.
+- **Auth guardrails.** `cdx` checks authentication before launching. If a session is not logged in, it tells you exactly what to run — no silent failures.
+- **Usage at a glance.** `cdx status` shows token usage, 5-hour window quota, weekly quota, and last-updated timestamps for every session in one aligned table.
+- **Passive status resolution.** If a session has no recorded status, `cdx` reads it directly from the provider's session logs and JSONL history — no manual sync required.
+- **Session transcript capture.** Every launch is recorded to a local log file via `script`, giving you a full terminal transcript for each session.
+- **Clean removal.** `cdx rmv` wipes a session and its entire auth directory. No orphaned files, no stale credentials.
+
+---
+
+## Technical Overview
+
+- Node.js 20+ (CommonJS), zero runtime dependencies.
+- Environment isolation per session:
+  - Codex sessions override `CODEX_HOME` to a dedicated profile directory.
+  - Claude sessions override `HOME` to a dedicated profile directory.
+- Persistence:
+  - Session registry at `~/.cdx/sessions.json` (versioned JSON store).
+  - Per-session state at `~/.cdx/state/<name>.json`.
+  - Auth and provider data under `~/.cdx/profiles/<name>/`.
+  - All paths are URL-encoded to support arbitrary session names.
+- Status resolution pipeline:
+  - Primary source: recorded status fields on the session record.
+  - Fallback: `status-source` scans provider JSONL history files and terminal log transcripts, strips ANSI/OSC sequences, and extracts `usage%`, `5h remaining%`, and `week remaining%` via pattern matching.
+- Auth probe: synchronous `spawnSync` call to `codex login status` or `claude auth status --json` before any interactive launch.
+- Signal forwarding: `SIGINT`, `SIGTERM`, and `SIGHUP` are forwarded to the child process and produce clean exit codes.
+- Test stack: Node.js built-in `node:test` runner with no test framework dependency.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 20+
+- npm
+- `codex` and/or `claude` CLI installed and available in your PATH
+
+### Install
 
 ```bash
-npm test
+git clone <repo>
+cd cdx-manager
+make install
 ```
+
+`cdx` is now available globally. Changes to the source take effect immediately — no reinstall needed.
+
+To uninstall:
+
+```bash
+make uninstall
+```
+
+Alternatively, for a non-symlinked global install:
+
+```bash
+npm install -g .
+```
+
+### Environment
+
+By default, `cdx` stores all data under `~/.cdx/`. Override with:
+
+```bash
+export CDX_HOME=/path/to/custom/dir
+```
+
+### Quick Start
+
+```bash
+# Register a Codex session
+cdx add work
+
+# Register a Claude session
+cdx add claude personal
+
+# List all sessions
+cdx
+
+# Launch a session
+cdx work
+
+# Check usage across all sessions
+cdx status
+```
+
+---
+
+## All Commands
+
+| Command | Description |
+|---|---|
+| `cdx` | List all sessions with last-updated timestamps |
+| `cdx <name>` | Launch a session (checks auth first) |
+| `cdx add [provider] <name>` | Register a new session (`provider`: `codex` or `claude`, default: `codex`) |
+| `cdx login <name>` | Re-authenticate a session (logout + login) |
+| `cdx logout <name>` | Log out of a session |
+| `cdx rmv <name> [--force]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
+| `cdx status [--json]` | Show token usage table for all sessions |
+| `cdx status <name> [--json]` | Show detailed usage breakdown for one session |
+| `cdx --help` | Show usage |
+| `cdx --version` | Show version |
+
+---
+
+## Available Scripts
+
+- `npm test`: run the test suite with the built-in Node.js test runner
+- `npm run lint`: syntax-check all source files with `node --check`
+- `npm run link`: link `cdx` globally for local development (`npm link`)
+- `npm run unlink`: remove the global link
+
+---
+
+## Project Structure
+
+```text
+bin/
+  cdx                   # Entry point — shebang + main() call
+
+src/
+  cli.js                # Command dispatch, output formatting, launch logic,
+                        # auth probe, signal forwarding
+  session-service.js    # Session lifecycle: create, launch, remove, status
+                        # resolution, auth state management
+  session-store.js      # JSON persistence layer: sessions.json + per-session
+                        # state files
+  status-source.js      # Status artifact discovery: scans JSONL history files
+                        # and terminal log transcripts, strips ANSI sequences,
+                        # extracts usage metrics via pattern matching
+  config.js             # CDX_HOME resolution (env override or ~/.cdx)
+  errors.js             # CdxError with optional exit code
+  index.js              # Public exports
+
+test/
+  cli.test.js           # CLI command dispatch tests
+  session-service.test.js  # Session service unit tests
+```
+
+---
+
+## Data Layout
+
+All session data lives under `CDX_HOME` (default: `~/.cdx/`):
+
+```text
+~/.cdx/
+  sessions.json             # Session registry (versioned, all sessions)
+  state/
+    <encoded-name>.json     # Per-session rehydration state
+  profiles/
+    <encoded-name>/         # Codex session: CODEX_HOME points here
+      log/
+        cdx-session.log     # Terminal transcript (written by script(1))
+    <encoded-name>/
+      claude-home/          # Claude session: HOME points here
+        log/
+          cdx-session.log
+```
+
+Session names are URL-encoded when used as directory or file names, so any name is safe.
+
+---
+
+## Troubleshooting
+
+- **`cdx <name>` fails with "not authenticated"** — run `cdx login <name>` first.
+- **`cdx add` succeeds but the session does not appear** — check that `CDX_HOME` is consistent between calls; a mismatch creates two separate registries.
+- **Status shows `n/a` for all fields** — the session has not been launched yet, or the provider has not written any status output to its history files. Launch the session and run `/status` inside it at least once.
+- **`cdx rmv` says "Removal requires confirmation in an interactive terminal"** — pass `--force` to bypass the prompt in non-interactive environments (scripts, CI).
+- **`cdx login` hangs** — the provider's login flow requires a browser or device code. Follow the on-screen instructions in the terminal that opened.
+- **`make install` says `npm link` is not found** — ensure Node.js and npm are installed and in your PATH.
+
+---
+
+## Contributing
+
+Contribution guidelines are available in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+---
+
+## License
+
+This project is licensed under the MIT License. See [`LICENSE`](LICENSE).

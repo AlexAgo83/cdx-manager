@@ -96,7 +96,7 @@ function extractJsonlTexts(filePath) {
   return items;
 }
 
-function extractLogBlock(filePath) {
+function extractLogBlock(filePath, provider) {
   const text = safeReadText(filePath);
   if (!text) {
     return [];
@@ -118,32 +118,39 @@ function extractLogBlock(filePath) {
     return lines.slice(startIndex, endIndex).join("\n").trim();
   };
 
-  const claudeBlock = findBlock(
-    /Current session\b/i,
-    [/^Extra usage\b/i, /^Esc to cancel\b/i, /^To continue this session\b/i, /^╰/],
-  );
-  if (claudeBlock) {
-    return [{
-      sourceRef: filePath,
-      timestamp: null,
-      text: claudeBlock,
-    }];
+  if (provider !== "codex") {
+    const claudeBlock = findBlock(
+      /Current session\b/i,
+      [/^Extra usage\b/i, /^Esc to cancel\b/i, /^To continue this session\b/i, /^╰/],
+    );
+    if (claudeBlock) {
+      return [{
+        sourceRef: filePath,
+        timestamp: null,
+        text: claudeBlock,
+      }];
+    }
   }
 
-  const codexBlock = findBlock(
-    /5h\s+limit\b/i,
-    [/^Credits\b/i, /^To continue this session\b/i, /^╰/],
-  );
-  if (codexBlock) {
-    return [{
-      sourceRef: filePath,
-      timestamp: null,
-      text: codexBlock,
-    }];
+  if (provider !== "claude") {
+    const codexBlock = findBlock(
+      /5h\s+limit\b/i,
+      [/^Credits\b/i, /^To continue this session\b/i, /^╰/],
+    );
+    if (codexBlock) {
+      return [{
+        sourceRef: filePath,
+        timestamp: null,
+        text: codexBlock,
+      }];
+    }
+  }
+
+  if (provider) {
+    return [];
   }
 
   const fallbackLines = text.split(/\r?\n/);
-  const matches = [];
   const keywordRegex = /\/status|usage|current|remaining|\d{1,3}%/i;
   for (let index = fallbackLines.length - 1; index >= 0; index -= 1) {
     if (!keywordRegex.test(fallbackLines[index])) {
@@ -153,15 +160,76 @@ function extractLogBlock(filePath) {
     const end = Math.min(fallbackLines.length, index + 5);
     const snippet = fallbackLines.slice(start, end).join("\n").trim();
     if (snippet) {
-      matches.push({
+      return [{
         sourceRef: `${filePath}:${index + 1}`,
         timestamp: null,
         text: snippet,
-      });
-      break;
+      }];
     }
   }
-  return matches;
+  return [];
+}
+
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function parseMonthIndex(name) {
+  const lower = name.slice(0, 3).toLowerCase();
+  return MONTH_ABBR.findIndex((m) => m.toLowerCase() === lower);
+}
+
+function inferResetYear(month, day) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const candidate = new Date(year, month, day);
+  const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+  return candidate < twoDaysAgo ? year + 1 : year;
+}
+
+function normalizeResetDate(raw) {
+  if (!raw) return null;
+
+  const pad = (n) => String(n).padStart(2, "0");
+
+  // Codex: "10:10 on 17 Apr"
+  const codexMatch = raw.match(/(\d{1,2}):(\d{2})\s+on\s+(\d{1,2})\s+([A-Za-z]+)/i);
+  if (codexMatch) {
+    const hours = Number(codexMatch[1]);
+    const minutes = Number(codexMatch[2]);
+    const day = Number(codexMatch[3]);
+    const month = parseMonthIndex(codexMatch[4]);
+    if (month !== -1) {
+      const year = inferResetYear(month, day);
+      const date = new Date(year, month, day);
+      return `${MONTH_ABBR[date.getMonth()]} ${date.getDate()} ${pad(hours)}:${pad(minutes)}`;
+    }
+  }
+
+  // Codex time-only: "21:51" (resets today or tomorrow at that time)
+  const timeOnlyMatch = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (timeOnlyMatch) {
+    const hours = Number(timeOnlyMatch[1]);
+    const minutes = Number(timeOnlyMatch[2]);
+    const now = new Date();
+    const candidate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+    if (candidate <= now) {
+      candidate.setDate(candidate.getDate() + 1);
+    }
+    return `${MONTH_ABBR[candidate.getMonth()]} ${candidate.getDate()} ${pad(hours)}:${pad(minutes)}`;
+  }
+
+  // Claude: "Thursday, April 17" or "April 17" or "April 17, 2026"
+  const claudeMatch = raw.match(/(?:[A-Za-z]+,\s+)?([A-Za-z]+)\s+(\d{1,2})(?:,\s+(\d{4}))?/i);
+  if (claudeMatch) {
+    const month = parseMonthIndex(claudeMatch[1]);
+    if (month !== -1) {
+      const day = Number(claudeMatch[2]);
+      const year = claudeMatch[3] ? Number(claudeMatch[3]) : inferResetYear(month, day);
+      const date = new Date(year, month, day);
+      return `${MONTH_ABBR[date.getMonth()]} ${date.getDate()}`;
+    }
+  }
+
+  return null;
 }
 
 function extractNamedStatusesFromText(text) {
@@ -276,6 +344,40 @@ function extractNamedStatusesFromText(text) {
     result.usagePct = Math.max(0, 100 - Number(result.remainingWeekPct));
   }
 
+  let resetAt = null;
+  // Codex format: "Weekly limit:" line, then look for "(resets ...)" within the next few lines
+  const weeklyLineIndex = lines.findIndex((line) => /weekly\s+limit\b/i.test(line));
+  if (weeklyLineIndex !== -1) {
+    for (let i = weeklyLineIndex; i < Math.min(lines.length, weeklyLineIndex + 4); i += 1) {
+      const m = lines[i].match(/\(resets\s+(.+?)\)/i);
+      if (m) {
+        resetAt = m[1].trim();
+        break;
+      }
+    }
+  }
+  // Claude format: standalone line "Resets Thursday, April 17"
+  if (!resetAt) {
+    for (const line of lines) {
+      const match = line.match(/^(?:(?:weekly\s+)?resets?)\s*:?\s*(.+)/i);
+      if (match) {
+        resetAt = match[1].trim();
+        break;
+      }
+    }
+  }
+  // Fallback: last "(resets ...)" in the text (prefer later occurrences = weekly over 5h)
+  if (!resetAt) {
+    const allResets = [...normalized.matchAll(/\(resets\s+(.+?)\)/gi)];
+    if (allResets.length > 0) {
+      resetAt = allResets[allResets.length - 1][1].trim();
+    }
+  }
+
+  if (resetAt) {
+    resetAt = normalizeResetDate(resetAt) ?? resetAt;
+  }
+
   if (Object.keys(result).length === 0) {
     return null;
   }
@@ -284,6 +386,7 @@ function extractNamedStatusesFromText(text) {
     usagePct: result.usagePct ?? null,
     remaining5hPct: result.remaining5hPct ?? null,
     remainingWeekPct: result.remainingWeekPct ?? null,
+    resetAt,
     rawStatusText: normalized.trim() || null,
   };
 }
@@ -336,7 +439,7 @@ function collectCandidateFiles(rootDir) {
   return candidates;
 }
 
-function findLatestStatusArtifact(rootDir) {
+function findLatestStatusArtifact(rootDir, provider) {
   const candidates = collectCandidateFiles(rootDir);
   const records = [];
   for (const filePath of candidates) {
@@ -345,7 +448,7 @@ function findLatestStatusArtifact(rootDir) {
       continue;
     }
     if (filePath.endsWith(".log")) {
-      records.push(...extractLogBlock(filePath));
+      records.push(...extractLogBlock(filePath, provider));
     }
   }
 
@@ -365,6 +468,12 @@ function findLatestStatusArtifact(rootDir) {
       };
       if (candidate.timestamp) {
         best.updatedAt = new Date(candidate.timestamp).toISOString();
+      } else {
+        const srcFile = candidate.sourceRef.replace(/:\d+$/, "");
+        const stat = safeStat(srcFile);
+        if (stat && stat.mtime) {
+          best.updatedAt = stat.mtime.toISOString();
+        }
       }
     }
   }

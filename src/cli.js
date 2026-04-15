@@ -6,6 +6,7 @@ const path = require("path");
 const readline = require("readline");
 const { createSessionService } = require("./session-service");
 const { CdxError } = require("./errors");
+const { refreshClaudeSessionStatus } = require("./claude-usage");
 
 const VERSION = "0.1.0";
 
@@ -15,8 +16,9 @@ function printHelp() {
     "",
     "Usage:",
     "  cdx",
-    "  cdx status [name]",
+    "  cdx status [name] [--json]",
     "  cdx add [provider] <name>",
+    "  cdx cp <source> <dest>",
     "  cdx login <name>",
     "  cdx logout <name>",
     "  cdx rmv <name> [--force]",
@@ -112,10 +114,10 @@ function padTable(columns) {
 function formatStatusRows(rows) {
   const hasProvider = new Set(rows.map((row) => row.provider)).size > 1;
   const headers = hasProvider
-    ? ["SESSION", "PROVIDER", "USAGE", "5H LEFT", "WEEK LEFT", "UPDATED"]
-    : ["SESSION", "USAGE", "5H LEFT", "WEEK LEFT", "UPDATED"];
+    ? ["SESSION", "PROVIDER", "5H LEFT", "WEEK LEFT", "RESET", "UPDATED"]
+    : ["SESSION", "5H LEFT", "WEEK LEFT", "RESET", "UPDATED"];
   if (rows.length === 0) {
-    return ["SESSION  USAGE  5H LEFT  WEEK LEFT  UPDATED", "No saved sessions yet."].join("\n");
+    return ["SESSION  5H LEFT  WEEK LEFT  RESET  UPDATED", "No saved sessions yet."].join("\n");
   }
   const tableRows = rows.map((row) => {
     const base = [row.session_name];
@@ -123,40 +125,29 @@ function formatStatusRows(rows) {
       base.push(row.provider || "n/a");
     }
     base.push(
-      formatPct(row.usage_pct),
       formatPct(row.remaining_5h_pct),
       formatPct(row.remaining_week_pct),
+      row.reset_at || "-",
       formatRelativeAge(row.updated_at),
     );
     return base;
   });
-  return [padTable([headers, ...tableRows])].join("\n");
+  return [
+    padTable([headers, ...tableRows]),
+    "",
+    "Tip: run /status in codex to refresh. Claude sessions refresh automatically.",
+  ].join("\n");
 }
 
 function formatStatusDetail(row) {
-  const sessionUsage = formatPct(row.usage_pct);
-  const sessionRemaining = formatPct(row.remaining_5h_pct);
-  const weekUsage = row.remaining_week_pct === null || row.remaining_week_pct === undefined
-    ? "n/a"
-    : `${Math.max(0, 100 - row.remaining_week_pct)}%`;
-  const weekRemaining = formatPct(row.remaining_week_pct);
   const lines = [
     `Session: ${row.session_name}`,
     `Provider: ${row.provider || "n/a"}`,
-    "Usage summary:",
-    `- session used: ${sessionUsage}`,
-    `- 5h left: ${sessionRemaining}`,
-    `- week used: ${weekUsage}`,
-    `- week left: ${weekRemaining}`,
+    `5h left: ${formatPct(row.remaining_5h_pct)}`,
+    `Week left: ${formatPct(row.remaining_week_pct)}`,
+    `Next reset: ${row.reset_at || "n/a"}`,
     `Updated: ${formatRelativeAge(row.updated_at)}`,
-    "",
   ];
-  if (row.raw_status_text) {
-    lines.push("Raw last /status:");
-    lines.push(row.raw_status_text);
-  } else {
-    lines.push("Raw last /status: none");
-  }
   return lines.join("\n");
 }
 
@@ -185,7 +176,7 @@ function wrapLaunchWithTranscript(session, spec, options = {}) {
 function buildLaunchSpec(session, options = {}) {
   const cwd = options.cwd || process.cwd();
   if (session.provider === "claude") {
-    return wrapLaunchWithTranscript(session, {
+    return {
       command: "claude",
       args: ["--name", session.name],
       options: {
@@ -198,7 +189,7 @@ function buildLaunchSpec(session, options = {}) {
         },
       },
       label: "claude",
-    }, options);
+    };
   }
   return wrapLaunchWithTranscript(session, {
     command: "codex",
@@ -398,6 +389,13 @@ function confirmRemoval(stdin, stdout, name) {
   });
 }
 
+function parseCopyArgs(args) {
+  if (args.length !== 2) {
+    throw new CdxError("Usage: cdx cp <source> <dest>");
+  }
+  return { source: args[0], dest: args[1] };
+}
+
 function parseRemoveArgs(args) {
   const force = args.includes("--force");
   const names = args.filter((item) => item !== "--force");
@@ -453,6 +451,13 @@ async function main(argv, options = {}) {
     return 0;
   }
 
+  if (command === "cp") {
+    const { source, dest } = parseCopyArgs(rest);
+    const { overwritten } = service.copySession(source, dest);
+    stdout.write(`Copied session ${source} to ${dest}${overwritten ? " (overwritten)" : ""}\n`);
+    return 0;
+  }
+
   if (command === "rmv") {
     const { name, force } = parseRemoveArgs(rest);
     if (!force) {
@@ -470,17 +475,49 @@ async function main(argv, options = {}) {
   }
 
   if (command === "status") {
-    if (rest.length === 0) {
-      stdout.write(`${formatStatusRows(service.getStatusRows())}\n`);
+    const jsonFlag = rest.includes("--json");
+    const args = rest.filter((arg) => arg !== "--json");
+
+    const refreshClaudeSessions = async () => {
+      const sessions = service.listSessions();
+      await Promise.all(
+        sessions
+          .filter((s) => s.provider === "claude")
+          .map(async (s) => {
+            try {
+              const usage = await (options.refreshClaudeSessionStatus || refreshClaudeSessionStatus)(s);
+              if (usage) {
+                service.recordStatus(s.name, usage);
+              }
+            } catch {
+              // Silently ignore refresh failures (expired token, no network, etc.)
+            }
+          }),
+      );
+    };
+
+    if (args.length === 0) {
+      await refreshClaudeSessions();
+      const rows = service.getStatusRows();
+      if (jsonFlag) {
+        stdout.write(`${JSON.stringify(rows, null, 2)}\n`);
+        return 0;
+      }
+      stdout.write(`${formatStatusRows(rows)}\n`);
       return 0;
     }
-    if (rest.length !== 1) {
-      throw new CdxError("Usage: cdx status [name]");
+    if (args.length !== 1) {
+      throw new CdxError("Usage: cdx status [name] [--json]");
     }
+    await refreshClaudeSessions();
     const rows = service.getStatusRows();
-    const row = rows.find((item) => item.session_name === rest[0]);
+    const row = rows.find((item) => item.session_name === args[0]);
     if (!row) {
-      throw new CdxError(`Unknown session: ${rest[0]}`);
+      throw new CdxError(`Unknown session: ${args[0]}`);
+    }
+    if (jsonFlag) {
+      stdout.write(`${JSON.stringify(row, null, 2)}\n`);
+      return 0;
     }
     stdout.write(`${formatStatusDetail(row)}\n`);
     return 0;

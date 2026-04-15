@@ -9,6 +9,8 @@
   },
   "scripts": {
     "test": "node --test",
-    "lint": "node --check bin/cdx && node --check src/cli.js && node --check src/session-store.js && node --check src/session-service.js"
+    "lint": "node --check bin/cdx && node --check src/cli.js && node --check src/session-store.js && node --check src/session-service.js",
+    "link": "npm link",
+    "unlink": "npm unlink -g cdx-manager"
   }
 }
