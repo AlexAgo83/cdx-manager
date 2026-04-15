@@ -1,10 +1,10 @@
 ## task_003_multi_provider_session_support_for_codex_and_claude - multi-provider session support for Codex and Claude
 > From version: 1.13.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: High
 > Theme: CLI
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.

@@ -36,6 +36,17 @@ test("create session with explicit provider", () => {
   assert.equal(service.getSession("work1").provider, "claude");
 });
 
+test("launch preserves the provider for named sessions", () => {
+  const dir = makeTempDir();
+  const service = createSessionService({ baseDir: dir });
+
+  service.createSession("work1", "claude");
+  const launched = service.launchSession("work1");
+
+  assert.equal(launched.provider, "claude");
+  assert.equal(service.getSession("work1").provider, "claude");
+});
+
 test("launch rehydrates a stored session state", () => {
   const dir = makeTempDir();
   const service = createSessionService({ baseDir: dir });

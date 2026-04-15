@@ -54,11 +54,29 @@ test("add and launch sessions", async () => {
   assert.match(io2.getStdout(), /Launching codex session main/);
 });
 
+test("provider-specific sessions are supported", async () => {
+  const dir = makeTempDir();
+  const createIo = makeIo();
+  await main(["add", "claude", "work1"], { ...createIo, env: { CDX_HOME: dir } });
+  assert.match(createIo.getStdout(), /Created session work1 \(claude\)/);
+
+  const launchIo = makeIo();
+  await main(["work1"], { ...launchIo, env: { CDX_HOME: dir } });
+  assert.match(launchIo.getStdout(), /Launching claude session work1/);
+});
+
 test("list sessions shows next actions", async () => {
   const dir = makeTempDir();
+  const createIo = makeIo();
+  await main(["add", "main"], { ...createIo, env: { CDX_HOME: dir } });
+  const createIo2 = makeIo();
+  await main(["add", "claude", "work1"], { ...createIo2, env: { CDX_HOME: dir } });
+
   const io = makeIo();
   await main([], { ...io, env: { CDX_HOME: dir } });
   assert.match(io.getStdout(), /Next actions:/);
+  assert.match(io.getStdout(), /PROVIDER/);
+  assert.match(io.getStdout(), /claude/);
   assert.match(io.getStdout(), /cdx status/);
 });
 
