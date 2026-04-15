@@ -223,6 +223,7 @@ test("list sessions shows next actions", async () => {
   assert.match(io.getStdout(), /Next actions:/);
   assert.match(io.getStdout(), /PROVIDER/);
   assert.match(io.getStdout(), /claude/);
+  assert.match(io.getStdout(), /cdx rmv <name>/);
   assert.match(io.getStdout(), /cdx status/);
 });
 

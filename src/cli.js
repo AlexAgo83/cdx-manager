@@ -62,6 +62,7 @@ function formatSessions(service) {
   lines.push("  cdx <name>");
   lines.push("  cdx login <name>");
   lines.push("  cdx logout <name>");
+  lines.push("  cdx rmv <name>");
   lines.push("  cdx status");
   return lines.join("\n");
 }
