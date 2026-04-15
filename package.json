@@ -1,8 +1,15 @@
 {
   "name": "cdx-manager",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Terminal session manager for Codex and Claude accounts.",
+  "files": [
+    "bin",
+    "changelogs",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "bin": {
     "cdx": "./bin/cdx"
   },

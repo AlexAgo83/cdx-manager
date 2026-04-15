@@ -14,7 +14,7 @@ from .claude_usage import refresh_claude_session_status
 from .errors import CdxError
 from .session_service import create_session_service
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 LOG_ROTATE_BYTES = 10 * 1024 * 1024  # 10 MB
 
 

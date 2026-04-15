@@ -6,7 +6,7 @@ If you use AI coding tools at scale ; multiple accounts, multiple providers : yo
 
 One command to launch any session. Zero auth juggling.
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.1.0-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.1.1-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
 ---
 
@@ -126,6 +126,7 @@ cdx status
 | `cdx login <name>` | Re-authenticate a session (logout + login) |
 | `cdx logout <name>` | Log out of a session |
 | `cdx rmv <name> [--force]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
+| `cdx clean [name]` | Clear launch transcript logs for one session or all sessions |
 | `cdx status [--json]` | Show token usage table for all sessions |
 | `cdx status <name> [--json]` | Show detailed usage breakdown for one session |
 | `cdx --help` | Show usage |

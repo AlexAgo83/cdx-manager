@@ -126,7 +126,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Usage:", help_io["stdout"].getvalue())
 
         self.assertEqual(main(["-v"], version_io), 0)
-        self.assertIn("0.1.0", version_io["stdout"].getvalue())
+        self.assertRegex(version_io["stdout"].getvalue().strip(), r"^\d+\.\d+\.\d+$")
 
     def test_add_and_launch_codex_session(self):
         temp_dir = self.make_temp_dir()
