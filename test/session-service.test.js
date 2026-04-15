@@ -118,3 +118,83 @@ test("status rows are normalized and sorted by recency", () => {
   assert.equal(rows[0].raw_status_text, "work1 raw");
   assert.equal(rows[1].session_name, "main");
 });
+
+test("status rows can be derived from session artifacts", () => {
+  const dir = makeTempDir();
+  const service = createSessionService({ baseDir: dir });
+
+  service.createSession("main");
+  const sessionLog = path.join(dir, "profiles", encodeURIComponent("main"), "log", "cdx-session.log");
+  fs.mkdirSync(path.dirname(sessionLog), { recursive: true });
+  fs.writeFileSync(
+    sessionLog,
+    [
+      "2026-04-15T19:09:31.864Z  INFO /status",
+      "Usage: 61%",
+      "5h remaining: 39%",
+      "Week remaining: 70%",
+    ].join("\n"),
+  );
+
+  const rows = service.getStatusRows();
+  assert.equal(rows[0].session_name, "main");
+  assert.equal(rows[0].usage_pct, 61);
+  assert.equal(rows[0].remaining_5h_pct, 39);
+  assert.equal(rows[0].remaining_week_pct, 70);
+  assert.match(rows[0].raw_status_text, /Usage: 61%/);
+});
+
+test("status rows can be derived from codex limit output", () => {
+  const dir = makeTempDir();
+  const service = createSessionService({ baseDir: dir });
+
+  service.createSession("main");
+  const sessionLog = path.join(dir, "profiles", encodeURIComponent("main"), "log", "cdx-session.log");
+  fs.mkdirSync(path.dirname(sessionLog), { recursive: true });
+  fs.writeFileSync(
+    sessionLog,
+    [
+      "│  5h limit:             [████████████████████] 100% left",
+      "│                        (resets 02:21 on 16 Apr)            │",
+      "│  Weekly limit:         [░░░░░░░░░░░░░░░░░░░░] 0% left",
+      "│                        (resets 10:10 on 17 Apr)            │",
+    ].join("\n"),
+  );
+
+  const rows = service.getStatusRows();
+  assert.equal(rows[0].session_name, "main");
+  assert.equal(rows[0].remaining_5h_pct, 100);
+  assert.equal(rows[0].remaining_week_pct, 0);
+  assert.equal(rows[0].usage_pct, 0);
+});
+
+test("status rows can be derived from claude usage output", () => {
+  const dir = makeTempDir();
+  const service = createSessionService({ baseDir: dir });
+
+  service.createSession("work1", "claude");
+  const sessionLog = path.join(dir, "profiles", encodeURIComponent("work1"), "claude-home", "log", "cdx-session.log");
+  fs.mkdirSync(path.dirname(sessionLog), { recursive: true });
+  fs.writeFileSync(
+    sessionLog,
+    [
+      "Current session · Resets 2am (Europe/Paris)",
+      "",
+      "0% used",
+      "",
+      "Current week (all models) · Resets Apr 21 at 2pm (Europe/Paris)",
+      "14% used",
+      "",
+      "Extra usage",
+      "Extra usage not enabled · /extra-usage to enable",
+    ].join("\n"),
+  );
+
+  const rows = service.getStatusRows();
+  assert.equal(rows[0].session_name, "work1");
+  assert.equal(rows[0].provider, "claude");
+  assert.equal(rows[0].usage_pct, 0);
+  assert.equal(rows[0].remaining_5h_pct, 100);
+  assert.equal(rows[0].remaining_week_pct, 86);
+  assert.match(rows[0].raw_status_text, /Current session/);
+});

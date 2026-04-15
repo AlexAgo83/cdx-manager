@@ -110,11 +110,12 @@ test("add and launch sessions", async () => {
   assert.match(io2.getStdout(), /Launching codex session main/);
   const authProbe = launcher.calls.find((call) => call.kind === "spawnSync" && call.command === "codex" && call.args[0] === "login" && call.args[1] === "status");
   const bootstrapLogin = launcher.calls.find((call) => call.kind === "spawn" && call.command === "codex" && call.args[0] === "login" && call.args.length === 1);
-  const launchSpawn = launcher.calls.find((call) => call.kind === "spawn" && call.command === "codex" && call.args[0] === "--no-alt-screen");
+  const launchSpawn = launcher.calls.find((call) => call.kind === "spawn" && call.command === "script");
   assert.ok(authProbe);
   assert.ok(bootstrapLogin);
   assert.ok(launchSpawn);
-  assert.deepEqual(launchSpawn.args.slice(0, 3), ["--no-alt-screen", "--cd", process.cwd()]);
+  assert.deepEqual(launchSpawn.args.slice(0, 3), ["-q", path.join(dir, "profiles", encodeURIComponent("main"), "log", "cdx-session.log"), "codex"]);
+  assert.deepEqual(launchSpawn.args.slice(3, 6), ["--no-alt-screen", "--cd", process.cwd()]);
   assert.equal(launchSpawn.options.env.CODEX_HOME, path.join(dir, "profiles", encodeURIComponent("main")));
 });
 
@@ -129,10 +130,11 @@ test("provider-specific sessions are supported", async () => {
   await main(["work1"], { ...launchIo, env: { CDX_HOME: dir }, spawn: launcher.spawn, spawnSync: launcher.spawnSync, stdin: launchIo.stdin });
   assert.match(launchIo.getStdout(), /Launching claude session work1/);
   const bootstrapLogin = launcher.calls.find((call) => call.kind === "spawn" && call.command === "claude" && call.args[0] === "auth" && call.args[1] === "login");
-  const launchSpawn = launcher.calls.find((call) => call.kind === "spawn" && call.command === "claude" && call.args[0] === "--name");
+  const launchSpawn = launcher.calls.find((call) => call.kind === "spawn" && call.command === "script");
   assert.ok(bootstrapLogin);
   assert.ok(launchSpawn);
-  assert.deepEqual(launchSpawn.args, ["--name", "work1"]);
+  assert.deepEqual(launchSpawn.args.slice(0, 3), ["-q", path.join(dir, "profiles", encodeURIComponent("work1"), "claude-home", "log", "cdx-session.log"), "claude"]);
+  assert.deepEqual(launchSpawn.args.slice(3), ["--name", "work1"]);
   assert.equal(launchSpawn.options.cwd, process.cwd());
   assert.equal(launchSpawn.options.env.HOME, path.join(dir, "profiles", encodeURIComponent("work1"), "claude-home"));
 });

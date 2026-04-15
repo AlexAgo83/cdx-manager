@@ -1,6 +1,8 @@
 "use strict";
 
 const { spawn, spawnSync } = require("child_process");
+const fs = require("fs");
+const path = require("path");
 const readline = require("readline");
 const { createSessionService } = require("./session-service");
 const { CdxError } = require("./errors");
@@ -132,12 +134,20 @@ function formatStatusRows(rows) {
 }
 
 function formatStatusDetail(row) {
+  const sessionUsage = formatPct(row.usage_pct);
+  const sessionRemaining = formatPct(row.remaining_5h_pct);
+  const weekUsage = row.remaining_week_pct === null || row.remaining_week_pct === undefined
+    ? "n/a"
+    : `${Math.max(0, 100 - row.remaining_week_pct)}%`;
+  const weekRemaining = formatPct(row.remaining_week_pct);
   const lines = [
     `Session: ${row.session_name}`,
     `Provider: ${row.provider || "n/a"}`,
-    `Usage: ${formatPct(row.usage_pct)}`,
-    `5h left: ${formatPct(row.remaining_5h_pct)}`,
-    `Week left: ${formatPct(row.remaining_week_pct)}`,
+    "Usage summary:",
+    `- session used: ${sessionUsage}`,
+    `- 5h left: ${sessionRemaining}`,
+    `- week used: ${weekUsage}`,
+    `- week left: ${weekRemaining}`,
     `Updated: ${formatRelativeAge(row.updated_at)}`,
     "",
   ];
@@ -154,10 +164,28 @@ function getAuthHome(session) {
   return session.authHome || session.sessionRoot || session.codexHome;
 }
 
+function getLaunchTranscriptPath(session) {
+  return path.join(getAuthHome(session), "log", "cdx-session.log");
+}
+
+function wrapLaunchWithTranscript(session, spec, options = {}) {
+  if (options.captureTranscript === false) {
+    return spec;
+  }
+  const transcriptPath = getLaunchTranscriptPath(session);
+  fs.mkdirSync(path.dirname(transcriptPath), { recursive: true });
+  return {
+    command: "script",
+    args: ["-q", transcriptPath, spec.command, ...spec.args],
+    options: spec.options,
+    label: spec.label,
+  };
+}
+
 function buildLaunchSpec(session, options = {}) {
   const cwd = options.cwd || process.cwd();
   if (session.provider === "claude") {
-    return {
+    return wrapLaunchWithTranscript(session, {
       command: "claude",
       args: ["--name", session.name],
       options: {
@@ -170,9 +198,9 @@ function buildLaunchSpec(session, options = {}) {
         },
       },
       label: "claude",
-    };
+    }, options);
   }
-  return {
+  return wrapLaunchWithTranscript(session, {
     command: "codex",
     args: ["--no-alt-screen", "--cd", cwd],
     options: {
@@ -184,7 +212,7 @@ function buildLaunchSpec(session, options = {}) {
       },
     },
     label: "codex",
-  };
+  }, options);
 }
 
 function buildLoginStatusSpec(session, options = {}) {

@@ -5,6 +5,7 @@ const path = require("path");
 const { createSessionStore } = require("./session-store");
 const { getCdxHome } = require("./config");
 const { CdxError } = require("./errors");
+const { findLatestStatusArtifact } = require("./status-source");
 
 const DEFAULT_PROVIDER = "codex";
 const ALLOWED_PROVIDERS = new Set(["codex", "claude"]);
@@ -130,6 +131,26 @@ function createSessionService(options = {}) {
     return updated;
   }
 
+  function resolveSessionStatus(session) {
+    if (session.lastStatus) {
+      return session.lastStatus;
+    }
+    const sourceRoot = session.authHome || getSessionAuthHome(session.name, session.provider);
+    const artifact = findLatestStatusArtifact(sourceRoot);
+    if (!artifact) {
+      return null;
+    }
+    const normalizedStatus = normalizeStatusPayload({
+      usagePct: artifact.usagePct,
+      remaining5hPct: artifact.remaining5hPct,
+      remainingWeekPct: artifact.remainingWeekPct,
+      updatedAt: artifact.updatedAt,
+      rawStatusText: artifact.rawStatusText,
+      sourceRef: artifact.sourceRef,
+    });
+    return normalizedStatus;
+  }
+
   function updateAuthState(name, updater) {
     const now = new Date().toISOString();
     const updated = store.updateSession(name, (session) => ({
@@ -145,7 +166,18 @@ function createSessionService(options = {}) {
 
   function getStatusRows() {
     const sessions = listSessions();
-    return sessions
+    const resolvedSessions = sessions.map((session) => {
+      const resolvedStatus = resolveSessionStatus(session);
+      if (!resolvedStatus) {
+        return session;
+      }
+      return {
+        ...session,
+        lastStatus: resolvedStatus,
+        lastStatusAt: session.lastStatusAt || resolvedStatus.updatedAt,
+      };
+    });
+    return resolvedSessions
       .slice()
       .sort((left, right) => {
         const leftStatusAt = left.lastStatusAt || "";
