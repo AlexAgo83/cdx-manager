@@ -9,3 +9,4 @@ logics/.cache/hybrid_assist_measurements.jsonl
 logics/hybrid_assist_audit.jsonl
 logics/hybrid_assist_measurements.jsonl
 logics/mutation_audit.jsonl
+node_modules/
