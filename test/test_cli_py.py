@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta
 
-from src.cli import _format_reset_time, main
+from src.cli import _format_blocking_quota, _format_reset_time, _format_status_rows, main
 from src.errors import CdxError
 from src.session_service import create_session_service
 
@@ -127,6 +127,62 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn(_format_reset_time(future.isoformat()), ("in 2h 29m", "in 2h 30m"))
         self.assertEqual(_format_reset_time(later.isoformat()), later.isoformat())
         self.assertEqual(_format_reset_time(past.isoformat()), "passed 1h ago")
+
+    def test_status_table_is_sorted_by_priority_availability(self):
+        output = _format_status_rows([
+            {
+                "session_name": "blocked",
+                "provider": "codex",
+                "available_pct": 0,
+                "remaining_5h_pct": 0,
+                "remaining_week_pct": 80,
+                "credits": None,
+                "reset_5h_at": None,
+                "reset_week_at": None,
+                "updated_at": None,
+            },
+            {
+                "session_name": "available",
+                "provider": "codex",
+                "available_pct": 42,
+                "remaining_5h_pct": 42,
+                "remaining_week_pct": 90,
+                "credits": None,
+                "reset_5h_at": None,
+                "reset_week_at": None,
+                "updated_at": None,
+            },
+            {
+                "session_name": "credit",
+                "provider": "codex",
+                "available_pct": 95,
+                "remaining_5h_pct": 95,
+                "remaining_week_pct": 95,
+                "credits": 453,
+                "reset_5h_at": None,
+                "reset_week_at": None,
+                "updated_at": None,
+            },
+        ])
+
+        lines = output.splitlines()
+        self.assertTrue(lines[1].startswith("available"))
+        self.assertTrue(lines[2].startswith("credit"))
+        self.assertTrue(lines[3].startswith("blocked"))
+
+    def test_blocking_quota_formatting_identifies_lowest_limit(self):
+        self.assertEqual(_format_blocking_quota({
+            "remaining_5h_pct": 99,
+            "remaining_week_pct": 0,
+        }), "WEEK")
+        self.assertEqual(_format_blocking_quota({
+            "remaining_5h_pct": 0,
+            "remaining_week_pct": 75,
+        }), "5H")
+        self.assertEqual(_format_blocking_quota({
+            "remaining_5h_pct": 0,
+            "remaining_week_pct": 0,
+        }), "5H+WEEK")
 
     def test_help_and_version_flags(self):
         help_io = self.make_io()
@@ -405,6 +461,49 @@ class CliPythonTests(unittest.TestCase):
 
         self.assertIn(
             "Priority: use work1 first (6% OK), next claude (0% OK, 5H resets first).",
+            status_io["stdout"].getvalue(),
+        )
+
+    def test_status_uses_blocking_reset_before_credit_penalty_for_blocked_accounts(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        soon = datetime.now() + timedelta(hours=1)
+        later = datetime.now() + timedelta(hours=2)
+        service["create_session"]("work1")
+        service["create_session"]("credit")
+        service["create_session"]("regular")
+        service["record_status"]("work1", {
+            "remaining_5h_pct": 100,
+            "remaining_week_pct": 6,
+            "reset_5h_at": later.astimezone().isoformat(),
+            "reset_week_at": later.astimezone().isoformat(),
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+        service["record_status"]("credit", {
+            "remaining_5h_pct": 99,
+            "remaining_week_pct": 0,
+            "credits": 453,
+            "reset_5h_at": later.astimezone().isoformat(),
+            "reset_week_at": soon.astimezone().isoformat(),
+            "updated_at": "2026-04-15T10:01:00+00:00",
+        })
+        service["record_status"]("regular", {
+            "remaining_5h_pct": 0,
+            "remaining_week_pct": 80,
+            "reset_5h_at": later.astimezone().isoformat(),
+            "reset_week_at": later.astimezone().isoformat(),
+            "updated_at": "2026-04-15T10:02:00+00:00",
+        })
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        self.assertIn(
+            "Priority: use work1 first (6% OK), next credit (0% OK, WEEK resets first).",
             status_io["stdout"].getvalue(),
         )
 

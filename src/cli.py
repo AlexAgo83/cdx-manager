@@ -154,13 +154,14 @@ def _format_sessions(service):
 def _format_status_rows(rows):
     has_provider = len({r["provider"] for r in rows}) > 1
     if has_provider:
-        headers = ["SESSION", "PROV.", "OK", "5H", "WEEK", "CR", "RESET 5H", "RESET WEEK", "UPDATED"]
+        headers = ["SESSION", "PROV.", "OK", "5H", "WEEK", "BLOCK", "CR", "RESET 5H", "RESET WEEK", "UPDATED"]
     else:
-        headers = ["SESSION", "OK", "5H", "WEEK", "CR", "RESET 5H", "RESET WEEK", "UPDATED"]
+        headers = ["SESSION", "OK", "5H", "WEEK", "BLOCK", "CR", "RESET 5H", "RESET WEEK", "UPDATED"]
     if not rows:
-        return "SESSION  OK  5H  WEEK  CR  RESET 5H  RESET WEEK  UPDATED\nNo saved sessions yet."
+        return "SESSION  OK  5H  WEEK  BLOCK  CR  RESET 5H  RESET WEEK  UPDATED\nNo saved sessions yet."
+    priority = _recommend_priority_sessions(rows)
     table_rows = []
-    for r in rows:
+    for r in priority:
         base = [r["session_name"]]
         if has_provider:
             base.append(r.get("provider") or "n/a")
@@ -168,13 +169,13 @@ def _format_status_rows(rows):
             _format_pct(r.get("available_pct")),
             _format_pct(r.get("remaining_5h_pct")),
             _format_pct(r.get("remaining_week_pct")),
+            _format_blocking_quota(r),
             str(r["credits"]) if r.get("credits") is not None else "-",
             _format_reset_time(r.get("reset_5h_at")),
             _format_reset_time(r.get("reset_week_at")),
             _format_relative_age(r.get("updated_at")),
         ]
         table_rows.append(base)
-    priority = _recommend_priority_sessions(rows)
     priority_line = (
         f"Priority: {_priority_instruction(priority[0], 'first')}"
         + (
@@ -185,8 +186,8 @@ def _format_status_rows(rows):
     return "\n".join([
         _pad_table([headers] + table_rows),
         "",
-        "Tip: run /status in codex to refresh. Claude sessions refresh automatically.",
         priority_line,
+        "Tip: run /status in codex to refresh. Claude sessions refresh automatically.",
     ])
 
 
@@ -196,6 +197,7 @@ def _recommend_priority_sessions(rows):
 
     def rank(row):
         has_credits = row.get("credits") is not None
+        credit_rank = 0 if has_credits else 1
         available = row.get("available_pct")
         usable_now = available is not None and available > 0
         known_available = available is not None
@@ -203,18 +205,34 @@ def _recommend_priority_sessions(rows):
         reset_is_future = reset_timestamp is not None and reset_timestamp >= _now_timestamp()
         blocked_future = not usable_now and reset_is_future
         reset_is_known = reset_timestamp is not None
-        return (
-            0 if has_credits else 1,
-            1 if usable_now else 0,
-            1 if blocked_future else 0,
-            1 if known_available else 0,
-            available if available is not None else -1,
-            1 if reset_is_known else 0,
-            -reset_timestamp if reset_timestamp is not None else float("-inf"),
-            row.get("session_name") or "",
-        )
+        reset_rank = -reset_timestamp if reset_is_known else float("-inf")
+        available_rank = available if available is not None else -1
+        name_rank = row.get("session_name") or ""
+        if usable_now:
+            return (3, credit_rank, 1 if known_available else 0, available_rank, reset_rank, name_rank)
+        if blocked_future:
+            return (2, 1 if reset_is_known else 0, reset_rank, credit_rank, available_rank, name_rank)
+        if reset_is_known:
+            return (1, reset_rank, credit_rank, 1 if known_available else 0, available_rank, name_rank)
+        return (0, credit_rank, 1 if known_available else 0, available_rank, name_rank)
 
     return sorted(rows, key=rank, reverse=True)
+
+
+def _format_blocking_quota(row):
+    remaining_5h = row.get("remaining_5h_pct")
+    remaining_week = row.get("remaining_week_pct")
+    if remaining_5h is None and remaining_week is None:
+        return "?"
+    if remaining_5h is None:
+        return "WEEK"
+    if remaining_week is None:
+        return "5H"
+    if remaining_5h < remaining_week:
+        return "5H"
+    if remaining_week < remaining_5h:
+        return "WEEK"
+    return "5H+WEEK"
 
 
 def _priority_instruction(row, position):
