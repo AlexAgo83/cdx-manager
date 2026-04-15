@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 import urllib.error
+from datetime import datetime, timezone
 from unittest import mock
 
 from src import claude_usage
@@ -24,6 +25,10 @@ class _Response:
 
 
 class RuntimePythonTests(unittest.TestCase):
+    def format_local_reset(self, unix_seconds):
+        dt = datetime.fromtimestamp(unix_seconds, tz=timezone.utc).astimezone()
+        return f"{dt.strftime('%b')} {dt.day} {str(dt.hour).zfill(2)}:{str(dt.minute).zfill(2)}"
+
     def test_fetch_claude_rate_limit_headers_from_success_response(self):
         headers = {
             "anthropic-ratelimit-unified-5h-utilization": "0.19",
@@ -35,7 +40,13 @@ class RuntimePythonTests(unittest.TestCase):
             result = claude_usage.fetch_claude_rate_limit_headers("token")
         self.assertEqual(result["remaining_5h_pct"], 81)
         self.assertEqual(result["remaining_week_pct"], 75)
-        self.assertIsNotNone(result["reset_at"])
+        self.assertEqual(result["reset_5h_at"], self.format_local_reset(1776464880))
+        self.assertEqual(result["reset_week_at"], self.format_local_reset(1777065600))
+        self.assertEqual(result["reset_at"], self.format_local_reset(1777065600))
+        self.assertEqual(
+            datetime.fromisoformat(result["updated_at"]).utcoffset(),
+            datetime.now().astimezone().utcoffset(),
+        )
 
     def test_fetch_claude_rate_limit_headers_from_http_error_headers(self):
         headers = {
@@ -53,6 +64,9 @@ class RuntimePythonTests(unittest.TestCase):
             result = claude_usage.fetch_claude_rate_limit_headers("token")
         self.assertEqual(result["remaining_5h_pct"], 50)
         self.assertIsNone(result["remaining_week_pct"])
+        self.assertEqual(result["reset_5h_at"], self.format_local_reset(1776464880))
+        self.assertIsNone(result["reset_week_at"])
+        self.assertEqual(result["reset_at"], self.format_local_reset(1776464880))
 
     def test_fetch_claude_rate_limit_headers_returns_none_on_url_error(self):
         with mock.patch("urllib.request.urlopen", side_effect=urllib.error.URLError("offline")):

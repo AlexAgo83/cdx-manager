@@ -19,8 +19,8 @@ def _read_claude_credentials(auth_home):
 
 
 def _format_reset_date(unix_seconds):
-    dt = datetime.fromtimestamp(unix_seconds, tz=timezone.utc)
-    return f"{MONTH_ABBR[dt.month - 1]} {dt.day}"
+    dt = datetime.fromtimestamp(unix_seconds, tz=timezone.utc).astimezone()
+    return f"{MONTH_ABBR[dt.month - 1]} {dt.day} {str(dt.hour).zfill(2)}:{str(dt.minute).zfill(2)}"
 
 
 def fetch_claude_rate_limit_headers(access_token):
@@ -60,14 +60,17 @@ def fetch_claude_rate_limit_headers(access_token):
     utilization_5h = float(util_5h) if util_5h is not None else None
     utilization_7d = float(util_7d) if util_7d is not None else None
 
-    reset_ts = reset_7d or reset_5h
-    reset_at = _format_reset_date(int(reset_ts)) if reset_ts else None
+    reset_5h_at = _format_reset_date(int(reset_5h)) if reset_5h else None
+    reset_week_at = _format_reset_date(int(reset_7d)) if reset_7d else None
+    reset_at = reset_week_at or reset_5h_at
 
     return {
         "remaining_5h_pct": round((1 - utilization_5h) * 100) if utilization_5h is not None else None,
         "remaining_week_pct": round((1 - utilization_7d) * 100) if utilization_7d is not None else None,
+        "reset_5h_at": reset_5h_at,
+        "reset_week_at": reset_week_at,
         "reset_at": reset_at,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now().astimezone().isoformat(),
         "raw_status_text": None,
         "source_ref": "api:anthropic-ratelimit-headers",
     }

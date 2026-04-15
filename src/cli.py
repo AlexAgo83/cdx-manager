@@ -7,6 +7,7 @@ import subprocess
 import sys
 import threading
 import inspect
+import glob
 from datetime import datetime, timezone
 
 from .claude_usage import refresh_claude_session_status
@@ -69,6 +70,10 @@ def _format_relative_age(iso_value):
     return f"{hours // 24}d ago"
 
 
+def _local_now_iso():
+    return datetime.now().astimezone().isoformat()
+
+
 def _format_pct(value):
     if value is None:
         return "n/a"
@@ -116,20 +121,22 @@ def _format_sessions(service):
 def _format_status_rows(rows):
     has_provider = len({r["provider"] for r in rows}) > 1
     if has_provider:
-        headers = ["SESSION", "PROVIDER", "5H LEFT", "WEEK LEFT", "RESET", "UPDATED"]
+        headers = ["SESSION", "PROVIDER", "AVAILABLE", "5H LEFT", "WEEK LEFT", "RESET 5H", "RESET WEEK", "UPDATED"]
     else:
-        headers = ["SESSION", "5H LEFT", "WEEK LEFT", "RESET", "UPDATED"]
+        headers = ["SESSION", "AVAILABLE", "5H LEFT", "WEEK LEFT", "RESET 5H", "RESET WEEK", "UPDATED"]
     if not rows:
-        return "SESSION  5H LEFT  WEEK LEFT  RESET  UPDATED\nNo saved sessions yet."
+        return "SESSION  AVAILABLE  5H LEFT  WEEK LEFT  RESET 5H  RESET WEEK  UPDATED\nNo saved sessions yet."
     table_rows = []
     for r in rows:
         base = [r["session_name"]]
         if has_provider:
             base.append(r.get("provider") or "n/a")
         base += [
+            _format_pct(r.get("available_pct")),
             _format_pct(r.get("remaining_5h_pct")),
             _format_pct(r.get("remaining_week_pct")),
-            r.get("reset_at") or "-",
+            r.get("reset_5h_at") or "-",
+            r.get("reset_week_at") or "-",
             _format_relative_age(r.get("updated_at")),
         ]
         table_rows.append(base)
@@ -144,9 +151,11 @@ def _format_status_detail(row):
     lines = [
         f"Session: {row['session_name']}",
         f"Provider: {row.get('provider') or 'n/a'}",
+        f"Available: {_format_pct(row.get('available_pct'))}",
         f"5h left: {_format_pct(row.get('remaining_5h_pct'))}",
         f"Week left: {_format_pct(row.get('remaining_week_pct'))}",
-        f"Next reset: {row.get('reset_at') or 'n/a'}",
+        f"5h reset: {row.get('reset_5h_at') or 'n/a'}",
+        f"Week reset: {row.get('reset_week_at') or 'n/a'}",
         f"Updated: {_format_relative_age(row.get('updated_at'))}",
     ]
     return "\n".join(lines)
@@ -164,6 +173,29 @@ def _get_launch_transcript_path(session):
     return os.path.join(_get_auth_home(session), "log", "cdx-session.log")
 
 
+def _get_launch_transcript_dir(session):
+    return os.path.join(_get_auth_home(session), "log")
+
+
+def _build_launch_transcript_path(session):
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    return os.path.join(
+        _get_launch_transcript_dir(session),
+        f"cdx-session-{stamp}-{os.getpid()}.log",
+    )
+
+
+def _list_launch_transcript_paths(session):
+    log_dir = _get_launch_transcript_dir(session)
+    if not os.path.isdir(log_dir):
+        return []
+    paths = set(glob.glob(os.path.join(log_dir, "cdx-session*.log")))
+    legacy = _get_launch_transcript_path(session)
+    if os.path.exists(legacy):
+        paths.add(legacy)
+    return sorted(paths)
+
+
 def _rotate_log_if_needed(log_path):
     try:
         if os.path.getsize(log_path) >= LOG_ROTATE_BYTES:
@@ -175,12 +207,12 @@ def _rotate_log_if_needed(log_path):
 def _wrap_launch_with_transcript(session, spec, capture_transcript=True):
     if not capture_transcript:
         return spec
-    transcript_path = _get_launch_transcript_path(session)
+    transcript_path = _build_launch_transcript_path(session)
     os.makedirs(os.path.dirname(transcript_path), exist_ok=True)
     _rotate_log_if_needed(transcript_path)
     return {
         "command": "script",
-        "args": ["-q", transcript_path, spec["command"]] + spec["args"],
+        "args": ["-q", "-F", transcript_path, spec["command"]] + spec["args"],
         "options": spec["options"],
         "label": spec["label"],
     }
@@ -478,7 +510,7 @@ def main(argv, options=None):
             session, service, spawn=spawn, spawn_sync=spawn_sync,
             stdin_is_tty=stdin_is_tty, behavior="bootstrap", signal_emitter=signal_emitter,
         )
-        now = datetime.now(timezone.utc).isoformat()
+        now = _local_now_iso()
         service["update_auth_state"](parsed["name"], lambda auth: {
             **auth,
             "status": "authenticated",
@@ -529,12 +561,25 @@ def main(argv, options=None):
         else:
             raise CdxError("Usage: cdx clean [name]")
         for session in targets:
-            log_path = _get_launch_transcript_path(session)
-            try:
-                size = os.path.getsize(log_path)
-                open(log_path, "w").close()
-                out(f"Cleared {session['name']} log ({round(size / 1024)} KB freed)\n")
-            except OSError:
+            log_paths = _list_launch_transcript_paths(session)
+            if not log_paths:
+                out(f"{session['name']}: no log found\n")
+                continue
+            total_size = 0
+            cleared = 0
+            for log_path in log_paths:
+                try:
+                    total_size += os.path.getsize(log_path)
+                    open(log_path, "w").close()
+                    cleared += 1
+                except OSError:
+                    continue
+            if cleared:
+                out(
+                    f"Cleared {session['name']} logs ({cleared} file"
+                    f"{'' if cleared == 1 else 's'}, {round(total_size / 1024)} KB freed)\n"
+                )
+            else:
                 out(f"{session['name']}: no log found\n")
         return 0
 
@@ -573,7 +618,7 @@ def main(argv, options=None):
             raise CdxError(f"Unknown session: {rest[0]}")
         _run_interactive_provider_command(session, "logout", spawn=spawn, signal_emitter=signal_emitter)
         _run_interactive_provider_command(session, "login", spawn=spawn, signal_emitter=signal_emitter)
-        now = datetime.now(timezone.utc).isoformat()
+        now = _local_now_iso()
         service["update_auth_state"](rest[0], lambda auth: {
             **auth, "status": "authenticated",
             "lastCheckedAt": now, "lastAuthenticatedAt": now,
@@ -588,7 +633,7 @@ def main(argv, options=None):
         if not session:
             raise CdxError(f"Unknown session: {rest[0]}")
         _run_interactive_provider_command(session, "logout", spawn=spawn, signal_emitter=signal_emitter)
-        now = datetime.now(timezone.utc).isoformat()
+        now = _local_now_iso()
         service["update_auth_state"](rest[0], lambda auth: {
             **auth, "status": "logged_out",
             "lastCheckedAt": now, "lastLoggedOutAt": now,
@@ -611,6 +656,8 @@ def main(argv, options=None):
             stdin_is_tty=stdin_is_tty, behavior="launch", signal_emitter=signal_emitter,
         )
         out(f"Launching {session['provider']} session {session['name']}\n")
+        if session["provider"] == "codex":
+            out("Tip: run /status once the Codex session opens.\n")
         _run_interactive_provider_command(session, "launch", spawn=spawn, signal_emitter=signal_emitter)
         return 0
 

@@ -153,13 +153,19 @@ class CliPythonTests(unittest.TestCase):
             "spawn_sync": harness.spawn_sync,
         }), 0)
         self.assertIn("Launching codex session main", launch_io["stdout"].getvalue())
+        self.assertIn("Tip: run /status once the Codex session opens.", launch_io["stdout"].getvalue())
 
         launch_call = next(call for call in harness.calls if call["kind"] == "spawn" and call["command"] == "script")
         self.assertEqual(
             launch_call["args"][:3],
-            ["-q", os.path.join(temp_dir, "profiles", "main", "log", "cdx-session.log"), "codex"],
+            ["-q", "-F", launch_call["args"][2]],
         )
-        self.assertEqual(launch_call["args"][3:6], ["--no-alt-screen", "--cd", os.getcwd()])
+        self.assertTrue(
+            launch_call["args"][2].startswith(os.path.join(temp_dir, "profiles", "main", "log", "cdx-session-"))
+        )
+        self.assertTrue(launch_call["args"][2].endswith(".log"))
+        self.assertEqual(launch_call["args"][3], "codex")
+        self.assertEqual(launch_call["args"][4:7], ["--no-alt-screen", "--cd", os.getcwd()])
 
     def test_add_and_launch_claude_session(self):
         temp_dir = self.make_temp_dir()
@@ -277,6 +283,8 @@ class CliPythonTests(unittest.TestCase):
             return {
                 "remaining_5h_pct": 80,
                 "remaining_week_pct": 60,
+                "reset_5h_at": "Apr 16 02:21",
+                "reset_week_at": "Apr 17 10:10",
                 "reset_at": "Apr 17",
                 "updated_at": "2026-04-15T10:00:00+00:00",
             }
@@ -292,7 +300,11 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
         output = status_io["stdout"].getvalue()
         self.assertIn("work1", output)
+        self.assertIn("AVAILABLE", output)
         self.assertIn("80%", output)
+        self.assertIn("60%", output)
+        self.assertIn("RESET 5H", output)
+        self.assertIn("RESET WEEK", output)
 
     def test_status_json_global_and_detail_contract(self):
         temp_dir = self.make_temp_dir()
@@ -301,6 +313,8 @@ class CliPythonTests(unittest.TestCase):
         service["record_status"]("main", {
             "remaining_5h_pct": 39,
             "remaining_week_pct": 70,
+            "reset_5h_at": "Apr 16 02:21",
+            "reset_week_at": "Apr 17 10:10",
             "reset_at": "Apr 17 10:10",
             "updated_at": "2026-04-15T10:00:00+00:00",
         })
@@ -314,8 +328,11 @@ class CliPythonTests(unittest.TestCase):
         rows = json.loads(global_io["stdout"].getvalue())
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["session_name"], "main")
+        self.assertEqual(rows[0]["available_pct"], 39)
         self.assertEqual(rows[0]["remaining_5h_pct"], 39)
         self.assertEqual(rows[0]["remaining_week_pct"], 70)
+        self.assertEqual(rows[0]["reset_5h_at"], "Apr 16 02:21")
+        self.assertEqual(rows[0]["reset_week_at"], "Apr 17 10:10")
 
         detail_io = self.make_io()
         self.assertEqual(main(["status", "main", "--json"], {
@@ -325,6 +342,9 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
         row = json.loads(detail_io["stdout"].getvalue())
         self.assertEqual(row["session_name"], "main")
+        self.assertEqual(row["available_pct"], 39)
+        self.assertEqual(row["reset_5h_at"], "Apr 16 02:21")
+        self.assertEqual(row["reset_week_at"], "Apr 17 10:10")
         self.assertEqual(row["reset_at"], "Apr 17 10:10")
 
     def test_invalid_status_syntax_raises_usage_error(self):

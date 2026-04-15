@@ -61,7 +61,14 @@ def _extract_status_blocks_from_text(text, provider=None, source_ref=None, times
     lines = normalized.split("\n")
     items = []
 
-    def collect_blocks(start_pattern, end_patterns, max_span=80):
+    def collect_blocks(
+        start_pattern,
+        end_patterns,
+        max_span=80,
+        pre_context=0,
+        context_pattern=None,
+        context_stop_patterns=None,
+    ):
         blocks = []
         index = 0
         while index < len(lines):
@@ -73,7 +80,18 @@ def _extract_status_blocks_from_text(text, provider=None, source_ref=None, times
                 if any(pattern.search(lines[cursor]) for pattern in end_patterns):
                     end_index = cursor
                     break
-            block = "\n".join(lines[index:end_index]).strip()
+            start_index = max(0, index - pre_context)
+            if context_pattern is not None:
+                cursor = index - 1
+                while cursor >= 0:
+                    line = lines[cursor]
+                    if context_stop_patterns and any(pattern.search(line) for pattern in context_stop_patterns):
+                        break
+                    if not context_pattern.search(line):
+                        break
+                    start_index = cursor
+                    cursor -= 1
+            block = "\n".join(lines[start_index:end_index]).strip()
             if block:
                 blocks.append(block)
             index = max(index + 1, end_index)
@@ -95,6 +113,15 @@ def _extract_status_blocks_from_text(text, provider=None, source_ref=None, times
             [re.compile(p, re.I) for p in [
                 r"^Credits\b", r"^To continue this session\b", r"^╰",
             ]],
+            context_pattern=re.compile(
+                r"^\s*$|^\s*(?:[│|]\s*)?(?:╭|Visit\b|information\b|Model:|Directory:|Permissions:|Agents\.md:|Account:|Collaboration mode:|Session:)",
+                re.I,
+            ),
+            context_stop_patterns=[
+                re.compile(r"^\s*(?:[│|]\s*)?5h\s+limit\b", re.I),
+                re.compile(r"^\s*(?:[│|]\s*)?Weekly\s+limit\b", re.I),
+                re.compile(r"^To continue this session\b", re.I),
+            ],
         ):
             items.append({"source_ref": source_ref, "timestamp": timestamp, "text": block})
 
@@ -158,13 +185,18 @@ def _parse_month_index(name):
 
 
 def _infer_reset_year(month, day):
-    now = datetime.now(timezone.utc)
+    now = datetime.now().astimezone()
     year = now.year
     try:
-        candidate = datetime(year, month + 1, day, tzinfo=timezone.utc)
+        candidate = datetime(
+            year,
+            month + 1,
+            day,
+            tzinfo=now.tzinfo,
+        )
     except ValueError:
         return year
-    two_days_ago = datetime.fromtimestamp(now.timestamp() - 2 * 24 * 3600, tz=timezone.utc)
+    two_days_ago = datetime.fromtimestamp(now.timestamp() - 2 * 24 * 3600, tz=now.tzinfo)
     return year + 1 if candidate < two_days_ago else year
 
 
@@ -172,8 +204,21 @@ def _normalize_reset_date(raw):
     if not raw:
         return None
 
+    raw = str(raw).strip()
+
     def pad(n):
         return str(n).zfill(2)
+
+    def format_time(hours, minutes):
+        return f"{pad(hours)}:{pad(minutes)}"
+
+    def parse_ampm(hours, minutes, meridiem):
+        normalized = meridiem.lower().replace(".", "")
+        if normalized == "pm" and hours != 12:
+            hours += 12
+        if normalized == "am" and hours == 12:
+            hours = 0
+        return hours, minutes
 
     # Codex: "10:10 on 17 Apr"
     m = re.match(r"(\d{1,2}):(\d{2})\s+on\s+(\d{1,2})\s+([A-Za-z]+)", raw, re.I)
@@ -184,16 +229,44 @@ def _normalize_reset_date(raw):
             year = _infer_reset_year(month, day)
             return f"{MONTH_ABBR[month]} {day} {pad(hours)}:{pad(minutes)}"
 
+    # Claude: "Thursday, April 17 at 5:00 AM" or "April 17, 2026, 5 PM"
+    m = re.match(
+        r"(?:[A-Za-z]+,\s+)?([A-Za-z]+)\s+(\d{1,2})(?:,\s+(\d{4}))?"
+        r"(?:\s*(?:,|at)\s*(\d{1,2})(?::(\d{2}))?\s*([ap]\.?m\.?))?$",
+        raw,
+        re.I,
+    )
+    if m:
+        month = _parse_month_index(m[1])
+        if month != -1:
+            day = int(m[2])
+            year = int(m[3]) if m[3] else _infer_reset_year(month, day)
+            if m[4]:
+                hours, minutes = parse_ampm(int(m[4]), int(m[5] or 0), m[6])
+                return f"{MONTH_ABBR[month]} {day} {format_time(hours, minutes)}"
+            return f"{MONTH_ABBR[month]} {day}"
+
+    # Claude session reset: "at 5:00 AM", "5:00 AM", or "today at 5 PM"
+    m = re.match(r"(?:today\s+)?(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*([ap]\.?m\.?)$", raw, re.I)
+    if m:
+        hours, minutes = parse_ampm(int(m[1]), int(m[2] or 0), m[3])
+        now = datetime.now().astimezone()
+        from datetime import timedelta
+        candidate = datetime(now.year, now.month, now.day, hours, minutes, tzinfo=now.tzinfo)
+        if candidate <= now:
+            candidate = candidate + timedelta(days=1)
+        return f"{MONTH_ABBR[candidate.month - 1]} {candidate.day} {format_time(hours, minutes)}"
+
     # Codex time-only: "21:51"
     m = re.match(r"^(\d{1,2}):(\d{2})$", raw)
     if m:
         hours, minutes = int(m[1]), int(m[2])
-        now = datetime.now(timezone.utc)
+        now = datetime.now().astimezone()
         from datetime import timedelta
-        candidate = datetime(now.year, now.month, now.day, hours, minutes, tzinfo=timezone.utc)
+        candidate = datetime(now.year, now.month, now.day, hours, minutes, tzinfo=now.tzinfo)
         if candidate <= now:
             candidate = candidate + timedelta(days=1)
-        return f"{MONTH_ABBR[candidate.month - 1]} {candidate.day} {pad(hours)}:{pad(minutes)}"
+        return f"{MONTH_ABBR[candidate.month - 1]} {candidate.day} {format_time(hours, minutes)}"
 
     # Claude: "Thursday, April 17" or "April 17" or "April 17, 2026"
     m = re.match(r"(?:[A-Za-z]+,\s+)?([A-Za-z]+)\s+(\d{1,2})(?:,\s+(\d{4}))?", raw, re.I)
@@ -207,6 +280,36 @@ def _normalize_reset_date(raw):
     return None
 
 
+def _extract_account_identity(text):
+    normalized = _normalize_terminal_transcript(text)
+    for line in normalized.split("\n"):
+        m = re.match(r"^\s*(?:[│|]\s*)?Account:\s*(.+?)\s*$", line, re.I)
+        if not m:
+            continue
+        value = m.group(1).strip().lower()
+        if value:
+            return value
+    return None
+
+
+def _account_matches_expected(block_text, expected_account_email):
+    if not expected_account_email:
+        return True
+    actual = _extract_account_identity(block_text)
+    if not actual:
+        return True
+
+    expected = str(expected_account_email).strip().lower()
+    actual_email = re.split(r"\s|\(", actual, maxsplit=1)[0]
+    expected_email = re.split(r"\s|\(", expected, maxsplit=1)[0]
+
+    if actual_email == expected_email:
+        return True
+    if actual_email.startswith(expected_email) or expected_email.startswith(actual_email):
+        return min(len(actual_email), len(expected_email)) >= 8
+    return False
+
+
 def extract_named_statuses_from_text(text):
     normalized = _normalize_terminal_transcript(text)
     lines = [l.strip() for l in normalized.split("\n") if l.strip()]
@@ -218,6 +321,8 @@ def extract_named_statuses_from_text(text):
         ("remaining_week_pct", re.compile(r"remaining_?week_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
         ("remaining_5h_pct", re.compile(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
         ("remaining_week_pct", re.compile(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
+        ("remaining_5h_pct", re.compile(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", re.I)),
+        ("remaining_week_pct", re.compile(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", re.I)),
         ("usage_pct", re.compile(r"usage\s*[:=]\s*(\d{1,3})%", re.I)),
         ("usage_pct", re.compile(r"current\s*[:=]\s*(\d{1,3})%", re.I)),
         ("remaining_5h_pct", re.compile(r"5h(?:\s+remaining)?\s*[:=]\s*(\d{1,3})%", re.I)),
@@ -274,7 +379,13 @@ def extract_named_statuses_from_text(text):
         m = re.search(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", line, re.I)
         if m and "remaining_5h_pct" not in result:
             result["remaining_5h_pct"] = int(m[1])
+        m = re.search(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", line, re.I)
+        if m and "remaining_5h_pct" not in result:
+            result["remaining_5h_pct"] = int(m[1])
         m = re.search(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", line, re.I)
+        if m and "remaining_week_pct" not in result:
+            result["remaining_week_pct"] = int(m[1])
+        m = re.search(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", line, re.I)
         if m and "remaining_week_pct" not in result:
             result["remaining_week_pct"] = int(m[1])
 
@@ -283,30 +394,54 @@ def extract_named_statuses_from_text(text):
     if "remaining_week_pct" in result and "usage_pct" not in result:
         result["usage_pct"] = max(0, 100 - result["remaining_week_pct"])
 
-    # Reset date
-    reset_at = None
-    weekly_idx = next((i for i, l in enumerate(lines) if re.search(r"weekly\s+limit\b", l, re.I)), -1)
-    if weekly_idx != -1:
-        for i in range(weekly_idx, min(len(lines), weekly_idx + 4)):
+    def _extract_reset_near(anchor_pattern, stop_pattern=None, max_span=8):
+        idx = next((i for i, l in enumerate(lines) if anchor_pattern.search(l)), -1)
+        if idx == -1:
+            return None
+        for i in range(idx, min(len(lines), idx + max_span)):
+            if i > idx and stop_pattern and stop_pattern.search(lines[i]):
+                break
             m = re.search(r"\(resets\s+(.+?)\)", lines[i], re.I)
             if m:
-                reset_at = m[1].strip()
-                break
+                return m[1].strip()
+            m = re.match(r"resets?\s*:?\s*(.+)", lines[i], re.I)
+            if m:
+                return m[1].strip()
+        return None
 
-    if not reset_at:
+    reset_5h_at = _extract_reset_near(
+        re.compile(r"\b5h\s+limit\b", re.I),
+        stop_pattern=re.compile(r"\bweekly\s+limit\b", re.I),
+        max_span=4,
+    )
+    if not reset_5h_at:
+        reset_5h_at = _extract_reset_near(
+            re.compile(r"\bCurrent session\b", re.I),
+            stop_pattern=re.compile(r"\bCurrent week\b", re.I),
+        )
+    reset_week_at = _extract_reset_near(
+        re.compile(r"\bweekly\s+limit\b", re.I),
+        max_span=4,
+    )
+    if not reset_week_at:
+        reset_week_at = _extract_reset_near(re.compile(r"\bCurrent week\b", re.I))
+
+    if not reset_week_at:
         for line in lines:
             m = re.match(r"(?:(?:weekly\s+)?resets?)\s*:?\s*(.+)", line, re.I)
             if m:
-                reset_at = m[1].strip()
+                reset_week_at = m[1].strip()
                 break
 
-    if not reset_at:
+    if not reset_week_at:
         all_resets = list(re.finditer(r"\(resets\s+(.+?)\)", normalized, re.I))
         if all_resets:
-            reset_at = all_resets[-1].group(1).strip()
+            reset_week_at = all_resets[-1].group(1).strip()
 
-    if reset_at:
-        reset_at = _normalize_reset_date(reset_at) or reset_at
+    if reset_5h_at:
+        reset_5h_at = _normalize_reset_date(reset_5h_at) or reset_5h_at
+    if reset_week_at:
+        reset_week_at = _normalize_reset_date(reset_week_at) or reset_week_at
 
     if not result:
         return None
@@ -315,7 +450,9 @@ def extract_named_statuses_from_text(text):
         "usage_pct": result.get("usage_pct"),
         "remaining_5h_pct": result.get("remaining_5h_pct"),
         "remaining_week_pct": result.get("remaining_week_pct"),
-        "reset_at": reset_at,
+        "reset_5h_at": reset_5h_at,
+        "reset_week_at": reset_week_at,
+        "reset_at": reset_week_at or reset_5h_at,
         "raw_status_text": normalized.strip() or None,
     }
 
@@ -325,12 +462,20 @@ def _collect_candidate_files(root_dir):
     direct = [
         os.path.join(root_dir, "history.jsonl"),
         os.path.join(root_dir, "session_index.jsonl"),
-        os.path.join(root_dir, "log", "cdx-session.log"),
         os.path.join(root_dir, "log", "codex-tui.log"),
     ]
     for fp in direct:
         if _safe_stat(fp):
             candidates.append(fp)
+
+    log_dir = os.path.join(root_dir, "log")
+    log_dir_stat = _safe_stat(log_dir)
+    if log_dir_stat and os.path.isdir(log_dir):
+        for fname in os.listdir(log_dir):
+            if fname.startswith("cdx-session") and fname.endswith(".log"):
+                fp = os.path.join(log_dir, fname)
+                if _safe_stat(fp):
+                    candidates.append(fp)
 
     sessions_dir = os.path.join(root_dir, "sessions")
     if not _safe_stat(sessions_dir):
@@ -347,10 +492,13 @@ def _collect_candidate_files(root_dir):
     return candidates
 
 
-def find_latest_status_artifact(root_dir, provider=None):
+def find_latest_status_artifact(root_dir, provider=None, expected_account_email=None):
     candidates = _collect_candidate_files(root_dir)
     records = []
     for fp in candidates:
+        normalized_fp = fp.replace(os.sep, "/")
+        if "/sessions/" in normalized_fp and os.path.basename(fp).startswith("rollout"):
+            continue
         if fp.endswith(".jsonl"):
             records.extend(_extract_jsonl_texts(fp, provider))
         elif fp.endswith(".log"):
@@ -358,6 +506,10 @@ def find_latest_status_artifact(root_dir, provider=None):
 
     best = None
     for candidate in records:
+        if provider == "codex" and not _account_matches_expected(
+            candidate["text"], expected_account_email
+        ):
+            continue
         parsed = extract_named_statuses_from_text(candidate["text"])
         if not parsed:
             continue
@@ -383,13 +535,13 @@ def find_latest_status_artifact(root_dir, provider=None):
                 try:
                     best["updated_at"] = datetime.fromtimestamp(
                         float(ts) / 1000, tz=timezone.utc
-                    ).isoformat()
+                    ).astimezone().isoformat()
                 except (TypeError, ValueError):
                     pass
             if "updated_at" not in best:
                 if stat:
                     best["updated_at"] = datetime.fromtimestamp(
                         stat.st_mtime, tz=timezone.utc
-                    ).isoformat()
+                    ).astimezone().isoformat()
 
     return best
