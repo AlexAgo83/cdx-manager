@@ -90,6 +90,40 @@ test("provider-specific sessions are supported", async () => {
   assert.equal(launcher.calls[0].options.env.CDX_HOME, dir);
 });
 
+test("launch forwards termination signals to the spawned provider", async () => {
+  const dir = makeTempDir();
+  const createIo = makeIo();
+  await main(["add", "main"], { ...createIo, env: { CDX_HOME: dir } });
+
+  const signalEmitter = new EventEmitter();
+  const killedSignals = [];
+  const spawn = (command, args, options) => {
+    const child = new EventEmitter();
+    child.kill = (signal) => {
+      killedSignals.push(signal);
+      process.nextTick(() => child.emit("close", null, signal));
+      return true;
+    };
+    return child;
+  };
+
+  const launchIo = makeIo();
+  const run = main(["main"], {
+    ...launchIo,
+    env: { CDX_HOME: dir },
+    spawn,
+    signalEmitter,
+  });
+  process.nextTick(() => signalEmitter.emit("SIGINT"));
+
+  await assert.rejects(run, (error) => {
+    assert.match(error.message, /interrupted by SIGINT/);
+    assert.equal(error.code, 130);
+    return true;
+  });
+  assert.deepEqual(killedSignals, ["SIGINT"]);
+});
+
 test("list sessions shows next actions", async () => {
   const dir = makeTempDir();
   const createIo = makeIo();

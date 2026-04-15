@@ -177,21 +177,70 @@ function buildLaunchSpec(session, options = {}) {
   };
 }
 
+function signalExitCode(signal) {
+  const map = {
+    SIGHUP: 129,
+    SIGINT: 130,
+    SIGTERM: 143,
+  };
+  return map[signal] || 1;
+}
+
 function launchProviderInteractive(session, options = {}) {
   const spawnFn = options.spawn || spawn;
+  const signalEmitter = options.signalEmitter || process;
   const spec = buildLaunchSpec(session, options);
   const child = spawnFn(spec.command, spec.args, spec.options);
+  const signals = ["SIGINT", "SIGTERM", "SIGHUP"];
+  const signalHandlers = new Map();
+  let settled = false;
+  let forwardedSignal = null;
+
+  const cleanup = () => {
+    for (const [signal, handler] of signalHandlers.entries()) {
+      signalEmitter.removeListener(signal, handler);
+    }
+  };
+
+  const finish = (handler) => {
+    if (settled) {
+      return;
+    }
+    settled = true;
+    cleanup();
+    handler();
+  };
+
+  function handleSignal(signal) {
+    forwardedSignal = signal;
+    if (child && typeof child.kill === "function") {
+      child.kill(signal);
+    }
+  }
+
+  for (const signal of signals) {
+    const handler = () => handleSignal(signal);
+    signalHandlers.set(signal, handler);
+    signalEmitter.on(signal, handler);
+  }
 
   return new Promise((resolve, reject) => {
     child.on("error", (error) => {
-      reject(new CdxError(`Failed to launch ${spec.label} for ${session.name}: ${error.message}`));
+      finish(() => reject(new CdxError(`Failed to launch ${spec.label} for ${session.name}: ${error.message}`)));
     });
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve(code);
-        return;
-      }
-      reject(new CdxError(`${spec.label} exited with code ${code} for session ${session.name}`));
+    child.on("close", (code, signal) => {
+      finish(() => {
+        const terminatedBy = signal || forwardedSignal;
+        if (terminatedBy) {
+          reject(new CdxError(`${spec.label} interrupted by ${terminatedBy} for session ${session.name}`, signalExitCode(terminatedBy)));
+          return;
+        }
+        if (code === 0) {
+          resolve(code);
+          return;
+        }
+        reject(new CdxError(`${spec.label} exited with code ${code} for session ${session.name}`));
+      });
     });
   });
 }
