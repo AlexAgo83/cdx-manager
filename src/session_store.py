@@ -85,6 +85,29 @@ def create_session_store(base_dir):
                 return s
         return None
 
+    def rename_session(source_name, dest_name, updater):
+        sessions = _load()
+        source_index = None
+        for i, s in enumerate(sessions):
+            if s.get("name") == source_name:
+                source_index = i
+            elif s.get("name") == dest_name:
+                return {"ok": False, "session": None, "reason": "exists"}
+        if source_index is None:
+            return {"ok": False, "session": None, "reason": "missing"}
+
+        updated = updater(sessions[source_index])
+        sessions[source_index] = updated
+        _save(sessions)
+
+        source_state_path = _state_file_path(source_name)
+        dest_state_path = _state_file_path(dest_name)
+        try:
+            os.replace(source_state_path, dest_state_path)
+        except FileNotFoundError:
+            pass
+        return {"ok": True, "session": updated, "reason": None}
+
     def read_session_state(name):
         return _read_json(_state_file_path(name), None)
 
@@ -97,6 +120,7 @@ def create_session_store(base_dir):
         "add_session": add_session,
         "update_session": update_session,
         "remove_session": remove_session,
+        "rename_session": rename_session,
         "read_session_state": read_session_state,
         "write_session_state": write_session_state,
     }

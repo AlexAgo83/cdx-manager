@@ -107,6 +107,9 @@ cdx add claude personal
 # List all sessions
 cdx
 
+# Rename a session
+cdx ren work work2
+
 # Launch a session
 cdx work
 
@@ -123,6 +126,7 @@ cdx status
 | `cdx` | List all sessions with last-updated timestamps |
 | `cdx <name>` | Launch a session (checks auth first) |
 | `cdx add [provider] <name>` | Register a new session (`provider`: `codex` or `claude`, default: `codex`) |
+| `cdx ren <source> <dest>` | Rename a session and move its auth data |
 | `cdx login <name>` | Re-authenticate a session (logout + login) |
 | `cdx logout <name>` | Log out of a session |
 | `cdx rmv <name> [--force]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |

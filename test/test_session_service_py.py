@@ -393,6 +393,43 @@ class SessionServicePythonTests(unittest.TestCase):
         with self.assertRaisesRegex(CdxError, "Session name is reserved: add"):
             service["copy_session"]("source", "add")
 
+    def test_rename_session_moves_profile_and_state(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("source", "claude")
+        service["record_status"]("source", {
+            "remaining_5h_pct": 90,
+            "remaining_week_pct": 80,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+
+        source_log = os.path.join(temp_dir, "profiles", "source", "claude-home", "log", "cdx-session.log")
+        os.makedirs(os.path.dirname(source_log), exist_ok=True)
+        with open(source_log, "w", encoding="utf-8") as handle:
+            handle.write("Current session\n10% used\nCurrent week\n20% used\n")
+
+        renamed = service["rename_session"]("source", "dest")
+        self.assertEqual(renamed["name"], "dest")
+        self.assertEqual(renamed["provider"], "claude")
+        self.assertIsNone(service["get_session"]("source"))
+        self.assertEqual(service["get_session"]("dest")["lastStatus"]["remaining_5h_pct"], 90)
+        self.assertFalse(os.path.exists(os.path.join(temp_dir, "profiles", "source")))
+        self.assertTrue(os.path.exists(os.path.join(temp_dir, "profiles", "dest", "claude-home", "log", "cdx-session.log")))
+        self.assertFalse(os.path.exists(os.path.join(temp_dir, "state", "source.json")))
+        self.assertTrue(os.path.exists(os.path.join(temp_dir, "state", "dest.json")))
+        self.assertEqual(service["launch_session"]("dest")["name"], "dest")
+
+    def test_rename_session_rejects_existing_and_reserved_destination_names(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("source")
+        service["create_session"]("dest")
+
+        with self.assertRaisesRegex(CdxError, "Session already exists: dest"):
+            service["rename_session"]("source", "dest")
+        with self.assertRaisesRegex(CdxError, "Session name is reserved: add"):
+            service["rename_session"]("source", "add")
+
     def test_reset_date_formats_are_supported(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

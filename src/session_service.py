@@ -19,6 +19,9 @@ RESERVED_SESSION_NAMES = {
     "help",
     "login",
     "logout",
+    "mv",
+    "ren",
+    "rename",
     "rmv",
     "status",
     "version",
@@ -295,6 +298,49 @@ def create_session_service(options=None):
             raise CdxError(f"Failed to create session: {dest_name}")
         return {"session": result["session"], "overwritten": overwritten}
 
+    def rename_session(source_name, dest_name):
+        if source_name == dest_name:
+            raise CdxError("Source and destination session names must be different")
+        _validate_new_session_name(dest_name)
+        source = store["get_session"](source_name)
+        if not source:
+            raise CdxError(f"Unknown session: {source_name}")
+        if store["get_session"](dest_name):
+            raise CdxError(f"Session already exists: {dest_name}")
+
+        source_root = source.get("sessionRoot") or _get_session_root(source_name)
+        dest_root = _get_session_root(dest_name)
+        if os.path.exists(dest_root):
+            raise CdxError(f"Session profile already exists: {dest_name}")
+
+        if os.path.exists(source_root):
+            os.rename(source_root, dest_root)
+            moved_profile = True
+        else:
+            moved_profile = False
+
+        now = _local_now_iso()
+        try:
+            result = store["rename_session"](source_name, dest_name, lambda s: {
+                **s,
+                "name": dest_name,
+                "sessionRoot": dest_root,
+                "authHome": _get_session_auth_home(dest_name, s["provider"]),
+                "updatedAt": now,
+            })
+        except Exception:
+            if moved_profile and os.path.exists(dest_root) and not os.path.exists(source_root):
+                os.rename(dest_root, source_root)
+            raise
+
+        if not result["ok"]:
+            if moved_profile and os.path.exists(dest_root) and not os.path.exists(source_root):
+                os.rename(dest_root, source_root)
+            if result["reason"] == "exists":
+                raise CdxError(f"Session already exists: {dest_name}")
+            raise CdxError(f"Unknown session: {source_name}")
+        return result["session"]
+
     def launch_session(name):
         session = store["get_session"](name)
         if not session:
@@ -436,6 +482,7 @@ def create_session_service(options=None):
         "create_session": create_session,
         "remove_session": remove_session,
         "copy_session": copy_session,
+        "rename_session": rename_session,
         "launch_session": launch_session,
         "list_sessions": list_sessions,
         "get_session": get_session,

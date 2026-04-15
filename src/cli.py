@@ -31,6 +31,7 @@ def _print_help():
         "  cdx status [name] [--json]",
         "  cdx add [provider] <name>",
         "  cdx cp <source> <dest>",
+        "  cdx ren <source> <dest>",
         "  cdx login <name>",
         "  cdx logout <name>",
         "  cdx rmv <name> [--force]",
@@ -112,6 +113,7 @@ def _format_sessions(service):
         "  cdx <name>",
         "  cdx login <name>",
         "  cdx logout <name>",
+        "  cdx ren <source> <dest>",
         "  cdx rmv <name>",
         "  cdx status",
     ]
@@ -526,6 +528,12 @@ def _parse_copy_args(args):
     return {"source": args[0], "dest": args[1]}
 
 
+def _parse_rename_args(args):
+    if len(args) != 2:
+        raise CdxError("Usage: cdx ren <source> <dest>")
+    return {"source": args[0], "dest": args[1]}
+
+
 def _parse_remove_args(args):
     force = "--force" in args
     names = [a for a in args if a != "--force"]
@@ -643,6 +651,12 @@ def main(argv, options=None):
         result = service["copy_session"](parsed["source"], parsed["dest"])
         overwritten = " (overwritten)" if result["overwritten"] else ""
         out(f"Copied session {parsed['source']} to {parsed['dest']}{overwritten}\n")
+        return 0
+
+    if command in ("ren", "rename", "mv"):
+        parsed = _parse_rename_args(rest)
+        service["rename_session"](parsed["source"], parsed["dest"])
+        out(f"Renamed session {parsed['source']} to {parsed['dest']}\n")
         return 0
 
     if command == "rmv":

@@ -274,6 +274,22 @@ class CliPythonTests(unittest.TestCase):
         ], {**force_io, "env": {"CDX_HOME": temp_dir}}), 0)
         self.assertIn("Removed session main", force_io["stdout"].getvalue())
 
+    def test_rename_session_command(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("old")
+
+        rename_io = self.make_io()
+        self.assertEqual(main(["ren", "old", "new"], {
+            **rename_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        self.assertIn("Renamed session old to new", rename_io["stdout"].getvalue())
+        self.assertIsNone(service["get_session"]("old"))
+        self.assertEqual(service["get_session"]("new")["name"], "new")
+
     def test_status_uses_async_refresh_function(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
