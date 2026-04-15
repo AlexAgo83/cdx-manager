@@ -7,7 +7,14 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta
 
-from src.cli import _format_blocking_quota, _format_reset_time, _format_status_rows, main
+from src.cli import (
+    _format_blocking_quota,
+    _format_reset_time,
+    _format_status_rows,
+    _pad_table,
+    _visible_len,
+    main,
+)
 from src.errors import CdxError
 from src.session_service import create_session_service
 
@@ -21,6 +28,11 @@ class _Stream:
 
     def getvalue(self):
         return self._buffer.getvalue()
+
+
+class _TtyStream(_Stream):
+    def isatty(self):
+        return True
 
 
 class _SignalEmitter:
@@ -184,6 +196,16 @@ class CliPythonTests(unittest.TestCase):
             "remaining_week_pct": 0,
         }), "5H+WEEK")
 
+    def test_ansi_padding_uses_visible_width(self):
+        table = _pad_table([
+            ["H", "NEXT"],
+            ["\033[31mred\033[0m", "x"],
+        ])
+        lines = table.splitlines()
+        self.assertEqual(_visible_len(lines[0].split("NEXT")[0]), 5)
+        self.assertEqual(_visible_len(lines[1].split("x")[0]), 5)
+        self.assertEqual(_visible_len("\033[31mred\033[0m"), 3)
+
     def test_help_and_version_flags(self):
         help_io = self.make_io()
         version_io = self.make_io()
@@ -193,6 +215,51 @@ class CliPythonTests(unittest.TestCase):
 
         self.assertEqual(main(["-v"], version_io), 0)
         self.assertRegex(version_io["stdout"].getvalue().strip(), r"^\d+\.\d+\.\d+$")
+
+    def test_non_status_outputs_use_color_when_enabled(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("old")
+
+        help_io = {**self.make_io(), "stdout": _TtyStream()}
+        self.assertEqual(main(["--help"], {
+            **help_io,
+            "env": {"CDX_HOME": temp_dir, "CLICOLOR_FORCE": "1"},
+        }), 0)
+        self.assertIn("\033[", help_io["stdout"].getvalue())
+
+        list_io = {**self.make_io(), "stdout": _TtyStream()}
+        self.assertEqual(main([], {
+            **list_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir, "CLICOLOR_FORCE": "1"},
+        }), 0)
+        self.assertIn("\033[", list_io["stdout"].getvalue())
+
+        rename_io = {**self.make_io(), "stdout": _TtyStream()}
+        self.assertEqual(main(["ren", "old", "new"], {
+            **rename_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir, "CLICOLOR_FORCE": "1"},
+        }), 0)
+        self.assertIn("\033[", rename_io["stdout"].getvalue())
+        self.assertIn("Renamed session old to new", rename_io["stdout"].getvalue())
+
+    def test_main_screen_formats_updated_as_relative_age(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        list_io = self.make_io()
+        self.assertEqual(main([], {
+            **list_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        output = list_io["stdout"].getvalue()
+        self.assertIn("just now", output)
+        self.assertNotRegex(output, r"\d{4}-\d{2}-\d{2}T")
 
     def test_add_and_launch_codex_session(self):
         temp_dir = self.make_temp_dir()
@@ -392,6 +459,32 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("RESET 5H", output)
         self.assertIn("RESET WEEK", output)
         self.assertIn("Priority: use work1 first (60% OK).", output)
+
+    def test_status_color_respects_env_flags(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["record_status"]("main", {
+            "remaining_5h_pct": 0,
+            "remaining_week_pct": 80,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+
+        color_io = {**self.make_io(), "stdout": _TtyStream()}
+        self.assertEqual(main(["status"], {
+            **color_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir, "CLICOLOR_FORCE": "1"},
+        }), 0)
+        self.assertIn("\033[", color_io["stdout"].getvalue())
+
+        plain_io = {**self.make_io(), "stdout": _TtyStream()}
+        self.assertEqual(main(["status"], {
+            **plain_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir, "CLICOLOR_FORCE": "1", "NO_COLOR": "1"},
+        }), 0)
+        self.assertNotIn("\033[", plain_io["stdout"].getvalue())
 
     def test_status_recommends_non_credit_session_first(self):
         temp_dir = self.make_temp_dir()
@@ -668,6 +761,31 @@ class CliPythonTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0)
         self.assertIn("Usage:", result.stdout)
+
+    def test_bin_cdx_colors_errors_when_enabled(self):
+        temp_dir = self.make_temp_dir()
+        env = {**os.environ, "CDX_HOME": temp_dir, "CLICOLOR_FORCE": "1"}
+        env.pop("NO_COLOR", None)
+        result = subprocess.run(
+            [sys.executable, "bin/cdx", "status", "main", "extra"],
+            cwd=os.getcwd(),
+            env=env,
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("\033[31m", result.stderr)
+        self.assertIn("Usage: cdx status [name] [--json]", result.stderr)
+
+        plain = subprocess.run(
+            [sys.executable, "bin/cdx", "status", "main", "extra"],
+            cwd=os.getcwd(),
+            env={**env, "NO_COLOR": "1"},
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(plain.returncode, 0)
+        self.assertNotIn("\033[", plain.stderr)
 
 
 if __name__ == "__main__":

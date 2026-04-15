@@ -8,6 +8,7 @@ import sys
 import threading
 import inspect
 import glob
+import re
 from datetime import datetime, timezone
 
 from .claude_usage import refresh_claude_session_status
@@ -16,29 +17,30 @@ from .session_service import create_session_service
 
 VERSION = "0.1.1"
 LOG_ROTATE_BYTES = 10 * 1024 * 1024  # 10 MB
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 # ---------------------------------------------------------------------------
 # Help / version
 # ---------------------------------------------------------------------------
 
-def _print_help():
+def _print_help(use_color=False):
     return "\n".join([
-        "cdx - terminal session manager",
+        _style("cdx - terminal session manager", "1", use_color),
         "",
-        "Usage:",
-        "  cdx",
-        "  cdx status [name] [--json]",
-        "  cdx add [provider] <name>",
-        "  cdx cp <source> <dest>",
-        "  cdx ren <source> <dest>",
-        "  cdx login <name>",
-        "  cdx logout <name>",
-        "  cdx rmv <name> [--force]",
-        "  cdx clean [name]",
-        "  cdx <name>",
-        "  cdx --help",
-        "  cdx --version",
+        _style("Usage:", "1", use_color),
+        f"  {_style('cdx', '36', use_color)}",
+        f"  {_style('cdx status [name] [--json]', '36', use_color)}",
+        f"  {_style('cdx add [provider] <name>', '36', use_color)}",
+        f"  {_style('cdx cp <source> <dest>', '36', use_color)}",
+        f"  {_style('cdx ren <source> <dest>', '36', use_color)}",
+        f"  {_style('cdx login <name>', '36', use_color)}",
+        f"  {_style('cdx logout <name>', '36', use_color)}",
+        f"  {_style('cdx rmv <name> [--force]', '36', use_color)}",
+        f"  {_style('cdx clean [name]', '36', use_color)}",
+        f"  {_style('cdx <name>', '36', use_color)}",
+        f"  {_style('cdx --help', '36', use_color)}",
+        f"  {_style('cdx --version', '36', use_color)}",
     ])
 
 
@@ -102,6 +104,17 @@ def _format_reset_time(value):
     return value
 
 
+def _style_reset_time(value, use_color=False):
+    text = _format_reset_time(value)
+    if text == "-":
+        return _style(text, "2", use_color)
+    if text == "now" or text.startswith("in "):
+        return _style(text, "32", use_color)
+    if text == "passed" or text.startswith("passed "):
+        return _style(text, "31", use_color)
+    return text
+
+
 def _local_now_iso():
     return datetime.now().astimezone().isoformat()
 
@@ -112,46 +125,104 @@ def _format_pct(value):
     return f"{value}%"
 
 
+def _visible_len(value):
+    return len(ANSI_RE.sub("", str(value)))
+
+
 def _pad_table(columns):
     widths = [
-        max(len(str(row[i])) for row in columns)
+        max(_visible_len(row[i]) for row in columns)
         for i in range(len(columns[0]))
     ]
     lines = []
     for row in columns:
-        lines.append("  ".join(str(row[i]).ljust(widths[i]) for i in range(len(row))))
+        cells = []
+        for i in range(len(row)):
+            value = str(row[i])
+            cells.append(value + " " * (widths[i] - _visible_len(value)))
+        lines.append("  ".join(cells))
     return "\n".join(lines)
 
 
-def _format_sessions(service):
+def _should_use_color(env, stdout):
+    if env.get("NO_COLOR") is not None:
+        return False
+    if env.get("CLICOLOR_FORCE") not in (None, "", "0"):
+        return True
+    if env.get("CLICOLOR") == "0":
+        return False
+    if env.get("TERM") == "dumb":
+        return False
+    return bool(hasattr(stdout, "isatty") and stdout.isatty())
+
+
+def _style(text, code, use_color=False):
+    if not use_color:
+        return str(text)
+    return f"\033[{code}m{text}\033[0m"
+
+
+def _style_pct(value, use_color=False):
+    text = _format_pct(value)
+    if value is None:
+        return _style(text, "2", use_color)
+    if value == 0:
+        return _style(text, "31", use_color)
+    if value <= 10:
+        return _style(text, "33", use_color)
+    return _style(text, "32", use_color)
+
+
+def _success(text, use_color=False):
+    return _style(text, "32", use_color)
+
+
+def _warn(text, use_color=False):
+    return _style(text, "33", use_color)
+
+
+def _info(text, use_color=False):
+    return _style(text, "36", use_color)
+
+
+def _dim(text, use_color=False):
+    return _style(text, "2", use_color)
+
+
+def format_error(error, env=None, stderr=None):
+    return _style(str(error), "31", _should_use_color(env or os.environ, stderr or sys.stderr))
+
+
+def _format_sessions(service, use_color=False):
     rows = service["format_list_rows"]()
     has_provider = any(r.get("provider") for r in rows)
     headers = ["SESSION"]
     if has_provider:
         headers.append("PROVIDER")
     headers.append("UPDATED")
+    headers = [_style(header, "1", use_color) for header in headers]
     table_rows = []
     for r in rows:
         parts = [r["name"]]
         if has_provider:
             parts.append(r.get("provider") or "n/a")
-        parts.append(r.get("updated_at") or "-")
+        parts.append(_dim(_format_relative_age(r.get("updated_at")), use_color))
         table_rows.append(parts)
-    lines = ["Known sessions:", _pad_table([headers] + table_rows), ""]
+    lines = [_style("Known sessions:", "1", use_color), _pad_table([headers] + table_rows), ""]
     lines += [
-        "Next actions:",
-        "  cdx add <name>",
-        "  cdx <name>",
-        "  cdx login <name>",
-        "  cdx logout <name>",
-        "  cdx ren <source> <dest>",
-        "  cdx rmv <name>",
-        "  cdx status",
+        _style("Next actions:", "1", use_color),
+        f"  {_style('cdx add <name>', '36', use_color)}",
+        f"  {_style('cdx <name>', '36', use_color)}",
+        f"  {_style('cdx login <name>', '36', use_color)}",
+        f"  {_style('cdx logout <name>', '36', use_color)}",
+        f"  {_style('cdx ren <source> <dest>', '36', use_color)}",
+        f"  {_style('cdx rmv <name>', '36', use_color)}",
+        f"  {_style('cdx status', '36', use_color)}",
     ]
     return "\n".join(lines)
 
 
-def _format_status_rows(rows):
+def _format_status_rows(rows, use_color=False):
     has_provider = len({r["provider"] for r in rows}) > 1
     if has_provider:
         headers = ["SESSION", "PROV.", "OK", "5H", "WEEK", "BLOCK", "CR", "RESET 5H", "RESET WEEK", "UPDATED"]
@@ -159,21 +230,24 @@ def _format_status_rows(rows):
         headers = ["SESSION", "OK", "5H", "WEEK", "BLOCK", "CR", "RESET 5H", "RESET WEEK", "UPDATED"]
     if not rows:
         return "SESSION  OK  5H  WEEK  BLOCK  CR  RESET 5H  RESET WEEK  UPDATED\nNo saved sessions yet."
+    headers = [_style(header, "1", use_color) for header in headers]
     priority = _recommend_priority_sessions(rows)
     table_rows = []
     for r in priority:
         base = [r["session_name"]]
         if has_provider:
             base.append(r.get("provider") or "n/a")
+        block = _format_blocking_quota(r)
+        credits = str(r["credits"]) if r.get("credits") is not None else "-"
         base += [
-            _format_pct(r.get("available_pct")),
-            _format_pct(r.get("remaining_5h_pct")),
-            _format_pct(r.get("remaining_week_pct")),
-            _format_blocking_quota(r),
-            str(r["credits"]) if r.get("credits") is not None else "-",
-            _format_reset_time(r.get("reset_5h_at")),
-            _format_reset_time(r.get("reset_week_at")),
-            _format_relative_age(r.get("updated_at")),
+            _style_pct(r.get("available_pct"), use_color),
+            _style_pct(r.get("remaining_5h_pct"), use_color),
+            _style_pct(r.get("remaining_week_pct"), use_color),
+            _style(block, "33" if block not in ("?", "-") else "2", use_color),
+            _style(credits, "33" if r.get("credits") is not None else "2", use_color),
+            _style_reset_time(r.get("reset_5h_at"), use_color),
+            _style_reset_time(r.get("reset_week_at"), use_color),
+            _style(_format_relative_age(r.get("updated_at")), "2", use_color),
         ]
         table_rows.append(base)
     priority_line = (
@@ -186,8 +260,8 @@ def _format_status_rows(rows):
     return "\n".join([
         _pad_table([headers] + table_rows),
         "",
-        priority_line,
-        "Tip: run /status in codex to refresh. Claude sessions refresh automatically.",
+        _style(priority_line, "1", use_color),
+        _style("Tip: run /status in codex to refresh. Claude sessions refresh automatically.", "2", use_color),
     ])
 
 
@@ -340,17 +414,18 @@ def _now_timestamp():
     return datetime.now().astimezone().timestamp()
 
 
-def _format_status_detail(row):
+def _format_status_detail(row, use_color=False):
     lines = [
-        f"Session: {row['session_name']}",
-        f"Provider: {row.get('provider') or 'n/a'}",
-        f"Available: {_format_pct(row.get('available_pct'))}",
-        f"5h left: {_format_pct(row.get('remaining_5h_pct'))}",
-        f"Week left: {_format_pct(row.get('remaining_week_pct'))}",
-        f"Credits: {row['credits'] if row.get('credits') is not None else 'n/a'}",
-        f"5h reset: {row.get('reset_5h_at') or 'n/a'}",
-        f"Week reset: {row.get('reset_week_at') or 'n/a'}",
-        f"Updated: {_format_relative_age(row.get('updated_at'))}",
+        f"{_style('Session:', '1', use_color)} {row['session_name']}",
+        f"{_style('Provider:', '1', use_color)} {row.get('provider') or 'n/a'}",
+        f"{_style('Available:', '1', use_color)} {_style_pct(row.get('available_pct'), use_color)}",
+        f"{_style('5h left:', '1', use_color)} {_style_pct(row.get('remaining_5h_pct'), use_color)}",
+        f"{_style('Week left:', '1', use_color)} {_style_pct(row.get('remaining_week_pct'), use_color)}",
+        f"{_style('Block:', '1', use_color)} {_style(_format_blocking_quota(row), '33', use_color)}",
+        f"{_style('Credits:', '1', use_color)} {_style(row['credits'] if row.get('credits') is not None else 'n/a', '33' if row.get('credits') is not None else '2', use_color)}",
+        f"{_style('5h reset:', '1', use_color)} {_style_reset_time(row.get('reset_5h_at'), use_color)}",
+        f"{_style('Week reset:', '1', use_color)} {_style_reset_time(row.get('reset_week_at'), use_color)}",
+        f"{_style('Updated:', '1', use_color)} {_dim(_format_relative_age(row.get('updated_at')), use_color)}",
     ]
     return "\n".join(lines)
 
@@ -674,6 +749,7 @@ def main(argv, options=None):
     stdout = options.get("stdout", sys.stdout)
     stderr = options.get("stderr", sys.stderr)
     stdin_is_tty = options.get("stdin", {}).get("isTTY", hasattr(sys.stdin, "isatty") and sys.stdin.isatty())
+    use_color = _should_use_color(env, stdout)
     service = options.get("service") or create_session_service({"env": env})
     spawn = options.get("spawn")
     spawn_sync = options.get("spawn_sync")
@@ -687,7 +763,7 @@ def main(argv, options=None):
     if "--help" in argv or "-h" in argv:
         if len(argv) != 1:
             raise CdxError("Usage: cdx --help")
-        out(f"{_print_help()}\n")
+        out(f"{_print_help(use_color=use_color)}\n")
         return 0
 
     if "--version" in argv or "-v" in argv:
@@ -697,7 +773,7 @@ def main(argv, options=None):
         return 0
 
     if not argv:
-        out(f"{_format_sessions(service)}\n")
+        out(f"{_format_sessions(service, use_color=use_color)}\n")
         return 0
 
     command, *rest = argv
@@ -705,7 +781,8 @@ def main(argv, options=None):
     if command == "add":
         parsed = _parse_add_args(rest)
         session = service["create_session"](parsed["name"], parsed["provider"])
-        out(f"Created session {parsed['name']} ({parsed['provider']})\n")
+        message = f"Created session {parsed['name']} ({parsed['provider']})"
+        out(f"{_success(message, use_color)}\n")
         _ensure_session_authentication(
             session, service, spawn=spawn, spawn_sync=spawn_sync,
             stdin_is_tty=stdin_is_tty, behavior="bootstrap", signal_emitter=signal_emitter,
@@ -724,13 +801,15 @@ def main(argv, options=None):
         parsed = _parse_copy_args(rest)
         result = service["copy_session"](parsed["source"], parsed["dest"])
         overwritten = " (overwritten)" if result["overwritten"] else ""
-        out(f"Copied session {parsed['source']} to {parsed['dest']}{overwritten}\n")
+        message = f"Copied session {parsed['source']} to {parsed['dest']}{overwritten}"
+        out(f"{_success(message, use_color)}\n")
         return 0
 
     if command in ("ren", "rename", "mv"):
         parsed = _parse_rename_args(rest)
         service["rename_session"](parsed["source"], parsed["dest"])
-        out(f"Renamed session {parsed['source']} to {parsed['dest']}\n")
+        message = f"Renamed session {parsed['source']} to {parsed['dest']}"
+        out(f"{_success(message, use_color)}\n")
         return 0
 
     if command == "rmv":
@@ -750,10 +829,11 @@ def main(argv, options=None):
             else:
                 confirmed = _confirm_removal(parsed["name"])
             if not confirmed:
-                out("Cancelled.\n")
+                out(f"{_warn('Cancelled.', use_color)}\n")
                 return 0
         service["remove_session"](parsed["name"])
-        out(f"Removed session {parsed['name']}\n")
+        message = f"Removed session {parsed['name']}"
+        out(f"{_success(message, use_color)}\n")
         return 0
 
     if command == "clean":
@@ -769,7 +849,8 @@ def main(argv, options=None):
         for session in targets:
             log_paths = _list_launch_transcript_paths(session)
             if not log_paths:
-                out(f"{session['name']}: no log found\n")
+                message = f"{session['name']}: no log found"
+                out(f"{_dim(message, use_color)}\n")
                 continue
             total_size = 0
             cleared = 0
@@ -781,12 +862,14 @@ def main(argv, options=None):
                 except OSError:
                     continue
             if cleared:
-                out(
+                message = (
                     f"Cleared {session['name']} logs ({cleared} file"
-                    f"{'' if cleared == 1 else 's'}, {round(total_size / 1024)} KB freed)\n"
+                    f"{'' if cleared == 1 else 's'}, {round(total_size / 1024)} KB freed)"
                 )
+                out(f"{_success(message, use_color)}\n")
             else:
-                out(f"{session['name']}: no log found\n")
+                message = f"{session['name']}: no log found"
+                out(f"{_dim(message, use_color)}\n")
         return 0
 
     if command == "status":
@@ -800,7 +883,7 @@ def main(argv, options=None):
             if json_flag:
                 out(f"{json.dumps(rows, indent=2)}\n")
                 return 0
-            out(f"{_format_status_rows(rows)}\n")
+            out(f"{_format_status_rows(rows, use_color=use_color)}\n")
             return 0
         if len(args) != 1:
             raise CdxError("Usage: cdx status [name] [--json]")
@@ -811,7 +894,7 @@ def main(argv, options=None):
         if json_flag:
             out(f"{json.dumps(row, indent=2)}\n")
             return 0
-        out(f"{_format_status_detail(row)}\n")
+        out(f"{_format_status_detail(row, use_color=use_color)}\n")
         return 0
 
     if command == "login":
@@ -829,7 +912,8 @@ def main(argv, options=None):
             **auth, "status": "authenticated",
             "lastCheckedAt": now, "lastAuthenticatedAt": now,
         })
-        out(f"Reauthenticated session {session['name']} ({session['provider']})\n")
+        message = f"Reauthenticated session {session['name']} ({session['provider']})"
+        out(f"{_success(message, use_color)}\n")
         return 0
 
     if command == "logout":
@@ -844,11 +928,12 @@ def main(argv, options=None):
             **auth, "status": "logged_out",
             "lastCheckedAt": now, "lastLoggedOutAt": now,
         })
-        out(f"Logged out session {session['name']} ({session['provider']})\n")
+        message = f"Logged out session {session['name']} ({session['provider']})"
+        out(f"{_success(message, use_color)}\n")
         return 0
 
     if command in ("help",):
-        out(f"{_print_help()}\n")
+        out(f"{_print_help(use_color=use_color)}\n")
         return 0
 
     if command in ("version",):
@@ -861,9 +946,10 @@ def main(argv, options=None):
             session, service, spawn=spawn, spawn_sync=spawn_sync,
             stdin_is_tty=stdin_is_tty, behavior="launch", signal_emitter=signal_emitter,
         )
-        out(f"Launching {session['provider']} session {session['name']}\n")
+        message = f"Launching {session['provider']} session {session['name']}"
+        out(f"{_info(message, use_color)}\n")
         if session["provider"] == "codex":
-            out("Tip: run /status once the Codex session opens.\n")
+            out(f"{_dim('Tip: run /status once the Codex session opens.', use_color)}\n")
         _run_interactive_provider_command(session, "launch", spawn=spawn, signal_emitter=signal_emitter)
         return 0
 
@@ -874,5 +960,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main(sys.argv[1:]))
     except CdxError as error:
-        sys.stderr.write(f"{error}\n")
+        sys.stderr.write(f"{format_error(error)}\n")
         raise SystemExit(error.exit_code)
