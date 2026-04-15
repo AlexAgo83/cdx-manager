@@ -5,7 +5,7 @@
 
 # Overview
 This spec defines the user-facing workflow for `cdx` as a terminal-based session manager.
-The default experience should be discoverable, fast, and safe: list sessions, add a session, remove a session, or launch a named session with one command.
+The default experience should be discoverable, fast, and safe: list sessions, add a session, remove a session, launch a named session, or manage that session's login state with one command.
 The command should also expose standard CLI affordances with `--help`/`-h` and `--version`/`-v`.
 Persistent session state is part of the workflow, so returning users do not need to reconnect unless the saved state is invalid.
 
@@ -15,7 +15,9 @@ flowchart TD
     Entry -->|no arguments| List[List sessions and next actions]
     Entry -->|--help or -h| Help[Show concise help and exit]
     Entry -->|--version or -v| Version[Show installed version and exit]
-    Entry -->|add name| Add[Create a new named session]
+    Entry -->|add name| Add[Create a new named session and login if needed]
+    Entry -->|login name| Login[Reauthenticate the named session]
+    Entry -->|logout name| Logout[Remove saved credentials for the session]
     Entry -->|rmv name| Remove[Remove a named session]
     Entry -->|name| Launch[Launch the named session]
     Launch --> Restore{Saved state valid}
@@ -27,6 +29,7 @@ flowchart TD
 # Goals
 - Make the `cdx` command easy to discover and remember.
 - Support a complete daily loop for list, add, launch, and remove.
+- Support explicit session-level login and logout so users can change the account behind one named session without affecting others.
 - Preserve login state so named sessions can be resumed without repeated authentication.
 - Keep help and version flags available as standard CLI entry points.
 - Keep the CLI contract explicit so users can predict how provider selection, deletion, and recovery work.
@@ -46,7 +49,7 @@ flowchart TD
 - A user who wants `cdx --help` and `cdx --version` to behave like a normal CLI.
 
 # Scope
-- In: session listing, session creation, session removal, named session launch, help, and version output.
+- In: session listing, session creation, session removal, named session launch, session login, session logout, help, and version output.
 - In: predictable recovery when saved login state is missing, expired, or revoked.
 - In: explicit Codex or Claude provider selection when creating a session.
 - Out: GUI workflows, enterprise policy management, and account switching without explicit naming.
@@ -64,6 +67,8 @@ flowchart TD
 | `cdx -v` | Show version | Alias for `cdx --version`. |
 | `cdx add <name>` | Create a Codex session | Uses `codex` as the default provider. |
 | `cdx add <provider> <name>` | Create a provider-specific session | Provider must be `codex` or `claude`. |
+| `cdx login <name>` | Reauthenticate a session | Uses the provider already assigned to the session. |
+| `cdx logout <name>` | Remove saved credentials for a session | Clears the stored login state for that session only. |
 | `cdx <name>` | Launch a session | Restores valid saved state before starting Codex. |
 | `cdx rmv <name>` | Remove a session | Asks for confirmation before deleting. |
 | `cdx rmv <name> --force` | Remove a session immediately | Skips confirmation and deletes persisted state. |
@@ -72,6 +77,9 @@ flowchart TD
 - Flags `--help`, `-h`, `--version`, and `-v` are standard entry points and must not mutate state.
 - `status` is read-only and must not mutate stored session data.
 - `cdx add <name>` and `cdx add <provider> <name>` are the only accepted add forms.
+- `cdx add` must bootstrap the login flow when the session has no valid credentials yet.
+- `cdx login <name>` must reauthenticate the named session without touching other sessions.
+- `cdx logout <name>` must clear only the named session's stored credentials.
 - `rmv` is the only destructive command in the initial workflow.
 - Unknown providers, missing names, and malformed argument orders must return a short readable error.
 - Session names are explicit and stable; the CLI must not guess a provider or target account.
@@ -86,9 +94,12 @@ flowchart TD
 - `cdx status <name>` shows the latest known usage metrics for one session.
 - `cdx add <name>` creates a new Codex session by default.
 - `cdx add <provider> <name>` creates a session for the named provider, where the provider is `codex` or `claude`.
+- `cdx login <name>` reauthenticates the named session using the provider already assigned to it.
+- `cdx logout <name>` clears the saved credentials for the named session.
 - `cdx rmv <name>` removes a named session after confirmation.
 - `cdx rmv <name> --force` removes a named session without confirmation.
 - `cdx <name>` launches the named session and restores valid saved state.
+- `cdx add` starts the provider login flow immediately when the session has no valid credentials yet.
 - `cdx --help` and `cdx -h` show concise usage help.
 - `cdx --version` and `cdx -v` show the installed version.
 - Invalid input returns a short usage or error message instead of a stack trace.
@@ -113,6 +124,8 @@ flowchart TD
 - Verify that status extraction surfaces usage, remaining 5h, and remaining week values when present in the `/status` output.
 - Verify that a persisted session is reused after restarting the terminal or process.
 - Verify that expired or missing session state produces a clear recovery path.
+- Verify that `cdx add` starts the login flow for a new session when credentials are not already available.
+- Verify that `cdx login <name>` and `cdx logout <name>` act only on the targeted session.
 - Verify that invalid provider values and unsafe delete flows produce readable errors.
 - Verify that each row in the command contract matches the observed CLI behavior.
 
@@ -124,8 +137,10 @@ flowchart TD
 - Backlog: `logics/backlog/item_002_multi_provider_session_support_for_codex_and_claude.md`
 - Backlog: `logics/backlog/item_003_command_ergonomics_validation_and_safety.md`
 - Backlog: `logics/backlog/item_004_cdx_status_global_session_overview.md`
+- Backlog: `logics/backlog/item_005_cdx_session_auth_management.md`
 - Spec: `logics/specs/spec_001_cdx_status_overview.md`
 - Spec: `logics/specs/spec_002_cdx_status_output_format.md`
+- Spec: `logics/specs/spec_003_cdx_session_auth_management.md`
 - ADR: `logics/architecture/adr_000_persist_and_restore_cdx_sessions.md`
 
 # Open questions
