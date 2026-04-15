@@ -1,0 +1,256 @@
+import os
+import shutil
+from datetime import datetime, timezone
+from urllib.parse import quote
+
+from .config import get_cdx_home
+from .errors import CdxError
+from .session_store import create_session_store
+from .status_source import find_latest_status_artifact
+
+DEFAULT_PROVIDER = "codex"
+ALLOWED_PROVIDERS = {"codex", "claude"}
+
+
+def _encode(name):
+    return quote(name, safe="")
+
+
+def _normalize_status_payload(payload=None):
+    if payload is None:
+        payload = {}
+    now = datetime.now(timezone.utc).isoformat()
+    return {
+        "usage_pct": payload.get("usage_pct"),
+        "remaining_5h_pct": payload.get("remaining_5h_pct"),
+        "remaining_week_pct": payload.get("remaining_week_pct"),
+        "reset_at": payload.get("reset_at"),
+        "updated_at": payload.get("updated_at") or payload.get("captured_at") or now,
+        "raw_status_text": payload.get("raw_status_text"),
+        "source_ref": payload.get("source_ref"),
+    }
+
+
+def create_session_service(options=None):
+    if options is None:
+        options = {}
+    env = options.get("env", os.environ)
+    base_dir = options.get("base_dir") or get_cdx_home(env)
+    store = options.get("store") or create_session_store(base_dir)
+
+    def _get_session_root(name):
+        return os.path.join(base_dir, "profiles", _encode(name))
+
+    def _get_session_auth_home(name, provider):
+        root = _get_session_root(name)
+        if provider == "claude":
+            return os.path.join(root, "claude-home")
+        return root
+
+    def _normalize_provider(provider):
+        value = provider or DEFAULT_PROVIDER
+        if value not in ALLOWED_PROVIDERS:
+            raise CdxError(f"Unsupported provider: {value}")
+        return value
+
+    def create_session(name, provider=DEFAULT_PROVIDER):
+        if not name:
+            raise CdxError("Session name is required")
+        normalized_provider = _normalize_provider(provider)
+        session_root = _get_session_root(name)
+        auth_home = _get_session_auth_home(name, normalized_provider)
+        os.makedirs(auth_home, exist_ok=True)
+        now = datetime.now(timezone.utc).isoformat()
+        session = {
+            "name": name,
+            "provider": normalized_provider,
+            "sessionRoot": session_root,
+            "authHome": auth_home,
+            "createdAt": now,
+            "updatedAt": now,
+            "lastLaunchedAt": None,
+            "lastStatusAt": None,
+            "lastStatus": None,
+            "auth": {
+                "status": "unknown",
+                "lastCheckedAt": None,
+                "lastAuthenticatedAt": None,
+                "lastLoggedOutAt": None,
+            },
+        }
+        result = store["add_session"](session)
+        if not result["ok"]:
+            raise CdxError(f"Session already exists: {name}")
+        return result["session"]
+
+    def remove_session(name):
+        removed = store["remove_session"](name)
+        if not removed:
+            raise CdxError(f"Unknown session: {name}")
+        session_root = removed.get("sessionRoot") or _get_session_root(name)
+        shutil.rmtree(session_root, ignore_errors=True)
+        return removed
+
+    def copy_session(source_name, dest_name):
+        if source_name == dest_name:
+            raise CdxError("Source and destination session names must be different")
+        source = store["get_session"](source_name)
+        if not source:
+            raise CdxError(f"Unknown session: {source_name}")
+        existing = store["get_session"](dest_name)
+        overwritten = False
+        if existing:
+            dest_root = existing.get("sessionRoot") or _get_session_root(dest_name)
+            store["remove_session"](dest_name)
+            shutil.rmtree(dest_root, ignore_errors=True)
+            overwritten = True
+        source_root = source.get("sessionRoot") or _get_session_root(source_name)
+        dest_root = _get_session_root(dest_name)
+        dest_auth_home = _get_session_auth_home(dest_name, source["provider"])
+        shutil.copytree(source_root, dest_root)
+        now = datetime.now(timezone.utc).isoformat()
+        result = store["add_session"]({
+            "name": dest_name,
+            "provider": source["provider"],
+            "sessionRoot": dest_root,
+            "authHome": dest_auth_home,
+            "createdAt": now,
+            "updatedAt": now,
+            "lastLaunchedAt": None,
+            "lastStatusAt": None,
+            "lastStatus": None,
+            "auth": {
+                "status": "unknown",
+                "lastCheckedAt": None,
+                "lastAuthenticatedAt": None,
+                "lastLoggedOutAt": None,
+            },
+        })
+        if not result["ok"]:
+            raise CdxError(f"Failed to create session: {dest_name}")
+        return {"session": result["session"], "overwritten": overwritten}
+
+    def launch_session(name):
+        session = store["get_session"](name)
+        if not session:
+            raise CdxError(f"Unknown session: {name}")
+        state = store["read_session_state"](name)
+        if not state:
+            raise CdxError(f"Session state missing for {name}. Reconnect required.")
+        now = datetime.now(timezone.utc).isoformat()
+        store["write_session_state"](name, {**state, "rehydratedAt": now})
+        return store["update_session"](name, lambda s: {
+            **s, "updatedAt": now, "lastLaunchedAt": now
+        })
+
+    def list_sessions():
+        return store["list_sessions"]()
+
+    def get_session(name):
+        return store["get_session"](name)
+
+    def record_status(name, payload):
+        normalized = _normalize_status_payload(payload)
+        updated = store["update_session"](name, lambda s: {
+            **s,
+            "lastStatus": normalized,
+            "lastStatusAt": normalized["updated_at"],
+        })
+        if not updated:
+            raise CdxError(f"Unknown session: {name}")
+        return updated
+
+    def _resolve_session_status(session):
+        if session.get("lastStatus"):
+            return session["lastStatus"]
+        source_root = session.get("authHome") or _get_session_auth_home(
+            session["name"], session["provider"]
+        )
+        artifact = find_latest_status_artifact(source_root, session["provider"])
+        if not artifact:
+            return None
+        return _normalize_status_payload({
+            "usage_pct": artifact.get("usage_pct"),
+            "remaining_5h_pct": artifact.get("remaining_5h_pct"),
+            "remaining_week_pct": artifact.get("remaining_week_pct"),
+            "reset_at": artifact.get("reset_at"),
+            "updated_at": artifact.get("updated_at"),
+            "raw_status_text": artifact.get("raw_status_text"),
+            "source_ref": artifact.get("source_ref"),
+        })
+
+    def update_auth_state(name, updater):
+        now = datetime.now(timezone.utc).isoformat()
+        updated = store["update_session"](name, lambda s: {
+            **s,
+            "updatedAt": now,
+            "auth": updater(s.get("auth") or {}),
+        })
+        if not updated:
+            raise CdxError(f"Unknown session: {name}")
+        return updated
+
+    def get_status_rows():
+        sessions = list_sessions()
+        resolved = []
+        for s in sessions:
+            status = _resolve_session_status(s)
+            resolved.append({
+                **s,
+                "lastStatus": status,
+                "lastStatusAt": s.get("lastStatusAt") or (status and status.get("updated_at")),
+            })
+
+        def sort_key(s):
+            at = s.get("lastStatusAt") or ""
+            return ("" if at else "\xff", at, s["name"])
+
+        resolved.sort(key=sort_key)
+        resolved.reverse()
+
+        rows = []
+        for s in resolved:
+            status = s.get("lastStatus")
+            rows.append({
+                "session_name": s["name"],
+                "provider": s["provider"],
+                "auth_home": s.get("authHome") or _get_session_auth_home(s["name"], s["provider"]),
+                "remaining_5h_pct": status["remaining_5h_pct"] if status else None,
+                "remaining_week_pct": status["remaining_week_pct"] if status else None,
+                "reset_at": status["reset_at"] if status else None,
+                "updated_at": s.get("lastStatusAt"),
+            })
+        return rows
+
+    def format_list_rows():
+        sessions = list_sessions()
+        providers = {s["provider"] for s in sessions}
+        has_multiple = len(providers) > 1
+        return [{
+            "name": s["name"],
+            "provider": s["provider"] if has_multiple else None,
+            "status": s.get("lastStatus"),
+            "updated_at": s.get("updatedAt"),
+        } for s in sessions]
+
+    def get_session_auth_home(name, provider):
+        return _get_session_auth_home(name, provider)
+
+    def get_session_root(name):
+        return _get_session_root(name)
+
+    return {
+        "create_session": create_session,
+        "remove_session": remove_session,
+        "copy_session": copy_session,
+        "launch_session": launch_session,
+        "list_sessions": list_sessions,
+        "get_session": get_session,
+        "record_status": record_status,
+        "update_auth_state": update_auth_state,
+        "get_status_rows": get_status_rows,
+        "format_list_rows": format_list_rows,
+        "get_session_auth_home": get_session_auth_home,
+        "get_session_root": get_session_root,
+        "normalize_provider": _normalize_provider,
+    }

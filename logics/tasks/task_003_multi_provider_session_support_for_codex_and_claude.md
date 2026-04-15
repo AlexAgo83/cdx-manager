@@ -1,9 +1,9 @@
 ## task_003_multi_provider_session_support_for_codex_and_claude - multi-provider session support for Codex and Claude
-> From version: 1.13.0
+> From version: 0.1.0
 > Schema version: 1.0
 > Status: Done
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 95%
 > Progress: 100%
 > Complexity: High
 > Theme: CLI
@@ -34,13 +34,13 @@ stateDiagram-v2
 ```
 
 # Plan
-- [ ] 1. Confirm scope, dependencies, and linked acceptance criteria.
-- [ ] 2. Implement the next coherent delivery wave from the backlog item.
-- [ ] 3. Checkpoint the wave in a commit-ready state, validate it, and update the linked Logics docs.
-- [ ] CHECKPOINT: leave the current wave commit-ready and update the linked Logics docs before continuing.
-- [ ] CHECKPOINT: if the shared AI runtime is active and healthy, run `python logics/skills/logics.py flow assist commit-all` for the current step, item, or wave commit checkpoint.
-- [ ] GATE: do not close a wave or step until the relevant automated tests and quality checks have been run successfully.
-- [ ] FINAL: Update related Logics docs
+- [x] 1. Confirm scope, dependencies, and linked acceptance criteria.
+- [x] 2. Implement the next coherent delivery wave from the backlog item.
+- [x] 3. Checkpoint the wave in a commit-ready state, validate it, and update the linked Logics docs.
+- [x] CHECKPOINT: leave the current wave commit-ready and update the linked Logics docs before continuing.
+- [x] CHECKPOINT: if the shared AI runtime is active and healthy, run `python logics/skills/logics.py flow assist commit-all` for the current step, item, or wave commit checkpoint.
+- [x] GATE: do not close a wave or step until the relevant automated tests and quality checks have been run successfully.
+- [x] FINAL: Update related Logics docs
 
 # Delivery checkpoints
 - Each completed wave should leave the repository in a coherent, commit-ready state.
@@ -81,11 +81,18 @@ stateDiagram-v2
 - Confirm the completed wave leaves the repository in a commit-ready state.
 
 # Definition of Done (DoD)
-- [ ] Scope implemented and acceptance criteria covered.
-- [ ] Validation commands executed and results captured.
-- [ ] No wave or step was closed before the relevant automated tests and quality checks passed.
-- [ ] Linked request/backlog/task docs updated during completed waves and at closure.
-- [ ] Each completed wave left a commit-ready checkpoint or an explicit exception is documented.
-- [ ] Status is `Done` and progress is `100%`.
+- [x] Scope implemented and acceptance criteria covered.
+- [x] Validation commands executed and results captured.
+- [x] No wave or step was closed before the relevant automated tests and quality checks passed.
+- [x] Linked request/backlog/task docs updated during completed waves and at closure.
+- [x] Each completed wave left a commit-ready checkpoint or an explicit exception is documented.
+- [x] Status is `Done` and progress is `100%`.
 
 # Report
+- Added explicit provider support for `codex` and `claude` in the Python implementation.
+- Provider-aware launch and authentication flows now route `CODEX_HOME` for Codex sessions and `HOME` for Claude sessions.
+- Session listing and status views expose provider context only when it adds value.
+- Validation evidence:
+  - `npm test`
+  - `npm run lint`
+  - focused CLI launch/auth smoke coverage in the Python test suite

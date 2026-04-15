@@ -1,10 +1,10 @@
 ## item_005_cdx_session_auth_management - cdx session auth management
-> From version: 1.13.1
+> From version: 0.1.0
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 90%
-> Progress: 0%
+> Status: Done
+> Understanding: 95%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: High
 > Theme: Auth
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

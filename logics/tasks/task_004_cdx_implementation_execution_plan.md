@@ -1,9 +1,9 @@
 ## task_004_cdx_implementation_execution_plan - cdx implementation execution plan
-> From version: 1.13.1
+> From version: 0.1.0
 > Schema version: 1.0
 > Status: Done
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 95%
 > Progress: 100%
 > Complexity: Medium
 > Theme: General
@@ -121,8 +121,9 @@ stateDiagram-v2
 - Wave 1 completed: session persistence, core commands, and base CLI were bootstrapped and validated.
 - Wave 2 completed: CLI ergonomics, validation, and safe removal flows were hardened and tested.
 - Wave 3 completed: explicit Codex/Claude provider support was added and validated.
-- Wave 4 completed: `cdx status` now renders a normalized global overview and per-session detail view with usage metrics, remaining 5h/week percentages, ordering, and empty states.
+- Wave 4 completed: `cdx status` now renders a normalized global overview and per-session detail view with remaining 5h/week percentages, reset times, ordering, and empty states.
+- Follow-up hardening completed: the active implementation was migrated from JS to Python, and the status parser now prefers real transcript logs over conversational JSONL noise.
 - Validation evidence:
-  - `node --test`
-  - `node --check bin/cdx && node --check src/cli.js && node --check src/session-store.js && node --check src/session-service.js && node --check test/session-service.test.js && node --check test/cli.test.js`
+  - `npm test`
+  - `npm run lint`
   - `logics lint --require-status`

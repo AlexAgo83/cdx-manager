@@ -1,6 +1,6 @@
 ## prod_000_codex_multi_account_session_manager - Codex multi-account session manager
 > Date: 2026-04-15
-> Status: Proposed
+> Status: Active
 > Related request: (none yet)
 > Related backlog: `item_000_cdx_core_session_manager`, `item_001_persistent_codex_session_storage_and_rehydration`, `item_002_multi_provider_session_support_for_codex_and_claude`, `item_003_command_ergonomics_validation_and_safety`, `item_004_cdx_status_global_session_overview`, `item_005_cdx_session_auth_management`
 > Related task: `task_005_cdx_session_auth_management`

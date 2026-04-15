@@ -1,5 +1,5 @@
 ## item_002_multi_provider_session_support_for_codex_and_claude - multi-provider session support for Codex and Claude
-> From version: 1.13.1
+> From version: 0.1.0
 > Schema version: 1.0
 > Status: Done
 > Understanding: 92%

@@ -1,9 +1,9 @@
 ## task_002_cdx_status_global_session_overview - cdx status global session overview
-> From version: 1.13.0
+> From version: 0.1.0
 > Schema version: 1.0
 > Status: Done
-> Understanding: 90%
-> Confidence: 90%
+> Understanding: 95%
+> Confidence: 95%
 > Progress: 100%
 > Complexity: Medium
 > Theme: CLI
@@ -90,10 +90,12 @@ stateDiagram-v2
 - [x] Status is `Done` and progress is `100%`.
 
 # Report
-- Implemented `cdx status` as a normalized global usage overview with per-session detail rendering.
-- Output now includes the latest usage metrics, remaining 5h and week percentages, relative updated time, and explicit empty states.
+- Implemented `cdx status` as a normalized global usage overview with per-session detail rendering for Codex and Claude sessions.
+- Output now includes the latest remaining 5h/week percentages, reset time, relative updated time, and explicit empty states.
+- Status resolution now prefers persisted session status, then session transcript logs, and only falls back to JSONL artifacts when no cleaner source exists.
+- The parser now filters out conversational JSONL noise and prefers real provider `/status` blocks so one session cannot inherit values quoted in another transcript.
 - The global view sorts by most recent status activity and hides the provider column unless multiple providers exist.
 - Validation evidence:
-  - `node --test`
-  - `node --check bin/cdx && node --check src/cli.js && node --check src/session-store.js && node --check src/session-service.js && node --check test/session-service.test.js && node --check test/cli.test.js`
+  - `npm test`
+  - `npm run lint`
   - `logics lint --require-status`

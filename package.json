@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "description": "Terminal session manager for Codex and Claude accounts.",
-  "type": "commonjs",
   "bin": {
     "cdx": "./bin/cdx"
   },
   "scripts": {
-    "test": "node --test",
-    "lint": "node --check bin/cdx && node --check src/cli.js && node --check src/session-store.js && node --check src/session-service.js",
+    "test": "npm run test:py",
+    "test:py": "PYTHONPYCACHEPREFIX=/tmp/pycache python3 -m unittest discover -s test -p 'test_*_py.py'",
+    "lint": "PYTHONPYCACHEPREFIX=/tmp/pycache python3 -m py_compile bin/cdx src/*.py test/test_*_py.py",
     "link": "npm link",
     "unlink": "npm unlink -g cdx-manager"
   }

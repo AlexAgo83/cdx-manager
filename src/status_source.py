@@ -1,0 +1,395 @@
+import json
+import os
+import re
+from datetime import datetime, timezone
+
+
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+_ANSI_TERMINAL_CONTROL = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+_OSC_SEQUENCE = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+_CONTROL_CHAR = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def _strip_ansi(text):
+    return _ANSI_ESCAPE.sub("", str(text or ""))
+
+
+def _normalize_terminal_transcript(text):
+    text = str(text or "")
+    text = _OSC_SEQUENCE.sub(" ", text)
+    text = _ANSI_TERMINAL_CONTROL.sub(" ", text)
+    text = _ANSI_ESCAPE.sub(" ", text)
+    text = _CONTROL_CHAR.sub(" ", text)
+    text = text.replace("\r", "\n")
+    return text
+
+
+def _safe_read_text(file_path):
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except (FileNotFoundError, OSError):
+        return None
+
+
+def _safe_stat(file_path):
+    try:
+        return os.stat(file_path)
+    except OSError:
+        return None
+
+
+def _collect_text_values(value, output=None):
+    if output is None:
+        output = []
+    if isinstance(value, str):
+        output.append(value)
+    elif isinstance(value, list):
+        for item in value:
+            _collect_text_values(item, output)
+    elif isinstance(value, dict):
+        for item in value.values():
+            _collect_text_values(item, output)
+    return output
+
+
+def _extract_status_blocks_from_text(text, provider=None, source_ref=None, timestamp=None):
+    normalized = _normalize_terminal_transcript(text)
+    lines = normalized.split("\n")
+    items = []
+
+    def collect_blocks(start_pattern, end_patterns, max_span=80):
+        blocks = []
+        index = 0
+        while index < len(lines):
+            if not start_pattern.search(lines[index]):
+                index += 1
+                continue
+            end_index = len(lines)
+            for cursor in range(index + 1, min(len(lines), index + max_span)):
+                if any(pattern.search(lines[cursor]) for pattern in end_patterns):
+                    end_index = cursor
+                    break
+            block = "\n".join(lines[index:end_index]).strip()
+            if block:
+                blocks.append(block)
+            index = max(index + 1, end_index)
+        return blocks
+
+    if provider != "codex":
+        for block in collect_blocks(
+            re.compile(r"^\s*(?:[│|]\s*)?Current session\b", re.I),
+            [re.compile(p, re.I) for p in [
+                r"^Extra usage\b", r"^Esc to cancel\b",
+                r"^To continue this session\b", r"^╰",
+            ]],
+        ):
+            items.append({"source_ref": source_ref, "timestamp": timestamp, "text": block})
+
+    if provider != "claude":
+        for block in collect_blocks(
+            re.compile(r"^\s*(?:[│|]\s*)?5h\s+limit\b", re.I),
+            [re.compile(p, re.I) for p in [
+                r"^Credits\b", r"^To continue this session\b", r"^╰",
+            ]],
+        ):
+            items.append({"source_ref": source_ref, "timestamp": timestamp, "text": block})
+
+    if items:
+        return items
+
+    if provider:
+        return []
+
+    keyword_re = re.compile(r"/status|usage|current|remaining|\d{1,3}%", re.I)
+    fallback_lines = str(text or "").splitlines()
+    for i in range(len(fallback_lines) - 1, -1, -1):
+        if not keyword_re.search(fallback_lines[i]):
+            continue
+        start = max(0, i - 4)
+        end = min(len(fallback_lines), i + 5)
+        snippet = "\n".join(fallback_lines[start:end]).strip()
+        if snippet:
+            return [{"source_ref": source_ref, "timestamp": timestamp, "text": snippet}]
+    return []
+
+
+def _extract_jsonl_texts(file_path, provider=None):
+    text = _safe_read_text(file_path)
+    if not text:
+        return []
+    items = []
+    for line_index, line in enumerate(text.splitlines()):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+            payload_texts = _collect_text_values(record.get("payload") or {})
+            for candidate in payload_texts:
+                if isinstance(candidate, str) and candidate.strip():
+                    items.extend(_extract_status_blocks_from_text(
+                        candidate,
+                        provider=provider,
+                        source_ref=f"{file_path}:{line_index + 1}",
+                        timestamp=record.get("timestamp"),
+                    ))
+        except (json.JSONDecodeError, AttributeError):
+            continue
+    return items
+
+
+def _extract_log_block(file_path, provider=None):
+    text = _safe_read_text(file_path)
+    if not text:
+        return []
+    return _extract_status_blocks_from_text(text, provider=provider, source_ref=file_path, timestamp=None)
+
+
+def _parse_month_index(name):
+    lower = name[:3].lower()
+    for i, m in enumerate(MONTH_ABBR):
+        if m.lower() == lower:
+            return i
+    return -1
+
+
+def _infer_reset_year(month, day):
+    now = datetime.now(timezone.utc)
+    year = now.year
+    try:
+        candidate = datetime(year, month + 1, day, tzinfo=timezone.utc)
+    except ValueError:
+        return year
+    two_days_ago = datetime.fromtimestamp(now.timestamp() - 2 * 24 * 3600, tz=timezone.utc)
+    return year + 1 if candidate < two_days_ago else year
+
+
+def _normalize_reset_date(raw):
+    if not raw:
+        return None
+
+    def pad(n):
+        return str(n).zfill(2)
+
+    # Codex: "10:10 on 17 Apr"
+    m = re.match(r"(\d{1,2}):(\d{2})\s+on\s+(\d{1,2})\s+([A-Za-z]+)", raw, re.I)
+    if m:
+        hours, minutes, day, month_str = int(m[1]), int(m[2]), int(m[3]), m[4]
+        month = _parse_month_index(month_str)
+        if month != -1:
+            year = _infer_reset_year(month, day)
+            return f"{MONTH_ABBR[month]} {day} {pad(hours)}:{pad(minutes)}"
+
+    # Codex time-only: "21:51"
+    m = re.match(r"^(\d{1,2}):(\d{2})$", raw)
+    if m:
+        hours, minutes = int(m[1]), int(m[2])
+        now = datetime.now(timezone.utc)
+        from datetime import timedelta
+        candidate = datetime(now.year, now.month, now.day, hours, minutes, tzinfo=timezone.utc)
+        if candidate <= now:
+            candidate = candidate + timedelta(days=1)
+        return f"{MONTH_ABBR[candidate.month - 1]} {candidate.day} {pad(hours)}:{pad(minutes)}"
+
+    # Claude: "Thursday, April 17" or "April 17" or "April 17, 2026"
+    m = re.match(r"(?:[A-Za-z]+,\s+)?([A-Za-z]+)\s+(\d{1,2})(?:,\s+(\d{4}))?", raw, re.I)
+    if m:
+        month = _parse_month_index(m[1])
+        if month != -1:
+            day = int(m[2])
+            year = int(m[3]) if m[3] else _infer_reset_year(month, day)
+            return f"{MONTH_ABBR[month]} {day}"
+
+    return None
+
+
+def extract_named_statuses_from_text(text):
+    normalized = _normalize_terminal_transcript(text)
+    lines = [l.strip() for l in normalized.split("\n") if l.strip()]
+    result = {}
+
+    key_value_patterns = [
+        ("usage_pct", re.compile(r"usage_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
+        ("remaining_5h_pct", re.compile(r"remaining_?5h_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
+        ("remaining_week_pct", re.compile(r"remaining_?week_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
+        ("remaining_5h_pct", re.compile(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
+        ("remaining_week_pct", re.compile(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
+        ("usage_pct", re.compile(r"usage\s*[:=]\s*(\d{1,3})%", re.I)),
+        ("usage_pct", re.compile(r"current\s*[:=]\s*(\d{1,3})%", re.I)),
+        ("remaining_5h_pct", re.compile(r"5h(?:\s+remaining)?\s*[:=]\s*(\d{1,3})%", re.I)),
+        ("remaining_5h_pct", re.compile(r"remaining\s+5h\s*[:=]\s*(\d{1,3})%", re.I)),
+        ("remaining_week_pct", re.compile(r"week(?:\s+remaining)?\s*[:=]\s*(\d{1,3})%", re.I)),
+        ("remaining_week_pct", re.compile(r"remaining\s+week\s*[:=]\s*(\d{1,3})%", re.I)),
+    ]
+    for field, pattern in key_value_patterns:
+        if field not in result:
+            m = pattern.search(normalized)
+            if m:
+                result[field] = int(m[1])
+
+    # Claude "Current session / Current week" block
+    def extract_following_percent(anchor_pattern):
+        idx = next((i for i, l in enumerate(lines) if anchor_pattern.search(l)), -1)
+        if idx == -1:
+            return None
+        for i in range(idx + 1, min(len(lines), idx + 8)):
+            m = re.search(r"(\d{1,3})%\s+used", lines[i], re.I)
+            if m:
+                return int(m[1])
+        return None
+
+    session_used = extract_following_percent(re.compile(r"\bCurrent session\b", re.I))
+    week_used = extract_following_percent(re.compile(r"\bCurrent week\b", re.I))
+    if session_used is not None or week_used is not None:
+        if "usage_pct" not in result and session_used is not None:
+            result["usage_pct"] = session_used
+        if "remaining_5h_pct" not in result and session_used is not None:
+            result["remaining_5h_pct"] = max(0, 100 - session_used)
+        if "remaining_week_pct" not in result and week_used is not None:
+            result["remaining_week_pct"] = max(0, 100 - week_used)
+
+    # Table header row
+    header_idx = next(
+        (i for i, l in enumerate(lines)
+         if re.search(r"\bSESSION\b", l, re.I)
+         and re.search(r"\bUSAGE\b", l, re.I)
+         and re.search(r"\b5H\b", l, re.I)
+         and re.search(r"\bWEEK\b", l, re.I)),
+        -1,
+    )
+    if header_idx != -1:
+        for line in lines[header_idx + 1:]:
+            pcts = [int(m) for m in re.findall(r"(\d{1,3})%", line)]
+            if len(pcts) >= 3:
+                result.setdefault("usage_pct", pcts[0])
+                result.setdefault("remaining_5h_pct", pcts[1])
+                result.setdefault("remaining_week_pct", pcts[2])
+                break
+
+    for line in lines:
+        m = re.search(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", line, re.I)
+        if m and "remaining_5h_pct" not in result:
+            result["remaining_5h_pct"] = int(m[1])
+        m = re.search(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", line, re.I)
+        if m and "remaining_week_pct" not in result:
+            result["remaining_week_pct"] = int(m[1])
+
+    if "remaining_5h_pct" in result and "usage_pct" not in result:
+        result["usage_pct"] = max(0, 100 - result["remaining_5h_pct"])
+    if "remaining_week_pct" in result and "usage_pct" not in result:
+        result["usage_pct"] = max(0, 100 - result["remaining_week_pct"])
+
+    # Reset date
+    reset_at = None
+    weekly_idx = next((i for i, l in enumerate(lines) if re.search(r"weekly\s+limit\b", l, re.I)), -1)
+    if weekly_idx != -1:
+        for i in range(weekly_idx, min(len(lines), weekly_idx + 4)):
+            m = re.search(r"\(resets\s+(.+?)\)", lines[i], re.I)
+            if m:
+                reset_at = m[1].strip()
+                break
+
+    if not reset_at:
+        for line in lines:
+            m = re.match(r"(?:(?:weekly\s+)?resets?)\s*:?\s*(.+)", line, re.I)
+            if m:
+                reset_at = m[1].strip()
+                break
+
+    if not reset_at:
+        all_resets = list(re.finditer(r"\(resets\s+(.+?)\)", normalized, re.I))
+        if all_resets:
+            reset_at = all_resets[-1].group(1).strip()
+
+    if reset_at:
+        reset_at = _normalize_reset_date(reset_at) or reset_at
+
+    if not result:
+        return None
+
+    return {
+        "usage_pct": result.get("usage_pct"),
+        "remaining_5h_pct": result.get("remaining_5h_pct"),
+        "remaining_week_pct": result.get("remaining_week_pct"),
+        "reset_at": reset_at,
+        "raw_status_text": normalized.strip() or None,
+    }
+
+
+def _collect_candidate_files(root_dir):
+    candidates = []
+    direct = [
+        os.path.join(root_dir, "history.jsonl"),
+        os.path.join(root_dir, "session_index.jsonl"),
+        os.path.join(root_dir, "log", "cdx-session.log"),
+        os.path.join(root_dir, "log", "codex-tui.log"),
+    ]
+    for fp in direct:
+        if _safe_stat(fp):
+            candidates.append(fp)
+
+    sessions_dir = os.path.join(root_dir, "sessions")
+    if not _safe_stat(sessions_dir):
+        return candidates
+
+    skip = {"cache", "plugins", "skills", "memories", "sqlite", "shell_snapshots", "tmp"}
+
+    for dirpath, dirnames, filenames in os.walk(sessions_dir):
+        dirnames[:] = [d for d in dirnames if not d.startswith(".") and d not in skip]
+        for fname in filenames:
+            if fname.endswith(".jsonl") or fname.endswith(".log"):
+                candidates.append(os.path.join(dirpath, fname))
+
+    return candidates
+
+
+def find_latest_status_artifact(root_dir, provider=None):
+    candidates = _collect_candidate_files(root_dir)
+    records = []
+    for fp in candidates:
+        if fp.endswith(".jsonl"):
+            records.extend(_extract_jsonl_texts(fp, provider))
+        elif fp.endswith(".log"):
+            records.extend(_extract_log_block(fp, provider))
+
+    best = None
+    for candidate in records:
+        parsed = extract_named_statuses_from_text(candidate["text"])
+        if not parsed:
+            continue
+        ts = candidate.get("timestamp")
+        try:
+            score = float(ts) if ts else 0
+        except (TypeError, ValueError):
+            score = 0
+        src_file = re.sub(r":\d+$", "", candidate["source_ref"])
+        stat = _safe_stat(src_file)
+        if not score and stat:
+            score = stat.st_mtime
+        priority = 2 if src_file.endswith(".log") else 1
+
+        if best is None or (priority, score) >= (best["priority"], best["score"]):
+            best = {
+                "priority": priority,
+                "score": score,
+                "source_ref": candidate["source_ref"],
+                **parsed,
+            }
+            if ts:
+                try:
+                    best["updated_at"] = datetime.fromtimestamp(
+                        float(ts) / 1000, tz=timezone.utc
+                    ).isoformat()
+                except (TypeError, ValueError):
+                    pass
+            if "updated_at" not in best:
+                if stat:
+                    best["updated_at"] = datetime.fromtimestamp(
+                        stat.st_mtime, tz=timezone.utc
+                    ).isoformat()
+
+    return best

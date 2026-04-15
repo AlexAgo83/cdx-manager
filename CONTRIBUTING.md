@@ -35,26 +35,25 @@ Both commands must pass with no errors before opening a pull request.
 
 ## Code Style
 
-- CommonJS (`require` / `module.exports`) — do not introduce ESM.
 - No runtime dependencies. Keep the install footprint at zero.
-- All I/O goes through `stdout`/`stderr` options passed into `main()`, never directly to `process.stdout`. This keeps every command unit-testable without spawning a subprocess.
-- Errors use `CdxError` from `src/errors.js`. Set `.code` when a specific exit code matters.
+- All I/O goes through `stdout`/`stderr` options passed into `main()`, never directly to `sys.stdout`. This keeps every command unit-testable without spawning a subprocess.
+- Errors use `CdxError` from `src/errors.py`. Set `exit_code` when a specific exit code matters.
 - Do not add comments for self-evident code. Add a comment only when the logic is non-obvious.
 
 ## Tests
 
-Tests use the Node.js built-in `node:test` runner — no test framework required.
+Tests use Python's built-in `unittest` runner.
 
-Test files live under `test/` and follow the `*.test.js` naming convention.
+Test files live under `test/` and follow the `test_*_py.py` naming convention.
 
-When adding a new command or changing existing behavior, add or update the corresponding test in `test/cli.test.js` or `test/session-service.test.js`.
+When adding a new command or changing existing behavior, add or update the corresponding test in `test/test_cli_py.py` or `test/test_session_service_py.py`.
 
 ## Adding a Provider
 
-Providers are declared in `src/session-service.js` (`ALLOWED_PROVIDERS`). Adding a new provider requires:
+Providers are declared in `src/session_service.py` (`ALLOWED_PROVIDERS`). Adding a new provider requires:
 
 1. Adding the provider name to `ALLOWED_PROVIDERS`.
-2. Handling the new provider in `buildLaunchSpec`, `buildLoginStatusSpec`, and `buildAuthActionSpec` in `src/cli.js`.
+2. Handling the new provider in `_build_launch_spec`, `_build_login_status_spec`, and `_build_auth_action_spec` in `src/cli.py`.
 3. Adding test coverage for the new launch and auth paths.
 
 ## Reporting Issues

@@ -1,5 +1,8 @@
 ## spec_003_cdx_session_auth_management - cdx session auth management
-> From version: 1.13.1
+> From version: 0.1.0
+> Status: Active
+> Related backlog: `item_005_cdx_session_auth_management`
+> Related task: `task_005_cdx_session_auth_management`
 > Understanding: 90%
 > Confidence: 90%
 

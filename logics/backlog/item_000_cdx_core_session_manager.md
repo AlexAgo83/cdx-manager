@@ -1,5 +1,5 @@
 ## item_000_cdx_core_session_manager - cdx core session manager
-> From version: 1.13.1
+> From version: 0.1.0
 > Schema version: 1.0
 > Status: Done
 > Understanding: 96%

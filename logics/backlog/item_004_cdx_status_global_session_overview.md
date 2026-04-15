@@ -1,5 +1,5 @@
 ## item_004_cdx_status_global_session_overview - cdx status global session overview
-> From version: 1.13.1
+> From version: 0.1.0
 > Schema version: 1.0
 > Status: Done
 > Understanding: 91%

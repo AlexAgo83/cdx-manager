@@ -1,12 +1,12 @@
-# cdx
+# CDX Manager
 
 **Run multiple Codex and Claude sessions from one terminal. Switch between accounts instantly.**
 
-If you use AI coding tools at scale — multiple accounts, multiple providers — you know the friction: re-authenticating, losing context, juggling environment variables. `cdx` removes all of that.
+If you use AI coding tools at scale ; multiple accounts, multiple providers : you know the friction: re-authenticating, losing context, juggling environment variables. `cdx` removes all of that.
 
 One command to launch any session. Zero auth juggling.
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.1.0-4C8BF5) ![Node](https://img.shields.io/badge/node-20%2B-339933?logo=node.js&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.1.0-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
 ---
 
@@ -39,7 +39,7 @@ One command to launch any session. Zero auth juggling.
 
 ## Technical Overview
 
-- Node.js 20+ (CommonJS), zero runtime dependencies.
+- Python 3.9+, zero runtime dependencies.
 - Environment isolation per session:
   - Codex sessions override `CODEX_HOME` to a dedicated profile directory.
   - Claude sessions override `HOME` to a dedicated profile directory.
@@ -51,9 +51,9 @@ One command to launch any session. Zero auth juggling.
 - Status resolution pipeline:
   - Primary source: recorded status fields on the session record.
   - Fallback: `status-source` scans provider JSONL history files and terminal log transcripts, strips ANSI/OSC sequences, and extracts `usage%`, `5h remaining%`, and `week remaining%` via pattern matching.
-- Auth probe: synchronous `spawnSync` call to `codex login status` or `claude auth status --json` before any interactive launch.
+- Auth probe: synchronous subprocess call to `codex login status` or `claude auth status` before any interactive launch.
 - Signal forwarding: `SIGINT`, `SIGTERM`, and `SIGHUP` are forwarded to the child process and produce clean exit codes.
-- Test stack: Node.js built-in `node:test` runner with no test framework dependency.
+- Test stack: Python built-in `unittest` runner with no test framework dependency.
 
 ---
 
@@ -61,7 +61,7 @@ One command to launch any session. Zero auth juggling.
 
 ### Prerequisites
 
-- Node.js 20+
+- Python 3.9+
 - npm
 - `codex` and/or `claude` CLI installed and available in your PATH
 
@@ -135,8 +135,9 @@ cdx status
 
 ## Available Scripts
 
-- `npm test`: run the test suite with the built-in Node.js test runner
-- `npm run lint`: syntax-check all source files with `node --check`
+- `npm test`: run the Python test suite
+- `npm run test:py`: run the Python unit tests directly
+- `npm run lint`: byte-compile the Python sources and tests
 - `npm run link`: link `cdx` globally for local development (`npm link`)
 - `npm run unlink`: remove the global link
 
@@ -149,22 +150,22 @@ bin/
   cdx                   # Entry point — shebang + main() call
 
 src/
-  cli.js                # Command dispatch, output formatting, launch logic,
+  cli.py                # Command dispatch, output formatting, launch logic,
                         # auth probe, signal forwarding
-  session-service.js    # Session lifecycle: create, launch, remove, status
+  session_service.py    # Session lifecycle: create, launch, remove, status
                         # resolution, auth state management
-  session-store.js      # JSON persistence layer: sessions.json + per-session
+  session_store.py      # JSON persistence layer: sessions.json + per-session
                         # state files
-  status-source.js      # Status artifact discovery: scans JSONL history files
+  status_source.py      # Status artifact discovery: scans JSONL history files
                         # and terminal log transcripts, strips ANSI sequences,
                         # extracts usage metrics via pattern matching
-  config.js             # CDX_HOME resolution (env override or ~/.cdx)
-  errors.js             # CdxError with optional exit code
-  index.js              # Public exports
+  config.py             # CDX_HOME resolution (env override or ~/.cdx)
+  errors.py             # CdxError with optional exit code
+  __init__.py           # Public Python exports
 
 test/
-  cli.test.js           # CLI command dispatch tests
-  session-service.test.js  # Session service unit tests
+  test_cli_py.py            # CLI command dispatch tests
+  test_session_service_py.py  # Session service unit tests
 ```
 
 ---

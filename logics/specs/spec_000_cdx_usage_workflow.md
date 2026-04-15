@@ -1,5 +1,8 @@
 ## spec_000_cdx_usage_workflow - cdx usage workflow
-> From version: 1.13.0
+> From version: 0.1.0
+> Status: Active
+> Related backlog: `item_000_cdx_core_session_manager`, `item_001_persistent_codex_session_storage_and_rehydration`, `item_002_multi_provider_session_support_for_codex_and_claude`, `item_003_command_ergonomics_validation_and_safety`, `item_004_cdx_status_global_session_overview`, `item_005_cdx_session_auth_management`
+> Related task: `task_001_cdx_core_session_manager`, `task_000_persistent_codex_session_storage_and_rehydration`, `task_003_multi_provider_session_support_for_codex_and_claude`, `task_000_command_ergonomics_validation_and_safety`, `task_002_cdx_status_global_session_overview`, `task_005_cdx_session_auth_management`
 > Understanding: 90%
 > Confidence: 90%
 

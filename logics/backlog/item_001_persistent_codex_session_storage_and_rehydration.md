@@ -1,5 +1,5 @@
 ## item_001_persistent_codex_session_storage_and_rehydration - persistent Codex session storage and rehydration
-> From version: 1.13.1
+> From version: 0.1.0
 > Schema version: 1.0
 > Status: Done
 > Understanding: 96%

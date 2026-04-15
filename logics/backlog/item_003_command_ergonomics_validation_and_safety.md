@@ -1,5 +1,5 @@
 ## item_003_command_ergonomics_validation_and_safety - command ergonomics validation and safety
-> From version: 1.13.1
+> From version: 0.1.0
 > Schema version: 1.0
 > Status: Done
 > Understanding: 91%

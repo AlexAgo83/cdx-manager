@@ -1,14 +1,14 @@
 ## prod_001_per_session_codex_status_recall - Per-session Codex status usage recall
 > Date: 2026-04-15
-> Status: Proposed
-> Related request: (none yet)
-> Related backlog: (none yet)
-> Related task: (none yet)
-> Related architecture: (none yet)
+> Status: Active
+> Related request: `req_XXX_example`
+> Related backlog: `item_004_cdx_status_global_session_overview`
+> Related task: `task_002_cdx_status_global_session_overview`
+> Related architecture: `adr_000_persist_and_restore_cdx_sessions`
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
 
 # Overview
-Create a `cdx status` command that summarizes the latest `/status` result for every saved Codex session.
+Create a `cdx status` command that summarizes the latest valid `/status` result for every saved Codex or Claude session.
 The default view should let the user compare `main`, `work1`, and `work2` at the same time, while still keeping each session's stored result isolated.
 An optional `cdx status <name>` detail view should expose the latest result for one session when the user wants to inspect it more closely.
 The user value is fast recall of recent usage information across sessions without manually searching transcripts.
@@ -28,17 +28,17 @@ Without a dedicated recall command, users have to search raw transcripts or jump
 
 # Target users and situations
 - Advanced Codex users who switch between several named sessions on one machine.
-- Users who rely on `/status` to surface structured usage data inside Codex.
+- Users who rely on `/status` to surface structured usage data inside Codex or Claude.
 - Users who want to compare the last `/status` response across sessions without manually digging through transcripts.
 - Users who occasionally need a detail view for a single session.
 
 # Goals
-- Provide a `cdx status` command that lists every saved session and its latest `/status` result.
+- Provide a `cdx status` command that lists every saved session and its latest valid `/status` result.
 - Keep status recall isolated per session, so `main`, `work1`, and `work2` do not share results.
 - Allow `cdx status <name>` to show the detailed latest status for one session.
 - Extract the useful usage data from each recalled response so it can be displayed or reused directly.
 - Reduce the need to search transcript history manually.
-- Store both the raw latest `/status` response and the extracted fields needed for display, including usage and remaining percentage for 5h and week windows.
+- Preserve normalized fields needed for display, including remaining percentage for 5h/week windows and the next reset when available.
 - Sort the global view by the most recent status activity first.
 
 # Non-goals
@@ -46,7 +46,7 @@ Without a dedicated recall command, users have to search raw transcripts or jump
 - Build a full transcript browser or general-purpose chat archive.
 - Merge status history across different sessions or providers by default.
 - Reconstruct missing status data when a session has never produced a `/status`.
-- Support non-Codex providers in the first version.
+- Use noisy conversational JSONL content as the primary status source when cleaner session logs exist.
 
 # Scope and guardrails
 - In: session-scoped storage of the latest `/status` entry and its extracted usage data.
@@ -61,12 +61,12 @@ Without a dedicated recall command, users have to search raw transcripts or jump
 - Extraction of the useful usage data is part of the value, not a separate manual step.
 - Sessions with no stored `/status` should still appear in the global view with a clear empty state.
 - The global view should sort by most recent status activity first.
-- The first version should stay Codex-only for status recall.
+- The resolver should prefer transcript logs over quoted or replayed JSONL content to avoid cross-session contamination.
 
 # Success signals
 - A user can run `cdx status` and see the latest usage metrics for every saved session in one place.
 - A user can run `cdx status <name>` and inspect one session in detail when needed.
-- `main`, `work1`, and `work2` can each keep a different status result without interference.
+- `main`, `work1`, and `work2` can each keep a different status result without interference, even when one transcript quotes another session's output.
 - Users spend less time reopening transcripts to find the last useful usage output.
 - The recalled data is accurate enough to be reused in follow-up work.
 - A user can immediately spot stale sessions because empty states remain visible.

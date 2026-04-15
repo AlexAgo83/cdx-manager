@@ -1,10 +1,10 @@
 ## task_005_cdx_session_auth_management - cdx session auth management
-> From version: 1.13.1
+> From version: 0.1.0
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 90%
-> Progress: 0%
+> Status: Done
+> Understanding: 95%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: High
 > Theme: Auth
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -17,7 +17,7 @@
 
 ```mermaid
 %% logics-kind: task
-%% logics-signature: task|cdx-session-auth-management|item-005-cdx-session-auth-management|1-confirm-scope-dependencies-and-linked|run-node-test-after-wiring-the
+%% logics-signature: task|cdx-session-auth-management|item-005-cdx-session-auth-management|1-confirm-scope-dependencies-and-linked|run-npm-test-after-wiring-the
 stateDiagram-v2
     state "item_005_cdx_session_auth_management" as Backlog
     state "1. Confirm scope dependencies and linked" as Scope
@@ -35,17 +35,17 @@ stateDiagram-v2
 ```
 
 # Plan
-- [ ] 1. Confirm scope, dependencies, and linked acceptance criteria.
-- [ ] 2. Extend the session model so auth state can be tracked per named session without leaking across profiles.
-- [ ] 3. Implement `cdx add` onboarding so new sessions trigger the provider login flow when no valid credentials exist.
-- [ ] 4. Implement `cdx login <name>` as an explicit reauthentication path for one named session.
-- [ ] 5. Implement `cdx logout <name>` as a targeted credential reset for one named session.
-- [ ] 6. Add or update tests for first-run onboarding, reauth, logout, and isolation between `main`, `work1`, and `work2`.
-- [ ] 7. Checkpoint the wave in a commit-ready state, validate it, and update the linked Logics docs.
-- [ ] CHECKPOINT: leave the current wave commit-ready and update the linked Logics docs before continuing.
-- [ ] CHECKPOINT: if the shared AI runtime is active and healthy, run `python logics/skills/logics.py flow assist commit-all` for the current step, item, or wave commit checkpoint.
-- [ ] GATE: do not close a wave or step until the relevant automated tests and quality checks have been run successfully.
-- [ ] FINAL: Update related Logics docs
+- [x] 1. Confirm scope, dependencies, and linked acceptance criteria.
+- [x] 2. Extend the session model so auth state can be tracked per named session without leaking across profiles.
+- [x] 3. Implement `cdx add` onboarding so new sessions trigger the provider login flow when no valid credentials exist.
+- [x] 4. Implement `cdx login <name>` as an explicit reauthentication path for one named session.
+- [x] 5. Implement `cdx logout <name>` as a targeted credential reset for one named session.
+- [x] 6. Add or update tests for first-run onboarding, reauth, logout, and isolation between `main`, `work1`, and `work2`.
+- [x] 7. Checkpoint the wave in a commit-ready state, validate it, and update the linked Logics docs.
+- [x] CHECKPOINT: leave the current wave commit-ready and update the linked Logics docs before continuing.
+- [x] CHECKPOINT: if the shared AI runtime is active and healthy, run `python logics/skills/logics.py flow assist commit-all` for the current step, item, or wave commit checkpoint.
+- [x] GATE: do not close a wave or step until the relevant automated tests and quality checks have been run successfully.
+- [x] FINAL: Update related Logics docs
 
 # Delivery checkpoints
 - Each completed wave should leave the repository in a coherent, commit-ready state.
@@ -55,8 +55,8 @@ stateDiagram-v2
 - Do not mark a wave or step complete until the relevant automated tests and quality checks have been run successfully.
 
 # Validation
-- Run `node --test` after wiring the auth flow and session isolation changes.
-- Run `node --check bin/cdx src/cli.js src/session-service.js src/session-store.js test/cli.test.js test/session-service.test.js` before checkpointing.
+- Run `npm test` after wiring the auth flow and session isolation changes.
+- Run `npm run lint` before checkpointing.
 - Run `rtk python3 logics/skills/logics.py lint --require-status` after updating the linked docs.
 - Re-run the focused CLI smoke tests for `cdx add`, `cdx login`, `cdx logout`, and `cdx <name>` against a temporary `CDX_HOME`.
 
@@ -94,11 +94,18 @@ stateDiagram-v2
 - Confirm the completed wave leaves the repository in a commit-ready state.
 
 # Definition of Done (DoD)
-- [ ] Scope implemented and acceptance criteria covered.
-- [ ] Validation commands executed and results captured.
-- [ ] No wave or step was closed before the relevant automated tests and quality checks passed.
-- [ ] Linked request/backlog/task docs updated during completed waves and at closure.
-- [ ] Each completed wave left a commit-ready checkpoint or an explicit exception is documented.
-- [ ] Status is `Done` and progress is `100%`.
+- [x] Scope implemented and acceptance criteria covered.
+- [x] Validation commands executed and results captured.
+- [x] No wave or step was closed before the relevant automated tests and quality checks passed.
+- [x] Linked request/backlog/task docs updated during completed waves and at closure.
+- [x] Each completed wave left a commit-ready checkpoint or an explicit exception is documented.
+- [x] Status is `Done` and progress is `100%`.
 
 # Report
+- Implemented session-scoped authentication bootstrap, explicit reauthentication, and targeted logout in the Python CLI.
+- `cdx add` now creates the session and immediately probes provider auth; interactive bootstrap is triggered when needed.
+- `cdx login <name>` and `cdx logout <name>` now operate on one named session without leaking auth state across profiles.
+- Validation evidence:
+  - `npm test`
+  - `npm run lint`
+  - focused Python CLI/auth tests covering onboarding, logout, reauth, non-interactive failures, and per-session isolation
