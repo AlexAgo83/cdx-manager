@@ -1,5 +1,6 @@
 "use strict";
 
+const { spawn } = require("child_process");
 const readline = require("readline");
 const { createSessionService } = require("./session-service");
 const { CdxError } = require("./errors");
@@ -144,6 +145,38 @@ function formatStatusDetail(row) {
   return lines.join("\n");
 }
 
+function launchCodexInteractive(session, options = {}) {
+  const spawnFn = options.spawn || spawn;
+  const stdout = options.stdout || process.stdout;
+  const stderr = options.stderr || process.stderr;
+  const cwd = options.cwd || process.cwd();
+  const child = spawnFn(
+    "codex",
+    ["--no-alt-screen", "--cd", cwd],
+    {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        ...(options.env || {}),
+        CODEX_HOME: session.codexHome,
+      },
+    },
+  );
+
+  return new Promise((resolve, reject) => {
+    child.on("error", (error) => {
+      reject(new CdxError(`Failed to launch Codex for ${session.name}: ${error.message}`));
+    });
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve(code);
+        return;
+      }
+      reject(new CdxError(`Codex exited with code ${code} for session ${session.name}`));
+    });
+  });
+}
+
 function parseAddArgs(args) {
   if (args.length === 1) {
     return { provider: "codex", name: args[0] };
@@ -260,6 +293,7 @@ async function main(argv, options = {}) {
   if (rest.length === 0) {
     const session = service.launchSession(command);
     stdout.write(`Launching ${session.provider} session ${session.name}\n`);
+    await launchCodexInteractive(session, options);
     return 0;
   }
 

@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const EventEmitter = require("node:events");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -22,6 +23,20 @@ function makeIo() {
     getStdout: () => stdout,
     getStderr: () => stderr,
   };
+}
+
+function makeSpawnRecorder() {
+  const calls = [];
+  const spawn = (command, args, options) => {
+    calls.push({ command, args, options });
+    const child = new EventEmitter();
+    child.stdin = null;
+    child.stdout = null;
+    child.stderr = null;
+    process.nextTick(() => child.emit("close", 0));
+    return child;
+  };
+  return { calls, spawn };
 }
 
 test("help and version commands", async () => {
@@ -50,9 +65,13 @@ test("add and launch sessions", async () => {
   await main(["add", "main"], { ...io, env: { CDX_HOME: dir } });
   assert.match(io.getStdout(), /Created session main/);
 
+  const launcher = makeSpawnRecorder();
   const io2 = makeIo();
-  await main(["main"], { ...io2, env: { CDX_HOME: dir } });
+  await main(["main"], { ...io2, env: { CDX_HOME: dir }, spawn: launcher.spawn });
   assert.match(io2.getStdout(), /Launching codex session main/);
+  assert.equal(launcher.calls[0].command, "codex");
+  assert.deepEqual(launcher.calls[0].args.slice(0, 3), ["--no-alt-screen", "--cd", process.cwd()]);
+  assert.equal(launcher.calls[0].options.env.CODEX_HOME, path.join(dir, "profiles", encodeURIComponent("main")));
 });
 
 test("provider-specific sessions are supported", async () => {
@@ -61,9 +80,11 @@ test("provider-specific sessions are supported", async () => {
   await main(["add", "claude", "work1"], { ...createIo, env: { CDX_HOME: dir } });
   assert.match(createIo.getStdout(), /Created session work1 \(claude\)/);
 
+  const launcher = makeSpawnRecorder();
   const launchIo = makeIo();
-  await main(["work1"], { ...launchIo, env: { CDX_HOME: dir } });
+  await main(["work1"], { ...launchIo, env: { CDX_HOME: dir }, spawn: launcher.spawn });
   assert.match(launchIo.getStdout(), /Launching claude session work1/);
+  assert.equal(launcher.calls[0].options.env.CODEX_HOME, path.join(dir, "profiles", encodeURIComponent("work1")));
 });
 
 test("list sessions shows next actions", async () => {

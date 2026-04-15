@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
 const { createSessionStore } = require("./session-store");
 const { getCdxHome } = require("./config");
 const { CdxError } = require("./errors");
@@ -24,6 +26,10 @@ function createSessionService(options = {}) {
   const baseDir = options.baseDir || getCdxHome(env);
   const store = options.store || createSessionStore(baseDir);
 
+  function getSessionHome(name) {
+    return path.join(baseDir, "profiles", encodeURIComponent(name));
+  }
+
   function normalizeProvider(provider) {
     const value = provider || DEFAULT_PROVIDER;
     if (!ALLOWED_PROVIDERS.has(value)) {
@@ -37,9 +43,12 @@ function createSessionService(options = {}) {
       throw new CdxError("Session name is required");
     }
     const normalizedProvider = normalizeProvider(provider);
+    const codexHome = getSessionHome(name);
+    fs.mkdirSync(codexHome, { recursive: true });
     const session = {
       name,
       provider: normalizedProvider,
+      codexHome,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       lastLaunchedAt: null,
@@ -124,6 +133,7 @@ function createSessionService(options = {}) {
       .map((session) => ({
         session_name: session.name,
         provider: session.provider,
+        codex_home: session.codexHome || getSessionHome(session.name),
         usage_pct: session.lastStatus ? session.lastStatus.usagePct : null,
         remaining_5h_pct: session.lastStatus ? session.lastStatus.remaining5hPct : null,
         remaining_week_pct: session.lastStatus ? session.lastStatus.remainingWeekPct : null,
@@ -151,6 +161,7 @@ function createSessionService(options = {}) {
     launchSession,
     listSessions,
     normalizeProvider,
+    getSessionHome,
     recordStatus,
     removeSession,
     getStatusRows,
