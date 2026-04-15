@@ -26,8 +26,16 @@ function createSessionService(options = {}) {
   const baseDir = options.baseDir || getCdxHome(env);
   const store = options.store || createSessionStore(baseDir);
 
-  function getSessionHome(name) {
+  function getSessionRoot(name) {
     return path.join(baseDir, "profiles", encodeURIComponent(name));
+  }
+
+  function getSessionAuthHome(name, provider) {
+    const sessionRoot = getSessionRoot(name);
+    if (provider === "claude") {
+      return path.join(sessionRoot, "claude-home");
+    }
+    return sessionRoot;
   }
 
   function normalizeProvider(provider) {
@@ -43,17 +51,25 @@ function createSessionService(options = {}) {
       throw new CdxError("Session name is required");
     }
     const normalizedProvider = normalizeProvider(provider);
-    const codexHome = getSessionHome(name);
-    fs.mkdirSync(codexHome, { recursive: true });
+    const sessionRoot = getSessionRoot(name);
+    const authHome = getSessionAuthHome(name, normalizedProvider);
+    fs.mkdirSync(authHome, { recursive: true });
     const session = {
       name,
       provider: normalizedProvider,
-      codexHome,
+      sessionRoot,
+      authHome,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       lastLaunchedAt: null,
       lastStatusAt: null,
       lastStatus: null,
+      auth: {
+        status: "unknown",
+        lastCheckedAt: null,
+        lastAuthenticatedAt: null,
+        lastLoggedOutAt: null,
+      },
     };
     const result = store.addSession(session);
     if (!result.ok) {
@@ -67,6 +83,8 @@ function createSessionService(options = {}) {
     if (!removed) {
       throw new CdxError(`Unknown session: ${name}`);
     }
+    const sessionRoot = removed.sessionRoot || getSessionRoot(name);
+    fs.rmSync(sessionRoot, { recursive: true, force: true });
     return removed;
   }
 
@@ -112,6 +130,19 @@ function createSessionService(options = {}) {
     return updated;
   }
 
+  function updateAuthState(name, updater) {
+    const now = new Date().toISOString();
+    const updated = store.updateSession(name, (session) => ({
+      ...session,
+      updatedAt: now,
+      auth: updater(session.auth || {}),
+    }));
+    if (!updated) {
+      throw new CdxError(`Unknown session: ${name}`);
+    }
+    return updated;
+  }
+
   function getStatusRows() {
     const sessions = listSessions();
     return sessions
@@ -133,7 +164,7 @@ function createSessionService(options = {}) {
       .map((session) => ({
         session_name: session.name,
         provider: session.provider,
-        codex_home: session.codexHome || getSessionHome(session.name),
+        auth_home: session.authHome || getSessionAuthHome(session.name, session.provider),
         usage_pct: session.lastStatus ? session.lastStatus.usagePct : null,
         remaining_5h_pct: session.lastStatus ? session.lastStatus.remaining5hPct : null,
         remaining_week_pct: session.lastStatus ? session.lastStatus.remainingWeekPct : null,
@@ -161,9 +192,11 @@ function createSessionService(options = {}) {
     launchSession,
     listSessions,
     normalizeProvider,
-    getSessionHome,
+    getSessionAuthHome,
+    getSessionRoot,
     recordStatus,
     removeSession,
+    updateAuthState,
     getStatusRows,
   };
 }

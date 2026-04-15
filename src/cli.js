@@ -1,6 +1,6 @@
 "use strict";
 
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const readline = require("readline");
 const { createSessionService } = require("./session-service");
 const { CdxError } = require("./errors");
@@ -15,6 +15,8 @@ function printHelp() {
     "  cdx",
     "  cdx status [name]",
     "  cdx add [provider] <name>",
+    "  cdx login <name>",
+    "  cdx logout <name>",
     "  cdx rmv <name> [--force]",
     "  cdx <name>",
     "  cdx --help",
@@ -58,6 +60,8 @@ function formatSessions(service) {
   lines.push("Next actions:");
   lines.push("  cdx add <name>");
   lines.push("  cdx <name>");
+  lines.push("  cdx login <name>");
+  lines.push("  cdx logout <name>");
   lines.push("  cdx status");
   return lines.join("\n");
 }
@@ -145,6 +149,10 @@ function formatStatusDetail(row) {
   return lines.join("\n");
 }
 
+function getAuthHome(session) {
+  return session.authHome || session.sessionRoot || session.codexHome;
+}
+
 function buildLaunchSpec(session, options = {}) {
   const cwd = options.cwd || process.cwd();
   if (session.provider === "claude") {
@@ -157,6 +165,7 @@ function buildLaunchSpec(session, options = {}) {
         env: {
           ...process.env,
           ...(options.env || {}),
+          HOME: getAuthHome(session),
         },
       },
       label: "claude",
@@ -170,11 +179,85 @@ function buildLaunchSpec(session, options = {}) {
       env: {
         ...process.env,
         ...(options.env || {}),
-        CODEX_HOME: session.codexHome,
+        CODEX_HOME: getAuthHome(session),
       },
     },
     label: "codex",
   };
+}
+
+function buildLoginStatusSpec(session, options = {}) {
+  const env = {
+    ...process.env,
+    ...(options.env || {}),
+  };
+  if (session.provider === "claude") {
+    env.HOME = getAuthHome(session);
+    return {
+      command: "claude",
+      args: ["auth", "status"],
+      env,
+      parser: (output) => {
+        try {
+          return Boolean(JSON.parse(output || "{}").loggedIn);
+        } catch {
+          return false;
+        }
+      },
+      label: "claude auth status",
+    };
+  }
+  env.CODEX_HOME = getAuthHome(session);
+  return {
+    command: "codex",
+    args: ["login", "status"],
+    env,
+    parser: (output) => {
+      const text = output || "";
+      if (/Not logged in/i.test(text)) {
+        return false;
+      }
+      return /Logged in/i.test(text);
+    },
+    label: "codex login status",
+  };
+}
+
+function buildAuthActionSpec(session, action, options = {}) {
+  const cwd = options.cwd || process.cwd();
+  const env = {
+    ...process.env,
+    ...(options.env || {}),
+  };
+  if (session.provider === "claude") {
+    env.HOME = getAuthHome(session);
+    return {
+      command: "claude",
+      args: ["auth", action],
+      options: { cwd, stdio: "inherit", env },
+      label: `claude auth ${action}`,
+    };
+  }
+  env.CODEX_HOME = getAuthHome(session);
+  return {
+    command: "codex",
+    args: [action],
+    options: { cwd, stdio: "inherit", env },
+    label: `codex ${action}`,
+  };
+}
+
+function probeProviderAuth(session, options = {}) {
+  const spawnSyncFn = options.spawnSync || spawnSync;
+  const spec = buildLoginStatusSpec(session, options);
+  const result = spawnSyncFn(spec.command, spec.args, {
+    env: spec.env,
+    encoding: "utf8",
+  });
+  if (result.error) {
+    throw new CdxError(`Failed to check login status for ${session.name}: ${result.error.message}`);
+  }
+  return spec.parser(`${result.stdout || ""}${result.stderr || ""}`);
 }
 
 function signalExitCode(signal) {
@@ -186,10 +269,10 @@ function signalExitCode(signal) {
   return map[signal] || 1;
 }
 
-function launchProviderInteractive(session, options = {}) {
+function runInteractiveProviderCommand(session, action, options = {}) {
   const spawnFn = options.spawn || spawn;
   const signalEmitter = options.signalEmitter || process;
-  const spec = buildLaunchSpec(session, options);
+  const spec = action === "launch" ? buildLaunchSpec(session, options) : buildAuthActionSpec(session, action, options);
   const child = spawnFn(spec.command, spec.args, spec.options);
   const signals = ["SIGINT", "SIGTERM", "SIGHUP"];
   const signalHandlers = new Map();
@@ -226,7 +309,7 @@ function launchProviderInteractive(session, options = {}) {
 
   return new Promise((resolve, reject) => {
     child.on("error", (error) => {
-      finish(() => reject(new CdxError(`Failed to launch ${spec.label} for ${session.name}: ${error.message}`)));
+      finish(() => reject(new CdxError(`Failed to run ${spec.label} for ${session.name}: ${error.message}`)));
     });
     child.on("close", (code, signal) => {
       finish(() => {
@@ -243,6 +326,24 @@ function launchProviderInteractive(session, options = {}) {
       });
     });
   });
+}
+
+async function ensureSessionAuthentication(session, options = {}, behavior = "launch") {
+  const isAuthenticated = probeProviderAuth(session, options);
+  if (isAuthenticated) {
+    return { authenticated: true, checked: true };
+  }
+  if (behavior === "probe-only") {
+    return { authenticated: false, checked: true };
+  }
+  if (behavior === "launch") {
+    throw new CdxError(`Session ${session.name} is not authenticated. Run: cdx login ${session.name}`);
+  }
+  if (!options.stdin || !options.stdin.isTTY) {
+    throw new CdxError(`Session ${session.name} is not authenticated. Run: cdx login ${session.name}`);
+  }
+  await runInteractiveProviderCommand(session, "login", options);
+  return { authenticated: true, checked: true, bootstrapped: true };
 }
 
 function parseAddArgs(args) {
@@ -310,8 +411,16 @@ async function main(argv, options = {}) {
 
   if (command === "add") {
     const { provider, name } = parseAddArgs(rest);
-    service.createSession(name, provider);
+    const session = service.createSession(name, provider);
     stdout.write(`Created session ${name} (${provider})\n`);
+    await ensureSessionAuthentication(session, options, "bootstrap");
+    service.updateAuthState(name, (auth) => ({
+      ...auth,
+      status: "authenticated",
+      lastCheckedAt: new Date().toISOString(),
+      lastAuthenticatedAt: new Date().toISOString(),
+      lastLoggedOutAt: auth.lastLoggedOutAt || null,
+    }));
     return 0;
   }
 
@@ -348,6 +457,50 @@ async function main(argv, options = {}) {
     return 0;
   }
 
+  if (command === "login") {
+    if (rest.length !== 1) {
+      throw new CdxError("Usage: cdx login <name>");
+    }
+    if (!stdin || !stdin.isTTY) {
+      throw new CdxError("Login requires an interactive terminal.");
+    }
+    const session = service.getSession(rest[0]);
+    if (!session) {
+      throw new CdxError(`Unknown session: ${rest[0]}`);
+    }
+    await runInteractiveProviderCommand(session, "logout", options);
+    await runInteractiveProviderCommand(session, "login", options);
+    const now = new Date().toISOString();
+    service.updateAuthState(session.name, (auth) => ({
+      ...auth,
+      status: "authenticated",
+      lastCheckedAt: now,
+      lastAuthenticatedAt: now,
+    }));
+    stdout.write(`Reauthenticated session ${session.name} (${session.provider})\n`);
+    return 0;
+  }
+
+  if (command === "logout") {
+    if (rest.length !== 1) {
+      throw new CdxError("Usage: cdx logout <name>");
+    }
+    const session = service.getSession(rest[0]);
+    if (!session) {
+      throw new CdxError(`Unknown session: ${rest[0]}`);
+    }
+    await runInteractiveProviderCommand(session, "logout", options);
+    const now = new Date().toISOString();
+    service.updateAuthState(session.name, (auth) => ({
+      ...auth,
+      status: "logged_out",
+      lastCheckedAt: now,
+      lastLoggedOutAt: now,
+    }));
+    stdout.write(`Logged out session ${session.name} (${session.provider})\n`);
+    return 0;
+  }
+
   if (command === "help") {
     stdout.write(`${printHelp()}\n`);
     return 0;
@@ -360,8 +513,9 @@ async function main(argv, options = {}) {
 
   if (rest.length === 0) {
     const session = service.launchSession(command);
+    await ensureSessionAuthentication(session, options, "launch");
     stdout.write(`Launching ${session.provider} session ${session.name}\n`);
-    await launchProviderInteractive(session, options);
+    await runInteractiveProviderCommand(session, "launch", options);
     return 0;
   }
 

@@ -18,6 +18,7 @@ function makeIo() {
   let stderr = "";
   return {
     env: {},
+    stdin: { isTTY: true },
     stdout: { write: (value) => { stdout += value; } },
     stderr: { write: (value) => { stderr += value; } },
     getStdout: () => stdout,
@@ -25,18 +26,57 @@ function makeIo() {
   };
 }
 
-function makeSpawnRecorder() {
+function makeAuthHarness(initialAuth = {}) {
   const calls = [];
+  const authByHome = new Map(Object.entries(initialAuth));
+
+  const getHome = (options = {}) => options?.env?.CODEX_HOME || options?.env?.HOME || null;
+
+  const spawnSync = (command, args, options = {}) => {
+    calls.push({ kind: "spawnSync", command, args, options });
+    const home = getHome(options);
+    const authed = authByHome.get(home) ?? false;
+    if (command === "codex" && args[0] === "login" && args[1] === "status") {
+      return {
+        status: 0,
+        stdout: authed ? "Logged in using ChatGPT\n" : "Not logged in\n",
+        stderr: "",
+      };
+    }
+    if (command === "claude" && args[0] === "auth" && args[1] === "status") {
+      return {
+        status: 0,
+        stdout: `${JSON.stringify({ loggedIn: authed, authMethod: authed ? "oauth" : "none" })}\n`,
+        stderr: "",
+      };
+    }
+    return { status: 0, stdout: "", stderr: "" };
+  };
+
   const spawn = (command, args, options) => {
-    calls.push({ command, args, options });
+    calls.push({ kind: "spawn", command, args, options });
     const child = new EventEmitter();
     child.stdin = null;
     child.stdout = null;
     child.stderr = null;
+    const home = getHome(options);
+    if (command === "codex" && args[0] === "login" && args.length === 1) {
+      authByHome.set(home, true);
+    }
+    if (command === "codex" && args[0] === "logout" && args.length === 1) {
+      authByHome.set(home, false);
+    }
+    if (command === "claude" && args[0] === "auth" && args[1] === "login") {
+      authByHome.set(home, true);
+    }
+    if (command === "claude" && args[0] === "auth" && args[1] === "logout") {
+      authByHome.set(home, false);
+    }
     process.nextTick(() => child.emit("close", 0));
     return child;
   };
-  return { calls, spawn };
+
+  return { calls, spawn, spawnSync, authByHome };
 }
 
 test("help and version commands", async () => {
@@ -61,39 +101,47 @@ test("help and version aliases work cleanly", async () => {
 
 test("add and launch sessions", async () => {
   const dir = makeTempDir();
+  const launcher = makeAuthHarness();
   const io = makeIo();
-  await main(["add", "main"], { ...io, env: { CDX_HOME: dir } });
+  await main(["add", "main"], { ...io, env: { CDX_HOME: dir }, spawn: launcher.spawn, spawnSync: launcher.spawnSync, stdin: io.stdin });
   assert.match(io.getStdout(), /Created session main/);
-
-  const launcher = makeSpawnRecorder();
   const io2 = makeIo();
-  await main(["main"], { ...io2, env: { CDX_HOME: dir }, spawn: launcher.spawn });
+  await main(["main"], { ...io2, env: { CDX_HOME: dir }, spawn: launcher.spawn, spawnSync: launcher.spawnSync, stdin: io2.stdin });
   assert.match(io2.getStdout(), /Launching codex session main/);
-  assert.equal(launcher.calls[0].command, "codex");
-  assert.deepEqual(launcher.calls[0].args.slice(0, 3), ["--no-alt-screen", "--cd", process.cwd()]);
-  assert.equal(launcher.calls[0].options.env.CODEX_HOME, path.join(dir, "profiles", encodeURIComponent("main")));
+  const authProbe = launcher.calls.find((call) => call.kind === "spawnSync" && call.command === "codex" && call.args[0] === "login" && call.args[1] === "status");
+  const bootstrapLogin = launcher.calls.find((call) => call.kind === "spawn" && call.command === "codex" && call.args[0] === "login" && call.args.length === 1);
+  const launchSpawn = launcher.calls.find((call) => call.kind === "spawn" && call.command === "codex" && call.args[0] === "--no-alt-screen");
+  assert.ok(authProbe);
+  assert.ok(bootstrapLogin);
+  assert.ok(launchSpawn);
+  assert.deepEqual(launchSpawn.args.slice(0, 3), ["--no-alt-screen", "--cd", process.cwd()]);
+  assert.equal(launchSpawn.options.env.CODEX_HOME, path.join(dir, "profiles", encodeURIComponent("main")));
 });
 
 test("provider-specific sessions are supported", async () => {
   const dir = makeTempDir();
+  const launcher = makeAuthHarness();
   const createIo = makeIo();
-  await main(["add", "claude", "work1"], { ...createIo, env: { CDX_HOME: dir } });
+  await main(["add", "claude", "work1"], { ...createIo, env: { CDX_HOME: dir }, spawn: launcher.spawn, spawnSync: launcher.spawnSync, stdin: createIo.stdin });
   assert.match(createIo.getStdout(), /Created session work1 \(claude\)/);
 
-  const launcher = makeSpawnRecorder();
   const launchIo = makeIo();
-  await main(["work1"], { ...launchIo, env: { CDX_HOME: dir }, spawn: launcher.spawn });
+  await main(["work1"], { ...launchIo, env: { CDX_HOME: dir }, spawn: launcher.spawn, spawnSync: launcher.spawnSync, stdin: launchIo.stdin });
   assert.match(launchIo.getStdout(), /Launching claude session work1/);
-  assert.equal(launcher.calls[0].command, "claude");
-  assert.deepEqual(launcher.calls[0].args, ["--name", "work1"]);
-  assert.equal(launcher.calls[0].options.cwd, process.cwd());
-  assert.equal(launcher.calls[0].options.env.CDX_HOME, dir);
+  const bootstrapLogin = launcher.calls.find((call) => call.kind === "spawn" && call.command === "claude" && call.args[0] === "auth" && call.args[1] === "login");
+  const launchSpawn = launcher.calls.find((call) => call.kind === "spawn" && call.command === "claude" && call.args[0] === "--name");
+  assert.ok(bootstrapLogin);
+  assert.ok(launchSpawn);
+  assert.deepEqual(launchSpawn.args, ["--name", "work1"]);
+  assert.equal(launchSpawn.options.cwd, process.cwd());
+  assert.equal(launchSpawn.options.env.HOME, path.join(dir, "profiles", encodeURIComponent("work1"), "claude-home"));
 });
 
 test("launch forwards termination signals to the spawned provider", async () => {
   const dir = makeTempDir();
   const createIo = makeIo();
-  await main(["add", "main"], { ...createIo, env: { CDX_HOME: dir } });
+  const launcher = makeAuthHarness();
+  await main(["add", "main"], { ...createIo, env: { CDX_HOME: dir }, spawn: launcher.spawn, spawnSync: launcher.spawnSync, stdin: createIo.stdin });
 
   const signalEmitter = new EventEmitter();
   const killedSignals = [];
@@ -112,7 +160,9 @@ test("launch forwards termination signals to the spawned provider", async () => 
     ...launchIo,
     env: { CDX_HOME: dir },
     spawn,
+    spawnSync: launcher.spawnSync,
     signalEmitter,
+    stdin: launchIo.stdin,
   });
   process.nextTick(() => signalEmitter.emit("SIGINT"));
 
@@ -124,12 +174,33 @@ test("launch forwards termination signals to the spawned provider", async () => 
   assert.deepEqual(killedSignals, ["SIGINT"]);
 });
 
+test("logout clears auth and login reauthenticates only the named session", async () => {
+  const dir = makeTempDir();
+  const harness = makeAuthHarness();
+  const createIo = makeIo();
+  await main(["add", "main"], { ...createIo, env: { CDX_HOME: dir }, spawn: harness.spawn, spawnSync: harness.spawnSync, stdin: createIo.stdin });
+  const logoutIo = makeIo();
+  await main(["logout", "main"], { ...logoutIo, env: { CDX_HOME: dir }, spawn: harness.spawn, spawnSync: harness.spawnSync, stdin: logoutIo.stdin });
+  assert.match(logoutIo.getStdout(), /Logged out session main \(codex\)/);
+
+  const launchIo = makeIo();
+  await assert.rejects(
+    () => main(["main"], { ...launchIo, env: { CDX_HOME: dir }, spawn: harness.spawn, spawnSync: harness.spawnSync, stdin: launchIo.stdin }),
+    /Run: cdx login main/,
+  );
+
+  const loginIo = makeIo();
+  await main(["login", "main"], { ...loginIo, env: { CDX_HOME: dir }, spawn: harness.spawn, spawnSync: harness.spawnSync, stdin: loginIo.stdin });
+  assert.match(loginIo.getStdout(), /Reauthenticated session main \(codex\)/);
+});
+
 test("list sessions shows next actions", async () => {
   const dir = makeTempDir();
+  const harness = makeAuthHarness();
   const createIo = makeIo();
-  await main(["add", "main"], { ...createIo, env: { CDX_HOME: dir } });
+  await main(["add", "main"], { ...createIo, env: { CDX_HOME: dir }, spawn: harness.spawn, spawnSync: harness.spawnSync, stdin: createIo.stdin });
   const createIo2 = makeIo();
-  await main(["add", "claude", "work1"], { ...createIo2, env: { CDX_HOME: dir } });
+  await main(["add", "claude", "work1"], { ...createIo2, env: { CDX_HOME: dir }, spawn: harness.spawn, spawnSync: harness.spawnSync, stdin: createIo2.stdin });
 
   const io = makeIo();
   await main([], { ...io, env: { CDX_HOME: dir } });
@@ -141,16 +212,18 @@ test("list sessions shows next actions", async () => {
 
 test("remove sessions can be forced or confirmed", async () => {
   const dir = makeTempDir();
+  const harness = makeAuthHarness();
   const createIo = makeIo();
-  await main(["add", "main"], { ...createIo, env: { CDX_HOME: dir } });
+  await main(["add", "main"], { ...createIo, env: { CDX_HOME: dir }, spawn: harness.spawn, spawnSync: harness.spawnSync, stdin: createIo.stdin });
 
   const forceIo = makeIo();
   await main(["rmv", "main", "--force"], { ...forceIo, env: { CDX_HOME: dir } });
   assert.match(forceIo.getStdout(), /Removed session main/);
 
   const dir2 = makeTempDir();
+  const harness2 = makeAuthHarness();
   const createIo2 = makeIo();
-  await main(["add", "work1"], { ...createIo2, env: { CDX_HOME: dir2 } });
+  await main(["add", "work1"], { ...createIo2, env: { CDX_HOME: dir2 }, spawn: harness2.spawn, spawnSync: harness2.spawnSync, stdin: createIo2.stdin });
 
   const confirmIo = makeIo();
   await main(["rmv", "work1"], {
@@ -163,8 +236,9 @@ test("remove sessions can be forced or confirmed", async () => {
 
 test("remove can be cancelled", async () => {
   const dir = makeTempDir();
+  const harness = makeAuthHarness();
   const createIo = makeIo();
-  await main(["add", "main"], { ...createIo, env: { CDX_HOME: dir } });
+  await main(["add", "main"], { ...createIo, env: { CDX_HOME: dir }, spawn: harness.spawn, spawnSync: harness.spawnSync, stdin: createIo.stdin });
 
   const cancelIo = makeIo();
   await main(["rmv", "main"], {
