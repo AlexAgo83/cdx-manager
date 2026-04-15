@@ -73,9 +73,11 @@ test("remove deletes persisted session state", () => {
   const service = createSessionService({ baseDir: dir });
 
   service.createSession("main");
+  const sessionRoot = path.join(dir, "profiles", encodeURIComponent("main"));
   service.removeSession("main");
 
   assert.equal(fs.existsSync(path.join(dir, "state", `${encodeURIComponent("main")}.json`)), false);
+  assert.equal(fs.existsSync(sessionRoot), false);
 });
 
 test("reject duplicate names and unknown providers", () => {

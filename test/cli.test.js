@@ -194,6 +194,22 @@ test("logout clears auth and login reauthenticates only the named session", asyn
   assert.match(loginIo.getStdout(), /Reauthenticated session main \(codex\)/);
 });
 
+test("smoke flow includes remove and deletes the session root", async () => {
+  const dir = makeTempDir();
+  const harness = makeAuthHarness();
+  const io = makeIo();
+  await main(["add", "main"], { ...io, env: { CDX_HOME: dir }, spawn: harness.spawn, spawnSync: harness.spawnSync, stdin: io.stdin });
+  await main(["main"], { ...io, env: { CDX_HOME: dir }, spawn: harness.spawn, spawnSync: harness.spawnSync, stdin: io.stdin });
+  await main(["status"], { ...io, env: { CDX_HOME: dir } });
+  await main(["logout", "main"], { ...io, env: { CDX_HOME: dir }, spawn: harness.spawn, spawnSync: harness.spawnSync, stdin: io.stdin });
+  await main(["login", "main"], { ...io, env: { CDX_HOME: dir }, spawn: harness.spawn, spawnSync: harness.spawnSync, stdin: io.stdin });
+  await main(["rmv", "main", "--force"], { ...io, env: { CDX_HOME: dir }, spawn: harness.spawn, spawnSync: harness.spawnSync, stdin: io.stdin });
+
+  assert.match(io.getStdout(), /Removed session main/);
+  assert.equal(fs.existsSync(path.join(dir, "profiles", encodeURIComponent("main"))), false);
+  assert.equal(fs.existsSync(path.join(dir, "state", `${encodeURIComponent("main")}.json`)), false);
+});
+
 test("list sessions shows next actions", async () => {
   const dir = makeTempDir();
   const harness = makeAuthHarness();
