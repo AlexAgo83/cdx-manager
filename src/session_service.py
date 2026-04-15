@@ -2,6 +2,7 @@ import os
 import shutil
 import json
 import base64
+import tempfile
 from datetime import datetime, timezone
 from urllib.parse import quote
 
@@ -267,17 +268,19 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {source_name}")
         existing = store["get_session"](dest_name)
         overwritten = False
-        if existing:
-            dest_root = existing.get("sessionRoot") or _get_session_root(dest_name)
-            store["remove_session"](dest_name)
-            shutil.rmtree(dest_root, ignore_errors=True)
-            overwritten = True
         source_root = source.get("sessionRoot") or _get_session_root(source_name)
         dest_root = _get_session_root(dest_name)
+        if not existing and os.path.exists(dest_root):
+            raise CdxError(f"Session profile already exists: {dest_name}")
         dest_auth_home = _get_session_auth_home(dest_name, source["provider"])
-        shutil.copytree(source_root, dest_root)
+        profiles_dir = os.path.dirname(dest_root)
+        os.makedirs(profiles_dir, exist_ok=True)
+        temp_parent = tempfile.mkdtemp(prefix=f".{_encode(dest_name)}.copy.", dir=profiles_dir)
+        temp_root = os.path.join(temp_parent, "profile")
+        backup_root = None
+        moved_temp = False
         now = _local_now_iso()
-        result = store["add_session"]({
+        replacement = {
             "name": dest_name,
             "provider": source["provider"],
             "sessionRoot": dest_root,
@@ -293,7 +296,28 @@ def create_session_service(options=None):
                 "lastAuthenticatedAt": None,
                 "lastLoggedOutAt": None,
             },
-        })
+        }
+        try:
+            shutil.copytree(source_root, temp_root)
+            if existing:
+                backup_root = tempfile.mkdtemp(prefix=f".{_encode(dest_name)}.backup.", dir=profiles_dir)
+                os.rmdir(backup_root)
+                if os.path.exists(dest_root):
+                    os.rename(dest_root, backup_root)
+            os.rename(temp_root, dest_root)
+            moved_temp = True
+            result = store["replace_session"](dest_name, replacement)
+            overwritten = bool(existing)
+        except Exception:
+            if moved_temp and os.path.exists(dest_root):
+                shutil.rmtree(dest_root, ignore_errors=True)
+            if backup_root and os.path.exists(backup_root) and not os.path.exists(dest_root):
+                os.rename(backup_root, dest_root)
+            raise
+        finally:
+            if backup_root and os.path.exists(backup_root):
+                shutil.rmtree(backup_root, ignore_errors=True)
+            shutil.rmtree(temp_parent, ignore_errors=True)
         if not result["ok"]:
             raise CdxError(f"Failed to create session: {dest_name}")
         return {"session": result["session"], "overwritten": overwritten}

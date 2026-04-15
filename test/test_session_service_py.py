@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 from datetime import datetime
+from unittest import mock
 
 from src.errors import CdxError
 from src.session_service import create_session_service
@@ -361,6 +362,26 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(rows[0]["reset_5h_at"], "Apr 16 04:38")
         self.assertEqual(rows[0]["reset_week_at"], "Apr 18 00:08")
 
+    def test_large_status_log_is_tailed(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        session_log = os.path.join(temp_dir, "profiles", "main", "log", "cdx-session.log")
+        os.makedirs(os.path.dirname(session_log), exist_ok=True)
+        with open(session_log, "w", encoding="utf-8") as handle:
+            handle.write("old noise\n" * 70000)
+            handle.write("\n".join([
+                "│  5h limit:             [████████████████░░░░] 81% left",
+                "│                        (resets 03:48 on 16 Apr)",
+                "│  Weekly limit:         [████████████████░░░░] 82% left",
+                "│                        (resets 16:51 on 22 Apr)",
+            ]))
+
+        rows = service["get_status_rows"]()
+        self.assertEqual(rows[0]["remaining_5h_pct"], 81)
+        self.assertEqual(rows[0]["remaining_week_pct"], 82)
+
     def test_copy_session_overwrites_and_keeps_isolation(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -384,6 +405,24 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(copied["provider"], "claude")
         self.assertTrue(copied["authHome"].endswith(os.path.join("dest", "claude-home")))
         self.assertTrue(os.path.exists(os.path.join(temp_dir, "profiles", "dest", "claude-home", "log", "cdx-session.log")))
+
+    def test_copy_session_preserves_destination_when_copy_fails(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("source", "claude")
+        service["create_session"]("dest")
+
+        dest_marker = os.path.join(temp_dir, "profiles", "dest", "marker.txt")
+        with open(dest_marker, "w", encoding="utf-8") as handle:
+            handle.write("keep")
+
+        with mock.patch("src.session_service.shutil.copytree", side_effect=OSError("boom")):
+            with self.assertRaises(OSError):
+                service["copy_session"]("source", "dest")
+
+        dest = service["get_session"]("dest")
+        self.assertEqual(dest["provider"], "codex")
+        self.assertTrue(os.path.exists(dest_marker))
 
     def test_copy_session_rejects_reserved_destination_names(self):
         temp_dir = self.make_temp_dir()
@@ -590,7 +629,7 @@ class SessionServicePythonTests(unittest.TestCase):
         with open(store_file, "w", encoding="utf-8") as handle:
             handle.write("{bad json")
         store = create_session_store(temp_dir)
-        with self.assertRaises(json.JSONDecodeError):
+        with self.assertRaisesRegex(CdxError, "Corrupt JSON file"):
             store["list_sessions"]()
 
     def test_corrupted_state_file_fails_launch(self):
@@ -600,7 +639,7 @@ class SessionServicePythonTests(unittest.TestCase):
         state_path = os.path.join(temp_dir, "state", "main.json")
         with open(state_path, "w", encoding="utf-8") as handle:
             handle.write("{bad json")
-        with self.assertRaises(json.JSONDecodeError):
+        with self.assertRaisesRegex(CdxError, "Corrupt JSON file"):
             service["launch_session"]("main")
 
 

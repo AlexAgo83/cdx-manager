@@ -11,6 +11,8 @@ _CONTROL_CHAR = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+MAX_STATUS_READ_BYTES = 512 * 1024
+MAX_STATUS_CANDIDATE_FILES = 64
 
 
 def _strip_ansi(text):
@@ -27,10 +29,13 @@ def _normalize_terminal_transcript(text):
     return text
 
 
-def _safe_read_text(file_path):
+def _safe_read_text(file_path, max_bytes=MAX_STATUS_READ_BYTES):
     try:
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-            return f.read()
+        size = os.path.getsize(file_path)
+        with open(file_path, "rb") as f:
+            if size > max_bytes:
+                f.seek(-max_bytes, os.SEEK_END)
+            return f.read().decode("utf-8", errors="replace")
     except (FileNotFoundError, OSError):
         return None
 
@@ -496,6 +501,16 @@ def _collect_candidate_files(root_dir):
 
 def find_latest_status_artifact(root_dir, provider=None, expected_account_email=None):
     candidates = _collect_candidate_files(root_dir)
+    candidate_stats = {
+        fp: stat
+        for fp, stat in ((candidate, _safe_stat(candidate)) for candidate in set(candidates))
+        if stat
+    }
+    candidates = sorted(
+        candidate_stats,
+        key=lambda fp: candidate_stats[fp].st_mtime,
+        reverse=True,
+    )[:MAX_STATUS_CANDIDATE_FILES]
     records = []
     for fp in candidates:
         normalized_fp = fp.replace(os.sep, "/")

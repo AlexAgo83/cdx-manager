@@ -51,6 +51,7 @@ One command to launch any session. Zero auth juggling.
 - Status resolution pipeline:
   - Primary source: recorded status fields on the session record.
   - Fallback: `status-source` scans provider JSONL history files and terminal log transcripts, strips ANSI/OSC sequences, and extracts `usage%`, `5h remaining%`, and `week remaining%` via pattern matching.
+- Claude status refreshes are cached briefly by default; pass `--refresh` to force a live rate-limit probe.
 - Auth probe: synchronous subprocess call to `codex login status` or `claude auth status` before any interactive launch.
 - Signal forwarding: `SIGINT`, `SIGTERM`, and `SIGHUP` are forwarded to the child process and produce clean exit codes.
 - Test stack: Python built-in `unittest` runner with no test framework dependency.
@@ -129,9 +130,9 @@ cdx status
 | `cdx logout <name>` | Log out of a session |
 | `cdx rmv <name> [--force]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
 | `cdx clean [name]` | Clear launch transcript logs for one session or all sessions |
-| `cdx status [--json]` | Show token usage table for all sessions |
-| `cdx status --small` / `cdx status -s` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
-| `cdx status <name> [--json]` | Show detailed usage breakdown for one session |
+| `cdx status [--json] [--refresh]` | Show token usage table for all sessions |
+| `cdx status --small [--refresh]` / `cdx status -s [--refresh]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
+| `cdx status <name> [--json] [--refresh]` | Show detailed usage breakdown for one session |
 | `cdx --help` | Show usage |
 | `cdx --version` | Show version |
 
@@ -154,7 +155,8 @@ bin/
   cdx                   # Entry point — shebang + main() call
 
 src/
-  cli.py                # Command dispatch and argument handling
+  cli.py                # Top-level command router
+  cli_commands.py       # Command handlers and argument handling
   cli_render.py         # Terminal formatting, tables, colors, and errors
   status_view.py        # Status table/detail rendering and priority ranking
   provider_runtime.py   # Provider launch/auth commands, transcripts, signals
@@ -196,7 +198,7 @@ All session data lives under `CDX_HOME` (default: `~/.cdx/`):
           cdx-session.log
 ```
 
-Session names are URL-encoded when used as directory or file names, so any name is safe.
+Session names are URL-encoded when used as directory or file names. CLI command names such as `add`, `status`, and `login` are reserved and cannot be used as session names.
 
 ---
 

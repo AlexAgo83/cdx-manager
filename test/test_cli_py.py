@@ -501,6 +501,67 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("RESET WEEK", output)
         self.assertIn("Priority: use work1 first (60% OK).", output)
 
+    def test_status_skips_fresh_claude_refresh_unless_forced(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("claude", "claude")
+        service["record_status"]("claude", {
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 60,
+            "updated_at": datetime.now().astimezone().isoformat(),
+        })
+
+        def refresh(_session):
+            raise AssertionError("fresh status should not refresh")
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "refreshClaudeSessionStatus": refresh,
+        }), 0)
+        self.assertIn("80%", status_io["stdout"].getvalue())
+
+        def forced_refresh(_session):
+            return {
+                "remaining_5h_pct": 55,
+                "remaining_week_pct": 44,
+                "updated_at": datetime.now().astimezone().isoformat(),
+            }
+
+        refresh_io = self.make_io()
+        self.assertEqual(main(["status", "--refresh"], {
+            **refresh_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "refreshClaudeSessionStatus": forced_refresh,
+        }), 0)
+        self.assertIn("44%", refresh_io["stdout"].getvalue())
+
+    def test_status_detail_refreshes_only_requested_session(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["create_session"]("claude", "claude")
+        service["record_status"]("main", {
+            "remaining_5h_pct": 70,
+            "remaining_week_pct": 70,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+
+        def refresh(_session):
+            raise AssertionError("unrequested Claude session should not refresh")
+
+        detail_io = self.make_io()
+        self.assertEqual(main(["status", "main"], {
+            **detail_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "refreshClaudeSessionStatus": refresh,
+        }), 0)
+        self.assertIn("Session: main", detail_io["stdout"].getvalue())
+
     def test_status_small_flag_renders_compact_table(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
