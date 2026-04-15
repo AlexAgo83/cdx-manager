@@ -145,11 +145,9 @@ def _format_status_rows(rows):
         table_rows.append(base)
     priority = _recommend_priority_sessions(rows)
     priority_line = (
-        f"Priority: use {priority[0]['session_name']} first "
-        f"({_priority_reason(priority[0])})"
+        f"Priority: {_priority_instruction(priority[0], 'first')}"
         + (
-            f", next {priority[1]['session_name']} "
-            f"({_priority_reason(priority[1])})."
+            f", {_priority_instruction(priority[1], 'next')}."
             if len(priority) > 1 else "."
         )
     ) if priority else "Priority: no usable session status yet."
@@ -171,16 +169,36 @@ def _recommend_priority_sessions(rows):
         usable_now = available is not None and available > 0
         known_available = available is not None
         reset_timestamp = _priority_reset_timestamp(row)
+        reset_is_future = reset_timestamp is not None and reset_timestamp >= _now_timestamp()
+        blocked_future = not usable_now and reset_is_future
+        reset_is_known = reset_timestamp is not None
         return (
             0 if has_credits else 1,
             1 if usable_now else 0,
+            1 if blocked_future else 0,
             1 if known_available else 0,
             available if available is not None else -1,
+            1 if reset_is_known else 0,
             -reset_timestamp if reset_timestamp is not None else float("-inf"),
             row.get("session_name") or "",
         )
 
     return sorted(rows, key=rank, reverse=True)
+
+
+def _priority_instruction(row, position):
+    action = "refresh" if _priority_needs_refresh(row) else "use"
+    if position == "next" and action == "use":
+        return f"next {row['session_name']} ({_priority_reason(row)})"
+    return f"{action} {row['session_name']} {position} ({_priority_reason(row)})"
+
+
+def _priority_needs_refresh(row):
+    available = row.get("available_pct")
+    if available is None or available > 0:
+        return False
+    _label, is_past = _priority_reset_info(row)
+    return is_past
 
 
 def _priority_reason(row):
@@ -189,13 +207,15 @@ def _priority_reason(row):
         return "status unknown"
     if available > 0:
         return f"{_format_pct(available)} OK"
-    label = _priority_reset_label(row)
+    label, is_past = _priority_reset_info(row)
     if label:
+        if is_past:
+            return f"0% OK, {label} reset passed"
         return f"0% OK, {label} resets first"
     return "0% OK"
 
 
-def _priority_reset_label(row):
+def _priority_reset_info(row):
     remaining_5h = row.get("remaining_5h_pct")
     remaining_week = row.get("remaining_week_pct")
     candidates = []
@@ -218,10 +238,11 @@ def _priority_reset_label(row):
         if timestamp is not None
     ]
     if timestamps:
-        return min(timestamps)[1]
+        timestamp, label = min(timestamps)
+        return label, timestamp < _now_timestamp()
     if blocked:
-        return blocked[0][0]
-    return None
+        return blocked[0][0], False
+    return None, False
 
 
 def _priority_reset_timestamp(row):
@@ -264,6 +285,10 @@ def _parse_reset_timestamp(value):
     now = datetime.now().astimezone()
     parsed = parsed.replace(year=now.year, tzinfo=now.tzinfo)
     return parsed.timestamp()
+
+
+def _now_timestamp():
+    return datetime.now().astimezone().timestamp()
 
 
 def _format_status_detail(row):

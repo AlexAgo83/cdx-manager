@@ -107,9 +107,6 @@ cdx add claude personal
 # List all sessions
 cdx
 
-# Rename a session
-cdx ren work work2
-
 # Launch a session
 cdx work
 
@@ -126,6 +123,7 @@ cdx status
 | `cdx` | List all sessions with last-updated timestamps |
 | `cdx <name>` | Launch a session (checks auth first) |
 | `cdx add [provider] <name>` | Register a new session (`provider`: `codex` or `claude`, default: `codex`) |
+| `cdx cp <source> <dest>` | Copy a session into another session name, overwriting the destination if it exists |
 | `cdx ren <source> <dest>` | Rename a session and move its auth data |
 | `cdx login <name>` | Re-authenticate a session (logout + login) |
 | `cdx logout <name>` | Log out of a session |
@@ -157,7 +155,7 @@ bin/
 src/
   cli.py                # Command dispatch, output formatting, launch logic,
                         # auth probe, signal forwarding
-  session_service.py    # Session lifecycle: create, launch, remove, status
+  session_service.py    # Session lifecycle: create, copy, rename, launch, remove, status
                         # resolution, auth state management
   session_store.py      # JSON persistence layer: sessions.json + per-session
                         # state files

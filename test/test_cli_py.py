@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 
 from src.cli import main
 from src.errors import CdxError
@@ -359,6 +360,50 @@ class CliPythonTests(unittest.TestCase):
     def test_status_recommends_earliest_blocking_reset_for_zero_ok(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
+        future = datetime.now() + timedelta(days=1)
+        later = future + timedelta(hours=1)
+        service["create_session"]("work1")
+        service["create_session"]("work2")
+        service["create_session"]("claude", "claude")
+        service["record_status"]("work1", {
+            "remaining_5h_pct": 100,
+            "remaining_week_pct": 6,
+            "reset_5h_at": later.astimezone().isoformat(),
+            "reset_week_at": later.astimezone().isoformat(),
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+        service["record_status"]("work2", {
+            "remaining_5h_pct": 0,
+            "remaining_week_pct": 69,
+            "reset_5h_at": later.astimezone().isoformat(),
+            "reset_week_at": later.astimezone().isoformat(),
+            "updated_at": "2026-04-15T10:01:00+00:00",
+        })
+        service["record_status"]("claude", {
+            "remaining_5h_pct": 0,
+            "remaining_week_pct": 75,
+            "reset_5h_at": future.astimezone().isoformat(),
+            "reset_week_at": later.astimezone().isoformat(),
+            "updated_at": "2026-04-15T10:02:00+00:00",
+        })
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        self.assertIn(
+            "Priority: use work1 first (6% OK), next claude (0% OK, 5H resets first).",
+            status_io["stdout"].getvalue(),
+        )
+
+    def test_status_recommends_refresh_when_blocking_reset_has_passed(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        past = datetime.now() - timedelta(hours=1)
+        later_past = datetime.now() - timedelta(minutes=30)
         service["create_session"]("work1")
         service["create_session"]("work2")
         service["create_session"]("claude", "claude")
@@ -372,14 +417,14 @@ class CliPythonTests(unittest.TestCase):
         service["record_status"]("work2", {
             "remaining_5h_pct": 0,
             "remaining_week_pct": 69,
-            "reset_5h_at": "Apr 16 03:48",
+            "reset_5h_at": later_past.astimezone().isoformat(),
             "reset_week_at": "Apr 22 16:51",
             "updated_at": "2026-04-15T10:01:00+00:00",
         })
         service["record_status"]("claude", {
             "remaining_5h_pct": 0,
             "remaining_week_pct": 75,
-            "reset_5h_at": "Apr 16 02:00",
+            "reset_5h_at": past.astimezone().isoformat(),
             "reset_week_at": "Apr 21 14:00",
             "updated_at": "2026-04-15T10:02:00+00:00",
         })
@@ -392,7 +437,7 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
 
         self.assertIn(
-            "Priority: use work1 first (6% OK), next claude (0% OK, 5H resets first).",
+            "Priority: use work1 first (6% OK), refresh claude next (0% OK, 5H reset passed).",
             status_io["stdout"].getvalue(),
         )
 
