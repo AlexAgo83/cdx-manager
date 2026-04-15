@@ -1,10 +1,10 @@
 ## task_000_command_ergonomics_validation_and_safety - command ergonomics validation and safety
 > From version: 1.13.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: CLI
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.

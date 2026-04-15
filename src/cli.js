@@ -25,6 +25,14 @@ function printVersion() {
   return VERSION;
 }
 
+function isHelpFlagOnly(argv) {
+  return argv.length === 1 && (argv[0] === "--help" || argv[0] === "-h");
+}
+
+function isVersionFlagOnly(argv) {
+  return argv.length === 1 && (argv[0] === "--version" || argv[0] === "-v");
+}
+
 function formatSessions(service) {
   const rows = service.formatListRows();
   const hasProvider = rows.some((row) => row.provider);
@@ -76,6 +84,16 @@ function confirmRemoval(stdin, stdout, name) {
   });
 }
 
+function parseRemoveArgs(args) {
+  const force = args.includes("--force");
+  const names = args.filter((item) => item !== "--force");
+  const unknownFlags = args.filter((item) => item.startsWith("-") && item !== "--force");
+  if (unknownFlags.length > 0 || names.length !== 1 || args.length > 2) {
+    throw new CdxError("Usage: cdx rmv <name> [--force]");
+  }
+  return { name: names[0], force };
+}
+
 async function main(argv, options = {}) {
   const env = options.env || process.env;
   const stdout = options.stdout || process.stdout;
@@ -83,12 +101,18 @@ async function main(argv, options = {}) {
   const stdin = options.stdin || process.stdin;
   const service = options.service || createSessionService({ env });
 
-  if (argv.includes("--help") || argv.includes("-h")) {
+  if (argv.some((arg) => arg === "--help" || arg === "-h")) {
+    if (!isHelpFlagOnly(argv)) {
+      throw new CdxError("Usage: cdx --help");
+    }
     stdout.write(`${printHelp()}\n`);
     return 0;
   }
 
-  if (argv.includes("--version") || argv.includes("-v")) {
+  if (argv.some((arg) => arg === "--version" || arg === "-v")) {
+    if (!isVersionFlagOnly(argv)) {
+      throw new CdxError("Usage: cdx --version");
+    }
     stdout.write(`${printVersion()}\n`);
     return 0;
   }
@@ -108,12 +132,8 @@ async function main(argv, options = {}) {
   }
 
   if (command === "rmv") {
-    const forceIndex = rest.indexOf("--force");
-    const name = rest.find((item) => item !== "--force");
-    if (!name) {
-      throw new CdxError("Usage: cdx rmv <name> [--force]");
-    }
-    if (forceIndex === -1) {
+    const { name, force } = parseRemoveArgs(rest);
+    if (!force) {
       const confirmed = options.confirmRemove
         ? await options.confirmRemove(name)
         : await confirmRemoval(stdin, stdout, name);
@@ -144,6 +164,9 @@ async function main(argv, options = {}) {
       }
       return 0;
     }
+    if (rest.length !== 1) {
+      throw new CdxError("Usage: cdx status [name]");
+    }
     const session = service.getSession(rest[0]);
     if (!session) {
       throw new CdxError(`Unknown session: ${rest[0]}`);
@@ -173,7 +196,7 @@ async function main(argv, options = {}) {
     return 0;
   }
 
-  throw new CdxError(printHelp());
+  throw new CdxError(`Unknown command: ${command}. Use cdx --help.`);
 }
 
 module.exports = {

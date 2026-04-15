@@ -33,6 +33,16 @@ test("help and version commands", async () => {
   assert.match(io2.getStdout(), /0\.1\.0/);
 });
 
+test("help and version aliases work cleanly", async () => {
+  const helpIo = makeIo();
+  await main(["-h"], helpIo);
+  assert.match(helpIo.getStdout(), /Usage:/);
+
+  const versionIo = makeIo();
+  await main(["-v"], versionIo);
+  assert.match(versionIo.getStdout(), /0\.1\.0/);
+});
+
 test("add and launch sessions", async () => {
   const dir = makeTempDir();
   const io = makeIo();
@@ -72,4 +82,27 @@ test("remove sessions can be forced or confirmed", async () => {
     confirmRemove: async () => true,
   });
   assert.match(confirmIo.getStdout(), /Removed session work1/);
+});
+
+test("remove can be cancelled", async () => {
+  const dir = makeTempDir();
+  const createIo = makeIo();
+  await main(["add", "main"], { ...createIo, env: { CDX_HOME: dir } });
+
+  const cancelIo = makeIo();
+  await main(["rmv", "main"], {
+    ...cancelIo,
+    env: { CDX_HOME: dir },
+    confirmRemove: async () => false,
+  });
+  assert.match(cancelIo.getStdout(), /Cancelled\./);
+});
+
+test("invalid syntax is rejected with usage guidance", async () => {
+  const dir = makeTempDir();
+  const io = makeIo();
+  await assert.rejects(
+    () => main(["status", "main", "extra"], { ...io, env: { CDX_HOME: dir } }),
+    /Usage: cdx status \[name\]/,
+  );
 });

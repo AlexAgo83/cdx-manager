@@ -1,10 +1,10 @@
 ## item_001_persistent_codex_session_storage_and_rehydration - persistent Codex session storage and rehydration
 > From version: 1.13.1
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 96%
 > Confidence: 91%
-> Progress: 5%
+> Progress: 100%
 > Complexity: High
 > Theme: Auth
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
