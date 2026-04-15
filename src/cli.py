@@ -71,6 +71,37 @@ def _format_relative_age(iso_value):
     return f"{hours // 24}d ago"
 
 
+def _format_reset_time(value):
+    if not value:
+        return "-"
+    timestamp = _parse_reset_timestamp(value)
+    if timestamp is None:
+        return value
+    delta_s = timestamp - _now_timestamp()
+    if delta_s < 0:
+        minutes_ago = int(abs(delta_s) // 60)
+        if minutes_ago < 1:
+            return "passed"
+        if minutes_ago < 60:
+            return f"passed {minutes_ago}m ago"
+        hours_ago = minutes_ago // 60
+        if hours_ago < 24:
+            return f"passed {hours_ago}h ago"
+        return value
+    if delta_s < 60:
+        return "now"
+    if delta_s < 24 * 60 * 60:
+        minutes = int(delta_s // 60)
+        hours = minutes // 60
+        remaining_minutes = minutes % 60
+        if hours == 0:
+            return f"in {remaining_minutes}m"
+        if remaining_minutes == 0:
+            return f"in {hours}h"
+        return f"in {hours}h {remaining_minutes}m"
+    return value
+
+
 def _local_now_iso():
     return datetime.now().astimezone().isoformat()
 
@@ -138,8 +169,8 @@ def _format_status_rows(rows):
             _format_pct(r.get("remaining_5h_pct")),
             _format_pct(r.get("remaining_week_pct")),
             str(r["credits"]) if r.get("credits") is not None else "-",
-            r.get("reset_5h_at") or "-",
-            r.get("reset_week_at") or "-",
+            _format_reset_time(r.get("reset_5h_at")),
+            _format_reset_time(r.get("reset_week_at")),
             _format_relative_age(r.get("updated_at")),
         ]
         table_rows.append(base)

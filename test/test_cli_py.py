@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta
 
-from src.cli import main
+from src.cli import _format_reset_time, main
 from src.errors import CdxError
 from src.session_service import create_session_service
 
@@ -118,6 +118,15 @@ class CliPythonTests(unittest.TestCase):
             "stdout": _Stream(),
             "stderr": _Stream(),
         }
+
+    def test_reset_time_formatting_uses_countdown_under_24h(self):
+        future = datetime.now().astimezone() + timedelta(hours=2, minutes=30)
+        later = datetime.now().astimezone() + timedelta(days=2)
+        past = datetime.now().astimezone() - timedelta(hours=1, minutes=5)
+
+        self.assertIn(_format_reset_time(future.isoformat()), ("in 2h 29m", "in 2h 30m"))
+        self.assertEqual(_format_reset_time(later.isoformat()), later.isoformat())
+        self.assertEqual(_format_reset_time(past.isoformat()), "passed 1h ago")
 
     def test_help_and_version_flags(self):
         help_io = self.make_io()
