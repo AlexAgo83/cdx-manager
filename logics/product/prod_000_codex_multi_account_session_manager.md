@@ -2,9 +2,9 @@
 > Date: 2026-04-15
 > Status: Proposed
 > Related request: (none yet)
-> Related backlog: (none yet)
+> Related backlog: `item_000_cdx_core_session_manager`, `item_001_persistent_codex_session_storage_and_rehydration`, `item_002_multi_provider_session_support_for_codex_and_claude`, `item_003_command_ergonomics_validation_and_safety`, `item_004_cdx_status_global_session_overview`
 > Related task: (none yet)
-> Related architecture: (none yet)
+> Related architecture: `adr_000_persist_and_restore_cdx_sessions`
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
 
 # Overview
@@ -37,6 +37,7 @@ That creates friction, increases context mistakes, and makes daily usage slower 
 - Allow an explicit provider session to be added with `cdx add <provider> <name>`, where the provider is `codex` or `claude`.
 - Allow a session to be removed with `cdx rmv <name>`.
 - Preserve user session state so reconnecting is not required every time.
+- Support `cdx status` as a global overview for comparing the latest usage data across saved sessions.
 
 # Non-goals
 - Replace Codex's native interface with a new graphical experience.
@@ -48,6 +49,7 @@ That creates friction, increases context mistakes, and makes daily usage slower 
 - In: Persistence of login state so the user does not start from a fresh reconnect each session.
 - In: An extensible multi-provider model, with Codex as the priority and Claude as a natural candidate.
 - In: Standard CLI affordances such as `--help`/`-h` and `--version`/`-v`.
+- In: A global `cdx status` overview for comparing the latest usage data across saved sessions.
 - Out: Advanced enterprise policy management, centralized provisioning, or sharing sessions between users.
 - Out: Automatic account switching without explicit naming from the user.
 
@@ -56,6 +58,8 @@ That creates friction, increases context mistakes, and makes daily usage slower 
 - The base model must be explicit and predictable: one session equals one stable name equals one stable context.
 - Login persistence is a core product expectation, not a convenience feature.
 - The CLI contract should stay conventional: `cdx` lists, `add` creates, `rmv` deletes, and `--help`/`--version` behave as standard flags.
+- `cdx status` should be the global comparison surface; per-session storage remains the backing model.
+- The status payload should be interpreted as usage metrics, including remaining percentages over the 5h and week windows when present.
 - Claude support should remain secondary until it meaningfully improves daily usage.
 
 # Success signals
@@ -70,6 +74,7 @@ That creates friction, increases context mistakes, and makes daily usage slower 
 - `logics/backlog/item_002_multi_provider_session_support_for_codex_and_claude.md`
 - `logics/backlog/item_003_command_ergonomics_validation_and_safety.md`
 - `logics/architecture/adr_000_persist_and_restore_cdx_sessions.md`
+- `logics/product/prod_001_per_session_codex_status_recall.md`
 
 # Open questions
 - Should list output remain purely human-readable, or also expose a script-friendly mode later?
