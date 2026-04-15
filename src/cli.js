@@ -9,6 +9,7 @@ const { CdxError } = require("./errors");
 const { refreshClaudeSessionStatus } = require("./claude-usage");
 
 const VERSION = "0.1.0";
+const LOG_ROTATE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 function printHelp() {
   return [
@@ -22,6 +23,7 @@ function printHelp() {
     "  cdx login <name>",
     "  cdx logout <name>",
     "  cdx rmv <name> [--force]",
+    "  cdx clean [name]",
     "  cdx <name>",
     "  cdx --help",
     "  cdx --version",
@@ -159,12 +161,24 @@ function getLaunchTranscriptPath(session) {
   return path.join(getAuthHome(session), "log", "cdx-session.log");
 }
 
+function rotateLogIfNeeded(logPath) {
+  try {
+    const stat = fs.statSync(logPath);
+    if (stat.size >= LOG_ROTATE_BYTES) {
+      fs.writeFileSync(logPath, "");
+    }
+  } catch {
+    // File doesn't exist yet — nothing to rotate
+  }
+}
+
 function wrapLaunchWithTranscript(session, spec, options = {}) {
   if (options.captureTranscript === false) {
     return spec;
   }
   const transcriptPath = getLaunchTranscriptPath(session);
   fs.mkdirSync(path.dirname(transcriptPath), { recursive: true });
+  rotateLogIfNeeded(transcriptPath);
   return {
     command: "script",
     args: ["-q", transcriptPath, spec.command, ...spec.args],
@@ -448,6 +462,29 @@ async function main(argv, options = {}) {
       lastAuthenticatedAt: new Date().toISOString(),
       lastLoggedOutAt: auth.lastLoggedOutAt || null,
     }));
+    return 0;
+  }
+
+  if (command === "clean") {
+    const targets = rest.length === 0
+      ? service.listSessions()
+      : (() => {
+          if (rest.length !== 1) throw new CdxError("Usage: cdx clean [name]");
+          const s = service.getSession(rest[0]);
+          if (!s) throw new CdxError(`Unknown session: ${rest[0]}`);
+          return [s];
+        })();
+    for (const session of targets) {
+      const logPath = getLaunchTranscriptPath(session);
+      try {
+        const stat = fs.statSync(logPath);
+        fs.writeFileSync(logPath, "");
+        const kb = Math.round(stat.size / 1024);
+        stdout.write(`Cleared ${session.name} log (${kb} KB freed)\n`);
+      } catch {
+        stdout.write(`${session.name}: no log found\n`);
+      }
+    }
     return 0;
   }
 
