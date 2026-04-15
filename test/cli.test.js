@@ -84,7 +84,10 @@ test("provider-specific sessions are supported", async () => {
   const launchIo = makeIo();
   await main(["work1"], { ...launchIo, env: { CDX_HOME: dir }, spawn: launcher.spawn });
   assert.match(launchIo.getStdout(), /Launching claude session work1/);
-  assert.equal(launcher.calls[0].options.env.CODEX_HOME, path.join(dir, "profiles", encodeURIComponent("work1")));
+  assert.equal(launcher.calls[0].command, "claude");
+  assert.deepEqual(launcher.calls[0].args, ["--name", "work1"]);
+  assert.equal(launcher.calls[0].options.cwd, process.cwd());
+  assert.equal(launcher.calls[0].options.env.CDX_HOME, dir);
 });
 
 test("list sessions shows next actions", async () => {

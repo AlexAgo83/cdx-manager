@@ -145,15 +145,27 @@ function formatStatusDetail(row) {
   return lines.join("\n");
 }
 
-function launchCodexInteractive(session, options = {}) {
-  const spawnFn = options.spawn || spawn;
-  const stdout = options.stdout || process.stdout;
-  const stderr = options.stderr || process.stderr;
+function buildLaunchSpec(session, options = {}) {
   const cwd = options.cwd || process.cwd();
-  const child = spawnFn(
-    "codex",
-    ["--no-alt-screen", "--cd", cwd],
-    {
+  if (session.provider === "claude") {
+    return {
+      command: "claude",
+      args: ["--name", session.name],
+      options: {
+        cwd,
+        stdio: "inherit",
+        env: {
+          ...process.env,
+          ...(options.env || {}),
+        },
+      },
+      label: "claude",
+    };
+  }
+  return {
+    command: "codex",
+    args: ["--no-alt-screen", "--cd", cwd],
+    options: {
       stdio: "inherit",
       env: {
         ...process.env,
@@ -161,18 +173,25 @@ function launchCodexInteractive(session, options = {}) {
         CODEX_HOME: session.codexHome,
       },
     },
-  );
+    label: "codex",
+  };
+}
+
+function launchProviderInteractive(session, options = {}) {
+  const spawnFn = options.spawn || spawn;
+  const spec = buildLaunchSpec(session, options);
+  const child = spawnFn(spec.command, spec.args, spec.options);
 
   return new Promise((resolve, reject) => {
     child.on("error", (error) => {
-      reject(new CdxError(`Failed to launch Codex for ${session.name}: ${error.message}`));
+      reject(new CdxError(`Failed to launch ${spec.label} for ${session.name}: ${error.message}`));
     });
     child.on("close", (code) => {
       if (code === 0) {
         resolve(code);
         return;
       }
-      reject(new CdxError(`Codex exited with code ${code} for session ${session.name}`));
+      reject(new CdxError(`${spec.label} exited with code ${code} for session ${session.name}`));
     });
   });
 }
@@ -293,7 +312,7 @@ async function main(argv, options = {}) {
   if (rest.length === 0) {
     const session = service.launchSession(command);
     stdout.write(`Launching ${session.provider} session ${session.name}\n`);
-    await launchCodexInteractive(session, options);
+    await launchProviderInteractive(session, options);
     return 0;
   }
 
