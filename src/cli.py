@@ -121,11 +121,11 @@ def _format_sessions(service):
 def _format_status_rows(rows):
     has_provider = len({r["provider"] for r in rows}) > 1
     if has_provider:
-        headers = ["SESSION", "PROVIDER", "AVAILABLE", "5H LEFT", "WEEK LEFT", "CREDITS", "RESET 5H", "RESET WEEK", "UPDATED"]
+        headers = ["SESSION", "PROV.", "OK", "5H", "WEEK", "CR", "RESET 5H", "RESET WEEK", "UPDATED"]
     else:
-        headers = ["SESSION", "AVAILABLE", "5H LEFT", "WEEK LEFT", "CREDITS", "RESET 5H", "RESET WEEK", "UPDATED"]
+        headers = ["SESSION", "OK", "5H", "WEEK", "CR", "RESET 5H", "RESET WEEK", "UPDATED"]
     if not rows:
-        return "SESSION  AVAILABLE  5H LEFT  WEEK LEFT  CREDITS  RESET 5H  RESET WEEK  UPDATED\nNo saved sessions yet."
+        return "SESSION  OK  5H  WEEK  CR  RESET 5H  RESET WEEK  UPDATED\nNo saved sessions yet."
     table_rows = []
     for r in rows:
         base = [r["session_name"]]

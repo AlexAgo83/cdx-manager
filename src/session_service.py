@@ -12,6 +12,21 @@ from .status_source import find_latest_status_artifact
 
 DEFAULT_PROVIDER = "codex"
 ALLOWED_PROVIDERS = {"codex", "claude"}
+RESERVED_SESSION_NAMES = {
+    "add",
+    "clean",
+    "cp",
+    "help",
+    "login",
+    "logout",
+    "rmv",
+    "status",
+    "version",
+    "--help",
+    "-h",
+    "--version",
+    "-v",
+}
 
 
 def _encode(name):
@@ -197,9 +212,14 @@ def create_session_service(options=None):
             raise CdxError(f"Unsupported provider: {value}")
         return value
 
-    def create_session(name, provider=DEFAULT_PROVIDER):
+    def _validate_new_session_name(name):
         if not name:
             raise CdxError("Session name is required")
+        if name in RESERVED_SESSION_NAMES:
+            raise CdxError(f"Session name is reserved: {name}")
+
+    def create_session(name, provider=DEFAULT_PROVIDER):
+        _validate_new_session_name(name)
         normalized_provider = _normalize_provider(provider)
         session_root = _get_session_root(name)
         auth_home = _get_session_auth_home(name, normalized_provider)
@@ -238,6 +258,7 @@ def create_session_service(options=None):
     def copy_session(source_name, dest_name):
         if source_name == dest_name:
             raise CdxError("Source and destination session names must be different")
+        _validate_new_session_name(dest_name)
         source = store["get_session"](source_name)
         if not source:
             raise CdxError(f"Unknown session: {source_name}")

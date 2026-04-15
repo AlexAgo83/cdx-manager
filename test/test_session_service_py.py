@@ -50,6 +50,13 @@ class SessionServicePythonTests(unittest.TestCase):
         with self.assertRaises(CdxError):
             service["create_session"]("other", "invalid")
 
+    def test_rejects_reserved_session_names(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+
+        with self.assertRaisesRegex(CdxError, "Session name is reserved: add"):
+            service["create_session"]("add")
+
     def test_status_rows_are_sorted_by_recency(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -377,6 +384,14 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(copied["provider"], "claude")
         self.assertTrue(copied["authHome"].endswith(os.path.join("dest", "claude-home")))
         self.assertTrue(os.path.exists(os.path.join(temp_dir, "profiles", "dest", "claude-home", "log", "cdx-session.log")))
+
+    def test_copy_session_rejects_reserved_destination_names(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("source")
+
+        with self.assertRaisesRegex(CdxError, "Session name is reserved: add"):
+            service["copy_session"]("source", "add")
 
     def test_reset_date_formats_are_supported(self):
         temp_dir = self.make_temp_dir()
