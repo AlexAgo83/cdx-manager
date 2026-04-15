@@ -121,11 +121,11 @@ def _format_sessions(service):
 def _format_status_rows(rows):
     has_provider = len({r["provider"] for r in rows}) > 1
     if has_provider:
-        headers = ["SESSION", "PROVIDER", "AVAILABLE", "5H LEFT", "WEEK LEFT", "RESET 5H", "RESET WEEK", "UPDATED"]
+        headers = ["SESSION", "PROVIDER", "AVAILABLE", "5H LEFT", "WEEK LEFT", "CREDITS", "RESET 5H", "RESET WEEK", "UPDATED"]
     else:
-        headers = ["SESSION", "AVAILABLE", "5H LEFT", "WEEK LEFT", "RESET 5H", "RESET WEEK", "UPDATED"]
+        headers = ["SESSION", "AVAILABLE", "5H LEFT", "WEEK LEFT", "CREDITS", "RESET 5H", "RESET WEEK", "UPDATED"]
     if not rows:
-        return "SESSION  AVAILABLE  5H LEFT  WEEK LEFT  RESET 5H  RESET WEEK  UPDATED\nNo saved sessions yet."
+        return "SESSION  AVAILABLE  5H LEFT  WEEK LEFT  CREDITS  RESET 5H  RESET WEEK  UPDATED\nNo saved sessions yet."
     table_rows = []
     for r in rows:
         base = [r["session_name"]]
@@ -135,6 +135,7 @@ def _format_status_rows(rows):
             _format_pct(r.get("available_pct")),
             _format_pct(r.get("remaining_5h_pct")),
             _format_pct(r.get("remaining_week_pct")),
+            str(r["credits"]) if r.get("credits") is not None else "-",
             r.get("reset_5h_at") or "-",
             r.get("reset_week_at") or "-",
             _format_relative_age(r.get("updated_at")),
@@ -154,6 +155,7 @@ def _format_status_detail(row):
         f"Available: {_format_pct(row.get('available_pct'))}",
         f"5h left: {_format_pct(row.get('remaining_5h_pct'))}",
         f"Week left: {_format_pct(row.get('remaining_week_pct'))}",
+        f"Credits: {row['credits'] if row.get('credits') is not None else 'n/a'}",
         f"5h reset: {row.get('reset_5h_at') or 'n/a'}",
         f"Week reset: {row.get('reset_week_at') or 'n/a'}",
         f"Updated: {_format_relative_age(row.get('updated_at'))}",

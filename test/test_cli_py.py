@@ -301,6 +301,7 @@ class CliPythonTests(unittest.TestCase):
         output = status_io["stdout"].getvalue()
         self.assertIn("work1", output)
         self.assertIn("AVAILABLE", output)
+        self.assertIn("CREDITS", output)
         self.assertIn("80%", output)
         self.assertIn("60%", output)
         self.assertIn("RESET 5H", output)
@@ -313,6 +314,7 @@ class CliPythonTests(unittest.TestCase):
         service["record_status"]("main", {
             "remaining_5h_pct": 39,
             "remaining_week_pct": 70,
+            "credits": 453,
             "reset_5h_at": "Apr 16 02:21",
             "reset_week_at": "Apr 17 10:10",
             "reset_at": "Apr 17 10:10",
@@ -331,6 +333,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(rows[0]["available_pct"], 39)
         self.assertEqual(rows[0]["remaining_5h_pct"], 39)
         self.assertEqual(rows[0]["remaining_week_pct"], 70)
+        self.assertEqual(rows[0]["credits"], 453)
         self.assertEqual(rows[0]["reset_5h_at"], "Apr 16 02:21")
         self.assertEqual(rows[0]["reset_week_at"], "Apr 17 10:10")
 
@@ -343,6 +346,7 @@ class CliPythonTests(unittest.TestCase):
         row = json.loads(detail_io["stdout"].getvalue())
         self.assertEqual(row["session_name"], "main")
         self.assertEqual(row["available_pct"], 39)
+        self.assertEqual(row["credits"], 453)
         self.assertEqual(row["reset_5h_at"], "Apr 16 02:21")
         self.assertEqual(row["reset_week_at"], "Apr 17 10:10")
         self.assertEqual(row["reset_at"], "Apr 17 10:10")

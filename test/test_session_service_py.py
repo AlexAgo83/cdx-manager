@@ -88,6 +88,7 @@ class SessionServicePythonTests(unittest.TestCase):
                 "│                        (resets 02:21 on 16 Apr)            │",
                 "│  Weekly limit:         [██████████████░░░░░░] 70% left",
                 "│                        (resets 10:10 on 17 Apr)            │",
+                "│  Credits:              453 credits",
             ]))
 
         rows = service["get_status_rows"]()
@@ -95,6 +96,7 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(rows[0]["available_pct"], 39)
         self.assertEqual(rows[0]["remaining_5h_pct"], 39)
         self.assertEqual(rows[0]["remaining_week_pct"], 70)
+        self.assertEqual(rows[0]["credits"], 453)
         self.assertEqual(rows[0]["reset_5h_at"], "Apr 16 02:21")
         self.assertEqual(rows[0]["reset_week_at"], "Apr 17 10:10")
         self.assertEqual(rows[0]["reset_at"], "Apr 17 10:10")

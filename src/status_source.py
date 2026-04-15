@@ -111,7 +111,7 @@ def _extract_status_blocks_from_text(text, provider=None, source_ref=None, times
         for block in collect_blocks(
             re.compile(r"^\s*(?:[│|]\s*)?5h\s+limit\b", re.I),
             [re.compile(p, re.I) for p in [
-                r"^Credits\b", r"^To continue this session\b", r"^╰",
+                r"^To continue this session\b", r"^╰",
             ]],
             context_pattern=re.compile(
                 r"^\s*$|^\s*(?:[│|]\s*)?(?:╭|Visit\b|information\b|Model:|Directory:|Permissions:|Agents\.md:|Account:|Collaboration mode:|Session:)",
@@ -319,6 +319,7 @@ def extract_named_statuses_from_text(text):
         ("usage_pct", re.compile(r"usage_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
         ("remaining_5h_pct", re.compile(r"remaining_?5h_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
         ("remaining_week_pct", re.compile(r"remaining_?week_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
+        ("credits", re.compile(r"credits?\s*[:=]\s*([\d, ]*\d[\d, ]*)\s*(?:credits?)?", re.I)),
         ("remaining_5h_pct", re.compile(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
         ("remaining_week_pct", re.compile(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
         ("remaining_5h_pct", re.compile(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", re.I)),
@@ -334,7 +335,7 @@ def extract_named_statuses_from_text(text):
         if field not in result:
             m = pattern.search(normalized)
             if m:
-                result[field] = int(m[1])
+                result[field] = int(re.sub(r"\D", "", m[1]))
 
     # Claude "Current session / Current week" block
     def extract_following_percent(anchor_pattern):
@@ -450,6 +451,7 @@ def extract_named_statuses_from_text(text):
         "usage_pct": result.get("usage_pct"),
         "remaining_5h_pct": result.get("remaining_5h_pct"),
         "remaining_week_pct": result.get("remaining_week_pct"),
+        "credits": result.get("credits"),
         "reset_5h_at": reset_5h_at,
         "reset_week_at": reset_week_at,
         "reset_at": reset_week_at or reset_5h_at,
