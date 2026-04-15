@@ -1,10 +1,10 @@
 ## item_001_persistent_codex_session_storage_and_rehydration - persistent Codex session storage and rehydration
-> From version: 1.13.0
+> From version: 1.13.1
 > Schema version: 1.0
-> Status: Draft
-> Understanding: 95%
-> Confidence: 90%
-> Progress: 0%
+> Status: Ready
+> Understanding: 96%
+> Confidence: 91%
+> Progress: 5%
 > Complexity: High
 > Theme: Auth
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -53,7 +53,7 @@ flowchart TD
 - Product brief(s): `logics/product/prod_000_codex_multi_account_session_manager.md`
 - Architecture decision(s): `logics/architecture/adr_000_persist_and_restore_cdx_sessions.md`
 - Request: (none yet)
-- Primary task(s): (none yet)
+- Primary task(s): `task_000_persistent_codex_session_storage_and_rehydration`
 <!-- When creating a task from this item, add: Derived from `this file path` in the task # Links section -->
 
 # AI Context

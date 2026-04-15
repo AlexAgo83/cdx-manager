@@ -77,6 +77,8 @@ flowchart TD
 - Session names are explicit and stable; the CLI must not guess a provider or target account.
 - Global status output should sort by most recent status activity first.
 - Status output should surface the latest usage metrics extracted from `/status`, including remaining percentages for 5h and week windows when available.
+- The initial workflow is human-readable only; machine-readable output is out of scope for v1.
+- The default list output should show `provider` only when multiple providers are configured or the distinction is useful.
 
 # Requirements
 - `cdx` with no arguments lists known sessions and points to the next action.
@@ -91,6 +93,7 @@ flowchart TD
 - `cdx --version` and `cdx -v` show the installed version.
 - Invalid input returns a short usage or error message instead of a stack trace.
 - Unsupported provider values are rejected with a clear error message.
+- The default list output remains concise and human-readable without requiring a machine-readable mode.
 - The documented command table is the source of truth for CLI behavior.
 
 # Acceptance criteria
@@ -126,5 +129,4 @@ flowchart TD
 - ADR: `logics/architecture/adr_000_persist_and_restore_cdx_sessions.md`
 
 # Open questions
-- Should session list output remain human-oriented only, or also support a stable machine-readable format later?
-- Should the provider appear in the default list output when only Codex is configured, or only when multiple providers exist?
+- None for v1.

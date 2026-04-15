@@ -1,10 +1,10 @@
 ## item_000_cdx_core_session_manager - cdx core session manager
-> From version: 1.13.0
+> From version: 1.13.1
 > Schema version: 1.0
-> Status: Draft
-> Understanding: 95%
-> Confidence: 90%
-> Progress: 0%
+> Status: Ready
+> Understanding: 96%
+> Confidence: 91%
+> Progress: 5%
 > Complexity: Medium
 > Theme: CLI
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -64,7 +64,7 @@ flowchart TD
 - Product brief(s): `logics/product/prod_000_codex_multi_account_session_manager.md`
 - Architecture decision(s): (none yet)
 - Request: (none yet)
-- Primary task(s): (none yet)
+- Primary task(s): `task_001_cdx_core_session_manager`
 <!-- When creating a task from this item, add: Derived from `this file path` in the task # Links section -->
 
 # AI Context

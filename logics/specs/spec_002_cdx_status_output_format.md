@@ -73,7 +73,8 @@ flowchart LR
 ## Global view
 - `cdx status` prints one row per saved session.
 - Rows are ordered by the most recent stored status activity first.
-- The table includes at least `SESSION`, `PROVIDER`, `USAGE`, `5H LEFT`, `WEEK LEFT`, and `UPDATED`.
+- The table includes at least `SESSION`, `USAGE`, `5H LEFT`, `WEEK LEFT`, and `UPDATED`.
+- Include `PROVIDER` in the global table only when multiple providers are configured or the distinction is useful.
 - Missing fields are shown as `n/a` or `-`, not hidden.
 - The output stays concise enough to compare multiple sessions at once.
 
@@ -94,6 +95,7 @@ claude1   claude    41%     59%      88%        4h ago
 - The detail view includes the latest usage metrics and the raw latest stored `/status` when available.
 - The detail view must make it clear when a session has no stored `/status`.
 - The detail view should label the extracted fields exactly as `Usage`, `5h left`, `Week left`, and `Updated`.
+- The detail view always shows the provider.
 
 Example:
 

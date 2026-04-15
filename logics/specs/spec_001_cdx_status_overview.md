@@ -57,6 +57,8 @@ flowchart LR
 - Include only the latest stored result, not the full transcript.
 - Use the same source of truth as the per-session storage model.
 - Expose at least the usage and remaining-percentage fields extracted from the latest `/status`, including 5h and week windows when available.
+- The global view is human-readable only in v1.
+- Include the `PROVIDER` column only when it adds useful information, such as when multiple providers are present.
 
 # Requirements
 - `cdx status` must list every saved Codex session.

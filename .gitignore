@@ -2,6 +2,7 @@
 AGENTS.md
 .env.local
 LOGICS.md
+logics.yaml
 logics/.cache/
 logics/.cache/hybrid_assist_audit.jsonl
 logics/.cache/hybrid_assist_measurements.jsonl
