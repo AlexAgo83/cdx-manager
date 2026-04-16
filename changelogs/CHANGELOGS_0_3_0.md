@@ -13,6 +13,7 @@ CDX Manager 0.3.0 adds Python-native and standalone installation paths in additi
 - Added `install.sh` for GitHub Release based installs into `~/.local/share/cdx-manager` with a symlink in `~/.local/bin`.
 - Included `install.sh` and `pyproject.toml` in the npm package file list.
 - Documented npm, pipx, uv, curl installer, and source installation paths.
+- Added GitHub Actions automation for PyPI publication when a GitHub Release is published.
 
 ### Validation
 
