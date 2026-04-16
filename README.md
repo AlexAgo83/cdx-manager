@@ -6,7 +6,7 @@ If you use AI coding tools at scale ; multiple accounts, multiple providers : yo
 
 One command to launch any session. Zero auth juggling.
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.3.0-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.3.1-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
 ---
 
@@ -96,7 +96,7 @@ curl -fsSL https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.
 For a specific version:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.sh | CDX_VERSION=v0.3.0 sh
+curl -fsSL https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.sh | CDX_VERSION=v0.3.1 sh
 ```
 
 From source:
