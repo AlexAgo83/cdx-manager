@@ -1,8 +1,28 @@
 {
   "name": "cdx-manager",
-  "version": "0.2.0",
-  "private": true,
+  "version": "0.2.1",
   "description": "Terminal session manager for Codex and Claude accounts.",
+  "license": "MIT",
+  "author": "Alexandre Agostini",
+  "homepage": "https://github.com/AlexAgo83/cdx-manager#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AlexAgo83/cdx-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AlexAgo83/cdx-manager/issues"
+  },
+  "keywords": [
+    "codex",
+    "claude",
+    "cli",
+    "terminal",
+    "session-manager",
+    "ai-tools"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "files": [
     "bin",
     "changelogs",
@@ -11,12 +31,13 @@
     "LICENSE"
   ],
   "bin": {
-    "cdx": "./bin/cdx"
+    "cdx": "bin/cdx"
   },
   "scripts": {
     "test": "npm run test:py",
     "test:py": "PYTHONPYCACHEPREFIX=/tmp/pycache python3 -m unittest discover -s test -p 'test_*_py.py'",
     "lint": "PYTHONPYCACHEPREFIX=/tmp/pycache python3 -m py_compile bin/cdx src/*.py test/test_*_py.py",
+    "prepublishOnly": "npm run lint && npm test",
     "link": "npm link",
     "unlink": "npm unlink -g cdx-manager"
   }
