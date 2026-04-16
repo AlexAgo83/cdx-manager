@@ -11,6 +11,8 @@ from .cli_commands import (
     handle_clean,
     handle_copy,
     handle_doctor,
+    handle_export,
+    handle_import,
     handle_launch,
     handle_login,
     handle_logout,
@@ -66,6 +68,8 @@ def _print_help(use_color=False):
         f"  {_style('cdx logout <name> [--json]', '36', use_color)}",
         f"  {_style('cdx rmv <name> [--force] [--json]', '36', use_color)}",
         f"  {_style('cdx clean [name] [--json]', '36', use_color)}",
+        f"  {_style('cdx export <file> [--include-auth] [--sessions a,b] [--passphrase-env VAR] [--force] [--json]', '36', use_color)}",
+        f"  {_style('cdx import <file> [--sessions a,b] [--passphrase-env VAR] [--force] [--json]', '36', use_color)}",
         f"  {_style('cdx doctor [--json]', '36', use_color)}",
         f"  {_style('cdx repair [--dry-run] [--force] [--json]', '36', use_color)}",
         f"  {_style('cdx notify <name> --at-reset [--json]', '36', use_color)}",
@@ -202,7 +206,7 @@ def main(argv, options=None):
         "spawn_sync": spawn_sync,
         "stdin_is_tty": stdin_is_tty,
         "update_notice": _get_update_notice(service, env, options) if command not in (
-            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "notify", "status", "login", "logout", "help", "version"
+            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "notify", "status", "login", "logout", "export", "import", "help", "version"
         ) else None,
         "use_color": use_color,
     }
@@ -221,6 +225,12 @@ def main(argv, options=None):
 
     if command == "clean":
         return handle_clean(rest, ctx)
+
+    if command == "export":
+        return handle_export(rest, ctx)
+
+    if command == "import":
+        return handle_import(rest, ctx)
 
     if command == "doctor":
         return handle_doctor(rest, ctx)

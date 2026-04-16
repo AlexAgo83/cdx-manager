@@ -1,4 +1,5 @@
 import asyncio
+import getpass
 import json
 import os
 from datetime import datetime
@@ -19,12 +20,15 @@ from .provider_runtime import (
     _run_interactive_provider_command,
 )
 from .repair import format_repair_report, repair_health
+from .backup_bundle import read_bundle_meta
 from .status_view import _format_status_detail, _format_status_rows
 
 
 STATUS_USAGE = "Usage: cdx status [--json] [--refresh] | cdx status --small|-s [--refresh] | cdx status <name> [--json] [--refresh]"
 DOCTOR_USAGE = "Usage: cdx doctor [--json]"
 REPAIR_USAGE = "Usage: cdx repair [--dry-run] [--force] [--json]"
+EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
+IMPORT_USAGE = "Usage: cdx import <file> [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
 API_SCHEMA_VERSION = 1
 
 
@@ -81,6 +85,142 @@ def _parse_remove_args(args):
     if unknown or len(names) != 1 or len(args) > 2:
         raise CdxError("Usage: cdx rmv <name> [--force] [--json]")
     return {"name": names[0], "force": force}
+
+
+def _read_option_value(args, index, usage):
+    if index + 1 >= len(args):
+        raise CdxError(usage)
+    return args[index + 1], index + 2
+
+
+def _parse_session_names(value):
+    if value is None:
+        return None
+    names = [item.strip() for item in value.split(",") if item.strip()]
+    if not names:
+        raise CdxError("At least one session name is required in --sessions.")
+    return names
+
+
+def _parse_export_args(args):
+    parsed = {
+        "file_path": None,
+        "include_auth": False,
+        "force": False,
+        "json": False,
+        "session_names": None,
+        "passphrase_env": None,
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--include-auth":
+            parsed["include_auth"] = True
+            index += 1
+            continue
+        if arg == "--force":
+            parsed["force"] = True
+            index += 1
+            continue
+        if arg == "--json":
+            parsed["json"] = True
+            index += 1
+            continue
+        if arg == "--sessions":
+            value, index = _read_option_value(args, index, EXPORT_USAGE)
+            parsed["session_names"] = _parse_session_names(value)
+            continue
+        if arg.startswith("--sessions="):
+            parsed["session_names"] = _parse_session_names(arg.split("=", 1)[1])
+            index += 1
+            continue
+        if arg == "--passphrase-env":
+            value, index = _read_option_value(args, index, EXPORT_USAGE)
+            parsed["passphrase_env"] = value
+            continue
+        if arg.startswith("--passphrase-env="):
+            parsed["passphrase_env"] = arg.split("=", 1)[1]
+            index += 1
+            continue
+        if arg.startswith("-"):
+            raise CdxError(EXPORT_USAGE)
+        if parsed["file_path"] is not None:
+            raise CdxError(EXPORT_USAGE)
+        parsed["file_path"] = arg
+        index += 1
+
+    if not parsed["file_path"]:
+        raise CdxError(EXPORT_USAGE)
+    if parsed["passphrase_env"] and not parsed["include_auth"]:
+        raise CdxError("--passphrase-env requires --include-auth for export.")
+    return parsed
+
+
+def _parse_import_args(args):
+    parsed = {
+        "file_path": None,
+        "force": False,
+        "json": False,
+        "session_names": None,
+        "passphrase_env": None,
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--force":
+            parsed["force"] = True
+            index += 1
+            continue
+        if arg == "--json":
+            parsed["json"] = True
+            index += 1
+            continue
+        if arg == "--sessions":
+            value, index = _read_option_value(args, index, IMPORT_USAGE)
+            parsed["session_names"] = _parse_session_names(value)
+            continue
+        if arg.startswith("--sessions="):
+            parsed["session_names"] = _parse_session_names(arg.split("=", 1)[1])
+            index += 1
+            continue
+        if arg == "--passphrase-env":
+            value, index = _read_option_value(args, index, IMPORT_USAGE)
+            parsed["passphrase_env"] = value
+            continue
+        if arg.startswith("--passphrase-env="):
+            parsed["passphrase_env"] = arg.split("=", 1)[1]
+            index += 1
+            continue
+        if arg.startswith("-"):
+            raise CdxError(IMPORT_USAGE)
+        if parsed["file_path"] is not None:
+            raise CdxError(IMPORT_USAGE)
+        parsed["file_path"] = arg
+        index += 1
+
+    if not parsed["file_path"]:
+        raise CdxError(IMPORT_USAGE)
+    return parsed
+
+
+def _resolve_bundle_passphrase(ctx, env_var, prompt, confirm=False):
+    env = ctx.get("env", {})
+    if env_var:
+        passphrase = env.get(env_var)
+        if not passphrase:
+            raise CdxError(f"Environment variable {env_var} is empty or unset.")
+        return passphrase
+    if not ctx["stdin_is_tty"]:
+        raise CdxError("Encrypted bundle export/import requires an interactive terminal or --passphrase-env.")
+    getpass_fn = ctx["options"].get("getpass") or getpass.getpass
+    passphrase = getpass_fn(prompt)
+    if not passphrase:
+        raise CdxError("Bundle passphrase cannot be empty.")
+    if confirm:
+        confirmation = getpass_fn("Confirm bundle passphrase: ")
+        if passphrase != confirmation:
+            raise CdxError("Bundle passphrase confirmation does not match.")
+    return passphrase
 
 
 def _confirm_removal(name):
@@ -385,6 +525,74 @@ def _write_refresh_warnings(refresh_errors, ctx, stream="out"):
         session = item.get("session") or "unknown"
         error = item.get("error") or "unknown error"
         write(f"{_warn(f'Warning: Claude refresh failed for {session}: {error}', ctx['use_color'])}\n")
+
+
+def handle_export(rest, ctx):
+    parsed = _parse_export_args(rest)
+    passphrase = None
+    if parsed["include_auth"]:
+        passphrase = _resolve_bundle_passphrase(
+            ctx,
+            parsed["passphrase_env"],
+            "Bundle passphrase: ",
+            confirm=True,
+        )
+    result = ctx["service"]["export_bundle"](
+        parsed["file_path"],
+        include_auth=parsed["include_auth"],
+        session_names=parsed["session_names"],
+        passphrase=passphrase,
+        force=parsed["force"],
+    )
+    session_count = len(result["session_names"])
+    auth_suffix = " with auth" if result["include_auth"] else ""
+    message = f"Exported {session_count} session{'s' if session_count != 1 else ''}{auth_suffix} to {result['path']}"
+    payload = _json_success(
+        "export",
+        message,
+        bundle=result,
+    )
+    if parsed["json"]:
+        _write_json(ctx, payload)
+        return 0
+    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    return 0
+
+
+def handle_import(rest, ctx):
+    parsed = _parse_import_args(rest)
+    passphrase = None
+    try:
+        with open(parsed["file_path"], "rb") as handle:
+            meta = read_bundle_meta(handle.read())
+    except OSError as error:
+        raise CdxError(f"Bundle file not found: {parsed['file_path']}") from error
+    if meta.get("encrypted"):
+        passphrase = _resolve_bundle_passphrase(
+            ctx,
+            parsed["passphrase_env"],
+            "Bundle passphrase: ",
+            confirm=False,
+        )
+    result = ctx["service"]["import_bundle"](
+        parsed["file_path"],
+        passphrase=passphrase,
+        session_names=parsed["session_names"],
+        force=parsed["force"],
+    )
+    session_count = len(result["session_names"])
+    auth_suffix = " with auth" if result["include_auth"] else ""
+    message = f"Imported {session_count} session{'s' if session_count != 1 else ''}{auth_suffix} from {result['path']}"
+    payload = _json_success(
+        "import",
+        message,
+        bundle=result,
+    )
+    if parsed["json"]:
+        _write_json(ctx, payload)
+        return 0
+    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    return 0
 
 
 def handle_login(rest, ctx):

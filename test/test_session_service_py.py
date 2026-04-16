@@ -434,6 +434,65 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(rows[0]["remaining_5h_pct"], 81)
         self.assertEqual(rows[0]["remaining_week_pct"], 82)
 
+    def test_codex_status_prefers_matching_account_when_context_has_boxed_blank_lines(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("work4")
+
+        session_root = os.path.join(temp_dir, "profiles", "work4")
+        with open(os.path.join(session_root, "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({
+                "tokens": {
+                    "id_token": (
+                        "x."
+                        "eyJlbWFpbCI6InByaW1hcnlAZXhhbXBsZS50ZXN0In0"
+                        ".y"
+                    ),
+                },
+            }, handle)
+
+        log_dir = os.path.join(session_root, "log")
+        os.makedirs(log_dir, exist_ok=True)
+        older_log = os.path.join(log_dir, "cdx-session-older.log")
+        newer_log = os.path.join(log_dir, "cdx-session-newer.log")
+        older_text = "\n".join([
+            "│  information on rate limits and credits                                 │",
+            "│                                                                        │",
+            "│  Account:              primary@example.test (Business)                 │",
+            "│  Session:              older-session                                   │",
+            "│                                                                        │",
+            "│  5h limit:             [████████████████░░░░] 81% left                 │",
+            "│  Weekly limit:         [██████████████░░░░░░] 70% left                 │",
+            "│                        (resets 16:51 on 22 Apr)                        │",
+            "╰────────────────────────────────────────────────────────────────────────╯",
+            "To continue this session, run codex resume older-session",
+        ])
+        newer_text = "\n".join([
+            "│  information on rate limits and credits                                 │",
+            "│                                                                        │",
+            "│  Account:              secondary@example.test (Business)               │",
+            "│  Session:              newer-session                                   │",
+            "│                                                                        │",
+            "│  5h limit:             [████████████████████] 100% left                │",
+            "│  Weekly limit:         [████████████████████] 100% left                │",
+            "│                        (resets 11:32 on 23 Apr)                        │",
+            "╰────────────────────────────────────────────────────────────────────────╯",
+            "To continue this session, run codex resume newer-session",
+        ])
+        with open(older_log, "w", encoding="utf-8") as handle:
+            handle.write(older_text)
+        with open(newer_log, "w", encoding="utf-8") as handle:
+            handle.write(newer_text)
+        os.utime(older_log, (1000, 1000))
+        os.utime(newer_log, (2000, 2000))
+
+        rows = service["get_status_rows"]()
+        self.assertEqual(rows[0]["session_name"], "work4")
+        self.assertEqual(rows[0]["remaining_5h_pct"], 81)
+        self.assertEqual(rows[0]["remaining_week_pct"], 70)
+        self.assertEqual(rows[0]["available_pct"], 70)
+        self.assertEqual(rows[0]["reset_week_at"], "Apr 22 16:51")
+
     def test_direct_status_log_is_used_even_with_many_newer_history_files(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -580,6 +639,110 @@ class SessionServicePythonTests(unittest.TestCase):
         with self.assertRaisesRegex(CdxError, "Session name is reserved: add"):
             service["rename_session"]("source", "add")
 
+    def test_export_import_round_trip_without_auth(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("main")
+        source["record_status"]("main", {
+            "remaining_5h_pct": 81,
+            "remaining_week_pct": 82,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+
+        bundle_path = os.path.join(source_dir, "backup.cdx")
+        export_result = source["export_bundle"](bundle_path)
+        self.assertEqual(export_result["session_names"], ["main"])
+        self.assertFalse(export_result["include_auth"])
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        import_result = target["import_bundle"](bundle_path)
+        self.assertEqual(import_result["session_names"], ["main"])
+        self.assertFalse(import_result["include_auth"])
+        imported = target["get_session"]("main")
+        self.assertEqual(imported["provider"], "codex")
+        self.assertEqual(imported["lastStatus"]["remaining_5h_pct"], 81)
+        self.assertTrue(os.path.exists(os.path.join(target_dir, "state", "main.json")))
+
+    def test_export_import_round_trip_with_auth_bundle(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("claude1", "claude")
+        token_path = os.path.join(source_dir, "profiles", "claude1", "claude-home", "auth.json")
+        os.makedirs(os.path.dirname(token_path), exist_ok=True)
+        with open(token_path, "w", encoding="utf-8") as handle:
+            handle.write('{"token":"secret"}')
+        cache_path = os.path.join(source_dir, "profiles", "claude1", "claude-home", "cache", "skip.txt")
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+        with open(cache_path, "w", encoding="utf-8") as handle:
+            handle.write("skip")
+
+        bundle_path = os.path.join(source_dir, "secure.cdx")
+        source["export_bundle"](bundle_path, include_auth=True, passphrase="pw123")
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        target["import_bundle"](bundle_path, passphrase="pw123")
+
+        imported_auth = os.path.join(target_dir, "profiles", "claude1", "claude-home", "auth.json")
+        self.assertTrue(os.path.exists(imported_auth))
+        with open(imported_auth, "r", encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), '{"token":"secret"}')
+        self.assertFalse(os.path.exists(os.path.join(target_dir, "profiles", "claude1", "claude-home", "cache", "skip.txt")))
+
+    def test_import_rejects_conflicts_without_force(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("main")
+        bundle_path = os.path.join(source_dir, "backup.cdx")
+        source["export_bundle"](bundle_path)
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        target["create_session"]("main")
+
+        with self.assertRaisesRegex(CdxError, "Import would overwrite existing sessions: main"):
+            target["import_bundle"](bundle_path)
+
+    def test_import_supports_subset_selection(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("main")
+        source["create_session"]("side")
+        bundle_path = os.path.join(source_dir, "subset.cdx")
+        source["export_bundle"](bundle_path)
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        target["import_bundle"](bundle_path, session_names=["side"])
+
+        self.assertIsNone(target["get_session"]("main"))
+        self.assertEqual(target["get_session"]("side")["name"], "side")
+
+    def test_import_rejects_missing_subset_sessions(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("main")
+        bundle_path = os.path.join(source_dir, "subset.cdx")
+        source["export_bundle"](bundle_path)
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        with self.assertRaisesRegex(CdxError, "Bundle does not contain requested sessions: missing"):
+            target["import_bundle"](bundle_path, session_names=["missing"])
+
+    def test_import_rejects_wrong_bundle_passphrase(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("main")
+        bundle_path = os.path.join(source_dir, "secure.cdx")
+        source["export_bundle"](bundle_path, include_auth=True, passphrase="pw123")
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        with self.assertRaisesRegex(CdxError, "Invalid bundle passphrase or corrupted bundle"):
+            target["import_bundle"](bundle_path, passphrase="wrong")
+
     def test_reset_date_formats_are_supported(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -718,7 +881,7 @@ class SessionServicePythonTests(unittest.TestCase):
                 "To continue this session, run codex resume work2-session",
                 "",
                 "pasted from another account:",
-                "│  Account:              alex@example.com (Business)",
+                "│  Account:              secondary@example.test (Business)",
                 "│  5h limit:             [████████████████████] 100% left",
                 "│                        (resets 04:38 on 16 Apr)",
                 "│  Weekly limit:         [█░░░░░░░░░░░░░░░░░░░] 6% left",

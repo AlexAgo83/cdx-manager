@@ -700,6 +700,105 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(remove_payload["session"]["name"], "renamed")
         self.assertFalse(remove_payload["cancelled"])
 
+    def test_export_import_commands_support_json_contract(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        self.assertEqual(main(["add", "main", "--json"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        export_path = os.path.join(temp_dir, "backup.cdx")
+        export_io = self.make_io()
+        self.assertEqual(main(["export", export_path, "--json"], {
+            **export_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        export_payload = json.loads(export_io["stdout"].getvalue())
+        self.assertEqual(export_payload["action"], "export")
+        self.assertEqual(export_payload["bundle"]["path"], export_path)
+        self.assertEqual(export_payload["bundle"]["session_names"], ["main"])
+
+        import_dir = self.make_temp_dir()
+        import_io = self.make_io()
+        self.assertEqual(main(["import", export_path, "--json"], {
+            **import_io,
+            "env": {"CDX_HOME": import_dir},
+        }), 0)
+        import_payload = json.loads(import_io["stdout"].getvalue())
+        self.assertEqual(import_payload["action"], "import")
+        self.assertEqual(import_payload["bundle"]["session_names"], ["main"])
+
+        imported_service = create_session_service({"base_dir": import_dir})
+        self.assertEqual(imported_service["get_session"]("main")["name"], "main")
+
+    def test_export_with_auth_uses_passphrase_env_and_import_restores_profile(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        self.assertEqual(main(["add", "claude", "claude1", "--json"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        auth_path = os.path.join(temp_dir, "profiles", "claude1", "claude-home", "auth.json")
+        os.makedirs(os.path.dirname(auth_path), exist_ok=True)
+        with open(auth_path, "w", encoding="utf-8") as handle:
+            handle.write('{"token":"secret"}')
+
+        export_path = os.path.join(temp_dir, "secure.cdx")
+        export_io = self.make_io()
+        self.assertEqual(main([
+            "export", export_path, "--include-auth", "--passphrase-env", "CDX_BUNDLE_PASSPHRASE", "--json",
+        ], {
+            **export_io,
+            "env": {"CDX_HOME": temp_dir, "CDX_BUNDLE_PASSPHRASE": "pw123"},
+        }), 0)
+        export_payload = json.loads(export_io["stdout"].getvalue())
+        self.assertTrue(export_payload["bundle"]["include_auth"])
+
+        import_dir = self.make_temp_dir()
+        import_io = self.make_io()
+        self.assertEqual(main([
+            "import", export_path, "--passphrase-env", "CDX_BUNDLE_PASSPHRASE", "--json",
+        ], {
+            **import_io,
+            "env": {"CDX_HOME": import_dir, "CDX_BUNDLE_PASSPHRASE": "pw123"},
+        }), 0)
+        imported_auth = os.path.join(import_dir, "profiles", "claude1", "claude-home", "auth.json")
+        with open(imported_auth, "r", encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), '{"token":"secret"}')
+
+    def test_export_with_auth_rejects_non_interactive_without_passphrase_env(self):
+        temp_dir = self.make_temp_dir()
+        create_session_service({"base_dir": temp_dir})["create_session"]("main")
+        io_obj = self.make_io()
+        io_obj["stdin"] = {"isTTY": False}
+
+        with self.assertRaisesRegex(CdxError, "requires an interactive terminal or --passphrase-env"):
+            main(["export", os.path.join(temp_dir, "backup.cdx"), "--include-auth"], {
+                **io_obj,
+                "env": {"CDX_HOME": temp_dir},
+            })
+
+    def test_import_rejects_wrong_passphrase(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        bundle_path = os.path.join(temp_dir, "secure.cdx")
+        service["export_bundle"](bundle_path, include_auth=True, passphrase="pw123")
+
+        import_dir = self.make_temp_dir()
+        with self.assertRaisesRegex(CdxError, "Invalid bundle passphrase or corrupted bundle"):
+            main(["import", bundle_path, "--passphrase-env", "CDX_BUNDLE_PASSPHRASE", "--json"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": import_dir, "CDX_BUNDLE_PASSPHRASE": "wrong"},
+            })
+
     def test_status_uses_async_refresh_function(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

@@ -7,6 +7,7 @@ import tempfile
 from datetime import datetime, timezone
 from urllib.parse import quote
 
+from .backup_bundle import decode_bundle, encode_bundle
 from .config import get_cdx_home
 from .errors import CdxError
 from .session_store import create_session_store
@@ -20,7 +21,9 @@ RESERVED_SESSION_NAMES = {
     "clean",
     "cp",
     "doctor",
+    "export",
     "help",
+    "import",
     "login",
     "logout",
     "mv",
@@ -54,6 +57,13 @@ def _ensure_private_dir(path):
 
 def _local_now_iso():
     return datetime.now().astimezone().isoformat()
+
+
+def _safe_relpath(path):
+    normalized = str(path or "").replace("\\", "/").strip("/")
+    if not normalized or normalized.startswith("../") or "/../" in f"/{normalized}/":
+        raise CdxError("Bundle contains an unsafe file path.")
+    return normalized
 
 
 def _to_local_iso(value):
@@ -242,6 +252,47 @@ def create_session_service(options=None):
             raise CdxError("Session name cannot contain control characters")
         if name in RESERVED_SESSION_NAMES:
             raise CdxError(f"Session name is reserved: {name}")
+
+    def _build_export_session_record(session):
+        return {
+            "name": session["name"],
+            "provider": session["provider"],
+            "createdAt": session.get("createdAt"),
+            "updatedAt": session.get("updatedAt"),
+            "lastLaunchedAt": session.get("lastLaunchedAt"),
+            "lastStatusAt": session.get("lastStatusAt"),
+            "lastStatus": session.get("lastStatus"),
+            "auth": session.get("auth"),
+        }
+
+    def _collect_profile_files(session_root):
+        excluded_dirs = {"log", "tmp", "cache", "__pycache__", "shell_snapshots"}
+        files = []
+        if not os.path.isdir(session_root):
+            return files
+        for dirpath, dirnames, filenames in os.walk(session_root):
+            dirnames[:] = [name for name in dirnames if name not in excluded_dirs]
+            for filename in filenames:
+                full_path = os.path.join(dirpath, filename)
+                if not os.path.isfile(full_path):
+                    continue
+                rel_path = os.path.relpath(full_path, session_root)
+                with open(full_path, "rb") as handle:
+                    content = base64.b64encode(handle.read()).decode("ascii")
+                files.append({"path": rel_path.replace(os.sep, "/"), "data_b64": content})
+        return files
+
+    def _resolve_session_subset(session_names):
+        if not session_names:
+            return list_sessions()
+        by_name = {session["name"]: session for session in list_sessions()}
+        selected = []
+        for name in session_names:
+            session = by_name.get(name)
+            if not session:
+                raise CdxError(f"Unknown session: {name}")
+            selected.append(session)
+        return selected
 
     def create_session(name, provider=DEFAULT_PROVIDER):
         _validate_new_session_name(name)
@@ -563,6 +614,116 @@ def create_session_service(options=None):
     def get_session_root(name):
         return _get_session_root(name)
 
+    def export_bundle(file_path, include_auth=False, session_names=None, passphrase=None, force=False):
+        if not file_path:
+            raise CdxError("Export path is required.")
+        if os.path.exists(file_path) and not force:
+            raise CdxError(f"Export path already exists: {file_path}")
+
+        sessions = _resolve_session_subset(session_names)
+        payload = {
+            "schema_version": 1,
+            "created_at": _local_now_iso(),
+            "include_auth": bool(include_auth),
+            "sessions": [],
+            "states": {},
+            "profiles": {},
+        }
+        for session in sessions:
+            payload["sessions"].append(_build_export_session_record(session))
+            state = store["read_session_state"](session["name"])
+            if state is not None:
+                payload["states"][session["name"]] = state
+            if include_auth:
+                session_root = session.get("sessionRoot") or _get_session_root(session["name"])
+                payload["profiles"][session["name"]] = _collect_profile_files(session_root)
+
+        bundle_bytes = encode_bundle(payload, include_auth=include_auth, passphrase=passphrase)
+        _ensure_private_dir(os.path.dirname(os.path.abspath(file_path)) or ".")
+        with open(file_path, "wb") as handle:
+            handle.write(bundle_bytes)
+        if sys.platform != "win32":
+            try:
+                os.chmod(file_path, 0o600)
+            except OSError:
+                pass
+        return {
+            "path": file_path,
+            "include_auth": include_auth,
+            "session_names": [session["name"] for session in sessions],
+        }
+
+    def import_bundle(file_path, passphrase=None, session_names=None, force=False):
+        if not file_path or not os.path.isfile(file_path):
+            raise CdxError(f"Bundle file not found: {file_path}")
+        with open(file_path, "rb") as handle:
+            decoded = decode_bundle(handle.read(), passphrase=passphrase)
+        payload = decoded["payload"]
+        imported_sessions = payload.get("sessions") or []
+        if payload.get("schema_version") != 1:
+            raise CdxError("Unsupported bundle payload schema version.")
+
+        selected_names = set(session_names or [])
+        if selected_names:
+            imported_sessions = [item for item in imported_sessions if item["name"] in selected_names]
+            missing_names = sorted(selected_names - {item["name"] for item in imported_sessions})
+            if missing_names:
+                raise CdxError(f"Bundle does not contain requested sessions: {', '.join(missing_names)}")
+        names = [item["name"] for item in imported_sessions]
+
+        existing = {session["name"] for session in list_sessions()}
+        conflicts = [name for name in names if name in existing]
+        if conflicts and not force:
+            raise CdxError(f"Import would overwrite existing sessions: {', '.join(conflicts)}")
+
+        for session_payload in imported_sessions:
+            name = session_payload["name"]
+            _validate_new_session_name(name)
+            provider = _normalize_provider(session_payload["provider"])
+            if name in existing:
+                remove_session(name)
+
+            session_root = _get_session_root(name)
+            auth_home = _get_session_auth_home(name, provider)
+            _ensure_private_dir(base_dir)
+            _ensure_private_dir(os.path.join(base_dir, "profiles"))
+            _ensure_private_dir(session_root)
+            _ensure_private_dir(auth_home)
+
+            session_record = {
+                **session_payload,
+                "provider": provider,
+                "sessionRoot": session_root,
+                "authHome": auth_home,
+            }
+            store["replace_session"](name, session_record)
+
+            state = (payload.get("states") or {}).get(name)
+            if state is not None:
+                store["write_session_state"](name, state)
+
+            for item in (payload.get("profiles") or {}).get(name, []):
+                rel_path = _safe_relpath(item.get("path"))
+                try:
+                    content = base64.b64decode(item.get("data_b64", "").encode("ascii"))
+                except (AttributeError, ValueError, UnicodeEncodeError) as error:
+                    raise CdxError(f"Bundle contains invalid file data for session {name}: {rel_path}") from error
+                dest_path = os.path.join(session_root, rel_path)
+                _ensure_private_dir(os.path.dirname(dest_path))
+                with open(dest_path, "wb") as handle:
+                    handle.write(content)
+                if sys.platform != "win32":
+                    try:
+                        os.chmod(dest_path, 0o600)
+                    except OSError:
+                        pass
+
+        return {
+            "path": file_path,
+            "session_names": names,
+            "include_auth": bool(decoded["meta"].get("include_auth")),
+        }
+
     return {
         "create_session": create_session,
         "remove_session": remove_session,
@@ -578,6 +739,8 @@ def create_session_service(options=None):
         "format_list_rows": format_list_rows,
         "get_session_auth_home": get_session_auth_home,
         "get_session_root": get_session_root,
+        "export_bundle": export_bundle,
+        "import_bundle": import_bundle,
         "base_dir": base_dir,
         "normalize_provider": _normalize_provider,
     }

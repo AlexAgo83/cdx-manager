@@ -235,6 +235,8 @@ cdx status
 | `cdx logout <name> [--json]` | Log out of a session |
 | `cdx rmv <name> [--force] [--json]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
 | `cdx clean [name] [--json]` | Clear launch transcript logs for one session or all sessions |
+| `cdx export <file> [--include-auth] [--sessions a,b] [--passphrase-env VAR] [--force] [--json]` | Export sessions to a portable bundle; `--include-auth` encrypts auth data with a passphrase |
+| `cdx import <file> [--sessions a,b] [--passphrase-env VAR] [--force] [--json]` | Import sessions from a bundle into the current `CDX_HOME` |
 | `cdx doctor [--json]` | Inspect CLI dependencies, CDX_HOME permissions, missing state, orphan profiles, and pending quarantines |
 | `cdx repair [--dry-run] [--force] [--json]` | Plan or apply safe repairs for missing state files, quarantines, and orphan profiles |
 | `cdx notify <name> --at-reset [--poll seconds] [--once] [--json]` | Wait for a session reset time and send a desktop notification when due |
@@ -261,6 +263,8 @@ Commands with machine-readable output:
 - `cdx ren ... --json`
 - `cdx rmv ... --json`
 - `cdx clean ... --json`
+- `cdx export ... --json`
+- `cdx import ... --json`
 - `cdx login ... --json`
 - `cdx logout ... --json`
 - `cdx doctor --json`
@@ -302,6 +306,33 @@ This makes `cdx-manager` usable from editor plugins, scripts, and desktop apps w
 
 ---
 
+## Backup And Restore
+
+You can move sessions between machines with portable bundles:
+
+```bash
+cdx export backup.cdx
+cdx import backup.cdx
+```
+
+To migrate auth and avoid logging in again, include auth data in an encrypted bundle:
+
+```bash
+export CDX_BUNDLE_PASSPHRASE='choose-a-strong-passphrase'
+cdx export backup-auth.cdx --include-auth --passphrase-env CDX_BUNDLE_PASSPHRASE
+cdx import backup-auth.cdx --passphrase-env CDX_BUNDLE_PASSPHRASE
+```
+
+Notes:
+
+- `--include-auth` is encrypted and requires a passphrase.
+- Without `--passphrase-env`, `cdx` prompts in an interactive terminal.
+- `--sessions work,perso` exports or imports only a subset.
+- `--force` allows overwriting existing destination sessions during import or replacing an existing bundle file during export.
+- Auth bundles contain credentials. Treat them like secrets and delete them after transfer.
+
+---
+
 ## Available Scripts
 
 - `npm test`: run the Python test suite
@@ -340,6 +371,7 @@ src/
   cli.py                # Top-level command router
   cli_commands.py       # Command handlers and argument handling
   cli_render.py         # Terminal formatting, tables, colors, and errors
+  backup_bundle.py      # Portable session bundle encoding/decoding + auth encryption
   status_view.py        # Status table/detail rendering and priority ranking
   provider_runtime.py   # Provider launch/auth commands, transcripts, signals
   claude_refresh.py     # Claude usage refresh orchestration

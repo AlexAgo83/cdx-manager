@@ -119,7 +119,9 @@ def _extract_status_blocks_from_text(text, provider=None, source_ref=None, times
                 r"^To continue this session\b", r"^╰",
             ]],
             context_pattern=re.compile(
-                r"^\s*$|^\s*(?:[│|]\s*)?(?:╭|Visit\b|information\b|Model:|Directory:|Permissions:|Agents\.md:|Account:|Collaboration mode:|Session:)",
+                r"^\s*$"
+                r"|^\s*[│|](?:\s|[│|])*$"
+                r"|^\s*(?:[│|]\s*)?(?:╭|Visit\b|information\b|Model:|Directory:|Permissions:|Agents\.md:|Account:|Collaboration mode:|Session:)",
                 re.I,
             ),
             context_stop_patterns=[
