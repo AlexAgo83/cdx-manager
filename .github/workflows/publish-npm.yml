@@ -20,8 +20,13 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org/
+
+      - name: Set up npm
+        run: |
+          npm install -g npm@11
+          npm --version
 
       - name: Set up Python
         uses: actions/setup-python@v5
