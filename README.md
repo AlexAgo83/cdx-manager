@@ -157,9 +157,10 @@ npm install -g .
 
 Security note:
 
-- The standalone installers support optional archive verification through `CDX_SHA256`.
+- The standalone installers try to resolve official release checksums from `checksums/release-archives.json`.
+- You can still override verification explicitly through `CDX_SHA256`.
 - Prefer `npm`, `pipx`, or `uv` when you want registry-backed install flows.
-- If you use the standalone script, download it first, inspect it, and provide `CDX_SHA256` when you have a trusted checksum for the release archive.
+- If you use the standalone script, download it first, inspect it, and prefer a release with an official checksum entry.
 
 ### Environment
 
@@ -233,9 +234,9 @@ cdx status
 | `cdx clean [name] [--json]` | Clear launch transcript logs for one session or all sessions |
 | `cdx doctor [--json]` | Inspect CLI dependencies, CDX_HOME permissions, missing state, orphan profiles, and pending quarantines |
 | `cdx repair [--dry-run] [--force] [--json]` | Plan or apply safe repairs for missing state files, quarantines, and orphan profiles |
-| `cdx notify <name> --at-reset [--poll seconds] [--once]` | Wait for a session reset time and send a desktop notification when due |
-| `cdx notify --next-ready [--poll seconds] [--once]` | Wait until the recommended session is usable or needs a refresh after reset |
-| `cdx status [--json] [--refresh]` | Show token usage table for all sessions; JSON keeps the same row-array shape and writes live Claude refresh warnings to stderr |
+| `cdx notify <name> --at-reset [--poll seconds] [--once] [--json]` | Wait for a session reset time and send a desktop notification when due |
+| `cdx notify --next-ready [--poll seconds] [--once] [--json]` | Wait until the recommended session is usable or needs a refresh after reset |
+| `cdx status [--json] [--refresh]` | Show token usage table for all sessions; JSON returns a versioned payload with structured warnings |
 | `cdx status --small [--refresh]` / `cdx status -s [--refresh]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
 | `cdx status <name> [--json] [--refresh]` | Show detailed usage breakdown for one session |
 | `cdx --help` | Show usage |
@@ -267,6 +268,7 @@ Success payloads follow a shared envelope:
 
 ```json
 {
+  "schema_version": 1,
   "ok": true,
   "action": "add",
   "message": "Created session work (codex)",
@@ -281,6 +283,7 @@ Errors use a shared stderr JSON envelope whenever `--json` is present:
 
 ```json
 {
+  "schema_version": 1,
   "ok": false,
   "error": {
     "code": "invalid_usage",
@@ -289,6 +292,8 @@ Errors use a shared stderr JSON envelope whenever `--json` is present:
   }
 }
 ```
+
+`status --json` and similar commands also use the same envelope and place non-fatal issues in `warnings` instead of mixing plain-text diagnostics into `stderr`.
 
 This makes `cdx-manager` usable from editor plugins, scripts, and desktop apps without scraping human-readable terminal output.
 

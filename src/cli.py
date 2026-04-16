@@ -5,6 +5,7 @@ import os
 import sys
 
 from .cli_commands import (
+    API_SCHEMA_VERSION,
     STATUS_USAGE,
     handle_add,
     handle_clean,
@@ -96,6 +97,7 @@ def format_json_error(error):
     elif "requires an interactive terminal" in message or "requires confirmation" in message:
         code = "interactive_terminal_required"
     return json.dumps({
+        "schema_version": API_SCHEMA_VERSION,
         "ok": False,
         "error": {
             "code": code,
@@ -217,6 +219,7 @@ def main(argv, options=None):
 
 def _list_json_payload(rows):
     return {
+        "schema_version": API_SCHEMA_VERSION,
         "ok": True,
         "action": "list",
         "message": "Listed known sessions",

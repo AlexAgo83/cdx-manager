@@ -1,12 +1,16 @@
 param(
     [string]$Version = $env:CDX_VERSION,
     [string]$Prefix = $env:CDX_PREFIX,
-    [string]$Sha256 = $env:CDX_SHA256
+    [string]$Sha256 = $env:CDX_SHA256,
+    [string]$ChecksumsUrl = $env:CDX_CHECKSUMS_URL
 )
 
 $ErrorActionPreference = "Stop"
 
 $repo = "AlexAgo83/cdx-manager"
+if (-not $ChecksumsUrl) {
+    $ChecksumsUrl = "https://raw.githubusercontent.com/$repo/main/checksums/release-archives.json"
+}
 
 function Require-Command {
     param([string]$Name)
@@ -45,11 +49,20 @@ New-Item -ItemType Directory -Force -Path $tmpRoot, $extractRoot, $binDir, $inst
 
 try {
     Invoke-WebRequest -Uri $archiveUrl -OutFile $archivePath
+    if (-not $Sha256) {
+        try {
+            $checksums = Invoke-RestMethod -Uri $ChecksumsUrl
+            $Sha256 = $checksums.releases.$tag.github_zip_sha256
+        } catch {
+        }
+    }
     if ($Sha256) {
         $actualSha256 = (Get-FileHash -Algorithm SHA256 -Path $archivePath).Hash.ToLowerInvariant()
         if ($actualSha256 -ne $Sha256.ToLowerInvariant()) {
             throw "cdx install: checksum mismatch for $tag`nexpected: $Sha256`nactual:   $actualSha256"
         }
+    } else {
+        Write-Warning "No official checksum available for $tag; continuing without verification."
     }
     Expand-Archive -Path $archivePath -DestinationPath $extractRoot -Force
 

@@ -6,10 +6,9 @@ from datetime import datetime
 from .claude_refresh import _refresh_claude_sessions
 from .cli_render import _dim, _info, _success, _warn
 from .errors import CdxError
-from .health import collect_health_report, format_health_report, health_json
+from .health import collect_health_report, format_health_report
 from .notify import (
     format_notify_event,
-    notify_json,
     parse_notify_args,
     send_desktop_notification,
     wait_for_notification_event,
@@ -19,25 +18,27 @@ from .provider_runtime import (
     _list_launch_transcript_paths,
     _run_interactive_provider_command,
 )
-from .repair import format_repair_report, repair_health, repair_json
+from .repair import format_repair_report, repair_health
 from .status_view import _format_status_detail, _format_status_rows
 
 
 STATUS_USAGE = "Usage: cdx status [--json] [--refresh] | cdx status --small|-s [--refresh] | cdx status <name> [--json] [--refresh]"
 DOCTOR_USAGE = "Usage: cdx doctor [--json]"
 REPAIR_USAGE = "Usage: cdx repair [--dry-run] [--force] [--json]"
+API_SCHEMA_VERSION = 1
 
 
 def _local_now_iso():
     return datetime.now().astimezone().isoformat()
 
 
-def _json_success(action, message, **extra):
+def _json_success(action, message, warnings=None, **extra):
     payload = {
+        "schema_version": API_SCHEMA_VERSION,
         "ok": True,
         "action": action,
         "message": message,
-        "warnings": [],
+        "warnings": warnings or [],
     }
     payload.update(extra)
     return payload
@@ -269,7 +270,7 @@ def handle_doctor(rest, ctx):
         env=ctx.get("env"),
     )
     if json_flag:
-        ctx["out"](f"{health_json(report)}\n")
+        _write_json(ctx, _json_success("doctor", "Collected health report", report=report))
     else:
         ctx["out"](f"{format_health_report(report, use_color=ctx['use_color'])}\n")
     return 0
@@ -291,7 +292,7 @@ def handle_repair(rest, ctx):
         force=force,
     )
     if json_flag:
-        ctx["out"](f"{repair_json(report)}\n")
+        _write_json(ctx, _json_success("repair", "Collected repair report", report=report))
     else:
         ctx["out"](f"{format_repair_report(report, use_color=ctx['use_color'])}\n")
         if dry_run:
@@ -318,7 +319,7 @@ def handle_notify(rest, ctx):
         now_fn=ctx["options"].get("now"),
     )
     if parsed["json"]:
-        ctx["out"](f"{notify_json(event)}\n")
+        _write_json(ctx, _json_success("notify", "Resolved notification event", event=event))
     else:
         ctx["out"](f"{format_notify_event(event)}\n")
     return 0
@@ -349,12 +350,19 @@ def handle_status(rest, ctx):
         }
         for item in refresh_result.get("errors", [])
     ]
+    warnings = [
+        {
+            "code": "claude_refresh_failed",
+            "session": item.get("session") or "unknown",
+            "message": item.get("error") or "unknown error",
+        }
+        for item in refresh_errors
+    ]
 
     rows = ctx["service"]["get_status_rows"]()
     if len(args) == 0:
         if json_flag:
-            ctx["out"](f"{json.dumps(rows, indent=2)}\n")
-            _write_refresh_warnings(refresh_errors, ctx, stream="err")
+            _write_json(ctx, _json_success("status", "Collected session status rows", warnings=warnings, rows=rows))
             return 0
         ctx["out"](f"{_format_status_rows(rows, use_color=ctx['use_color'], small=small_flag)}\n")
         _write_refresh_warnings(refresh_errors, ctx)
@@ -364,8 +372,7 @@ def handle_status(rest, ctx):
     if not row:
         raise CdxError(f"Unknown session: {args[0]}")
     if json_flag:
-        ctx["out"](f"{json.dumps(row, indent=2)}\n")
-        _write_refresh_warnings(refresh_errors, ctx, stream="err")
+        _write_json(ctx, _json_success("status", f"Collected status for {args[0]}", warnings=warnings, session=row))
         return 0
     ctx["out"](f"{_format_status_detail(row, use_color=ctx['use_color'])}\n")
     _write_refresh_warnings(refresh_errors, ctx)

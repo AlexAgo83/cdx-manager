@@ -6,6 +6,7 @@ VERSION="${CDX_VERSION:-}"
 PREFIX="${PREFIX:-$HOME/.local}"
 BIN_DIR="${BIN_DIR:-$PREFIX/bin}"
 INSTALL_ROOT="${CDX_INSTALL_ROOT:-$PREFIX/share/cdx-manager}"
+CHECKSUMS_URL="${CDX_CHECKSUMS_URL:-https://raw.githubusercontent.com/$REPO/main/checksums/release-archives.json}"
 
 need() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -31,6 +32,25 @@ sha256_file() {
   exit 1
 }
 
+resolve_expected_sha256() {
+  curl -fsSL "$CHECKSUMS_URL" |
+    python3 - "$1" <<'PY'
+import json
+import sys
+
+tag = sys.argv[1]
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+
+release = (payload.get("releases") or {}).get(tag) or {}
+value = release.get("github_tarball_sha256")
+if value:
+    print(value)
+PY
+}
+
 if [ -z "$VERSION" ]; then
   VERSION="$(
     curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" |
@@ -52,14 +72,21 @@ trap cleanup EXIT INT TERM
 ARCHIVE_URL="https://github.com/$REPO/archive/refs/tags/$TAG.tar.gz"
 curl -fsSL "$ARCHIVE_URL" -o "$TMP_DIR/cdx-manager.tar.gz"
 
-if [ -n "${CDX_SHA256:-}" ]; then
+EXPECTED_SHA256="${CDX_SHA256:-}"
+if [ -z "$EXPECTED_SHA256" ]; then
+  EXPECTED_SHA256="$(resolve_expected_sha256 "$TAG" 2>/dev/null || true)"
+fi
+
+if [ -n "$EXPECTED_SHA256" ]; then
   ACTUAL_SHA256="$(sha256_file "$TMP_DIR/cdx-manager.tar.gz")"
-  if [ "$ACTUAL_SHA256" != "$CDX_SHA256" ]; then
+  if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
     echo "cdx install: checksum mismatch for $TAG" >&2
-    echo "expected: $CDX_SHA256" >&2
+    echo "expected: $EXPECTED_SHA256" >&2
     echo "actual:   $ACTUAL_SHA256" >&2
     exit 1
   fi
+else
+  echo "cdx install: warning: no official checksum available for $TAG; continuing without verification" >&2
 fi
 
 tar -xzf "$TMP_DIR/cdx-manager.tar.gz" -C "$TMP_DIR"

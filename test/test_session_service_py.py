@@ -99,6 +99,17 @@ class SessionServicePythonTests(unittest.TestCase):
         with self.assertRaisesRegex(CdxError, "Session name is reserved: add"):
             service["create_session"]("add")
 
+    def test_rejects_invalid_session_name_shapes(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+
+        with self.assertRaisesRegex(CdxError, "control characters"):
+            service["create_session"]("bad\nname")
+        with self.assertRaisesRegex(CdxError, "start or end with whitespace"):
+            service["create_session"](" bad")
+        with self.assertRaisesRegex(CdxError, "too long"):
+            service["create_session"]("a" * 65)
+
     def test_status_rows_are_sorted_by_recency(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

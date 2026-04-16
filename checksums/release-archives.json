@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "releases": {
+    "v0.3.4": {
+      "github_tarball_sha256": "8e8111d6ec41b819fc0249800f175b5741cd11b1439c7e88a3feec770774b12d",
+      "github_zip_sha256": "e0bd79f731d86b83787e99b8f2220c8c5fbaa3d7507ebc52823aa5b8d11f0666"
+    }
+  }
+}

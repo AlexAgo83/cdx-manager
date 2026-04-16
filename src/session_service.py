@@ -14,6 +14,7 @@ from .status_source import find_latest_status_artifact
 
 DEFAULT_PROVIDER = "codex"
 ALLOWED_PROVIDERS = {"codex", "claude"}
+MAX_SESSION_NAME_LENGTH = 64
 RESERVED_SESSION_NAMES = {
     "add",
     "clean",
@@ -233,6 +234,12 @@ def create_session_service(options=None):
     def _validate_new_session_name(name):
         if not name:
             raise CdxError("Session name is required")
+        if str(name) != str(name).strip():
+            raise CdxError("Session name cannot start or end with whitespace")
+        if len(str(name)) > MAX_SESSION_NAME_LENGTH:
+            raise CdxError(f"Session name is too long (max {MAX_SESSION_NAME_LENGTH} characters)")
+        if any(ord(ch) < 32 or ord(ch) == 127 for ch in str(name)):
+            raise CdxError("Session name cannot contain control characters")
         if name in RESERVED_SESSION_NAMES:
             raise CdxError(f"Session name is reserved: {name}")
 

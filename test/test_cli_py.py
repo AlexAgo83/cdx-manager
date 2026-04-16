@@ -318,6 +318,7 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
 
         payload = json.loads(list_io["stdout"].getvalue())
+        self.assertEqual(payload["schema_version"], 1)
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["action"], "list")
         self.assertEqual(payload["sessions"][0]["name"], "main")
@@ -759,8 +760,11 @@ class CliPythonTests(unittest.TestCase):
             "refreshClaudeSessionStatus": refresh,
         }), 0)
         payload = json.loads(json_io["stdout"].getvalue())
-        self.assertIsInstance(payload, list)
-        self.assertIn("Warning: Claude refresh failed for claude: offline", json_io["stderr"].getvalue())
+        self.assertEqual(payload["schema_version"], 1)
+        self.assertEqual(payload["action"], "status")
+        self.assertEqual(len(payload["rows"]), 1)
+        self.assertEqual(payload["warnings"][0]["code"], "claude_refresh_failed")
+        self.assertEqual(json_io["stderr"].getvalue(), "")
 
     def test_status_small_flag_renders_compact_table(self):
         temp_dir = self.make_temp_dir()
@@ -1003,7 +1007,9 @@ class CliPythonTests(unittest.TestCase):
             "service": service,
             "env": {"CDX_HOME": temp_dir},
         }), 0)
-        rows = json.loads(global_io["stdout"].getvalue())
+        payload = json.loads(global_io["stdout"].getvalue())
+        self.assertEqual(payload["schema_version"], 1)
+        rows = payload["rows"]
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["session_name"], "main")
         self.assertEqual(rows[0]["available_pct"], 39)
@@ -1019,7 +1025,9 @@ class CliPythonTests(unittest.TestCase):
             "service": service,
             "env": {"CDX_HOME": temp_dir},
         }), 0)
-        row = json.loads(detail_io["stdout"].getvalue())
+        detail_payload = json.loads(detail_io["stdout"].getvalue())
+        self.assertEqual(detail_payload["schema_version"], 1)
+        row = detail_payload["session"]
         self.assertEqual(row["session_name"], "main")
         self.assertEqual(row["available_pct"], 39)
         self.assertEqual(row["credits"], 453)
@@ -1094,7 +1102,9 @@ class CliPythonTests(unittest.TestCase):
         temp_dir = self.make_temp_dir()
         io_obj = self.make_io()
         self.assertEqual(main(["status", "--json"], {**io_obj, "env": {"CDX_HOME": temp_dir}}), 0)
-        self.assertEqual(json.loads(io_obj["stdout"].getvalue()), [])
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertEqual(payload["schema_version"], 1)
+        self.assertEqual(payload["rows"], [])
 
     def test_doctor_reports_missing_state_and_json_summary(self):
         temp_dir = self.make_temp_dir()
@@ -1109,8 +1119,9 @@ class CliPythonTests(unittest.TestCase):
             "env": {"CDX_HOME": temp_dir},
         }), 0)
         payload = json.loads(doctor_io["stdout"].getvalue())
-        self.assertEqual(payload["summary"]["fail"], 1)
-        self.assertTrue(any(issue["code"] == "missing_state" for issue in payload["issues"]))
+        self.assertEqual(payload["schema_version"], 1)
+        self.assertEqual(payload["report"]["summary"]["fail"], 1)
+        self.assertTrue(any(issue["code"] == "missing_state" for issue in payload["report"]["issues"]))
 
     def test_doctor_windows_script_warning_mentions_expected_fallback(self):
         temp_dir = self.make_temp_dir()
@@ -1128,6 +1139,7 @@ class CliPythonTests(unittest.TestCase):
     def test_json_error_payload_has_machine_readable_contract(self):
         error = CdxError("Unknown session: missing", exit_code=3)
         payload = json.loads(format_json_error(error))
+        self.assertEqual(payload["schema_version"], 1)
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["error"]["code"], "unknown_session")
         self.assertEqual(payload["error"]["message"], "Unknown session: missing")
@@ -1207,7 +1219,9 @@ class CliPythonTests(unittest.TestCase):
             "env": {"CDX_HOME": temp_dir},
             "spawn_sync": spawn_sync,
         }), 0)
-        self.assertTrue(json.loads(next_io["stdout"].getvalue())["ready"])
+        payload = json.loads(next_io["stdout"].getvalue())
+        self.assertEqual(payload["schema_version"], 1)
+        self.assertTrue(payload["event"]["ready"])
 
     def test_bin_cdx_runs_as_real_subprocess(self):
         temp_dir = self.make_temp_dir()
@@ -1259,6 +1273,7 @@ class CliPythonTests(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
         payload = json.loads(result.stderr)
+        self.assertEqual(payload["schema_version"], 1)
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["error"]["code"], "invalid_usage")
         self.assertIn("Usage: cdx status [--json]", payload["error"]["message"])

@@ -25,6 +25,7 @@
   },
   "files": [
     "bin",
+    "checksums",
     "changelogs",
     "src",
     "install.sh",
