@@ -2,6 +2,7 @@ import os
 import shutil
 import json
 import base64
+import sys
 import tempfile
 from datetime import datetime, timezone
 from urllib.parse import quote
@@ -38,6 +39,16 @@ RESERVED_SESSION_NAMES = {
 
 def _encode(name):
     return quote(name, safe="")
+
+
+def _ensure_private_dir(path):
+    os.makedirs(path, exist_ok=True)
+    if sys.platform == "win32":
+        return
+    try:
+        os.chmod(path, 0o700)
+    except OSError:
+        pass
 
 
 def _local_now_iso():
@@ -230,7 +241,10 @@ def create_session_service(options=None):
         normalized_provider = _normalize_provider(provider)
         session_root = _get_session_root(name)
         auth_home = _get_session_auth_home(name, normalized_provider)
-        os.makedirs(auth_home, exist_ok=True)
+        _ensure_private_dir(base_dir)
+        _ensure_private_dir(os.path.join(base_dir, "profiles"))
+        _ensure_private_dir(session_root)
+        _ensure_private_dir(auth_home)
         now = _local_now_iso()
         session = {
             "name": name,
@@ -514,7 +528,6 @@ def create_session_service(options=None):
             rows.append({
                 "session_name": s["name"],
                 "provider": s["provider"],
-                "auth_home": s.get("authHome") or _get_session_auth_home(s["name"], s["provider"]),
                 "remaining_5h_pct": status.get("remaining_5h_pct") if status else None,
                 "remaining_week_pct": status.get("remaining_week_pct") if status else None,
                 "credits": status.get("credits") if status else None,

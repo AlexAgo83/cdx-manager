@@ -1,6 +1,7 @@
 param(
     [string]$Version = $env:CDX_VERSION,
-    [string]$Prefix = $env:CDX_PREFIX
+    [string]$Prefix = $env:CDX_PREFIX,
+    [string]$Sha256 = $env:CDX_SHA256
 )
 
 $ErrorActionPreference = "Stop"
@@ -44,6 +45,12 @@ New-Item -ItemType Directory -Force -Path $tmpRoot, $extractRoot, $binDir, $inst
 
 try {
     Invoke-WebRequest -Uri $archiveUrl -OutFile $archivePath
+    if ($Sha256) {
+        $actualSha256 = (Get-FileHash -Algorithm SHA256 -Path $archivePath).Hash.ToLowerInvariant()
+        if ($actualSha256 -ne $Sha256.ToLowerInvariant()) {
+            throw "cdx install: checksum mismatch for $tag`nexpected: $Sha256`nactual:   $actualSha256"
+        }
+    }
     Expand-Archive -Path $archivePath -DestinationPath $extractRoot -Force
 
     $sourceDir = Get-ChildItem -Path $extractRoot -Directory | Select-Object -First 1

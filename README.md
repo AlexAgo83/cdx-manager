@@ -99,19 +99,24 @@ npm install -g cdx-manager
 With the standalone PowerShell installer:
 
 ```powershell
-irm https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.ps1 | iex
+Invoke-WebRequest https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.ps1 -OutFile install.ps1
+# Optional: set CDX_SHA256 before running if you have a trusted checksum
+powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 With the standalone GitHub installer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.sh -o install.sh
+# Optional: set CDX_SHA256 before running if you have a trusted checksum
+sh install.sh
 ```
 
 For a specific version:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.sh | CDX_VERSION=v0.3.4 sh
+curl -fsSL https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.sh -o install.sh
+CDX_VERSION=v0.3.4 sh install.sh
 ```
 
 From source:
@@ -149,6 +154,12 @@ Alternatively, for a non-symlinked global source install:
 ```bash
 npm install -g .
 ```
+
+Security note:
+
+- The standalone installers support optional archive verification through `CDX_SHA256`.
+- Prefer `npm`, `pipx`, or `uv` when you want registry-backed install flows.
+- If you use the standalone script, download it first, inspect it, and provide `CDX_SHA256` when you have a trusted checksum for the release archive.
 
 ### Environment
 

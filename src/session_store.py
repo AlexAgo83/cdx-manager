@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -9,6 +10,16 @@ from .errors import CdxError
 
 def _ensure_dir(path):
     Path(path).mkdir(parents=True, exist_ok=True)
+    _restrict_dir_permissions(path)
+
+
+def _restrict_dir_permissions(path):
+    if sys.platform == "win32":
+        return
+    try:
+        os.chmod(path, 0o700)
+    except OSError:
+        pass
 
 
 def _read_json(file_path, fallback):

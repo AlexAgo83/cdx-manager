@@ -29,6 +29,27 @@ class SessionServicePythonTests(unittest.TestCase):
         service["remove_session"]("main")
         self.assertEqual([s["name"] for s in service["list_sessions"]()], ["work1"])
 
+    def test_create_session_uses_private_directory_permissions_on_unix(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        if os.name == "nt":
+            self.skipTest("permission bits are not portable on Windows")
+
+        session_root = service["get_session_root"]("main")
+        auth_home = service["get_session"]("main")["authHome"]
+        self.assertEqual(oct(os.stat(session_root).st_mode & 0o777), "0o700")
+        self.assertEqual(oct(os.stat(auth_home).st_mode & 0o777), "0o700")
+
+    def test_status_rows_do_not_expose_auth_home(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        rows = service["get_status_rows"]()
+        self.assertNotIn("auth_home", rows[0])
+
     def test_remove_session_surfaces_profile_delete_failure(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
