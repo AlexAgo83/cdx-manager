@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import sys
 import tempfile
 from urllib.parse import quote, unquote
 
@@ -43,7 +44,7 @@ def collect_health_report(service, base_dir, env=None):
     issues.append(_issue(
         "OK" if script_path else "WARN",
         "script_cli",
-        f"{script_bin} CLI {'found' if script_path else 'not found; Codex will launch without transcript fallback'}",
+        _script_cli_message(script_bin, bool(script_path)),
         script_path,
     ))
 
@@ -72,6 +73,17 @@ def _check_cdx_home(base_dir):
         return _issue("OK", "cdx_home_writable", "CDX_HOME is writable", base_dir)
     except OSError as error:
         return _issue("FAIL", "cdx_home_writable", "CDX_HOME is not writable", f"{base_dir}: {error}")
+
+
+def _script_cli_message(script_bin, is_available):
+    if is_available:
+        return f"{script_bin} CLI found"
+    if sys.platform == "win32":
+        return (
+            f"{script_bin} CLI not found; Codex will launch without transcript capture "
+            f"(expected on many Windows setups)"
+        )
+    return f"{script_bin} CLI not found; Codex will launch without transcript fallback"
 
 
 def _collect_profile_issues(base_dir, session_names):

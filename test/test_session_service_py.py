@@ -1,8 +1,10 @@
 import json
 import os
+import sys
 import tempfile
 import unittest
 from datetime import datetime
+from types import SimpleNamespace
 from unittest import mock
 
 from src.errors import CdxError
@@ -718,6 +720,24 @@ class SessionServicePythonTests(unittest.TestCase):
             handle.write("{bad json")
         with self.assertRaisesRegex(CdxError, "Corrupt JSON file"):
             service["launch_session"]("main")
+
+    def test_session_store_uses_windows_file_locking_when_requested(self):
+        temp_dir = self.make_temp_dir()
+        calls = []
+        fake_msvcrt = SimpleNamespace(
+            LK_LOCK=1,
+            LK_UNLCK=2,
+            locking=lambda fd, mode, length: calls.append((fd, mode, length)),
+        )
+
+        with mock.patch("sys.platform", "win32"):
+            with mock.patch.dict(sys.modules, {"msvcrt": fake_msvcrt}):
+                store = create_session_store(temp_dir)
+                store["list_sessions"]()
+
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0][1:], (1, 1))
+        self.assertEqual(calls[1][1:], (2, 1))
 
 
 if __name__ == "__main__":

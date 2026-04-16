@@ -17,6 +17,7 @@ One command to launch any session. Zero auth juggling.
 - [Getting Started](#getting-started)
 - [All Commands](#all-commands)
 - [Available Scripts](#available-scripts)
+- [Windows Support](#windows-support)
 - [Project Structure](#project-structure)
 - [Data Layout](#data-layout)
 - [Troubleshooting](#troubleshooting)
@@ -53,6 +54,7 @@ One command to launch any session. Zero auth juggling.
   - Fallback: `status-source` scans provider JSONL history files and terminal log transcripts, strips ANSI/OSC sequences, and extracts `usage%`, `5h remaining%`, and `week remaining%` via pattern matching.
 - Claude status refreshes are cached briefly by default; pass `--refresh` to force a live rate-limit probe.
 - If `script` is unavailable, Codex launch falls back to running without transcript capture.
+- On Windows, transcript capture is optional. If no compatible `script` wrapper is installed, Codex still launches normally without transcript capture.
 - Auth probe: synchronous subprocess call to `codex login status` or `claude auth status` before any interactive launch.
 - Signal forwarding: `SIGINT`, `SIGTERM`, and `SIGHUP` are forwarded to the child process and produce clean exit codes.
 - Test stack: Python built-in `unittest` runner with no test framework dependency.
@@ -87,6 +89,18 @@ With uv:
 uv tool install cdx-manager
 ```
 
+On Windows with PowerShell:
+
+```powershell
+npm install -g cdx-manager
+```
+
+With the standalone PowerShell installer:
+
+```powershell
+irm https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.ps1 | iex
+```
+
 With the standalone GitHub installer:
 
 ```bash
@@ -107,12 +121,26 @@ cd cdx-manager
 make install
 ```
 
+From source on Windows:
+
+```powershell
+git clone <repo>
+cd cdx-manager
+npm install -g .
+```
+
 `cdx` is now available globally. Changes to the source take effect immediately — no reinstall needed.
 
 To uninstall:
 
 ```bash
 make uninstall
+```
+
+To uninstall on Windows after `npm install -g`:
+
+```powershell
+npm uninstall -g cdx-manager
 ```
 
 Alternatively, for a non-symlinked global source install:
@@ -135,6 +163,24 @@ Optional runtime knobs:
 export CDX_CLAUDE_STATUS_MODEL=claude-haiku-4-5-20251001
 export CDX_SCRIPT_BIN=script
 export CDX_SCRIPT_ARGS='-q -F {transcript}'
+```
+
+PowerShell equivalents:
+
+```powershell
+$env:CDX_HOME = "C:\cdx-data"
+$env:CDX_CLAUDE_STATUS_MODEL = "claude-haiku-4-5-20251001"
+$env:CDX_SCRIPT_BIN = "script"
+$env:CDX_SCRIPT_ARGS = "-q -F {transcript}"
+```
+
+Command Prompt equivalents:
+
+```cmd
+set CDX_HOME=C:\cdx-data
+set CDX_CLAUDE_STATUS_MODEL=claude-haiku-4-5-20251001
+set CDX_SCRIPT_BIN=script
+set CDX_SCRIPT_ARGS=-q -F {transcript}
 ```
 
 ### Quick Start
@@ -190,6 +236,24 @@ cdx status
 - `npm run lint`: byte-compile the Python sources and tests
 - `npm run link`: link `cdx` globally for local development (`npm link`)
 - `npm run unlink`: remove the global link
+
+---
+
+## Windows Support
+
+- Supported install paths on Windows:
+  - `npm install -g cdx-manager`
+  - `pipx install cdx-manager`
+  - `uv tool install cdx-manager`
+  - `install.ps1`
+- `install.sh` is Unix-only.
+- `make install` and `make uninstall` are Unix-oriented convenience commands, not the default Windows path.
+- `cdx` isolates Claude sessions on Windows by setting `HOME`, `USERPROFILE`, `HOMEDRIVE`, and `HOMEPATH`.
+- Desktop notifications use PowerShell on Windows.
+- Codex transcript capture is optional on Windows:
+  - if a compatible `script` command is available and exposed via `CDX_SCRIPT_BIN`, `cdx` uses it
+  - otherwise Codex launches without transcript capture and the session still works normally
+- `cdx doctor` reports the transcript-capture fallback explicitly so missing `script` on Windows is visible without being treated as a hard failure.
 
 ---
 
@@ -255,6 +319,7 @@ Session names are URL-encoded when used as directory or file names. CLI command 
 - **`cdx rmv` says "Removal requires confirmation in an interactive terminal"** — pass `--force` to bypass the prompt in non-interactive environments (scripts, CI).
 - **`cdx login` hangs** — the provider's login flow requires a browser or device code. Follow the on-screen instructions in the terminal that opened.
 - **`make install` says `npm link` is not found** — ensure Node.js and npm are installed and in your PATH.
+- **On Windows, `doctor` warns that `script` is missing** — this is expected on many setups. Codex still launches, but transcript capture stays disabled unless you point `CDX_SCRIPT_BIN` to a compatible wrapper.
 
 ---
 

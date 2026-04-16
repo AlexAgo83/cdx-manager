@@ -4,11 +4,14 @@ import signal
 import tempfile
 import unittest
 import urllib.error
+from types import SimpleNamespace
 from datetime import datetime, timezone
 from unittest import mock
 
 from src import claude_usage
 from src import cli
+from src import notify
+from src import provider_runtime
 from src.errors import CdxError
 from src.provider_runtime import _run_interactive_provider_command
 
@@ -112,6 +115,79 @@ class RuntimePythonTests(unittest.TestCase):
                 handle.write(b"x" * cli.LOG_ROTATE_BYTES)
             cli._rotate_log_if_needed(log_path)
             self.assertEqual(os.path.getsize(log_path), 0)
+
+    def test_enable_windows_ansi_sets_virtual_terminal_mode(self):
+        set_mode_calls = []
+
+        class FakeKernel32:
+            def GetStdHandle(self, handle_id):
+                return handle_id
+
+            def GetConsoleMode(self, _handle, mode):
+                mode.value = 1
+                return True
+
+            def SetConsoleMode(self, handle, mode):
+                set_mode_calls.append((handle, mode))
+                return True
+
+        fake_ctypes = SimpleNamespace(
+            windll=SimpleNamespace(kernel32=FakeKernel32()),
+            c_ulong=lambda: SimpleNamespace(value=0),
+            byref=lambda value: value,
+        )
+
+        with mock.patch("src.cli.sys.platform", "win32"):
+            with mock.patch.dict("sys.modules", {"ctypes": fake_ctypes}):
+                cli._enable_windows_ansi()
+
+        self.assertEqual(set_mode_calls, [(-10, 5), (-11, 5), (-12, 5)])
+
+    def test_configure_windows_encoding_reconfigures_streams(self):
+        calls = []
+
+        class Stream:
+            def __init__(self, name):
+                self.name = name
+
+            def reconfigure(self, **kwargs):
+                calls.append((self.name, kwargs))
+
+        with mock.patch("src.cli.sys.platform", "win32"):
+            with mock.patch("src.cli.sys.stdout", Stream("stdout")):
+                with mock.patch("src.cli.sys.stderr", Stream("stderr")):
+                    cli._configure_windows_encoding()
+
+        self.assertEqual(calls, [
+            ("stdout", {"encoding": "utf-8", "errors": "replace"}),
+            ("stderr", {"encoding": "utf-8", "errors": "replace"}),
+        ])
+
+    def test_home_env_overrides_sets_windows_profile_variables(self):
+        with mock.patch("src.provider_runtime.sys.platform", "win32"):
+            with mock.patch(
+                "src.provider_runtime.os.path.splitdrive",
+                return_value=("C:", r"\Users\Test\AppData\Local\cdx\claude-home"),
+            ):
+                result = provider_runtime._home_env_overrides(r"C:\Users\Test\AppData\Local\cdx\claude-home")
+
+        self.assertEqual(result["HOME"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
+        self.assertEqual(result["USERPROFILE"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
+        self.assertEqual(result["HOMEDRIVE"], "C:")
+        self.assertEqual(result["HOMEPATH"], r"\Users\Test\AppData\Local\cdx\claude-home")
+
+    def test_send_windows_notification_uses_powershell(self):
+        calls = []
+
+        def spawn_sync(argv, **kwargs):
+            calls.append((argv, kwargs))
+
+        with mock.patch("sys.platform", "win32"):
+            notify.send_desktop_notification("Title", "Hello 'World'", spawn_sync=spawn_sync, env={"PATH": ""})
+
+        self.assertEqual(calls[0][0][:3], ["powershell", "-NoProfile", "-NonInteractive"])
+        self.assertIn("System.Windows.Forms", calls[0][0][4])
+        self.assertIn("Hello ''World''", calls[0][0][4])
 
     def test_run_interactive_provider_command_reports_raw_int_signal_name(self):
         session = {

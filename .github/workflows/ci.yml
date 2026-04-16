@@ -47,3 +47,48 @@ jobs:
         run: npm pack --dry-run
         env:
           npm_config_cache: ${{ runner.temp }}/cdx-npm-cache
+
+      - name: Windows install and CLI smoke
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          npm_config_cache: ${{ runner.temp }}/cdx-npm-cache
+        run: |
+          $shimDir = Join-Path $env:RUNNER_TEMP "cdx-shims"
+          New-Item -ItemType Directory -Force -Path $shimDir | Out-Null
+
+          @'
+          @echo off
+          if "%1"=="login" if "%2"=="status" (
+            echo Logged in using ChatGPT
+            exit /b 0
+          )
+          exit /b 0
+          '@ | Set-Content -Path (Join-Path $shimDir "codex.cmd") -Encoding ascii
+
+          @'
+          @echo off
+          if "%1"=="auth" if "%2"=="status" (
+            echo {"loggedIn": true, "authMethod": "oauth"}
+            exit /b 0
+          )
+          exit /b 0
+          '@ | Set-Content -Path (Join-Path $shimDir "claude.cmd") -Encoding ascii
+
+          @'
+          @echo off
+          exit /b 0
+          '@ | Set-Content -Path (Join-Path $shimDir "script.cmd") -Encoding ascii
+
+          $env:PATH = "$shimDir;$env:PATH"
+          $env:CDX_HOME = Join-Path $env:RUNNER_TEMP "cdx-home"
+
+          npm install -g .
+          cdx --version
+          cdx add smoke
+          cdx add claude smoke-claude
+          cdx status --json
+          cdx doctor --json
+          cdx notify --next-ready --once --json
+          cdx rmv smoke --force
+          cdx rmv smoke-claude --force

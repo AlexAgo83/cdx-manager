@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta
+from unittest import mock
 
 from src.cli import (
     _format_blocking_quota,
@@ -16,6 +17,7 @@ from src.cli import (
     main,
 )
 from src.errors import CdxError
+from src.health import collect_health_report
 from src.session_service import create_session_service
 
 
@@ -1015,6 +1017,19 @@ class CliPythonTests(unittest.TestCase):
         payload = json.loads(doctor_io["stdout"].getvalue())
         self.assertEqual(payload["summary"]["fail"], 1)
         self.assertTrue(any(issue["code"] == "missing_state" for issue in payload["issues"]))
+
+    def test_doctor_windows_script_warning_mentions_expected_fallback(self):
+        temp_dir = self.make_temp_dir()
+        service = {
+            "list_sessions": lambda: [],
+            "get_session_root": lambda _name: temp_dir,
+        }
+
+        with mock.patch("src.health.sys.platform", "win32"):
+            report = collect_health_report(service, temp_dir, env={"PATH": ""})
+
+        issue = next(item for item in report["issues"] if item["code"] == "script_cli")
+        self.assertIn("expected on many Windows setups", issue["message"])
 
     def test_repair_dry_run_and_force_recreate_missing_state(self):
         temp_dir = self.make_temp_dir()
