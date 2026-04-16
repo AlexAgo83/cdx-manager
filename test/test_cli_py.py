@@ -305,6 +305,45 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("just now", output)
         self.assertNotRegex(output, r"\d{4}-\d{2}-\d{2}T")
 
+    def test_main_screen_surfaces_update_notice(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        list_io = self.make_io()
+        self.assertEqual(main([], {
+            **list_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "checkForUpdate": lambda _base_dir, _version, env=None, now_fn=None: {
+                "latest_version": "9.9.9",
+                "url": "https://example.invalid/release",
+            },
+        }), 0)
+
+        output = list_io["stdout"].getvalue()
+        self.assertIn("Update available: cdx-manager 9.9.9", output)
+
+    def test_main_screen_json_includes_update_warning(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        list_io = self.make_io()
+        self.assertEqual(main(["--json"], {
+            **list_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "checkForUpdate": lambda _base_dir, _version, env=None, now_fn=None: {
+                "latest_version": "9.9.9",
+                "url": "https://example.invalid/release",
+            },
+        }), 0)
+
+        payload = json.loads(list_io["stdout"].getvalue())
+        self.assertEqual(payload["warnings"][0]["code"], "update_available")
+        self.assertEqual(payload["warnings"][0]["latest_version"], "9.9.9")
+
     def test_root_list_supports_json_contract(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -361,6 +400,30 @@ class CliPythonTests(unittest.TestCase):
         self.assertTrue(launch_call["args"][2].endswith(".log"))
         self.assertEqual(launch_call["args"][3], "codex")
         self.assertEqual(launch_call["args"][4:7], ["--no-alt-screen", "--cd", os.getcwd()])
+
+    def test_launch_surfaces_update_notice(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        main(["add", "main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        })
+
+        launch_io = self.make_io()
+        self.assertEqual(main(["main"], {
+            **launch_io,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+            "checkForUpdate": lambda _base_dir, _version, env=None, now_fn=None: {
+                "latest_version": "9.9.9",
+                "url": "https://example.invalid/release",
+            },
+        }), 0)
+        self.assertIn("Update available: cdx-manager 9.9.9", launch_io["stdout"].getvalue())
 
     def test_codex_launch_uses_quoted_custom_script_args(self):
         temp_dir = self.make_temp_dir()

@@ -443,6 +443,15 @@ def handle_logout(rest, ctx):
 
 def handle_launch(command, ctx):
     json_flag = "--json" in ctx["options"].get("raw_args", [])
+    update_notice = ctx.get("update_notice")
+    warnings = []
+    if update_notice:
+        warnings.append({
+            "code": "update_available",
+            "message": f"Update available: cdx-manager {update_notice['latest_version']}",
+            "latest_version": update_notice["latest_version"],
+            "url": update_notice.get("url"),
+        })
     session = ctx["service"]["launch_session"](command)
     _ensure_session_authentication(
         session,
@@ -457,6 +466,11 @@ def handle_launch(command, ctx):
     message = f"Launching {session['provider']} session {session['name']}"
     if not json_flag:
         ctx["out"](f"{_info(message, ctx['use_color'])}\n")
+        if update_notice:
+            text = f"Update available: cdx-manager {update_notice['latest_version']} (current version installed may be older)."
+            if update_notice.get("url"):
+                text = f"{text} {update_notice['url']}"
+            ctx["out"](f"{_warn(text, ctx['use_color'])}\n")
     if session["provider"] == "codex":
         if not json_flag:
             ctx["out"](f"{_dim('Tip: run /status once the Codex session opens.', ctx['use_color'])}\n")
@@ -465,5 +479,5 @@ def handle_launch(command, ctx):
         signal_emitter=ctx.get("signal_emitter")
     )
     if json_flag:
-        _write_json(ctx, _json_success("launch", message, session=ctx["service"]["get_session"](session["name"])))
+        _write_json(ctx, _json_success("launch", message, warnings=warnings, session=ctx["service"]["get_session"](session["name"])))
     return 0

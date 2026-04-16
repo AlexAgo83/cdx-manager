@@ -40,6 +40,7 @@ from .status_view import (
     _format_status_detail,
     _format_status_rows,
 )
+from .update_check import check_for_update
 
 VERSION = "0.3.4"
 
@@ -107,6 +108,35 @@ def format_json_error(error):
     }, indent=2)
 
 
+def _get_update_notice(service, env, options):
+    checker = options.get("checkForUpdate") or check_for_update
+    return checker(
+        service["base_dir"],
+        VERSION,
+        env=env,
+        now_fn=options.get("now"),
+    )
+
+
+def _update_warning_payload(notice):
+    if not notice:
+        return []
+    message = f"Update available: cdx-manager {notice['latest_version']} (current {VERSION})"
+    return [{
+        "code": "update_available",
+        "message": message,
+        "latest_version": notice["latest_version"],
+        "url": notice.get("url"),
+    }]
+
+
+def _update_warning_text(notice):
+    if not notice:
+        return None
+    suffix = f" {notice['url']}" if notice.get("url") else ""
+    return f"Update available: cdx-manager {notice['latest_version']} (current {VERSION}).{suffix}"
+
+
 # ---------------------------------------------------------------------------
 # main()
 # ---------------------------------------------------------------------------
@@ -147,11 +177,15 @@ def main(argv, options=None):
 
     if argv == ["--json"]:
         rows = service["format_list_rows"]()
-        out(f"{json.dumps(_list_json_payload(rows), indent=2)}\n")
+        notice = _get_update_notice(service, env, options)
+        out(f"{json.dumps(_list_json_payload(rows, notice=notice), indent=2)}\n")
         return 0
 
     if not argv:
+        notice = _get_update_notice(service, env, options)
         out(f"{_format_sessions(service, use_color=use_color)}\n")
+        if notice:
+            out(f"{_style(_update_warning_text(notice), '33', use_color)}\n")
         return 0
 
     command, *rest = argv
@@ -167,6 +201,9 @@ def main(argv, options=None):
         "spawn": spawn,
         "spawn_sync": spawn_sync,
         "stdin_is_tty": stdin_is_tty,
+        "update_notice": _get_update_notice(service, env, options) if command not in (
+            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "notify", "status", "login", "logout", "help", "version"
+        ) else None,
         "use_color": use_color,
     }
 
@@ -217,13 +254,13 @@ def main(argv, options=None):
     raise CdxError(f"Unknown command: {command}. Use cdx --help.")
 
 
-def _list_json_payload(rows):
+def _list_json_payload(rows, notice=None):
     return {
         "schema_version": API_SCHEMA_VERSION,
         "ok": True,
         "action": "list",
         "message": "Listed known sessions",
-        "warnings": [],
+        "warnings": _update_warning_payload(notice),
         "sessions": rows,
     }
 
