@@ -341,6 +341,32 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(launch_call["args"][3], "codex")
         self.assertEqual(launch_call["args"][4:7], ["--no-alt-screen", "--cd", os.getcwd()])
 
+    def test_codex_launch_uses_quoted_custom_script_args(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        env = {
+            "CDX_HOME": temp_dir,
+            "CDX_SCRIPT_ARGS": '-q -c "wrapped command" {transcript}',
+        }
+        main(["add", "main"], {
+            **self.make_io(),
+            "env": env,
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        })
+
+        self.assertEqual(main(["main"], {
+            **self.make_io(),
+            "env": env,
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        launch_call = next(call for call in harness.calls if call["kind"] == "spawn" and call["command"] == "script")
+        self.assertEqual(launch_call["args"][:3], ["-q", "-c", "wrapped command"])
+        self.assertTrue(launch_call["args"][3].endswith(".log"))
+        self.assertEqual(launch_call["args"][4], "codex")
+
     def test_add_and_launch_claude_session(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
@@ -430,6 +456,31 @@ class CliPythonTests(unittest.TestCase):
             calls.append(argv[0])
             if argv[0] == "script":
                 raise FileNotFoundError("script")
+            return _Child()
+
+        self.assertEqual(main(["main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        self.assertEqual(calls, ["script", "codex"])
+
+    def test_codex_launch_falls_back_when_script_wrapper_fails_before_logging(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        main(["add", "main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        })
+        calls = []
+
+        def spawn(argv, **kwargs):
+            calls.append(argv[0])
+            if argv[0] == "script":
+                return _Child(on_wait=lambda child: setattr(child, "returncode", 1))
             return _Child()
 
         self.assertEqual(main(["main"], {
@@ -612,9 +663,8 @@ class CliPythonTests(unittest.TestCase):
             "refreshClaudeSessionStatus": refresh,
         }), 0)
         payload = json.loads(json_io["stdout"].getvalue())
-        self.assertIn("rows", payload)
-        self.assertEqual(payload["refresh_errors"][0]["session"], "claude")
-        self.assertEqual(payload["refresh_errors"][0]["error"], "offline")
+        self.assertIsInstance(payload, list)
+        self.assertIn("Warning: Claude refresh failed for claude: offline", json_io["stderr"].getvalue())
 
     def test_status_small_flag_renders_compact_table(self):
         temp_dir = self.make_temp_dir()

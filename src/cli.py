@@ -91,6 +91,9 @@ def main(argv, options=None):
     def out(text):
         stdout.write(text)
 
+    def err(text):
+        stderr.write(text)
+
     # Flags
     if "--help" in argv or "-h" in argv:
         if len(argv) != 1:
@@ -112,6 +115,7 @@ def main(argv, options=None):
     ctx = {
         "env": env,
         "options": options,
+        "err": err,
         "out": out,
         "refresh_fn": refresh_fn,
         "service": service,

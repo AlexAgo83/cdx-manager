@@ -252,11 +252,34 @@ def create_session_service(options=None):
         return result["session"]
 
     def remove_session(name):
-        removed = store["remove_session"](name)
-        if not removed:
+        session = store["get_session"](name)
+        if not session:
             raise CdxError(f"Unknown session: {name}")
-        session_root = removed.get("sessionRoot") or _get_session_root(name)
-        shutil.rmtree(session_root, ignore_errors=True)
+        session_root = session.get("sessionRoot") or _get_session_root(name)
+        quarantine_root = None
+        if os.path.exists(session_root):
+            profiles_dir = os.path.dirname(session_root)
+            os.makedirs(profiles_dir, exist_ok=True)
+            quarantine_root = tempfile.mkdtemp(prefix=f".{_encode(name)}.remove.", dir=profiles_dir)
+            os.rmdir(quarantine_root)
+            os.rename(session_root, quarantine_root)
+        try:
+            removed = store["remove_session"](name)
+        except Exception:
+            if quarantine_root and os.path.exists(quarantine_root) and not os.path.exists(session_root):
+                os.rename(quarantine_root, session_root)
+            raise
+        if not removed:
+            if quarantine_root and os.path.exists(quarantine_root) and not os.path.exists(session_root):
+                os.rename(quarantine_root, session_root)
+            raise CdxError(f"Unknown session: {name}")
+        if quarantine_root:
+            try:
+                shutil.rmtree(quarantine_root)
+            except OSError as error:
+                raise CdxError(
+                    f"Removed session {name}, but failed to delete archived profile {quarantine_root}: {error}"
+                ) from error
         return removed
 
     def copy_session(source_name, dest_name):

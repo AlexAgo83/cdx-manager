@@ -76,6 +76,7 @@ def handle_add(rest, ctx):
         ctx["service"],
         spawn=ctx.get("spawn"),
         spawn_sync=ctx.get("spawn_sync"),
+        env_override=ctx.get("env"),
         stdin_is_tty=ctx["stdin_is_tty"],
         behavior="bootstrap",
         signal_emitter=ctx.get("signal_emitter"),
@@ -195,10 +196,8 @@ def handle_status(rest, ctx):
     rows = ctx["service"]["get_status_rows"]()
     if len(args) == 0:
         if json_flag:
-            payload = rows
-            if refresh_errors:
-                payload = {"rows": rows, "refresh_errors": refresh_errors}
-            ctx["out"](f"{json.dumps(payload, indent=2)}\n")
+            ctx["out"](f"{json.dumps(rows, indent=2)}\n")
+            _write_refresh_warnings(refresh_errors, ctx, stream="err")
             return 0
         ctx["out"](f"{_format_status_rows(rows, use_color=ctx['use_color'], small=small_flag)}\n")
         _write_refresh_warnings(refresh_errors, ctx)
@@ -208,21 +207,20 @@ def handle_status(rest, ctx):
     if not row:
         raise CdxError(f"Unknown session: {args[0]}")
     if json_flag:
-        payload = row
-        if refresh_errors:
-            payload = {"row": row, "refresh_errors": refresh_errors}
-        ctx["out"](f"{json.dumps(payload, indent=2)}\n")
+        ctx["out"](f"{json.dumps(row, indent=2)}\n")
+        _write_refresh_warnings(refresh_errors, ctx, stream="err")
         return 0
     ctx["out"](f"{_format_status_detail(row, use_color=ctx['use_color'])}\n")
     _write_refresh_warnings(refresh_errors, ctx)
     return 0
 
 
-def _write_refresh_warnings(refresh_errors, ctx):
+def _write_refresh_warnings(refresh_errors, ctx, stream="out"):
+    write = ctx["err"] if stream == "err" and "err" in ctx else ctx["out"]
     for item in refresh_errors:
         session = item.get("session") or "unknown"
         error = item.get("error") or "unknown error"
-        ctx["out"](f"{_warn(f'Warning: Claude refresh failed for {session}: {error}', ctx['use_color'])}\n")
+        write(f"{_warn(f'Warning: Claude refresh failed for {session}: {error}', ctx['use_color'])}\n")
 
 
 def handle_login(rest, ctx):
@@ -234,10 +232,12 @@ def handle_login(rest, ctx):
     if not session:
         raise CdxError(f"Unknown session: {rest[0]}")
     _run_interactive_provider_command(
-        session, "logout", spawn=ctx.get("spawn"), signal_emitter=ctx.get("signal_emitter")
+        session, "logout", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
+        signal_emitter=ctx.get("signal_emitter")
     )
     _run_interactive_provider_command(
-        session, "login", spawn=ctx.get("spawn"), signal_emitter=ctx.get("signal_emitter")
+        session, "login", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
+        signal_emitter=ctx.get("signal_emitter")
     )
     now = _local_now_iso()
     ctx["service"]["update_auth_state"](rest[0], lambda auth: {
@@ -256,7 +256,8 @@ def handle_logout(rest, ctx):
     if not session:
         raise CdxError(f"Unknown session: {rest[0]}")
     _run_interactive_provider_command(
-        session, "logout", spawn=ctx.get("spawn"), signal_emitter=ctx.get("signal_emitter")
+        session, "logout", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
+        signal_emitter=ctx.get("signal_emitter")
     )
     now = _local_now_iso()
     ctx["service"]["update_auth_state"](rest[0], lambda auth: {
@@ -275,6 +276,7 @@ def handle_launch(command, ctx):
         ctx["service"],
         spawn=ctx.get("spawn"),
         spawn_sync=ctx.get("spawn_sync"),
+        env_override=ctx.get("env"),
         stdin_is_tty=ctx["stdin_is_tty"],
         behavior="launch",
         signal_emitter=ctx.get("signal_emitter"),
@@ -284,6 +286,7 @@ def handle_launch(command, ctx):
     if session["provider"] == "codex":
         ctx["out"](f"{_dim('Tip: run /status once the Codex session opens.', ctx['use_color'])}\n")
     _run_interactive_provider_command(
-        session, "launch", spawn=ctx.get("spawn"), signal_emitter=ctx.get("signal_emitter")
+        session, "launch", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
+        signal_emitter=ctx.get("signal_emitter")
     )
     return 0

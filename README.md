@@ -102,6 +102,7 @@ Optional runtime knobs:
 ```bash
 export CDX_CLAUDE_STATUS_MODEL=claude-haiku-4-5-20251001
 export CDX_SCRIPT_BIN=script
+export CDX_SCRIPT_ARGS='-q -F {transcript}'
 ```
 
 ### Quick Start
@@ -138,7 +139,7 @@ cdx status
 | `cdx logout <name>` | Log out of a session |
 | `cdx rmv <name> [--force]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
 | `cdx clean [name]` | Clear launch transcript logs for one session or all sessions |
-| `cdx status [--json] [--refresh]` | Show token usage table for all sessions; JSON includes `refresh_errors` when live Claude refresh fails |
+| `cdx status [--json] [--refresh]` | Show token usage table for all sessions; JSON keeps the same row-array shape and writes live Claude refresh warnings to stderr |
 | `cdx status --small [--refresh]` / `cdx status -s [--refresh]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
 | `cdx status <name> [--json] [--refresh]` | Show detailed usage breakdown for one session |
 | `cdx --help` | Show usage |

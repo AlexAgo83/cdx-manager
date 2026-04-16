@@ -32,6 +32,7 @@ def _write_json(file_path, value):
             f.flush()
             os.fsync(f.fileno())
         os.replace(temp_path, file_path)
+        _fsync_directory(directory)
     except Exception:
         try:
             os.unlink(temp_path)
@@ -40,23 +41,36 @@ def _write_json(file_path, value):
         raise
 
 
+def _fsync_directory(directory):
+    try:
+        fd = os.open(directory, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 @contextmanager
 def _file_lock(lock_path):
     _ensure_dir(os.path.dirname(lock_path))
     with open(lock_path, "a", encoding="utf-8") as lock:
         try:
             import fcntl
+        except ImportError as error:
+            raise CdxError("Session store locking requires fcntl on this platform") from error
+        try:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-        except (ImportError, OSError):
-            pass
+        except OSError as error:
+            raise CdxError(f"Failed to lock session store: {error}") from error
         try:
             yield
         finally:
             try:
-                import fcntl
                 fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
-            except (ImportError, OSError):
-                pass
+            except OSError as error:
+                raise CdxError(f"Failed to unlock session store: {error}") from error
 
 
 def create_session_store(base_dir):

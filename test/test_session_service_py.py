@@ -27,6 +27,24 @@ class SessionServicePythonTests(unittest.TestCase):
         service["remove_session"]("main")
         self.assertEqual([s["name"] for s in service["list_sessions"]()], ["work1"])
 
+    def test_remove_session_surfaces_profile_delete_failure(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        profile_root = service["get_session_root"]("main")
+        self.assertTrue(os.path.exists(profile_root))
+
+        with mock.patch("src.session_service.shutil.rmtree", side_effect=OSError("locked")):
+            with self.assertRaisesRegex(CdxError, "failed to delete archived profile"):
+                service["remove_session"]("main")
+
+        self.assertIsNone(service["get_session"]("main"))
+        quarantined = [
+            name for name in os.listdir(os.path.dirname(profile_root))
+            if name.startswith(".main.remove.")
+        ]
+        self.assertEqual(len(quarantined), 1)
+
     def test_launch_rehydrates_state_and_missing_state_fails(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

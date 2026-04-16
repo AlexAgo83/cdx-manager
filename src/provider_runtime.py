@@ -1,6 +1,7 @@
 import json
 import os
 import signal
+import shlex
 import subprocess
 from datetime import datetime, timezone
 
@@ -52,38 +53,45 @@ def _rotate_log_if_needed(log_path):
         pass
 
 
-def _wrap_launch_with_transcript(session, spec, capture_transcript=True):
+def _wrap_launch_with_transcript(session, spec, capture_transcript=True, env=None):
     if not capture_transcript:
         return spec
-    script_bin = os.environ.get("CDX_SCRIPT_BIN", "script")
-    script_args = os.environ.get("CDX_SCRIPT_ARGS")
+    env = env or os.environ
+    script_bin = env.get("CDX_SCRIPT_BIN", "script")
+    script_args = env.get("CDX_SCRIPT_ARGS")
     transcript_path = _build_launch_transcript_path(session)
     os.makedirs(os.path.dirname(transcript_path), exist_ok=True)
     _rotate_log_if_needed(transcript_path)
-    args = (
-        script_args.split() + [transcript_path, spec["command"]] + spec["args"]
-        if script_args
-        else ["-q", "-F", transcript_path, spec["command"]] + spec["args"]
-    )
+    if script_args:
+        args = shlex.split(script_args)
+        if "{transcript}" in args:
+            args = [transcript_path if arg == "{transcript}" else arg for arg in args]
+        else:
+            args = args + [transcript_path]
+        args = args + [spec["command"]] + spec["args"]
+    else:
+        args = ["-q", "-F", transcript_path, spec["command"]] + spec["args"]
     return {
         "command": script_bin,
         "args": args,
         "options": spec["options"],
         "label": spec["label"],
         "fallback": spec,
+        "transcript_path": transcript_path,
     }
 
 
 def _build_launch_spec(session, cwd=None, env_override=None):
     cwd = cwd or os.getcwd()
     env_override = env_override or {}
+    env = {**os.environ, **env_override}
     if session["provider"] == "claude":
         return {
             "command": "claude",
             "args": ["--name", session["name"]],
             "options": {
                 "cwd": cwd,
-                "env": {**os.environ, **env_override, "HOME": _get_auth_home(session)},
+                "env": {**env, "HOME": _get_auth_home(session)},
             },
             "label": "claude",
         }
@@ -91,10 +99,10 @@ def _build_launch_spec(session, cwd=None, env_override=None):
         "command": "codex",
         "args": ["--no-alt-screen", "--cd", cwd],
         "options": {
-            "env": {**os.environ, **env_override, "CODEX_HOME": _get_auth_home(session)},
+            "env": {**env, "CODEX_HOME": _get_auth_home(session)},
         },
         "label": "codex",
-    })
+    }, env=env)
 
 
 def _build_login_status_spec(session, env_override=None):
@@ -176,11 +184,8 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
 
     try:
         child = start_child(spec)
-    except FileNotFoundError:
-        fallback = spec.get("fallback")
-        if not fallback:
-            raise
-        spec = {**fallback, "label": f"{fallback['label']} (without transcript)"}
+    except FileNotFoundError as error:
+        spec = _fallback_launch_spec_or_raise(spec, error)
         child = start_child(spec)
 
     forwarded_signal = [None]
@@ -213,6 +218,10 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
 
     try:
         child.wait()
+        if forwarded_signal[0] is None and child.returncode != 0 and _should_retry_without_transcript(spec):
+            spec = _fallback_launch_spec_or_raise(spec)
+            child = start_child(spec)
+            child.wait()
     finally:
         if use_emitter:
             for sig, handler in handlers:
@@ -236,6 +245,27 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
         raise CdxError(
             f"{spec['label']} exited with code {child.returncode} for session {session['name']}"
         )
+
+
+def _fallback_launch_spec_or_raise(spec, original_error=None):
+    fallback = spec.get("fallback")
+    if not fallback:
+        if original_error is not None:
+            raise original_error
+        raise CdxError(f"{spec['label']} cannot run without a fallback")
+    return {**fallback, "label": f"{fallback['label']} (without transcript)"}
+
+
+def _should_retry_without_transcript(spec):
+    if not spec.get("fallback"):
+        return False
+    transcript_path = spec.get("transcript_path")
+    if not transcript_path:
+        return False
+    try:
+        return not os.path.exists(transcript_path) or os.path.getsize(transcript_path) == 0
+    except OSError:
+        return True
 
 
 def _ensure_session_authentication(session, service, spawn=None, spawn_sync=None,
