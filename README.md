@@ -1,12 +1,15 @@
 # CDX Manager
 
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.3.4-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+
 **Run multiple Codex and Claude sessions from one terminal. Switch between accounts instantly.**
 
 If you use AI coding tools at scale ; multiple accounts, multiple providers : you know the friction: re-authenticating, losing context, juggling environment variables. `cdx` removes all of that.
 
 One command to launch any session. Zero auth juggling.
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.3.4-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+<img width="213" height="227" alt="image" src="https://github.com/user-attachments/assets/f15f449c-d23e-47fe-a455-17c7386f9be2" />
+<img width="645" height="129" alt="image" src="https://github.com/user-attachments/assets/34bcb395-f832-4da6-9247-3e5022e75e56" />
 
 ---
 
