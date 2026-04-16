@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cdx-manager"
-version = "0.3.3"
+version = "0.3.4"
 description = "Terminal session manager for Codex and Claude accounts."
 readme = "README.md"
 requires-python = ">=3.9"
