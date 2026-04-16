@@ -17,10 +17,13 @@ RESERVED_SESSION_NAMES = {
     "add",
     "clean",
     "cp",
+    "doctor",
     "help",
     "login",
     "logout",
     "mv",
+    "notify",
+    "repair",
     "ren",
     "rename",
     "rmv",
@@ -401,6 +404,21 @@ def create_session_service(options=None):
             **s, "updatedAt": now, "lastLaunchedAt": now
         })
 
+    def ensure_session_state(name):
+        session = store["get_session"](name)
+        if not session:
+            raise CdxError(f"Unknown session: {name}")
+        state = store["read_session_state"](name)
+        if state:
+            return state
+        repaired = {
+            "provider": session["provider"],
+            "status": "ready",
+            "rehydratedAt": None,
+        }
+        store["write_session_state"](name, repaired)
+        return repaired
+
     def list_sessions():
         return store["list_sessions"]()
 
@@ -531,6 +549,7 @@ def create_session_service(options=None):
         "copy_session": copy_session,
         "rename_session": rename_session,
         "launch_session": launch_session,
+        "ensure_session_state": ensure_session_state,
         "list_sessions": list_sessions,
         "get_session": get_session,
         "record_status": record_status,
@@ -539,5 +558,6 @@ def create_session_service(options=None):
         "format_list_rows": format_list_rows,
         "get_session_auth_home": get_session_auth_home,
         "get_session_root": get_session_root,
+        "base_dir": base_dir,
         "normalize_provider": _normalize_provider,
     }

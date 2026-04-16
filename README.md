@@ -139,6 +139,10 @@ cdx status
 | `cdx logout <name>` | Log out of a session |
 | `cdx rmv <name> [--force]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
 | `cdx clean [name]` | Clear launch transcript logs for one session or all sessions |
+| `cdx doctor [--json]` | Inspect CLI dependencies, CDX_HOME permissions, missing state, orphan profiles, and pending quarantines |
+| `cdx repair [--dry-run] [--force] [--json]` | Plan or apply safe repairs for missing state files, quarantines, and orphan profiles |
+| `cdx notify <name> --at-reset [--poll seconds] [--once]` | Wait for a session reset time and send a desktop notification when due |
+| `cdx notify --next-ready [--poll seconds] [--once]` | Wait until the recommended session is usable or needs a refresh after reset |
 | `cdx status [--json] [--refresh]` | Show token usage table for all sessions; JSON keeps the same row-array shape and writes live Claude refresh warnings to stderr |
 | `cdx status --small [--refresh]` / `cdx status -s [--refresh]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
 | `cdx status <name> [--json] [--refresh]` | Show detailed usage breakdown for one session |

@@ -8,10 +8,13 @@ from .cli_commands import (
     handle_add,
     handle_clean,
     handle_copy,
+    handle_doctor,
     handle_launch,
     handle_login,
     handle_logout,
+    handle_notify,
     handle_remove,
+    handle_repair,
     handle_rename,
     handle_status,
 )
@@ -59,6 +62,10 @@ def _print_help(use_color=False):
         f"  {_style('cdx logout <name>', '36', use_color)}",
         f"  {_style('cdx rmv <name> [--force]', '36', use_color)}",
         f"  {_style('cdx clean [name]', '36', use_color)}",
+        f"  {_style('cdx doctor [--json]', '36', use_color)}",
+        f"  {_style('cdx repair [--dry-run] [--force] [--json]', '36', use_color)}",
+        f"  {_style('cdx notify <name> --at-reset', '36', use_color)}",
+        f"  {_style('cdx notify --next-ready', '36', use_color)}",
         f"  {_style('cdx <name>', '36', use_color)}",
         f"  {_style('cdx --help', '36', use_color)}",
         f"  {_style('cdx --version', '36', use_color)}",
@@ -140,6 +147,15 @@ def main(argv, options=None):
 
     if command == "clean":
         return handle_clean(rest, ctx)
+
+    if command == "doctor":
+        return handle_doctor(rest, ctx)
+
+    if command == "repair":
+        return handle_repair(rest, ctx)
+
+    if command == "notify":
+        return handle_notify(rest, ctx)
 
     if command == "status":
         return handle_status(rest, ctx)

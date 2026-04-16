@@ -6,15 +6,26 @@ from datetime import datetime
 from .claude_refresh import _refresh_claude_sessions
 from .cli_render import _dim, _info, _success, _warn
 from .errors import CdxError
+from .health import collect_health_report, format_health_report, health_json
+from .notify import (
+    format_notify_event,
+    notify_json,
+    parse_notify_args,
+    send_desktop_notification,
+    wait_for_notification_event,
+)
 from .provider_runtime import (
     _ensure_session_authentication,
     _list_launch_transcript_paths,
     _run_interactive_provider_command,
 )
+from .repair import format_repair_report, repair_health, repair_json
 from .status_view import _format_status_detail, _format_status_rows
 
 
 STATUS_USAGE = "Usage: cdx status [--json] [--refresh] | cdx status --small|-s [--refresh] | cdx status <name> [--json] [--refresh]"
+DOCTOR_USAGE = "Usage: cdx doctor [--json]"
+REPAIR_USAGE = "Usage: cdx repair [--dry-run] [--force] [--json]"
 
 
 def _local_now_iso():
@@ -164,6 +175,72 @@ def handle_clean(rest, ctx):
         else:
             message = f"{session['name']}: no log found"
             ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
+    return 0
+
+
+def handle_doctor(rest, ctx):
+    json_flag = "--json" in rest
+    unknown = [arg for arg in rest if arg != "--json"]
+    if unknown:
+        raise CdxError(DOCTOR_USAGE)
+    report = collect_health_report(
+        ctx["service"],
+        ctx["service"]["base_dir"],
+        env=ctx.get("env"),
+    )
+    if json_flag:
+        ctx["out"](f"{health_json(report)}\n")
+    else:
+        ctx["out"](f"{format_health_report(report, use_color=ctx['use_color'])}\n")
+    return 0
+
+
+def handle_repair(rest, ctx):
+    json_flag = "--json" in rest
+    dry_run = "--dry-run" in rest or "--force" not in rest
+    force = "--force" in rest
+    allowed = {"--json", "--dry-run", "--force"}
+    unknown = [arg for arg in rest if arg not in allowed]
+    if unknown:
+        raise CdxError(REPAIR_USAGE)
+    report = repair_health(
+        ctx["service"],
+        ctx["service"]["base_dir"],
+        env=ctx.get("env"),
+        dry_run=dry_run,
+        force=force,
+    )
+    if json_flag:
+        ctx["out"](f"{repair_json(report)}\n")
+    else:
+        ctx["out"](f"{format_repair_report(report, use_color=ctx['use_color'])}\n")
+        if dry_run:
+            ctx["out"](f"{_dim('Tip: run cdx repair --force to apply safe repairs.', ctx['use_color'])}\n")
+    return 0
+
+
+def handle_notify(rest, ctx):
+    parsed = parse_notify_args(rest)
+
+    def notifier(title, message):
+        send_desktop_notification(
+            title,
+            message,
+            spawn_sync=ctx.get("spawn_sync"),
+            env=ctx.get("env"),
+        )
+
+    event = wait_for_notification_event(
+        ctx["service"],
+        parsed,
+        notifier=notifier,
+        sleep_fn=ctx["options"].get("sleep"),
+        now_fn=ctx["options"].get("now"),
+    )
+    if parsed["json"]:
+        ctx["out"](f"{notify_json(event)}\n")
+    else:
+        ctx["out"](f"{format_notify_event(event)}\n")
     return 0
 
 

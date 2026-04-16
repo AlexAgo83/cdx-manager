@@ -1000,6 +1000,98 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(main(["status", "--json"], {**io_obj, "env": {"CDX_HOME": temp_dir}}), 0)
         self.assertEqual(json.loads(io_obj["stdout"].getvalue()), [])
 
+    def test_doctor_reports_missing_state_and_json_summary(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        os.remove(os.path.join(temp_dir, "state", "main.json"))
+
+        doctor_io = self.make_io()
+        self.assertEqual(main(["doctor", "--json"], {
+            **doctor_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        payload = json.loads(doctor_io["stdout"].getvalue())
+        self.assertEqual(payload["summary"]["fail"], 1)
+        self.assertTrue(any(issue["code"] == "missing_state" for issue in payload["issues"]))
+
+    def test_repair_dry_run_and_force_recreate_missing_state(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        state_path = os.path.join(temp_dir, "state", "main.json")
+        os.remove(state_path)
+
+        dry_io = self.make_io()
+        self.assertEqual(main(["repair", "--dry-run"], {
+            **dry_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertFalse(os.path.exists(state_path))
+        self.assertIn("PLANNED", dry_io["stdout"].getvalue())
+
+        force_io = self.make_io()
+        self.assertEqual(main(["repair", "--force"], {
+            **force_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertTrue(os.path.exists(state_path))
+        self.assertIn("APPLIED", force_io["stdout"].getvalue())
+
+    def test_repair_force_quarantines_orphan_profile(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        orphan = os.path.join(temp_dir, "profiles", "old")
+        os.makedirs(orphan, exist_ok=True)
+
+        repair_io = self.make_io()
+        self.assertEqual(main(["repair", "--force"], {
+            **repair_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        self.assertFalse(os.path.exists(orphan))
+        self.assertTrue(os.path.isdir(os.path.join(temp_dir, "profiles", ".old.remove.orphan")))
+
+    def test_notify_at_reset_once_and_next_ready(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        reset = datetime.now().astimezone() - timedelta(minutes=1)
+        service["record_status"]("main", {
+            "remaining_5h_pct": 0,
+            "remaining_week_pct": 20,
+            "reset_5h_at": reset.isoformat(),
+            "updated_at": reset.isoformat(),
+        })
+        notifications = []
+
+        def spawn_sync(argv, **kwargs):
+            notifications.append(argv)
+            return subprocess.CompletedProcess(argv, 0, "", "")
+
+        notify_io = self.make_io()
+        self.assertEqual(main(["notify", "main", "--at-reset", "--once"], {
+            **notify_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn_sync": spawn_sync,
+        }), 0)
+        self.assertIn("main reset is due", notify_io["stdout"].getvalue())
+
+        next_io = self.make_io()
+        self.assertEqual(main(["notify", "--next-ready", "--once", "--json"], {
+            **next_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn_sync": spawn_sync,
+        }), 0)
+        self.assertTrue(json.loads(next_io["stdout"].getvalue())["ready"])
+
     def test_bin_cdx_runs_as_real_subprocess(self):
         temp_dir = self.make_temp_dir()
         env = {**os.environ, "CDX_HOME": temp_dir}
