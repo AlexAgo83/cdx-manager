@@ -1,5 +1,6 @@
 import json
 import os
+import signal
 import tempfile
 import unittest
 import urllib.error
@@ -8,6 +9,8 @@ from unittest import mock
 
 from src import claude_usage
 from src import cli
+from src.errors import CdxError
+from src.provider_runtime import _run_interactive_provider_command
 
 
 class _Response:
@@ -109,6 +112,55 @@ class RuntimePythonTests(unittest.TestCase):
                 handle.write(b"x" * cli.LOG_ROTATE_BYTES)
             cli._rotate_log_if_needed(log_path)
             self.assertEqual(os.path.getsize(log_path), 0)
+
+    def test_run_interactive_provider_command_reports_raw_int_signal_name(self):
+        session = {
+            "name": "claude",
+            "provider": "claude",
+            "authHome": "/tmp/claude-home",
+        }
+
+        class FakeChild:
+            def __init__(self, emitter):
+                self.emitter = emitter
+                self.returncode = 0
+                self.signals = []
+
+            def send_signal(self, sig):
+                self.signals.append(sig)
+
+            def wait(self):
+                self.emitter.handlers["SIGINT"]()
+                return 0
+
+        class FakeEmitter:
+            def __init__(self):
+                self.handlers = {}
+
+            def on(self, name, handler):
+                self.handlers[name] = handler
+
+            def removeListener(self, name, handler):
+                if self.handlers.get(name) is handler:
+                    self.handlers.pop(name, None)
+
+        emitter = FakeEmitter()
+        child = FakeChild(emitter)
+
+        def spawn(_argv, **_kwargs):
+            return child
+
+        with self.assertRaises(CdxError) as error:
+            _run_interactive_provider_command(
+                session,
+                "launch",
+                spawn=spawn,
+                signal_emitter=emitter,
+            )
+
+        self.assertEqual(str(error.exception), "claude interrupted by SIGINT for session claude")
+        self.assertEqual(error.exception.exit_code, 130)
+        self.assertEqual(child.signals, [signal.SIGINT])
 
 
 if __name__ == "__main__":

@@ -187,6 +187,15 @@ def _signal_exit_code(sig):
     return mapping.get(sig, 1)
 
 
+def _signal_name(sig):
+    if hasattr(sig, "name"):
+        return sig.name
+    try:
+        return signal.Signals(sig).name
+    except (TypeError, ValueError):
+        return str(sig)
+
+
 def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
                                       env_override=None, signal_emitter=None):
     spawn = spawn or subprocess.Popen
@@ -260,7 +269,7 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
 
     if forwarded_signal[0] is not None:
         raise CdxError(
-            f"{spec['label']} interrupted by {forwarded_signal[0].name} for session {session['name']}",
+            f"{spec['label']} interrupted by {_signal_name(forwarded_signal[0])} for session {session['name']}",
             _signal_exit_code(forwarded_signal[0]),
         )
     if child.returncode != 0:
