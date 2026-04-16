@@ -12,6 +12,7 @@ jobs:
     if: startsWith(github.event.release.tag_name, 'v')
     permissions:
       contents: read
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,7 +20,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: https://registry.npmjs.org/
 
       - name: Set up Python
@@ -44,5 +45,3 @@ jobs:
 
       - name: Publish
         run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
