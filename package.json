@@ -1,6 +1,6 @@
 {
   "name": "cdx-manager",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Terminal session manager for Codex and Claude accounts.",
   "license": "MIT",
   "author": "Alexandre Agostini",
@@ -27,6 +27,8 @@
     "bin",
     "changelogs",
     "src",
+    "install.sh",
+    "pyproject.toml",
     "README.md",
     "LICENSE"
   ],

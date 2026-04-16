@@ -39,7 +39,7 @@ from .status_view import (
     _format_status_rows,
 )
 
-VERSION = "0.2.1"
+VERSION = "0.3.0"
 
 
 # ---------------------------------------------------------------------------
@@ -180,9 +180,13 @@ def main(argv, options=None):
     raise CdxError(f"Unknown command: {command}. Use cdx --help.")
 
 
-if __name__ == "__main__":
+def cli_entry():
     try:
         raise SystemExit(main(sys.argv[1:]))
     except CdxError as error:
         sys.stderr.write(f"{format_error(error)}\n")
         raise SystemExit(error.exit_code)
+
+
+if __name__ == "__main__":
+    cli_entry()

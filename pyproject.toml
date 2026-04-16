@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cdx-manager"
+version = "0.3.0"
+description = "Terminal session manager for Codex and Claude accounts."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+  { name = "Alexandre Agostini" }
+]
+keywords = ["codex", "claude", "cli", "terminal", "session-manager", "ai-tools"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development",
+  "Topic :: Terminals",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/AlexAgo83/cdx-manager"
+Repository = "https://github.com/AlexAgo83/cdx-manager.git"
+Issues = "https://github.com/AlexAgo83/cdx-manager/issues"
+Changelog = "https://github.com/AlexAgo83/cdx-manager/tree/main/changelogs"
+
+[project.scripts]
+cdx = "cdx_manager.cli:cli_entry"
+
+[tool.setuptools]
+packages = ["cdx_manager"]
+
+[tool.setuptools.package-dir]
+cdx_manager = "src"
