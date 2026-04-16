@@ -3,12 +3,28 @@ import os
 import signal
 import shlex
 import subprocess
+import sys
 from datetime import datetime, timezone
 
 from .errors import CdxError
 
 
 LOG_ROTATE_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+def _home_env_overrides(auth_home):
+    """Return env vars that point the claude CLI to the given home directory.
+
+    On Unix, only HOME is needed.  On Windows, Node.js resolves the home
+    directory via USERPROFILE (and falls back to HOMEDRIVE+HOMEPATH), so we
+    set all three to ensure profile isolation works regardless of the platform.
+    """
+    overrides = {"HOME": auth_home}
+    if sys.platform == "win32":
+        overrides["USERPROFILE"] = auth_home
+        overrides["HOMEDRIVE"] = os.path.splitdrive(auth_home)[0] or "C:"
+        overrides["HOMEPATH"] = os.path.splitdrive(auth_home)[1] or auth_home
+    return overrides
 
 
 def _get_auth_home(session):
@@ -91,7 +107,7 @@ def _build_launch_spec(session, cwd=None, env_override=None):
             "args": ["--name", session["name"]],
             "options": {
                 "cwd": cwd,
-                "env": {**env, "HOME": _get_auth_home(session)},
+                "env": {**env, **_home_env_overrides(_get_auth_home(session))},
             },
             "label": "claude",
         }
@@ -108,7 +124,7 @@ def _build_launch_spec(session, cwd=None, env_override=None):
 def _build_login_status_spec(session, env_override=None):
     env = {**os.environ, **(env_override or {})}
     if session["provider"] == "claude":
-        env["HOME"] = _get_auth_home(session)
+        env.update(_home_env_overrides(_get_auth_home(session)))
 
         def parser(output):
             try:
@@ -133,7 +149,7 @@ def _build_auth_action_spec(session, action, cwd=None, env_override=None):
     cwd = cwd or os.getcwd()
     env = {**os.environ, **(env_override or {})}
     if session["provider"] == "claude":
-        env["HOME"] = _get_auth_home(session)
+        env.update(_home_env_overrides(_get_auth_home(session)))
         return {"command": "claude", "args": ["auth", action],
                 "options": {"cwd": cwd, "env": env}, "label": f"claude auth {action}"}
     env["CODEX_HOME"] = _get_auth_home(session)
@@ -165,7 +181,10 @@ def _probe_provider_auth(session, spawn_sync=None, env_override=None):
 
 
 def _signal_exit_code(sig):
-    return {signal.SIGHUP: 129, signal.SIGINT: 130, signal.SIGTERM: 143}.get(sig, 1)
+    mapping = {signal.SIGINT: 130, signal.SIGTERM: 143}
+    if hasattr(signal, "SIGHUP"):
+        mapping[signal.SIGHUP] = 129
+    return mapping.get(sig, 1)
 
 
 def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
@@ -210,7 +229,10 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
             handlers.append((sig, handler))
             signal_emitter.on(sig, handler)
     else:
-        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        _forward_sigs = [signal.SIGINT, signal.SIGTERM]
+        if hasattr(signal, "SIGHUP"):
+            _forward_sigs.append(signal.SIGHUP)
+        for sig in _forward_sigs:
             try:
                 original_handlers[sig] = signal.signal(sig, forward)
             except (OSError, ValueError):

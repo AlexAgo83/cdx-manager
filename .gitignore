@@ -1,6 +1,7 @@
 # Generated Logics runtime artifacts
 AGENTS.md
 .env.local
+.claude/
 LOGICS.md
 logics.yaml
 logics/.cache/
@@ -10,3 +11,30 @@ logics/hybrid_assist_audit.jsonl
 logics/hybrid_assist_measurements.jsonl
 logics/mutation_audit.jsonl
 node_modules/
+
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Python virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+desktop.ini

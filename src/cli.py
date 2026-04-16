@@ -180,7 +180,35 @@ def main(argv, options=None):
     raise CdxError(f"Unknown command: {command}. Use cdx --help.")
 
 
+def _enable_windows_ansi():
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        for handle_id in (-10, -11, -12):  # stdin, stdout, stderr
+            handle = kernel32.GetStdHandle(handle_id)
+            mode = ctypes.c_ulong()
+            if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+                kernel32.SetConsoleMode(handle, mode.value | 0x0004)
+    except Exception:
+        pass
+
+
+def _configure_windows_encoding():
+    if sys.platform != "win32":
+        return
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            if hasattr(stream, "reconfigure"):
+                stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 def cli_entry():
+    _enable_windows_ansi()
+    _configure_windows_encoding()
     try:
         raise SystemExit(main(sys.argv[1:]))
     except CdxError as error:

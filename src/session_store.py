@@ -54,23 +54,40 @@ def _fsync_directory(directory):
 
 @contextmanager
 def _file_lock(lock_path):
+    import sys
     _ensure_dir(os.path.dirname(lock_path))
     with open(lock_path, "a", encoding="utf-8") as lock:
-        try:
-            import fcntl
-        except ImportError as error:
-            raise CdxError("Session store locking requires fcntl on this platform") from error
-        try:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-        except OSError as error:
-            raise CdxError(f"Failed to lock session store: {error}") from error
-        try:
-            yield
-        finally:
+        if sys.platform == "win32":
+            import msvcrt
             try:
-                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
             except OSError as error:
-                raise CdxError(f"Failed to unlock session store: {error}") from error
+                raise CdxError(f"Failed to lock session store: {error}") from error
+            try:
+                yield
+            finally:
+                try:
+                    lock.seek(0)
+                    msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+                except OSError as error:
+                    raise CdxError(f"Failed to unlock session store: {error}") from error
+        else:
+            try:
+                import fcntl
+            except ImportError as error:
+                raise CdxError("Session store locking requires fcntl on this platform") from error
+            try:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+            except OSError as error:
+                raise CdxError(f"Failed to lock session store: {error}") from error
+            try:
+                yield
+            finally:
+                try:
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                except OSError as error:
+                    raise CdxError(f"Failed to unlock session store: {error}") from error
 
 
 def create_session_store(base_dir):

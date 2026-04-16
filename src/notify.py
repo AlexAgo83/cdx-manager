@@ -114,11 +114,36 @@ def _event(ready, title, message, session_name, target_timestamp=None):
 
 
 def send_desktop_notification(title, message, spawn_sync=None, env=None):
+    import sys
     spawn_sync = spawn_sync or subprocess.run
     env = env or os.environ
-    if shutil_which("osascript", env):
+    if sys.platform == "win32":
+        _send_windows_notification(title, message, spawn_sync, env)
+    elif shutil_which("osascript", env):
         script = f'display notification "{_escape_applescript(message)}" with title "{_escape_applescript(title)}"'
         spawn_sync(["osascript", "-e", script], env=env, capture_output=True, text=True)
+
+
+def _send_windows_notification(title, message, spawn_sync, env):
+    title_escaped = _escape_powershell(title)
+    message_escaped = _escape_powershell(message)
+    script = (
+        "Add-Type -AssemblyName System.Windows.Forms; "
+        f"[System.Windows.Forms.MessageBox]::Show('{message_escaped}', '{title_escaped}')"
+    )
+    try:
+        spawn_sync(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, OSError):
+        pass
+
+
+def _escape_powershell(value):
+    return str(value).replace("'", "''")
 
 
 def shutil_which(command, env):
