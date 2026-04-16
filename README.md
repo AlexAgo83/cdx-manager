@@ -16,6 +16,7 @@ One command to launch any session. Zero auth juggling.
 - [Technical Overview](#technical-overview)
 - [Getting Started](#getting-started)
 - [All Commands](#all-commands)
+- [JSON Output](#json-output)
 - [Available Scripts](#available-scripts)
 - [Windows Support](#windows-support)
 - [Project Structure](#project-structure)
@@ -209,14 +210,16 @@ cdx status
 | Command | Description |
 |---|---|
 | `cdx` | List all sessions with last-updated timestamps |
+| `cdx --json` | List all sessions as a machine-readable JSON payload |
 | `cdx <name>` | Launch a session (checks auth first) |
-| `cdx add [provider] <name>` | Register a new session (`provider`: `codex` or `claude`, default: `codex`) |
-| `cdx cp <source> <dest>` | Copy a session into another session name, overwriting the destination if it exists |
-| `cdx ren <source> <dest>` | Rename a session and move its auth data |
-| `cdx login <name>` | Re-authenticate a session (logout + login) |
-| `cdx logout <name>` | Log out of a session |
-| `cdx rmv <name> [--force]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
-| `cdx clean [name]` | Clear launch transcript logs for one session or all sessions |
+| `cdx <name> [--json]` | Launch a session; `--json` returns a structured success payload after the interactive run ends |
+| `cdx add [provider] <name> [--json]` | Register a new session (`provider`: `codex` or `claude`, default: `codex`) |
+| `cdx cp <source> <dest> [--json]` | Copy a session into another session name, overwriting the destination if it exists |
+| `cdx ren <source> <dest> [--json]` | Rename a session and move its auth data |
+| `cdx login <name> [--json]` | Re-authenticate a session (logout + login) |
+| `cdx logout <name> [--json]` | Log out of a session |
+| `cdx rmv <name> [--force] [--json]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
+| `cdx clean [name] [--json]` | Clear launch transcript logs for one session or all sessions |
 | `cdx doctor [--json]` | Inspect CLI dependencies, CDX_HOME permissions, missing state, orphan profiles, and pending quarantines |
 | `cdx repair [--dry-run] [--force] [--json]` | Plan or apply safe repairs for missing state files, quarantines, and orphan profiles |
 | `cdx notify <name> --at-reset [--poll seconds] [--once]` | Wait for a session reset time and send a desktop notification when due |
@@ -226,6 +229,57 @@ cdx status
 | `cdx status <name> [--json] [--refresh]` | Show detailed usage breakdown for one session |
 | `cdx --help` | Show usage |
 | `cdx --version` | Show version |
+
+---
+
+## JSON Output
+
+`cdx-manager` can be consumed by other apps through its CLI JSON contract.
+
+Commands with machine-readable output:
+
+- `cdx --json`
+- `cdx status --json`
+- `cdx status <name> --json`
+- `cdx add ... --json`
+- `cdx cp ... --json`
+- `cdx ren ... --json`
+- `cdx rmv ... --json`
+- `cdx clean ... --json`
+- `cdx login ... --json`
+- `cdx logout ... --json`
+- `cdx doctor --json`
+- `cdx repair --json`
+- `cdx notify ... --json`
+
+Success payloads follow a shared envelope:
+
+```json
+{
+  "ok": true,
+  "action": "add",
+  "message": "Created session work (codex)",
+  "warnings": [],
+  "session": {
+    "name": "work"
+  }
+}
+```
+
+Errors use a shared stderr JSON envelope whenever `--json` is present:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "invalid_usage",
+    "message": "Usage: cdx status [--json] [--refresh] | ...",
+    "exit_code": 1
+  }
+}
+```
+
+This makes `cdx-manager` usable from editor plugins, scripts, and desktop apps without scraping human-readable terminal output.
 
 ---
 

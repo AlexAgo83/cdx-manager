@@ -14,6 +14,7 @@ from src.cli import (
     _format_status_rows,
     _pad_table,
     _visible_len,
+    format_json_error,
     main,
 )
 from src.errors import CdxError
@@ -304,6 +305,23 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("just now", output)
         self.assertNotRegex(output, r"\d{4}-\d{2}-\d{2}T")
 
+    def test_root_list_supports_json_contract(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        list_io = self.make_io()
+        self.assertEqual(main(["--json"], {
+            **list_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        payload = json.loads(list_io["stdout"].getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["action"], "list")
+        self.assertEqual(payload["sessions"][0]["name"], "main")
+
     def test_add_and_launch_codex_session(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
@@ -541,6 +559,82 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Renamed session old to new", rename_io["stdout"].getvalue())
         self.assertIsNone(service["get_session"]("old"))
         self.assertEqual(service["get_session"]("new")["name"], "new")
+
+    def test_mutation_commands_support_json_contract(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        add_io = self.make_io()
+        self.assertEqual(main(["add", "main", "--json"], {
+            **add_io,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        add_payload = json.loads(add_io["stdout"].getvalue())
+        self.assertTrue(add_payload["ok"])
+        self.assertEqual(add_payload["action"], "add")
+        self.assertEqual(add_payload["session"]["name"], "main")
+
+        copy_io = self.make_io()
+        self.assertEqual(main(["cp", "main", "copy", "--json"], {
+            **copy_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        copy_payload = json.loads(copy_io["stdout"].getvalue())
+        self.assertEqual(copy_payload["action"], "copy")
+        self.assertEqual(copy_payload["session"]["name"], "copy")
+        self.assertFalse(copy_payload["overwritten"])
+
+        rename_io = self.make_io()
+        self.assertEqual(main(["ren", "copy", "renamed", "--json"], {
+            **rename_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        rename_payload = json.loads(rename_io["stdout"].getvalue())
+        self.assertEqual(rename_payload["action"], "rename")
+        self.assertEqual(rename_payload["session"]["name"], "renamed")
+
+        clean_io = self.make_io()
+        self.assertEqual(main(["clean", "main", "--json"], {
+            **clean_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        clean_payload = json.loads(clean_io["stdout"].getvalue())
+        self.assertEqual(clean_payload["action"], "clean")
+        self.assertEqual(clean_payload["sessions"][0]["session_name"], "main")
+
+        logout_io = self.make_io()
+        self.assertEqual(main(["logout", "main", "--json"], {
+            **logout_io,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        logout_payload = json.loads(logout_io["stdout"].getvalue())
+        self.assertEqual(logout_payload["action"], "logout")
+        self.assertEqual(logout_payload["session"]["auth"]["status"], "logged_out")
+
+        login_io = self.make_io()
+        self.assertEqual(main(["login", "main", "--json"], {
+            **login_io,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        login_payload = json.loads(login_io["stdout"].getvalue())
+        self.assertEqual(login_payload["action"], "login")
+        self.assertEqual(login_payload["session"]["auth"]["status"], "authenticated")
+
+        remove_io = self.make_io()
+        self.assertEqual(main(["rmv", "renamed", "--force", "--json"], {
+            **remove_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        remove_payload = json.loads(remove_io["stdout"].getvalue())
+        self.assertEqual(remove_payload["action"], "remove")
+        self.assertEqual(remove_payload["session"]["name"], "renamed")
+        self.assertFalse(remove_payload["cancelled"])
 
     def test_status_uses_async_refresh_function(self):
         temp_dir = self.make_temp_dir()
@@ -1031,6 +1125,14 @@ class CliPythonTests(unittest.TestCase):
         issue = next(item for item in report["issues"] if item["code"] == "script_cli")
         self.assertIn("expected on many Windows setups", issue["message"])
 
+    def test_json_error_payload_has_machine_readable_contract(self):
+        error = CdxError("Unknown session: missing", exit_code=3)
+        payload = json.loads(format_json_error(error))
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["code"], "unknown_session")
+        self.assertEqual(payload["error"]["message"], "Unknown session: missing")
+        self.assertEqual(payload["error"]["exit_code"], 3)
+
     def test_repair_dry_run_and_force_recreate_missing_state(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -1144,6 +1246,22 @@ class CliPythonTests(unittest.TestCase):
         )
         self.assertNotEqual(plain.returncode, 0)
         self.assertNotIn("\033[", plain.stderr)
+
+    def test_bin_cdx_writes_json_errors_when_requested(self):
+        temp_dir = self.make_temp_dir()
+        env = {**os.environ, "CDX_HOME": temp_dir}
+        result = subprocess.run(
+            [sys.executable, "bin/cdx", "status", "main", "extra", "--json"],
+            cwd=os.getcwd(),
+            env=env,
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        payload = json.loads(result.stderr)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["code"], "invalid_usage")
+        self.assertIn("Usage: cdx status [--json]", payload["error"]["message"])
 
 
 if __name__ == "__main__":

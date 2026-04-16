@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import json
 import os
 import sys
 
@@ -52,21 +53,22 @@ def _print_help(use_color=False):
         "",
         _style("Usage:", "1", use_color),
         f"  {_style('cdx', '36', use_color)}",
+        f"  {_style('cdx --json', '36', use_color)}",
         f"  {_style('cdx status [--json] [--refresh]', '36', use_color)}",
         f"  {_style('cdx status --small|-s [--refresh]', '36', use_color)}",
         f"  {_style('cdx status <name> [--json] [--refresh]', '36', use_color)}",
-        f"  {_style('cdx add [provider] <name>', '36', use_color)}",
-        f"  {_style('cdx cp <source> <dest>', '36', use_color)}",
-        f"  {_style('cdx ren <source> <dest>', '36', use_color)}",
-        f"  {_style('cdx login <name>', '36', use_color)}",
-        f"  {_style('cdx logout <name>', '36', use_color)}",
-        f"  {_style('cdx rmv <name> [--force]', '36', use_color)}",
-        f"  {_style('cdx clean [name]', '36', use_color)}",
+        f"  {_style('cdx add [provider] <name> [--json]', '36', use_color)}",
+        f"  {_style('cdx cp <source> <dest> [--json]', '36', use_color)}",
+        f"  {_style('cdx ren <source> <dest> [--json]', '36', use_color)}",
+        f"  {_style('cdx login <name> [--json]', '36', use_color)}",
+        f"  {_style('cdx logout <name> [--json]', '36', use_color)}",
+        f"  {_style('cdx rmv <name> [--force] [--json]', '36', use_color)}",
+        f"  {_style('cdx clean [name] [--json]', '36', use_color)}",
         f"  {_style('cdx doctor [--json]', '36', use_color)}",
         f"  {_style('cdx repair [--dry-run] [--force] [--json]', '36', use_color)}",
-        f"  {_style('cdx notify <name> --at-reset', '36', use_color)}",
-        f"  {_style('cdx notify --next-ready', '36', use_color)}",
-        f"  {_style('cdx <name>', '36', use_color)}",
+        f"  {_style('cdx notify <name> --at-reset [--json]', '36', use_color)}",
+        f"  {_style('cdx notify --next-ready [--json]', '36', use_color)}",
+        f"  {_style('cdx <name> [--json]', '36', use_color)}",
         f"  {_style('cdx --help', '36', use_color)}",
         f"  {_style('cdx --version', '36', use_color)}",
     ])
@@ -74,6 +76,33 @@ def _print_help(use_color=False):
 
 def _print_version():
     return VERSION
+
+
+def wants_json(argv):
+    return "--json" in argv
+
+
+def format_json_error(error):
+    message = str(error)
+    code = "cdx_error"
+    if message.startswith("Usage:"):
+        code = "invalid_usage"
+    elif message.startswith("Unknown session:"):
+        code = "unknown_session"
+    elif message.startswith("Unknown command:"):
+        code = "unknown_command"
+    elif message.startswith("Session already exists:"):
+        code = "session_exists"
+    elif "requires an interactive terminal" in message or "requires confirmation" in message:
+        code = "interactive_terminal_required"
+    return json.dumps({
+        "ok": False,
+        "error": {
+            "code": code,
+            "message": message,
+            "exit_code": error.exit_code,
+        },
+    }, indent=2)
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +143,11 @@ def main(argv, options=None):
         out(f"{_print_version()}\n")
         return 0
 
+    if argv == ["--json"]:
+        rows = service["format_list_rows"]()
+        out(f"{json.dumps(_list_json_payload(rows), indent=2)}\n")
+        return 0
+
     if not argv:
         out(f"{_format_sessions(service, use_color=use_color)}\n")
         return 0
@@ -122,6 +156,7 @@ def main(argv, options=None):
     ctx = {
         "env": env,
         "options": options,
+        "raw_args": argv,
         "err": err,
         "out": out,
         "refresh_fn": refresh_fn,
@@ -174,10 +209,20 @@ def main(argv, options=None):
         out(f"{_print_version()}\n")
         return 0
 
-    if not rest:
+    if not rest or rest == ["--json"]:
         return handle_launch(command, ctx)
 
     raise CdxError(f"Unknown command: {command}. Use cdx --help.")
+
+
+def _list_json_payload(rows):
+    return {
+        "ok": True,
+        "action": "list",
+        "message": "Listed known sessions",
+        "warnings": [],
+        "sessions": rows,
+    }
 
 
 def _enable_windows_ansi():
@@ -212,7 +257,10 @@ def cli_entry():
     try:
         raise SystemExit(main(sys.argv[1:]))
     except CdxError as error:
-        sys.stderr.write(f"{format_error(error)}\n")
+        if wants_json(sys.argv[1:]):
+            sys.stderr.write(f"{format_json_error(error)}\n")
+        else:
+            sys.stderr.write(f"{format_error(error)}\n")
         raise SystemExit(error.exit_code)
 
 

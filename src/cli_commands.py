@@ -32,23 +32,44 @@ def _local_now_iso():
     return datetime.now().astimezone().isoformat()
 
 
+def _json_success(action, message, **extra):
+    payload = {
+        "ok": True,
+        "action": action,
+        "message": message,
+        "warnings": [],
+    }
+    payload.update(extra)
+    return payload
+
+
+def _write_json(ctx, payload):
+    ctx["out"](f"{json.dumps(payload, indent=2)}\n")
+
+
+def _parse_json_flag(args):
+    json_flag = "--json" in args
+    cleaned = [arg for arg in args if arg != "--json"]
+    return json_flag, cleaned
+
+
 def _parse_add_args(args):
     if len(args) == 1:
         return {"provider": "codex", "name": args[0]}
     if len(args) == 2:
         return {"provider": args[0], "name": args[1]}
-    raise CdxError("Usage: cdx add [provider] <name>")
+    raise CdxError("Usage: cdx add [provider] <name> [--json]")
 
 
 def _parse_copy_args(args):
     if len(args) != 2:
-        raise CdxError("Usage: cdx cp <source> <dest>")
+        raise CdxError("Usage: cdx cp <source> <dest> [--json]")
     return {"source": args[0], "dest": args[1]}
 
 
 def _parse_rename_args(args):
     if len(args) != 2:
-        raise CdxError("Usage: cdx ren <source> <dest>")
+        raise CdxError("Usage: cdx ren <source> <dest> [--json]")
     return {"source": args[0], "dest": args[1]}
 
 
@@ -57,7 +78,7 @@ def _parse_remove_args(args):
     names = [a for a in args if a != "--force"]
     unknown = [a for a in args if a.startswith("-") and a != "--force"]
     if unknown or len(names) != 1 or len(args) > 2:
-        raise CdxError("Usage: cdx rmv <name> [--force]")
+        raise CdxError("Usage: cdx rmv <name> [--force] [--json]")
     return {"name": names[0], "force": force}
 
 
@@ -78,10 +99,10 @@ def _resolve_confirmation(confirm_fn, name):
 
 
 def handle_add(rest, ctx):
-    parsed = _parse_add_args(rest)
+    json_flag, args = _parse_json_flag(rest)
+    parsed = _parse_add_args(args)
     session = ctx["service"]["create_session"](parsed["name"], parsed["provider"])
     message = f"Created session {parsed['name']} ({parsed['provider']})"
-    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
     _ensure_session_authentication(
         session,
         ctx["service"],
@@ -100,28 +121,50 @@ def handle_add(rest, ctx):
         "lastAuthenticatedAt": now,
         "lastLoggedOutAt": auth.get("lastLoggedOutAt"),
     })
+    if json_flag:
+        _write_json(ctx, _json_success(
+            "add",
+            message,
+            session=ctx["service"]["get_session"](parsed["name"]),
+        ))
+        return 0
+    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
     return 0
 
 
 def handle_copy(rest, ctx):
-    parsed = _parse_copy_args(rest)
+    json_flag, args = _parse_json_flag(rest)
+    parsed = _parse_copy_args(args)
     result = ctx["service"]["copy_session"](parsed["source"], parsed["dest"])
     overwritten = " (overwritten)" if result["overwritten"] else ""
     message = f"Copied session {parsed['source']} to {parsed['dest']}{overwritten}"
+    if json_flag:
+        _write_json(ctx, _json_success(
+            "copy",
+            message,
+            session=result["session"],
+            overwritten=result["overwritten"],
+        ))
+        return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
     return 0
 
 
 def handle_rename(rest, ctx):
-    parsed = _parse_rename_args(rest)
-    ctx["service"]["rename_session"](parsed["source"], parsed["dest"])
+    json_flag, args = _parse_json_flag(rest)
+    parsed = _parse_rename_args(args)
+    session = ctx["service"]["rename_session"](parsed["source"], parsed["dest"])
     message = f"Renamed session {parsed['source']} to {parsed['dest']}"
+    if json_flag:
+        _write_json(ctx, _json_success("rename", message, session=session))
+        return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
     return 0
 
 
 def handle_remove(rest, ctx):
-    parsed = _parse_remove_args(rest)
+    json_flag, args = _parse_json_flag(rest)
+    parsed = _parse_remove_args(args)
     if not parsed["force"]:
         confirm_fn = ctx["options"].get("confirmRemove")
         if confirm_fn:
@@ -131,30 +174,47 @@ def handle_remove(rest, ctx):
         else:
             confirmed = _confirm_removal(parsed["name"])
         if not confirmed:
+            if json_flag:
+                _write_json(ctx, _json_success("remove", "Cancelled.", cancelled=True, session=None))
+                return 0
             ctx["out"](f"{_warn('Cancelled.', ctx['use_color'])}\n")
             return 0
-    ctx["service"]["remove_session"](parsed["name"])
+    removed = ctx["service"]["remove_session"](parsed["name"])
     message = f"Removed session {parsed['name']}"
+    if json_flag:
+        _write_json(ctx, _json_success("remove", message, session=removed, cancelled=False))
+        return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
     return 0
 
 
 def handle_clean(rest, ctx):
+    json_flag, args = _parse_json_flag(rest)
     service = ctx["service"]
-    if len(rest) == 0:
+    if len(args) == 0:
         targets = service["list_sessions"]()
-    elif len(rest) == 1:
-        session = service["get_session"](rest[0])
+    elif len(args) == 1:
+        session = service["get_session"](args[0])
         if not session:
-            raise CdxError(f"Unknown session: {rest[0]}")
+            raise CdxError(f"Unknown session: {args[0]}")
         targets = [session]
     else:
-        raise CdxError("Usage: cdx clean [name]")
+        raise CdxError("Usage: cdx clean [name] [--json]")
 
+    cleaned_sessions = []
     for session in targets:
         log_paths = _list_launch_transcript_paths(session)
         if not log_paths:
             message = f"{session['name']}: no log found"
+            cleaned_sessions.append({
+                "session_name": session["name"],
+                "cleared": False,
+                "files_cleared": 0,
+                "freed_kb": 0,
+                "message": message,
+            })
+            if json_flag:
+                continue
             ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
             continue
         total_size = 0
@@ -171,10 +231,30 @@ def handle_clean(rest, ctx):
                 f"Cleared {session['name']} logs ({cleared} file"
                 f"{'' if cleared == 1 else 's'}, {round(total_size / 1024)} KB freed)"
             )
+            cleaned_sessions.append({
+                "session_name": session["name"],
+                "cleared": True,
+                "files_cleared": cleared,
+                "freed_kb": round(total_size / 1024),
+                "message": message,
+            })
+            if json_flag:
+                continue
             ctx["out"](f"{_success(message, ctx['use_color'])}\n")
         else:
             message = f"{session['name']}: no log found"
+            cleaned_sessions.append({
+                "session_name": session["name"],
+                "cleared": False,
+                "files_cleared": 0,
+                "freed_kb": 0,
+                "message": message,
+            })
+            if json_flag:
+                continue
             ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
+    if json_flag:
+        _write_json(ctx, _json_success("clean", "Cleaned session logs", sessions=cleaned_sessions))
     return 0
 
 
@@ -301,13 +381,14 @@ def _write_refresh_warnings(refresh_errors, ctx, stream="out"):
 
 
 def handle_login(rest, ctx):
-    if len(rest) != 1:
-        raise CdxError("Usage: cdx login <name>")
+    json_flag, args = _parse_json_flag(rest)
+    if len(args) != 1:
+        raise CdxError("Usage: cdx login <name> [--json]")
     if not ctx["stdin_is_tty"]:
         raise CdxError("Login requires an interactive terminal.")
-    session = ctx["service"]["get_session"](rest[0])
+    session = ctx["service"]["get_session"](args[0])
     if not session:
-        raise CdxError(f"Unknown session: {rest[0]}")
+        raise CdxError(f"Unknown session: {args[0]}")
     _run_interactive_provider_command(
         session, "logout", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
         signal_emitter=ctx.get("signal_emitter")
@@ -317,36 +398,44 @@ def handle_login(rest, ctx):
         signal_emitter=ctx.get("signal_emitter")
     )
     now = _local_now_iso()
-    ctx["service"]["update_auth_state"](rest[0], lambda auth: {
+    ctx["service"]["update_auth_state"](args[0], lambda auth: {
         **auth, "status": "authenticated",
         "lastCheckedAt": now, "lastAuthenticatedAt": now,
     })
     message = f"Reauthenticated session {session['name']} ({session['provider']})"
+    if json_flag:
+        _write_json(ctx, _json_success("login", message, session=ctx["service"]["get_session"](session["name"])))
+        return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
     return 0
 
 
 def handle_logout(rest, ctx):
-    if len(rest) != 1:
-        raise CdxError("Usage: cdx logout <name>")
-    session = ctx["service"]["get_session"](rest[0])
+    json_flag, args = _parse_json_flag(rest)
+    if len(args) != 1:
+        raise CdxError("Usage: cdx logout <name> [--json]")
+    session = ctx["service"]["get_session"](args[0])
     if not session:
-        raise CdxError(f"Unknown session: {rest[0]}")
+        raise CdxError(f"Unknown session: {args[0]}")
     _run_interactive_provider_command(
         session, "logout", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
         signal_emitter=ctx.get("signal_emitter")
     )
     now = _local_now_iso()
-    ctx["service"]["update_auth_state"](rest[0], lambda auth: {
+    ctx["service"]["update_auth_state"](args[0], lambda auth: {
         **auth, "status": "logged_out",
         "lastCheckedAt": now, "lastLoggedOutAt": now,
     })
     message = f"Logged out session {session['name']} ({session['provider']})"
+    if json_flag:
+        _write_json(ctx, _json_success("logout", message, session=ctx["service"]["get_session"](session["name"])))
+        return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
     return 0
 
 
 def handle_launch(command, ctx):
+    json_flag = "--json" in ctx["options"].get("raw_args", [])
     session = ctx["service"]["launch_session"](command)
     _ensure_session_authentication(
         session,
@@ -359,11 +448,15 @@ def handle_launch(command, ctx):
         signal_emitter=ctx.get("signal_emitter"),
     )
     message = f"Launching {session['provider']} session {session['name']}"
-    ctx["out"](f"{_info(message, ctx['use_color'])}\n")
+    if not json_flag:
+        ctx["out"](f"{_info(message, ctx['use_color'])}\n")
     if session["provider"] == "codex":
-        ctx["out"](f"{_dim('Tip: run /status once the Codex session opens.', ctx['use_color'])}\n")
+        if not json_flag:
+            ctx["out"](f"{_dim('Tip: run /status once the Codex session opens.', ctx['use_color'])}\n")
     _run_interactive_provider_command(
         session, "launch", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
         signal_emitter=ctx.get("signal_emitter")
     )
+    if json_flag:
+        _write_json(ctx, _json_success("launch", message, session=ctx["service"]["get_session"](session["name"])))
     return 0
