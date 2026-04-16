@@ -55,14 +55,22 @@ def _rotate_log_if_needed(log_path):
 def _wrap_launch_with_transcript(session, spec, capture_transcript=True):
     if not capture_transcript:
         return spec
+    script_bin = os.environ.get("CDX_SCRIPT_BIN", "script")
+    script_args = os.environ.get("CDX_SCRIPT_ARGS")
     transcript_path = _build_launch_transcript_path(session)
     os.makedirs(os.path.dirname(transcript_path), exist_ok=True)
     _rotate_log_if_needed(transcript_path)
+    args = (
+        script_args.split() + [transcript_path, spec["command"]] + spec["args"]
+        if script_args
+        else ["-q", "-F", transcript_path, spec["command"]] + spec["args"]
+    )
     return {
-        "command": "script",
-        "args": ["-q", "-F", transcript_path, spec["command"]] + spec["args"],
+        "command": script_bin,
+        "args": args,
         "options": spec["options"],
         "label": spec["label"],
+        "fallback": spec,
     }
 
 
@@ -160,10 +168,20 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
         if action == "launch"
         else _build_auth_action_spec(session, action, cwd=cwd, env_override=env_override)
     )
-    child = spawn(
-        [spec["command"]] + spec["args"],
-        **{k: v for k, v in spec.get("options", {}).items() if k != "stdio"},
-    )
+    def start_child(current_spec):
+        return spawn(
+            [current_spec["command"]] + current_spec["args"],
+            **{k: v for k, v in current_spec.get("options", {}).items() if k != "stdio"},
+        )
+
+    try:
+        child = start_child(spec)
+    except FileNotFoundError:
+        fallback = spec.get("fallback")
+        if not fallback:
+            raise
+        spec = {**fallback, "label": f"{fallback['label']} (without transcript)"}
+        child = start_child(spec)
 
     forwarded_signal = [None]
     handlers = []

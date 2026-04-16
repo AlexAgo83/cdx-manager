@@ -415,6 +415,31 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("SIGINT", str(ctx.exception))
         self.assertEqual(seen, [2])
 
+    def test_codex_launch_falls_back_when_script_is_missing(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        main(["add", "main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        })
+        calls = []
+
+        def spawn(argv, **kwargs):
+            calls.append(argv[0])
+            if argv[0] == "script":
+                raise FileNotFoundError("script")
+            return _Child()
+
+        self.assertEqual(main(["main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        self.assertEqual(calls, ["script", "codex"])
+
     def test_remove_confirm_cancel_and_status(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
@@ -561,6 +586,35 @@ class CliPythonTests(unittest.TestCase):
             "refreshClaudeSessionStatus": refresh,
         }), 0)
         self.assertIn("Session: main", detail_io["stdout"].getvalue())
+
+    def test_status_surfaces_claude_refresh_errors(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("claude", "claude")
+
+        def refresh(_session):
+            raise RuntimeError("offline")
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status", "--refresh"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "refreshClaudeSessionStatus": refresh,
+        }), 0)
+        self.assertIn("Warning: Claude refresh failed for claude: offline", status_io["stdout"].getvalue())
+
+        json_io = self.make_io()
+        self.assertEqual(main(["status", "--json", "--refresh"], {
+            **json_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "refreshClaudeSessionStatus": refresh,
+        }), 0)
+        payload = json.loads(json_io["stdout"].getvalue())
+        self.assertIn("rows", payload)
+        self.assertEqual(payload["refresh_errors"][0]["session"], "claude")
+        self.assertEqual(payload["refresh_errors"][0]["error"], "offline")
 
     def test_status_small_flag_renders_compact_table(self):
         temp_dir = self.make_temp_dir()

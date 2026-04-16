@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+CLAUDE_STATUS_PROBE_MODEL = os.environ.get("CDX_CLAUDE_STATUS_MODEL", "claude-haiku-4-5-20251001")
 
 
 def _read_claude_credentials(auth_home):
@@ -25,7 +26,7 @@ def _format_reset_date(unix_seconds):
 
 def fetch_claude_rate_limit_headers(access_token):
     body = json.dumps({
-        "model": "claude-haiku-4-5-20251001",
+        "model": CLAUDE_STATUS_PROBE_MODEL,
         "max_tokens": 1,
         "messages": [{"role": "user", "content": "hi"}],
     }).encode("utf-8")

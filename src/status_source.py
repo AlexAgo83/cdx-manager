@@ -465,7 +465,8 @@ def extract_named_statuses_from_text(text):
 
 
 def _collect_candidate_files(root_dir):
-    candidates = []
+    priority_candidates = []
+    history_candidates = []
     direct = [
         os.path.join(root_dir, "history.jsonl"),
         os.path.join(root_dir, "session_index.jsonl"),
@@ -473,7 +474,7 @@ def _collect_candidate_files(root_dir):
     ]
     for fp in direct:
         if _safe_stat(fp):
-            candidates.append(fp)
+            priority_candidates.append(fp)
 
     log_dir = os.path.join(root_dir, "log")
     log_dir_stat = _safe_stat(log_dir)
@@ -482,11 +483,11 @@ def _collect_candidate_files(root_dir):
             if fname.startswith("cdx-session") and fname.endswith(".log"):
                 fp = os.path.join(log_dir, fname)
                 if _safe_stat(fp):
-                    candidates.append(fp)
+                    priority_candidates.append(fp)
 
     sessions_dir = os.path.join(root_dir, "sessions")
     if not _safe_stat(sessions_dir):
-        return candidates
+        return priority_candidates, history_candidates
 
     skip = {"cache", "plugins", "skills", "memories", "sqlite", "shell_snapshots", "tmp"}
 
@@ -494,23 +495,30 @@ def _collect_candidate_files(root_dir):
         dirnames[:] = [d for d in dirnames if not d.startswith(".") and d not in skip]
         for fname in filenames:
             if fname.endswith(".jsonl") or fname.endswith(".log"):
-                candidates.append(os.path.join(dirpath, fname))
+                history_candidates.append(os.path.join(dirpath, fname))
 
-    return candidates
+    return priority_candidates, history_candidates
 
 
-def find_latest_status_artifact(root_dir, provider=None, expected_account_email=None):
-    candidates = _collect_candidate_files(root_dir)
+def _sort_recent(paths):
     candidate_stats = {
         fp: stat
-        for fp, stat in ((candidate, _safe_stat(candidate)) for candidate in set(candidates))
+        for fp, stat in ((candidate, _safe_stat(candidate)) for candidate in set(paths))
         if stat
     }
-    candidates = sorted(
+    return sorted(
         candidate_stats,
         key=lambda fp: candidate_stats[fp].st_mtime,
         reverse=True,
-    )[:MAX_STATUS_CANDIDATE_FILES]
+    )
+
+
+def find_latest_status_artifact(root_dir, provider=None, expected_account_email=None):
+    priority_candidates, history_candidates = _collect_candidate_files(root_dir)
+    candidates = (
+        _sort_recent(priority_candidates)
+        + _sort_recent(history_candidates)[:MAX_STATUS_CANDIDATE_FILES]
+    )
     records = []
     for fp in candidates:
         normalized_fp = fp.replace(os.sep, "/")

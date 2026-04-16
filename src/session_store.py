@@ -78,12 +78,24 @@ def create_session_store(base_dir):
     def _save(sessions):
         _write_json(store_file, {"version": 1, "sessions": sessions})
 
-    def _mutate_sessions(mutator):
-        with _file_lock(lock_file):
-            sessions = _load()
-            result = mutator(sessions)
-            _save(sessions)
-            return result
+    def _read_session_state_unlocked(name):
+        return _read_json(_state_file_path(name), None)
+
+    def _write_session_state_unlocked(name, state):
+        _write_json(_state_file_path(name), state)
+
+    def _remove_session_state_unlocked(name):
+        try:
+            os.remove(_state_file_path(name))
+        except FileNotFoundError:
+            pass
+
+    def _default_state(session):
+        return {
+            "provider": session["provider"],
+            "status": "ready",
+            "rehydratedAt": None,
+        }
 
     def list_sessions():
         with _file_lock(lock_file):
@@ -97,51 +109,49 @@ def create_session_store(base_dir):
         return None
 
     def add_session(session):
-        def mutator(sessions):
+        with _file_lock(lock_file):
+            sessions = _load()
             if any(s.get("name") == session["name"] for s in sessions):
                 return {"ok": False, "session": None}
+            _write_session_state_unlocked(session["name"], _default_state(session))
             sessions.append(session)
+            try:
+                _save(sessions)
+            except Exception:
+                _remove_session_state_unlocked(session["name"])
+                raise
             return {"ok": True, "session": session}
 
-        result = _mutate_sessions(mutator)
-        if not result["ok"]:
-            return result
-        write_session_state(session["name"], {
-            "provider": session["provider"],
-            "status": "ready",
-            "rehydratedAt": None,
-        })
-        return result
-
     def update_session(name, updater):
-        def mutator(sessions):
+        with _file_lock(lock_file):
+            sessions = _load()
             for i, s in enumerate(sessions):
                 if s.get("name") == name:
                     sessions[i] = updater(s)
+                    _save(sessions)
                     return sessions[i]
             return None
 
-        return _mutate_sessions(mutator)
-
     def remove_session(name):
-        def mutator(sessions):
+        with _file_lock(lock_file):
+            sessions = _load()
             for i, s in enumerate(sessions):
                 if s.get("name") == name:
-                    sessions.pop(i)
-                    return s
+                    removed = sessions.pop(i)
+                    old_state = _read_session_state_unlocked(name)
+                    _remove_session_state_unlocked(name)
+                    try:
+                        _save(sessions)
+                    except Exception:
+                        if old_state is not None:
+                            _write_session_state_unlocked(name, old_state)
+                        raise
+                    return removed
             return None
 
-        removed = _mutate_sessions(mutator)
-        if removed:
-            state_path = _state_file_path(name)
-            try:
-                os.remove(state_path)
-            except FileNotFoundError:
-                pass
-        return removed
-
     def rename_session(source_name, dest_name, updater):
-        def mutator(sessions):
+        with _file_lock(lock_file):
+            sessions = _load()
             source_index = None
             for i, s in enumerate(sessions):
                 if s.get("name") == source_name:
@@ -152,42 +162,60 @@ def create_session_store(base_dir):
                 return {"ok": False, "session": None, "reason": "missing"}
 
             updated = updater(sessions[source_index])
+            source_state_path = _state_file_path(source_name)
+            dest_state_path = _state_file_path(dest_name)
+            moved_state = False
+            try:
+                os.replace(source_state_path, dest_state_path)
+                moved_state = True
+            except FileNotFoundError:
+                pass
             sessions[source_index] = updated
+            try:
+                _save(sessions)
+            except Exception:
+                if moved_state:
+                    os.replace(dest_state_path, source_state_path)
+                raise
             return {"ok": True, "session": updated, "reason": None}
 
-        result = _mutate_sessions(mutator)
-        if not result["ok"]:
-            return result
-        source_state_path = _state_file_path(source_name)
-        dest_state_path = _state_file_path(dest_name)
-        try:
-            os.replace(source_state_path, dest_state_path)
-        except FileNotFoundError:
-            pass
-        return result
-
     def replace_session(name, session):
-        def mutator(sessions):
+        with _file_lock(lock_file):
+            sessions = _load()
+            old_state = _read_session_state_unlocked(name)
+            old_session = None
+            replaced = False
             for i, existing in enumerate(sessions):
                 if existing.get("name") == name:
+                    old_session = existing
                     sessions[i] = session
-                    return {"ok": True, "session": session, "replaced": True}
-            sessions.append(session)
-            return {"ok": True, "session": session, "replaced": False}
-
-        result = _mutate_sessions(mutator)
-        write_session_state(session["name"], {
-            "provider": session["provider"],
-            "status": "ready",
-            "rehydratedAt": None,
-        })
-        return result
+                    replaced = True
+                    break
+            if not replaced:
+                sessions.append(session)
+            _write_session_state_unlocked(session["name"], _default_state(session))
+            try:
+                _save(sessions)
+            except Exception:
+                if old_state is None:
+                    _remove_session_state_unlocked(session["name"])
+                else:
+                    _write_session_state_unlocked(session["name"], old_state)
+                if old_session is not None:
+                    for i, existing in enumerate(sessions):
+                        if existing.get("name") == name:
+                            sessions[i] = old_session
+                            break
+                raise
+            return {"ok": True, "session": session, "replaced": replaced}
 
     def read_session_state(name):
-        return _read_json(_state_file_path(name), None)
+        with _file_lock(lock_file):
+            return _read_session_state_unlocked(name)
 
     def write_session_state(name, state):
-        _write_json(_state_file_path(name), state)
+        with _file_lock(lock_file):
+            _write_session_state_unlocked(name, state)
 
     return {
         "list_sessions": list_sessions,

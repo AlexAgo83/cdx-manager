@@ -48,6 +48,21 @@ class RuntimePythonTests(unittest.TestCase):
             datetime.now().astimezone().utcoffset(),
         )
 
+    def test_fetch_claude_rate_limit_headers_uses_configured_model(self):
+        captured = {}
+
+        def urlopen(req, timeout=None):
+            captured["body"] = json.loads(req.data.decode("utf-8"))
+            return _Response({
+                "anthropic-ratelimit-unified-5h-utilization": "0.19",
+            })
+
+        with mock.patch("src.claude_usage.CLAUDE_STATUS_PROBE_MODEL", "test-model"):
+            with mock.patch("urllib.request.urlopen", side_effect=urlopen):
+                claude_usage.fetch_claude_rate_limit_headers("token")
+
+        self.assertEqual(captured["body"]["model"], "test-model")
+
     def test_fetch_claude_rate_limit_headers_from_http_error_headers(self):
         headers = {
             "anthropic-ratelimit-unified-5h-utilization": "0.50",

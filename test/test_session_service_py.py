@@ -382,6 +382,35 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(rows[0]["remaining_5h_pct"], 81)
         self.assertEqual(rows[0]["remaining_week_pct"], 82)
 
+    def test_direct_status_log_is_used_even_with_many_newer_history_files(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        session_root = os.path.join(temp_dir, "profiles", "main")
+        session_log = os.path.join(session_root, "log", "cdx-session.log")
+        os.makedirs(os.path.dirname(session_log), exist_ok=True)
+        with open(session_log, "w", encoding="utf-8") as handle:
+            handle.write("\n".join([
+                "│  5h limit:             [████████████████░░░░] 81% left",
+                "│  Weekly limit:         [████████████████░░░░] 82% left",
+            ]))
+
+        history_dir = os.path.join(session_root, "sessions", "2026", "04", "16")
+        os.makedirs(history_dir, exist_ok=True)
+        for index in range(80):
+            path = os.path.join(history_dir, f"noise-{index}.jsonl")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps({
+                    "timestamp": f"2026-04-16T10:{index % 60:02d}:00.000Z",
+                    "payload": {"text": "conversation without status"},
+                }))
+                handle.write("\n")
+
+        rows = service["get_status_rows"]()
+        self.assertEqual(rows[0]["remaining_5h_pct"], 81)
+        self.assertEqual(rows[0]["remaining_week_pct"], 82)
+
     def test_copy_session_overwrites_and_keeps_isolation(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -423,6 +452,36 @@ class SessionServicePythonTests(unittest.TestCase):
         dest = service["get_session"]("dest")
         self.assertEqual(dest["provider"], "codex")
         self.assertTrue(os.path.exists(dest_marker))
+
+    def test_copy_session_preserves_destination_when_store_replace_fails(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("source", "claude")
+        service["create_session"]("dest")
+
+        source_log = os.path.join(temp_dir, "profiles", "source", "claude-home", "log", "cdx-session.log")
+        os.makedirs(os.path.dirname(source_log), exist_ok=True)
+        with open(source_log, "w", encoding="utf-8") as handle:
+            handle.write("source")
+        dest_marker = os.path.join(temp_dir, "profiles", "dest", "marker.txt")
+        with open(dest_marker, "w", encoding="utf-8") as handle:
+            handle.write("keep")
+
+        def write_json(file_path, value):
+            if file_path.endswith(os.path.join("state", "dest.json")):
+                raise OSError("state write failed")
+            with open(file_path, "w", encoding="utf-8") as handle:
+                json.dump(value, handle, indent=2)
+                handle.write("\n")
+
+        with mock.patch("src.session_store._write_json", side_effect=write_json):
+            with self.assertRaises(OSError):
+                service["copy_session"]("source", "dest")
+
+        dest = service["get_session"]("dest")
+        self.assertEqual(dest["provider"], "codex")
+        self.assertTrue(os.path.exists(dest_marker))
+        self.assertFalse(os.path.exists(os.path.join(temp_dir, "profiles", "dest", "claude-home", "log", "cdx-session.log")))
 
     def test_copy_session_rejects_reserved_destination_names(self):
         temp_dir = self.make_temp_dir()

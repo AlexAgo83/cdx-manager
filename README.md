@@ -52,6 +52,7 @@ One command to launch any session. Zero auth juggling.
   - Primary source: recorded status fields on the session record.
   - Fallback: `status-source` scans provider JSONL history files and terminal log transcripts, strips ANSI/OSC sequences, and extracts `usage%`, `5h remaining%`, and `week remaining%` via pattern matching.
 - Claude status refreshes are cached briefly by default; pass `--refresh` to force a live rate-limit probe.
+- If `script` is unavailable, Codex launch falls back to running without transcript capture.
 - Auth probe: synchronous subprocess call to `codex login status` or `claude auth status` before any interactive launch.
 - Signal forwarding: `SIGINT`, `SIGTERM`, and `SIGHUP` are forwarded to the child process and produce clean exit codes.
 - Test stack: Python built-in `unittest` runner with no test framework dependency.
@@ -96,6 +97,13 @@ By default, `cdx` stores all data under `~/.cdx/`. Override with:
 export CDX_HOME=/path/to/custom/dir
 ```
 
+Optional runtime knobs:
+
+```bash
+export CDX_CLAUDE_STATUS_MODEL=claude-haiku-4-5-20251001
+export CDX_SCRIPT_BIN=script
+```
+
 ### Quick Start
 
 ```bash
@@ -130,7 +138,7 @@ cdx status
 | `cdx logout <name>` | Log out of a session |
 | `cdx rmv <name> [--force]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
 | `cdx clean [name]` | Clear launch transcript logs for one session or all sessions |
-| `cdx status [--json] [--refresh]` | Show token usage table for all sessions |
+| `cdx status [--json] [--refresh]` | Show token usage table for all sessions; JSON includes `refresh_errors` when live Claude refresh fails |
 | `cdx status --small [--refresh]` / `cdx status -s [--refresh]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
 | `cdx status <name> [--json] [--refresh]` | Show detailed usage breakdown for one session |
 | `cdx --help` | Show usage |

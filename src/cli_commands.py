@@ -178,29 +178,51 @@ def handle_status(rest, ctx):
     if len(args) > 1 or (len(args) == 1 and small_flag):
         raise CdxError(STATUS_USAGE)
 
-    _refresh_claude_sessions(
+    refresh_result = _refresh_claude_sessions(
         ctx["service"],
         ctx.get("refresh_fn"),
         target_names=args if len(args) == 1 else None,
         force=refresh_flag,
     )
+    refresh_errors = [
+        {
+            "session": item.get("session"),
+            "error": str(item.get("error")),
+        }
+        for item in refresh_result.get("errors", [])
+    ]
 
     rows = ctx["service"]["get_status_rows"]()
     if len(args) == 0:
         if json_flag:
-            ctx["out"](f"{json.dumps(rows, indent=2)}\n")
+            payload = rows
+            if refresh_errors:
+                payload = {"rows": rows, "refresh_errors": refresh_errors}
+            ctx["out"](f"{json.dumps(payload, indent=2)}\n")
             return 0
         ctx["out"](f"{_format_status_rows(rows, use_color=ctx['use_color'], small=small_flag)}\n")
+        _write_refresh_warnings(refresh_errors, ctx)
         return 0
 
     row = next((r for r in rows if r["session_name"] == args[0]), None)
     if not row:
         raise CdxError(f"Unknown session: {args[0]}")
     if json_flag:
-        ctx["out"](f"{json.dumps(row, indent=2)}\n")
+        payload = row
+        if refresh_errors:
+            payload = {"row": row, "refresh_errors": refresh_errors}
+        ctx["out"](f"{json.dumps(payload, indent=2)}\n")
         return 0
     ctx["out"](f"{_format_status_detail(row, use_color=ctx['use_color'])}\n")
+    _write_refresh_warnings(refresh_errors, ctx)
     return 0
+
+
+def _write_refresh_warnings(refresh_errors, ctx):
+    for item in refresh_errors:
+        session = item.get("session") or "unknown"
+        error = item.get("error") or "unknown error"
+        ctx["out"](f"{_warn(f'Warning: Claude refresh failed for {session}: {error}', ctx['use_color'])}\n")
 
 
 def handle_login(rest, ctx):
