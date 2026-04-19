@@ -44,7 +44,7 @@ from .status_view import (
 )
 from .update_check import check_for_update
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 
 
 # ---------------------------------------------------------------------------

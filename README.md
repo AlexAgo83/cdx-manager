@@ -1,6 +1,6 @@
 # CDX Manager
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.4.0-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.4.1-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
 **Run multiple Codex and Claude sessions from one terminal. Switch between accounts instantly.**
 
@@ -69,9 +69,11 @@ One command to launch any session. Zero auth juggling.
 
 ### Prerequisites
 
+- Node.js 18+ with npm
 - Python 3.9+
-- npm
 - `codex` and/or `claude` CLI installed and available in your PATH
+
+On Windows, the npm launcher looks for Python in this order: `py -3`, `python`, then `python3`. Make sure at least one of those commands resolves to Python 3.
 
 ### Install
 
@@ -119,7 +121,7 @@ For a specific version:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.sh -o install.sh
-CDX_VERSION=v0.4.0 sh install.sh
+CDX_VERSION=v0.4.1 sh install.sh
 ```
 
 From source:
@@ -336,8 +338,8 @@ Notes:
 ## Available Scripts
 
 - `npm test`: run the Python test suite
-- `npm run test:py`: run the Python unit tests directly
-- `npm run lint`: byte-compile the Python sources and tests
+- `npm run test:py`: run the Python unit tests through the portable launcher
+- `npm run lint`: check the Node launcher and byte-compile the Python sources and tests
 - `npm run link`: link `cdx` globally for local development (`npm link`)
 - `npm run unlink`: remove the global link
 
@@ -350,6 +352,7 @@ Notes:
   - `pipx install cdx-manager`
   - `uv tool install cdx-manager`
   - `install.ps1`
+- The npm launcher resolves Python via `py -3`, `python`, then `python3`, so a global npm install works even when `python3.exe` is missing.
 - `install.sh` is Unix-only.
 - `make install` and `make uninstall` are Unix-oriented convenience commands, not the default Windows path.
 - `cdx` isolates Claude sessions on Windows by setting `HOME`, `USERPROFILE`, `HOMEDRIVE`, and `HOMEPATH`.
@@ -365,7 +368,9 @@ Notes:
 
 ```text
 bin/
-  cdx                   # Entry point — shebang + main() call
+  cdx.js                # Node launcher used by npm
+  python-runner.js      # Shared Python resolver and process wrapper
+  cdx                   # Python entrypoint invoked by the launcher
 
 src/
   cli.py                # Top-level command router
@@ -419,6 +424,7 @@ Session names are URL-encoded when used as directory or file names. CLI command 
 ## Troubleshooting
 
 - **`cdx <name>` fails with "not authenticated"** — run `cdx login <name>` first.
+- **`cdx` says no compatible Python 3 interpreter was found** — install Python 3 and make `py -3`, `python`, or `python3` available on PATH.
 - **`cdx add` succeeds but the session does not appear** — check that `CDX_HOME` is consistent between calls; a mismatch creates two separate registries.
 - **Status shows `n/a` for all fields** — the session has not been launched yet, or the provider has not written any status output to its history files. Launch the session and run `/status` inside it at least once.
 - **`cdx rmv` says "Removal requires confirmation in an interactive terminal"** — pass `--force` to bypass the prompt in non-interactive environments (scripts, CI).
