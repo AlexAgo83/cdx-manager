@@ -2,11 +2,12 @@
 
 Release date: 2026-04-16
 
-## CDX Manager 0.3.4
+## Major Highlights
+- CDX Manager 0.3.4 makes the CLI consumable by other applications through a structured JSON contract and rounds out the Windows release surface.
 
-CDX Manager 0.3.4 makes the CLI consumable by other applications through a structured JSON contract and rounds out the Windows release surface.
+## Generated Commit Summary
 
-### JSON CLI API
+## JSON CLI API
 
 - Added `cdx --json` to list known sessions as a machine-readable payload.
 - Added `--json` support for session-management commands: `add`, `cp`, `ren`, `rmv`, `clean`, `login`, and `logout`.
@@ -14,14 +15,14 @@ CDX Manager 0.3.4 makes the CLI consumable by other applications through a struc
 - Added a shared stderr error envelope for JSON mode with machine-readable `code`, `message`, and `exit_code`.
 - Documented the JSON contract in the README so editor plugins and desktop apps can integrate without scraping human-readable terminal output.
 
-### Windows release hardening
+## Windows release hardening
 
 - Added a native `install.ps1` installer for Windows.
 - Documented supported Windows install paths and the optional transcript-capture fallback.
 - Added targeted `win32` unit coverage for CLI startup, provider environment isolation, notifications, and session-store locking.
 - Added a Windows CI smoke flow that installs the package and exercises core CLI commands with shimmed providers.
 
-### Validation
+## Validation and Regression Evidence
 
 ```bash
 npm run lint

@@ -2,27 +2,28 @@
 
 Release date: 2026-04-19
 
-## CDX Manager 0.4.2
+## Major Highlights
+- CDX Manager 0.4.2 fixes Codex session bootstrap on Windows so `cdx add` can reuse an existing logged-in Codex CLI without requiring a second manual login flow. It also hardens executable resolution for the Codex probe so Windows shell shims and direct process spawning behave consistently.
 
-CDX Manager 0.4.2 fixes Codex session bootstrap on Windows so `cdx add` can reuse an existing logged-in Codex CLI without requiring a second manual login flow. It also hardens executable resolution for the Codex probe so Windows shell shims and direct process spawning behave consistently.
+## Generated Commit Summary
 
-### Codex auth bootstrap
+## Codex auth bootstrap
 
 - Seeded new Codex session auth homes from the global `~/.codex/auth.json` when available.
 - Short-circuited the Codex auth probe when a session already has an auth file in its isolated home.
 - Kept the per-session auth directory model intact after bootstrap so session isolation still applies.
 
-### Windows command resolution
+## Windows command resolution
 
 - Resolved `codex` through the active `PATH` before invoking the login-status probe.
 - Applied the same command-resolution path to interactive provider launches when the default process spawner is used.
 - Added regression coverage for Codex auth bootstrap and resolved-command spawning on Windows.
 
-### Documentation
+## Documentation
 
 - Documented the Codex auth bootstrap behavior in the README.
 
-### Validation
+## Validation and Regression Evidence
 
 ```bash
 npm run lint

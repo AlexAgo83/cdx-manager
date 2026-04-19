@@ -2,17 +2,18 @@
 
 Release date: 2026-04-16
 
-## CDX Manager 0.3.1
+## Major Highlights
+- CDX Manager 0.3.1 is a release-channel synchronization update.
 
-CDX Manager 0.3.1 is a release-channel synchronization update.
+## Generated Commit Summary
 
-### Packaging
+## Packaging
 
 - Uses npm Trusted Publishing through GitHub Actions OIDC instead of long-lived npm tokens.
 - Keeps npm, PyPI, GitHub Releases, pipx, uv, and the standalone installer aligned on the same release version.
 - Retains the Python-native packaging and standalone install support introduced in 0.3.0.
 
-### Validation
+## Validation and Regression Evidence
 
 ```bash
 npm run lint
@@ -22,6 +23,6 @@ python -m build
 python -m twine check dist/*
 ```
 
-### Notes
+## Notes
 
 - This release exists because the npm Trusted Publishing workflow was added after the `v0.3.0` tag. A fresh release is required for GitHub Actions to run the updated workflow definition for npm publishing.

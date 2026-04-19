@@ -2,11 +2,12 @@
 
 Release date: 2026-04-16
 
-## CDX Manager 0.3.0
+## Major Highlights
+- CDX Manager 0.3.0 adds Python-native and standalone installation paths in addition to npm.
 
-CDX Manager 0.3.0 adds Python-native and standalone installation paths in addition to npm.
+## Generated Commit Summary
 
-### Packaging
+## Packaging
 
 - Added `pyproject.toml` so the CLI can be installed with `pipx`, `pip`, or `uv tool`.
 - Added the Python console entrypoint `cdx = "src.cli:cli_entry"`.
@@ -15,7 +16,7 @@ CDX Manager 0.3.0 adds Python-native and standalone installation paths in additi
 - Documented npm, pipx, uv, curl installer, and source installation paths.
 - Added GitHub Actions automation for PyPI publication when a GitHub Release is published.
 
-### Validation
+## Validation and Regression Evidence
 
 ```bash
 npm run lint
@@ -26,7 +27,7 @@ python3 -m venv /tmp/cdx-pyinstall
 npm --cache /tmp/cdx-npm-cache publish --dry-run
 ```
 
-### Notes
+## Notes
 
 - PyPI publication is now technically possible, but still requires PyPI credentials and an explicit publish step.
 - The standalone installer defaults to the latest GitHub Release and supports `CDX_VERSION=vX.Y.Z` for pinned installs.
