@@ -47,6 +47,89 @@ def _safe_stat(file_path):
         return None
 
 
+def _format_local_reset_timestamp(value):
+    if value is None or value == "":
+        return None
+    try:
+        timestamp = float(value)
+    except (TypeError, ValueError):
+        return None
+    if timestamp > 1_000_000_000_000:
+        timestamp /= 1000.0
+    try:
+        dt = datetime.fromtimestamp(timestamp, tz=timezone.utc).astimezone()
+    except (OverflowError, OSError, ValueError):
+        return None
+    return f"{MONTH_ABBR[dt.month - 1]} {dt.day} {dt.strftime('%H:%M')}"
+
+
+def _normalize_timestamp_value(value):
+    return _format_local_reset_timestamp(value)
+
+
+def _coerce_percentage(value):
+    if value is None or value == "":
+        return None
+    try:
+        return max(0, min(100, int(float(value))))
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_structured_rate_limits(record):
+    if not isinstance(record, dict):
+        return None
+
+    rate_limits = record.get("rate_limits")
+    if not isinstance(rate_limits, dict):
+        return None
+
+    primary = rate_limits.get("primary") or {}
+    secondary = rate_limits.get("secondary") or {}
+    credits = rate_limits.get("credits") or {}
+
+    primary_used = _coerce_percentage(primary.get("used_percent"))
+    secondary_used = _coerce_percentage(secondary.get("used_percent"))
+    remaining_5h_pct = None if primary_used is None else max(0, 100 - primary_used)
+    remaining_week_pct = None if secondary_used is None else max(0, 100 - secondary_used)
+
+    result = {
+        "usage_pct": primary_used if primary_used is not None else secondary_used,
+        "remaining_5h_pct": remaining_5h_pct,
+        "remaining_week_pct": remaining_week_pct,
+        "credits": None,
+        "reset_5h_at": _normalize_timestamp_value(primary.get("resets_at")),
+        "reset_week_at": _normalize_timestamp_value(secondary.get("resets_at")),
+        "reset_at": None,
+        "raw_status_text": json.dumps(rate_limits, sort_keys=True),
+    }
+
+    balance = credits.get("balance")
+    if balance not in (None, ""):
+        result["credits"] = str(balance).strip()
+
+    result["reset_at"] = result["reset_week_at"] or result["reset_5h_at"]
+    if result["usage_pct"] is None and result["remaining_5h_pct"] is None and result["remaining_week_pct"] is None:
+        return None
+    return result
+
+
+def _collect_structured_rate_limit_statuses(value, output=None):
+    if output is None:
+        output = []
+    if isinstance(value, dict):
+        structured = _extract_structured_rate_limits(value)
+        if structured:
+            output.append(structured)
+        else:
+            for item in value.values():
+                _collect_structured_rate_limit_statuses(item, output)
+    elif isinstance(value, list):
+        for item in value:
+            _collect_structured_rate_limit_statuses(item, output)
+    return output
+
+
 def _collect_text_values(value, output=None):
     if output is None:
         output = []
@@ -162,6 +245,13 @@ def _extract_jsonl_texts(file_path, provider=None):
             continue
         try:
             record = json.loads(line)
+            for structured in _collect_structured_rate_limit_statuses(record):
+                items.append({
+                    "source_ref": f"{file_path}:{line_index + 1}",
+                    "timestamp": record.get("timestamp"),
+                    "text": structured["raw_status_text"],
+                    "structured": structured,
+                })
             payload_texts = _collect_text_values(record.get("payload") or {})
             for candidate in payload_texts:
                 if isinstance(candidate, str) and candidate.strip():
@@ -523,9 +613,6 @@ def find_latest_status_artifact(root_dir, provider=None, expected_account_email=
     )
     records = []
     for fp in candidates:
-        normalized_fp = fp.replace(os.sep, "/")
-        if "/sessions/" in normalized_fp and os.path.basename(fp).startswith("rollout"):
-            continue
         if fp.endswith(".jsonl"):
             records.extend(_extract_jsonl_texts(fp, provider))
         elif fp.endswith(".log"):
@@ -538,6 +625,17 @@ def find_latest_status_artifact(root_dir, provider=None, expected_account_email=
         ):
             continue
         parsed = extract_named_statuses_from_text(candidate["text"])
+        if not parsed and candidate.get("structured"):
+            parsed = {
+                "usage_pct": candidate["structured"].get("usage_pct"),
+                "remaining_5h_pct": candidate["structured"].get("remaining_5h_pct"),
+                "remaining_week_pct": candidate["structured"].get("remaining_week_pct"),
+                "credits": candidate["structured"].get("credits"),
+                "reset_5h_at": candidate["structured"].get("reset_5h_at"),
+                "reset_week_at": candidate["structured"].get("reset_week_at"),
+                "reset_at": candidate["structured"].get("reset_at"),
+                "raw_status_text": candidate["structured"].get("raw_status_text"),
+            }
         if not parsed:
             continue
         ts = candidate.get("timestamp")

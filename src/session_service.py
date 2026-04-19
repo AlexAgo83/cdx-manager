@@ -540,6 +540,18 @@ def create_session_service(options=None):
             session["provider"],
             expected_account_email=expected_account_email,
         )
+        if (
+            session["provider"] == "codex"
+            and not artifact
+            and os.path.abspath(base_dir) == os.path.abspath(get_cdx_home(env))
+        ):
+            global_root = _get_global_codex_home(env)
+            if global_root and os.path.abspath(global_root) != os.path.abspath(source_root):
+                artifact = find_latest_status_artifact(
+                    global_root,
+                    session["provider"],
+                    expected_account_email=expected_account_email,
+                )
         if not artifact:
             if _is_low_confidence_status_source(current_status):
                 return None

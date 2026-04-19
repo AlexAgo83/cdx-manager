@@ -174,6 +174,56 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(rows[0]["reset_week_at"], "Apr 17 10:10")
         self.assertEqual(rows[0]["reset_at"], "Apr 17 10:10")
 
+    def test_codex_status_can_be_derived_from_structured_rollout_rate_limits(self):
+        temp_dir = self.make_temp_dir()
+        global_home = os.path.join(temp_dir, "global-codex-home")
+        os.makedirs(global_home, exist_ok=True)
+        with open(os.path.join(global_home, "auth.json"), "w", encoding="utf-8") as handle:
+            handle.write(json.dumps({"tokens": {}}))
+
+        rollout_path = os.path.join(global_home, "sessions", "2026", "04", "19", "rollout.jsonl")
+        os.makedirs(os.path.dirname(rollout_path), exist_ok=True)
+        with open(rollout_path, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps({
+                "timestamp": "2026-04-19T14:17:32.534Z",
+                "type": "event_msg",
+                "payload": {
+                    "type": "token_count",
+                    "info": None,
+                    "rate_limits": {
+                        "limit_id": "codex",
+                        "primary": {
+                            "used_percent": 7.0,
+                            "window_minutes": 300,
+                            "resets_at": 1776625434,
+                        },
+                        "secondary": {
+                            "used_percent": 32.0,
+                            "window_minutes": 10080,
+                            "resets_at": 1777135959,
+                        },
+                        "credits": None,
+                        "plan_type": "plus",
+                    },
+                },
+            }))
+            handle.write("\n")
+
+        with mock.patch("src.session_service.get_cdx_home", return_value=temp_dir):
+            with mock.patch("src.session_service._get_global_codex_home", return_value=global_home):
+                service = create_session_service({"base_dir": temp_dir})
+                service["create_session"]("main")
+                rows = service["get_status_rows"]()
+
+        self.assertEqual(rows[0]["session_name"], "main")
+        self.assertEqual(rows[0]["available_pct"], 68)
+        self.assertEqual(rows[0]["remaining_5h_pct"], 93)
+        self.assertEqual(rows[0]["remaining_week_pct"], 68)
+        self.assertIsNone(rows[0]["credits"])
+        self.assertIsNotNone(rows[0]["reset_5h_at"])
+        self.assertIsNotNone(rows[0]["reset_week_at"])
+        self.assertIsNotNone(rows[0]["reset_at"])
+
     def test_derived_codex_status_is_persisted_after_log_disappears(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
