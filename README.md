@@ -1,6 +1,6 @@
 # CDX Manager
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.4.1-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.4.2-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
 **Run multiple Codex and Claude sessions from one terminal. Switch between accounts instantly.**
 
@@ -122,7 +122,7 @@ For a specific version:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.sh -o install.sh
-CDX_VERSION=v0.4.1 sh install.sh
+CDX_VERSION=v0.4.2 sh install.sh
 ```
 
 From source:
