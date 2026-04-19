@@ -28,6 +28,10 @@ def _is_newer_version(current_version, latest_version):
     return latest > current
 
 
+def is_newer_version(current_version, latest_version):
+    return _is_newer_version(current_version, latest_version)
+
+
 def _cache_path(base_dir):
     return os.path.join(base_dir, "state", "update-check.json")
 
@@ -63,6 +67,13 @@ def _fetch_latest_release():
     }
 
 
+def fetch_latest_release():
+    try:
+        return _fetch_latest_release()
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        return None
+
+
 def check_for_update(base_dir, current_version, env=None, now_fn=None):
     env = env or os.environ
     now_fn = now_fn or (lambda: datetime.now(timezone.utc).timestamp())
@@ -83,9 +94,8 @@ def check_for_update(base_dir, current_version, env=None, now_fn=None):
             }
         return None
 
-    try:
-        latest = _fetch_latest_release()
-    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+    latest = fetch_latest_release()
+    if not latest:
         return None
 
     payload = {

@@ -143,6 +143,12 @@ npm install -g .
 
 `cdx` is now available globally. Changes to the source take effect immediately — no reinstall needed.
 
+To update an installed copy later:
+
+```bash
+cdx update
+```
+
 To uninstall:
 
 ```bash
@@ -242,6 +248,7 @@ cdx status
 | `cdx import <file> [--sessions a,b] [--passphrase-env VAR] [--force] [--json]` | Import sessions from a bundle into the current `CDX_HOME` |
 | `cdx doctor [--json]` | Inspect CLI dependencies, CDX_HOME permissions, missing state, orphan profiles, and pending quarantines |
 | `cdx repair [--dry-run] [--force] [--json]` | Plan or apply safe repairs for missing state files, quarantines, and orphan profiles |
+| `cdx update [--check] [--yes] [--json] [--version TAG]` | Update cdx-manager using the installer that matches how it was installed |
 | `cdx notify <name> --at-reset [--poll seconds] [--once] [--json]` | Wait for a session reset time and send a desktop notification when due |
 | `cdx notify --next-ready [--poll seconds] [--once] [--json]` | Wait until the recommended session is usable or needs a refresh after reset |
 | `cdx status [--json] [--refresh]` | Show token usage table for all sessions; JSON returns a versioned payload with structured warnings |
@@ -272,6 +279,7 @@ Commands with machine-readable output:
 - `cdx logout ... --json`
 - `cdx doctor --json`
 - `cdx repair --json`
+- `cdx update --json`
 - `cdx notify ... --json`
 
 Success payloads follow a shared envelope:

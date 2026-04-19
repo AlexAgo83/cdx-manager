@@ -33,6 +33,7 @@ RESERVED_SESSION_NAMES = {
     "rename",
     "rmv",
     "status",
+    "update",
     "version",
     "--help",
     "-h",

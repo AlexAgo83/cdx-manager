@@ -22,11 +22,14 @@ from .provider_runtime import (
 from .repair import format_repair_report, repair_health
 from .backup_bundle import read_bundle_meta
 from .status_view import _format_status_detail, _format_status_rows
+from .update_check import fetch_latest_release, is_newer_version
+from .update_manager import build_update_plan, format_update_failure, run_update_plan
 
 
 STATUS_USAGE = "Usage: cdx status [--json] [--refresh] | cdx status --small|-s [--refresh] | cdx status <name> [--json] [--refresh]"
 DOCTOR_USAGE = "Usage: cdx doctor [--json]"
 REPAIR_USAGE = "Usage: cdx repair [--dry-run] [--force] [--json]"
+UPDATE_USAGE = "Usage: cdx update [--check] [--yes] [--json] [--version TAG]"
 EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
 IMPORT_USAGE = "Usage: cdx import <file> [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
 API_SCHEMA_VERSION = 1
@@ -100,6 +103,45 @@ def _parse_session_names(value):
     if not names:
         raise CdxError("At least one session name is required in --sessions.")
     return names
+
+
+def _parse_update_args(args):
+    parsed = {
+        "check": False,
+        "json": False,
+        "yes": False,
+        "version": None,
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--check":
+            parsed["check"] = True
+            index += 1
+            continue
+        if arg == "--json":
+            parsed["json"] = True
+            index += 1
+            continue
+        if arg == "--yes":
+            parsed["yes"] = True
+            index += 1
+            continue
+        if arg == "--version":
+            value, index = _read_option_value(args, index, UPDATE_USAGE)
+            parsed["version"] = value
+            continue
+        if arg.startswith("--version="):
+            parsed["version"] = arg.split("=", 1)[1]
+            index += 1
+            continue
+        raise CdxError(UPDATE_USAGE)
+
+    if parsed["check"] and parsed["version"]:
+        raise CdxError("Usage: cdx update --check cannot be combined with --version.")
+    if parsed["version"] is not None and not parsed["version"].strip():
+        raise CdxError("Usage: cdx update [--check] [--yes] [--json] [--version TAG]")
+    return parsed
 
 
 def _parse_export_args(args):
@@ -644,6 +686,91 @@ def handle_logout(rest, ctx):
     message = f"Logged out session {session['name']} ({session['provider']})"
     if json_flag:
         _write_json(ctx, _json_success("logout", message, session=ctx["service"]["get_session"](session["name"])))
+        return 0
+    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    return 0
+
+
+def handle_update(rest, ctx):
+    parsed = _parse_update_args(rest)
+    json_flag = parsed["json"]
+    current_version = str(ctx.get("version") or "").strip()
+    release_fetcher = ctx["options"].get("fetchLatestRelease") or fetch_latest_release
+    target_version = None
+    release_url = None
+    update_available = False
+
+    if parsed["version"] is not None:
+        target_version = str(parsed["version"]).strip().lstrip("v")
+    else:
+        latest = release_fetcher()
+        if not latest:
+            raise CdxError("Unable to check for the latest cdx-manager release. Check your network and try again.")
+        target_version = str(latest.get("latest_version") or "").strip()
+        release_url = latest.get("url")
+        if not target_version:
+            raise CdxError("Unable to determine the latest cdx-manager release.")
+        update_available = is_newer_version(current_version, target_version)
+        if parsed["check"] or not update_available:
+            message = (
+                f"Update available: cdx-manager {target_version} (current {current_version})"
+                if update_available
+                else f"cdx-manager {current_version} is already up to date."
+            )
+            if json_flag:
+                _write_json(ctx, _json_success(
+                    "update",
+                    message,
+                    checked=True,
+                    update_available=update_available,
+                    current_version=current_version,
+                    target_version=target_version,
+                    release_url=release_url,
+                    warnings=[{
+                        "code": "update_available",
+                        "message": message,
+                        "latest_version": target_version,
+                        "url": release_url,
+                    }] if update_available else [],
+                ))
+                return 0
+            ctx["out"](f"{_warn(message, ctx['use_color']) if update_available else _success(message, ctx['use_color'])}\n")
+            return 0
+
+    if not parsed["yes"]:
+        if not ctx["stdin_is_tty"]:
+            raise CdxError("Update requires an interactive terminal or --yes in non-interactive mode.")
+        answer = input(f"Update cdx-manager to {target_version}? [y/N] ")
+        if answer.strip().lower() not in ("y", "yes"):
+            message = "Cancelled."
+            if json_flag:
+                _write_json(ctx, _json_success("update", message, cancelled=True, current_version=current_version, target_version=target_version))
+                return 0
+            ctx["out"](f"{_warn(message, ctx['use_color'])}\n")
+            return 0
+
+    plan = build_update_plan(
+        target_version=target_version,
+        package_root=ctx["options"].get("packageRoot"),
+        prefix=ctx["options"].get("prefix"),
+        base_prefix=ctx["options"].get("basePrefix"),
+    )
+    results = run_update_plan(plan, runner=ctx["options"].get("runUpdate"), env=ctx.get("env"))
+    failed = any((result.get("returncode") not in (0, None)) for result in results)
+    if failed:
+        raise CdxError(format_update_failure(results))
+
+    message = f"Updated cdx-manager to {target_version}"
+    if json_flag:
+        _write_json(ctx, _json_success(
+            "update",
+            message,
+            updated=True,
+            current_version=current_version,
+            target_version=target_version,
+            mode=plan["mode"],
+            steps=results,
+        ))
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
     return 0

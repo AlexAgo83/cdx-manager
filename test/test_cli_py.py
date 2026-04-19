@@ -275,9 +275,66 @@ class CliPythonTests(unittest.TestCase):
 
         self.assertEqual(main(["--help"], help_io), 0)
         self.assertIn("Usage:", help_io["stdout"].getvalue())
+        self.assertIn("cdx update [--check] [--yes] [--json] [--version TAG]", help_io["stdout"].getvalue())
 
         self.assertEqual(main(["-v"], version_io), 0)
         self.assertRegex(version_io["stdout"].getvalue().strip(), r"^\d+\.\d+\.\d+$")
+
+    def test_update_check_json_reports_available_update(self):
+        temp_dir = self.make_temp_dir()
+        os.makedirs(temp_dir, exist_ok=True)
+        with open(os.path.join(temp_dir, "package.json"), "w", encoding="utf-8") as handle:
+            handle.write("{}\n")
+
+        list_io = self.make_io()
+        self.assertEqual(main(["update", "--check", "--json"], {
+            **list_io,
+            "env": {"CDX_HOME": temp_dir},
+            "packageRoot": temp_dir,
+            "fetchLatestRelease": lambda: {
+                "latest_version": "9.9.9",
+                "url": "https://example.invalid/release",
+            },
+        }), 0)
+
+        payload = json.loads(list_io["stdout"].getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["action"], "update")
+        self.assertTrue(payload["update_available"])
+        self.assertEqual(payload["target_version"], "9.9.9")
+        self.assertEqual(payload["warnings"][0]["code"], "update_available")
+
+    def test_update_runs_the_injected_installer(self):
+        temp_dir = self.make_temp_dir()
+        os.makedirs(temp_dir, exist_ok=True)
+        with open(os.path.join(temp_dir, "package.json"), "w", encoding="utf-8") as handle:
+            handle.write("{}\n")
+
+        commands = []
+
+        def run_update(command, cwd=None, env=None, check=False):
+            commands.append({
+                "command": command,
+                "cwd": cwd,
+                "env": env,
+                "check": check,
+            })
+            return {"returncode": 0, "stdout": "", "stderr": ""}
+
+        list_io = self.make_io()
+        self.assertEqual(main(["update", "--yes"], {
+            **list_io,
+            "env": {"CDX_HOME": temp_dir},
+            "packageRoot": temp_dir,
+            "fetchLatestRelease": lambda: {
+                "latest_version": "9.9.9",
+                "url": "https://example.invalid/release",
+            },
+            "runUpdate": run_update,
+        }), 0)
+
+        self.assertEqual(commands[0]["command"], ["npm", "install", "-g", "cdx-manager@9.9.9"])
+        self.assertIn("Updated cdx-manager to 9.9.9", list_io["stdout"].getvalue())
 
     def test_non_status_outputs_use_color_when_enabled(self):
         temp_dir = self.make_temp_dir()
