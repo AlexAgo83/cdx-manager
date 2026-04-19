@@ -1,4 +1,4 @@
-# CHANGELOGS_0_3_1
+# Changelog (`0.3.0 -> 0.3.1`)
 
 Release date: 2026-04-16
 
