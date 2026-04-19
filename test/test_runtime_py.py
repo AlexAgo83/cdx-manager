@@ -238,6 +238,38 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertEqual(error.exception.exit_code, 130)
         self.assertEqual(child.signals, [signal.SIGINT])
 
+    def test_probe_provider_auth_uses_resolved_command_path(self):
+        session = {
+            "name": "main",
+            "provider": "codex",
+            "authHome": "/tmp/codex-home",
+        }
+        calls = []
+
+        def fake_run(argv, **kwargs):
+            calls.append((argv, kwargs))
+            return SimpleNamespace(stdout="Logged in using ChatGPT\n", stderr="")
+
+        with mock.patch("src.provider_runtime.shutil.which", return_value="C:/nvm4w/nodejs/codex.cmd"):
+            with mock.patch("src.provider_runtime.subprocess.run", side_effect=fake_run):
+                self.assertTrue(provider_runtime._probe_provider_auth(session, env_override={"PATH": "C:/nvm4w/nodejs"}))
+
+        self.assertEqual(calls[0][0][0], "C:/nvm4w/nodejs/codex.cmd")
+
+    def test_probe_provider_auth_short_circuits_when_codex_auth_file_exists(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-codex-") as temp_dir:
+            with open(os.path.join(temp_dir, "auth.json"), "w", encoding="utf-8") as handle:
+                handle.write("{\"tokens\": {}}\n")
+
+            session = {
+                "name": "main",
+                "provider": "codex",
+                "authHome": temp_dir,
+            }
+
+            with mock.patch("src.provider_runtime.subprocess.run", side_effect=AssertionError("should not probe")):
+                self.assertTrue(provider_runtime._probe_provider_auth(session))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -55,6 +55,21 @@ def _ensure_private_dir(path):
         pass
 
 
+def _get_global_codex_home(env=None):
+    env = env or os.environ
+    return env.get("CODEX_HOME") or os.path.join(os.path.expanduser("~"), ".codex")
+
+
+def _seed_codex_auth_from_global(auth_home, env=None):
+    source_home = _get_global_codex_home(env)
+    source_auth = os.path.join(source_home, "auth.json")
+    dest_auth = os.path.join(auth_home, "auth.json")
+    if source_home == auth_home or os.path.exists(dest_auth) or not os.path.isfile(source_auth):
+        return False
+    shutil.copy2(source_auth, dest_auth)
+    return True
+
+
 def _local_now_iso():
     return datetime.now().astimezone().isoformat()
 
@@ -303,6 +318,8 @@ def create_session_service(options=None):
         _ensure_private_dir(os.path.join(base_dir, "profiles"))
         _ensure_private_dir(session_root)
         _ensure_private_dir(auth_home)
+        if normalized_provider == "codex":
+            _seed_codex_auth_from_global(auth_home, env=env)
         now = _local_now_iso()
         session = {
             "name": name,

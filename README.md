@@ -48,6 +48,7 @@ One command to launch any session. Zero auth juggling.
 - Environment isolation per session:
   - Codex sessions override `CODEX_HOME` to a dedicated profile directory.
   - Claude sessions override `HOME` to a dedicated profile directory.
+  - New Codex sessions seed their auth home from your existing global `~/.codex/auth.json` when available, so an already logged-in Codex CLI can be reused without giving up per-session isolation afterward.
 - Persistence:
   - Session registry at `~/.cdx/sessions.json` (versioned JSON store).
   - Per-session state at `~/.cdx/state/<name>.json`.

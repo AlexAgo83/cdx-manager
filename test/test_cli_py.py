@@ -82,6 +82,16 @@ class _AuthHarness:
             return env.get("CODEX_HOME") or env.get("HOME")
         return None
 
+    @staticmethod
+    def _auth_path(home):
+        return os.path.join(home, "auth.json") if home else None
+
+    def _is_authed(self, home):
+        if home in self.auth_by_home:
+            return self.auth_by_home[home]
+        auth_path = self._auth_path(home)
+        return bool(auth_path and os.path.isfile(auth_path))
+
     def spawn_sync(self, command, args, options=None):
         options = options or {}
         self.calls.append({
@@ -91,7 +101,7 @@ class _AuthHarness:
             "options": options,
         })
         home = self._get_home(options)
-        authed = self.auth_by_home.get(home, False)
+        authed = self._is_authed(home)
         if command == "codex" and args[:2] == ["login", "status"]:
             return {"stdout": "Logged in using ChatGPT\n" if authed else "Not logged in\n", "stderr": ""}
         if command == "claude" and args[:2] == ["auth", "status"]:
@@ -114,8 +124,17 @@ class _AuthHarness:
         args = argv[1:]
         if command == "codex" and args == ["login"]:
             self.auth_by_home[home] = True
+            if home:
+                os.makedirs(home, exist_ok=True)
+                with open(self._auth_path(home), "w", encoding="utf-8") as handle:
+                    handle.write("{}\n")
         if command == "codex" and args == ["logout"]:
             self.auth_by_home[home] = False
+            if home:
+                try:
+                    os.remove(self._auth_path(home))
+                except FileNotFoundError:
+                    pass
         if command == "claude" and args == ["auth", "login"]:
             self.auth_by_home[home] = True
         if command == "claude" and args == ["auth", "logout"]:
@@ -1241,7 +1260,6 @@ class CliPythonTests(unittest.TestCase):
     def test_probe_provider_auth_surfaces_spawn_sync_errors(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
-        service["create_session"]("main")
 
         class ProbeError(Exception):
             def __str__(self):
@@ -1250,15 +1268,32 @@ class CliPythonTests(unittest.TestCase):
         def bad_spawn_sync(_command, _args, _spec):
             return {"error": ProbeError()}
 
-        with self.assertRaises(CdxError) as ctx:
-            main(["main"], {
-                **self.make_io(),
-                "env": {"CDX_HOME": temp_dir},
-                "service": service,
-                "spawn_sync": bad_spawn_sync,
-                "spawn": lambda argv, **kwargs: _Child(),
-            })
+        with mock.patch("src.session_service._get_global_codex_home", return_value=temp_dir):
+            service["create_session"]("main")
+            with self.assertRaises(CdxError) as ctx:
+                main(["main"], {
+                    **self.make_io(),
+                    "env": {"CDX_HOME": temp_dir},
+                    "service": service,
+                    "spawn_sync": bad_spawn_sync,
+                    "spawn": lambda argv, **kwargs: _Child(),
+                })
         self.assertIn("Failed to check login status", str(ctx.exception))
+
+    def test_add_reports_missing_provider_cli_without_traceback(self):
+        temp_dir = self.make_temp_dir()
+
+        with mock.patch("src.session_service._get_global_codex_home", return_value=temp_dir):
+            with mock.patch("src.provider_runtime.subprocess.run", side_effect=FileNotFoundError("codex")):
+                with self.assertRaises(CdxError) as ctx:
+                    main(["add", "main"], {
+                        **self.make_io(),
+                        "env": {"CDX_HOME": temp_dir},
+                    })
+
+        self.assertIn("Failed to check login status for main", str(ctx.exception))
+        self.assertIn("codex CLI not found on PATH", str(ctx.exception))
+        self.assertEqual(ctx.exception.exit_code, 127)
 
     def test_status_empty_json_is_stable(self):
         temp_dir = self.make_temp_dir()

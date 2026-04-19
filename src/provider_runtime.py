@@ -2,6 +2,7 @@ import json
 import os
 import signal
 import shlex
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -157,26 +158,49 @@ def _build_auth_action_spec(session, action, cwd=None, env_override=None):
             "options": {"cwd": cwd, "env": env}, "label": f"codex {action}"}
 
 
+def _format_probe_failure(session, spec, error):
+    command = spec["command"]
+    if isinstance(error, FileNotFoundError):
+        return CdxError(
+            f"Failed to check login status for {session['name']}: {command} CLI not found on PATH. "
+            f"Install {command} and retry cdx add {session['name']}.",
+            127,
+        )
+    message = getattr(error, "message", None) or str(error)
+    return CdxError(f"Failed to check login status for {session['name']}: {message}")
+
+
+def _resolve_command(command, env=None):
+    env = env or os.environ
+    return shutil.which(command, path=env.get("PATH")) or command
+
+
 def _probe_provider_auth(session, spawn_sync=None, env_override=None):
     spawn_sync = spawn_sync or subprocess.run
     spec = _build_login_status_spec(session, env_override)
-    if spawn_sync is subprocess.run:
-        result = subprocess.run(
-            [spec["command"]] + spec["args"],
-            env=spec["env"],
-            capture_output=True, text=True,
-        )
-        output = (result.stdout or "") + (result.stderr or "")
-    else:
-        result = spawn_sync(spec["command"], spec["args"], spec)
-        error = result.get("error") if isinstance(result, dict) else getattr(result, "error", None)
-        if error:
-            raise CdxError(
-                f"Failed to check login status for {session['name']}: {getattr(error, 'message', str(error))}"
+    if session.get("provider") == "codex":
+        auth_path = os.path.join(_get_auth_home(session), "auth.json")
+        if os.path.isfile(auth_path):
+            return True
+    try:
+        if spawn_sync is subprocess.run:
+            command = _resolve_command(spec["command"], spec["env"])
+            result = subprocess.run(
+                [command] + spec["args"],
+                env=spec["env"],
+                capture_output=True, text=True,
             )
-        stdout = result.get("stdout") if isinstance(result, dict) else getattr(result, "stdout", "")
-        stderr = result.get("stderr") if isinstance(result, dict) else getattr(result, "stderr", "")
-        output = (stdout or "") + (stderr or "")
+            output = (result.stdout or "") + (result.stderr or "")
+        else:
+            result = spawn_sync(spec["command"], spec["args"], spec)
+            error = result.get("error") if isinstance(result, dict) else getattr(result, "error", None)
+            if error:
+                raise _format_probe_failure(session, spec, error)
+            stdout = result.get("stdout") if isinstance(result, dict) else getattr(result, "stdout", "")
+            stderr = result.get("stderr") if isinstance(result, dict) else getattr(result, "stderr", "")
+            output = (stdout or "") + (stderr or "")
+    except FileNotFoundError as error:
+        raise _format_probe_failure(session, spec, error)
     return spec["parser"](output)
 
 
@@ -205,8 +229,11 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
         else _build_auth_action_spec(session, action, cwd=cwd, env_override=env_override)
     )
     def start_child(current_spec):
+        command = current_spec["command"]
+        if spawn is subprocess.Popen:
+            command = _resolve_command(command, current_spec.get("options", {}).get("env"))
         return spawn(
-            [current_spec["command"]] + current_spec["args"],
+            [command] + current_spec["args"],
             **{k: v for k, v in current_spec.get("options", {}).items() if k != "stdio"},
         )
 

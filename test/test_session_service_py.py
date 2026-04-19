@@ -42,6 +42,19 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(oct(os.stat(session_root).st_mode & 0o777), "0o700")
         self.assertEqual(oct(os.stat(auth_home).st_mode & 0o777), "0o700")
 
+    def test_create_codex_session_seeds_global_auth(self):
+        temp_dir = self.make_temp_dir()
+        global_home = os.path.join(temp_dir, "global-codex-home")
+        os.makedirs(global_home, exist_ok=True)
+        with open(os.path.join(global_home, "auth.json"), "w", encoding="utf-8") as handle:
+            handle.write("{\"tokens\": {}}\n")
+
+        service = create_session_service({"base_dir": temp_dir})
+        with mock.patch("src.session_service._get_global_codex_home", return_value=global_home):
+            session = service["create_session"]("main")
+
+        self.assertTrue(os.path.exists(os.path.join(session["authHome"], "auth.json")))
+
     def test_status_rows_do_not_expose_auth_home(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
