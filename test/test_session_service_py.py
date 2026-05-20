@@ -95,6 +95,29 @@ class SessionServicePythonTests(unittest.TestCase):
         with self.assertRaises(CdxError):
             service["launch_session"]("work1")
 
+    def test_disable_keeps_session_listed_last_and_blocks_launch(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+
+        service["create_session"]("aaa")
+        service["create_session"]("zzz")
+        disabled = service["set_session_enabled"]("aaa", False)
+        self.assertFalse(disabled["enabled"])
+
+        rows = service["format_list_rows"]()
+        self.assertEqual([row["name"] for row in rows], ["zzz", "aaa"])
+        self.assertEqual(rows[-1]["enabled_status"], "disabled")
+
+        status_rows = service["get_status_rows"]()
+        self.assertEqual(status_rows[-1]["session_name"], "aaa")
+        self.assertFalse(status_rows[-1]["enabled"])
+
+        with self.assertRaisesRegex(CdxError, "Session is disabled: aaa"):
+            service["launch_session"]("aaa")
+
+        service["set_session_enabled"]("aaa", True)
+        self.assertEqual(service["launch_session"]("aaa")["name"], "aaa")
+
     def test_rejects_duplicates_and_unknown_providers(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

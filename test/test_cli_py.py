@@ -477,6 +477,58 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(launch_call["args"][3], "codex")
         self.assertEqual(launch_call["args"][4:7], ["--no-alt-screen", "--cd", os.getcwd()])
 
+    def test_disable_command_marks_session_and_blocks_launch(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        main(["add", "main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        })
+        main(["add", "other"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        })
+
+        disable_io = self.make_io()
+        self.assertEqual(main(["disable", "main", "--json"], {
+            **disable_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        disable_payload = json.loads(disable_io["stdout"].getvalue())
+        self.assertEqual(disable_payload["action"], "disable")
+        self.assertFalse(disable_payload["session"]["enabled"])
+
+        list_io = self.make_io()
+        self.assertEqual(main([], {
+            **list_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        lines = list_io["stdout"].getvalue().splitlines()
+        session_lines = [line for line in lines if line.startswith(("main", "other"))]
+        self.assertTrue(session_lines[0].startswith("other"))
+        self.assertTrue(session_lines[1].startswith("main"))
+        self.assertIn("disabled", session_lines[1])
+
+        with self.assertRaisesRegex(CdxError, "Session is disabled: main"):
+            main(["main"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            })
+
+        enable_io = self.make_io()
+        self.assertEqual(main(["enable", "main"], {
+            **enable_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertIn("Enabled session main", enable_io["stdout"].getvalue())
+
     def test_launch_surfaces_update_notice(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()

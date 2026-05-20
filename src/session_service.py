@@ -20,7 +20,9 @@ RESERVED_SESSION_NAMES = {
     "add",
     "clean",
     "cp",
+    "disable",
     "doctor",
+    "enable",
     "export",
     "help",
     "import",
@@ -273,6 +275,7 @@ def create_session_service(options=None):
         return {
             "name": session["name"],
             "provider": session["provider"],
+            "enabled": session.get("enabled", True) is not False,
             "createdAt": session.get("createdAt"),
             "updatedAt": session.get("updatedAt"),
             "lastLaunchedAt": session.get("lastLaunchedAt"),
@@ -325,6 +328,7 @@ def create_session_service(options=None):
         session = {
             "name": name,
             "provider": normalized_provider,
+            "enabled": True,
             "sessionRoot": session_root,
             "authHome": auth_home,
             "createdAt": now,
@@ -399,6 +403,7 @@ def create_session_service(options=None):
         replacement = {
             "name": dest_name,
             "provider": source["provider"],
+            "enabled": True,
             "sessionRoot": dest_root,
             "authHome": dest_auth_home,
             "createdAt": now,
@@ -485,6 +490,8 @@ def create_session_service(options=None):
         session = store["get_session"](name)
         if not session:
             raise CdxError(f"Unknown session: {name}")
+        if session.get("enabled", True) is False:
+            raise CdxError(f"Session is disabled: {name}")
         state = store["read_session_state"](name)
         if not state:
             raise CdxError(f"Session state missing for {name}. Reconnect required.")
@@ -514,6 +521,17 @@ def create_session_service(options=None):
 
     def get_session(name):
         return store["get_session"](name)
+
+    def set_session_enabled(name, enabled):
+        session = store["get_session"](name)
+        if not session:
+            raise CdxError(f"Unknown session: {name}")
+        now = _local_now_iso()
+        return store["update_session"](name, lambda s: {
+            **s,
+            "enabled": bool(enabled),
+            "updatedAt": now,
+        })
 
     def record_status(name, payload):
         normalized = _normalize_status_payload(payload)
@@ -605,10 +623,15 @@ def create_session_service(options=None):
 
         def sort_key(s):
             at = s.get("lastStatusAt") or ""
-            return ("" if at else "\xff", at, s["name"])
+            disabled_rank = 1 if s.get("enabled", True) is False else 0
+            return (disabled_rank, "" if at else "\xff", at, s["name"])
 
         resolved.sort(key=sort_key)
-        resolved.reverse()
+        enabled = [s for s in resolved if s.get("enabled", True) is not False]
+        disabled = [s for s in resolved if s.get("enabled", True) is False]
+        enabled.reverse()
+        disabled.sort(key=lambda s: s["name"])
+        resolved = enabled + disabled
 
         rows = []
         for s in resolved:
@@ -616,6 +639,8 @@ def create_session_service(options=None):
             rows.append({
                 "session_name": s["name"],
                 "provider": s["provider"],
+                "enabled": s.get("enabled", True) is not False,
+                "status": "disabled" if s.get("enabled", True) is False else "enabled",
                 "remaining_5h_pct": status.get("remaining_5h_pct") if status else None,
                 "remaining_week_pct": status.get("remaining_week_pct") if status else None,
                 "credits": status.get("credits") if status else None,
@@ -631,9 +656,18 @@ def create_session_service(options=None):
         sessions = list_sessions()
         providers = {s["provider"] for s in sessions}
         has_multiple = len(providers) > 1
+        sessions = sorted(
+            sessions,
+            key=lambda s: (
+                1 if s.get("enabled", True) is False else 0,
+                s.get("name", ""),
+            ),
+        )
         return [{
             "name": s["name"],
             "provider": s["provider"] if has_multiple else None,
+            "enabled": s.get("enabled", True) is not False,
+            "enabled_status": "disabled" if s.get("enabled", True) is False else "enabled",
             "status": s.get("lastStatus"),
             "updated_at": _to_local_iso(s.get("updatedAt")),
         } for s in sessions]
@@ -723,6 +757,7 @@ def create_session_service(options=None):
             session_record = {
                 **session_payload,
                 "provider": provider,
+                "enabled": session_payload.get("enabled", True) is not False,
                 "sessionRoot": session_root,
                 "authHome": auth_home,
             }
@@ -763,6 +798,7 @@ def create_session_service(options=None):
         "ensure_session_state": ensure_session_state,
         "list_sessions": list_sessions,
         "get_session": get_session,
+        "set_session_enabled": set_session_enabled,
         "record_status": record_status,
         "update_auth_state": update_auth_state,
         "get_status_rows": get_status_rows,

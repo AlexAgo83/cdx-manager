@@ -90,6 +90,13 @@ def _parse_remove_args(args):
     return {"name": names[0], "force": force}
 
 
+def _parse_toggle_args(args, usage):
+    json_flag, cleaned = _parse_json_flag(args)
+    if len(cleaned) != 1:
+        raise CdxError(usage)
+    return {"name": cleaned[0], "json": json_flag}
+
+
 def _read_option_value(args, index, usage):
     if index + 1 >= len(args):
         raise CdxError(usage)
@@ -366,6 +373,28 @@ def handle_remove(rest, ctx):
     message = f"Removed session {parsed['name']}"
     if json_flag:
         _write_json(ctx, _json_success("remove", message, session=removed, cancelled=False))
+        return 0
+    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    return 0
+
+
+def handle_disable(rest, ctx):
+    parsed = _parse_toggle_args(rest, "Usage: cdx disable <name> [--json]")
+    session = ctx["service"]["set_session_enabled"](parsed["name"], False)
+    message = f"Disabled session {parsed['name']}"
+    if parsed["json"]:
+        _write_json(ctx, _json_success("disable", message, session=session))
+        return 0
+    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    return 0
+
+
+def handle_enable(rest, ctx):
+    parsed = _parse_toggle_args(rest, "Usage: cdx enable <name> [--json]")
+    session = ctx["service"]["set_session_enabled"](parsed["name"], True)
+    message = f"Enabled session {parsed['name']}"
+    if parsed["json"]:
+        _write_json(ctx, _json_success("enable", message, session=session))
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
     return 0

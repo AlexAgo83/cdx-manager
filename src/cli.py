@@ -11,6 +11,8 @@ from .cli_commands import (
     handle_clean,
     handle_copy,
     handle_doctor,
+    handle_disable,
+    handle_enable,
     handle_export,
     handle_import,
     handle_launch,
@@ -67,6 +69,8 @@ def _print_help(use_color=False):
         f"  {_style('cdx ren <source> <dest> [--json]', '36', use_color)}",
         f"  {_style('cdx login <name> [--json]', '36', use_color)}",
         f"  {_style('cdx logout <name> [--json]', '36', use_color)}",
+        f"  {_style('cdx disable <name> [--json]', '36', use_color)}",
+        f"  {_style('cdx enable <name> [--json]', '36', use_color)}",
         f"  {_style('cdx rmv <name> [--force] [--json]', '36', use_color)}",
         f"  {_style('cdx clean [name] [--json]', '36', use_color)}",
         f"  {_style('cdx export <file> [--include-auth] [--sessions a,b] [--passphrase-env VAR] [--force] [--json]', '36', use_color)}",
@@ -101,6 +105,8 @@ def format_json_error(error):
         code = "unknown_command"
     elif message.startswith("Session already exists:"):
         code = "session_exists"
+    elif message.startswith("Session is disabled:"):
+        code = "session_disabled"
     elif "requires an interactive terminal" in message or "requires confirmation" in message:
         code = "interactive_terminal_required"
     return json.dumps({
@@ -209,7 +215,7 @@ def main(argv, options=None):
         "stdin_is_tty": stdin_is_tty,
         "version": VERSION,
         "update_notice": _get_update_notice(service, env, options) if command not in (
-            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "notify", "status", "login", "logout", "export", "import", "help", "version"
+            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "notify", "status", "login", "logout", "disable", "enable", "export", "import", "help", "version"
         ) else None,
         "use_color": use_color,
     }
@@ -225,6 +231,12 @@ def main(argv, options=None):
 
     if command == "rmv":
         return handle_remove(rest, ctx)
+
+    if command == "disable":
+        return handle_disable(rest, ctx)
+
+    if command == "enable":
+        return handle_enable(rest, ctx)
 
     if command == "clean":
         return handle_clean(rest, ctx)

@@ -44,5 +44,8 @@
     "prepublishOnly": "npm run lint && npm test",
     "link": "npm link",
     "unlink": "npm unlink -g cdx-manager"
+  },
+  "dependencies": {
+    "cdx-manager": "^0.4.4"
   }
 }

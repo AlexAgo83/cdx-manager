@@ -36,6 +36,7 @@ def _refresh_claude_sessions(service, refresh_fn=None, target_names=None, force=
     claude_sessions = [
         s for s in sessions
         if s["provider"] == "claude"
+        and s.get("enabled", True) is not False
         and (not target_names or s["name"] in target_names)
         and (force or _is_stale(s, ttl_seconds=ttl_seconds))
     ]

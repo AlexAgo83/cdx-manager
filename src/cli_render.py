@@ -108,6 +108,7 @@ def _format_sessions(service, use_color=False):
     headers = ["SESSION"]
     if has_provider:
         headers.append("PROVIDER")
+    headers.append("STATUS")
     headers.append("UPDATED")
     headers = [_style(header, "1", use_color) for header in headers]
     table_rows = []
@@ -115,6 +116,8 @@ def _format_sessions(service, use_color=False):
         parts = [r["name"]]
         if has_provider:
             parts.append(r.get("provider") or "n/a")
+        status = r.get("enabled_status") or ("enabled" if r.get("enabled", True) else "disabled")
+        parts.append(_style(status, "2" if status == "disabled" else "32", use_color))
         parts.append(_dim(_format_relative_age(r.get("updated_at")), use_color))
         table_rows.append(parts)
     lines = [_style("Known sessions:", "1", use_color), _pad_table([headers] + table_rows), ""]
@@ -124,6 +127,8 @@ def _format_sessions(service, use_color=False):
         f"  {_style('cdx <name>', '36', use_color)}",
         f"  {_style('cdx login <name>', '36', use_color)}",
         f"  {_style('cdx logout <name>', '36', use_color)}",
+        f"  {_style('cdx disable <name>', '36', use_color)}",
+        f"  {_style('cdx enable <name>', '36', use_color)}",
         f"  {_style('cdx ren <source> <dest>', '36', use_color)}",
         f"  {_style('cdx rmv <name>', '36', use_color)}",
         f"  {_style('cdx status', '36', use_color)}",
