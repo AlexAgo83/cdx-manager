@@ -1,6 +1,6 @@
 {
   "name": "cdx-manager",
-  "version": "0.4.4",
+  "version": "0.5.0",
   "description": "Terminal session manager for Codex and Claude accounts.",
   "license": "MIT",
   "author": "Alexandre Agostini",
@@ -28,6 +28,8 @@
     "checksums",
     "changelogs",
     "src",
+    "!src/__pycache__",
+    "!src/**/*.pyc",
     "install.sh",
     "install.ps1",
     "pyproject.toml",
@@ -44,8 +46,5 @@
     "prepublishOnly": "npm run lint && npm test",
     "link": "npm link",
     "unlink": "npm unlink -g cdx-manager"
-  },
-  "dependencies": {
-    "cdx-manager": "^0.4.4"
   }
 }

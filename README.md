@@ -1,6 +1,6 @@
 # CDX Manager
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.4.4-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.5.0-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
 **Run multiple Codex and Claude sessions from one terminal. Switch between accounts instantly.**
 
@@ -36,6 +36,8 @@ One command to launch any session. Zero auth juggling.
 - **Instant launch.** `cdx work` opens your "work" session. `cdx personal` opens another. No config files to edit mid-flow.
 - **Auth guardrails.** `cdx` checks authentication before launching. If a session is not logged in, it tells you exactly what to run — no silent failures.
 - **Usage at a glance.** `cdx status` shows token usage, 5-hour window quota, weekly quota, and last-updated timestamps for every session in one aligned table.
+- **Session control.** Disable a session without deleting it when an account is temporarily out of credits; disabled sessions remain visible and sort last.
+- **Shared handoff context.** Keep a per-workspace Markdown context and install it into another assistant session before switching providers or accounts.
 - **Passive status resolution.** If a session has no recorded status, `cdx` reads it directly from the provider's session logs and JSONL history — no manual sync required.
 - **Session transcript capture.** Every launch is recorded to a local log file via `script`, giving you a full terminal transcript for each session.
 - **Clean removal.** `cdx rmv` wipes a session and its entire auth directory. No orphaned files, no stale credentials.
@@ -52,6 +54,7 @@ One command to launch any session. Zero auth juggling.
 - Persistence:
   - Session registry at `~/.cdx/sessions.json` (versioned JSON store).
   - Per-session state at `~/.cdx/state/<name>.json`.
+  - Per-workspace shared context at `~/.cdx/contexts/<workspace-hash>/context.md`.
   - Auth and provider data under `~/.cdx/profiles/<name>/`.
   - All paths are URL-encoded to support arbitrary session names.
 - Status resolution pipeline:
@@ -122,7 +125,7 @@ For a specific version:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.sh -o install.sh
-CDX_VERSION=v0.4.4 sh install.sh
+CDX_VERSION=v0.5.0 sh install.sh
 ```
 
 From source:
@@ -242,6 +245,10 @@ cdx status
 | `cdx ren <source> <dest> [--json]` | Rename a session and move its auth data |
 | `cdx login <name> [--json]` | Re-authenticate a session (logout + login) |
 | `cdx logout <name> [--json]` | Log out of a session |
+| `cdx disable <name> [--json]` | Disable a session without deleting it; disabled sessions stay visible and cannot launch |
+| `cdx enable <name> [--json]` | Re-enable a disabled session |
+| `cdx context show\|path\|init\|edit\|clear\|set [text...] [--json]` | Manage the shared Markdown context for the current workspace |
+| `cdx handoff <name> [--json]` | Install the current workspace context into a target session and launch it unless `--json` is used |
 | `cdx rmv <name> [--force] [--json]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
 | `cdx clean [name] [--json]` | Clear launch transcript logs for one session or all sessions |
 | `cdx export <file> [--include-auth] [--sessions a,b] [--passphrase-env VAR] [--force] [--json]` | Export sessions to a portable bundle; `--include-auth` encrypts auth data with a passphrase |
@@ -277,6 +284,10 @@ Commands with machine-readable output:
 - `cdx import ... --json`
 - `cdx login ... --json`
 - `cdx logout ... --json`
+- `cdx disable ... --json`
+- `cdx enable ... --json`
+- `cdx context ... --json`
+- `cdx handoff ... --json`
 - `cdx doctor --json`
 - `cdx repair --json`
 - `cdx update --json`
