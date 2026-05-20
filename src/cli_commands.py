@@ -2,10 +2,20 @@ import asyncio
 import getpass
 import json
 import os
+import sys
 from datetime import datetime
 
 from .claude_refresh import _refresh_claude_sessions
 from .cli_render import _dim, _info, _success, _warn
+from .context_store import (
+    clear_context,
+    edit_context,
+    get_context_path,
+    init_context,
+    install_context_for_session,
+    read_context,
+    write_context,
+)
 from .errors import CdxError
 from .health import collect_health_report, format_health_report
 from .notify import (
@@ -32,6 +42,8 @@ REPAIR_USAGE = "Usage: cdx repair [--dry-run] [--force] [--json]"
 UPDATE_USAGE = "Usage: cdx update [--check] [--yes] [--json] [--version TAG]"
 EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
 IMPORT_USAGE = "Usage: cdx import <file> [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
+CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set [text...] [--json]"
+HANDOFF_USAGE = "Usage: cdx handoff <name> [--json]"
 API_SCHEMA_VERSION = 1
 
 
@@ -536,6 +548,103 @@ def handle_notify(rest, ctx):
     return 0
 
 
+def handle_context(rest, ctx):
+    json_flag, args = _parse_json_flag(rest)
+    if not args:
+        args = ["show"]
+    action = args[0]
+    base_dir = ctx["service"]["base_dir"]
+    cwd = ctx.get("cwd")
+
+    if action == "show":
+        if len(args) != 1:
+            raise CdxError(CONTEXT_USAGE)
+        content = read_context(base_dir, cwd)
+        payload = {
+            "path": get_context_path(base_dir, cwd),
+            "exists": bool(content.strip()),
+            "content": content,
+        }
+        if json_flag:
+            _write_json(ctx, _json_success("context.show", "Loaded shared context", context=payload))
+            return 0
+        if content.strip():
+            ctx["out"](content if content.endswith("\n") else f"{content}\n")
+        else:
+            ctx["out"](f"{_dim('No shared context for this workspace. Run: cdx context init or cdx context set <text>', ctx['use_color'])}\n")
+        return 0
+
+    if action == "path":
+        if len(args) != 1:
+            raise CdxError(CONTEXT_USAGE)
+        path = get_context_path(base_dir, cwd)
+        if json_flag:
+            _write_json(ctx, _json_success("context.path", "Resolved shared context path", path=path))
+            return 0
+        ctx["out"](f"{path}\n")
+        return 0
+
+    if action == "init":
+        if len(args) != 1:
+            raise CdxError(CONTEXT_USAGE)
+        result = init_context(base_dir, cwd)
+        message = "Created shared context" if result.get("created") else "Shared context already exists"
+        if json_flag:
+            _write_json(ctx, _json_success("context.init", message, context=result))
+            return 0
+        text = f"{message}: {result['path']}"
+        ctx["out"](f"{_success(text, ctx['use_color'])}\n")
+        return 0
+
+    if action == "edit":
+        if len(args) != 1:
+            raise CdxError(CONTEXT_USAGE)
+        result = edit_context(
+            base_dir,
+            cwd,
+            env=ctx.get("env"),
+            spawn_sync=ctx.get("spawn_sync"),
+        )
+        if json_flag:
+            _write_json(ctx, _json_success("context.edit", "Edited shared context", context=result))
+            return 0
+        text = f"Edited shared context: {result['path']}"
+        ctx["out"](f"{_success(text, ctx['use_color'])}\n")
+        return 0
+
+    if action == "clear":
+        if len(args) != 1:
+            raise CdxError(CONTEXT_USAGE)
+        result = clear_context(base_dir, cwd)
+        message = "Cleared shared context" if result["removed"] else "No shared context to clear"
+        if json_flag:
+            _write_json(ctx, _json_success("context.clear", message, context=result))
+            return 0
+        ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+        return 0
+
+    if action == "set":
+        content_args = args[1:]
+        if content_args:
+            content = " ".join(content_args)
+        else:
+            stdin = ctx["options"].get("stdin_data")
+            if stdin is None and not ctx.get("stdin_is_tty"):
+                stdin = sys.stdin.read()
+            if stdin is None:
+                raise CdxError("Usage: cdx context set <text> [--json]")
+            content = stdin
+        result = write_context(base_dir, content, cwd)
+        if json_flag:
+            _write_json(ctx, _json_success("context.set", "Saved shared context", context=result))
+            return 0
+        text = f"Saved shared context: {result['path']}"
+        ctx["out"](f"{_success(text, ctx['use_color'])}\n")
+        return 0
+
+    raise CdxError(CONTEXT_USAGE)
+
+
 def handle_status(rest, ctx):
     json_flag = "--json" in rest
     small_flag = "--small" in rest or "-s" in rest
@@ -845,3 +954,26 @@ def handle_launch(command, ctx):
     if json_flag:
         _write_json(ctx, _json_success("launch", message, warnings=warnings, session=ctx["service"]["get_session"](session["name"])))
     return 0
+
+
+def handle_handoff(rest, ctx):
+    json_flag, args = _parse_json_flag(rest)
+    if len(args) != 1:
+        raise CdxError(HANDOFF_USAGE)
+    name = args[0]
+    session = ctx["service"]["get_session"](name)
+    if not session:
+        raise CdxError(f"Unknown session: {name}")
+    install = install_context_for_session(ctx["service"]["base_dir"], session, ctx.get("cwd"))
+    if json_flag:
+        _write_json(ctx, _json_success(
+            "handoff",
+            f"Installed shared context for {name}",
+            context=install,
+            session=session,
+        ))
+        return 0
+    text = f"Shared context installed for {name}: {install['target_path']}"
+    ctx["out"](f"{_info(text, ctx['use_color'])}\n")
+    ctx["out"](f"{_dim('Ask the assistant to read shared-context.md if it does not pick it up automatically.', ctx['use_color'])}\n")
+    return handle_launch(name, ctx)

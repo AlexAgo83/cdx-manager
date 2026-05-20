@@ -9,12 +9,14 @@ from .cli_commands import (
     STATUS_USAGE,
     handle_add,
     handle_clean,
+    handle_context,
     handle_copy,
     handle_doctor,
     handle_disable,
     handle_enable,
     handle_export,
     handle_import,
+    handle_handoff,
     handle_launch,
     handle_login,
     handle_logout,
@@ -64,6 +66,8 @@ def _print_help(use_color=False):
         f"  {_style('cdx status [--json] [--refresh]', '36', use_color)}",
         f"  {_style('cdx status --small|-s [--refresh]', '36', use_color)}",
         f"  {_style('cdx status <name> [--json] [--refresh]', '36', use_color)}",
+        f"  {_style('cdx context show|path|init|edit|clear|set [text...] [--json]', '36', use_color)}",
+        f"  {_style('cdx handoff <name> [--json]', '36', use_color)}",
         f"  {_style('cdx add [provider] <name> [--json]', '36', use_color)}",
         f"  {_style('cdx cp <source> <dest> [--json]', '36', use_color)}",
         f"  {_style('cdx ren <source> <dest> [--json]', '36', use_color)}",
@@ -214,8 +218,9 @@ def main(argv, options=None):
         "spawn_sync": spawn_sync,
         "stdin_is_tty": stdin_is_tty,
         "version": VERSION,
+        "cwd": options.get("cwd") or os.getcwd(),
         "update_notice": _get_update_notice(service, env, options) if command not in (
-            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "notify", "status", "login", "logout", "disable", "enable", "export", "import", "help", "version"
+            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "notify", "status", "context", "handoff", "login", "logout", "disable", "enable", "export", "import", "help", "version"
         ) else None,
         "use_color": use_color,
     }
@@ -258,6 +263,12 @@ def main(argv, options=None):
 
     if command == "notify":
         return handle_notify(rest, ctx)
+
+    if command == "context":
+        return handle_context(rest, ctx)
+
+    if command == "handoff":
+        return handle_handoff(rest, ctx)
 
     if command == "status":
         return handle_status(rest, ctx)

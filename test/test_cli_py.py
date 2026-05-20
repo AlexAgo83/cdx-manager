@@ -438,6 +438,71 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["action"], "list")
         self.assertEqual(payload["sessions"][0]["name"], "main")
 
+    def test_context_commands_store_context_per_workspace(self):
+        temp_dir = self.make_temp_dir()
+        workspace = os.path.join(temp_dir, "repo")
+        os.makedirs(workspace)
+
+        set_io = self.make_io()
+        self.assertEqual(main(["context", "set", "Goal: ship handoff", "--json"], {
+            **set_io,
+            "env": {"CDX_HOME": temp_dir},
+            "cwd": workspace,
+        }), 0)
+        set_payload = json.loads(set_io["stdout"].getvalue())
+        self.assertEqual(set_payload["action"], "context.set")
+        self.assertTrue(set_payload["context"]["path"].endswith("context.md"))
+
+        show_io = self.make_io()
+        self.assertEqual(main(["context", "show"], {
+            **show_io,
+            "env": {"CDX_HOME": temp_dir},
+            "cwd": workspace,
+        }), 0)
+        self.assertIn("Goal: ship handoff", show_io["stdout"].getvalue())
+
+        other_io = self.make_io()
+        other_workspace = os.path.join(temp_dir, "other")
+        os.makedirs(other_workspace)
+        self.assertEqual(main(["context", "show"], {
+            **other_io,
+            "env": {"CDX_HOME": temp_dir},
+            "cwd": other_workspace,
+        }), 0)
+        self.assertIn("No shared context", other_io["stdout"].getvalue())
+
+    def test_handoff_installs_context_for_target_session_json(self):
+        temp_dir = self.make_temp_dir()
+        workspace = os.path.join(temp_dir, "repo")
+        os.makedirs(workspace)
+        harness = _AuthHarness()
+
+        self.assertEqual(main(["add", "main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "cwd": workspace,
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        self.assertEqual(main(["context", "set", "Next Steps: continue here"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "cwd": workspace,
+        }), 0)
+
+        handoff_io = self.make_io()
+        self.assertEqual(main(["handoff", "main", "--json"], {
+            **handoff_io,
+            "env": {"CDX_HOME": temp_dir},
+            "cwd": workspace,
+        }), 0)
+        payload = json.loads(handoff_io["stdout"].getvalue())
+        self.assertEqual(payload["action"], "handoff")
+        target_path = payload["context"]["target_path"]
+        self.assertTrue(target_path.endswith("shared-context.md"))
+        with open(target_path, "r", encoding="utf-8") as handle:
+            self.assertIn("Next Steps: continue here", handle.read())
+
     def test_add_and_launch_codex_session(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()

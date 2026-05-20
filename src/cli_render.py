@@ -127,6 +127,8 @@ def _format_sessions(service, use_color=False):
         f"  {_style('cdx <name>', '36', use_color)}",
         f"  {_style('cdx login <name>', '36', use_color)}",
         f"  {_style('cdx logout <name>', '36', use_color)}",
+        f"  {_style('cdx context show', '36', use_color)}",
+        f"  {_style('cdx handoff <name>', '36', use_color)}",
         f"  {_style('cdx disable <name>', '36', use_color)}",
         f"  {_style('cdx enable <name>', '36', use_color)}",
         f"  {_style('cdx ren <source> <dest>', '36', use_color)}",
