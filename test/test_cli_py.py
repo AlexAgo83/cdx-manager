@@ -143,6 +143,13 @@ class _AuthHarness:
 
 
 class CliPythonTests(unittest.TestCase):
+    def setUp(self):
+        self.codex_status_patch = mock.patch("src.session_service.fetch_codex_rate_limits", return_value=None)
+        self.codex_status_patch.start()
+
+    def tearDown(self):
+        self.codex_status_patch.stop()
+
     def make_temp_dir(self):
         return tempfile.mkdtemp(prefix="cdx-cli-py-")
 
@@ -528,7 +535,7 @@ class CliPythonTests(unittest.TestCase):
             "spawn_sync": harness.spawn_sync,
         }), 0)
         self.assertIn("Launching codex session main", launch_io["stdout"].getvalue())
-        self.assertIn("Tip: run /status once the Codex session opens.", launch_io["stdout"].getvalue())
+        self.assertIn("Tip: cdx status reads Codex rate limits from the local app-server", launch_io["stdout"].getvalue())
 
         launch_call = next(call for call in harness.calls if call["kind"] == "spawn" and call["command"] == "script")
         self.assertEqual(

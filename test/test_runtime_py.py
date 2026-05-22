@@ -10,6 +10,7 @@ from unittest import mock
 
 from src import claude_usage
 from src import cli
+from src import codex_usage
 from src import notify
 from src import provider_runtime
 from src.errors import CdxError
@@ -28,6 +29,35 @@ class _Response:
 
     def getheaders(self):
         return list(self._headers.items())
+
+
+class _FakeStdin:
+    def __init__(self):
+        self.writes = []
+
+    def write(self, value):
+        self.writes.append(value)
+
+    def flush(self):
+        pass
+
+
+class _FakeProcess:
+    def __init__(self, stdout_lines):
+        self.stdin = _FakeStdin()
+        self.stdout = iter(stdout_lines)
+        self.stderr = iter([])
+        self.terminated = False
+        self.killed = False
+
+    def terminate(self):
+        self.terminated = True
+
+    def wait(self, timeout=None):
+        return 0
+
+    def kill(self):
+        self.killed = True
 
 
 class RuntimePythonTests(unittest.TestCase):
@@ -107,6 +137,59 @@ class RuntimePythonTests(unittest.TestCase):
                 result = claude_usage.refresh_claude_session_status({"authHome": temp_dir})
             fetch.assert_called_once_with("secret")
             self.assertEqual(result["remaining_5h_pct"], 77)
+
+    def test_normalize_codex_rate_limit_snapshot(self):
+        result = codex_usage.normalize_codex_rate_limit_snapshot({
+            "limitId": "codex",
+            "primary": {"usedPercent": 7, "windowDurationMins": 300, "resetsAt": 1779476398},
+            "secondary": {"usedPercent": 34, "windowDurationMins": 10080, "resetsAt": 1779889892},
+            "credits": {"hasCredits": False, "unlimited": False, "balance": "0"},
+            "planType": "plus",
+        })
+
+        self.assertEqual(result["remaining_5h_pct"], 93)
+        self.assertEqual(result["remaining_week_pct"], 66)
+        self.assertIsNone(result["credits"])
+        self.assertEqual(result["reset_5h_at"], self.format_local_reset(1779476398))
+        self.assertEqual(result["reset_week_at"], self.format_local_reset(1779889892))
+        self.assertEqual(result["source_ref"], "api:codex-app-server-rate-limits")
+
+    def test_fetch_codex_rate_limits_reads_app_server_jsonrpc(self):
+        process = _FakeProcess([
+            json.dumps({"id": 1, "result": {"codexHome": "/tmp/codex"}}) + "\n",
+            json.dumps({"method": "remoteControl/status/changed", "params": {"status": "disabled"}}) + "\n",
+            json.dumps({
+                "id": 2,
+                "result": {
+                    "rateLimitsByLimitId": {
+                        "codex": {
+                            "limitId": "codex",
+                            "primary": {"usedPercent": 12, "windowDurationMins": 300},
+                            "secondary": {"usedPercent": 40, "windowDurationMins": 10080},
+                        }
+                    }
+                },
+            }) + "\n",
+        ])
+        captured = {}
+
+        def popen_factory(argv, **kwargs):
+            captured["argv"] = argv
+            captured["env"] = kwargs.get("env")
+            return process
+
+        result = codex_usage.fetch_codex_rate_limits(
+            {"authHome": "/tmp/codex-home"},
+            popen_factory=popen_factory,
+        )
+
+        self.assertEqual(captured["argv"], ["codex", "app-server", "--listen", "stdio://"])
+        self.assertEqual(captured["env"]["CODEX_HOME"], "/tmp/codex-home")
+        self.assertEqual(result["remaining_5h_pct"], 88)
+        self.assertEqual(result["remaining_week_pct"], 60)
+        self.assertTrue(process.terminated)
+        self.assertIn('"method":"initialize"', process.stdin.writes[0])
+        self.assertIn('"method":"account/rateLimits/read"', process.stdin.writes[1])
 
     def test_rotate_log_if_needed_truncates_large_file(self):
         with tempfile.TemporaryDirectory(prefix="cdx-log-") as temp_dir:

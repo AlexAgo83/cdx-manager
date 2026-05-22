@@ -38,7 +38,7 @@ One command to launch any session. Zero auth juggling.
 - **Usage at a glance.** `cdx status` shows token usage, 5-hour window quota, weekly quota, and last-updated timestamps for every session in one aligned table.
 - **Session control.** Disable a session without deleting it when an account is temporarily out of credits; disabled sessions remain visible and sort last.
 - **Shared handoff context.** Keep a per-workspace Markdown context and install it into another assistant session before switching providers or accounts.
-- **Passive status resolution.** If a session has no recorded status, `cdx` reads it directly from the provider's session logs and JSONL history — no manual sync required.
+- **Passive status resolution.** Codex status is read from the local Codex app-server rate-limit API when available, with legacy transcript/history parsing kept as a fallback.
 - **Session transcript capture.** Every launch is recorded to a local log file via `script`, giving you a full terminal transcript for each session.
 - **Clean removal.** `cdx rmv` wipes a session and its entire auth directory. No orphaned files, no stale credentials.
 
@@ -59,6 +59,7 @@ One command to launch any session. Zero auth juggling.
   - All paths are URL-encoded to support arbitrary session names.
 - Status resolution pipeline:
   - Primary source: recorded status fields on the session record.
+  - Codex live source: `codex app-server` JSON-RPC `account/rateLimits/read`, normalized into 5-hour, weekly, reset, credit, and plan fields.
   - Fallback: `status-source` scans provider JSONL history files and terminal log transcripts, strips ANSI/OSC sequences, and extracts `usage%`, `5h remaining%`, and `week remaining%` via pattern matching.
 - Claude status refreshes are cached briefly by default; pass `--refresh` to force a live rate-limit probe.
 - If `script` is unavailable, Codex launch falls back to running without transcript capture.
@@ -446,7 +447,7 @@ Session names are URL-encoded when used as directory or file names. CLI command 
 - **`cdx <name>` fails with "not authenticated"** — run `cdx login <name>` first.
 - **`cdx` says no compatible Python 3 interpreter was found** — install Python 3 and make `py -3`, `python`, or `python3` available on PATH.
 - **`cdx add` succeeds but the session does not appear** — check that `CDX_HOME` is consistent between calls; a mismatch creates two separate registries.
-- **Status shows `n/a` for all fields** — the session has not been launched yet, or the provider has not written any status output to its history files. Launch the session and run `/status` inside it at least once.
+- **Status shows `n/a` for all fields** — the Codex app-server rate-limit probe may be unavailable, the session may not be authenticated, and no legacy transcript/history status has been captured yet.
 - **`cdx rmv` says "Removal requires confirmation in an interactive terminal"** — pass `--force` to bypass the prompt in non-interactive environments (scripts, CI).
 - **`cdx login` hangs** — the provider's login flow requires a browser or device code. Follow the on-screen instructions in the terminal that opened.
 - **`make install` says `npm link` is not found** — ensure Node.js and npm are installed and in your PATH.

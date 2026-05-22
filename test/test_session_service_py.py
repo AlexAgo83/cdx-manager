@@ -13,6 +13,13 @@ from src.session_store import create_session_store
 
 
 class SessionServicePythonTests(unittest.TestCase):
+    def setUp(self):
+        self.codex_status_patch = mock.patch("src.session_service.fetch_codex_rate_limits", return_value=None)
+        self.codex_status_patch.start()
+
+    def tearDown(self):
+        self.codex_status_patch.stop()
+
     def make_temp_dir(self):
         return tempfile.mkdtemp(prefix="cdx-service-py-")
 
@@ -202,6 +209,44 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(rows[0]["reset_5h_at"], "Apr 16 02:21")
         self.assertEqual(rows[0]["reset_week_at"], "Apr 17 10:10")
         self.assertEqual(rows[0]["reset_at"], "Apr 17 10:10")
+
+    def test_codex_app_server_status_is_preferred_over_transcript_artifact(self):
+        temp_dir = self.make_temp_dir()
+        live_status = {
+            "remaining_5h_pct": 93,
+            "remaining_week_pct": 66,
+            "credits": None,
+            "reset_5h_at": "May 22 20:59",
+            "reset_week_at": "May 27 15:51",
+            "reset_at": "May 27 15:51",
+            "updated_at": "2026-05-22T15:00:00+02:00",
+            "raw_status_text": "{\"limitId\":\"codex\"}",
+            "source_ref": "api:codex-app-server-rate-limits",
+        }
+        fetch_calls = []
+
+        def fetcher(session):
+            fetch_calls.append(session)
+            return live_status
+
+        service = create_session_service({"base_dir": temp_dir, "fetchCodexRateLimits": fetcher})
+        service["create_session"]("main")
+
+        session_log = os.path.join(temp_dir, "profiles", "main", "log", "cdx-session.log")
+        os.makedirs(os.path.dirname(session_log), exist_ok=True)
+        with open(session_log, "w", encoding="utf-8") as handle:
+            handle.write("│  5h limit: [████░░] 39% left\n")
+
+        rows = service["get_status_rows"]()
+
+        self.assertEqual(len(fetch_calls), 1)
+        self.assertEqual(rows[0]["remaining_5h_pct"], 93)
+        self.assertEqual(rows[0]["remaining_week_pct"], 66)
+        self.assertIsNone(rows[0]["credits"])
+        self.assertEqual(
+            service["get_session"]("main")["lastStatus"]["source_ref"],
+            "api:codex-app-server-rate-limits",
+        )
 
     def test_codex_status_can_be_derived_from_structured_rollout_rate_limits(self):
         temp_dir = self.make_temp_dir()

@@ -9,6 +9,7 @@ from urllib.parse import quote
 
 from .backup_bundle import decode_bundle, encode_bundle
 from .config import get_cdx_home
+from .codex_usage import fetch_codex_rate_limits
 from .errors import CdxError
 from .session_store import create_session_store
 from .status_source import find_latest_status_artifact
@@ -245,6 +246,7 @@ def create_session_service(options=None):
     env = options.get("env", os.environ)
     base_dir = options.get("base_dir") or get_cdx_home(env)
     store = options.get("store") or create_session_store(base_dir)
+    codex_status_fetcher = options.get("fetchCodexRateLimits") or fetch_codex_rate_limits
 
     def _get_session_root(name):
         return os.path.join(base_dir, "profiles", _encode(name))
@@ -551,6 +553,12 @@ def create_session_service(options=None):
         source_root = session.get("authHome") or _get_session_auth_home(
             session["name"], session["provider"]
         )
+        if session["provider"] == "codex" and codex_status_fetcher:
+            live_status = codex_status_fetcher({**session, "authHome": source_root})
+            if live_status:
+                record_status(session["name"], live_status)
+                return live_status
+
         expected_account_email = (
             _read_expected_account_email(source_root)
             if session["provider"] == "codex"

@@ -108,7 +108,7 @@ def _format_status_rows(rows, use_color=False, small=False):
         _pad_table([headers] + table_rows),
         "",
         _style(priority_line, "1", use_color),
-        _style("Tip: run /status in codex to refresh. Claude sessions auto-refresh; use --refresh to force.", "2", use_color),
+        _style("Tip: Codex status uses the local app-server rate-limit API when available; Claude sessions auto-refresh, use --refresh to force.", "2", use_color),
     ])
 
 

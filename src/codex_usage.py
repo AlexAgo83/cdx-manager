@@ -1,0 +1,168 @@
+import json
+import os
+import queue
+import subprocess
+import threading
+from datetime import datetime, timezone
+
+MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def _format_reset_date(unix_seconds):
+    if unix_seconds is None:
+        return None
+    try:
+        dt = datetime.fromtimestamp(int(unix_seconds), tz=timezone.utc).astimezone()
+    except (TypeError, ValueError, OSError):
+        return None
+    return f"{MONTH_ABBR[dt.month - 1]} {dt.day} {str(dt.hour).zfill(2)}:{str(dt.minute).zfill(2)}"
+
+
+def _remaining_from_used_percent(value):
+    if value is None:
+        return None
+    try:
+        return max(0, min(100, round(100 - float(value))))
+    except (TypeError, ValueError):
+        return None
+
+
+def _get_window(snapshot, duration_mins):
+    for key in ("primary", "secondary"):
+        window = snapshot.get(key) or {}
+        if window.get("windowDurationMins") == duration_mins:
+            return window
+        if window.get("window_minutes") == duration_mins:
+            return window
+    return {}
+
+
+def normalize_codex_rate_limit_snapshot(snapshot):
+    if not snapshot:
+        return None
+
+    five_hour = _get_window(snapshot, 300)
+    weekly = _get_window(snapshot, 10080)
+    credits = snapshot.get("credits")
+    credit_balance = None
+    if isinstance(credits, dict):
+        credit_balance = credits.get("balance")
+        if not credits.get("hasCredits") and not credits.get("unlimited") and str(credit_balance or "0") == "0":
+            credit_balance = None
+    elif credits is not None:
+        credit_balance = credits
+
+    reset_5h_at = _format_reset_date(five_hour.get("resetsAt") or five_hour.get("resets_at"))
+    reset_week_at = _format_reset_date(weekly.get("resetsAt") or weekly.get("resets_at"))
+
+    raw_status_text = json.dumps(snapshot, sort_keys=True)
+    return {
+        "remaining_5h_pct": _remaining_from_used_percent(
+            five_hour.get("usedPercent", five_hour.get("used_percent"))
+        ),
+        "remaining_week_pct": _remaining_from_used_percent(
+            weekly.get("usedPercent", weekly.get("used_percent"))
+        ),
+        "credits": credit_balance,
+        "reset_5h_at": reset_5h_at,
+        "reset_week_at": reset_week_at,
+        "reset_at": reset_week_at or reset_5h_at,
+        "updated_at": datetime.now().astimezone().isoformat(),
+        "raw_status_text": raw_status_text,
+        "source_ref": "api:codex-app-server-rate-limits",
+    }
+
+
+def _reader_thread(stream, output):
+    try:
+        for line in stream:
+            output.put(line)
+    finally:
+        output.put(None)
+
+
+def _read_response(output, request_id, timeout):
+    deadline = datetime.now().timestamp() + timeout
+    while datetime.now().timestamp() < deadline:
+        remaining = max(0.01, deadline - datetime.now().timestamp())
+        try:
+            line = output.get(timeout=remaining)
+        except queue.Empty:
+            break
+        if line is None:
+            break
+        try:
+            message = json.loads(line)
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if message.get("id") == request_id:
+            return message
+    return None
+
+
+def _write_json_line(process, payload):
+    process.stdin.write(json.dumps(payload, separators=(",", ":")) + "\n")
+    process.stdin.flush()
+
+
+def fetch_codex_rate_limits(session, timeout=5, popen_factory=None):
+    auth_home = session.get("authHome")
+    if not auth_home:
+        return None
+
+    env = os.environ.copy()
+    env["CODEX_HOME"] = auth_home
+    popen_factory = popen_factory or subprocess.Popen
+    process = None
+    output = queue.Queue()
+    try:
+        process = popen_factory(
+            ["codex", "app-server", "--listen", "stdio://"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            text=True,
+            bufsize=1,
+        )
+        thread = threading.Thread(target=_reader_thread, args=(process.stdout, output), daemon=True)
+        thread.start()
+        _write_json_line(process, {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "clientInfo": {"name": "cdx-manager", "version": "0"},
+                "capabilities": {"experimentalApi": True},
+            },
+        })
+        initialized = _read_response(output, 1, timeout)
+        if not initialized or initialized.get("error"):
+            return None
+
+        _write_json_line(process, {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "account/rateLimits/read",
+            "params": None,
+        })
+        response = _read_response(output, 2, timeout)
+        if not response or response.get("error"):
+            return None
+        result = response.get("result") or {}
+        by_limit = result.get("rateLimitsByLimitId") or {}
+        snapshot = by_limit.get("codex") or result.get("rateLimits")
+        return normalize_codex_rate_limit_snapshot(snapshot)
+    except (OSError, ValueError, BrokenPipeError):
+        return None
+    finally:
+        if process is not None:
+            try:
+                process.terminate()
+                process.wait(timeout=1)
+            except (OSError, subprocess.TimeoutExpired):
+                try:
+                    process.kill()
+                except OSError:
+                    pass
