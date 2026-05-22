@@ -37,7 +37,7 @@ One command to launch any session. Zero auth juggling.
 - **Auth guardrails.** `cdx` checks authentication before launching. If a session is not logged in, it tells you exactly what to run — no silent failures.
 - **Usage at a glance.** `cdx status` shows token usage, 5-hour window quota, weekly quota, and last-updated timestamps for every session in one aligned table.
 - **Session control.** Disable a session without deleting it when an account is temporarily out of credits; disabled sessions remain visible and sort last.
-- **Shared handoff context.** Keep a per-workspace Markdown context and install it into another assistant session before switching providers or accounts.
+- **Shared handoff context.** Keep a per-workspace Markdown context, or build one from a source session transcript, and install it into another assistant session before switching providers or accounts.
 - **Passive status resolution.** Codex status is read from the local Codex app-server rate-limit API when available, with legacy transcript/history parsing kept as a fallback.
 - **Session transcript capture.** Every launch is recorded to a local log file via `script`, giving you a full terminal transcript for each session.
 - **Clean removal.** `cdx rmv` wipes a session and its entire auth directory. No orphaned files, no stale credentials.
@@ -250,6 +250,7 @@ cdx status
 | `cdx enable <name> [--json]` | Re-enable a disabled session |
 | `cdx context show\|path\|init\|edit\|clear\|set [text...] [--json]` | Manage the shared Markdown context for the current workspace |
 | `cdx handoff <name> [--json]` | Install the current workspace context into a target session and launch it unless `--json` is used |
+| `cdx handoff <source> <target> [--json]` | Build shared context from the source session's latest launch transcript, install it into the target session, and launch the target unless `--json` is used |
 | `cdx rmv <name> [--force] [--json]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
 | `cdx clean [name] [--json]` | Clear launch transcript logs for one session or all sessions |
 | `cdx export <file> [--include-auth] [--sessions a,b] [--passphrase-env VAR] [--force] [--json]` | Export sessions to a portable bundle; `--include-auth` encrypts auth data with a passphrase |

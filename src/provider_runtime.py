@@ -98,7 +98,7 @@ def _wrap_launch_with_transcript(session, spec, capture_transcript=True, env=Non
     }
 
 
-def _build_launch_spec(session, cwd=None, env_override=None):
+def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None):
     cwd = cwd or os.getcwd()
     env_override = env_override or {}
     env = {**os.environ, **env_override}
@@ -112,9 +112,12 @@ def _build_launch_spec(session, cwd=None, env_override=None):
             },
             "label": "claude",
         }
+    args = ["--no-alt-screen", "--cd", cwd]
+    if initial_prompt:
+        args.append(initial_prompt)
     return _wrap_launch_with_transcript(session, {
         "command": "codex",
-        "args": ["--no-alt-screen", "--cd", cwd],
+        "args": args,
         "options": {
             "env": {**env, "CODEX_HOME": _get_auth_home(session)},
         },
@@ -221,10 +224,11 @@ def _signal_name(sig):
 
 
 def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
-                                      env_override=None, signal_emitter=None):
+                                      env_override=None, signal_emitter=None,
+                                      initial_prompt=None):
     spawn = spawn or subprocess.Popen
     spec = (
-        _build_launch_spec(session, cwd=cwd, env_override=env_override)
+        _build_launch_spec(session, cwd=cwd, env_override=env_override, initial_prompt=initial_prompt)
         if action == "launch"
         else _build_auth_action_spec(session, action, cwd=cwd, env_override=env_override)
     )

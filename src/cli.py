@@ -68,6 +68,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx status <name> [--json] [--refresh]', '36', use_color)}",
         f"  {_style('cdx context show|path|init|edit|clear|set [text...] [--json]', '36', use_color)}",
         f"  {_style('cdx handoff <name> [--json]', '36', use_color)}",
+        f"  {_style('cdx handoff <source> <target> [--json]', '36', use_color)}",
         f"  {_style('cdx add [provider] <name> [--json]', '36', use_color)}",
         f"  {_style('cdx cp <source> <dest> [--json]', '36', use_color)}",
         f"  {_style('cdx ren <source> <dest> [--json]', '36', use_color)}",
