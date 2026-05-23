@@ -250,7 +250,7 @@ cdx status
 | `cdx enable <name> [--json]` | Re-enable a disabled session |
 | `cdx context show\|path\|init\|edit\|clear\|set [text...] [--json]` | Manage the shared Markdown context for the current workspace |
 | `cdx handoff <name> [--json]` | Install the current workspace context into a target session and launch it unless `--json` is used |
-| `cdx handoff <source> <target> [--json]` | Build shared context from the source session's latest launch transcript, install it into the target session, and launch the target unless `--json` is used |
+| `cdx handoff <source> <target> [--json]` | Build shared context from the source session's latest launch transcript, install it into the target session, and launch the target unless `--json` is used; supports Codex and Claude targets, including cross-provider handoff |
 | `cdx rmv <name> [--force] [--json]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
 | `cdx clean [name] [--json]` | Clear launch transcript logs for one session or all sessions |
 | `cdx export <file> [--include-auth] [--sessions a,b] [--passphrase-env VAR] [--force] [--json]` | Export sessions to a portable bundle; `--include-auth` encrypts auth data with a passphrase |

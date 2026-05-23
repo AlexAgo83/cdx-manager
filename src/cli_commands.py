@@ -111,9 +111,16 @@ def _build_handoff_context(source, target, transcript_path, transcript, truncate
     ])
 
 
-def _handoff_launch_prompt():
+def _handoff_launch_prompt(session, install=None):
+    if session.get("provider") == "codex":
+        context_ref = "$CODEX_HOME/shared-context.md"
+    else:
+        context_ref = (install or {}).get("target_path") or os.path.join(
+            session.get("authHome") or session.get("sessionRoot") or "~",
+            "shared-context.md",
+        )
     return (
-        "Read $CODEX_HOME/shared-context.md first, then resume the previous session "
+        f"Read {context_ref} first, then resume the previous session "
         "from the latest actionable state. Do not ask me to paste the context again."
     )
 
@@ -1017,18 +1024,19 @@ def handle_handoff(rest, ctx):
         if not session:
             raise CdxError(f"Unknown session: {name}")
         install = install_context_for_session(ctx["service"]["base_dir"], session, ctx.get("cwd"))
+        launch_prompt = _handoff_launch_prompt(session, install)
         if json_flag:
             _write_json(ctx, _json_success(
                 "handoff",
                 f"Installed shared context for {name}",
                 context=install,
-                launch_prompt=_handoff_launch_prompt(),
+                launch_prompt=launch_prompt,
                 session=session,
             ))
             return 0
         text = f"Shared context installed for {name}: {install['target_path']}"
         ctx["out"](f"{_info(text, ctx['use_color'])}\n")
-        return handle_launch(name, ctx, initial_prompt=_handoff_launch_prompt())
+        return handle_launch(name, ctx, initial_prompt=launch_prompt)
 
     source_name, target_name = args
     if source_name == target_name:
@@ -1039,8 +1047,6 @@ def handle_handoff(rest, ctx):
     target = ctx["service"]["get_session"](target_name)
     if not target:
         raise CdxError(f"Unknown session: {target_name}")
-    if source["provider"] != target["provider"]:
-        raise CdxError("Source and target sessions must use the same provider for handoff.")
     transcript_path = _latest_launch_transcript_path(source)
     if not transcript_path:
         raise CdxError(f"No launch transcript found for session: {source_name}")
@@ -1048,6 +1054,7 @@ def handle_handoff(rest, ctx):
     context = _build_handoff_context(source, target, transcript_path, transcript, truncated=truncated)
     write_result = write_context(ctx["service"]["base_dir"], context, ctx.get("cwd"))
     install = install_context_for_session(ctx["service"]["base_dir"], target, ctx.get("cwd"))
+    launch_prompt = _handoff_launch_prompt(target, install)
     if json_flag:
         _write_json(ctx, _json_success(
             "handoff",
@@ -1057,9 +1064,9 @@ def handle_handoff(rest, ctx):
             target_session=target,
             source_transcript=transcript_path,
             shared_context=write_result,
-            launch_prompt=_handoff_launch_prompt(),
+            launch_prompt=launch_prompt,
         ))
         return 0
     text = f"Handoff prepared from {source_name} to {target_name}: {install['target_path']}"
     ctx["out"](f"{_info(text, ctx['use_color'])}\n")
-    return handle_launch(target_name, ctx, initial_prompt=_handoff_launch_prompt())
+    return handle_launch(target_name, ctx, initial_prompt=launch_prompt)

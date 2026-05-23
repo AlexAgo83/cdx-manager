@@ -589,6 +589,91 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(launch_call["args"][3], "codex")
         self.assertIn("Read $CODEX_HOME/shared-context.md first", launch_call["args"][-1])
 
+    def test_handoff_from_claude_source_builds_context_for_claude_target_json(self):
+        temp_dir = self.make_temp_dir()
+        workspace = os.path.join(temp_dir, "repo")
+        os.makedirs(workspace)
+        harness = _AuthHarness()
+
+        for name in ("claude1", "claude2"):
+            self.assertEqual(main(["add", "claude", name], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "cwd": workspace,
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
+
+        source_log = os.path.join(
+            temp_dir,
+            "profiles",
+            "claude1",
+            "claude-home",
+            "log",
+            "cdx-session-20260522T100000.000000Z-123.log",
+        )
+        os.makedirs(os.path.dirname(source_log), exist_ok=True)
+        with open(source_log, "w", encoding="utf-8") as handle:
+            handle.write("Claude progress\nNext Steps: continue with Claude\n")
+
+        handoff_io = self.make_io()
+        self.assertEqual(main(["handoff", "claude1", "claude2", "--json"], {
+            **handoff_io,
+            "env": {"CDX_HOME": temp_dir},
+            "cwd": workspace,
+        }), 0)
+
+        payload = json.loads(handoff_io["stdout"].getvalue())
+        target_path = payload["context"]["target_path"]
+        self.assertEqual(payload["source_session"]["provider"], "claude")
+        self.assertEqual(payload["target_session"]["provider"], "claude")
+        self.assertIn(f"Read {target_path} first", payload["launch_prompt"])
+        self.assertTrue(target_path.endswith(os.path.join("claude-home", "shared-context.md")))
+        with open(target_path, "r", encoding="utf-8") as handle:
+            content = handle.read()
+        self.assertIn("Claude progress", content)
+        self.assertIn("Next Steps: continue with Claude", content)
+
+    def test_handoff_allows_codex_to_claude_target_json(self):
+        temp_dir = self.make_temp_dir()
+        workspace = os.path.join(temp_dir, "repo")
+        os.makedirs(workspace)
+        harness = _AuthHarness()
+
+        self.assertEqual(main(["add", "codex1"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "cwd": workspace,
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        self.assertEqual(main(["add", "claude", "claude1"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "cwd": workspace,
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        source_log = os.path.join(temp_dir, "profiles", "codex1", "log", "cdx-session.log")
+        os.makedirs(os.path.dirname(source_log), exist_ok=True)
+        with open(source_log, "w", encoding="utf-8") as handle:
+            handle.write("Codex context for Claude\n")
+
+        handoff_io = self.make_io()
+        self.assertEqual(main(["handoff", "codex1", "claude1", "--json"], {
+            **handoff_io,
+            "env": {"CDX_HOME": temp_dir},
+            "cwd": workspace,
+        }), 0)
+
+        payload = json.loads(handoff_io["stdout"].getvalue())
+        self.assertEqual(payload["source_session"]["provider"], "codex")
+        self.assertEqual(payload["target_session"]["provider"], "claude")
+        self.assertIn(f"Read {payload['context']['target_path']} first", payload["launch_prompt"])
+        with open(payload["context"]["target_path"], "r", encoding="utf-8") as handle:
+            self.assertIn("Codex context for Claude", handle.read())
+
     def test_add_and_launch_codex_session(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
@@ -757,13 +842,48 @@ class CliPythonTests(unittest.TestCase):
 
         launch_call = next(
             call for call in harness.calls
-            if call["kind"] == "spawn" and call["command"] == "claude" and call["args"] == ["--name", "work1"]
+            if call["kind"] == "spawn" and call["command"] == "script" and call["args"][3] == "claude"
         )
-        self.assertEqual(launch_call["args"], ["--name", "work1"])
+        self.assertEqual(launch_call["args"][4:6], ["--name", "work1"])
         self.assertEqual(
             launch_call["options"]["env"]["HOME"],
             os.path.join(temp_dir, "profiles", "work1", "claude-home"),
         )
+
+    def test_handoff_launches_claude_target_with_initial_prompt(self):
+        temp_dir = self.make_temp_dir()
+        workspace = os.path.join(temp_dir, "repo")
+        os.makedirs(workspace)
+        harness = _AuthHarness()
+
+        for name in ("claude1", "claude2"):
+            self.assertEqual(main(["add", "claude", name], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "cwd": workspace,
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
+
+        source_log = os.path.join(temp_dir, "profiles", "claude1", "claude-home", "log", "cdx-session.log")
+        os.makedirs(os.path.dirname(source_log), exist_ok=True)
+        with open(source_log, "w", encoding="utf-8") as handle:
+            handle.write("Continue from Claude transcript\n")
+
+        self.assertEqual(main(["handoff", "claude1", "claude2"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "cwd": workspace,
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        launch_call = harness.calls[-1]
+        self.assertEqual(launch_call["kind"], "spawn")
+        self.assertEqual(launch_call["command"], "script")
+        self.assertEqual(launch_call["args"][3], "claude")
+        self.assertEqual(launch_call["args"][4:6], ["--name", "claude2"])
+        self.assertIn("claude-home/shared-context.md first", launch_call["args"][-1])
 
     def test_signal_emitter_interrupts_launch(self):
         temp_dir = self.make_temp_dir()

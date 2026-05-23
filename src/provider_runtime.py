@@ -103,15 +103,18 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     env_override = env_override or {}
     env = {**os.environ, **env_override}
     if session["provider"] == "claude":
-        return {
+        args = ["--name", session["name"]]
+        if initial_prompt:
+            args.append(initial_prompt)
+        return _wrap_launch_with_transcript(session, {
             "command": "claude",
-            "args": ["--name", session["name"]],
+            "args": args,
             "options": {
                 "cwd": cwd,
                 "env": {**env, **_home_env_overrides(_get_auth_home(session))},
             },
             "label": "claude",
-        }
+        }, env=env)
     args = ["--no-alt-screen", "--cd", cwd]
     if initial_prompt:
         args.append(initial_prompt)
