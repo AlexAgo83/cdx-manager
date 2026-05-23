@@ -8,14 +8,14 @@ from datetime import datetime, timezone
 from urllib.parse import quote
 
 from .backup_bundle import decode_bundle, encode_bundle
-from .config import get_cdx_home
+from .config import PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDERS, get_cdx_home
 from .codex_usage import fetch_codex_rate_limits
 from .errors import CdxError
 from .session_store import create_session_store
 from .status_source import find_latest_status_artifact
 
-DEFAULT_PROVIDER = "codex"
-ALLOWED_PROVIDERS = {"codex", "claude"}
+DEFAULT_PROVIDER = PROVIDER_CODEX
+ALLOWED_PROVIDERS = set(PROVIDERS)
 MAX_SESSION_NAME_LENGTH = 64
 RESERVED_SESSION_NAMES = {
     "add",
@@ -81,8 +81,15 @@ def _local_now_iso():
 
 
 def _safe_relpath(path):
-    normalized = str(path or "").replace("\\", "/").strip("/")
-    if not normalized or normalized.startswith("../") or "/../" in f"/{normalized}/":
+    normalized = os.path.normpath(str(path or "").replace("\\", "/")).replace("\\", "/")
+    if (
+        not normalized
+        or normalized == "."
+        or normalized.startswith("/")
+        or (len(normalized) > 1 and normalized[1] == ":")
+        or normalized == ".."
+        or normalized.startswith("../")
+    ):
         raise CdxError("Bundle contains an unsafe file path.")
     return normalized
 
@@ -253,7 +260,7 @@ def create_session_service(options=None):
 
     def _get_session_auth_home(name, provider):
         root = _get_session_root(name)
-        if provider == "claude":
+        if provider == PROVIDER_CLAUDE:
             return os.path.join(root, "claude-home")
         return root
 
@@ -326,7 +333,7 @@ def create_session_service(options=None):
         _ensure_private_dir(os.path.join(base_dir, "profiles"))
         _ensure_private_dir(session_root)
         _ensure_private_dir(auth_home)
-        if normalized_provider == "codex":
+        if normalized_provider == PROVIDER_CODEX:
             _seed_codex_auth_from_global(auth_home, env=env)
         now = _local_now_iso()
         session = {
@@ -553,7 +560,7 @@ def create_session_service(options=None):
         source_root = session.get("authHome") or _get_session_auth_home(
             session["name"], session["provider"]
         )
-        if session["provider"] == "codex" and codex_status_fetcher:
+        if session["provider"] == PROVIDER_CODEX and codex_status_fetcher:
             live_status = codex_status_fetcher({**session, "authHome": source_root})
             if live_status:
                 record_status(session["name"], live_status)
@@ -561,7 +568,7 @@ def create_session_service(options=None):
 
         expected_account_email = (
             _read_expected_account_email(source_root)
-            if session["provider"] == "codex"
+            if session["provider"] == PROVIDER_CODEX
             else None
         )
         artifact = find_latest_status_artifact(
@@ -570,7 +577,7 @@ def create_session_service(options=None):
             expected_account_email=expected_account_email,
         )
         if (
-            session["provider"] == "codex"
+            session["provider"] == PROVIDER_CODEX
             and not artifact
             and os.path.abspath(base_dir) == os.path.abspath(get_cdx_home(env))
         ):

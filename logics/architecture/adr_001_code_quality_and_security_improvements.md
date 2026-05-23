@@ -1,7 +1,7 @@
 ## adr_001_code_quality_and_security_improvements - Code Quality, Security and Performance Improvements
 > Date: 2026-05-23
 > Status: Accepted
-> Drivers: Security hardening, test coverage, code duplication reduction, performance, maintainability.
+> Drivers: Security hardening, test coverage, code duplication reduction, performance, maintainability, implementation completion.
 > Related request: `req_XXX_audit_2026_05`
 > Related backlog: `item_003_command_ergonomics_validation_and_safety`
 > Related task: `task_000_command_ergonomics_validation_and_safety`
@@ -242,6 +242,14 @@ Or extract a minimal `SignalCapture` class if the pattern appears more than once
 - `"codex"` and `"claude"` strings become refactor-safe.
 - `_parse_flag_args()` removes ~100 lines of duplication and makes future flag additions a one-liner.
 - Thread/asyncio code in `claude_refresh.py` becomes readable and correct.
+
+# Implementation status
+
+Implemented on 2026-05-23:
+
+- Phase 1 security fixes for bundle relative paths and launch prompt validation.
+- Phase 2 tests for status extraction, bundle import/export paths, clean behavior coverage already present, notification backend dispatch/fallback, reset timestamp parsing, and launch prompt validation.
+- Phase 3 refactors for module-level status regexes, provider constants, shared flat-flag parser, async-capable Claude refresh without per-thread event loops, and signal forwarding state via `nonlocal`.
 
 # Migration and rollout
 

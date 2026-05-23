@@ -1173,6 +1173,67 @@ class CliPythonTests(unittest.TestCase):
         with open(imported_auth, "r", encoding="utf-8") as handle:
             self.assertEqual(handle.read(), '{"token":"secret"}')
 
+    def test_export_import_parsers_support_equals_flags_and_session_subset(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["create_session"]("side")
+        export_path = os.path.join(temp_dir, "subset.cdx")
+
+        export_io = self.make_io()
+        self.assertEqual(main([
+            "export",
+            export_path,
+            "--sessions=side",
+            "--json",
+        ], {
+            **export_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        export_payload = json.loads(export_io["stdout"].getvalue())
+        self.assertEqual(export_payload["bundle"]["session_names"], ["side"])
+
+        import_dir = self.make_temp_dir()
+        import_io = self.make_io()
+        self.assertEqual(main([
+            "import",
+            export_path,
+            "--sessions=side",
+            "--json",
+        ], {
+            **import_io,
+            "env": {"CDX_HOME": import_dir},
+        }), 0)
+
+        imported_service = create_session_service({"base_dir": import_dir})
+        self.assertIsNone(imported_service["get_session"]("main"))
+        self.assertEqual(imported_service["get_session"]("side")["name"], "side")
+
+    def test_clean_reports_sessions_with_and_without_logs(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("withlog")
+        service["create_session"]("nolog")
+        log_path = os.path.join(temp_dir, "profiles", "withlog", "log", "cdx-session.log")
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "w", encoding="utf-8") as handle:
+            handle.write("status transcript")
+
+        clean_io = self.make_io()
+        self.assertEqual(main(["clean", "--json"], {
+            **clean_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        payload = json.loads(clean_io["stdout"].getvalue())
+        by_name = {item["session_name"]: item for item in payload["sessions"]}
+        self.assertTrue(by_name["withlog"]["cleared"])
+        self.assertEqual(by_name["withlog"]["files_cleared"], 1)
+        self.assertFalse(by_name["nolog"]["cleared"])
+        self.assertEqual(os.path.getsize(log_path), 0)
+
     def test_export_with_auth_rejects_non_interactive_without_passphrase_env(self):
         temp_dir = self.make_temp_dir()
         create_session_service({"base_dir": temp_dir})["create_session"]("main")
@@ -1197,6 +1258,18 @@ class CliPythonTests(unittest.TestCase):
             main(["import", bundle_path, "--passphrase-env", "CDX_BUNDLE_PASSPHRASE", "--json"], {
                 **self.make_io(),
                 "env": {"CDX_HOME": import_dir, "CDX_BUNDLE_PASSPHRASE": "wrong"},
+            })
+
+    def test_import_rejects_corrupted_bundle(self):
+        temp_dir = self.make_temp_dir()
+        bundle_path = os.path.join(temp_dir, "corrupt.cdx")
+        with open(bundle_path, "wb") as handle:
+            handle.write(b"not a cdx bundle")
+
+        with self.assertRaisesRegex(CdxError, "Invalid bundle"):
+            main(["import", bundle_path, "--json"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
             })
 
     def test_status_uses_async_refresh_function(self):

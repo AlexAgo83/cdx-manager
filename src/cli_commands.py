@@ -7,6 +7,7 @@ from datetime import datetime
 
 from .claude_refresh import _refresh_claude_sessions
 from .cli_render import _dim, _info, _success, _warn
+from .config import PROVIDER_CODEX
 from .context_store import (
     clear_context,
     edit_context,
@@ -112,7 +113,7 @@ def _build_handoff_context(source, target, transcript_path, transcript, truncate
 
 
 def _handoff_launch_prompt(session, install=None):
-    if session.get("provider") == "codex":
+    if session.get("provider") == PROVIDER_CODEX:
         context_ref = "$CODEX_HOME/shared-context.md"
     else:
         context_ref = (install or {}).get("target_path") or os.path.join(
@@ -131,11 +132,54 @@ def _parse_json_flag(args):
     return json_flag, cleaned
 
 
+def _parse_flag_args(args, schema, usage, positionals_key=None, max_positionals=0):
+    parsed = {spec["key"]: spec.get("default") for spec in schema.values()}
+    positionals = []
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg in schema:
+            spec = schema[arg]
+            if spec["type"] == "bool":
+                parsed[spec["key"]] = True
+                index += 1
+                continue
+            value, index = _read_option_value(args, index, usage)
+            parsed[spec["key"]] = spec.get("transform", lambda item: item)(value)
+            continue
+        if arg.startswith("--") and "=" in arg:
+            flag, value = arg.split("=", 1)
+            spec = schema.get(flag)
+            if not spec or spec["type"] == "bool":
+                raise CdxError(usage)
+            parsed[spec["key"]] = spec.get("transform", lambda item: item)(value)
+            index += 1
+            continue
+        if arg.startswith("-"):
+            raise CdxError(usage)
+        positionals.append(arg)
+        if len(positionals) > max_positionals:
+            raise CdxError(usage)
+        index += 1
+
+    if positionals_key is not None:
+        parsed[positionals_key] = positionals
+    return parsed
+
+
 def _parse_add_args(args):
-    if len(args) == 1:
-        return {"provider": "codex", "name": args[0]}
-    if len(args) == 2:
-        return {"provider": args[0], "name": args[1]}
+    parsed = _parse_flag_args(
+        args,
+        {},
+        "Usage: cdx add [provider] <name> [--json]",
+        positionals_key="values",
+        max_positionals=2,
+    )
+    values = parsed["values"]
+    if len(values) == 1:
+        return {"provider": PROVIDER_CODEX, "name": values[0]}
+    if len(values) == 2:
+        return {"provider": values[0], "name": values[1]}
     raise CdxError("Usage: cdx add [provider] <name> [--json]")
 
 
@@ -222,52 +266,19 @@ def _parse_update_args(args):
 
 
 def _parse_export_args(args):
-    parsed = {
-        "file_path": None,
-        "include_auth": False,
-        "force": False,
-        "json": False,
-        "session_names": None,
-        "passphrase_env": None,
-    }
-    index = 0
-    while index < len(args):
-        arg = args[index]
-        if arg == "--include-auth":
-            parsed["include_auth"] = True
-            index += 1
-            continue
-        if arg == "--force":
-            parsed["force"] = True
-            index += 1
-            continue
-        if arg == "--json":
-            parsed["json"] = True
-            index += 1
-            continue
-        if arg == "--sessions":
-            value, index = _read_option_value(args, index, EXPORT_USAGE)
-            parsed["session_names"] = _parse_session_names(value)
-            continue
-        if arg.startswith("--sessions="):
-            parsed["session_names"] = _parse_session_names(arg.split("=", 1)[1])
-            index += 1
-            continue
-        if arg == "--passphrase-env":
-            value, index = _read_option_value(args, index, EXPORT_USAGE)
-            parsed["passphrase_env"] = value
-            continue
-        if arg.startswith("--passphrase-env="):
-            parsed["passphrase_env"] = arg.split("=", 1)[1]
-            index += 1
-            continue
-        if arg.startswith("-"):
-            raise CdxError(EXPORT_USAGE)
-        if parsed["file_path"] is not None:
-            raise CdxError(EXPORT_USAGE)
-        parsed["file_path"] = arg
-        index += 1
-
+    parsed = _parse_flag_args(args, {
+        "--include-auth": {"key": "include_auth", "type": "bool", "default": False},
+        "--force": {"key": "force", "type": "bool", "default": False},
+        "--json": {"key": "json", "type": "bool", "default": False},
+        "--sessions": {
+            "key": "session_names",
+            "type": "str",
+            "default": None,
+            "transform": _parse_session_names,
+        },
+        "--passphrase-env": {"key": "passphrase_env", "type": "str", "default": None},
+    }, EXPORT_USAGE, positionals_key="positionals", max_positionals=1)
+    parsed["file_path"] = parsed.pop("positionals")[0] if parsed["positionals"] else None
     if not parsed["file_path"]:
         raise CdxError(EXPORT_USAGE)
     if parsed["passphrase_env"] and not parsed["include_auth"]:
@@ -276,47 +287,18 @@ def _parse_export_args(args):
 
 
 def _parse_import_args(args):
-    parsed = {
-        "file_path": None,
-        "force": False,
-        "json": False,
-        "session_names": None,
-        "passphrase_env": None,
-    }
-    index = 0
-    while index < len(args):
-        arg = args[index]
-        if arg == "--force":
-            parsed["force"] = True
-            index += 1
-            continue
-        if arg == "--json":
-            parsed["json"] = True
-            index += 1
-            continue
-        if arg == "--sessions":
-            value, index = _read_option_value(args, index, IMPORT_USAGE)
-            parsed["session_names"] = _parse_session_names(value)
-            continue
-        if arg.startswith("--sessions="):
-            parsed["session_names"] = _parse_session_names(arg.split("=", 1)[1])
-            index += 1
-            continue
-        if arg == "--passphrase-env":
-            value, index = _read_option_value(args, index, IMPORT_USAGE)
-            parsed["passphrase_env"] = value
-            continue
-        if arg.startswith("--passphrase-env="):
-            parsed["passphrase_env"] = arg.split("=", 1)[1]
-            index += 1
-            continue
-        if arg.startswith("-"):
-            raise CdxError(IMPORT_USAGE)
-        if parsed["file_path"] is not None:
-            raise CdxError(IMPORT_USAGE)
-        parsed["file_path"] = arg
-        index += 1
-
+    parsed = _parse_flag_args(args, {
+        "--force": {"key": "force", "type": "bool", "default": False},
+        "--json": {"key": "json", "type": "bool", "default": False},
+        "--sessions": {
+            "key": "session_names",
+            "type": "str",
+            "default": None,
+            "transform": _parse_session_names,
+        },
+        "--passphrase-env": {"key": "passphrase_env", "type": "str", "default": None},
+    }, IMPORT_USAGE, positionals_key="positionals", max_positionals=1)
+    parsed["file_path"] = parsed.pop("positionals")[0] if parsed["positionals"] else None
     if not parsed["file_path"]:
         raise CdxError(IMPORT_USAGE)
     return parsed
@@ -1002,7 +984,7 @@ def handle_launch(command, ctx, initial_prompt=None):
             if update_notice.get("url"):
                 text = f"{text} {update_notice['url']}"
             ctx["out"](f"{_warn(text, ctx['use_color'])}\n")
-    if session["provider"] == "codex":
+    if session["provider"] == PROVIDER_CODEX:
         if not json_flag:
             ctx["out"](f"{_dim('Tip: cdx status reads Codex rate limits from the local app-server when available.', ctx['use_color'])}\n")
     _run_interactive_provider_command(

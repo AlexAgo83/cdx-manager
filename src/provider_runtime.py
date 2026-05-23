@@ -7,6 +7,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
+from .config import PROVIDER_CLAUDE, PROVIDER_CODEX
 from .errors import CdxError
 
 
@@ -99,10 +100,15 @@ def _wrap_launch_with_transcript(session, spec, capture_transcript=True, env=Non
 
 
 def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None):
+    if initial_prompt is not None:
+        if not isinstance(initial_prompt, str):
+            raise CdxError("initial_prompt must be a string.")
+        if len(initial_prompt) > 32768:
+            raise CdxError("initial_prompt exceeds maximum allowed length.")
     cwd = cwd or os.getcwd()
     env_override = env_override or {}
     env = {**os.environ, **env_override}
-    if session["provider"] == "claude":
+    if session["provider"] == PROVIDER_CLAUDE:
         args = ["--name", session["name"]]
         if initial_prompt:
             args.append(initial_prompt)
@@ -130,7 +136,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
 
 def _build_login_status_spec(session, env_override=None):
     env = {**os.environ, **(env_override or {})}
-    if session["provider"] == "claude":
+    if session["provider"] == PROVIDER_CLAUDE:
         env.update(_home_env_overrides(_get_auth_home(session)))
 
         def parser(output):
@@ -155,7 +161,7 @@ def _build_login_status_spec(session, env_override=None):
 def _build_auth_action_spec(session, action, cwd=None, env_override=None):
     cwd = cwd or os.getcwd()
     env = {**os.environ, **(env_override or {})}
-    if session["provider"] == "claude":
+    if session["provider"] == PROVIDER_CLAUDE:
         env.update(_home_env_overrides(_get_auth_home(session)))
         return {"command": "claude", "args": ["auth", action],
                 "options": {"cwd": cwd, "env": env}, "label": f"claude auth {action}"}
@@ -184,7 +190,7 @@ def _resolve_command(command, env=None):
 def _probe_provider_auth(session, spawn_sync=None, env_override=None):
     spawn_sync = spawn_sync or subprocess.run
     spec = _build_login_status_spec(session, env_override)
-    if session.get("provider") == "codex":
+    if session.get("provider") == PROVIDER_CODEX:
         auth_path = os.path.join(_get_auth_home(session), "auth.json")
         if os.path.isfile(auth_path):
             return True
@@ -250,11 +256,12 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
         spec = _fallback_launch_spec_or_raise(spec, error)
         child = start_child(spec)
 
-    forwarded_signal = [None]
+    forwarded_signal = None
     handlers = []
 
     def forward(sig, _frame=None):
-        forwarded_signal[0] = sig
+        nonlocal forwarded_signal
+        forwarded_signal = sig
         try:
             if hasattr(child, "send_signal"):
                 child.send_signal(sig)
@@ -283,7 +290,7 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
 
     try:
         child.wait()
-        if forwarded_signal[0] is None and child.returncode != 0 and _should_retry_without_transcript(spec):
+        if forwarded_signal is None and child.returncode != 0 and _should_retry_without_transcript(spec):
             spec = _fallback_launch_spec_or_raise(spec)
             child = start_child(spec)
             child.wait()
@@ -301,10 +308,10 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
                 except (OSError, ValueError):
                     pass
 
-    if forwarded_signal[0] is not None:
+    if forwarded_signal is not None:
         raise CdxError(
-            f"{spec['label']} interrupted by {_signal_name(forwarded_signal[0])} for session {session['name']}",
-            _signal_exit_code(forwarded_signal[0]),
+            f"{spec['label']} interrupted by {_signal_name(forwarded_signal)} for session {session['name']}",
+            _signal_exit_code(forwarded_signal),
         )
     if child.returncode != 0:
         raise CdxError(

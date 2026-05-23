@@ -121,7 +121,24 @@ def send_desktop_notification(title, message, spawn_sync=None, env=None):
         _send_windows_notification(title, message, spawn_sync, env)
     elif shutil_which("osascript", env):
         script = f'display notification "{_escape_applescript(message)}" with title "{_escape_applescript(title)}"'
-        spawn_sync(["osascript", "-e", script], env=env, capture_output=True, text=True)
+        _run_notification_command(
+            ["osascript", "-e", script],
+            spawn_sync,
+            env,
+        )
+    elif shutil_which("notify-send", env):
+        _run_notification_command(
+            ["notify-send", str(title), str(message)],
+            spawn_sync,
+            env,
+        )
+
+
+def _run_notification_command(argv, spawn_sync, env):
+    try:
+        spawn_sync(argv, env=env, capture_output=True, text=True)
+    except (FileNotFoundError, OSError):
+        pass
 
 
 def _send_windows_notification(title, message, spawn_sync, env):

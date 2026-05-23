@@ -353,6 +353,21 @@ class RuntimePythonTests(unittest.TestCase):
             with mock.patch("src.provider_runtime.subprocess.run", side_effect=AssertionError("should not probe")):
                 self.assertTrue(provider_runtime._probe_provider_auth(session))
 
+    def test_build_launch_spec_validates_initial_prompt(self):
+        session = {
+            "name": "main",
+            "provider": "codex",
+            "authHome": "/tmp/codex-home",
+        }
+
+        with self.assertRaisesRegex(CdxError, "must be a string"):
+            provider_runtime._build_launch_spec(session, initial_prompt=object())
+        with self.assertRaisesRegex(CdxError, "exceeds maximum"):
+            provider_runtime._build_launch_spec(session, initial_prompt="x" * 32769)
+
+        spec = provider_runtime._build_launch_spec(session, initial_prompt="resume")
+        self.assertIn("resume", spec["fallback"]["args"])
+
 
 if __name__ == "__main__":
     unittest.main()

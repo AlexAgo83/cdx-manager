@@ -3,6 +3,7 @@ import os
 import re
 from datetime import datetime, timezone
 
+from .config import PROVIDER_CLAUDE, PROVIDER_CODEX
 
 _ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 _ANSI_TERMINAL_CONTROL = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
@@ -13,6 +14,23 @@ MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 MAX_STATUS_READ_BYTES = 512 * 1024
 MAX_STATUS_CANDIDATE_FILES = 64
+
+_KEY_VALUE_PATTERNS = [
+    ("usage_pct", re.compile(r"usage_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
+    ("remaining_5h_pct", re.compile(r"remaining_?5h_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
+    ("remaining_week_pct", re.compile(r"remaining_?week_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
+    ("credits", re.compile(r"credits?\s*[:=]\s*([\d, ]*\d[\d, ]*)\s*(?:credits?)?", re.I)),
+    ("remaining_5h_pct", re.compile(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
+    ("remaining_week_pct", re.compile(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
+    ("remaining_5h_pct", re.compile(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", re.I)),
+    ("remaining_week_pct", re.compile(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", re.I)),
+    ("usage_pct", re.compile(r"usage\s*[:=]\s*(\d{1,3})%", re.I)),
+    ("usage_pct", re.compile(r"current\s*[:=]\s*(\d{1,3})%", re.I)),
+    ("remaining_5h_pct", re.compile(r"5h(?:\s+remaining)?\s*[:=]\s*(\d{1,3})%", re.I)),
+    ("remaining_5h_pct", re.compile(r"remaining\s+5h\s*[:=]\s*(\d{1,3})%", re.I)),
+    ("remaining_week_pct", re.compile(r"week(?:\s+remaining)?\s*[:=]\s*(\d{1,3})%", re.I)),
+    ("remaining_week_pct", re.compile(r"remaining\s+week\s*[:=]\s*(\d{1,3})%", re.I)),
+]
 
 
 def _strip_ansi(text):
@@ -185,7 +203,7 @@ def _extract_status_blocks_from_text(text, provider=None, source_ref=None, times
             index = max(index + 1, end_index)
         return blocks
 
-    if provider != "codex":
+    if provider != PROVIDER_CODEX:
         for block in collect_blocks(
             re.compile(r"^\s*(?:[│|]\s*)?Current session\b", re.I),
             [re.compile(p, re.I) for p in [
@@ -195,7 +213,7 @@ def _extract_status_blocks_from_text(text, provider=None, source_ref=None, times
         ):
             items.append({"source_ref": source_ref, "timestamp": timestamp, "text": block})
 
-    if provider != "claude":
+    if provider != PROVIDER_CLAUDE:
         for block in collect_blocks(
             re.compile(r"^\s*(?:[│|]\s*)?5h\s+limit\b", re.I),
             [re.compile(p, re.I) for p in [
@@ -412,23 +430,7 @@ def extract_named_statuses_from_text(text):
     lines = [l.strip() for l in normalized.split("\n") if l.strip()]
     result = {}
 
-    key_value_patterns = [
-        ("usage_pct", re.compile(r"usage_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
-        ("remaining_5h_pct", re.compile(r"remaining_?5h_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
-        ("remaining_week_pct", re.compile(r"remaining_?week_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
-        ("credits", re.compile(r"credits?\s*[:=]\s*([\d, ]*\d[\d, ]*)\s*(?:credits?)?", re.I)),
-        ("remaining_5h_pct", re.compile(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
-        ("remaining_week_pct", re.compile(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
-        ("remaining_5h_pct", re.compile(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", re.I)),
-        ("remaining_week_pct", re.compile(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", re.I)),
-        ("usage_pct", re.compile(r"usage\s*[:=]\s*(\d{1,3})%", re.I)),
-        ("usage_pct", re.compile(r"current\s*[:=]\s*(\d{1,3})%", re.I)),
-        ("remaining_5h_pct", re.compile(r"5h(?:\s+remaining)?\s*[:=]\s*(\d{1,3})%", re.I)),
-        ("remaining_5h_pct", re.compile(r"remaining\s+5h\s*[:=]\s*(\d{1,3})%", re.I)),
-        ("remaining_week_pct", re.compile(r"week(?:\s+remaining)?\s*[:=]\s*(\d{1,3})%", re.I)),
-        ("remaining_week_pct", re.compile(r"remaining\s+week\s*[:=]\s*(\d{1,3})%", re.I)),
-    ]
-    for field, pattern in key_value_patterns:
+    for field, pattern in _KEY_VALUE_PATTERNS:
         if field not in result:
             m = pattern.search(normalized)
             if m:
@@ -620,7 +622,7 @@ def find_latest_status_artifact(root_dir, provider=None, expected_account_email=
 
     best = None
     for candidate in records:
-        if provider == "codex" and not _account_matches_expected(
+        if provider == PROVIDER_CODEX and not _account_matches_expected(
             candidate["text"], expected_account_email
         ):
             continue

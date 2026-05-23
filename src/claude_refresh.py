@@ -3,6 +3,7 @@ import threading
 from datetime import datetime, timezone
 
 from .claude_usage import refresh_claude_session_status
+from .config import PROVIDER_CLAUDE
 from .errors import CdxError
 
 CLAUDE_REFRESH_TTL_SECONDS = 10 * 60
@@ -35,7 +36,7 @@ def _refresh_claude_sessions(service, refresh_fn=None, target_names=None, force=
     sessions = service["list_sessions"]()
     claude_sessions = [
         s for s in sessions
-        if s["provider"] == "claude"
+        if s["provider"] == PROVIDER_CLAUDE
         and s.get("enabled", True) is not False
         and (not target_names or s["name"] in target_names)
         and (force or _is_stale(s, ttl_seconds=ttl_seconds))
@@ -45,25 +46,41 @@ def _refresh_claude_sessions(service, refresh_fn=None, target_names=None, force=
 
     errors = []
     results = {}
-    threads = []
 
-    def fetch(s):
-        try:
-            usage = refresh_fn(s)
-            if inspect.isawaitable(usage):
-                import asyncio
-                usage = asyncio.run(usage)
-            if usage:
-                results[s["name"]] = usage
-        except Exception as e:
-            errors.append({"session": s["name"], "error": e})
+    if inspect.iscoroutinefunction(refresh_fn):
+        import asyncio
 
-    for s in claude_sessions:
-        t = threading.Thread(target=fetch, args=(s,))
-        threads.append(t)
-        t.start()
-    for t in threads:
-        t.join()
+        async def fetch_all():
+            async def fetch_async(s):
+                try:
+                    usage = await refresh_fn(s)
+                    if usage:
+                        results[s["name"]] = usage
+                except Exception as e:
+                    errors.append({"session": s["name"], "error": e})
+
+            await asyncio.gather(*(fetch_async(s) for s in claude_sessions))
+
+        asyncio.run(fetch_all())
+    else:
+        threads = []
+
+        def fetch(s):
+            try:
+                usage = refresh_fn(s)
+                if inspect.isawaitable(usage):
+                    raise CdxError("Claude refresh function returned an awaitable from a sync callable.")
+                if usage:
+                    results[s["name"]] = usage
+            except Exception as e:
+                errors.append({"session": s["name"], "error": e})
+
+        for s in claude_sessions:
+            t = threading.Thread(target=fetch, args=(s,), daemon=True)
+            threads.append(t)
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
 
     for name, usage in results.items():
         try:
