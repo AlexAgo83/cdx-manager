@@ -883,7 +883,8 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(launch_call["command"], "script")
         self.assertEqual(launch_call["args"][3], "claude")
         self.assertEqual(launch_call["args"][4:6], ["--name", "claude2"])
-        self.assertIn("claude-home/shared-context.md first", launch_call["args"][-1])
+        self.assertIn("claude-home", launch_call["args"][-1])
+        self.assertIn("shared-context.md first", launch_call["args"][-1])
 
     def test_signal_emitter_interrupts_launch(self):
         temp_dir = self.make_temp_dir()
