@@ -1053,6 +1053,98 @@ class SessionServicePythonTests(unittest.TestCase):
         with self.assertRaisesRegex(CdxError, "Corrupt JSON file"):
             service["launch_session"]("main")
 
+    def test_session_store_add_rolls_back_state_when_registry_save_fails(self):
+        temp_dir = self.make_temp_dir()
+        store = create_session_store(temp_dir)
+        session = {
+            "name": "main",
+            "provider": "codex",
+        }
+
+        def write_json(file_path, value):
+            if file_path.endswith("sessions.json"):
+                raise OSError("registry write failed")
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, "w", encoding="utf-8") as handle:
+                json.dump(value, handle, indent=2)
+                handle.write("\n")
+
+        with mock.patch("src.session_store._write_json", side_effect=write_json):
+            with self.assertRaisesRegex(OSError, "registry write failed"):
+                store["add_session"](session)
+
+        self.assertFalse(os.path.exists(os.path.join(temp_dir, "state", "main.json")))
+        self.assertEqual(store["list_sessions"](), [])
+
+    def test_session_store_remove_restores_state_when_registry_save_fails(self):
+        temp_dir = self.make_temp_dir()
+        store = create_session_store(temp_dir)
+        session = {"name": "main", "provider": "codex"}
+        store["add_session"](session)
+        store["write_session_state"]("main", {"provider": "codex", "status": "custom"})
+
+        def write_json(file_path, value):
+            if file_path.endswith("sessions.json"):
+                raise OSError("registry write failed")
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, "w", encoding="utf-8") as handle:
+                json.dump(value, handle, indent=2)
+                handle.write("\n")
+
+        with mock.patch("src.session_store._write_json", side_effect=write_json):
+            with self.assertRaisesRegex(OSError, "registry write failed"):
+                store["remove_session"]("main")
+
+        self.assertEqual(store["get_session"]("main"), session)
+        self.assertEqual(store["read_session_state"]("main")["status"], "custom")
+
+    def test_session_store_rename_restores_state_path_when_registry_save_fails(self):
+        temp_dir = self.make_temp_dir()
+        store = create_session_store(temp_dir)
+        session = {"name": "source", "provider": "codex"}
+        store["add_session"](session)
+        store["write_session_state"]("source", {"provider": "codex", "status": "custom"})
+
+        def write_json(file_path, value):
+            if file_path.endswith("sessions.json"):
+                raise OSError("registry write failed")
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, "w", encoding="utf-8") as handle:
+                json.dump(value, handle, indent=2)
+                handle.write("\n")
+
+        with mock.patch("src.session_store._write_json", side_effect=write_json):
+            with self.assertRaisesRegex(OSError, "registry write failed"):
+                store["rename_session"]("source", "dest", lambda item: {**item, "name": "dest"})
+
+        self.assertEqual(store["get_session"]("source"), session)
+        self.assertIsNone(store["get_session"]("dest"))
+        self.assertEqual(store["read_session_state"]("source")["status"], "custom")
+        self.assertIsNone(store["read_session_state"]("dest"))
+
+    def test_session_store_replace_restores_state_when_registry_save_fails(self):
+        temp_dir = self.make_temp_dir()
+        store = create_session_store(temp_dir)
+        original = {"name": "main", "provider": "codex"}
+        replacement = {"name": "main", "provider": "claude"}
+        store["add_session"](original)
+        store["write_session_state"]("main", {"provider": "codex", "status": "custom"})
+
+        def write_json(file_path, value):
+            if file_path.endswith("sessions.json"):
+                raise OSError("registry write failed")
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, "w", encoding="utf-8") as handle:
+                json.dump(value, handle, indent=2)
+                handle.write("\n")
+
+        with mock.patch("src.session_store._write_json", side_effect=write_json):
+            with self.assertRaisesRegex(OSError, "registry write failed"):
+                store["replace_session"]("main", replacement)
+
+        self.assertEqual(store["get_session"]("main"), original)
+        self.assertEqual(store["read_session_state"]("main")["status"], "custom")
+
     def test_session_store_uses_windows_file_locking_when_requested(self):
         temp_dir = self.make_temp_dir()
         calls = []

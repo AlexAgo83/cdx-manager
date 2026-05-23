@@ -106,10 +106,10 @@ def _write_json_line(process, payload):
     process.stdin.flush()
 
 
-def fetch_codex_rate_limits(session, timeout=5, popen_factory=None):
+def fetch_codex_rate_limit_diagnostic(session, timeout=5, popen_factory=None):
     auth_home = session.get("authHome")
     if not auth_home:
-        return None
+        return {"ok": False, "reason": "missing_auth_home", "status": None}
 
     env = os.environ.copy()
     env["CODEX_HOME"] = auth_home
@@ -139,7 +139,12 @@ def fetch_codex_rate_limits(session, timeout=5, popen_factory=None):
         })
         initialized = _read_response(output, 1, timeout)
         if not initialized or initialized.get("error"):
-            return None
+            return {
+                "ok": False,
+                "reason": "initialize_failed",
+                "status": None,
+                "response": initialized,
+            }
 
         _write_json_line(process, {
             "jsonrpc": "2.0",
@@ -149,13 +154,28 @@ def fetch_codex_rate_limits(session, timeout=5, popen_factory=None):
         })
         response = _read_response(output, 2, timeout)
         if not response or response.get("error"):
-            return None
+            return {
+                "ok": False,
+                "reason": "rate_limits_read_failed",
+                "status": None,
+                "response": response,
+            }
         result = response.get("result") or {}
         by_limit = result.get("rateLimitsByLimitId") or {}
         snapshot = by_limit.get("codex") or result.get("rateLimits")
-        return normalize_codex_rate_limit_snapshot(snapshot)
-    except (OSError, ValueError, BrokenPipeError):
-        return None
+        status = normalize_codex_rate_limit_snapshot(snapshot)
+        if not status:
+            return {
+                "ok": False,
+                "reason": "missing_rate_limits",
+                "status": None,
+                "response": response,
+            }
+        return {"ok": True, "reason": None, "status": status, "response": response}
+    except FileNotFoundError as error:
+        return {"ok": False, "reason": "codex_cli_not_found", "status": None, "error": str(error)}
+    except (OSError, ValueError, BrokenPipeError) as error:
+        return {"ok": False, "reason": "probe_failed", "status": None, "error": str(error)}
     finally:
         if process is not None:
             try:
@@ -166,3 +186,12 @@ def fetch_codex_rate_limits(session, timeout=5, popen_factory=None):
                     process.kill()
                 except OSError:
                     pass
+
+
+def fetch_codex_rate_limits(session, timeout=5, popen_factory=None):
+    diagnostic = fetch_codex_rate_limit_diagnostic(
+        session,
+        timeout=timeout,
+        popen_factory=popen_factory,
+    )
+    return diagnostic.get("status") if diagnostic.get("ok") else None

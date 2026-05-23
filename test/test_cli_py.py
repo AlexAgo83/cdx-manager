@@ -1272,6 +1272,57 @@ class CliPythonTests(unittest.TestCase):
                 "env": {"CDX_HOME": temp_dir},
             })
 
+    def test_update_parser_supports_schema_flags(self):
+        temp_dir = self.make_temp_dir()
+        update_io = self.make_io()
+
+        self.assertEqual(main(["update", "--check", "--json"], {
+            **update_io,
+            "env": {"CDX_HOME": temp_dir},
+            "version": "1.0.0",
+            "fetchLatestRelease": lambda: {"latest_version": "1.0.0", "url": "https://example.test"},
+        }), 0)
+        payload = json.loads(update_io["stdout"].getvalue())
+        self.assertEqual(payload["action"], "update")
+        self.assertTrue(payload["checked"])
+
+        with self.assertRaisesRegex(CdxError, "cannot be combined"):
+            main(["update", "--check", "--version=1.2.3"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+            })
+
+    def test_status_parser_rejects_small_detail_and_supports_refresh(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        with self.assertRaisesRegex(CdxError, "Usage: cdx status"):
+            main(["status", "main", "-s"], {
+                **self.make_io(),
+                "service": service,
+                "env": {"CDX_HOME": temp_dir},
+            })
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status", "--refresh", "--json"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertEqual(json.loads(status_io["stdout"].getvalue())["action"], "status")
+
+    def test_repair_parser_rejects_unknown_flags(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+
+        with self.assertRaisesRegex(CdxError, "Usage: cdx repair"):
+            main(["repair", "--bad"], {
+                **self.make_io(),
+                "service": service,
+                "env": {"CDX_HOME": temp_dir},
+            })
+
     def test_status_uses_async_refresh_function(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

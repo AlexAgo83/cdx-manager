@@ -191,6 +191,46 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertIn('"method":"initialize"', process.stdin.writes[0])
         self.assertIn('"method":"account/rateLimits/read"', process.stdin.writes[1])
 
+    def test_fetch_codex_rate_limit_diagnostic_reports_failures(self):
+        self.assertEqual(
+            codex_usage.fetch_codex_rate_limit_diagnostic({})["reason"],
+            "missing_auth_home",
+        )
+
+        def missing_cli(_argv, **_kwargs):
+            raise FileNotFoundError("codex")
+
+        diagnostic = codex_usage.fetch_codex_rate_limit_diagnostic(
+            {"authHome": "/tmp/codex-home"},
+            popen_factory=missing_cli,
+        )
+        self.assertFalse(diagnostic["ok"])
+        self.assertEqual(diagnostic["reason"], "codex_cli_not_found")
+
+        process = _FakeProcess([
+            json.dumps({"id": 1, "error": {"message": "nope"}}) + "\n",
+        ])
+        diagnostic = codex_usage.fetch_codex_rate_limit_diagnostic(
+            {"authHome": "/tmp/codex-home"},
+            popen_factory=lambda _argv, **_kwargs: process,
+        )
+        self.assertFalse(diagnostic["ok"])
+        self.assertEqual(diagnostic["reason"], "initialize_failed")
+
+    def test_fetch_codex_rate_limit_diagnostic_reports_missing_rate_limits(self):
+        process = _FakeProcess([
+            json.dumps({"id": 1, "result": {"codexHome": "/tmp/codex"}}) + "\n",
+            json.dumps({"id": 2, "result": {}}) + "\n",
+        ])
+
+        diagnostic = codex_usage.fetch_codex_rate_limit_diagnostic(
+            {"authHome": "/tmp/codex-home"},
+            popen_factory=lambda _argv, **_kwargs: process,
+        )
+
+        self.assertFalse(diagnostic["ok"])
+        self.assertEqual(diagnostic["reason"], "missing_rate_limits")
+
     def test_rotate_log_if_needed_truncates_large_file(self):
         with tempfile.TemporaryDirectory(prefix="cdx-log-") as temp_dir:
             log_path = os.path.join(temp_dir, "cdx-session.log")

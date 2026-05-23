@@ -196,19 +196,21 @@ def _parse_rename_args(args):
 
 
 def _parse_remove_args(args):
-    force = "--force" in args
-    names = [a for a in args if a != "--force"]
-    unknown = [a for a in args if a.startswith("-") and a != "--force"]
-    if unknown or len(names) != 1 or len(args) > 2:
+    parsed = _parse_flag_args(args, {
+        "--force": {"key": "force", "type": "bool", "default": False},
+    }, "Usage: cdx rmv <name> [--force] [--json]", positionals_key="names", max_positionals=1)
+    if len(parsed["names"]) != 1:
         raise CdxError("Usage: cdx rmv <name> [--force] [--json]")
-    return {"name": names[0], "force": force}
+    return {"name": parsed["names"][0], "force": parsed["force"]}
 
 
 def _parse_toggle_args(args, usage):
-    json_flag, cleaned = _parse_json_flag(args)
-    if len(cleaned) != 1:
+    parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, usage, positionals_key="names", max_positionals=1)
+    if len(parsed["names"]) != 1:
         raise CdxError(usage)
-    return {"name": cleaned[0], "json": json_flag}
+    return {"name": parsed["names"][0], "json": parsed["json"]}
 
 
 def _read_option_value(args, index, usage):
@@ -227,37 +229,12 @@ def _parse_session_names(value):
 
 
 def _parse_update_args(args):
-    parsed = {
-        "check": False,
-        "json": False,
-        "yes": False,
-        "version": None,
-    }
-    index = 0
-    while index < len(args):
-        arg = args[index]
-        if arg == "--check":
-            parsed["check"] = True
-            index += 1
-            continue
-        if arg == "--json":
-            parsed["json"] = True
-            index += 1
-            continue
-        if arg == "--yes":
-            parsed["yes"] = True
-            index += 1
-            continue
-        if arg == "--version":
-            value, index = _read_option_value(args, index, UPDATE_USAGE)
-            parsed["version"] = value
-            continue
-        if arg.startswith("--version="):
-            parsed["version"] = arg.split("=", 1)[1]
-            index += 1
-            continue
-        raise CdxError(UPDATE_USAGE)
-
+    parsed = _parse_flag_args(args, {
+        "--check": {"key": "check", "type": "bool", "default": False},
+        "--json": {"key": "json", "type": "bool", "default": False},
+        "--yes": {"key": "yes", "type": "bool", "default": False},
+        "--version": {"key": "version", "type": "str", "default": None},
+    }, UPDATE_USAGE)
     if parsed["check"] and parsed["version"]:
         raise CdxError("Usage: cdx update --check cannot be combined with --version.")
     if parsed["version"] is not None and not parsed["version"].strip():
@@ -540,21 +517,20 @@ def handle_doctor(rest, ctx):
 
 
 def handle_repair(rest, ctx):
-    json_flag = "--json" in rest
-    dry_run = "--dry-run" in rest or "--force" not in rest
-    force = "--force" in rest
-    allowed = {"--json", "--dry-run", "--force"}
-    unknown = [arg for arg in rest if arg not in allowed]
-    if unknown:
-        raise CdxError(REPAIR_USAGE)
+    parsed = _parse_flag_args(rest, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+        "--dry-run": {"key": "dry_run", "type": "bool", "default": False},
+        "--force": {"key": "force", "type": "bool", "default": False},
+    }, REPAIR_USAGE)
+    dry_run = parsed["dry_run"] or not parsed["force"]
     report = repair_health(
         ctx["service"],
         ctx["service"]["base_dir"],
         env=ctx.get("env"),
         dry_run=dry_run,
-        force=force,
+        force=parsed["force"],
     )
-    if json_flag:
+    if parsed["json"]:
         _write_json(ctx, _json_success("repair", "Collected repair report", report=report))
     else:
         ctx["out"](f"{format_repair_report(report, use_color=ctx['use_color'])}\n")
@@ -686,22 +662,23 @@ def handle_context(rest, ctx):
 
 
 def handle_status(rest, ctx):
-    json_flag = "--json" in rest
-    small_flag = "--small" in rest or "-s" in rest
-    refresh_flag = "--refresh" in rest
-    status_flags = {"--json", "--small", "-s", "--refresh"}
-    args = [a for a in rest if a not in status_flags]
-    unknown_flags = [a for a in args if a.startswith("-")]
-    if unknown_flags or (json_flag and small_flag):
+    parsed = _parse_flag_args(rest, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+        "--small": {"key": "small", "type": "bool", "default": False},
+        "-s": {"key": "small", "type": "bool", "default": False},
+        "--refresh": {"key": "refresh", "type": "bool", "default": False},
+    }, STATUS_USAGE, positionals_key="args", max_positionals=1)
+    if parsed["json"] and parsed["small"]:
         raise CdxError(STATUS_USAGE)
-    if len(args) > 1 or (len(args) == 1 and small_flag):
+    args = parsed["args"]
+    if len(args) == 1 and parsed["small"]:
         raise CdxError(STATUS_USAGE)
 
     refresh_result = _refresh_claude_sessions(
         ctx["service"],
         ctx.get("refresh_fn"),
         target_names=args if len(args) == 1 else None,
-        force=refresh_flag,
+        force=parsed["refresh"],
     )
     refresh_errors = [
         {
@@ -721,17 +698,17 @@ def handle_status(rest, ctx):
 
     rows = ctx["service"]["get_status_rows"]()
     if len(args) == 0:
-        if json_flag:
+        if parsed["json"]:
             _write_json(ctx, _json_success("status", "Collected session status rows", warnings=warnings, rows=rows))
             return 0
-        ctx["out"](f"{_format_status_rows(rows, use_color=ctx['use_color'], small=small_flag)}\n")
+        ctx["out"](f"{_format_status_rows(rows, use_color=ctx['use_color'], small=parsed['small'])}\n")
         _write_refresh_warnings(refresh_errors, ctx)
         return 0
 
     row = next((r for r in rows if r["session_name"] == args[0]), None)
     if not row:
         raise CdxError(f"Unknown session: {args[0]}")
-    if json_flag:
+    if parsed["json"]:
         _write_json(ctx, _json_success("status", f"Collected status for {args[0]}", warnings=warnings, session=row))
         return 0
     ctx["out"](f"{_format_status_detail(row, use_color=ctx['use_color'])}\n")

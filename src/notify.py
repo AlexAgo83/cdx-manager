@@ -29,6 +29,13 @@ def parse_notify_args(args):
                 raise CdxError("--poll must be a number of seconds") from error
             i += 2
             continue
+        if arg.startswith("--poll="):
+            try:
+                poll = max(1, int(arg.split("=", 1)[1]))
+            except ValueError as error:
+                raise CdxError("--poll must be a number of seconds") from error
+            i += 1
+            continue
         if arg.startswith("-"):
             raise CdxError("Usage: cdx notify <name> --at-reset [--poll seconds] [--once] | cdx notify --next-ready [--poll seconds] [--once]")
         cleaned.append(arg)
@@ -136,7 +143,7 @@ def send_desktop_notification(title, message, spawn_sync=None, env=None):
 
 def _run_notification_command(argv, spawn_sync, env):
     try:
-        spawn_sync(argv, env=env, capture_output=True, text=True)
+        spawn_sync(argv, env=env, capture_output=True, text=True, timeout=5)
     except (FileNotFoundError, OSError):
         pass
 
