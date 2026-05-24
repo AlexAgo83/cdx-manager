@@ -295,22 +295,39 @@ def create_session_service(options=None):
             "auth": session.get("auth"),
         }
 
-    def _collect_profile_files(session_root):
-        excluded_dirs = {"log", "tmp", "cache", "__pycache__", "shell_snapshots"}
+    def _auth_bundle_paths(provider):
+        if provider == PROVIDER_CLAUDE:
+            return [
+                "claude-home/.claude/.credentials.json",
+                "claude-home/.claude.json",
+                "claude-home/auth.json",
+            ]
+        return [
+            "auth.json",
+        ]
+
+    def _collect_auth_files(session_root, provider, session_name=None, progress_callback=None):
         files = []
+        total_bytes = 0
         if not os.path.isdir(session_root):
-            return files
-        for dirpath, dirnames, filenames in os.walk(session_root):
-            dirnames[:] = [name for name in dirnames if name not in excluded_dirs]
-            for filename in filenames:
-                full_path = os.path.join(dirpath, filename)
-                if not os.path.isfile(full_path):
-                    continue
-                rel_path = os.path.relpath(full_path, session_root)
-                with open(full_path, "rb") as handle:
-                    content = base64.b64encode(handle.read()).decode("ascii")
-                files.append({"path": rel_path.replace(os.sep, "/"), "data_b64": content})
-        return files
+            return {"files": files, "file_count": 0, "bytes": 0}
+        for rel_path in _auth_bundle_paths(provider):
+            full_path = os.path.join(session_root, rel_path)
+            if not os.path.isfile(full_path):
+                continue
+            with open(full_path, "rb") as handle:
+                raw_content = handle.read()
+                total_bytes += len(raw_content)
+                content = base64.b64encode(raw_content).decode("ascii")
+            files.append({"path": rel_path.replace(os.sep, "/"), "data_b64": content})
+            if progress_callback:
+                progress_callback({
+                    "event": "profile_progress",
+                    "session_name": session_name,
+                    "file_count": len(files),
+                    "bytes": total_bytes,
+                })
+        return {"files": files, "file_count": len(files), "bytes": total_bytes}
 
     def _resolve_session_subset(session_names):
         if not session_names:
@@ -695,7 +712,7 @@ def create_session_service(options=None):
     def get_session_root(name):
         return _get_session_root(name)
 
-    def export_bundle(file_path, include_auth=False, session_names=None, passphrase=None, force=False):
+    def export_bundle(file_path, include_auth=False, session_names=None, passphrase=None, force=False, progress_callback=None):
         if not file_path:
             raise CdxError("Export path is required.")
         if os.path.exists(file_path) and not force:
@@ -710,16 +727,36 @@ def create_session_service(options=None):
             "states": {},
             "profiles": {},
         }
+        profile_file_count = 0
+        profile_bytes = 0
+        if progress_callback:
+            progress_callback({
+                "event": "export_started",
+                "include_auth": bool(include_auth),
+                "session_count": len(sessions),
+                "session_names": [session["name"] for session in sessions],
+            })
         for session in sessions:
+            if progress_callback:
+                progress_callback({"event": "session_started", "session_name": session["name"]})
             payload["sessions"].append(_build_export_session_record(session))
             state = store["read_session_state"](session["name"])
             if state is not None:
                 payload["states"][session["name"]] = state
             if include_auth:
                 session_root = session.get("sessionRoot") or _get_session_root(session["name"])
-                payload["profiles"][session["name"]] = _collect_profile_files(session_root)
+                profile = _collect_auth_files(session_root, session["provider"], session["name"], progress_callback)
+                payload["profiles"][session["name"]] = profile["files"]
+                profile_file_count += profile["file_count"]
+                profile_bytes += profile["bytes"]
+            if progress_callback:
+                progress_callback({"event": "session_finished", "session_name": session["name"]})
 
+        if progress_callback:
+            progress_callback({"event": "encoding_started"})
         bundle_bytes = encode_bundle(payload, include_auth=include_auth, passphrase=passphrase)
+        if progress_callback:
+            progress_callback({"event": "writing_started", "path": file_path, "bundle_size_bytes": len(bundle_bytes)})
         _ensure_private_dir(os.path.dirname(os.path.abspath(file_path)) or ".")
         with open(file_path, "wb") as handle:
             handle.write(bundle_bytes)
@@ -732,6 +769,10 @@ def create_session_service(options=None):
             "path": file_path,
             "include_auth": include_auth,
             "session_names": [session["name"] for session in sessions],
+            "session_count": len(sessions),
+            "profile_file_count": profile_file_count if include_auth else None,
+            "profile_bytes": profile_bytes if include_auth else None,
+            "bundle_size_bytes": len(bundle_bytes),
         }
 
     def import_bundle(file_path, passphrase=None, session_names=None, force=False):

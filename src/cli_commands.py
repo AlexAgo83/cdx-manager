@@ -69,6 +69,60 @@ def _write_json(ctx, payload):
     ctx["out"](f"{json.dumps(payload, indent=2)}\n")
 
 
+def _format_bytes(value):
+    if value is None:
+        return "n/a"
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    units = ["B", "KB", "MB", "GB", "TB"]
+    unit = units[0]
+    for unit in units:
+        if amount < 1024 or unit == units[-1]:
+            break
+        amount /= 1024
+    if unit == "B":
+        return f"{int(amount)} B"
+    return f"{amount:.1f} {unit}"
+
+
+def _format_export_report(result):
+    lines = [
+        f"Path: {result['path']}",
+        f"Sessions: {', '.join(result['session_names']) or '-'}",
+        f"Auth: {'included and encrypted' if result['include_auth'] else 'not included'}",
+        f"Bundle size: {_format_bytes(result.get('bundle_size_bytes'))}",
+    ]
+    if result.get("include_auth"):
+        lines.extend([
+            f"Auth files: {result.get('profile_file_count', 0)}",
+            f"Auth data: {_format_bytes(result.get('profile_bytes'))}",
+        ])
+    return "\n".join(lines)
+
+
+def _make_export_progress(ctx):
+    def progress(event):
+        kind = event.get("event")
+        if kind == "export_started":
+            auth = " with auth" if event.get("include_auth") else ""
+            message = f"Exporting {event.get('session_count', 0)} session(s){auth}..."
+            ctx["out"](f"{_info(message, ctx['use_color'])}\n")
+        elif kind == "session_started":
+            message = f"Collecting {event.get('session_name')}..."
+            ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
+        elif kind == "profile_progress":
+            message = f"  {event.get('session_name')}: {event.get('file_count', 0)} files, {_format_bytes(event.get('bytes'))}"
+            ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
+        elif kind == "encoding_started":
+            ctx["out"](f"{_dim('Encoding and encrypting bundle...', ctx['use_color'])}\n")
+        elif kind == "writing_started":
+            message = f"Writing {_format_bytes(event.get('bundle_size_bytes'))}..."
+            ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
+    return progress
+
+
 def _latest_launch_transcript_path(session):
     paths = _list_launch_transcript_paths(session)
     if not paths:
@@ -740,6 +794,7 @@ def handle_export(rest, ctx):
         session_names=parsed["session_names"],
         passphrase=passphrase,
         force=parsed["force"],
+        progress_callback=None if parsed["json"] else _make_export_progress(ctx),
     )
     session_count = len(result["session_names"])
     auth_suffix = " with auth" if result["include_auth"] else ""
@@ -753,6 +808,7 @@ def handle_export(rest, ctx):
         _write_json(ctx, payload)
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    ctx["out"](f"{_format_export_report(result)}\n")
     return 0
 
 

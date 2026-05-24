@@ -1177,6 +1177,37 @@ class CliPythonTests(unittest.TestCase):
         with open(imported_auth, "r", encoding="utf-8") as handle:
             self.assertEqual(handle.read(), '{"token":"secret"}')
 
+    def test_export_with_auth_reports_progress_and_summary(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        auth_path = os.path.join(temp_dir, "profiles", "main", "auth", "auth.json")
+        os.makedirs(os.path.dirname(auth_path), exist_ok=True)
+        with open(auth_path, "w", encoding="utf-8") as handle:
+            handle.write('{"token":"secret"}')
+
+        export_path = os.path.join(temp_dir, "secure.cdx")
+        export_io = self.make_io()
+        self.assertEqual(main([
+            "export", export_path, "--include-auth", "--passphrase-env", "CDX_BUNDLE_PASSPHRASE",
+        ], {
+            **export_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir, "CDX_BUNDLE_PASSPHRASE": "pw123"},
+        }), 0)
+
+        output = export_io["stdout"].getvalue()
+        self.assertIn("Exporting 1 session(s) with auth...", output)
+        self.assertIn("Collecting main...", output)
+        self.assertIn("Encoding and encrypting bundle...", output)
+        self.assertIn("Writing ", output)
+        self.assertIn("Exported 1 session with auth to", output)
+        self.assertIn(f"Path: {export_path}", output)
+        self.assertIn("Auth: included and encrypted", output)
+        self.assertRegex(output, r"Auth files: [1-9]\d*")
+        self.assertIn("Auth data: ", output)
+        self.assertIn("Bundle size: ", output)
+
     def test_export_import_parsers_support_equals_flags_and_session_subset(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

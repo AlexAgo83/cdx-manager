@@ -827,6 +827,28 @@ class SessionServicePythonTests(unittest.TestCase):
             self.assertEqual(handle.read(), '{"token":"secret"}')
         self.assertFalse(os.path.exists(os.path.join(target_dir, "profiles", "claude1", "claude-home", "cache", "skip.txt")))
 
+    def test_auth_bundle_excludes_non_auth_profile_files(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("main")
+        session_root = os.path.join(source_dir, "profiles", "main")
+        with open(os.path.join(session_root, "auth.json"), "w", encoding="utf-8") as handle:
+            handle.write('{"token":"secret"}')
+        with open(os.path.join(session_root, "logs_2.sqlite"), "w", encoding="utf-8") as handle:
+            handle.write("large log database")
+
+        bundle_path = os.path.join(source_dir, "secure.cdx")
+        export_result = source["export_bundle"](bundle_path, include_auth=True, passphrase="pw123")
+        self.assertEqual(export_result["profile_file_count"], 1)
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        target["import_bundle"](bundle_path, passphrase="pw123")
+
+        target_root = os.path.join(target_dir, "profiles", "main")
+        self.assertTrue(os.path.exists(os.path.join(target_root, "auth.json")))
+        self.assertFalse(os.path.exists(os.path.join(target_root, "logs_2.sqlite")))
+
     def test_import_rejects_conflicts_without_force(self):
         source_dir = self.make_temp_dir()
         source = create_session_service({"base_dir": source_dir})
