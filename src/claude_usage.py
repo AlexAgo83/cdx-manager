@@ -4,6 +4,8 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timezone
 
+from .errors import CdxError
+
 MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 CLAUDE_STATUS_PROBE_MODEL = os.environ.get("CDX_CLAUDE_STATUS_MODEL", "claude-haiku-4-5-20251001")
@@ -22,6 +24,29 @@ def _read_claude_credentials(auth_home):
 def _format_reset_date(unix_seconds):
     dt = datetime.fromtimestamp(unix_seconds, tz=timezone.utc).astimezone()
     return f"{MONTH_ABBR[dt.month - 1]} {dt.day} {str(dt.hour).zfill(2)}:{str(dt.minute).zfill(2)}"
+
+
+def _read_http_error_message(error):
+    try:
+        body = error.read().decode("utf-8", errors="replace")
+    except (AttributeError, OSError, UnicodeDecodeError):
+        body = ""
+    if not body:
+        return ""
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return body.strip()
+    detail = payload.get("error") if isinstance(payload, dict) else None
+    if isinstance(detail, dict):
+        message = detail.get("message") or detail.get("type")
+        if message:
+            return str(message)
+    if isinstance(payload, dict):
+        message = payload.get("message") or payload.get("detail")
+        if message:
+            return str(message)
+    return body.strip()
 
 
 def fetch_claude_rate_limit_headers(access_token):
@@ -47,6 +72,13 @@ def fetch_claude_rate_limit_headers(access_token):
             headers = {k.lower(): v for k, v in resp.getheaders()}
     except urllib.error.HTTPError as e:
         headers = {k.lower(): v for k, v in e.headers.items()}
+        if (
+            "anthropic-ratelimit-unified-5h-utilization" not in headers
+            and "anthropic-ratelimit-unified-7d-utilization" not in headers
+        ):
+            message = _read_http_error_message(e)
+            suffix = f": {message}" if message else ""
+            raise CdxError(f"Claude usage unavailable (HTTP {e.code}{suffix})") from e
     except urllib.error.URLError:
         return None
 

@@ -1,5 +1,6 @@
 import json
 import os
+import io
 import signal
 import tempfile
 import unittest
@@ -118,6 +119,19 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertEqual(result["reset_5h_at"], self.format_local_reset(1776464880))
         self.assertIsNone(result["reset_week_at"])
         self.assertEqual(result["reset_at"], self.format_local_reset(1776464880))
+
+    def test_fetch_claude_rate_limit_headers_raises_on_http_error_without_usage_headers(self):
+        body = json.dumps({"error": {"message": "subscription inactive"}}).encode("utf-8")
+        error = urllib.error.HTTPError(
+            url="https://api.anthropic.com/v1/messages",
+            code=403,
+            msg="forbidden",
+            hdrs={},
+            fp=io.BytesIO(body),
+        )
+        with mock.patch("urllib.request.urlopen", side_effect=error):
+            with self.assertRaisesRegex(CdxError, "Claude usage unavailable .*subscription inactive"):
+                claude_usage.fetch_claude_rate_limit_headers("token")
 
     def test_fetch_claude_rate_limit_headers_returns_none_on_url_error(self):
         with mock.patch("urllib.request.urlopen", side_effect=urllib.error.URLError("offline")):
