@@ -254,7 +254,8 @@ class CliPythonTests(unittest.TestCase):
         self.assertNotIn("CR", header)
         self.assertNotIn("UPDATED", header)
         self.assertIn("Priority:", output)
-        self.assertIn("Tip:", output)
+        self.assertIn("Current:", output)
+        self.assertNotIn("Tip:", output)
 
     def test_blocking_quota_formatting_identifies_lowest_limit(self):
         self.assertEqual(_format_blocking_quota({
@@ -703,7 +704,7 @@ class CliPythonTests(unittest.TestCase):
             "spawn_sync": harness.spawn_sync,
         }), 0)
         self.assertIn("Launching codex session main", launch_io["stdout"].getvalue())
-        self.assertIn("Tip: cdx status reads Codex rate limits from the local app-server", launch_io["stdout"].getvalue())
+        self.assertNotIn("Tip:", launch_io["stdout"].getvalue())
 
         launch_call = next(call for call in harness.calls if call["kind"] == "spawn" and call["command"] == "script")
         self.assertEqual(
@@ -1399,6 +1400,7 @@ class CliPythonTests(unittest.TestCase):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
         service["create_session"]("main")
+        service["launch_session"]("main")
         service["record_status"]("main", {
             "remaining_5h_pct": 80,
             "remaining_week_pct": 60,
@@ -1415,6 +1417,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Resolving status for 1 session(s)...", output)
         self.assertIn("Checking main (codex)...", output)
         self.assertIn("Resolved 1 status row(s).", output)
+        self.assertIn("Current: last launched main (just now).", output)
 
         json_io = self.make_io()
         self.assertEqual(main(["status", "--json"], {
@@ -1424,7 +1427,26 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
         payload = json.loads(json_io["stdout"].getvalue())
         self.assertEqual(payload["action"], "status")
+        self.assertIsNotNone(payload["rows"][0]["last_launched_at"])
         self.assertNotIn("Resolving status", json_io["stdout"].getvalue())
+
+    def test_status_reports_no_current_session_when_none_launched(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["record_status"]("main", {
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 60,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertIn("Current: no launched session known yet.", status_io["stdout"].getvalue())
 
     def test_status_skips_fresh_claude_refresh_unless_forced(self):
         temp_dir = self.make_temp_dir()

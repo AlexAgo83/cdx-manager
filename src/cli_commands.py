@@ -1034,9 +1034,6 @@ def handle_launch(command, ctx, initial_prompt=None):
             if update_notice.get("url"):
                 text = f"{text} {update_notice['url']}"
             ctx["out"](f"{_warn(text, ctx['use_color'])}\n")
-    if session["provider"] == PROVIDER_CODEX:
-        if not json_flag:
-            ctx["out"](f"{_dim('Tip: cdx status reads Codex rate limits from the local app-server when available.', ctx['use_color'])}\n")
     _run_interactive_provider_command(
         session, "launch", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
         signal_emitter=ctx.get("signal_emitter"), initial_prompt=initial_prompt,

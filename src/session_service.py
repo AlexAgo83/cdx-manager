@@ -700,6 +700,7 @@ def create_session_service(options=None):
                 "reset_week_at": status.get("reset_week_at") if status else None,
                 "reset_at": status.get("reset_at") if status else None,
                 "updated_at": _to_local_iso(s.get("lastStatusAt")),
+                "last_launched_at": _to_local_iso(s.get("lastLaunchedAt")),
             })
         if progress_callback:
             progress_callback({

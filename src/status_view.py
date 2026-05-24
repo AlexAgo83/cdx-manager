@@ -108,12 +108,26 @@ def _format_status_rows(rows, use_color=False, small=False):
             if len(priority) > 1 else "."
         )
     ) if priority else "Priority: no usable session status yet."
+    current_line = _format_current_session_line(rows)
     return "\n".join([
         _pad_table([headers] + table_rows),
         "",
         _style(priority_line, "1", use_color),
-        _style("Tip: Codex status uses the local app-server rate-limit API when available; Claude sessions auto-refresh, use --refresh to force.", "2", use_color),
+        _style(current_line, "2", use_color),
     ])
+
+
+def _format_current_session_line(rows):
+    launched = []
+    for row in rows:
+        timestamp = _parse_reset_timestamp(row.get("last_launched_at"))
+        if timestamp is not None:
+            launched.append((timestamp, row))
+    if not launched:
+        return "Current: no launched session known yet."
+    timestamp, row = max(launched, key=lambda item: (item[0], item[1].get("session_name") or ""))
+    label = _format_relative_age(row.get("last_launched_at"))
+    return f"Current: last launched {row['session_name']} ({label})."
 
 
 def _recommend_priority_sessions(rows):
