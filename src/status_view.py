@@ -9,6 +9,8 @@ from .cli_render import (
     _style_pct,
 )
 
+RESET_COUNTDOWN_SAFETY_SECONDS = 60
+
 
 def _format_reset_time(value):
     if not value:
@@ -27,6 +29,7 @@ def _format_reset_time(value):
         if hours_ago < 24:
             return f"passed {hours_ago}h ago"
         return value
+    delta_s = delta_s + RESET_COUNTDOWN_SAFETY_SECONDS
     if delta_s < 60:
         return "now"
     if delta_s < 24 * 60 * 60:

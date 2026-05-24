@@ -161,13 +161,17 @@ class CliPythonTests(unittest.TestCase):
         }
 
     def test_reset_time_formatting_uses_countdown_under_24h(self):
-        future = datetime.now().astimezone() + timedelta(hours=2, minutes=30)
-        later = datetime.now().astimezone() + timedelta(days=2)
-        past = datetime.now().astimezone() - timedelta(hours=1, minutes=5)
+        now = datetime.now().astimezone()
+        future = now + timedelta(hours=2, minutes=30)
+        soon = now + timedelta(seconds=90)
+        later = now + timedelta(days=2)
+        past = now - timedelta(hours=1, minutes=5)
 
-        self.assertIn(_format_reset_time(future.isoformat()), ("in 2h 29m", "in 2h 30m"))
-        self.assertEqual(_format_reset_time(later.isoformat()), later.isoformat())
-        self.assertEqual(_format_reset_time(past.isoformat()), "passed 1h ago")
+        with mock.patch("src.status_view._now_timestamp", return_value=now.timestamp()):
+            self.assertEqual(_format_reset_time(future.isoformat()), "in 2h 31m")
+            self.assertEqual(_format_reset_time(soon.isoformat()), "in 2m")
+            self.assertEqual(_format_reset_time(later.isoformat()), later.isoformat())
+            self.assertEqual(_format_reset_time(past.isoformat()), "passed 1h ago")
 
     def test_status_table_is_sorted_by_priority_availability(self):
         output = _format_status_rows([
