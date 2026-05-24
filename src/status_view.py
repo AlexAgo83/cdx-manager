@@ -82,17 +82,20 @@ def _format_status_rows(rows, use_color=False, small=False):
             base.append(r.get("provider") or "n/a")
         status = r.get("status") or ("enabled" if r.get("enabled", True) else "disabled")
         base.append(_style(status, "2" if status == "disabled" else "32", use_color))
-        usage_columns = [
-            _style_pct(r.get("available_pct"), use_color),
-            _style_pct(r.get("remaining_5h_pct"), use_color),
-            _style_pct(r.get("remaining_week_pct"), use_color),
-            _style_reset_time(r.get("reset_5h_at"), use_color),
-            _style_reset_time(r.get("reset_week_at"), use_color),
-        ]
+        if r.get("enabled", True) is False:
+            usage_columns = [_style("-", "2", use_color)] * 5
+        else:
+            usage_columns = [
+                _style_pct(r.get("available_pct"), use_color),
+                _style_pct(r.get("remaining_5h_pct"), use_color),
+                _style_pct(r.get("remaining_week_pct"), use_color),
+                _style_reset_time(r.get("reset_5h_at"), use_color),
+                _style_reset_time(r.get("reset_week_at"), use_color),
+            ]
         if small:
             base += usage_columns
         else:
-            block = _format_blocking_quota(r)
+            block = "-" if r.get("enabled", True) is False else _format_blocking_quota(r)
             credits = str(r["credits"]) if r.get("credits") is not None else "-"
             base += usage_columns[:3] + [
                 _style(block, "33" if block not in ("?", "-") else "2", use_color),

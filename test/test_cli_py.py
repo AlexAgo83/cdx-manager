@@ -1513,7 +1513,9 @@ class CliPythonTests(unittest.TestCase):
         output = status_io["stdout"].getvalue()
         self.assertNotIn("Checking claude (claude)...", output)
         self.assertIn("disabled", output)
-        self.assertIn("60%", output)
+        self.assertNotIn("80%", output)
+        self.assertNotIn("60%", output)
+        self.assertRegex(output, r"claude\s+disabled\s+-\s+-\s+-")
 
     def test_status_reports_no_current_session_when_none_launched(self):
         temp_dir = self.make_temp_dir()

@@ -723,18 +723,20 @@ def create_session_service(options=None):
         rows = []
         for s in resolved:
             status = s.get("lastStatus")
+            enabled = s.get("enabled", True) is not False
+            row_status = status if enabled else None
             rows.append({
                 "session_name": s["name"],
                 "provider": s["provider"],
-                "enabled": s.get("enabled", True) is not False,
-                "status": "disabled" if s.get("enabled", True) is False else "enabled",
-                "remaining_5h_pct": status.get("remaining_5h_pct") if status else None,
-                "remaining_week_pct": status.get("remaining_week_pct") if status else None,
-                "credits": status.get("credits") if status else None,
-                "available_pct": _compute_available_pct(status),
-                "reset_5h_at": status.get("reset_5h_at") if status else None,
-                "reset_week_at": status.get("reset_week_at") if status else None,
-                "reset_at": status.get("reset_at") if status else None,
+                "enabled": enabled,
+                "status": "enabled" if enabled else "disabled",
+                "remaining_5h_pct": row_status.get("remaining_5h_pct") if row_status else None,
+                "remaining_week_pct": row_status.get("remaining_week_pct") if row_status else None,
+                "credits": row_status.get("credits") if row_status else None,
+                "available_pct": _compute_available_pct(row_status),
+                "reset_5h_at": row_status.get("reset_5h_at") if row_status else None,
+                "reset_week_at": row_status.get("reset_week_at") if row_status else None,
+                "reset_at": row_status.get("reset_at") if row_status else None,
                 "updated_at": _to_local_iso(s.get("lastStatusAt")),
                 "last_launched_at": _to_local_iso(s.get("lastLaunchedAt")),
             })

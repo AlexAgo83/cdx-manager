@@ -145,6 +145,11 @@ class SessionServicePythonTests(unittest.TestCase):
         status_rows = service["get_status_rows"]()
         self.assertEqual(status_rows[-1]["session_name"], "aaa")
         self.assertFalse(status_rows[-1]["enabled"])
+        self.assertIsNone(status_rows[-1]["available_pct"])
+        self.assertIsNone(status_rows[-1]["remaining_5h_pct"])
+        self.assertIsNone(status_rows[-1]["remaining_week_pct"])
+        self.assertIsNone(status_rows[-1]["reset_5h_at"])
+        self.assertIsNone(status_rows[-1]["reset_week_at"])
 
         with self.assertRaisesRegex(CdxError, "Session is disabled: aaa"):
             service["launch_session"]("aaa")
