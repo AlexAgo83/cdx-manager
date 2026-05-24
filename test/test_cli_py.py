@@ -1182,7 +1182,7 @@ class CliPythonTests(unittest.TestCase):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
         service["create_session"]("main")
-        auth_path = os.path.join(temp_dir, "profiles", "main", "auth", "auth.json")
+        auth_path = os.path.join(temp_dir, "profiles", "main", "auth.json")
         os.makedirs(os.path.dirname(auth_path), exist_ok=True)
         with open(auth_path, "w", encoding="utf-8") as handle:
             handle.write('{"token":"secret"}')
