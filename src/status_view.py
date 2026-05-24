@@ -10,6 +10,7 @@ from .cli_render import (
 )
 
 RESET_COUNTDOWN_SAFETY_SECONDS = 60
+PRIORITY_EMPTY_AVAILABLE_THRESHOLD = 5
 
 
 def _format_reset_time(value):
@@ -123,7 +124,7 @@ def _recommend_priority_sessions(rows):
         has_credits = row.get("credits") is not None
         credit_rank = 0 if has_credits else 1
         available = row.get("available_pct")
-        usable_now = available is not None and available > 0
+        usable_now = available is not None and available > PRIORITY_EMPTY_AVAILABLE_THRESHOLD
         known_available = available is not None
         reset_timestamp = _priority_reset_timestamp(row)
         reset_is_future = reset_timestamp is not None and reset_timestamp >= _now_timestamp()
@@ -168,7 +169,7 @@ def _priority_instruction(row, position):
 
 def _priority_needs_refresh(row):
     available = row.get("available_pct")
-    if available is None or available > 0:
+    if available is None or available > PRIORITY_EMPTY_AVAILABLE_THRESHOLD:
         return False
     _label, is_past = _priority_reset_info(row)
     return is_past
@@ -178,7 +179,7 @@ def _priority_reason(row):
     available = row.get("available_pct")
     if available is None:
         return "status unknown"
-    if available > 0:
+    if available > PRIORITY_EMPTY_AVAILABLE_THRESHOLD:
         return f"{_format_pct(available)} OK"
     label, is_past = _priority_reset_info(row)
     if label:

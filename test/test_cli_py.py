@@ -1550,6 +1550,37 @@ class CliPythonTests(unittest.TestCase):
             status_io["stdout"].getvalue(),
         )
 
+    def test_status_treats_five_percent_available_as_empty_for_priority(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("low")
+        service["create_session"]("usable")
+        service["record_status"]("low", {
+            "remaining_5h_pct": 5,
+            "remaining_week_pct": 80,
+            "updated_at": "2026-04-15T10:01:00+00:00",
+        })
+        service["record_status"]("usable", {
+            "remaining_5h_pct": 6,
+            "remaining_week_pct": 80,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        output = status_io["stdout"].getvalue()
+        self.assertIn("low", output)
+        self.assertIn("5%", output)
+        self.assertIn(
+            "Priority: use usable first (6% OK), next low (0% OK).",
+            output,
+        )
+
     def test_status_recommends_earliest_blocking_reset_for_zero_ok(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
