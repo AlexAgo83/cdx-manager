@@ -1,6 +1,6 @@
 # CDX Manager
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.5.4-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.5.5-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
 **Run multiple Codex and Claude sessions from one terminal. Switch between accounts instantly.**
 
@@ -35,7 +35,7 @@ One command to launch any session. Zero auth juggling.
 - **Multiple accounts, one tool.** Register as many Codex or Claude sessions as you need. Each one gets its own isolated auth environment — no cross-contamination between accounts.
 - **Instant launch.** `cdx work` opens your "work" session. `cdx personal` opens another. No config files to edit mid-flow.
 - **Auth guardrails.** `cdx` checks authentication before launching. If a session is not logged in, it tells you exactly what to run — no silent failures.
-- **Usage at a glance.** `cdx status` shows token usage, 5-hour window quota, weekly quota, and last-updated timestamps for every session in one aligned table.
+- **Usage at a glance.** `cdx status` shows token usage, 5-hour window quota, weekly quota, last-updated timestamps, priority guidance, and the last launched session in one aligned table.
 - **Session control.** Disable a session without deleting it when an account is temporarily out of credits; disabled sessions remain visible and sort last.
 - **Shared handoff context.** Keep a per-workspace Markdown context, or build one from a source session transcript, and install it into another assistant session before switching providers or accounts.
 - **Passive status resolution.** Codex status is read from the local Codex app-server rate-limit API when available, with legacy transcript/history parsing kept as a fallback.
@@ -126,7 +126,7 @@ For a specific version:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.sh -o install.sh
-CDX_VERSION=v0.5.4 sh install.sh
+CDX_VERSION=v0.5.5 sh install.sh
 ```
 
 From source:
@@ -349,7 +349,7 @@ cdx import backup-auth.cdx --passphrase-env CDX_BUNDLE_PASSPHRASE
 
 Notes:
 
-- `--include-auth` is encrypted and requires a passphrase.
+- `--include-auth` is encrypted, requires a passphrase, and exports only provider credential files rather than full profile caches or logs.
 - Without `--passphrase-env`, `cdx` prompts in an interactive terminal.
 - `--sessions work,perso` exports or imports only a subset.
 - `--force` allows overwriting existing destination sessions during import or replacing an existing bundle file during export.
