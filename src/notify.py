@@ -96,12 +96,13 @@ def resolve_notify_event(rows, parsed, now_ts=None):
     now_ts = time.time() if now_ts is None else now_ts
     if parsed["mode"] == "next-ready":
         active_rows = [row for row in rows if row.get("enabled", True) is not False]
-        priority = _recommend_priority_sessions(active_rows)
+        priority = _recommend_priority_sessions([
+            row for row in active_rows
+            if not _is_usable_now(row) and _priority_reset_timestamp(row) is not None
+        ])
         if not priority:
-            return _event(False, "cdx", "No session status available", None)
+            return _event(False, "cdx", "No upcoming session reset available", None)
         first = priority[0]
-        if _is_usable_now(first):
-            return _event(True, "cdx", f"{first['session_name']} is ready", first["session_name"])
         timestamp = _priority_reset_timestamp(first)
         if _needs_refresh(first, timestamp, now_ts):
             return _event(True, "cdx", f"{first['session_name']} reset is due; refresh status", first["session_name"])

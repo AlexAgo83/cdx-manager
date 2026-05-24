@@ -2132,19 +2132,13 @@ class CliPythonTests(unittest.TestCase):
         payload = json.loads(next_io["stdout"].getvalue())
         self.assertEqual(payload["schema_version"], 1)
         self.assertTrue(payload["event"]["ready"])
+        self.assertEqual(payload["event"]["session"], "main")
         self.assertNotIn("Checking notification target", next_io["stdout"].getvalue())
 
-    def test_notify_next_ready_ignores_disabled_sessions(self):
+    def test_notify_next_ready_ignores_currently_available_sessions(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
-        service["create_session"]("disabled")
         service["create_session"]("active")
-        service["set_session_enabled"]("disabled", False)
-        service["record_status"]("disabled", {
-            "remaining_5h_pct": 100,
-            "remaining_week_pct": 100,
-            "updated_at": "2026-04-15T10:00:00+00:00",
-        })
         service["record_status"]("active", {
             "remaining_5h_pct": 80,
             "remaining_week_pct": 80,
@@ -2160,9 +2154,42 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
 
         payload = json.loads(next_io["stdout"].getvalue())
-        self.assertTrue(payload["event"]["ready"])
-        self.assertEqual(payload["event"]["session"], "active")
-        self.assertEqual(payload["event"]["message"], "active is ready")
+        self.assertFalse(payload["event"]["ready"])
+        self.assertIsNone(payload["event"]["session"])
+        self.assertEqual(payload["event"]["message"], "No upcoming session reset available")
+
+    def test_notify_next_ready_ignores_disabled_sessions(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("disabled")
+        service["create_session"]("blocked")
+        service["set_session_enabled"]("disabled", False)
+        reset = datetime.now().astimezone() + timedelta(minutes=5)
+        service["record_status"]("disabled", {
+            "remaining_5h_pct": 0,
+            "remaining_week_pct": 0,
+            "reset_5h_at": (datetime.now().astimezone() - timedelta(minutes=1)).isoformat(),
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+        service["record_status"]("blocked", {
+            "remaining_5h_pct": 0,
+            "remaining_week_pct": 80,
+            "reset_5h_at": reset.isoformat(),
+            "updated_at": datetime.now().astimezone().isoformat(),
+        })
+
+        next_io = self.make_io()
+        self.assertEqual(main(["notify", "--next-ready", "--once", "--json"], {
+            **next_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn_sync": lambda *_args, **_kwargs: subprocess.CompletedProcess([], 0, "", ""),
+        }), 0)
+
+        payload = json.loads(next_io["stdout"].getvalue())
+        self.assertFalse(payload["event"]["ready"])
+        self.assertEqual(payload["event"]["session"], "blocked")
+        self.assertEqual(payload["event"]["message"], "Waiting for blocked")
 
     def test_bin_cdx_runs_as_real_subprocess(self):
         temp_dir = self.make_temp_dir()
