@@ -35,7 +35,7 @@ def fetch_claude_rate_limit_headers(access_token):
         "https://api.anthropic.com/v1/messages",
         data=body,
         headers={
-            "x-api-key": access_token,
+            "Authorization": f"Bearer {access_token}",
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         },
