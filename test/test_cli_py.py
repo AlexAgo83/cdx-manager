@@ -1395,6 +1395,37 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("RESET WEEK", output)
         self.assertIn("Priority: use work1 first (60% OK).", output)
 
+    def test_status_text_shows_progress_but_json_stays_clean(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["record_status"]("main", {
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 60,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        output = status_io["stdout"].getvalue()
+        self.assertIn("Resolving status for 1 session(s)...", output)
+        self.assertIn("Checking main (codex)...", output)
+        self.assertIn("Resolved 1 status row(s).", output)
+
+        json_io = self.make_io()
+        self.assertEqual(main(["status", "--json"], {
+            **json_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        payload = json.loads(json_io["stdout"].getvalue())
+        self.assertEqual(payload["action"], "status")
+        self.assertNotIn("Resolving status", json_io["stdout"].getvalue())
+
     def test_status_skips_fresh_claude_refresh_unless_forced(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -1516,7 +1547,7 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
 
         output = status_io["stdout"].getvalue()
-        header = output.splitlines()[0]
+        header = next(line for line in output.splitlines() if line.startswith("SESSION"))
         self.assertIn("SESSION", header)
         self.assertIn("RESET 5H", header)
         self.assertNotIn("PROV.", header)

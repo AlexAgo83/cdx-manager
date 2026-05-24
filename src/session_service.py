@@ -644,11 +644,28 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         return updated
 
-    def get_status_rows():
+    def get_status_rows(progress_callback=None):
         sessions = list_sessions()
+        if progress_callback:
+            progress_callback({
+                "event": "status_started",
+                "session_count": len(sessions),
+            })
         resolved = []
         for s in sessions:
+            if progress_callback:
+                progress_callback({
+                    "event": "session_started",
+                    "session_name": s["name"],
+                    "provider": s["provider"],
+                })
             status = _resolve_session_status(s)
+            if progress_callback:
+                progress_callback({
+                    "event": "session_finished",
+                    "session_name": s["name"],
+                    "has_status": bool(status),
+                })
             resolved.append({
                 **s,
                 "lastStatus": status,
@@ -683,6 +700,11 @@ def create_session_service(options=None):
                 "reset_week_at": status.get("reset_week_at") if status else None,
                 "reset_at": status.get("reset_at") if status else None,
                 "updated_at": _to_local_iso(s.get("lastStatusAt")),
+            })
+        if progress_callback:
+            progress_callback({
+                "event": "status_finished",
+                "row_count": len(rows),
             })
         return rows
 

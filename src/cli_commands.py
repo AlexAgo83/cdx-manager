@@ -123,6 +123,22 @@ def _make_export_progress(ctx):
     return progress
 
 
+def _make_status_progress(ctx):
+    def progress(event):
+        kind = event.get("event")
+        if kind == "status_started":
+            message = f"Resolving status for {event.get('session_count', 0)} session(s)..."
+            ctx["out"](f"{_info(message, ctx['use_color'])}\n")
+        elif kind == "session_started":
+            provider = event.get("provider") or "session"
+            message = f"Checking {event.get('session_name')} ({provider})..."
+            ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
+        elif kind == "status_finished":
+            message = f"Resolved {event.get('row_count', 0)} status row(s)."
+            ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
+    return progress
+
+
 def _latest_launch_transcript_path(session):
     paths = _list_launch_transcript_paths(session)
     if not paths:
@@ -750,7 +766,8 @@ def handle_status(rest, ctx):
         for item in refresh_errors
     ]
 
-    rows = ctx["service"]["get_status_rows"]()
+    status_progress = None if parsed["json"] else _make_status_progress(ctx)
+    rows = ctx["service"]["get_status_rows"](progress_callback=status_progress)
     if len(args) == 0:
         if parsed["json"]:
             _write_json(ctx, _json_success("status", "Collected session status rows", warnings=warnings, rows=rows))
