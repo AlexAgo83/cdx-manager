@@ -1430,6 +1430,91 @@ class CliPythonTests(unittest.TestCase):
         self.assertIsNotNone(payload["rows"][0]["last_launched_at"])
         self.assertNotIn("Resolving status", json_io["stdout"].getvalue())
 
+    def test_status_cached_rows_do_not_show_session_checking_progress(self):
+        temp_dir = self.make_temp_dir()
+        calls = []
+
+        def fetch_status(_session):
+            calls.append("fetch")
+            return {
+                "remaining_5h_pct": 80,
+                "remaining_week_pct": 70,
+                "updated_at": datetime.now().astimezone().isoformat(),
+            }
+
+        service = create_session_service({
+            "base_dir": temp_dir,
+            "fetchCodexRateLimits": fetch_status,
+        })
+        service["create_session"]("main")
+
+        first_io = self.make_io()
+        self.assertEqual(main(["status", "--refresh"], {
+            **first_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertIn("Checking main (codex)...", first_io["stdout"].getvalue())
+
+        second_io = self.make_io()
+        self.assertEqual(main(["status"], {
+            **second_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertNotIn("Checking main (codex)...", second_io["stdout"].getvalue())
+        self.assertEqual(len(calls), 1)
+
+    def test_status_cached_claude_rows_do_not_show_checking_progress_within_refresh_ttl(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("claude", "claude")
+        service["record_status"]("claude", {
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 60,
+            "updated_at": (datetime.now().astimezone() - timedelta(minutes=2)).isoformat(),
+        })
+
+        def refresh(_session):
+            raise AssertionError("Claude cache inside refresh TTL should not refresh")
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "refreshClaudeSessionStatus": refresh,
+        }), 0)
+        output = status_io["stdout"].getvalue()
+        self.assertNotIn("Checking claude (claude)...", output)
+        self.assertIn("60%", output)
+
+    def test_status_disabled_claude_rows_do_not_show_checking_progress(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("claude", "claude")
+        service["set_session_enabled"]("claude", False)
+        service["record_status"]("claude", {
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 60,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+
+        def refresh(_session):
+            raise AssertionError("disabled Claude sessions should not refresh")
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status", "--refresh"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "refreshClaudeSessionStatus": refresh,
+        }), 0)
+        output = status_io["stdout"].getvalue()
+        self.assertNotIn("Checking claude (claude)...", output)
+        self.assertIn("disabled", output)
+        self.assertIn("60%", output)
+
     def test_status_reports_no_current_session_when_none_launched(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -2031,6 +2116,8 @@ class CliPythonTests(unittest.TestCase):
             "env": {"CDX_HOME": temp_dir},
             "spawn_sync": spawn_sync,
         }), 0)
+        self.assertIn("Checking notification target: main", notify_io["stdout"].getvalue())
+        self.assertIn("Loading status for 1 session(s)", notify_io["stdout"].getvalue())
         self.assertIn("main reset is due", notify_io["stdout"].getvalue())
 
         next_io = self.make_io()
@@ -2043,6 +2130,37 @@ class CliPythonTests(unittest.TestCase):
         payload = json.loads(next_io["stdout"].getvalue())
         self.assertEqual(payload["schema_version"], 1)
         self.assertTrue(payload["event"]["ready"])
+        self.assertNotIn("Checking notification target", next_io["stdout"].getvalue())
+
+    def test_notify_next_ready_ignores_disabled_sessions(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("disabled")
+        service["create_session"]("active")
+        service["set_session_enabled"]("disabled", False)
+        service["record_status"]("disabled", {
+            "remaining_5h_pct": 100,
+            "remaining_week_pct": 100,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+        service["record_status"]("active", {
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 80,
+            "updated_at": "2026-04-15T10:01:00+00:00",
+        })
+
+        next_io = self.make_io()
+        self.assertEqual(main(["notify", "--next-ready", "--once", "--json"], {
+            **next_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn_sync": lambda *_args, **_kwargs: subprocess.CompletedProcess([], 0, "", ""),
+        }), 0)
+
+        payload = json.loads(next_io["stdout"].getvalue())
+        self.assertTrue(payload["event"]["ready"])
+        self.assertEqual(payload["event"]["session"], "active")
+        self.assertEqual(payload["event"]["message"], "active is ready")
 
     def test_bin_cdx_runs_as_real_subprocess(self):
         temp_dir = self.make_temp_dir()

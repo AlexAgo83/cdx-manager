@@ -45,6 +45,8 @@ RESERVED_SESSION_NAMES = {
     "--version",
     "-v",
 }
+STATUS_CACHE_TTL_SECONDS = 60
+CLAUDE_STATUS_CACHE_TTL_SECONDS = 10 * 60
 
 
 def _encode(name):
@@ -131,6 +133,24 @@ def _parse_status_timestamp(value):
         return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except (TypeError, ValueError):
         return None
+
+
+def _status_cache_ttl_seconds(session, ttl_seconds=STATUS_CACHE_TTL_SECONDS):
+    if session.get("provider") == PROVIDER_CLAUDE and ttl_seconds == STATUS_CACHE_TTL_SECONDS:
+        return CLAUDE_STATUS_CACHE_TTL_SECONDS
+    return ttl_seconds
+
+
+def _is_status_cache_fresh(session, ttl_seconds=STATUS_CACHE_TTL_SECONDS):
+    status = session.get("lastStatus") or {}
+    if _is_low_confidence_status_source(status):
+        return False
+    updated_at = _parse_status_timestamp(status.get("updated_at") or session.get("lastStatusAt"))
+    if not updated_at:
+        return False
+    now = datetime.now(timezone.utc).astimezone()
+    ttl_seconds = _status_cache_ttl_seconds(session, ttl_seconds)
+    return (now - updated_at.astimezone(now.tzinfo)).total_seconds() < ttl_seconds
 
 
 def _is_status_newer(candidate, current):
@@ -572,8 +592,12 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         return updated
 
-    def _resolve_session_status(session):
+    def _resolve_session_status(session, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS):
         current_status = session.get("lastStatus")
+        if session.get("enabled", True) is False:
+            return current_status
+        if current_status and not force_refresh and _is_status_cache_fresh(session, ttl_seconds=cache_ttl_seconds):
+            return current_status
         source_root = session.get("authHome") or _get_session_auth_home(
             session["name"], session["provider"]
         )
@@ -644,7 +668,7 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         return updated
 
-    def get_status_rows(progress_callback=None):
+    def get_status_rows(progress_callback=None, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS):
         sessions = list_sessions()
         if progress_callback:
             progress_callback({
@@ -653,13 +677,25 @@ def create_session_service(options=None):
             })
         resolved = []
         for s in sessions:
-            if progress_callback:
+            cache_hit = (
+                s.get("enabled", True) is False
+                or (
+                    s.get("lastStatus")
+                    and not force_refresh
+                    and _is_status_cache_fresh(s, ttl_seconds=cache_ttl_seconds)
+                )
+            )
+            if progress_callback and not cache_hit:
                 progress_callback({
                     "event": "session_started",
                     "session_name": s["name"],
                     "provider": s["provider"],
                 })
-            status = _resolve_session_status(s)
+            status = _resolve_session_status(
+                s,
+                force_refresh=force_refresh,
+                cache_ttl_seconds=cache_ttl_seconds,
+            )
             if progress_callback:
                 progress_callback({
                     "event": "session_finished",

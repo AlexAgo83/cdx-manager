@@ -52,6 +52,13 @@ class NotifyPythonTests(unittest.TestCase):
         self.assertEqual(parsed["poll"], 5)
         self.assertTrue(parsed["once"])
         self.assertTrue(parsed["json"])
+        self.assertFalse(parsed["refresh"])
+
+    def test_parse_notify_args_supports_refresh(self):
+        parsed = parse_notify_args(["--next-ready", "--refresh"])
+
+        self.assertEqual(parsed["mode"], "next-ready")
+        self.assertTrue(parsed["refresh"])
 
     def test_send_desktop_notification_swallows_macos_backend_errors(self):
         def spawn_sync(_argv, **_kwargs):

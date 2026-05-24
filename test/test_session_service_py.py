@@ -70,6 +70,33 @@ class SessionServicePythonTests(unittest.TestCase):
         rows = service["get_status_rows"]()
         self.assertNotIn("auth_home", rows[0])
 
+    def test_status_rows_reuse_fresh_cache_unless_forced(self):
+        temp_dir = self.make_temp_dir()
+        calls = []
+
+        def fetch_status(_session):
+            calls.append("fetch")
+            return {
+                "remaining_5h_pct": 80,
+                "remaining_week_pct": 70,
+                "updated_at": datetime.now().astimezone().isoformat(),
+            }
+
+        service = create_session_service({
+            "base_dir": temp_dir,
+            "fetchCodexRateLimits": fetch_status,
+        })
+        service["create_session"]("main")
+
+        first_rows = service["get_status_rows"]()
+        second_rows = service["get_status_rows"]()
+        forced_rows = service["get_status_rows"](force_refresh=True)
+
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(first_rows[0]["available_pct"], 70)
+        self.assertEqual(second_rows[0]["available_pct"], 70)
+        self.assertEqual(forced_rows[0]["available_pct"], 70)
+
     def test_remove_session_surfaces_profile_delete_failure(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

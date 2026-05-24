@@ -139,6 +139,25 @@ def _make_status_progress(ctx):
     return progress
 
 
+def _make_notify_progress(ctx):
+    def progress(event):
+        kind = event.get("event")
+        if kind == "notify_check_started":
+            target = event.get("session_name") or "next ready session"
+            ctx["out"](f"{_info(f'Checking notification target: {target}...', ctx['use_color'])}\n")
+        elif kind == "status_started":
+            message = f"Loading status for {event.get('session_count', 0)} session(s)..."
+            ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
+        elif kind == "session_started":
+            provider = event.get("provider") or "session"
+            message = f"Checking {event.get('session_name')} ({provider})..."
+            ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
+        elif kind == "notify_waiting":
+            message = f"{event.get('message')}; checking again in {event.get('poll')}s..."
+            ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
+    return progress
+
+
 def _latest_launch_transcript_path(session):
     paths = _list_launch_transcript_paths(session)
     if not paths:
@@ -626,6 +645,7 @@ def handle_notify(rest, ctx):
         notifier=notifier,
         sleep_fn=ctx["options"].get("sleep"),
         now_fn=ctx["options"].get("now"),
+        progress_callback=None if parsed["json"] else _make_notify_progress(ctx),
     )
     if parsed["json"]:
         _write_json(ctx, _json_success("notify", "Resolved notification event", event=event))
@@ -767,7 +787,10 @@ def handle_status(rest, ctx):
     ]
 
     status_progress = None if parsed["json"] else _make_status_progress(ctx)
-    rows = ctx["service"]["get_status_rows"](progress_callback=status_progress)
+    rows = ctx["service"]["get_status_rows"](
+        progress_callback=status_progress,
+        force_refresh=parsed["refresh"],
+    )
     if len(args) == 0:
         if parsed["json"]:
             _write_json(ctx, _json_success("status", "Collected session status rows", warnings=warnings, rows=rows))

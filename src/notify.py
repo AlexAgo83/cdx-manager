@@ -4,7 +4,12 @@ import subprocess
 import time
 
 from .errors import CdxError
-from .status_view import _parse_reset_timestamp, _recommend_priority_sessions
+from .status_view import (
+    PRIORITY_EMPTY_AVAILABLE_THRESHOLD,
+    _parse_reset_timestamp,
+    _priority_reset_timestamp,
+    _recommend_priority_sessions,
+)
 
 
 def parse_notify_args(args):
@@ -12,17 +17,18 @@ def parse_notify_args(args):
     once = "--once" in args
     at_reset = "--at-reset" in args
     next_ready = "--next-ready" in args
+    refresh = "--refresh" in args
     poll = 60
     cleaned = []
     i = 0
     while i < len(args):
         arg = args[i]
-        if arg in ("--json", "--once", "--at-reset", "--next-ready"):
+        if arg in ("--json", "--once", "--at-reset", "--next-ready", "--refresh"):
             i += 1
             continue
         if arg == "--poll":
             if i + 1 >= len(args):
-                raise CdxError("Usage: cdx notify <name> --at-reset [--poll seconds] [--once] | cdx notify --next-ready [--poll seconds] [--once]")
+                raise CdxError("Usage: cdx notify <name> --at-reset [--poll seconds] [--once] [--refresh] | cdx notify --next-ready [--poll seconds] [--once] [--refresh]")
             try:
                 poll = max(1, int(args[i + 1]))
             except ValueError as error:
@@ -37,48 +43,67 @@ def parse_notify_args(args):
             i += 1
             continue
         if arg.startswith("-"):
-            raise CdxError("Usage: cdx notify <name> --at-reset [--poll seconds] [--once] | cdx notify --next-ready [--poll seconds] [--once]")
+            raise CdxError("Usage: cdx notify <name> --at-reset [--poll seconds] [--once] [--refresh] | cdx notify --next-ready [--poll seconds] [--once] [--refresh]")
         cleaned.append(arg)
         i += 1
     if at_reset == next_ready:
-        raise CdxError("Usage: cdx notify <name> --at-reset [--poll seconds] [--once] | cdx notify --next-ready [--poll seconds] [--once]")
+        raise CdxError("Usage: cdx notify <name> --at-reset [--poll seconds] [--once] [--refresh] | cdx notify --next-ready [--poll seconds] [--once] [--refresh]")
     if at_reset and len(cleaned) != 1:
-        raise CdxError("Usage: cdx notify <name> --at-reset [--poll seconds] [--once]")
+        raise CdxError("Usage: cdx notify <name> --at-reset [--poll seconds] [--once] [--refresh]")
     if next_ready and cleaned:
-        raise CdxError("Usage: cdx notify --next-ready [--poll seconds] [--once]")
+        raise CdxError("Usage: cdx notify --next-ready [--poll seconds] [--once] [--refresh]")
     return {
         "name": cleaned[0] if cleaned else None,
         "mode": "at-reset" if at_reset else "next-ready",
         "poll": poll,
         "once": once,
         "json": json_flag,
+        "refresh": refresh,
     }
 
 
-def wait_for_notification_event(service, parsed, notifier=None, sleep_fn=None, now_fn=None):
+def wait_for_notification_event(service, parsed, notifier=None, sleep_fn=None, now_fn=None, progress_callback=None):
     notifier = notifier or send_desktop_notification
     sleep_fn = sleep_fn or time.sleep
     now_fn = now_fn or time.time
     while True:
-        event = resolve_notify_event(service["get_status_rows"](), parsed, now_fn())
+        if progress_callback:
+            progress_callback({"event": "notify_check_started", "mode": parsed["mode"], "session_name": parsed["name"]})
+        event = resolve_notify_event(
+            service["get_status_rows"](
+                progress_callback=progress_callback,
+                force_refresh=parsed.get("refresh", False),
+            ),
+            parsed,
+            now_fn(),
+        )
         if event["ready"] or parsed["once"]:
             if event["ready"]:
                 notifier(event["title"], event["message"])
             return event
+        if progress_callback:
+            progress_callback({
+                "event": "notify_waiting",
+                "message": event["message"],
+                "poll": parsed["poll"],
+                "session_name": event.get("session"),
+                "target_timestamp": event.get("target_timestamp"),
+            })
         sleep_fn(parsed["poll"])
 
 
 def resolve_notify_event(rows, parsed, now_ts=None):
     now_ts = time.time() if now_ts is None else now_ts
     if parsed["mode"] == "next-ready":
-        priority = _recommend_priority_sessions(rows)
+        active_rows = [row for row in rows if row.get("enabled", True) is not False]
+        priority = _recommend_priority_sessions(active_rows)
         if not priority:
             return _event(False, "cdx", "No session status available", None)
         first = priority[0]
-        if _is_available(first):
+        if _is_usable_now(first):
             return _event(True, "cdx", f"{first['session_name']} is ready", first["session_name"])
-        timestamp = _next_reset_timestamp(first)
-        if timestamp is not None and timestamp <= now_ts:
+        timestamp = _priority_reset_timestamp(first)
+        if _needs_refresh(first, timestamp, now_ts):
             return _event(True, "cdx", f"{first['session_name']} reset is due; refresh status", first["session_name"])
         return _event(False, "cdx", f"Waiting for {first['session_name']}", first["session_name"], timestamp)
 
@@ -93,9 +118,16 @@ def resolve_notify_event(rows, parsed, now_ts=None):
     return _event(False, "cdx", f"Waiting for {row['session_name']} reset", row["session_name"], timestamp)
 
 
-def _is_available(row):
+def _is_usable_now(row):
     value = row.get("available_pct")
-    return value is not None and value > 0
+    return value is not None and value > PRIORITY_EMPTY_AVAILABLE_THRESHOLD
+
+
+def _needs_refresh(row, reset_timestamp, now_ts):
+    value = row.get("available_pct")
+    if value is None or value > PRIORITY_EMPTY_AVAILABLE_THRESHOLD:
+        return False
+    return reset_timestamp is not None and reset_timestamp < now_ts
 
 
 def _next_reset_timestamp(row):
