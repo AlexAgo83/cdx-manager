@@ -1,7 +1,8 @@
 import unittest
+import subprocess
 from unittest import mock
 
-from src.notify import parse_notify_args, send_desktop_notification
+from src.notify import parse_notify_args, schedule_notification_event, send_desktop_notification
 
 
 class NotifyPythonTests(unittest.TestCase):
@@ -59,6 +60,140 @@ class NotifyPythonTests(unittest.TestCase):
 
         self.assertEqual(parsed["mode"], "next-ready")
         self.assertTrue(parsed["refresh"])
+
+    def test_parse_notify_args_supports_schedule(self):
+        parsed = parse_notify_args(["main", "--at-reset", "--schedule"])
+
+        self.assertEqual(parsed["mode"], "at-reset")
+        self.assertEqual(parsed["name"], "main")
+        self.assertTrue(parsed["schedule"])
+
+    def test_schedule_notification_event_uses_systemd_run_on_linux(self):
+        calls = []
+
+        def spawn_sync(argv, **kwargs):
+            calls.append((argv, kwargs))
+            return subprocess.CompletedProcess(argv, 0, "", "")
+
+        parsed = parse_notify_args(["main", "--at-reset", "--schedule"])
+        event = {
+            "ready": False,
+            "title": "cdx",
+            "message": "Waiting for main reset",
+            "session": "main",
+            "target_timestamp": 2000,
+        }
+
+        with mock.patch("sys.platform", "linux"):
+            with mock.patch("src.notify.shutil_which", side_effect=lambda command, _env: command == "systemd-run"):
+                schedule = schedule_notification_event(
+                    "/tmp/cdx",
+                    parsed,
+                    event,
+                    spawn_sync=spawn_sync,
+                    env={"PATH": "/usr/bin", "CDX_BIN": "/usr/local/bin/cdx"},
+                    now_fn=lambda: 1000,
+                )
+
+        self.assertTrue(schedule["scheduled"])
+        self.assertEqual(schedule["backend"], "systemd")
+        self.assertEqual(calls[0][0][0], "systemd-run")
+        self.assertIn("--user", calls[0][0])
+        self.assertIn("/usr/local/bin/cdx", calls[0][0])
+        self.assertIn("--once", calls[0][0])
+        self.assertIn("--refresh", calls[0][0])
+
+    def test_schedule_notification_event_treats_existing_systemd_unit_as_success(self):
+        def spawn_sync(argv, **kwargs):
+            return subprocess.CompletedProcess(argv, 1, "", "Unit already exists")
+
+        parsed = parse_notify_args(["main", "--at-reset", "--schedule"])
+        event = {
+            "ready": False,
+            "title": "cdx",
+            "message": "Waiting for main reset",
+            "session": "main",
+            "target_timestamp": 2000,
+        }
+
+        with mock.patch("sys.platform", "linux"):
+            with mock.patch("src.notify.shutil_which", side_effect=lambda command, _env: command == "systemd-run"):
+                schedule = schedule_notification_event(
+                    "/tmp/cdx",
+                    parsed,
+                    event,
+                    spawn_sync=spawn_sync,
+                    env={"PATH": "/usr/bin", "CDX_BIN": "/usr/local/bin/cdx"},
+                    now_fn=lambda: 1000,
+                )
+
+        self.assertTrue(schedule["scheduled"])
+        self.assertTrue(schedule["existing"])
+        self.assertEqual(schedule["backend"], "systemd")
+
+    def test_schedule_notification_event_uses_macos_launchd(self):
+        calls = []
+
+        def spawn_sync(argv, **kwargs):
+            calls.append((argv, kwargs))
+            return subprocess.CompletedProcess(argv, 0, "", "")
+
+        parsed = parse_notify_args(["main", "--at-reset", "--schedule"])
+        event = {
+            "ready": False,
+            "title": "cdx",
+            "message": "Waiting for main reset",
+            "session": "main",
+            "target_timestamp": 2000,
+        }
+
+        with self.subTest("darwin"):
+            with mock.patch("sys.platform", "darwin"):
+                with mock.patch("src.notify.os.path.expanduser", return_value="/tmp/cdx-home"):
+                    schedule = schedule_notification_event(
+                        "/tmp/cdx",
+                        parsed,
+                        event,
+                        spawn_sync=spawn_sync,
+                        env={"PATH": "/usr/bin", "CDX_BIN": "/usr/local/bin/cdx"},
+                        now_fn=lambda: 1000,
+                    )
+
+        self.assertTrue(schedule["scheduled"])
+        self.assertEqual(schedule["backend"], "launchd")
+        self.assertEqual(calls[0][0][0], "launchctl")
+
+    def test_schedule_notification_event_treats_existing_launchd_job_as_success(self):
+        calls = []
+
+        def spawn_sync(argv, **kwargs):
+            calls.append((argv, kwargs))
+            return subprocess.CompletedProcess(argv, 5, "", "Bootstrap failed: 5: Input/output error")
+
+        parsed = parse_notify_args(["main", "--at-reset", "--schedule"])
+        event = {
+            "ready": False,
+            "title": "cdx",
+            "message": "Waiting for main reset",
+            "session": "main",
+            "target_timestamp": 2000,
+        }
+
+        with mock.patch("sys.platform", "darwin"):
+            with mock.patch("src.notify.os.path.expanduser", return_value="/tmp/cdx-home"):
+                schedule = schedule_notification_event(
+                    "/tmp/cdx",
+                    parsed,
+                    event,
+                    spawn_sync=spawn_sync,
+                    env={"PATH": "/usr/bin", "CDX_BIN": "/usr/local/bin/cdx"},
+                    now_fn=lambda: 1000,
+                )
+
+        self.assertTrue(schedule["scheduled"])
+        self.assertTrue(schedule["existing"])
+        self.assertEqual(schedule["backend"], "launchd")
+        self.assertEqual(len(calls), 1)
 
     def test_send_desktop_notification_swallows_macos_backend_errors(self):
         def spawn_sync(_argv, **_kwargs):

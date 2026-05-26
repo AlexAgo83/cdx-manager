@@ -3,6 +3,7 @@ import getpass
 import json
 import os
 import sys
+import time
 from datetime import datetime
 
 from .claude_refresh import _refresh_claude_sessions
@@ -21,7 +22,10 @@ from .errors import CdxError
 from .health import collect_health_report, format_health_report
 from .notify import (
     format_notify_event,
+    format_scheduled_notification,
     parse_notify_args,
+    resolve_notify_event,
+    schedule_notification_event,
     send_desktop_notification,
     wait_for_notification_event,
 )
@@ -638,6 +642,38 @@ def handle_notify(rest, ctx):
             spawn_sync=ctx.get("spawn_sync"),
             env=ctx.get("env"),
         )
+
+    if parsed["schedule"]:
+        event = resolve_notify_event(
+            ctx["service"]["get_status_rows"](
+                progress_callback=None if parsed["json"] else _make_notify_progress(ctx),
+                force_refresh=parsed.get("refresh", False),
+            ),
+            parsed,
+            (ctx["options"].get("now") or time.time)(),
+        )
+        if event["ready"]:
+            notifier(event["title"], event["message"])
+            schedule = {
+                "scheduled": False,
+                "backend": "immediate",
+                "message": event["message"],
+                "target_timestamp": event.get("target_timestamp"),
+            }
+        else:
+            schedule = schedule_notification_event(
+                ctx["service"]["base_dir"],
+                parsed,
+                event,
+                spawn_sync=ctx.get("spawn_sync"),
+                env=ctx.get("env"),
+                now_fn=ctx["options"].get("now"),
+            )
+        if parsed["json"]:
+            _write_json(ctx, _json_success("notify", "Scheduled notification event", event=event, schedule=schedule))
+        else:
+            ctx["out"](f"{format_scheduled_notification(schedule)}\n")
+        return 0
 
     event = wait_for_notification_event(
         ctx["service"],

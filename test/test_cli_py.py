@@ -2158,6 +2158,40 @@ class CliPythonTests(unittest.TestCase):
         self.assertIsNone(payload["event"]["session"])
         self.assertEqual(payload["event"]["message"], "No upcoming session reset available")
 
+    def test_notify_schedule_next_ready_registers_os_job(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        reset = datetime.now().astimezone() + timedelta(minutes=30)
+        service["record_status"]("main", {
+            "remaining_5h_pct": 0,
+            "remaining_week_pct": 20,
+            "reset_5h_at": reset.isoformat(),
+            "updated_at": datetime.now().astimezone().isoformat(),
+        })
+        calls = []
+
+        def spawn_sync(argv, **kwargs):
+            calls.append((argv, kwargs))
+            return subprocess.CompletedProcess(argv, 0, "", "")
+
+        with mock.patch("sys.platform", "linux"):
+            with mock.patch("src.notify.shutil_which", side_effect=lambda command, _env: command == "systemd-run"):
+                notify_io = self.make_io()
+                self.assertEqual(main(["notify", "--next-ready", "--schedule", "--json"], {
+                    **notify_io,
+                    "service": service,
+                    "env": {"CDX_HOME": temp_dir, "PATH": "/usr/bin", "CDX_BIN": "/usr/local/bin/cdx"},
+                    "spawn_sync": spawn_sync,
+                }), 0)
+
+        payload = json.loads(notify_io["stdout"].getvalue())
+        self.assertEqual(payload["action"], "notify")
+        self.assertTrue(payload["schedule"]["scheduled"])
+        self.assertEqual(payload["schedule"]["backend"], "systemd")
+        self.assertEqual(payload["event"]["session"], "main")
+        self.assertEqual(calls[0][0][0], "systemd-run")
+
     def test_notify_next_ready_ignores_disabled_sessions(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

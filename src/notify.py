@@ -1,7 +1,9 @@
 import json
 import os
+import shlex
 import subprocess
 import time
+from datetime import datetime, timedelta
 
 from .errors import CdxError
 from .status_view import (
@@ -12,23 +14,27 @@ from .status_view import (
 )
 
 
+NOTIFY_USAGE = "Usage: cdx notify <name> --at-reset [--poll seconds] [--once] [--schedule] [--refresh] | cdx notify --next-ready [--poll seconds] [--once] [--schedule] [--refresh]"
+
+
 def parse_notify_args(args):
     json_flag = "--json" in args
     once = "--once" in args
     at_reset = "--at-reset" in args
     next_ready = "--next-ready" in args
     refresh = "--refresh" in args
+    schedule = "--schedule" in args
     poll = 60
     cleaned = []
     i = 0
     while i < len(args):
         arg = args[i]
-        if arg in ("--json", "--once", "--at-reset", "--next-ready", "--refresh"):
+        if arg in ("--json", "--once", "--at-reset", "--next-ready", "--refresh", "--schedule"):
             i += 1
             continue
         if arg == "--poll":
             if i + 1 >= len(args):
-                raise CdxError("Usage: cdx notify <name> --at-reset [--poll seconds] [--once] [--refresh] | cdx notify --next-ready [--poll seconds] [--once] [--refresh]")
+                raise CdxError(NOTIFY_USAGE)
             try:
                 poll = max(1, int(args[i + 1]))
             except ValueError as error:
@@ -43,15 +49,15 @@ def parse_notify_args(args):
             i += 1
             continue
         if arg.startswith("-"):
-            raise CdxError("Usage: cdx notify <name> --at-reset [--poll seconds] [--once] [--refresh] | cdx notify --next-ready [--poll seconds] [--once] [--refresh]")
+            raise CdxError(NOTIFY_USAGE)
         cleaned.append(arg)
         i += 1
     if at_reset == next_ready:
-        raise CdxError("Usage: cdx notify <name> --at-reset [--poll seconds] [--once] [--refresh] | cdx notify --next-ready [--poll seconds] [--once] [--refresh]")
+        raise CdxError(NOTIFY_USAGE)
     if at_reset and len(cleaned) != 1:
-        raise CdxError("Usage: cdx notify <name> --at-reset [--poll seconds] [--once] [--refresh]")
+        raise CdxError("Usage: cdx notify <name> --at-reset [--poll seconds] [--once] [--schedule] [--refresh]")
     if next_ready and cleaned:
-        raise CdxError("Usage: cdx notify --next-ready [--poll seconds] [--once] [--refresh]")
+        raise CdxError("Usage: cdx notify --next-ready [--poll seconds] [--once] [--schedule] [--refresh]")
     return {
         "name": cleaned[0] if cleaned else None,
         "mode": "at-reset" if at_reset else "next-ready",
@@ -59,6 +65,7 @@ def parse_notify_args(args):
         "once": once,
         "json": json_flag,
         "refresh": refresh,
+        "schedule": schedule,
     }
 
 
@@ -212,8 +219,224 @@ def _escape_applescript(value):
     return str(value).replace("\\", "\\\\").replace('"', '\\"')
 
 
+def schedule_notification_event(base_dir, parsed, event, spawn_sync=None, env=None, now_fn=None):
+    import sys
+    spawn_sync = spawn_sync or subprocess.run
+    env = env or os.environ
+    now_fn = now_fn or time.time
+    target_timestamp = event.get("target_timestamp")
+    if target_timestamp is None:
+        raise CdxError(f"Cannot schedule notification: {event['message']}")
+    if target_timestamp <= now_fn():
+        return {
+            "scheduled": False,
+            "backend": "immediate",
+            "message": event["message"],
+            "target_timestamp": target_timestamp,
+        }
+
+    argv = _scheduled_notify_argv(parsed, env)
+    if sys.platform == "darwin":
+        result = _schedule_macos_launchd(base_dir, parsed, event, argv, spawn_sync, env)
+    elif sys.platform == "win32":
+        result = _schedule_windows_task(parsed, event, argv, spawn_sync, env)
+    else:
+        result = _schedule_linux(parsed, event, argv, spawn_sync, env)
+    result["target_timestamp"] = target_timestamp
+    result["target_iso"] = _timestamp_to_local_iso(target_timestamp)
+    return result
+
+
+def _scheduled_notify_argv(parsed, env):
+    executable = env.get("CDX_BIN") or shutil_which("cdx", env) or "cdx"
+    argv = [executable, "notify"]
+    if parsed["mode"] == "at-reset":
+        argv.append(parsed["name"])
+        argv.append("--at-reset")
+    else:
+        argv.append("--next-ready")
+    argv.append("--once")
+    argv.append("--refresh")
+    return argv
+
+
+def _schedule_macos_launchd(base_dir, parsed, event, argv, spawn_sync, env):
+    label = _schedule_id("com.cdx-manager.notify", parsed, event)
+    schedule_dir = os.path.join(base_dir, "state", "notifications")
+    os.makedirs(schedule_dir, mode=0o700, exist_ok=True)
+    script_path = os.path.join(schedule_dir, f"{label}.sh")
+    launch_agents = os.path.join(os.path.expanduser("~"), "Library", "LaunchAgents")
+    os.makedirs(launch_agents, exist_ok=True)
+    plist_path = os.path.join(launch_agents, f"{label}.plist")
+    target = _round_up_to_next_minute(datetime.fromtimestamp(event["target_timestamp"]).astimezone())
+    script = _macos_schedule_script(argv, env, label, plist_path, script_path)
+    with open(script_path, "w", encoding="utf-8") as f:
+        f.write(script)
+    try:
+        os.chmod(script_path, 0o700)
+    except OSError:
+        pass
+    with open(plist_path, "w", encoding="utf-8") as f:
+        f.write(_launchd_plist(label, script_path, target))
+    result = _run_scheduler_command(["launchctl", "bootstrap", f"gui/{os.getuid()}", plist_path], spawn_sync, env)
+    if not result["ok"]:
+        if _scheduler_error_means_exists(result["error"]):
+            return {"scheduled": True, "existing": True, "backend": "launchd", "id": label, "path": plist_path}
+        result = _run_scheduler_command(["launchctl", "load", plist_path], spawn_sync, env)
+    if not result["ok"]:
+        if _scheduler_error_means_exists(result["error"]):
+            return {"scheduled": True, "existing": True, "backend": "launchd", "id": label, "path": plist_path}
+        raise CdxError(f"Failed to schedule notification with launchd: {result['error']}")
+    return {"scheduled": True, "existing": False, "backend": "launchd", "id": label, "path": plist_path}
+
+
+def _macos_schedule_script(argv, env, label, plist_path, script_path):
+    lines = ["#!/bin/sh", f"export PATH={shlex.quote(env.get('PATH', '/usr/local/bin:/usr/bin:/bin'))}"]
+    if env.get("CDX_HOME"):
+        lines.append(f"export CDX_HOME={shlex.quote(env['CDX_HOME'])}")
+    lines.extend([
+        f"{' '.join(shlex.quote(str(part)) for part in argv)}",
+        "status=$?",
+        f"launchctl bootout {shlex.quote('gui/' + str(os.getuid()) + '/' + label)} >/dev/null 2>&1 || launchctl unload {shlex.quote(plist_path)} >/dev/null 2>&1 || true",
+        f"rm -f {shlex.quote(plist_path)} {shlex.quote(script_path)}",
+        "exit $status",
+        "",
+    ])
+    return "\n".join(lines)
+
+
+def _launchd_plist(label, script_path, target):
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>{_escape_xml(label)}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>{_escape_xml(script_path)}</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Month</key><integer>{target.month}</integer>
+    <key>Day</key><integer>{target.day}</integer>
+    <key>Hour</key><integer>{target.hour}</integer>
+    <key>Minute</key><integer>{target.minute}</integer>
+  </dict>
+</dict>
+</plist>
+"""
+
+
+def _schedule_linux(parsed, event, argv, spawn_sync, env):
+    unit = _schedule_id("cdx-manager-notify", parsed, event)
+    target = _round_up_to_next_minute(datetime.fromtimestamp(event["target_timestamp"]).astimezone())
+    if shutil_which("systemd-run", env):
+        calendar = target.strftime("%Y-%m-%d %H:%M:%S")
+        result = _run_scheduler_command(
+            ["systemd-run", "--user", f"--unit={unit}", f"--on-calendar={calendar}", *argv],
+            spawn_sync,
+            env,
+        )
+        if result["ok"]:
+            return {"scheduled": True, "existing": False, "backend": "systemd", "id": unit}
+        if _scheduler_error_means_exists(result["error"]):
+            return {"scheduled": True, "existing": True, "backend": "systemd", "id": unit}
+        raise CdxError(f"Failed to schedule notification with systemd-run: {result['error']}")
+    if shutil_which("at", env):
+        at_time = target.strftime("%Y%m%d%H%M.%S")
+        command = " ".join(shlex.quote(str(part)) for part in argv)
+        result = _run_scheduler_command(["at", "-t", at_time], spawn_sync, env, input_text=f"{command}\n")
+        if result["ok"]:
+            return {"scheduled": True, "existing": False, "backend": "at", "id": unit}
+        raise CdxError(f"Failed to schedule notification with at: {result['error']}")
+    raise CdxError("Cannot schedule notification: install systemd-run or at, or run cdx notify without --schedule")
+
+
+def _schedule_windows_task(parsed, event, argv, spawn_sync, env):
+    name = _schedule_id("cdx-manager-notify", parsed, event)
+    target = datetime.fromtimestamp(event["target_timestamp"]).astimezone()
+    command = subprocess.list2cmdline([str(part) for part in argv])
+    result = _run_scheduler_command([
+        "schtasks",
+        "/Create",
+        "/SC",
+        "ONCE",
+        "/TN",
+        name,
+        "/TR",
+        command,
+        "/ST",
+        target.strftime("%H:%M"),
+        "/SD",
+        target.strftime("%m/%d/%Y"),
+        "/F",
+        "/Z",
+    ], spawn_sync, env)
+    if not result["ok"]:
+        raise CdxError(f"Failed to schedule notification with Task Scheduler: {result['error']}")
+    return {"scheduled": True, "existing": False, "backend": "schtasks", "id": name}
+
+
+def _run_scheduler_command(argv, spawn_sync, env, input_text=None):
+    try:
+        completed = spawn_sync(
+            argv,
+            env=env,
+            input=input_text,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (FileNotFoundError, OSError) as error:
+        return {"ok": False, "error": str(error)}
+    return {
+        "ok": getattr(completed, "returncode", 0) == 0,
+        "error": (getattr(completed, "stderr", "") or getattr(completed, "stdout", "") or "").strip(),
+    }
+
+
+def _schedule_id(prefix, parsed, event):
+    session = parsed.get("name") or event.get("session") or "next-ready"
+    safe_session = "".join(ch if ch.isalnum() else "-" for ch in str(session).lower()).strip("-") or "session"
+    return f"{prefix}.{parsed['mode']}.{safe_session}.{int(event['target_timestamp'])}"
+
+
+def _scheduler_error_means_exists(error):
+    normalized = str(error or "").lower()
+    return any(fragment in normalized for fragment in (
+        "already exists",
+        "file exists",
+        "unit exists",
+        "unit already",
+        "service already",
+        "bootstrap failed: 5",
+    ))
+
+
+def _timestamp_to_local_iso(timestamp):
+    return datetime.fromtimestamp(timestamp).astimezone().isoformat()
+
+
+def _round_up_to_next_minute(value):
+    if value.second == 0 and value.microsecond == 0:
+        return value
+    return (value + timedelta(minutes=1)).replace(second=0, microsecond=0)
+
+
+def _escape_xml(value):
+    return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+
 def format_notify_event(event):
     return event["message"]
+
+
+def format_scheduled_notification(schedule):
+    if schedule.get("scheduled"):
+        return f"Scheduled notification via {schedule['backend']} for {schedule['target_iso']}"
+    return schedule["message"]
 
 
 def notify_json(event):
