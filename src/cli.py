@@ -161,8 +161,7 @@ def _update_warning_payload(notice):
 def _update_warning_text(notice):
     if not notice:
         return None
-    suffix = f" {notice['url']}" if notice.get("url") else ""
-    return f"Update available: cdx-manager {notice['latest_version']} (current {VERSION}).{suffix}"
+    return f"Update available: cdx-manager {notice['latest_version']} (current {VERSION}). Run: cdx update"
 
 
 # ---------------------------------------------------------------------------

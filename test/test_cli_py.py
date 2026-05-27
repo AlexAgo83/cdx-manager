@@ -448,6 +448,8 @@ class CliPythonTests(unittest.TestCase):
 
         output = list_io["stdout"].getvalue()
         self.assertIn("Update available: cdx-manager 9.9.9", output)
+        self.assertIn("Run: cdx update", output)
+        self.assertNotIn("https://example.invalid/release", output)
 
     def test_main_screen_json_includes_update_warning(self):
         temp_dir = self.make_temp_dir()
@@ -1129,7 +1131,10 @@ class CliPythonTests(unittest.TestCase):
                 "url": "https://example.invalid/release",
             },
         }), 0)
-        self.assertIn("Update available: cdx-manager 9.9.9", launch_io["stdout"].getvalue())
+        output = launch_io["stdout"].getvalue()
+        self.assertIn("Update available: cdx-manager 9.9.9", output)
+        self.assertIn("Run: cdx update", output)
+        self.assertNotIn("https://example.invalid/release", output)
 
     def test_codex_launch_uses_quoted_custom_script_args(self):
         temp_dir = self.make_temp_dir()
@@ -1830,6 +1835,8 @@ class CliPythonTests(unittest.TestCase):
 
         lines = [line for line in status_io["stdout"].getvalue().splitlines() if line]
         self.assertTrue(lines[-1].startswith("Update available: cdx-manager 9.9.9"))
+        self.assertIn("Run: cdx update", lines[-1])
+        self.assertNotIn("https://example.invalid/release", lines[-1])
 
     def test_status_json_includes_update_warning(self):
         temp_dir = self.make_temp_dir()

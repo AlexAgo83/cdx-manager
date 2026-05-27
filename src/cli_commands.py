@@ -94,9 +94,7 @@ def _write_update_notice(ctx):
     notice = ctx.get("update_notice")
     if not notice:
         return
-    text = f"Update available: cdx-manager {notice['latest_version']} (current version installed may be older)."
-    if notice.get("url"):
-        text = f"{text} {notice['url']}"
+    text = f"Update available: cdx-manager {notice['latest_version']} (current version installed may be older). Run: cdx update"
     ctx["out"](f"{_warn(text, ctx['use_color'])}\n")
 
 
