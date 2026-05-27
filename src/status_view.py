@@ -43,7 +43,11 @@ def _format_reset_time(value):
         if remaining_minutes == 0:
             return f"in {hours}h"
         return f"in {hours}h {remaining_minutes}m"
-    return value
+    days = int(delta_s // (24 * 60 * 60))
+    hours = int((delta_s % (24 * 60 * 60)) // (60 * 60))
+    if hours == 0:
+        return f"in {days}d"
+    return f"in {days}d {hours}h"
 
 
 def _style_reset_time(value, use_color=False):
