@@ -19,6 +19,7 @@ from .cli_commands import (
     handle_import,
     handle_handoff,
     handle_history,
+    handle_last,
     handle_launch,
     handle_login,
     handle_logout,
@@ -75,6 +76,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx set <name> [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--json]', '36', use_color)}",
         f"  {_style('cdx unset <name> (--power|--permission|--fast|--all) [--json]', '36', use_color)}",
         f"  {_style('cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]', '36', use_color)}",
+        f"  {_style('cdx last [--json]', '36', use_color)}",
         f"  {_style('cdx handoff <name> [--json]', '36', use_color)}",
         f"  {_style('cdx handoff <source> <target> [--json]', '36', use_color)}",
         f"  {_style('cdx add [provider] <name> [--json]', '36', use_color)}",
@@ -293,6 +295,9 @@ def main(argv, options=None):
 
     if command == "history":
         return handle_history(rest, ctx)
+
+    if command == "last":
+        return handle_last(rest, ctx)
 
     if command == "handoff":
         return handle_handoff(rest, ctx)

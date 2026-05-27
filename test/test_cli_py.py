@@ -910,6 +910,94 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Assistant time:", summary_output)
         self.assertIn("LAUNCHES", summary_output)
 
+    def test_last_launches_most_recent_existing_session(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        for name in ("first", "second"):
+            self.assertEqual(main(["add", name], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
+
+        self.assertEqual(main(["first"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        self.assertEqual(main(["second"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        last_io = self.make_io()
+        self.assertEqual(main(["last"], {
+            **last_io,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        output = last_io["stdout"].getvalue()
+        self.assertIn("Launching last session: second", output)
+        self.assertIn("Launching codex session second", output)
+        launch_call = [
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "script" and call["args"][3] == "codex"
+        ][-1]
+        self.assertTrue(
+            launch_call["args"][2].startswith(os.path.join(temp_dir, "profiles", "second", "log", "cdx-session-"))
+        )
+
+    def test_last_skips_removed_sessions_and_supports_json(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        for name in ("first", "second"):
+            self.assertEqual(main(["add", name], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
+            self.assertEqual(main([name], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
+
+        self.assertEqual(main(["rmv", "second", "--force"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        last_io = self.make_io()
+        self.assertEqual(main(["last", "--json"], {
+            **last_io,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        payload = json.loads(last_io["stdout"].getvalue())
+        self.assertEqual(payload["action"], "launch")
+        self.assertEqual(payload["session"]["name"], "first")
+
+    def test_last_requires_launch_history(self):
+        temp_dir = self.make_temp_dir()
+
+        with self.assertRaisesRegex(CdxError, "No launch history yet"):
+            main(["last"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+            })
+
     def test_history_summary_filters_by_period(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

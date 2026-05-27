@@ -53,6 +53,7 @@ SET_USAGE = "Usage: cdx set <name> [--power low|medium|high|xhigh|max] [--permis
 UNSET_USAGE = "Usage: cdx unset <name> (--power|--permission|--fast|--all) [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
+LAST_USAGE = "Usage: cdx last [--json]"
 API_SCHEMA_VERSION = 1
 HANDOFF_TRANSCRIPT_CHARS = 120000
 
@@ -921,6 +922,28 @@ def handle_history(rest, ctx):
     return 0
 
 
+def _resolve_last_launch_session(ctx):
+    for entry in ctx["service"]["get_launch_history"](limit=0):
+        name = entry.get("session_name")
+        if not name:
+            continue
+        session = ctx["service"]["get_session"](name)
+        if session:
+            return session
+    raise CdxError("No launch history yet. Run cdx <name> first.")
+
+
+def handle_last(rest, ctx):
+    json_flag, args = _parse_json_flag(rest)
+    if args:
+        raise CdxError(LAST_USAGE)
+    session = _resolve_last_launch_session(ctx)
+    if not json_flag:
+        message = f"Launching last session: {session['name']}"
+        ctx["out"](f"{_info(message, ctx['use_color'])}\n")
+    return handle_launch(session["name"], ctx)
+
+
 def handle_clean(rest, ctx):
     json_flag, args = _parse_json_flag(rest)
     service = ctx["service"]
@@ -1463,7 +1486,7 @@ def handle_update(rest, ctx):
 
 
 def handle_launch(command, ctx, initial_prompt=None):
-    json_flag = "--json" in ctx["options"].get("raw_args", [])
+    json_flag = "--json" in ctx.get("raw_args", ctx["options"].get("raw_args", []))
     update_notice = ctx.get("update_notice")
     warnings = []
     if update_notice:
