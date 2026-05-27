@@ -154,14 +154,15 @@ class NotifyPythonTests(unittest.TestCase):
         with self.subTest("darwin"):
             with mock.patch("sys.platform", "darwin"):
                 with mock.patch("src.notify.os.path.expanduser", return_value="/tmp/cdx-home"):
-                    schedule = schedule_notification_event(
-                        "/tmp/cdx",
-                        parsed,
-                        event,
-                        spawn_sync=spawn_sync,
-                        env={"PATH": "/usr/bin", "CDX_BIN": "/usr/local/bin/cdx"},
-                        now_fn=lambda: event["target_timestamp"] - 60,
-                    )
+                    with mock.patch("src.notify.os.getuid", return_value=501, create=True):
+                        schedule = schedule_notification_event(
+                            "/tmp/cdx",
+                            parsed,
+                            event,
+                            spawn_sync=spawn_sync,
+                            env={"PATH": "/usr/bin", "CDX_BIN": "/usr/local/bin/cdx"},
+                            now_fn=lambda: event["target_timestamp"] - 60,
+                        )
 
         self.assertTrue(schedule["scheduled"])
         self.assertEqual(schedule["backend"], "launchd")
@@ -185,14 +186,15 @@ class NotifyPythonTests(unittest.TestCase):
 
         with mock.patch("sys.platform", "darwin"):
             with mock.patch("src.notify.os.path.expanduser", return_value="/tmp/cdx-home"):
-                schedule = schedule_notification_event(
-                    "/tmp/cdx",
-                    parsed,
-                    event,
-                    spawn_sync=spawn_sync,
-                    env={"PATH": "/usr/bin", "CDX_BIN": "/usr/local/bin/cdx"},
-                    now_fn=lambda: event["target_timestamp"] - 60,
-                )
+                with mock.patch("src.notify.os.getuid", return_value=501, create=True):
+                    schedule = schedule_notification_event(
+                        "/tmp/cdx",
+                        parsed,
+                        event,
+                        spawn_sync=spawn_sync,
+                        env={"PATH": "/usr/bin", "CDX_BIN": "/usr/local/bin/cdx"},
+                        now_fn=lambda: event["target_timestamp"] - 60,
+                    )
 
         self.assertTrue(schedule["scheduled"])
         self.assertTrue(schedule["existing"])
