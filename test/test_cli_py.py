@@ -400,6 +400,33 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("just now", output)
         self.assertNotRegex(output, r"\d{4}-\d{2}-\d{2}T")
 
+    def test_main_screen_next_actions_are_curated(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        list_io = self.make_io()
+        self.assertEqual(main([], {
+            **list_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        lines = list_io["stdout"].getvalue().splitlines()
+        start = lines.index("Next actions:") + 1
+        self.assertEqual(lines[start:start + 7], [
+            "  cdx status",
+            "  cdx ready",
+            "  cdx set <name> --power medium --permission default --fast off",
+            "  cdx handoff <source> <target>",
+            "  cdx history",
+            "  cdx help",
+            "  cdx update",
+        ])
+        self.assertNotIn("  cdx add <name>", lines[start:])
+        self.assertNotIn("  cdx login <name>", lines[start:])
+        self.assertNotIn("  cdx handoff <name>", lines[start:])
+
     def test_main_screen_surfaces_update_notice(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

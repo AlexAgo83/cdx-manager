@@ -137,20 +137,12 @@ def _format_sessions(service, use_color=False):
     lines = [_style("Known sessions:", "1", use_color), _pad_table([headers] + table_rows), ""]
     lines += [
         _style("Next actions:", "1", use_color),
-        f"  {_style('cdx add <name>', '36', use_color)}",
-        f"  {_style('cdx <name>', '36', use_color)}",
-        f"  {_style('cdx login <name>', '36', use_color)}",
-        f"  {_style('cdx logout <name>', '36', use_color)}",
-        f"  {_style('cdx config <name>', '36', use_color)}",
-        f"  {_style('cdx set <name> --power medium --permission default --fast off', '36', use_color)}",
-        f"  {_style('cdx history', '36', use_color)}",
-        f"  {_style('cdx context show', '36', use_color)}",
-        f"  {_style('cdx handoff <name>', '36', use_color)}",
-        f"  {_style('cdx handoff <source> <target>', '36', use_color)}",
-        f"  {_style('cdx disable <name>', '36', use_color)}",
-        f"  {_style('cdx enable <name>', '36', use_color)}",
-        f"  {_style('cdx ren <source> <dest>', '36', use_color)}",
-        f"  {_style('cdx rmv <name>', '36', use_color)}",
         f"  {_style('cdx status', '36', use_color)}",
+        f"  {_style('cdx ready', '36', use_color)}",
+        f"  {_style('cdx set <name> --power medium --permission default --fast off', '36', use_color)}",
+        f"  {_style('cdx handoff <source> <target>', '36', use_color)}",
+        f"  {_style('cdx history', '36', use_color)}",
+        f"  {_style('cdx help', '36', use_color)}",
+        f"  {_style('cdx update', '36', use_color)}",
     ]
     return "\n".join(lines)
