@@ -78,6 +78,28 @@ def _write_json(ctx, payload):
     ctx["out"](f"{json.dumps(payload, indent=2)}\n")
 
 
+def _update_notice_warning(ctx):
+    notice = ctx.get("update_notice")
+    if not notice:
+        return None
+    return {
+        "code": "update_available",
+        "message": f"Update available: cdx-manager {notice['latest_version']}",
+        "latest_version": notice["latest_version"],
+        "url": notice.get("url"),
+    }
+
+
+def _write_update_notice(ctx):
+    notice = ctx.get("update_notice")
+    if not notice:
+        return
+    text = f"Update available: cdx-manager {notice['latest_version']} (current version installed may be older)."
+    if notice.get("url"):
+        text = f"{text} {notice['url']}"
+    ctx["out"](f"{_warn(text, ctx['use_color'])}\n")
+
+
 def _format_bytes(value):
     if value is None:
         return "n/a"
@@ -1243,6 +1265,9 @@ def handle_status(rest, ctx):
         }
         for item in refresh_errors
     ]
+    update_warning = _update_notice_warning(ctx)
+    if update_warning:
+        warnings.append(update_warning)
 
     status_progress = None if parsed["json"] else _make_status_progress(ctx)
     rows = ctx["service"]["get_status_rows"](
@@ -1255,6 +1280,7 @@ def handle_status(rest, ctx):
             return 0
         ctx["out"](f"{_format_status_rows(rows, use_color=ctx['use_color'], small=parsed['small'])}\n")
         _write_refresh_warnings(refresh_errors, ctx)
+        _write_update_notice(ctx)
         return 0
 
     row = next((r for r in rows if r["session_name"] == args[0]), None)
@@ -1265,6 +1291,7 @@ def handle_status(rest, ctx):
         return 0
     ctx["out"](f"{_format_status_detail(row, use_color=ctx['use_color'])}\n")
     _write_refresh_warnings(refresh_errors, ctx)
+    _write_update_notice(ctx)
     return 0
 
 
@@ -1490,12 +1517,7 @@ def handle_launch(command, ctx, initial_prompt=None):
     update_notice = ctx.get("update_notice")
     warnings = []
     if update_notice:
-        warnings.append({
-            "code": "update_available",
-            "message": f"Update available: cdx-manager {update_notice['latest_version']}",
-            "latest_version": update_notice["latest_version"],
-            "url": update_notice.get("url"),
-        })
+        warnings.append(_update_notice_warning(ctx))
     session = ctx["service"]["launch_session"](command)
     _ensure_session_authentication(
         session,
@@ -1510,11 +1532,7 @@ def handle_launch(command, ctx, initial_prompt=None):
     message = f"Launching {session['provider']} session {session['name']}"
     if not json_flag:
         ctx["out"](f"{_info(message, ctx['use_color'])}\n")
-        if update_notice:
-            text = f"Update available: cdx-manager {update_notice['latest_version']} (current version installed may be older)."
-            if update_notice.get("url"):
-                text = f"{text} {update_notice['url']}"
-            ctx["out"](f"{_warn(text, ctx['use_color'])}\n")
+        _write_update_notice(ctx)
     cwd = ctx.get("cwd") or os.getcwd()
     runtime_run_id = None
 

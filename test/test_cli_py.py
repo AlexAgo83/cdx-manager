@@ -146,8 +146,11 @@ class CliPythonTests(unittest.TestCase):
     def setUp(self):
         self.codex_status_patch = mock.patch("src.session_service.fetch_codex_rate_limits", return_value=None)
         self.codex_status_patch.start()
+        self.update_check_patch = mock.patch("src.cli.check_for_update", return_value=None)
+        self.update_check_patch.start()
 
     def tearDown(self):
+        self.update_check_patch.stop()
         self.codex_status_patch.stop()
 
     def make_temp_dir(self):
@@ -1803,6 +1806,55 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["action"], "status")
         self.assertIsNotNone(payload["rows"][0]["last_launched_at"])
         self.assertNotIn("Resolving status", json_io["stdout"].getvalue())
+
+    def test_status_surfaces_update_notice_at_end(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["record_status"]("main", {
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 60,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "checkForUpdate": lambda _base_dir, _version, env=None, now_fn=None: {
+                "latest_version": "9.9.9",
+                "url": "https://example.invalid/release",
+            },
+        }), 0)
+
+        lines = [line for line in status_io["stdout"].getvalue().splitlines() if line]
+        self.assertTrue(lines[-1].startswith("Update available: cdx-manager 9.9.9"))
+
+    def test_status_json_includes_update_warning(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["record_status"]("main", {
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 60,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status", "--json"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "checkForUpdate": lambda _base_dir, _version, env=None, now_fn=None: {
+                "latest_version": "9.9.9",
+                "url": "https://example.invalid/release",
+            },
+        }), 0)
+
+        payload = json.loads(status_io["stdout"].getvalue())
+        self.assertEqual(payload["warnings"][0]["code"], "update_available")
+        self.assertEqual(payload["warnings"][0]["latest_version"], "9.9.9")
 
     def test_status_and_list_mark_active_session_with_star(self):
         temp_dir = self.make_temp_dir()

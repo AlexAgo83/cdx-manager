@@ -232,7 +232,7 @@ def main(argv, options=None):
         "version": VERSION,
         "cwd": options.get("cwd") or os.getcwd(),
         "update_notice": _get_update_notice(service, env, options) if command not in (
-            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "status", "context", "config", "set", "unset", "history", "handoff", "login", "logout", "disable", "enable", "export", "import", "help", "version"
+            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "context", "config", "set", "unset", "history", "handoff", "login", "logout", "disable", "enable", "export", "import", "help", "version"
         ) else None,
         "use_color": use_color,
     }
