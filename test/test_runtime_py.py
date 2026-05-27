@@ -422,6 +422,27 @@ class RuntimePythonTests(unittest.TestCase):
         spec = provider_runtime._build_launch_spec(session, initial_prompt="resume")
         self.assertIn("resume", spec["fallback"]["args"])
 
+    def test_build_launch_spec_uses_fast_as_low_effort_without_power(self):
+        codex = {
+            "name": "main",
+            "provider": "codex",
+            "authHome": "/tmp/codex-home",
+            "launch": {"fast": True},
+        }
+        claude = {
+            "name": "claude",
+            "provider": "claude",
+            "authHome": "/tmp/claude-home",
+            "launch": {"fast": True},
+        }
+
+        codex_spec = provider_runtime._build_launch_spec(codex)
+        claude_spec = provider_runtime._build_launch_spec(claude)
+
+        self.assertIn('model_reasoning_effort="low"', codex_spec["fallback"]["args"])
+        self.assertIn("--effort", claude_spec["fallback"]["args"])
+        self.assertIn("low", claude_spec["fallback"]["args"])
+
 
 if __name__ == "__main__":
     unittest.main()

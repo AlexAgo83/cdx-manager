@@ -49,6 +49,9 @@ EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--
 IMPORT_USAGE = "Usage: cdx import <file> [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
 CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--json]"
+SET_USAGE = "Usage: cdx set <name> [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--json]"
+UNSET_USAGE = "Usage: cdx unset <name> (--power|--permission|--fast|--all) [--json]"
+CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 API_SCHEMA_VERSION = 1
 HANDOFF_TRANSCRIPT_CHARS = 120000
 
@@ -306,6 +309,61 @@ def _parse_toggle_args(args, usage):
     return {"name": parsed["names"][0], "json": parsed["json"]}
 
 
+def _parse_fast_value(value):
+    text = str(value).strip().lower()
+    if text in ("on", "true", "1", "yes"):
+        return True
+    if text in ("off", "false", "0", "no"):
+        return False
+    raise CdxError(SET_USAGE)
+
+
+def _parse_set_args(args):
+    parsed = _parse_flag_args(args, {
+        "--power": {"key": "power", "type": "str", "default": None},
+        "--permission": {"key": "permission", "type": "str", "default": None},
+        "--fast": {"key": "fast", "type": "str", "default": None, "transform": _parse_fast_value},
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, SET_USAGE, positionals_key="names", max_positionals=1)
+    if len(parsed["names"]) != 1:
+        raise CdxError(SET_USAGE)
+    settings = {
+        key: parsed[key]
+        for key in ("power", "permission", "fast")
+        if parsed[key] is not None
+    }
+    if not settings:
+        raise CdxError(SET_USAGE)
+    return {"name": parsed["names"][0], "settings": settings, "json": parsed["json"]}
+
+
+def _parse_unset_args(args):
+    parsed = _parse_flag_args(args, {
+        "--power": {"key": "power", "type": "bool", "default": False},
+        "--permission": {"key": "permission", "type": "bool", "default": False},
+        "--fast": {"key": "fast", "type": "bool", "default": False},
+        "--all": {"key": "all", "type": "bool", "default": False},
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, UNSET_USAGE, positionals_key="names", max_positionals=1)
+    if len(parsed["names"]) != 1:
+        raise CdxError(UNSET_USAGE)
+    keys = ["power", "permission", "fast"] if parsed["all"] else [
+        key for key in ("power", "permission", "fast") if parsed[key]
+    ]
+    if not keys:
+        raise CdxError(UNSET_USAGE)
+    return {"name": parsed["names"][0], "keys": keys, "json": parsed["json"]}
+
+
+def _parse_config_args(args):
+    parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, CONFIG_USAGE, positionals_key="names", max_positionals=1)
+    if len(parsed["names"]) != 1:
+        raise CdxError(CONFIG_USAGE)
+    return {"name": parsed["names"][0], "json": parsed["json"]}
+
+
 def _read_option_value(args, index, usage):
     if index + 1 >= len(args):
         raise CdxError(usage)
@@ -519,6 +577,53 @@ def handle_enable(rest, ctx):
         _write_json(ctx, _json_success("enable", message, session=session))
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    return 0
+
+
+def _format_launch_config(session):
+    launch = session.get("launch") or {}
+    return "\n".join([
+        f"{session['name']} ({session['provider']})",
+        f"power:      {launch.get('power') or 'default'}",
+        f"permission: {launch.get('permission') or 'default'}",
+        f"fast:       {'on' if launch.get('fast') is True else 'off' if launch.get('fast') is False else 'default'}",
+    ])
+
+
+def handle_set(rest, ctx):
+    parsed = _parse_set_args(rest)
+    session = ctx["service"]["set_launch_settings"](parsed["name"], parsed["settings"])
+    message = f"Updated launch settings for {parsed['name']}"
+    if parsed["json"]:
+        _write_json(ctx, _json_success("set", message, session=session, launch=session.get("launch") or {}))
+        return 0
+    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    ctx["out"](f"{_format_launch_config(session)}\n")
+    return 0
+
+
+def handle_unset(rest, ctx):
+    parsed = _parse_unset_args(rest)
+    session = ctx["service"]["unset_launch_settings"](parsed["name"], parsed["keys"])
+    message = f"Cleared launch settings for {parsed['name']}"
+    if parsed["json"]:
+        _write_json(ctx, _json_success("unset", message, session=session, launch=session.get("launch") or {}))
+        return 0
+    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    ctx["out"](f"{_format_launch_config(session)}\n")
+    return 0
+
+
+def handle_config(rest, ctx):
+    parsed = _parse_config_args(rest)
+    session = ctx["service"]["get_session"](parsed["name"])
+    if not session:
+        raise CdxError(f"Unknown session: {parsed['name']}")
+    message = f"Launch settings for {parsed['name']}"
+    if parsed["json"]:
+        _write_json(ctx, _json_success("config", message, session=session, launch=session.get("launch") or {}))
+        return 0
+    ctx["out"](f"{_format_launch_config(session)}\n")
     return 0
 
 

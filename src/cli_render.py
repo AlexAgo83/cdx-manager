@@ -105,10 +105,13 @@ def format_error(error, env=None, stderr=None):
 def _format_sessions(service, use_color=False):
     rows = service["format_list_rows"]()
     has_provider = any(r.get("provider") for r in rows)
+    has_launch = any(r.get("launch") for r in rows)
     headers = ["SESSION"]
     if has_provider:
         headers.append("PROVIDER")
     headers.append("STATUS")
+    if has_launch:
+        headers.append("LAUNCH")
     headers.append("UPDATED")
     headers = [_style(header, "1", use_color) for header in headers]
     table_rows = []
@@ -118,6 +121,17 @@ def _format_sessions(service, use_color=False):
             parts.append(r.get("provider") or "n/a")
         status = r.get("enabled_status") or ("enabled" if r.get("enabled", True) else "disabled")
         parts.append(_style(status, "2" if status == "disabled" else "32", use_color))
+        if has_launch:
+            launch = r.get("launch") or {}
+            if launch:
+                launch_text = "/".join([
+                    launch.get("power") or "-",
+                    launch.get("permission") or "-",
+                    "fast-on" if launch.get("fast") is True else "fast-off" if launch.get("fast") is False else "-",
+                ])
+            else:
+                launch_text = "default"
+            parts.append(_dim(launch_text, use_color))
         parts.append(_dim(_format_relative_age(r.get("updated_at")), use_color))
         table_rows.append(parts)
     lines = [_style("Known sessions:", "1", use_color), _pad_table([headers] + table_rows), ""]
@@ -127,6 +141,8 @@ def _format_sessions(service, use_color=False):
         f"  {_style('cdx <name>', '36', use_color)}",
         f"  {_style('cdx login <name>', '36', use_color)}",
         f"  {_style('cdx logout <name>', '36', use_color)}",
+        f"  {_style('cdx config <name>', '36', use_color)}",
+        f"  {_style('cdx set <name> --power medium --permission default --fast off', '36', use_color)}",
         f"  {_style('cdx context show', '36', use_color)}",
         f"  {_style('cdx handoff <name>', '36', use_color)}",
         f"  {_style('cdx handoff <source> <target>', '36', use_color)}",

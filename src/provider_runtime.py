@@ -12,6 +12,20 @@ from .errors import CdxError
 
 
 LOG_ROTATE_BYTES = 10 * 1024 * 1024  # 10 MB
+LAUNCH_PERMISSION_ARGS = {
+    PROVIDER_CLAUDE: {
+        "review": ["--permission-mode", "plan"],
+        "default": ["--permission-mode", "default"],
+        "auto": ["--permission-mode", "auto"],
+        "full": ["--permission-mode", "bypassPermissions"],
+    },
+    PROVIDER_CODEX: {
+        "review": ["-s", "read-only", "-a", "on-request"],
+        "default": ["-s", "workspace-write", "-a", "on-request"],
+        "auto": ["-s", "workspace-write", "-a", "never"],
+        "full": ["-s", "danger-full-access", "-a", "never"],
+    },
+}
 
 
 def _home_env_overrides(auth_home):
@@ -47,6 +61,35 @@ def _build_launch_transcript_path(session):
         _get_launch_transcript_dir(session),
         f"cdx-session-{stamp}-{os.getpid()}.log",
     )
+
+
+def _launch_power(session):
+    launch = session.get("launch") or {}
+    power = launch.get("power")
+    if power:
+        return power
+    if launch.get("fast") is True:
+        return "low"
+    return None
+
+
+def _launch_config_args(session):
+    launch = session.get("launch") or {}
+    args = []
+    power = _launch_power(session)
+    permission = launch.get("permission")
+    provider = session["provider"]
+    if provider == PROVIDER_CLAUDE:
+        if power:
+            args += ["--effort", power]
+        if permission:
+            args += LAUNCH_PERMISSION_ARGS[PROVIDER_CLAUDE].get(permission, [])
+        return args
+    if power:
+        args += ["-c", f'model_reasoning_effort="{power}"']
+    if permission:
+        args += LAUNCH_PERMISSION_ARGS[PROVIDER_CODEX].get(permission, [])
+    return args
 
 
 def _list_launch_transcript_paths(session, glob_fn=None):
@@ -109,7 +152,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     env_override = env_override or {}
     env = {**os.environ, **env_override}
     if session["provider"] == PROVIDER_CLAUDE:
-        args = ["--name", session["name"]]
+        args = ["--name", session["name"]] + _launch_config_args(session)
         if initial_prompt:
             args.append(initial_prompt)
         return _wrap_launch_with_transcript(session, {
@@ -121,7 +164,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
             },
             "label": "claude",
         }, env=env)
-    args = ["--no-alt-screen", "--cd", cwd]
+    args = ["--no-alt-screen", "--cd", cwd] + _launch_config_args(session)
     if initial_prompt:
         args.append(initial_prompt)
     return _wrap_launch_with_transcript(session, {

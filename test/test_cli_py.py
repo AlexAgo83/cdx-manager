@@ -718,6 +718,66 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(launch_call["args"][3], "codex")
         self.assertEqual(launch_call["args"][4:7], ["--no-alt-screen", "--cd", os.getcwd()])
 
+    def test_persisted_codex_launch_settings_are_applied_until_unset(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        self.assertEqual(main(["add", "main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        set_io = self.make_io()
+        self.assertEqual(main([
+            "set", "main", "--power", "medium", "--permission", "full", "--fast", "off", "--json"
+        ], {
+            **set_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        payload = json.loads(set_io["stdout"].getvalue())
+        self.assertEqual(payload["launch"], {
+            "power": "medium",
+            "permission": "full",
+            "fast": False,
+        })
+
+        self.assertEqual(main(["main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        launch_call = [
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "script" and call["args"][3] == "codex"
+        ][-1]
+        self.assertIn("-c", launch_call["args"])
+        self.assertIn('model_reasoning_effort="medium"', launch_call["args"])
+        self.assertIn("danger-full-access", launch_call["args"])
+        self.assertIn("never", launch_call["args"])
+
+        unset_io = self.make_io()
+        self.assertEqual(main(["unset", "main", "--all", "--json"], {
+            **unset_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertEqual(json.loads(unset_io["stdout"].getvalue())["launch"], {})
+
+        self.assertEqual(main(["main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        launch_call = [
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "script" and call["args"][3] == "codex"
+        ][-1]
+        self.assertEqual(launch_call["args"][4:7], ["--no-alt-screen", "--cd", os.getcwd()])
+        self.assertNotIn('model_reasoning_effort="medium"', launch_call["args"])
+
     def test_disable_command_marks_session_and_blocks_launch(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
@@ -853,6 +913,46 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(
             launch_call["options"]["env"]["HOME"],
             os.path.join(temp_dir, "profiles", "work1", "claude-home"),
+        )
+
+    def test_persisted_claude_launch_settings_are_applied(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        self.assertEqual(main(["add", "claude", "work1"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        self.assertEqual(main(["set", "work1", "--power", "high", "--permission", "review", "--fast", "on"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        config_io = self.make_io()
+        self.assertEqual(main(["config", "work1"], {
+            **config_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertIn("power:      high", config_io["stdout"].getvalue())
+        self.assertIn("permission: review", config_io["stdout"].getvalue())
+        self.assertIn("fast:       on", config_io["stdout"].getvalue())
+
+        self.assertEqual(main(["work1"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        launch_call = [
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "script" and call["args"][3] == "claude"
+        ][-1]
+        self.assertEqual(
+            launch_call["args"][4:10],
+            ["--name", "work1", "--effort", "high", "--permission-mode", "plan"],
         )
 
     def test_handoff_launches_claude_target_with_initial_prompt(self):

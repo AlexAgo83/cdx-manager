@@ -37,7 +37,10 @@ RESERVED_SESSION_NAMES = {
     "ren",
     "rename",
     "rmv",
+    "config",
+    "set",
     "status",
+    "unset",
     "update",
     "version",
     "--help",
@@ -47,6 +50,8 @@ RESERVED_SESSION_NAMES = {
 }
 STATUS_CACHE_TTL_SECONDS = 60
 CLAUDE_STATUS_CACHE_TTL_SECONDS = 10 * 60
+LAUNCH_POWER_VALUES = {"low", "medium", "high", "xhigh", "max"}
+LAUNCH_PERMISSION_VALUES = {"review", "default", "auto", "full"}
 
 
 def _encode(name):
@@ -76,6 +81,35 @@ def _seed_codex_auth_from_global(auth_home, env=None):
         return False
     shutil.copy2(source_auth, dest_auth)
     return True
+
+
+def _normalize_launch_settings(settings):
+    normalized = {}
+    if not settings:
+        return normalized
+    if "power" in settings and settings["power"] is not None:
+        power = str(settings["power"]).strip().lower()
+        if power not in LAUNCH_POWER_VALUES:
+            raise CdxError(f"Unsupported power: {settings['power']}")
+        normalized["power"] = power
+    if "permission" in settings and settings["permission"] is not None:
+        permission = str(settings["permission"]).strip().lower()
+        if permission not in LAUNCH_PERMISSION_VALUES:
+            raise CdxError(f"Unsupported permission: {settings['permission']}")
+        normalized["permission"] = permission
+    if "fast" in settings and settings["fast"] is not None:
+        value = settings["fast"]
+        if isinstance(value, bool):
+            normalized["fast"] = value
+        else:
+            text = str(value).strip().lower()
+            if text in ("on", "true", "1", "yes"):
+                normalized["fast"] = True
+            elif text in ("off", "false", "0", "no"):
+                normalized["fast"] = False
+            else:
+                raise CdxError(f"Unsupported fast value: {settings['fast']}")
+    return normalized
 
 
 def _local_now_iso():
@@ -312,6 +346,7 @@ def create_session_service(options=None):
             "lastLaunchedAt": session.get("lastLaunchedAt"),
             "lastStatusAt": session.get("lastStatusAt"),
             "lastStatus": session.get("lastStatus"),
+            "launch": session.get("launch"),
             "auth": session.get("auth"),
         }
 
@@ -459,6 +494,7 @@ def create_session_service(options=None):
             "lastLaunchedAt": None,
             "lastStatusAt": None,
             "lastStatus": None,
+            **({"launch": source.get("launch")} if source.get("launch") else {}),
             "auth": {
                 "status": "unknown",
                 "lastCheckedAt": None,
@@ -580,6 +616,47 @@ def create_session_service(options=None):
             "enabled": bool(enabled),
             "updatedAt": now,
         })
+
+    def set_launch_settings(name, settings):
+        session = store["get_session"](name)
+        if not session:
+            raise CdxError(f"Unknown session: {name}")
+        updates = _normalize_launch_settings(settings)
+        if not updates:
+            raise CdxError("At least one launch setting is required.")
+        current = _normalize_launch_settings(session.get("launch") or {})
+        launch = {**current, **updates}
+        now = _local_now_iso()
+        return store["update_session"](name, lambda s: {
+            **s,
+            "launch": launch,
+            "updatedAt": now,
+        })
+
+    def unset_launch_settings(name, keys):
+        session = store["get_session"](name)
+        if not session:
+            raise CdxError(f"Unknown session: {name}")
+        if not keys:
+            raise CdxError("At least one launch setting is required.")
+        allowed = {"power", "permission", "fast"}
+        unknown = [key for key in keys if key not in allowed]
+        if unknown:
+            raise CdxError(f"Unsupported launch setting: {', '.join(unknown)}")
+        current = dict(session.get("launch") or {})
+        for key in keys:
+            current.pop(key, None)
+        now = _local_now_iso()
+
+        def updater(s):
+            updated = {**s, "updatedAt": now}
+            if current:
+                updated["launch"] = current
+            else:
+                updated.pop("launch", None)
+            return updated
+
+        return store["update_session"](name, updater)
 
     def record_status(name, payload):
         normalized = _normalize_status_payload(payload)
@@ -764,6 +841,7 @@ def create_session_service(options=None):
             "enabled": s.get("enabled", True) is not False,
             "enabled_status": "disabled" if s.get("enabled", True) is False else "enabled",
             "status": s.get("lastStatus"),
+            "launch": s.get("launch") or {},
             "updated_at": _to_local_iso(s.get("updatedAt")),
         } for s in sessions]
 
@@ -918,6 +996,8 @@ def create_session_service(options=None):
         "list_sessions": list_sessions,
         "get_session": get_session,
         "set_session_enabled": set_session_enabled,
+        "set_launch_settings": set_launch_settings,
+        "unset_launch_settings": unset_launch_settings,
         "record_status": record_status,
         "update_auth_state": update_auth_state,
         "get_status_rows": get_status_rows,

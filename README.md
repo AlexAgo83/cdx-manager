@@ -37,6 +37,7 @@ One command to launch any session. Zero auth juggling.
 - **Auth guardrails.** `cdx` checks authentication before launching. If a session is not logged in, it tells you exactly what to run — no silent failures.
 - **Usage at a glance.** `cdx status` shows token usage, 5-hour window quota, weekly quota, last-updated timestamps, priority guidance, and the last launched session in one aligned table.
 - **Session control.** Disable a session without deleting it when an account is temporarily out of credits; disabled sessions remain visible and sort last.
+- **Persistent launch settings.** Pin per-session power, permission, and fast-mode preferences once; `cdx` reapplies them on every launch until you unset them.
 - **Shared handoff context.** Keep a per-workspace Markdown context, or build one from a source session transcript, and install it into another assistant session before switching providers or accounts.
 - **Passive status resolution.** Codex status is read from the local Codex app-server rate-limit API when available, with legacy transcript/history parsing kept as a fallback.
 - **Session transcript capture.** Every launch is recorded to a local log file via `script`, giving you a full terminal transcript for each session.
@@ -231,6 +232,25 @@ cdx work
 cdx status
 ```
 
+### Persistent Launch Settings
+
+By default, `cdx` launches provider CLIs without forcing model effort, permission mode, or fast behavior. Set only the values you want to pin:
+
+```bash
+cdx set work --power medium --permission full --fast off
+cdx set personal --power low --permission review
+cdx config work
+```
+
+Those values are stored on the session and reapplied every time you run `cdx work`. Remove overrides to return to provider defaults:
+
+```bash
+cdx unset work --power
+cdx unset work --all
+```
+
+`--power` maps to Codex `model_reasoning_effort` and Claude `--effort`. `--permission` maps to provider-native permission flags. `--fast on` uses low effort when no explicit power is set.
+
 ---
 
 ## All Commands
@@ -248,6 +268,9 @@ cdx status
 | `cdx logout <name> [--json]` | Log out of a session |
 | `cdx disable <name> [--json]` | Disable a session without deleting it; disabled sessions stay visible and cannot launch |
 | `cdx enable <name> [--json]` | Re-enable a disabled session |
+| `cdx config <name> [--json]` | Show persistent launch settings for a session |
+| `cdx set <name> [--power low\|medium\|high\|xhigh\|max] [--permission review\|default\|auto\|full] [--fast on\|off] [--json]` | Persist launch settings for a session |
+| `cdx unset <name> (--power\|--permission\|--fast\|--all) [--json]` | Remove persisted launch settings and fall back to provider defaults |
 | `cdx context show\|path\|init\|edit\|clear\|set [text...] [--json]` | Manage the shared Markdown context for the current workspace |
 | `cdx handoff <name> [--json]` | Install the current workspace context into a target session and launch it unless `--json` is used |
 | `cdx handoff <source> <target> [--json]` | Build shared context from the source session's latest launch transcript, install it into the target session, and launch the target unless `--json` is used; supports Codex and Claude targets, including cross-provider handoff |
