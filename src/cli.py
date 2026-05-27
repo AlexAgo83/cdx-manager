@@ -91,6 +91,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx doctor [--json]', '36', use_color)}",
         f"  {_style('cdx repair [--dry-run] [--force] [--json]', '36', use_color)}",
         f"  {_style('cdx update [--check] [--yes] [--json] [--version TAG]', '36', use_color)}",
+        f"  {_style('cdx ready [--refresh] [--json]', '36', use_color)}",
         f"  {_style('cdx notify <name> --at-reset [--schedule] [--refresh] [--json]', '36', use_color)}",
         f"  {_style('cdx notify --next-ready [--schedule] [--refresh] [--json]', '36', use_color)}",
         f"  {_style('cdx <name> [--json]', '36', use_color)}",
@@ -229,7 +230,7 @@ def main(argv, options=None):
         "version": VERSION,
         "cwd": options.get("cwd") or os.getcwd(),
         "update_notice": _get_update_notice(service, env, options) if command not in (
-            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "notify", "status", "context", "config", "set", "unset", "history", "handoff", "login", "logout", "disable", "enable", "export", "import", "help", "version"
+            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "status", "context", "config", "set", "unset", "history", "handoff", "login", "logout", "disable", "enable", "export", "import", "help", "version"
         ) else None,
         "use_color": use_color,
     }
@@ -269,6 +270,11 @@ def main(argv, options=None):
 
     if command == "update":
         return handle_update(rest, ctx)
+
+    if command == "ready":
+        if any(arg not in ("--refresh", "--json") for arg in rest):
+            raise CdxError("Usage: cdx ready [--refresh] [--json]")
+        return handle_notify(["--next-ready", "--schedule", *rest], ctx)
 
     if command == "notify":
         return handle_notify(rest, ctx)

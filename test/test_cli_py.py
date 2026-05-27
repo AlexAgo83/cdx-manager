@@ -294,6 +294,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(main(["--help"], help_io), 0)
         self.assertIn("Usage:", help_io["stdout"].getvalue())
         self.assertIn("cdx update [--check] [--yes] [--json] [--version TAG]", help_io["stdout"].getvalue())
+        self.assertIn("cdx ready [--refresh] [--json]", help_io["stdout"].getvalue())
 
         self.assertEqual(main(["-v"], version_io), 0)
         self.assertRegex(version_io["stdout"].getvalue().strip(), r"^\d+\.\d+\.\d+$")
@@ -2383,6 +2384,48 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["schedule"]["backend"], "systemd")
         self.assertEqual(payload["event"]["session"], "main")
         self.assertEqual(calls[0][0][0], "systemd-run")
+
+    def test_ready_schedules_next_ready_notification(self):
+        temp_dir = self.make_temp_dir()
+        reset = datetime.now().astimezone() + timedelta(minutes=30)
+        service = {
+            "base_dir": temp_dir,
+            "get_status_rows": lambda **_kwargs: [{
+                "session_name": "main",
+                "provider": "codex",
+                "enabled": True,
+                "status": "enabled",
+                "remaining_5h_pct": 0,
+                "remaining_week_pct": 20,
+                "reset_5h_at": reset.isoformat(),
+                "updated_at": datetime.now().astimezone().isoformat(),
+            }],
+        }
+        calls = []
+
+        def spawn_sync(argv, **kwargs):
+            calls.append((argv, kwargs))
+            return subprocess.CompletedProcess(argv, 0, "", "")
+
+        with mock.patch("sys.platform", "linux"):
+            with mock.patch("src.notify.shutil_which", side_effect=lambda command, _env: command == "systemd-run"):
+                ready_io = self.make_io()
+                self.assertEqual(main(["ready", "--json"], {
+                    **ready_io,
+                    "service": service,
+                    "env": {"CDX_HOME": temp_dir, "PATH": "/usr/bin", "CDX_BIN": "/usr/local/bin/cdx"},
+                    "spawn_sync": spawn_sync,
+                }), 0)
+
+        payload = json.loads(ready_io["stdout"].getvalue())
+        self.assertEqual(payload["action"], "notify")
+        self.assertTrue(payload["schedule"]["scheduled"])
+        self.assertEqual(payload["event"]["session"], "main")
+        self.assertEqual(calls[0][0][0], "systemd-run")
+
+    def test_ready_rejects_notify_only_options(self):
+        with self.assertRaisesRegex(CdxError, "Usage: cdx ready"):
+            main(["ready", "--once"], self.make_io())
 
     def test_notify_next_ready_ignores_disabled_sessions(self):
         temp_dir = self.make_temp_dir()

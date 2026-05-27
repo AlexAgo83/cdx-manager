@@ -179,6 +179,8 @@ class SessionServicePythonTests(unittest.TestCase):
             service["create_session"]("context")
         with self.assertRaisesRegex(CdxError, "Session name is reserved: handoff"):
             service["create_session"]("handoff")
+        with self.assertRaisesRegex(CdxError, "Session name is reserved: ready"):
+            service["create_session"]("ready")
 
     def test_rejects_invalid_session_name_shapes(self):
         temp_dir = self.make_temp_dir()

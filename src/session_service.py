@@ -34,6 +34,7 @@ RESERVED_SESSION_NAMES = {
     "logout",
     "mv",
     "notify",
+    "ready",
     "repair",
     "ren",
     "rename",

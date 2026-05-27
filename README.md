@@ -36,6 +36,7 @@ One command to launch any session. Zero auth juggling.
 - **Instant launch.** `cdx work` opens your "work" session. `cdx personal` opens another. No config files to edit mid-flow.
 - **Auth guardrails.** `cdx` checks authentication before launching. If a session is not logged in, it tells you exactly what to run — no silent failures.
 - **Usage at a glance.** `cdx status` shows token usage, 5-hour window quota, weekly quota, last-updated timestamps, priority guidance, and the last launched session in one aligned table.
+- **Next-ready notification.** `cdx ready` schedules a native system notification for the next assistant that comes back from cooldown, then returns immediately.
 - **Session control.** Disable a session without deleting it when an account is temporarily out of credits; disabled sessions remain visible and sort last.
 - **Persistent launch settings.** Pin per-session power, permission, and fast-mode preferences once; `cdx` reapplies them on every launch until you unset them.
 - **Launch history.** Inspect recent launches with provider, result, duration, working directory, launch settings, and transcript path.
@@ -231,6 +232,18 @@ cdx work
 
 # Check usage across all sessions
 cdx status
+
+# Notify when the next cooling-down assistant is ready
+cdx ready
+```
+
+### Next-Ready Notifications
+
+Use `cdx ready` when every useful assistant is cooling down and you want your terminal back. It is shorthand for `cdx notify --schedule --next-ready`: cdx picks the next known reset, registers a native OS notification, and exits immediately.
+
+```bash
+cdx ready
+cdx ready --refresh
 ```
 
 ### Persistent Launch Settings
@@ -297,6 +310,7 @@ cdx history --summary
 | `cdx doctor [--json]` | Inspect CLI dependencies, CDX_HOME permissions, missing state, orphan profiles, and pending quarantines |
 | `cdx repair [--dry-run] [--force] [--json]` | Plan or apply safe repairs for missing state files, quarantines, and orphan profiles |
 | `cdx update [--check] [--yes] [--json] [--version TAG]` | Update cdx-manager using the installer that matches how it was installed |
+| `cdx ready [--refresh] [--json]` | Schedule an OS notification for the next cooling-down assistant that becomes ready, then return immediately |
 | `cdx notify <name> --at-reset [--poll seconds] [--once] [--schedule] [--refresh] [--json]` | Wait for a session reset time or schedule an OS wake-up notification when due |
 | `cdx notify --next-ready [--poll seconds] [--once] [--schedule] [--refresh] [--json]` | Wait until the recommended session is usable, or schedule the next known reset notification |
 | `cdx status [--json] [--refresh]` | Show token usage table for all sessions; JSON returns a versioned payload with structured warnings |
@@ -332,6 +346,7 @@ Commands with machine-readable output:
 - `cdx doctor --json`
 - `cdx repair --json`
 - `cdx update --json`
+- `cdx ready --json`
 - `cdx notify ... --json`
 
 Success payloads follow a shared envelope:
