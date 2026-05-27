@@ -1493,13 +1493,34 @@ def handle_launch(command, ctx, initial_prompt=None):
                 text = f"{text} {update_notice['url']}"
             ctx["out"](f"{_warn(text, ctx['use_color'])}\n")
     cwd = ctx.get("cwd") or os.getcwd()
+    runtime_run_id = None
+
+    def runtime_lifecycle(event, info):
+        nonlocal runtime_run_id
+        if event == "started":
+            runtime = ctx["service"]["start_session_runtime"](session["name"], info)
+            runtime_run_id = runtime.get("runId")
+        elif event == "finished" and runtime_run_id:
+            ctx["service"]["finish_session_runtime"](
+                session["name"],
+                runtime_run_id,
+                {"status": "stopped", "returncode": info.get("returncode")},
+            )
+
     try:
         run_info = _run_interactive_provider_command(
             session, "launch", spawn=ctx.get("spawn"), cwd=cwd, env_override=ctx.get("env"),
             signal_emitter=ctx.get("signal_emitter"), initial_prompt=initial_prompt,
+            lifecycle_callback=runtime_lifecycle,
         )
     except CdxError as error:
         run_info = getattr(error, "run_info", {}) or {}
+        if runtime_run_id:
+            ctx["service"]["finish_session_runtime"](
+                session["name"],
+                runtime_run_id,
+                {"status": "failed", "returncode": run_info.get("returncode")},
+            )
         if run_info:
             ctx["service"]["record_launch_history"](session["name"], {
                 "status": "failed",

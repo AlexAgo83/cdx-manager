@@ -812,6 +812,23 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(launch_call["args"][4:7], ["--no-alt-screen", "--cd", os.getcwd()])
         self.assertNotIn('model_reasoning_effort="medium"', launch_call["args"])
 
+    def test_session_list_hides_fast_off_launch_label(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["set_launch_settings"]("main", {"fast": False})
+
+        list_io = self.make_io()
+        self.assertEqual(main([], {
+            **list_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        output = list_io["stdout"].getvalue()
+        self.assertIn("default", output)
+        self.assertNotIn("fast-off", output)
+
     def test_launch_history_records_success_and_failure(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
@@ -1698,6 +1715,33 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["action"], "status")
         self.assertIsNotNone(payload["rows"][0]["last_launched_at"])
         self.assertNotIn("Resolving status", json_io["stdout"].getvalue())
+
+    def test_status_and_list_mark_active_session_with_star(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["start_session_runtime"]("main", {"pid": os.getpid()})
+        service["record_status"]("main", {
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 60,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+
+        list_io = self.make_io()
+        self.assertEqual(main([], {
+            **list_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertRegex(list_io["stdout"].getvalue(), r"main\*\s+enabled")
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertRegex(status_io["stdout"].getvalue(), r"main\*\s+enabled")
 
     def test_status_cached_rows_do_not_show_session_checking_progress(self):
         temp_dir = self.make_temp_dir()

@@ -82,7 +82,7 @@ def _format_status_rows(rows, use_color=False, small=False):
     priority = _recommend_priority_sessions(active_rows)
     table_rows = []
     for r in priority + disabled_rows:
-        base = [r["session_name"]]
+        base = [_format_session_name(r)]
         if has_provider:
             base.append(r.get("provider") or "n/a")
         status = r.get("status") or ("enabled" if r.get("enabled", True) else "disabled")
@@ -136,6 +136,10 @@ def _format_current_session_line(rows):
     timestamp, row = max(launched, key=lambda item: (item[0], item[1].get("session_name") or ""))
     label = _format_relative_age(row.get("last_launched_at"))
     return f"Current: last launched {row['session_name']} ({label})."
+
+
+def _format_session_name(row):
+    return f"{row['session_name']}*" if row.get("active") else row["session_name"]
 
 
 def _recommend_priority_sessions(rows):
@@ -292,7 +296,7 @@ def _now_timestamp():
 
 def _format_status_detail(row, use_color=False):
     lines = [
-        f"{_style('Session:', '1', use_color)} {row['session_name']}",
+        f"{_style('Session:', '1', use_color)} {_format_session_name(row)}",
         f"{_style('Provider:', '1', use_color)} {row.get('provider') or 'n/a'}",
         f"{_style('Status:', '1', use_color)} {_style(row.get('status') or ('enabled' if row.get('enabled', True) else 'disabled'), '2' if row.get('enabled', True) is False else '32', use_color)}",
         f"{_style('Available:', '1', use_color)} {_style_pct(row.get('available_pct'), use_color)}",

@@ -277,7 +277,7 @@ def _signal_name(sig):
 
 def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
                                       env_override=None, signal_emitter=None,
-                                      initial_prompt=None):
+                                      initial_prompt=None, lifecycle_callback=None):
     spawn = spawn or subprocess.Popen
     spec = (
         _build_launch_spec(session, cwd=cwd, env_override=env_override, initial_prompt=initial_prompt)
@@ -295,6 +295,8 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
 
     start_time = datetime.now(timezone.utc)
 
+    child_pid = None
+
     def run_info(current_spec, returncode=None):
         end_time = datetime.now(timezone.utc)
         return {
@@ -305,6 +307,7 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
             "args": list(current_spec.get("args") or []),
             "label": current_spec.get("label"),
             "transcript_path": current_spec.get("transcript_path"),
+            "pid": child_pid,
             "returncode": returncode,
         }
 
@@ -313,6 +316,9 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
     except FileNotFoundError as error:
         spec = _fallback_launch_spec_or_raise(spec, error)
         child = start_child(spec)
+    child_pid = getattr(child, "pid", None) or os.getpid()
+    if lifecycle_callback:
+        lifecycle_callback("started", run_info(spec))
 
     forwarded_signal = None
     handlers = []
@@ -351,6 +357,9 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
         if forwarded_signal is None and child.returncode != 0 and _should_retry_without_transcript(spec):
             spec = _fallback_launch_spec_or_raise(spec)
             child = start_child(spec)
+            child_pid = getattr(child, "pid", None) or os.getpid()
+            if lifecycle_callback:
+                lifecycle_callback("started", run_info(spec))
             child.wait()
     finally:
         if use_emitter:
@@ -372,14 +381,21 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
             _signal_exit_code(forwarded_signal),
         )
         error.run_info = run_info(spec, returncode=error.exit_code)
+        if lifecycle_callback:
+            lifecycle_callback("finished", error.run_info)
         raise error
     if child.returncode != 0:
         error = CdxError(
             f"{spec['label']} exited with code {child.returncode} for session {session['name']}"
         )
         error.run_info = run_info(spec, returncode=child.returncode)
+        if lifecycle_callback:
+            lifecycle_callback("finished", error.run_info)
         raise error
-    return run_info(spec, returncode=child.returncode)
+    info = run_info(spec, returncode=child.returncode)
+    if lifecycle_callback:
+        lifecycle_callback("finished", info)
+    return info
 
 
 def _fallback_launch_spec_or_raise(spec, original_error=None):

@@ -4,6 +4,7 @@ import json
 import base64
 import sys
 import tempfile
+import uuid
 from datetime import datetime, timezone
 from urllib.parse import quote
 
@@ -116,6 +117,24 @@ def _normalize_launch_settings(settings):
 
 def _local_now_iso():
     return datetime.now().astimezone().isoformat()
+
+
+def _process_is_running(pid):
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
 
 
 def _safe_relpath(path):
@@ -325,6 +344,32 @@ def create_session_service(options=None):
         if value not in ALLOWED_PROVIDERS:
             raise CdxError(f"Unsupported provider: {value}")
         return value
+
+    def _runtime_is_active(runtime):
+        return (
+            isinstance(runtime, dict)
+            and runtime.get("status") == "running"
+            and _process_is_running(runtime.get("pid"))
+        )
+
+    def _session_runtime(name):
+        state = store["read_session_state"](name)
+        if not state:
+            return None
+        runtime = state.get("runtime")
+        if _runtime_is_active(runtime):
+            return runtime
+        if isinstance(runtime, dict) and runtime.get("status") == "running":
+            store["write_session_state"](name, {
+                **state,
+                "status": "ready",
+                "runtime": {
+                    **runtime,
+                    "status": "stale",
+                    "endedAt": _local_now_iso(),
+                },
+            })
+        return None
 
     def _validate_new_session_name(name):
         if not name:
@@ -587,6 +632,56 @@ def create_session_service(options=None):
             **s, "updatedAt": now, "lastLaunchedAt": now
         })
 
+    def start_session_runtime(name, payload=None):
+        session = store["get_session"](name)
+        if not session:
+            raise CdxError(f"Unknown session: {name}")
+        state = store["read_session_state"](name)
+        if not state:
+            raise CdxError(f"Session state missing for {name}. Reconnect required.")
+        payload = dict(payload or {})
+        now = _local_now_iso()
+        runtime = {
+            "status": "running",
+            "runId": payload.get("runId") or uuid.uuid4().hex,
+            "startedAt": payload.get("startedAt") or now,
+            "pid": payload.get("pid") or os.getpid(),
+            "command": payload.get("command"),
+            "label": payload.get("label"),
+            "transcriptPath": payload.get("transcript_path") or payload.get("transcriptPath"),
+        }
+        store["write_session_state"](name, {
+            **state,
+            "status": "running",
+            "runtime": runtime,
+        })
+        return runtime
+
+    def finish_session_runtime(name, run_id=None, payload=None):
+        session = store["get_session"](name)
+        if not session:
+            raise CdxError(f"Unknown session: {name}")
+        state = store["read_session_state"](name)
+        if not state:
+            return None
+        runtime = state.get("runtime") or {}
+        if run_id and runtime.get("runId") != run_id:
+            return runtime
+        payload = dict(payload or {})
+        updated_runtime = {
+            **runtime,
+            "status": payload.get("status") or "stopped",
+            "endedAt": payload.get("endedAt") or _local_now_iso(),
+        }
+        if "returncode" in payload:
+            updated_runtime["returncode"] = payload["returncode"]
+        store["write_session_state"](name, {
+            **state,
+            "status": "ready",
+            "runtime": updated_runtime,
+        })
+        return updated_runtime
+
     def ensure_session_state(name):
         session = store["get_session"](name)
         if not session:
@@ -827,6 +922,7 @@ def create_session_service(options=None):
                 "session_name": s["name"],
                 "provider": s["provider"],
                 "enabled": enabled,
+                "active": bool(_session_runtime(s["name"])) if enabled else False,
                 "status": "enabled" if enabled else "disabled",
                 "remaining_5h_pct": row_status.get("remaining_5h_pct") if row_status else None,
                 "remaining_week_pct": row_status.get("remaining_week_pct") if row_status else None,
@@ -860,6 +956,7 @@ def create_session_service(options=None):
             "name": s["name"],
             "provider": s["provider"] if has_multiple else None,
             "enabled": s.get("enabled", True) is not False,
+            "active": bool(_session_runtime(s["name"])) if s.get("enabled", True) is not False else False,
             "enabled_status": "disabled" if s.get("enabled", True) is False else "enabled",
             "status": s.get("lastStatus"),
             "launch": s.get("launch") or {},
@@ -1013,6 +1110,8 @@ def create_session_service(options=None):
         "copy_session": copy_session,
         "rename_session": rename_session,
         "launch_session": launch_session,
+        "start_session_runtime": start_session_runtime,
+        "finish_session_runtime": finish_session_runtime,
         "ensure_session_state": ensure_session_state,
         "list_sessions": list_sessions,
         "get_session": get_session,

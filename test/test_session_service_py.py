@@ -129,6 +129,30 @@ class SessionServicePythonTests(unittest.TestCase):
         with self.assertRaises(CdxError):
             service["launch_session"]("work1")
 
+    def test_runtime_state_marks_active_sessions_and_clears_on_finish(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+
+        service["create_session"]("main")
+        runtime = service["start_session_runtime"]("main", {"pid": os.getpid(), "command": "codex"})
+        rows = service["get_status_rows"]()
+        self.assertTrue(rows[0]["active"])
+        self.assertTrue(service["format_list_rows"]()[0]["active"])
+
+        service["finish_session_runtime"]("main", runtime["runId"], {"returncode": 0})
+        self.assertFalse(service["get_status_rows"]()[0]["active"])
+
+    def test_runtime_state_cleans_stale_pid(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+
+        service["create_session"]("main")
+        service["start_session_runtime"]("main", {"pid": 999999999})
+
+        self.assertFalse(service["get_status_rows"]()[0]["active"])
+        state = create_session_store(temp_dir)["read_session_state"]("main")
+        self.assertEqual(state["runtime"]["status"], "stale")
+
     def test_disable_keeps_session_listed_last_and_blocks_launch(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

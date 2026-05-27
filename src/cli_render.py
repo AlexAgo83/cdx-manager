@@ -98,6 +98,19 @@ def _dim(text, use_color=False):
     return _style(text, "2", use_color)
 
 
+def _format_launch_text(launch):
+    if not launch:
+        return "default"
+    parts = []
+    if launch.get("power"):
+        parts.append(launch["power"])
+    if launch.get("permission"):
+        parts.append(launch["permission"])
+    if launch.get("fast") is True:
+        parts.append("fast-on")
+    return "/".join(parts) or "default"
+
+
 def format_error(error, env=None, stderr=None):
     return _style(str(error), "31", _should_use_color(env or os.environ, stderr or sys.stderr))
 
@@ -116,22 +129,15 @@ def _format_sessions(service, use_color=False):
     headers = [_style(header, "1", use_color) for header in headers]
     table_rows = []
     for r in rows:
-        parts = [r["name"]]
+        name = f"{r['name']}*" if r.get("active") else r["name"]
+        parts = [name]
         if has_provider:
             parts.append(r.get("provider") or "n/a")
         status = r.get("enabled_status") or ("enabled" if r.get("enabled", True) else "disabled")
         parts.append(_style(status, "2" if status == "disabled" else "32", use_color))
         if has_launch:
             launch = r.get("launch") or {}
-            if launch:
-                launch_text = "/".join([
-                    launch.get("power") or "-",
-                    launch.get("permission") or "-",
-                    "fast-on" if launch.get("fast") is True else "fast-off" if launch.get("fast") is False else "-",
-                ])
-            else:
-                launch_text = "default"
-            parts.append(_dim(launch_text, use_color))
+            parts.append(_dim(_format_launch_text(launch), use_color))
         parts.append(_dim(_format_relative_age(r.get("updated_at")), use_color))
         table_rows.append(parts)
     lines = [_style("Known sessions:", "1", use_color), _pad_table([headers] + table_rows), ""]
