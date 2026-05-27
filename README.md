@@ -275,9 +275,11 @@ cdx history work
 cdx history work --limit 5
 cdx history work --json
 cdx history --summary
+cdx history --summary --since 7d
+cdx history --summary --from 2026-05-01 --to 2026-05-28
 ```
 
-`cdx history --summary` aggregates total time per assistant.
+`cdx history --summary` aggregates total time per assistant. Add `--since`, `--from`, or `--to` to focus on a period.
 
 ---
 
@@ -299,7 +301,7 @@ cdx history --summary
 | `cdx config <name> [--json]` | Show persistent launch settings for a session |
 | `cdx set <name> [--power low\|medium\|high\|xhigh\|max] [--permission review\|default\|auto\|full] [--fast on\|off] [--json]` | Persist launch settings for a session |
 | `cdx unset <name> (--power\|--permission\|--fast\|--all) [--json]` | Remove persisted launch settings and fall back to provider defaults |
-| `cdx history [name] [--limit N] [--summary] [--json]` | Show recent launch history or aggregate total launch time per assistant |
+| `cdx history [name] [--limit N] [--summary] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Show recent launch history or aggregate total launch time per assistant, optionally filtered by period |
 | `cdx context show\|path\|init\|edit\|clear\|set [text...] [--json]` | Manage the shared Markdown context for the current workspace |
 | `cdx handoff <name> [--json]` | Install the current workspace context into a target session and launch it unless `--json` is used |
 | `cdx handoff <source> <target> [--json]` | Build shared context from the source session's latest launch transcript, install it into the target session, and launch the target unless `--json` is used; supports Codex and Claude targets, including cross-provider handoff |

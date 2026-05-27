@@ -4,7 +4,7 @@ import json
 import os
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .claude_refresh import _refresh_claude_sessions
 from .cli_render import _dim, _info, _success, _warn
@@ -52,7 +52,7 @@ HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <targ
 SET_USAGE = "Usage: cdx set <name> [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--json]"
 UNSET_USAGE = "Usage: cdx unset <name> (--power|--permission|--fast|--all) [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
-HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--json]"
+HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
 API_SCHEMA_VERSION = 1
 HANDOFF_TRANSCRIPT_CHARS = 120000
 
@@ -375,16 +375,140 @@ def _parse_positive_int(value):
     return parsed
 
 
-def _parse_history_args(args):
+def _local_timezone():
+    return datetime.now().astimezone().tzinfo
+
+
+def _parse_datetime_value(value, usage, end_of_day=False):
+    text = str(value or "").strip()
+    if not text:
+        raise CdxError(usage)
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    is_date_only = len(text) == 10 and text[4] == "-" and text[7] == "-"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError as error:
+        raise CdxError(usage) from error
+    if is_date_only and end_of_day:
+        parsed = parsed.replace(hour=23, minute=59, second=59, microsecond=999999)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=_local_timezone())
+    return parsed.astimezone()
+
+
+def _parse_since_value(value, now, usage):
+    text = str(value or "").strip().lower()
+    if not text:
+        raise CdxError(usage)
+    if text == "today":
+        return now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if text == "yesterday":
+        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return today - timedelta(days=1)
+    unit = text[-1:]
+    amount_text = text[:-1]
+    if unit in ("m", "h", "d", "w") and amount_text.isdigit():
+        amount = int(amount_text)
+        if amount < 1:
+            raise CdxError(usage)
+        multipliers = {
+            "m": timedelta(minutes=amount),
+            "h": timedelta(hours=amount),
+            "d": timedelta(days=amount),
+            "w": timedelta(weeks=amount),
+        }
+        return now - multipliers[unit]
+    return _parse_datetime_value(value, usage, end_of_day=False)
+
+
+def _format_period_datetime(value):
+    if value is None:
+        return None
+    return value.isoformat(timespec="seconds")
+
+
+def _parse_history_period(parsed, now):
+    since = parsed.get("since")
+    from_value = parsed.get("from")
+    to_value = parsed.get("to")
+    if since and from_value:
+        raise CdxError("Usage: cdx history cannot combine --since and --from.")
+    start = _parse_since_value(since, now, HISTORY_USAGE) if since else None
+    if from_value:
+        start = _parse_datetime_value(from_value, HISTORY_USAGE, end_of_day=False)
+    end = _parse_datetime_value(to_value, HISTORY_USAGE, end_of_day=True) if to_value else None
+    if start and end and start.timestamp() > end.timestamp():
+        raise CdxError("Usage: cdx history period start must be before period end.")
+    return {
+        "from": _format_period_datetime(start),
+        "to": _format_period_datetime(end),
+        "from_ts": start.timestamp() if start else None,
+        "to_ts": end.timestamp() if end else None,
+    }
+
+
+def _has_history_period(period):
+    return period.get("from_ts") is not None or period.get("to_ts") is not None
+
+
+def _parse_entry_timestamp(entry):
+    value = entry.get("started_at")
+    if not value:
+        return None
+    text = str(value)
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=_local_timezone())
+    return parsed.timestamp()
+
+
+def _filter_history_period(entries, period):
+    if not _has_history_period(period):
+        return entries
+    filtered = []
+    start = period.get("from_ts")
+    end = period.get("to_ts")
+    for entry in entries:
+        timestamp = _parse_entry_timestamp(entry)
+        if timestamp is None:
+            continue
+        if start is not None and timestamp < start:
+            continue
+        if end is not None and timestamp > end:
+            continue
+        filtered.append(entry)
+    return filtered
+
+
+def _public_history_period(period):
+    return {
+        "from": period.get("from"),
+        "to": period.get("to"),
+    }
+
+
+def _parse_history_args(args, now=None):
+    now = now or datetime.now().astimezone()
     parsed = _parse_flag_args(args, {
         "--limit": {"key": "limit", "type": "str", "default": 20, "transform": _parse_positive_int},
         "--summary": {"key": "summary", "type": "bool", "default": False},
+        "--since": {"key": "since", "type": "str", "default": None},
+        "--from": {"key": "from", "type": "str", "default": None},
+        "--to": {"key": "to", "type": "str", "default": None},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, HISTORY_USAGE, positionals_key="names", max_positionals=1)
+    period = _parse_history_period(parsed, now)
     return {
         "name": parsed["names"][0] if parsed["names"] else None,
         "limit": parsed["limit"],
         "summary": parsed["summary"],
+        "period": period,
         "json": parsed["json"],
     }
 
@@ -665,12 +789,30 @@ def _summarize_history(entries):
     )
 
 
-def _format_history_summary(entries, use_color=False):
+def _format_history_period(period):
+    if not _has_history_period(period or {}):
+        return None
+    start = _format_period_display(period.get("from")) or "beginning"
+    end = _format_period_display(period.get("to")) or "now"
+    return f"Period: {start} -> {end}"
+
+
+def _format_period_display(value):
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except ValueError:
+        return str(value)
+    return parsed.strftime("%Y-%m-%d %H:%M")
+
+
+def _format_history_summary(entries, period=None, use_color=False):
     from .cli_render import _format_relative_age, _pad_table
 
     summary = _summarize_history(entries)
     if not summary:
-        return "No launch history."
+        return "No launch history for this period." if _has_history_period(period or {}) else "No launch history."
     rows = [["SESSION", "PROV.", "LAUNCHES", "OK", "FAIL", "TIME", "LAST"]]
     for row in summary:
         rows.append([
@@ -682,10 +824,12 @@ def _format_history_summary(entries, use_color=False):
             _format_duration_ms(row["duration_ms"]),
             _format_relative_age(row.get("last_started_at")),
         ])
-    return "\n".join([
-        "Assistant time:",
-        _pad_table(rows),
-    ])
+    lines = ["Assistant time:"]
+    period_line = _format_history_period(period or {})
+    if period_line:
+        lines.extend([period_line, ""])
+    lines.append(_pad_table(rows))
+    return "\n".join(lines)
 
 
 def _format_history(entries, use_color=False):
@@ -750,22 +894,28 @@ def handle_config(rest, ctx):
 
 
 def handle_history(rest, ctx):
-    parsed = _parse_history_args(rest)
-    limit = 0 if parsed["summary"] else parsed["limit"]
+    now_fn = ctx["options"].get("now") or time.time
+    now = datetime.fromtimestamp(now_fn()).astimezone()
+    parsed = _parse_history_args(rest, now=now)
+    has_period = _has_history_period(parsed["period"])
+    limit = 0 if parsed["summary"] or has_period else parsed["limit"]
     entries = ctx["service"]["get_launch_history"](parsed["name"], limit=limit)
+    entries = _filter_history_period(entries, parsed["period"])
+    if has_period and not parsed["summary"]:
+        entries = entries[:parsed["limit"]]
     message = (
         f"Listed launch history for {parsed['name']}"
         if parsed["name"]
         else "Listed launch history"
     )
     if parsed["json"]:
-        payload = {"history": entries}
+        payload = {"history": entries, "period": _public_history_period(parsed["period"])}
         if parsed["summary"]:
             payload["summary"] = _summarize_history(entries)
         _write_json(ctx, _json_success("history", message, **payload))
         return 0
     if parsed["summary"]:
-        ctx["out"](f"{_format_history_summary(entries, use_color=ctx['use_color'])}\n")
+        ctx["out"](f"{_format_history_summary(entries, period=parsed['period'], use_color=ctx['use_color'])}\n")
         return 0
     ctx["out"](f"{_format_history(entries, use_color=ctx['use_color'])}\n")
     return 0

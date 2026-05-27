@@ -866,6 +866,60 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Assistant time:", summary_output)
         self.assertIn("LAUNCHES", summary_output)
 
+    def test_history_summary_filters_by_period(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("work")
+        service["create_session"]("personal")
+        now = datetime(2026, 5, 28, 12, 0, 0).astimezone()
+        recent = now - timedelta(days=2)
+        old = now - timedelta(days=10)
+        service["record_launch_history"]("work", {
+            "status": "success",
+            "duration_ms": 120000,
+            "started_at": recent.isoformat(),
+            "ended_at": (recent + timedelta(minutes=2)).isoformat(),
+        })
+        service["record_launch_history"]("work", {
+            "status": "success",
+            "duration_ms": 300000,
+            "started_at": old.isoformat(),
+            "ended_at": (old + timedelta(minutes=5)).isoformat(),
+        })
+        service["record_launch_history"]("personal", {
+            "status": "failed",
+            "duration_ms": 60000,
+            "started_at": recent.isoformat(),
+            "ended_at": (recent + timedelta(minutes=1)).isoformat(),
+        })
+
+        summary_io = self.make_io()
+        self.assertEqual(main(["history", "--summary", "--since", "7d", "--json"], {
+            **summary_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "now": lambda: now.timestamp(),
+        }), 0)
+        payload = json.loads(summary_io["stdout"].getvalue())
+        rows = {row["session_name"]: row for row in payload["summary"]}
+        self.assertEqual(set(rows), {"work", "personal"})
+        self.assertEqual(rows["work"]["duration_ms"], 120000)
+        self.assertEqual(rows["personal"]["failures"], 1)
+        self.assertIsNotNone(payload["period"]["from"])
+        self.assertIsNone(payload["period"]["to"])
+
+        text_io = self.make_io()
+        self.assertEqual(main(["history", "--summary", "--from", recent.date().isoformat(), "--to", now.date().isoformat()], {
+            **text_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "now": lambda: now.timestamp(),
+        }), 0)
+        output = text_io["stdout"].getvalue()
+        self.assertIn("Period:", output)
+        self.assertIn("work", output)
+        self.assertNotIn("5m00s", output)
+
     def test_disable_command_marks_session_and_blocks_launch(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
