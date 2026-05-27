@@ -1,11 +1,15 @@
 import unittest
 import subprocess
+import time
 from unittest import mock
 
 from src.notify import parse_notify_args, schedule_notification_event, send_desktop_notification
 
 
 class NotifyPythonTests(unittest.TestCase):
+    def future_timestamp(self):
+        return int(time.time()) + 1800
+
     def test_send_desktop_notification_dispatches_to_macos_osascript(self):
         calls = []
 
@@ -81,7 +85,7 @@ class NotifyPythonTests(unittest.TestCase):
             "title": "cdx",
             "message": "Waiting for main reset",
             "session": "main",
-            "target_timestamp": 2000,
+            "target_timestamp": self.future_timestamp(),
         }
 
         with mock.patch("sys.platform", "linux"):
@@ -92,7 +96,7 @@ class NotifyPythonTests(unittest.TestCase):
                     event,
                     spawn_sync=spawn_sync,
                     env={"PATH": "/usr/bin", "CDX_BIN": "/usr/local/bin/cdx"},
-                    now_fn=lambda: 1000,
+                    now_fn=lambda: event["target_timestamp"] - 60,
                 )
 
         self.assertTrue(schedule["scheduled"])
@@ -113,7 +117,7 @@ class NotifyPythonTests(unittest.TestCase):
             "title": "cdx",
             "message": "Waiting for main reset",
             "session": "main",
-            "target_timestamp": 2000,
+            "target_timestamp": self.future_timestamp(),
         }
 
         with mock.patch("sys.platform", "linux"):
@@ -124,7 +128,7 @@ class NotifyPythonTests(unittest.TestCase):
                     event,
                     spawn_sync=spawn_sync,
                     env={"PATH": "/usr/bin", "CDX_BIN": "/usr/local/bin/cdx"},
-                    now_fn=lambda: 1000,
+                    now_fn=lambda: event["target_timestamp"] - 60,
                 )
 
         self.assertTrue(schedule["scheduled"])
@@ -144,7 +148,7 @@ class NotifyPythonTests(unittest.TestCase):
             "title": "cdx",
             "message": "Waiting for main reset",
             "session": "main",
-            "target_timestamp": 2000,
+            "target_timestamp": self.future_timestamp(),
         }
 
         with self.subTest("darwin"):
@@ -156,7 +160,7 @@ class NotifyPythonTests(unittest.TestCase):
                         event,
                         spawn_sync=spawn_sync,
                         env={"PATH": "/usr/bin", "CDX_BIN": "/usr/local/bin/cdx"},
-                        now_fn=lambda: 1000,
+                        now_fn=lambda: event["target_timestamp"] - 60,
                     )
 
         self.assertTrue(schedule["scheduled"])
@@ -176,7 +180,7 @@ class NotifyPythonTests(unittest.TestCase):
             "title": "cdx",
             "message": "Waiting for main reset",
             "session": "main",
-            "target_timestamp": 2000,
+            "target_timestamp": self.future_timestamp(),
         }
 
         with mock.patch("sys.platform", "darwin"):
@@ -187,7 +191,7 @@ class NotifyPythonTests(unittest.TestCase):
                     event,
                     spawn_sync=spawn_sync,
                     env={"PATH": "/usr/bin", "CDX_BIN": "/usr/local/bin/cdx"},
-                    now_fn=lambda: 1000,
+                    now_fn=lambda: event["target_timestamp"] - 60,
                 )
 
         self.assertTrue(schedule["scheduled"])

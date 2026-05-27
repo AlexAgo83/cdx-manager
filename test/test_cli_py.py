@@ -2260,15 +2260,20 @@ class CliPythonTests(unittest.TestCase):
 
     def test_notify_schedule_next_ready_registers_os_job(self):
         temp_dir = self.make_temp_dir()
-        service = create_session_service({"base_dir": temp_dir})
-        service["create_session"]("main")
         reset = datetime.now().astimezone() + timedelta(minutes=30)
-        service["record_status"]("main", {
-            "remaining_5h_pct": 0,
-            "remaining_week_pct": 20,
-            "reset_5h_at": reset.isoformat(),
-            "updated_at": datetime.now().astimezone().isoformat(),
-        })
+        service = {
+            "base_dir": temp_dir,
+            "get_status_rows": lambda **_kwargs: [{
+                "session_name": "main",
+                "provider": "codex",
+                "enabled": True,
+                "status": "enabled",
+                "remaining_5h_pct": 0,
+                "remaining_week_pct": 20,
+                "reset_5h_at": reset.isoformat(),
+                "updated_at": datetime.now().astimezone().isoformat(),
+            }],
+        }
         calls = []
 
         def spawn_sync(argv, **kwargs):
