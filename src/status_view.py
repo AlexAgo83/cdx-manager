@@ -11,6 +11,7 @@ from .cli_render import (
 
 RESET_COUNTDOWN_SAFETY_SECONDS = 60
 PRIORITY_EMPTY_AVAILABLE_THRESHOLD = 5
+BLOCKING_QUOTA_WARNING_THRESHOLD = 10
 
 
 def _format_reset_time(value):
@@ -166,6 +167,9 @@ def _format_blocking_quota(row):
     remaining_week = row.get("remaining_week_pct")
     if remaining_5h is None and remaining_week is None:
         return "?"
+    known = [value for value in (remaining_5h, remaining_week) if value is not None]
+    if known and min(known) > BLOCKING_QUOTA_WARNING_THRESHOLD:
+        return "-"
     if remaining_5h is None:
         return "WEEK"
     if remaining_week is None:

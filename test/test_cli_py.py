@@ -259,6 +259,10 @@ class CliPythonTests(unittest.TestCase):
 
     def test_blocking_quota_formatting_identifies_lowest_limit(self):
         self.assertEqual(_format_blocking_quota({
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 60,
+        }), "-")
+        self.assertEqual(_format_blocking_quota({
             "remaining_5h_pct": 99,
             "remaining_week_pct": 0,
         }), "WEEK")
