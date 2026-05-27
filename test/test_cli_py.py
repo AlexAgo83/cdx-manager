@@ -778,6 +778,66 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(launch_call["args"][4:7], ["--no-alt-screen", "--cd", os.getcwd()])
         self.assertNotIn('model_reasoning_effort="medium"', launch_call["args"])
 
+    def test_launch_history_records_success_and_failure(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        self.assertEqual(main(["add", "main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        self.assertEqual(main(["main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        def failing_spawn(argv, **kwargs):
+            harness.calls.append({
+                "kind": "spawn",
+                "command": argv[0],
+                "args": list(argv[1:]),
+                "options": kwargs,
+            })
+            child = _Child()
+            child.returncode = 7
+            return child
+
+        with self.assertRaisesRegex(CdxError, "exited with code 7"):
+            main(["main"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": failing_spawn,
+                "spawn_sync": harness.spawn_sync,
+            })
+
+        history_io = self.make_io()
+        self.assertEqual(main(["history", "main", "--json"], {
+            **history_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        payload = json.loads(history_io["stdout"].getvalue())
+        self.assertEqual(payload["action"], "history")
+        self.assertEqual([entry["status"] for entry in payload["history"][:2]], ["failed", "success"])
+        self.assertEqual(payload["history"][0]["exit_code"], 1)
+        self.assertEqual(payload["history"][0]["returncode"], 7)
+        self.assertEqual(payload["history"][0]["session_name"], "main")
+        self.assertEqual(payload["history"][0]["provider"], "codex")
+        self.assertIn("transcript_path", payload["history"][0])
+
+        text_io = self.make_io()
+        self.assertEqual(main(["history", "--limit", "1"], {
+            **text_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        output = text_io["stdout"].getvalue()
+        self.assertIn("SESSION", output)
+        self.assertIn("failed", output)
+
     def test_disable_command_marks_session_and_blocks_launch(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()

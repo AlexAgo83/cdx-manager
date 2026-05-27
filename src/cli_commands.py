@@ -52,6 +52,7 @@ HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <targ
 SET_USAGE = "Usage: cdx set <name> [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--json]"
 UNSET_USAGE = "Usage: cdx unset <name> (--power|--permission|--fast|--all) [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
+HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--json]"
 API_SCHEMA_VERSION = 1
 HANDOFF_TRANSCRIPT_CHARS = 120000
 
@@ -364,6 +365,28 @@ def _parse_config_args(args):
     return {"name": parsed["names"][0], "json": parsed["json"]}
 
 
+def _parse_positive_int(value):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as error:
+        raise CdxError(HISTORY_USAGE) from error
+    if parsed < 1:
+        raise CdxError(HISTORY_USAGE)
+    return parsed
+
+
+def _parse_history_args(args):
+    parsed = _parse_flag_args(args, {
+        "--limit": {"key": "limit", "type": "str", "default": 20, "transform": _parse_positive_int},
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, HISTORY_USAGE, positionals_key="names", max_positionals=1)
+    return {
+        "name": parsed["names"][0] if parsed["names"] else None,
+        "limit": parsed["limit"],
+        "json": parsed["json"],
+    }
+
+
 def _read_option_value(args, index, usage):
     if index + 1 >= len(args):
         raise CdxError(usage)
@@ -590,6 +613,47 @@ def _format_launch_config(session):
     ])
 
 
+def _format_duration_ms(value):
+    if value is None:
+        return "-"
+    try:
+        amount = int(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if amount < 1000:
+        return f"{amount}ms"
+    seconds = amount / 1000
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    minutes = int(seconds // 60)
+    remaining = int(seconds % 60)
+    return f"{minutes}m{remaining:02d}s"
+
+
+def _format_history(entries, use_color=False):
+    from .cli_render import _format_relative_age, _pad_table
+
+    if not entries:
+        return "No launch history."
+    rows = [["SESSION", "PROV.", "RESULT", "DURATION", "WHEN", "TRANSCRIPT"]]
+    for entry in entries:
+        transcript_path = entry.get("transcript_path")
+        rows.append([
+            entry.get("session_name") or "-",
+            entry.get("provider") or "-",
+            entry.get("status") or "-",
+            _format_duration_ms(entry.get("duration_ms")),
+            _format_relative_age(entry.get("started_at")),
+            os.path.basename(transcript_path) if transcript_path else "-",
+        ])
+    return "\n".join([
+        "Recent launches:",
+        _pad_table(rows),
+        "",
+        _dim("Full transcript paths and cwd are available with --json.", use_color),
+    ])
+
+
 def handle_set(rest, ctx):
     parsed = _parse_set_args(rest)
     session = ctx["service"]["set_launch_settings"](parsed["name"], parsed["settings"])
@@ -624,6 +688,21 @@ def handle_config(rest, ctx):
         _write_json(ctx, _json_success("config", message, session=session, launch=session.get("launch") or {}))
         return 0
     ctx["out"](f"{_format_launch_config(session)}\n")
+    return 0
+
+
+def handle_history(rest, ctx):
+    parsed = _parse_history_args(rest)
+    entries = ctx["service"]["get_launch_history"](parsed["name"], limit=parsed["limit"])
+    message = (
+        f"Listed launch history for {parsed['name']}"
+        if parsed["name"]
+        else "Listed launch history"
+    )
+    if parsed["json"]:
+        _write_json(ctx, _json_success("history", message, history=entries))
+        return 0
+    ctx["out"](f"{_format_history(entries, use_color=ctx['use_color'])}\n")
     return 0
 
 
@@ -1198,10 +1277,29 @@ def handle_launch(command, ctx, initial_prompt=None):
             if update_notice.get("url"):
                 text = f"{text} {update_notice['url']}"
             ctx["out"](f"{_warn(text, ctx['use_color'])}\n")
-    _run_interactive_provider_command(
-        session, "launch", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
-        signal_emitter=ctx.get("signal_emitter"), initial_prompt=initial_prompt,
-    )
+    cwd = ctx.get("cwd") or os.getcwd()
+    try:
+        run_info = _run_interactive_provider_command(
+            session, "launch", spawn=ctx.get("spawn"), cwd=cwd, env_override=ctx.get("env"),
+            signal_emitter=ctx.get("signal_emitter"), initial_prompt=initial_prompt,
+        )
+    except CdxError as error:
+        run_info = getattr(error, "run_info", {}) or {}
+        if run_info:
+            ctx["service"]["record_launch_history"](session["name"], {
+                "status": "failed",
+                "cwd": cwd,
+                "error": str(error),
+                "exit_code": error.exit_code,
+                **run_info,
+            })
+        raise
+    ctx["service"]["record_launch_history"](session["name"], {
+        "status": "success",
+        "cwd": cwd,
+        "exit_code": 0,
+        **run_info,
+    })
     if json_flag:
         _write_json(ctx, _json_success("launch", message, warnings=warnings, session=ctx["service"]["get_session"](session["name"])))
     return 0

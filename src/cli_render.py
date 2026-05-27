@@ -143,6 +143,7 @@ def _format_sessions(service, use_color=False):
         f"  {_style('cdx logout <name>', '36', use_color)}",
         f"  {_style('cdx config <name>', '36', use_color)}",
         f"  {_style('cdx set <name> --power medium --permission default --fast off', '36', use_color)}",
+        f"  {_style('cdx history', '36', use_color)}",
         f"  {_style('cdx context show', '36', use_color)}",
         f"  {_style('cdx handoff <name>', '36', use_color)}",
         f"  {_style('cdx handoff <source> <target>', '36', use_color)}",

@@ -105,6 +105,7 @@ def create_session_store(base_dir):
     store_file = os.path.join(base_dir, "sessions.json")
     lock_file = os.path.join(base_dir, ".sessions.lock")
     state_dir = os.path.join(base_dir, "state")
+    launch_history_file = os.path.join(state_dir, "launch_history.jsonl")
 
     def _state_file_path(name):
         return os.path.join(state_dir, f"{_encode(name)}.json")
@@ -259,6 +260,39 @@ def create_session_store(base_dir):
         with _file_lock(lock_file):
             _write_session_state_unlocked(name, state)
 
+    def append_launch_history(entry):
+        with _file_lock(lock_file):
+            _ensure_dir(state_dir)
+            with open(launch_history_file, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(entry, separators=(",", ":")))
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            _fsync_directory(state_dir)
+
+    def list_launch_history(session_name=None, limit=20):
+        with _file_lock(lock_file):
+            try:
+                with open(launch_history_file, "r", encoding="utf-8") as handle:
+                    lines = handle.readlines()
+            except FileNotFoundError:
+                return []
+            entries = []
+            for line in reversed(lines):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError as error:
+                    raise CdxError(f"Corrupt JSONL file: {launch_history_file}") from error
+                if session_name and entry.get("session_name") != session_name:
+                    continue
+                entries.append(entry)
+                if limit and len(entries) >= limit:
+                    break
+            return entries
+
     return {
         "list_sessions": list_sessions,
         "get_session": get_session,
@@ -269,4 +303,6 @@ def create_session_store(base_dir):
         "replace_session": replace_session,
         "read_session_state": read_session_state,
         "write_session_state": write_session_state,
+        "append_launch_history": append_launch_history,
+        "list_launch_history": list_launch_history,
     }

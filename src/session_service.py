@@ -28,6 +28,7 @@ RESERVED_SESSION_NAMES = {
     "export",
     "help",
     "handoff",
+    "history",
     "import",
     "login",
     "logout",
@@ -669,6 +670,25 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         return updated
 
+    def record_launch_history(name, payload):
+        session = store["get_session"](name)
+        if not session:
+            raise CdxError(f"Unknown session: {name}")
+        entry = {
+            "schema_version": 1,
+            "session_name": session["name"],
+            "provider": session["provider"],
+            "launch": session.get("launch") or {},
+            **payload,
+        }
+        store["append_launch_history"](entry)
+        return entry
+
+    def get_launch_history(name=None, limit=20):
+        if name and not store["get_session"](name):
+            raise CdxError(f"Unknown session: {name}")
+        return store["list_launch_history"](session_name=name, limit=limit)
+
     def _resolve_session_status(session, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS):
         current_status = session.get("lastStatus")
         if session.get("enabled", True) is False:
@@ -999,6 +1019,8 @@ def create_session_service(options=None):
         "set_launch_settings": set_launch_settings,
         "unset_launch_settings": unset_launch_settings,
         "record_status": record_status,
+        "record_launch_history": record_launch_history,
+        "get_launch_history": get_launch_history,
         "update_auth_state": update_auth_state,
         "get_status_rows": get_status_rows,
         "format_list_rows": format_list_rows,

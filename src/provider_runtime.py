@@ -293,6 +293,21 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
             **{k: v for k, v in current_spec.get("options", {}).items() if k != "stdio"},
         )
 
+    start_time = datetime.now(timezone.utc)
+
+    def run_info(current_spec, returncode=None):
+        end_time = datetime.now(timezone.utc)
+        return {
+            "started_at": start_time.isoformat().replace("+00:00", "Z"),
+            "ended_at": end_time.isoformat().replace("+00:00", "Z"),
+            "duration_ms": int((end_time - start_time).total_seconds() * 1000),
+            "command": current_spec.get("command"),
+            "args": list(current_spec.get("args") or []),
+            "label": current_spec.get("label"),
+            "transcript_path": current_spec.get("transcript_path"),
+            "returncode": returncode,
+        }
+
     try:
         child = start_child(spec)
     except FileNotFoundError as error:
@@ -352,14 +367,19 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
                     pass
 
     if forwarded_signal is not None:
-        raise CdxError(
+        error = CdxError(
             f"{spec['label']} interrupted by {_signal_name(forwarded_signal)} for session {session['name']}",
             _signal_exit_code(forwarded_signal),
         )
+        error.run_info = run_info(spec, returncode=error.exit_code)
+        raise error
     if child.returncode != 0:
-        raise CdxError(
+        error = CdxError(
             f"{spec['label']} exited with code {child.returncode} for session {session['name']}"
         )
+        error.run_info = run_info(spec, returncode=child.returncode)
+        raise error
+    return run_info(spec, returncode=child.returncode)
 
 
 def _fallback_launch_spec_or_raise(spec, original_error=None):

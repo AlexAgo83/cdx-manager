@@ -18,6 +18,7 @@ from .cli_commands import (
     handle_export,
     handle_import,
     handle_handoff,
+    handle_history,
     handle_launch,
     handle_login,
     handle_logout,
@@ -73,6 +74,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx config <name> [--json]', '36', use_color)}",
         f"  {_style('cdx set <name> [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--json]', '36', use_color)}",
         f"  {_style('cdx unset <name> (--power|--permission|--fast|--all) [--json]', '36', use_color)}",
+        f"  {_style('cdx history [name] [--limit N] [--json]', '36', use_color)}",
         f"  {_style('cdx handoff <name> [--json]', '36', use_color)}",
         f"  {_style('cdx handoff <source> <target> [--json]', '36', use_color)}",
         f"  {_style('cdx add [provider] <name> [--json]', '36', use_color)}",
@@ -227,7 +229,7 @@ def main(argv, options=None):
         "version": VERSION,
         "cwd": options.get("cwd") or os.getcwd(),
         "update_notice": _get_update_notice(service, env, options) if command not in (
-            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "notify", "status", "context", "config", "set", "unset", "handoff", "login", "logout", "disable", "enable", "export", "import", "help", "version"
+            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "notify", "status", "context", "config", "set", "unset", "history", "handoff", "login", "logout", "disable", "enable", "export", "import", "help", "version"
         ) else None,
         "use_color": use_color,
     }
@@ -282,6 +284,9 @@ def main(argv, options=None):
 
     if command == "unset":
         return handle_unset(rest, ctx)
+
+    if command == "history":
+        return handle_history(rest, ctx)
 
     if command == "handoff":
         return handle_handoff(rest, ctx)

@@ -38,6 +38,7 @@ One command to launch any session. Zero auth juggling.
 - **Usage at a glance.** `cdx status` shows token usage, 5-hour window quota, weekly quota, last-updated timestamps, priority guidance, and the last launched session in one aligned table.
 - **Session control.** Disable a session without deleting it when an account is temporarily out of credits; disabled sessions remain visible and sort last.
 - **Persistent launch settings.** Pin per-session power, permission, and fast-mode preferences once; `cdx` reapplies them on every launch until you unset them.
+- **Launch history.** Inspect recent launches with provider, result, duration, working directory, launch settings, and transcript path.
 - **Shared handoff context.** Keep a per-workspace Markdown context, or build one from a source session transcript, and install it into another assistant session before switching providers or accounts.
 - **Passive status resolution.** Codex status is read from the local Codex app-server rate-limit API when available, with legacy transcript/history parsing kept as a fallback.
 - **Session transcript capture.** Every launch is recorded to a local log file via `script`, giving you a full terminal transcript for each session.
@@ -251,6 +252,17 @@ cdx unset work --all
 
 `--power` maps to Codex `model_reasoning_effort` and Claude `--effort`. `--permission` maps to provider-native permission flags. `--fast on` uses low effort when no explicit power is set.
 
+### Launch History
+
+Every interactive `cdx <name>` launch is recorded under `CDX_HOME`, including success/failure, duration, cwd, launch settings, and transcript path.
+
+```bash
+cdx history
+cdx history work
+cdx history work --limit 5
+cdx history work --json
+```
+
 ---
 
 ## All Commands
@@ -271,6 +283,7 @@ cdx unset work --all
 | `cdx config <name> [--json]` | Show persistent launch settings for a session |
 | `cdx set <name> [--power low\|medium\|high\|xhigh\|max] [--permission review\|default\|auto\|full] [--fast on\|off] [--json]` | Persist launch settings for a session |
 | `cdx unset <name> (--power\|--permission\|--fast\|--all) [--json]` | Remove persisted launch settings and fall back to provider defaults |
+| `cdx history [name] [--limit N] [--json]` | Show recent launch history for all sessions or one session |
 | `cdx context show\|path\|init\|edit\|clear\|set [text...] [--json]` | Manage the shared Markdown context for the current workspace |
 | `cdx handoff <name> [--json]` | Install the current workspace context into a target session and launch it unless `--json` is used |
 | `cdx handoff <source> <target> [--json]` | Build shared context from the source session's latest launch transcript, install it into the target session, and launch the target unless `--json` is used; supports Codex and Claude targets, including cross-provider handoff |
@@ -452,6 +465,7 @@ All session data lives under `CDX_HOME` (default: `~/.cdx/`):
   sessions.json             # Session registry (versioned, all sessions)
   state/
     <encoded-name>.json     # Per-session rehydration state
+    launch_history.jsonl    # Append-only launch history
   profiles/
     <encoded-name>/         # Codex session: CODEX_HOME points here
       log/
