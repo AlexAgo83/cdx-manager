@@ -52,7 +52,7 @@ HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <targ
 SET_USAGE = "Usage: cdx set <name> [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--json]"
 UNSET_USAGE = "Usage: cdx unset <name> (--power|--permission|--fast|--all) [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
-HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--json]"
+HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--json]"
 API_SCHEMA_VERSION = 1
 HANDOFF_TRANSCRIPT_CHARS = 120000
 
@@ -378,11 +378,13 @@ def _parse_positive_int(value):
 def _parse_history_args(args):
     parsed = _parse_flag_args(args, {
         "--limit": {"key": "limit", "type": "str", "default": 20, "transform": _parse_positive_int},
+        "--summary": {"key": "summary", "type": "bool", "default": False},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, HISTORY_USAGE, positionals_key="names", max_positionals=1)
     return {
         "name": parsed["names"][0] if parsed["names"] else None,
         "limit": parsed["limit"],
+        "summary": parsed["summary"],
         "json": parsed["json"],
     }
 
@@ -630,6 +632,62 @@ def _format_duration_ms(value):
     return f"{minutes}m{remaining:02d}s"
 
 
+def _summarize_history(entries):
+    by_session = {}
+    for entry in entries:
+        name = entry.get("session_name") or "-"
+        row = by_session.setdefault(name, {
+            "session_name": name,
+            "provider": entry.get("provider") or "-",
+            "launches": 0,
+            "successes": 0,
+            "failures": 0,
+            "duration_ms": 0,
+            "last_started_at": None,
+        })
+        row["launches"] += 1
+        if entry.get("status") == "success":
+            row["successes"] += 1
+        elif entry.get("status") == "failed":
+            row["failures"] += 1
+        try:
+            row["duration_ms"] += int(entry.get("duration_ms") or 0)
+        except (TypeError, ValueError):
+            pass
+        started = entry.get("started_at")
+        if started and (not row["last_started_at"] or started > row["last_started_at"]):
+            row["last_started_at"] = started
+            row["provider"] = entry.get("provider") or row["provider"]
+    return sorted(
+        by_session.values(),
+        key=lambda item: (item["duration_ms"], item.get("last_started_at") or "", item["session_name"]),
+        reverse=True,
+    )
+
+
+def _format_history_summary(entries, use_color=False):
+    from .cli_render import _format_relative_age, _pad_table
+
+    summary = _summarize_history(entries)
+    if not summary:
+        return "No launch history."
+    rows = [["SESSION", "PROV.", "LAUNCHES", "OK", "FAIL", "TIME", "LAST"]]
+    for row in summary:
+        rows.append([
+            row["session_name"],
+            row["provider"],
+            str(row["launches"]),
+            str(row["successes"]),
+            str(row["failures"]),
+            _format_duration_ms(row["duration_ms"]),
+            _format_relative_age(row.get("last_started_at")),
+        ])
+    return "\n".join([
+        "Assistant time:",
+        _pad_table(rows),
+    ])
+
+
 def _format_history(entries, use_color=False):
     from .cli_render import _format_relative_age, _pad_table
 
@@ -693,14 +751,21 @@ def handle_config(rest, ctx):
 
 def handle_history(rest, ctx):
     parsed = _parse_history_args(rest)
-    entries = ctx["service"]["get_launch_history"](parsed["name"], limit=parsed["limit"])
+    limit = 0 if parsed["summary"] else parsed["limit"]
+    entries = ctx["service"]["get_launch_history"](parsed["name"], limit=limit)
     message = (
         f"Listed launch history for {parsed['name']}"
         if parsed["name"]
         else "Listed launch history"
     )
     if parsed["json"]:
-        _write_json(ctx, _json_success("history", message, history=entries))
+        payload = {"history": entries}
+        if parsed["summary"]:
+            payload["summary"] = _summarize_history(entries)
+        _write_json(ctx, _json_success("history", message, **payload))
+        return 0
+    if parsed["summary"]:
+        ctx["out"](f"{_format_history_summary(entries, use_color=ctx['use_color'])}\n")
         return 0
     ctx["out"](f"{_format_history(entries, use_color=ctx['use_color'])}\n")
     return 0

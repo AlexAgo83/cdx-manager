@@ -838,6 +838,27 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("SESSION", output)
         self.assertIn("failed", output)
 
+        summary_io = self.make_io()
+        self.assertEqual(main(["history", "--summary", "--json"], {
+            **summary_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        summary_payload = json.loads(summary_io["stdout"].getvalue())
+        self.assertEqual(summary_payload["summary"][0]["session_name"], "main")
+        self.assertEqual(summary_payload["summary"][0]["launches"], 2)
+        self.assertEqual(summary_payload["summary"][0]["successes"], 1)
+        self.assertEqual(summary_payload["summary"][0]["failures"], 1)
+        self.assertGreaterEqual(summary_payload["summary"][0]["duration_ms"], 0)
+
+        summary_text_io = self.make_io()
+        self.assertEqual(main(["history", "--summary"], {
+            **summary_text_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        summary_output = summary_text_io["stdout"].getvalue()
+        self.assertIn("Assistant time:", summary_output)
+        self.assertIn("LAUNCHES", summary_output)
+
     def test_disable_command_marks_session_and_blocks_launch(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
