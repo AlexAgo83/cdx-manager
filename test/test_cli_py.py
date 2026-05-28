@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -140,6 +141,32 @@ class _AuthHarness:
         if command == "claude" and args == ["auth", "logout"]:
             self.auth_by_home[home] = False
         return _Child()
+
+
+def _script_launch_text(call):
+    args = call["args"]
+    if args[:3] == ["-q", "-F", "-c"]:
+        return args[3]
+    return " ".join(shlex.quote(arg) for arg in args[3:])
+
+
+def _script_launch_invokes(call, command):
+    text = _script_launch_text(call)
+    return text == command or text.startswith(f"{command} ")
+
+
+def _script_launch_args(call):
+    args = call["args"]
+    if args[:3] == ["-q", "-F", "-c"]:
+        return shlex.split(args[3])[1:]
+    return args[4:]
+
+
+def _script_transcript_path(call):
+    args = call["args"]
+    if args[:3] == ["-q", "-F", "-c"]:
+        return args[4]
+    return args[2]
 
 
 class CliPythonTests(unittest.TestCase):
@@ -630,8 +657,8 @@ class CliPythonTests(unittest.TestCase):
         launch_call = harness.calls[-1]
         self.assertEqual(launch_call["kind"], "spawn")
         self.assertEqual(launch_call["command"], "script")
-        self.assertEqual(launch_call["args"][3], "codex")
-        self.assertIn("Read $CODEX_HOME/shared-context.md first", launch_call["args"][-1])
+        self.assertTrue(_script_launch_invokes(launch_call, "codex"))
+        self.assertIn("Read $CODEX_HOME/shared-context.md first", _script_launch_text(launch_call))
 
     def test_handoff_from_claude_source_builds_context_for_claude_target_json(self):
         temp_dir = self.make_temp_dir()
@@ -804,16 +831,13 @@ class CliPythonTests(unittest.TestCase):
         self.assertNotIn("Tip:", launch_io["stdout"].getvalue())
 
         launch_call = next(call for call in harness.calls if call["kind"] == "spawn" and call["command"] == "script")
-        self.assertEqual(
-            launch_call["args"][:3],
-            ["-q", "-F", launch_call["args"][2]],
-        )
+        transcript_path = _script_transcript_path(launch_call)
         self.assertTrue(
-            launch_call["args"][2].startswith(os.path.join(temp_dir, "profiles", "main", "log", "cdx-session-"))
+            transcript_path.startswith(os.path.join(temp_dir, "profiles", "main", "log", "cdx-session-"))
         )
-        self.assertTrue(launch_call["args"][2].endswith(".log"))
-        self.assertEqual(launch_call["args"][3], "codex")
-        self.assertEqual(launch_call["args"][4:7], ["--no-alt-screen", "--cd", os.getcwd()])
+        self.assertTrue(transcript_path.endswith(".log"))
+        self.assertTrue(_script_launch_invokes(launch_call, "codex"))
+        self.assertEqual(_script_launch_args(launch_call)[:3], ["--no-alt-screen", "--cd", os.getcwd()])
 
     def test_persisted_codex_launch_settings_are_applied_until_unset(self):
         temp_dir = self.make_temp_dir()
@@ -848,12 +872,13 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
         launch_call = [
             call for call in harness.calls
-            if call["kind"] == "spawn" and call["command"] == "script" and call["args"][3] == "codex"
+            if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "codex")
         ][-1]
-        self.assertIn("-c", launch_call["args"])
-        self.assertIn('model_reasoning_effort="medium"', launch_call["args"])
-        self.assertIn("danger-full-access", launch_call["args"])
-        self.assertIn("never", launch_call["args"])
+        launch_text = _script_launch_text(launch_call)
+        self.assertIn("-c", launch_text)
+        self.assertIn('model_reasoning_effort="medium"', launch_text)
+        self.assertIn("danger-full-access", launch_text)
+        self.assertIn("never", launch_text)
 
         unset_io = self.make_io()
         self.assertEqual(main(["unset", "main", "--all", "--json"], {
@@ -870,10 +895,10 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
         launch_call = [
             call for call in harness.calls
-            if call["kind"] == "spawn" and call["command"] == "script" and call["args"][3] == "codex"
+            if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "codex")
         ][-1]
-        self.assertEqual(launch_call["args"][4:7], ["--no-alt-screen", "--cd", os.getcwd()])
-        self.assertNotIn('model_reasoning_effort="medium"', launch_call["args"])
+        self.assertEqual(_script_launch_args(launch_call)[:3], ["--no-alt-screen", "--cd", os.getcwd()])
+        self.assertNotIn('model_reasoning_effort="medium"', _script_launch_text(launch_call))
 
     def test_session_list_hides_fast_off_launch_label(self):
         temp_dir = self.make_temp_dir()
@@ -1011,10 +1036,10 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Launching codex session second", output)
         launch_call = [
             call for call in harness.calls
-            if call["kind"] == "spawn" and call["command"] == "script" and call["args"][3] == "codex"
+            if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "codex")
         ][-1]
         self.assertTrue(
-            launch_call["args"][2].startswith(os.path.join(temp_dir, "profiles", "second", "log", "cdx-session-"))
+            _script_transcript_path(launch_call).startswith(os.path.join(temp_dir, "profiles", "second", "log", "cdx-session-"))
         )
 
     def test_last_skips_removed_sessions_and_supports_json(self):
@@ -1247,9 +1272,9 @@ class CliPythonTests(unittest.TestCase):
 
         launch_call = next(
             call for call in harness.calls
-            if call["kind"] == "spawn" and call["command"] == "script" and call["args"][3] == "claude"
+            if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "claude")
         )
-        self.assertEqual(launch_call["args"][4:6], ["--name", "work1"])
+        self.assertEqual(_script_launch_args(launch_call)[:2], ["--name", "work1"])
         self.assertEqual(
             launch_call["options"]["env"]["HOME"],
             os.path.join(temp_dir, "profiles", "work1", "claude-home"),
@@ -1288,10 +1313,10 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
         launch_call = [
             call for call in harness.calls
-            if call["kind"] == "spawn" and call["command"] == "script" and call["args"][3] == "claude"
+            if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "claude")
         ][-1]
         self.assertEqual(
-            launch_call["args"][4:10],
+            _script_launch_args(launch_call)[:6],
             ["--name", "work1", "--effort", "high", "--permission-mode", "plan"],
         )
 
@@ -1326,10 +1351,10 @@ class CliPythonTests(unittest.TestCase):
         launch_call = harness.calls[-1]
         self.assertEqual(launch_call["kind"], "spawn")
         self.assertEqual(launch_call["command"], "script")
-        self.assertEqual(launch_call["args"][3], "claude")
-        self.assertEqual(launch_call["args"][4:6], ["--name", "claude2"])
-        self.assertIn("claude-home", launch_call["args"][-1])
-        self.assertIn("shared-context.md first", launch_call["args"][-1])
+        self.assertTrue(_script_launch_invokes(launch_call, "claude"))
+        self.assertEqual(_script_launch_args(launch_call)[:2], ["--name", "claude2"])
+        self.assertIn("claude-home", _script_launch_text(launch_call))
+        self.assertIn("shared-context.md first", _script_launch_text(launch_call))
 
     def test_signal_emitter_interrupts_launch(self):
         temp_dir = self.make_temp_dir()
