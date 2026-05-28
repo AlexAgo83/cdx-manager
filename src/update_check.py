@@ -9,6 +9,10 @@ UPDATE_CHECK_TTL_SECONDS = 12 * 60 * 60
 LATEST_RELEASE_URL = "https://api.github.com/repos/AlexAgo83/cdx-manager/releases/latest"
 
 
+class LatestReleaseCheckError(Exception):
+    pass
+
+
 def _parse_version(value):
     raw = str(value or "").strip().lstrip("v")
     parts = raw.split(".")
@@ -51,13 +55,22 @@ def _write_cache(path, payload):
         handle.write("\n")
 
 
-def _fetch_latest_release():
+def _github_token(env=None):
+    env = env or os.environ
+    return env.get("GH_TOKEN") or env.get("GITHUB_TOKEN")
+
+
+def _fetch_latest_release(env=None):
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "cdx-manager-update-check",
+    }
+    token = _github_token(env)
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     request = urllib.request.Request(
         LATEST_RELEASE_URL,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "cdx-manager-update-check",
-        },
+        headers=headers,
     )
     with urllib.request.urlopen(request, timeout=5) as response:
         payload = json.loads(response.read().decode("utf-8"))
@@ -67,11 +80,37 @@ def _fetch_latest_release():
     }
 
 
-def fetch_latest_release():
+def _format_fetch_error(error):
+    if isinstance(error, urllib.error.HTTPError):
+        if error.code == 403:
+            return (
+                "GitHub API rate limit reached while checking the latest cdx-manager release. "
+                "Try again later, set GH_TOKEN or GITHUB_TOKEN, or run cdx update --version <version>."
+            )
+        if error.code == 404:
+            return "Unable to find the latest cdx-manager release on GitHub."
+        return f"GitHub returned HTTP {error.code} while checking the latest cdx-manager release."
+    if isinstance(error, urllib.error.URLError):
+        reason = getattr(error, "reason", None)
+        suffix = f" ({reason})" if reason else ""
+        return f"Unable to reach GitHub while checking the latest cdx-manager release{suffix}."
+    if isinstance(error, TimeoutError):
+        return "Timed out while checking the latest cdx-manager release."
+    return "Unable to check for the latest cdx-manager release."
+
+
+def fetch_latest_release(env=None):
     try:
-        return _fetch_latest_release()
+        return _fetch_latest_release(env=env)
     except (urllib.error.URLError, TimeoutError, ValueError, OSError):
         return None
+
+
+def fetch_latest_release_or_raise(env=None):
+    try:
+        return _fetch_latest_release(env=env)
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError) as error:
+        raise LatestReleaseCheckError(_format_fetch_error(error)) from error
 
 
 def check_for_update(base_dir, current_version, env=None, now_fn=None):
@@ -94,7 +133,7 @@ def check_for_update(base_dir, current_version, env=None, now_fn=None):
             }
         return None
 
-    latest = fetch_latest_release()
+    latest = fetch_latest_release(env=env)
     if not latest:
         return None
 

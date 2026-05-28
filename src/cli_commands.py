@@ -37,7 +37,7 @@ from .provider_runtime import (
 from .repair import format_repair_report, repair_health
 from .backup_bundle import read_bundle_meta
 from .status_view import _format_status_detail, _format_status_rows
-from .update_check import fetch_latest_release, is_newer_version
+from .update_check import LatestReleaseCheckError, fetch_latest_release, fetch_latest_release_or_raise, is_newer_version
 from .update_manager import build_update_plan, format_update_failure, run_update_plan
 
 
@@ -1437,7 +1437,14 @@ def handle_update(rest, ctx):
     if parsed["version"] is not None:
         target_version = str(parsed["version"]).strip().lstrip("v")
     else:
-        latest = release_fetcher()
+        try:
+            latest = (
+                release_fetcher()
+                if ctx["options"].get("fetchLatestRelease")
+                else fetch_latest_release_or_raise(env=ctx.get("env"))
+            )
+        except LatestReleaseCheckError as error:
+            raise CdxError(str(error)) from error
         if not latest:
             raise CdxError("Unable to check for the latest cdx-manager release. Check your network and try again.")
         target_version = str(latest.get("latest_version") or "").strip()
