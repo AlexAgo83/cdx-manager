@@ -339,6 +339,7 @@ class RuntimePythonTests(unittest.TestCase):
 
         self.assertEqual(result["HOME"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
         self.assertEqual(result["CLAUDE_CONFIG_DIR"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
+        self.assertEqual(result["CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS"], "1")
         self.assertEqual(result["USERPROFILE"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
         self.assertEqual(result["HOMEDRIVE"], "C:")
         self.assertEqual(result["HOMEPATH"], r"\Users\Test\AppData\Local\cdx\claude-home")

@@ -35,7 +35,11 @@ def _home_env_overrides(auth_home):
     directory via USERPROFILE (and falls back to HOMEDRIVE+HOMEPATH), so we
     set all three to ensure profile isolation works regardless of the platform.
     """
-    overrides = {"HOME": auth_home, "CLAUDE_CONFIG_DIR": auth_home}
+    overrides = {
+        "HOME": auth_home,
+        "CLAUDE_CONFIG_DIR": auth_home,
+        "CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS": "1",
+    }
     if sys.platform == "win32":
         overrides["USERPROFILE"] = auth_home
         overrides["HOMEDRIVE"] = os.path.splitdrive(auth_home)[0] or "C:"

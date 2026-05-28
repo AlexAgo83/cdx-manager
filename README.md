@@ -54,7 +54,7 @@ One command to launch any session. Zero auth juggling.
 - Python 3.9+, zero runtime dependencies.
 - Environment isolation per session:
   - Codex sessions override `CODEX_HOME` to a dedicated profile directory.
-  - Claude sessions override `HOME` to a dedicated profile directory.
+  - Claude sessions override `HOME` to a dedicated profile directory and disable Claude Code commit co-author attribution by default.
   - Antigravity sessions launch `agy` with a dedicated `HOME` for file-based settings; Google account credentials may still be stored in the OS keyring by Antigravity itself.
   - Ollama sessions use the local Ollama server and launch `ollama run <model>`; set a model with `cdx set <name> --model <model>`.
   - New Codex sessions seed their auth home from your existing global `~/.codex/auth.json` when available, so an already logged-in Codex CLI can be reused without giving up per-session isolation afterward.

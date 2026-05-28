@@ -330,6 +330,29 @@ def _read_expected_account_email(auth_home):
     return None
 
 
+def _ensure_claude_attribution_disabled(auth_home):
+    settings_dir = os.path.join(auth_home, ".claude")
+    settings_path = os.path.join(settings_dir, "settings.json")
+    try:
+        os.makedirs(settings_dir, exist_ok=True)
+        with open(settings_path, "r", encoding="utf-8") as handle:
+            settings = json.load(handle)
+    except FileNotFoundError:
+        settings = {}
+    except (OSError, json.JSONDecodeError):
+        settings = {}
+    if not isinstance(settings, dict):
+        settings = {}
+    settings["includeCoAuthoredBy"] = False
+    try:
+        with open(settings_path, "w", encoding="utf-8") as handle:
+            json.dump(settings, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+    except OSError:
+        return False
+    return True
+
+
 def create_session_service(options=None):
     if options is None:
         options = {}
@@ -464,6 +487,8 @@ def create_session_service(options=None):
         _ensure_private_dir(auth_home)
         if normalized_provider == PROVIDER_CODEX:
             _seed_codex_auth_from_global(auth_home, env=env)
+        if normalized_provider == PROVIDER_CLAUDE:
+            _ensure_claude_attribution_disabled(auth_home)
         now = _local_now_iso()
         session = {
             "name": name,

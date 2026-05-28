@@ -36,6 +36,32 @@ class SessionServicePythonTests(unittest.TestCase):
         service["remove_session"]("main")
         self.assertEqual([s["name"] for s in service["list_sessions"]()], ["work1"])
 
+    def test_create_claude_session_disables_claude_commit_attribution(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+
+        session = service["create_session"]("work1", "claude")
+        settings_path = os.path.join(session["authHome"], ".claude", "settings.json")
+
+        with open(settings_path, "r", encoding="utf-8") as handle:
+            settings = json.load(handle)
+        self.assertIs(settings["includeCoAuthoredBy"], False)
+
+    def test_create_claude_session_preserves_existing_claude_settings(self):
+        temp_dir = self.make_temp_dir()
+        settings_dir = os.path.join(temp_dir, "profiles", "work1", "claude-home", ".claude")
+        os.makedirs(settings_dir, exist_ok=True)
+        with open(os.path.join(settings_dir, "settings.json"), "w", encoding="utf-8") as handle:
+            json.dump({"theme": "dark", "includeCoAuthoredBy": True}, handle)
+
+        service = create_session_service({"base_dir": temp_dir})
+        session = service["create_session"]("work1", "claude")
+
+        with open(os.path.join(session["authHome"], ".claude", "settings.json"), "r", encoding="utf-8") as handle:
+            settings = json.load(handle)
+        self.assertEqual(settings["theme"], "dark")
+        self.assertIs(settings["includeCoAuthoredBy"], False)
+
     def test_create_session_uses_private_directory_permissions_on_unix(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

@@ -1378,6 +1378,10 @@ class CliPythonTests(unittest.TestCase):
             launch_call["options"]["env"]["CLAUDE_CONFIG_DIR"],
             os.path.join(temp_dir, "profiles", "work1", "claude-home"),
         )
+        self.assertEqual(
+            launch_call["options"]["env"]["CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS"],
+            "1",
+        )
 
         claude_auth_calls = [
             call for call in harness.calls
