@@ -908,6 +908,93 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(_script_launch_args(launch_call)[:3], ["--no-alt-screen", "--cd", os.getcwd()])
         self.assertNotIn('model_reasoning_effort="medium"', _script_launch_text(launch_call))
 
+    def test_set_launch_settings_can_target_all_sessions(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        for args in (["add", "main"], ["add", "claude", "work1"], ["add", "ollama", "local"]):
+            self.assertEqual(main(args, {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
+
+        set_io = self.make_io()
+        self.assertEqual(main([
+            "set", "--sessions", "all", "--permission", "full", "--json"
+        ], {
+            **set_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        payload = json.loads(set_io["stdout"].getvalue())
+        self.assertEqual(payload["updated_count"], 3)
+        self.assertIsNone(payload["session"])
+        self.assertEqual(
+            {session["name"]: session["launch"]["permission"] for session in payload["sessions"]},
+            {"main": "full", "work1": "full", "local": "full"},
+        )
+
+    def test_set_launch_settings_can_target_provider_or_named_subset(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        for args in (["add", "main"], ["add", "side"], ["add", "claude", "work1"], ["add", "ollama", "local"]):
+            self.assertEqual(main(args, {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
+
+        provider_io = self.make_io()
+        self.assertEqual(main([
+            "set", "--provider", "codex", "--power", "low", "--json"
+        ], {
+            **provider_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        provider_payload = json.loads(provider_io["stdout"].getvalue())
+        self.assertEqual([session["name"] for session in provider_payload["sessions"]], ["main", "side"])
+
+        subset_io = self.make_io()
+        self.assertEqual(main([
+            "set", "--sessions", "work1,local", "--fast", "on", "--json"
+        ], {
+            **subset_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        subset_payload = json.loads(subset_io["stdout"].getvalue())
+        self.assertEqual([session["name"] for session in subset_payload["sessions"]], ["work1", "local"])
+        self.assertTrue(all(session["launch"]["fast"] for session in subset_payload["sessions"]))
+
+    def test_unset_launch_settings_can_target_all_sessions(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        for args in (["add", "main"], ["add", "claude", "work1"]):
+            self.assertEqual(main(args, {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
+
+        self.assertEqual(main([
+            "set", "--sessions", "all", "--permission", "full"
+        ], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        unset_io = self.make_io()
+        self.assertEqual(main([
+            "unset", "--sessions", "all", "--permission", "--json"
+        ], {
+            **unset_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        payload = json.loads(unset_io["stdout"].getvalue())
+        self.assertEqual(payload["updated_count"], 2)
+        self.assertTrue(all("launch" not in session for session in payload["sessions"]))
+
     def test_session_list_hides_fast_off_launch_label(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

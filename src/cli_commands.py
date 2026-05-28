@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 from .claude_refresh import _refresh_claude_sessions
 from .cli_render import _dim, _info, _success, _warn
-from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CODEX, PROVIDER_OLLAMA
+from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CODEX, PROVIDER_OLLAMA, PROVIDERS
 from .context_store import (
     clear_context,
     edit_context,
@@ -50,8 +50,8 @@ EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--
 IMPORT_USAGE = "Usage: cdx import <file> [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
 CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--json]"
-SET_USAGE = "Usage: cdx set <name> [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--model MODEL] [--json]"
-UNSET_USAGE = "Usage: cdx unset <name> (--power|--permission|--fast|--model|--all) [--json]"
+SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--model MODEL] [--json]"
+UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--model|--all) [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
 LAST_USAGE = "Usage: cdx last [--json]"
@@ -471,9 +471,17 @@ def _parse_set_args(args):
         "--permission": {"key": "permission", "type": "str", "default": None},
         "--fast": {"key": "fast", "type": "str", "default": None, "transform": _parse_fast_value},
         "--model": {"key": "model", "type": "str", "default": None},
+        "--sessions": {"key": "sessions", "type": "str", "default": None, "transform": _parse_set_unset_sessions},
+        "--provider": {"key": "provider", "type": "str", "default": None, "transform": lambda value: _parse_provider_filter(value, SET_USAGE)},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, SET_USAGE, positionals_key="names", max_positionals=1)
-    if len(parsed["names"]) != 1:
+    if len(parsed["names"]) > 1:
+        raise CdxError(SET_USAGE)
+    if parsed["names"] and parsed["sessions"]:
+        raise CdxError(SET_USAGE)
+    if parsed["names"] and parsed["provider"]:
+        raise CdxError(SET_USAGE)
+    if not parsed["names"] and not parsed["sessions"] and not parsed["provider"]:
         raise CdxError(SET_USAGE)
     settings = {
         key: parsed[key]
@@ -482,7 +490,13 @@ def _parse_set_args(args):
     }
     if not settings:
         raise CdxError(SET_USAGE)
-    return {"name": parsed["names"][0], "settings": settings, "json": parsed["json"]}
+    return {
+        "name": parsed["names"][0] if parsed["names"] else None,
+        "sessions": parsed["sessions"],
+        "provider": parsed["provider"],
+        "settings": settings,
+        "json": parsed["json"],
+    }
 
 
 def _parse_unset_args(args):
@@ -492,16 +506,30 @@ def _parse_unset_args(args):
         "--fast": {"key": "fast", "type": "bool", "default": False},
         "--model": {"key": "model", "type": "bool", "default": False},
         "--all": {"key": "all", "type": "bool", "default": False},
+        "--sessions": {"key": "sessions", "type": "str", "default": None, "transform": _parse_set_unset_sessions},
+        "--provider": {"key": "provider", "type": "str", "default": None, "transform": lambda value: _parse_provider_filter(value, UNSET_USAGE)},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, UNSET_USAGE, positionals_key="names", max_positionals=1)
-    if len(parsed["names"]) != 1:
+    if len(parsed["names"]) > 1:
+        raise CdxError(UNSET_USAGE)
+    if parsed["names"] and parsed["sessions"]:
+        raise CdxError(UNSET_USAGE)
+    if parsed["names"] and parsed["provider"]:
+        raise CdxError(UNSET_USAGE)
+    if not parsed["names"] and not parsed["sessions"] and not parsed["provider"]:
         raise CdxError(UNSET_USAGE)
     keys = ["power", "permission", "fast", "model"] if parsed["all"] else [
         key for key in ("power", "permission", "fast", "model") if parsed[key]
     ]
     if not keys:
         raise CdxError(UNSET_USAGE)
-    return {"name": parsed["names"][0], "keys": keys, "json": parsed["json"]}
+    return {
+        "name": parsed["names"][0] if parsed["names"] else None,
+        "sessions": parsed["sessions"],
+        "provider": parsed["provider"],
+        "keys": keys,
+        "json": parsed["json"],
+    }
 
 
 def _parse_config_args(args):
@@ -674,6 +702,22 @@ def _parse_session_names(value):
     if not names:
         raise CdxError("At least one session name is required in --sessions.")
     return names
+
+
+def _parse_set_unset_sessions(value):
+    text = str(value or "").strip()
+    if not text:
+        raise CdxError("At least one session name is required in --sessions.")
+    if text.lower() == "all":
+        return "all"
+    return _parse_session_names(text)
+
+
+def _parse_provider_filter(value, usage):
+    provider = str(value or "").strip()
+    if provider not in PROVIDERS:
+        raise CdxError(usage)
+    return provider
 
 
 def _parse_update_args(args):
@@ -888,6 +932,39 @@ def _format_launch_config(session):
     ])
 
 
+def _resolve_bulk_launch_targets(parsed, service):
+    sessions = service["list_sessions"]()
+    by_name = {session["name"]: session for session in sessions}
+    if parsed.get("name"):
+        session = by_name.get(parsed["name"])
+        if not session:
+            raise CdxError(f"Unknown session: {parsed['name']}")
+        targets = [session]
+    elif parsed.get("sessions") == "all":
+        targets = sessions
+    elif parsed.get("sessions"):
+        targets = []
+        for name in parsed["sessions"]:
+            session = by_name.get(name)
+            if not session:
+                raise CdxError(f"Unknown session: {name}")
+            targets.append(session)
+    else:
+        targets = sessions
+    if parsed.get("provider"):
+        targets = [session for session in targets if session["provider"] == parsed["provider"]]
+    if not targets:
+        raise CdxError("No sessions matched.")
+    return targets
+
+
+def _format_bulk_launch_summary(sessions):
+    names = [session["name"] for session in sessions]
+    if len(names) <= 8:
+        return ", ".join(names)
+    return ", ".join(names[:8]) + f", +{len(names) - 8} more"
+
+
 def _format_duration_ms(value):
     if value is None:
         return "-"
@@ -1007,25 +1084,59 @@ def _format_history(entries, use_color=False):
 
 def handle_set(rest, ctx):
     parsed = _parse_set_args(rest)
-    session = ctx["service"]["set_launch_settings"](parsed["name"], parsed["settings"])
-    message = f"Updated launch settings for {parsed['name']}"
+    targets = _resolve_bulk_launch_targets(parsed, ctx["service"])
+    sessions = [
+        ctx["service"]["set_launch_settings"](session["name"], parsed["settings"])
+        for session in targets
+    ]
+    if len(sessions) == 1:
+        session = sessions[0]
+        message = f"Updated launch settings for {session['name']}"
+    else:
+        message = f"Updated launch settings for {len(sessions)} sessions: {_format_bulk_launch_summary(sessions)}"
     if parsed["json"]:
-        _write_json(ctx, _json_success("set", message, session=session, launch=session.get("launch") or {}))
+        payload = _json_success(
+            "set",
+            message,
+            updated_count=len(sessions),
+            session=sessions[0] if len(sessions) == 1 else None,
+            sessions=sessions,
+            launch=sessions[0].get("launch") or {} if len(sessions) == 1 else None,
+        )
+        _write_json(ctx, payload)
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
-    ctx["out"](f"{_format_launch_config(session)}\n")
+    if len(sessions) == 1:
+        ctx["out"](f"{_format_launch_config(sessions[0])}\n")
     return 0
 
 
 def handle_unset(rest, ctx):
     parsed = _parse_unset_args(rest)
-    session = ctx["service"]["unset_launch_settings"](parsed["name"], parsed["keys"])
-    message = f"Cleared launch settings for {parsed['name']}"
+    targets = _resolve_bulk_launch_targets(parsed, ctx["service"])
+    sessions = [
+        ctx["service"]["unset_launch_settings"](session["name"], parsed["keys"])
+        for session in targets
+    ]
+    if len(sessions) == 1:
+        session = sessions[0]
+        message = f"Cleared launch settings for {session['name']}"
+    else:
+        message = f"Cleared launch settings for {len(sessions)} sessions: {_format_bulk_launch_summary(sessions)}"
     if parsed["json"]:
-        _write_json(ctx, _json_success("unset", message, session=session, launch=session.get("launch") or {}))
+        payload = _json_success(
+            "unset",
+            message,
+            updated_count=len(sessions),
+            session=sessions[0] if len(sessions) == 1 else None,
+            sessions=sessions,
+            launch=sessions[0].get("launch") or {} if len(sessions) == 1 else None,
+        )
+        _write_json(ctx, payload)
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
-    ctx["out"](f"{_format_launch_config(session)}\n")
+    if len(sessions) == 1:
+        ctx["out"](f"{_format_launch_config(sessions[0])}\n")
     return 0
 
 

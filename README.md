@@ -258,6 +258,8 @@ By default, `cdx` launches provider CLIs without forcing model effort, permissio
 ```bash
 cdx set work --power medium --permission full --fast off
 cdx set personal --power low --permission review
+cdx set --sessions all --permission auto
+cdx set --provider ollama --model llama3.2
 cdx config work
 ```
 
@@ -265,6 +267,8 @@ Those values are stored on the session and reapplied every time you run `cdx wor
 
 ```bash
 cdx unset work --power
+cdx unset --sessions work,personal --fast
+cdx unset --provider claude --permission
 cdx unset work --all
 ```
 
@@ -304,8 +308,8 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx disable <name> [--json]` | Disable a session without deleting it; disabled sessions stay visible and cannot launch |
 | `cdx enable <name> [--json]` | Re-enable a disabled session |
 | `cdx config <name> [--json]` | Show persistent launch settings for a session |
-| `cdx set <name> [--power low\|medium\|high\|xhigh\|max] [--permission review\|default\|auto\|full] [--fast on\|off] [--json]` | Persist launch settings for a session |
-| `cdx unset <name> (--power\|--permission\|--fast\|--all) [--json]` | Remove persisted launch settings and fall back to provider defaults |
+| `cdx set <name>\|--sessions all\|a,b\|--provider PROVIDER [--power low\|medium\|high\|xhigh\|max] [--permission review\|default\|auto\|full] [--fast on\|off] [--model MODEL] [--json]` | Persist launch settings for one or more sessions |
+| `cdx unset <name>\|--sessions all\|a,b\|--provider PROVIDER (--power\|--permission\|--fast\|--model\|--all) [--json]` | Remove persisted launch settings and fall back to provider defaults |
 | `cdx history [name] [--limit N] [--summary] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Show recent launch history or aggregate total launch time per assistant, optionally filtered by period |
 | `cdx last [--json]` | Launch the most recent existing session from launch history |
 | `cdx context show\|path\|init\|edit\|clear\|set [text...] [--json]` | Manage the shared Markdown context for the current workspace |
