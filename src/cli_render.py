@@ -145,7 +145,7 @@ def _format_sessions(service, use_color=False):
         _style("Next actions:", "1", use_color),
         f"  {_style('cdx status', '36', use_color)}",
         f"  {_style('cdx ready', '36', use_color)}",
-        f"  {_style('cdx set --sessions all --permission default', '36', use_color)}",
+        f"  {_style('cdx perm all default', '36', use_color)}",
         f"  {_style('cdx handoff <source> <target>', '36', use_color)}",
         f"  {_style('cdx history', '36', use_color)}",
         f"  {_style('cdx help', '36', use_color)}",

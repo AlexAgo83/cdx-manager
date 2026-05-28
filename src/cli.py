@@ -23,6 +23,7 @@ from .cli_commands import (
     handle_launch,
     handle_login,
     handle_logout,
+    handle_launch_setting_alias,
     handle_notify,
     handle_remove,
     handle_repair,
@@ -73,6 +74,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx status <name> [--json] [--refresh]', '36', use_color)}",
         f"  {_style('cdx context show|path|init|edit|clear|set [text...] [--json]', '36', use_color)}",
         f"  {_style('cdx config <name> [--json]', '36', use_color)}",
+        f"  {_style('cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]', '36', use_color)}",
         f"  {_style('cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--model MODEL] [--json]', '36', use_color)}",
         f"  {_style('cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--model|--all) [--json]', '36', use_color)}",
         f"  {_style('cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]', '36', use_color)}",
@@ -231,7 +233,7 @@ def main(argv, options=None):
         "version": VERSION,
         "cwd": options.get("cwd") or os.getcwd(),
         "update_notice": _get_update_notice(service, env, options) if command not in (
-            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "context", "config", "set", "unset", "history", "handoff", "login", "logout", "disable", "enable", "export", "import", "help", "version"
+            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "context", "config", "set", "unset", "power", "perm", "fast", "model", "history", "handoff", "login", "logout", "disable", "enable", "export", "import", "help", "version"
         ) else None,
         "use_color": use_color,
     }
@@ -291,6 +293,9 @@ def main(argv, options=None):
 
     if command == "unset":
         return handle_unset(rest, ctx)
+
+    if command in ("power", "perm", "fast", "model"):
+        return handle_launch_setting_alias(command, rest, ctx)
 
     if command == "history":
         return handle_history(rest, ctx)

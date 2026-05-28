@@ -333,6 +333,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Usage:", help_io["stdout"].getvalue())
         self.assertIn("cdx update [--check] [--yes] [--json] [--version TAG]", help_io["stdout"].getvalue())
         self.assertIn("cdx ready [--refresh] [--json]", help_io["stdout"].getvalue())
+        self.assertIn("cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b>", help_io["stdout"].getvalue())
         self.assertIn("cdx set <name>|--sessions all|a,b|--provider PROVIDER", help_io["stdout"].getvalue())
         self.assertIn("--model MODEL", help_io["stdout"].getvalue())
 
@@ -457,7 +458,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(lines[start:start + 7], [
             "  cdx status",
             "  cdx ready",
-            "  cdx set --sessions all --permission default",
+            "  cdx perm all default",
             "  cdx handoff <source> <target>",
             "  cdx history",
             "  cdx help",
@@ -996,6 +997,76 @@ class CliPythonTests(unittest.TestCase):
         payload = json.loads(unset_io["stdout"].getvalue())
         self.assertEqual(payload["updated_count"], 2)
         self.assertTrue(all("launch" not in session for session in payload["sessions"]))
+
+    def test_launch_setting_aliases_update_single_and_bulk_targets(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        for args in (["add", "main"], ["add", "claude", "work1"], ["add", "ollama", "local"]):
+            self.assertEqual(main(args, {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
+
+        power_io = self.make_io()
+        self.assertEqual(main(["power", "all", "low", "--json"], {
+            **power_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        power_payload = json.loads(power_io["stdout"].getvalue())
+        self.assertEqual(power_payload["action"], "power")
+        self.assertEqual(power_payload["updated_count"], 3)
+        self.assertTrue(all(session["launch"]["power"] == "low" for session in power_payload["sessions"]))
+
+        perm_io = self.make_io()
+        self.assertEqual(main(["perm", "provider:claude", "review", "--json"], {
+            **perm_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        perm_payload = json.loads(perm_io["stdout"].getvalue())
+        self.assertEqual([session["name"] for session in perm_payload["sessions"]], ["work1"])
+        self.assertEqual(perm_payload["sessions"][0]["launch"]["permission"], "review")
+
+        fast_io = self.make_io()
+        self.assertEqual(main(["fast", "main,local", "on", "--json"], {
+            **fast_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        fast_payload = json.loads(fast_io["stdout"].getvalue())
+        self.assertEqual([session["name"] for session in fast_payload["sessions"]], ["main", "local"])
+        self.assertTrue(all(session["launch"]["fast"] for session in fast_payload["sessions"]))
+
+        model_io = self.make_io()
+        self.assertEqual(main(["model", "provider:ollama", "llama3.2", "--json"], {
+            **model_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        model_payload = json.loads(model_io["stdout"].getvalue())
+        self.assertEqual(model_payload["sessions"][0]["launch"]["model"], "llama3.2")
+
+    def test_launch_setting_alias_default_clears_field(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        self.assertEqual(main(["add", "main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        self.assertEqual(main(["power", "main", "medium"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        clear_io = self.make_io()
+        self.assertEqual(main(["power", "main", "default", "--json"], {
+            **clear_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        payload = json.loads(clear_io["stdout"].getvalue())
+        self.assertEqual(payload["action"], "power")
+        self.assertEqual(payload["launch"], {})
 
     def test_session_list_hides_fast_off_launch_label(self):
         temp_dir = self.make_temp_dir()

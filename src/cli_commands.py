@@ -52,6 +52,7 @@ CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set [text...] [--j
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--json]"
 SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--model MODEL] [--json]"
 UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--model|--all) [--json]"
+SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
 LAST_USAGE = "Usage: cdx last [--json]"
@@ -720,6 +721,33 @@ def _parse_provider_filter(value, usage):
     return provider
 
 
+def _parse_launch_setting_target(value, usage):
+    text = str(value or "").strip()
+    if not text:
+        raise CdxError(usage)
+    if text == "all":
+        return {"name": None, "sessions": "all", "provider": None}
+    if text.startswith("provider:"):
+        return {"name": None, "sessions": None, "provider": _parse_provider_filter(text.split(":", 1)[1], usage)}
+    if "," in text:
+        return {"name": None, "sessions": _parse_session_names(text), "provider": None}
+    return {"name": text, "sessions": None, "provider": None}
+
+
+def _parse_launch_setting_alias_args(kind, args):
+    json_flag, cleaned = _parse_json_flag(args)
+    if len(cleaned) != 2:
+        raise CdxError(SETTING_ALIAS_USAGE)
+    target = _parse_launch_setting_target(cleaned[0], SETTING_ALIAS_USAGE)
+    value = cleaned[1]
+    field = "permission" if kind == "perm" else kind
+    if value == "default":
+        return {**target, "keys": [field], "json": json_flag, "alias": kind}
+    if field == "fast":
+        value = _parse_fast_value(value)
+    return {**target, "settings": {field: value}, "json": json_flag, "alias": kind}
+
+
 def _parse_update_args(args):
     parsed = _parse_flag_args(args, {
         "--check": {"key": "check", "type": "bool", "default": False},
@@ -1082,8 +1110,7 @@ def _format_history(entries, use_color=False):
     ])
 
 
-def handle_set(rest, ctx):
-    parsed = _parse_set_args(rest)
+def _apply_launch_settings(parsed, ctx, action="set"):
     targets = _resolve_bulk_launch_targets(parsed, ctx["service"])
     sessions = [
         ctx["service"]["set_launch_settings"](session["name"], parsed["settings"])
@@ -1096,7 +1123,7 @@ def handle_set(rest, ctx):
         message = f"Updated launch settings for {len(sessions)} sessions: {_format_bulk_launch_summary(sessions)}"
     if parsed["json"]:
         payload = _json_success(
-            "set",
+            action,
             message,
             updated_count=len(sessions),
             session=sessions[0] if len(sessions) == 1 else None,
@@ -1111,8 +1138,7 @@ def handle_set(rest, ctx):
     return 0
 
 
-def handle_unset(rest, ctx):
-    parsed = _parse_unset_args(rest)
+def _clear_launch_settings(parsed, ctx, action="unset"):
     targets = _resolve_bulk_launch_targets(parsed, ctx["service"])
     sessions = [
         ctx["service"]["unset_launch_settings"](session["name"], parsed["keys"])
@@ -1125,7 +1151,7 @@ def handle_unset(rest, ctx):
         message = f"Cleared launch settings for {len(sessions)} sessions: {_format_bulk_launch_summary(sessions)}"
     if parsed["json"]:
         payload = _json_success(
-            "unset",
+            action,
             message,
             updated_count=len(sessions),
             session=sessions[0] if len(sessions) == 1 else None,
@@ -1138,6 +1164,21 @@ def handle_unset(rest, ctx):
     if len(sessions) == 1:
         ctx["out"](f"{_format_launch_config(sessions[0])}\n")
     return 0
+
+
+def handle_set(rest, ctx):
+    return _apply_launch_settings(_parse_set_args(rest), ctx)
+
+
+def handle_unset(rest, ctx):
+    return _clear_launch_settings(_parse_unset_args(rest), ctx)
+
+
+def handle_launch_setting_alias(kind, rest, ctx):
+    parsed = _parse_launch_setting_alias_args(kind, rest)
+    if parsed.get("settings"):
+        return _apply_launch_settings(parsed, ctx, action=kind)
+    return _clear_launch_settings(parsed, ctx, action=kind)
 
 
 def handle_config(rest, ctx):
