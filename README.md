@@ -229,6 +229,9 @@ cdx add work
 # Register a Claude session
 cdx add claude personal
 
+# Register an Ollama session
+cdx add ollama local --model llama3.2
+
 # List all sessions
 cdx
 
@@ -305,7 +308,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx --json` | List all sessions as a machine-readable JSON payload |
 | `cdx <name>` | Launch a session (checks auth first) |
 | `cdx <name> [--json]` | Launch a session; `--json` returns a structured success payload after the interactive run ends |
-| `cdx add [provider] <name> [--json]` | Register a new session (`provider`: `codex` or `claude`, default: `codex`) |
+| `cdx add [provider] <name> [--model MODEL] [--json]` | Register a new session (`provider`: `codex`, `claude`, `antigravity`, or `ollama`; Ollama requires `--model`) |
 | `cdx cp <source> <dest> [--json]` | Copy a session into another session name, overwriting the destination if it exists |
 | `cdx ren <source> <dest> [--json]` | Rename a session and move its auth data |
 | `cdx login <name> [--json]` | Re-authenticate a session (logout + login) |

@@ -518,6 +518,7 @@ class RuntimePythonTests(unittest.TestCase):
             ["run", "llama3.2", "--think", "high", "--experimental-yolo", "hello"],
         )
         self.assertEqual(spec["fallback"]["options"]["cwd"], "/tmp/repo")
+        self.assertEqual(spec["fallback"]["options"]["env"]["OLLAMA_NOHISTORY"], "1")
 
     def test_linux_launch_spec_uses_util_linux_script_command_form(self):
         session = {

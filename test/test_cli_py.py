@@ -334,6 +334,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("cdx update [--check] [--yes] [--json] [--version TAG]", help_io["stdout"].getvalue())
         self.assertIn("cdx ready [--refresh] [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b>", help_io["stdout"].getvalue())
+        self.assertIn("cdx add [provider] <name> [--model MODEL] [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx set <name>|--sessions all|a,b|--provider PROVIDER", help_io["stdout"].getvalue())
         self.assertIn("--model MODEL", help_io["stdout"].getvalue())
 
@@ -914,7 +915,7 @@ class CliPythonTests(unittest.TestCase):
     def test_set_launch_settings_can_target_all_sessions(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
-        for args in (["add", "main"], ["add", "claude", "work1"], ["add", "ollama", "local"]):
+        for args in (["add", "main"], ["add", "claude", "work1"], ["add", "ollama", "local", "--model", "llama3.2"]):
             self.assertEqual(main(args, {
                 **self.make_io(),
                 "env": {"CDX_HOME": temp_dir},
@@ -940,7 +941,7 @@ class CliPythonTests(unittest.TestCase):
     def test_set_launch_settings_can_target_provider_or_named_subset(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
-        for args in (["add", "main"], ["add", "side"], ["add", "claude", "work1"], ["add", "ollama", "local"]):
+        for args in (["add", "main"], ["add", "side"], ["add", "claude", "work1"], ["add", "ollama", "local", "--model", "llama3.2"]):
             self.assertEqual(main(args, {
                 **self.make_io(),
                 "env": {"CDX_HOME": temp_dir},
@@ -1001,7 +1002,7 @@ class CliPythonTests(unittest.TestCase):
     def test_launch_setting_aliases_update_single_and_bulk_targets(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
-        for args in (["add", "main"], ["add", "claude", "work1"], ["add", "ollama", "local"]):
+        for args in (["add", "main"], ["add", "claude", "work1"], ["add", "ollama", "local", "--model", "llama3.2"]):
             self.assertEqual(main(args, {
                 **self.make_io(),
                 "env": {"CDX_HOME": temp_dir},
@@ -1511,18 +1512,20 @@ class CliPythonTests(unittest.TestCase):
 
         create_io = self.make_io()
         self.assertEqual(main([
-            "add", "ollama", "local"
+            "add", "ollama", "local", "--model", "llama3.2", "--json"
         ], {
             **create_io,
             "env": {"CDX_HOME": temp_dir},
             "spawn": harness.spawn,
             "spawn_sync": harness.spawn_sync,
         }), 0)
-        self.assertIn("Created session local (ollama)", create_io["stdout"].getvalue())
+        self.assertEqual(json.loads(create_io["stdout"].getvalue())["session"]["launch"]["model"], "llama3.2")
 
-        self.assertEqual(main([
-            "set", "local", "--model", "llama3.2", "--power", "medium", "--permission", "full"
-        ], {
+        self.assertEqual(main(["power", "local", "medium"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertEqual(main(["perm", "local", "full"], {
             **self.make_io(),
             "env": {"CDX_HOME": temp_dir},
         }), 0)
@@ -1549,10 +1552,23 @@ class CliPythonTests(unittest.TestCase):
             call for call in harness.calls
             if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "ollama")
         )
+        self.assertEqual(launch_call["options"]["env"]["OLLAMA_NOHISTORY"], "1")
         self.assertEqual(
             _script_launch_args(launch_call)[:6],
             ["run", "llama3.2", "--think", "medium", "--experimental-yolo"],
         )
+
+    def test_add_ollama_requires_model(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        with self.assertRaisesRegex(CdxError, "Usage: cdx add ollama <name> --model MODEL"):
+            main(["add", "ollama", "local"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            })
 
     def test_persisted_claude_launch_settings_are_applied(self):
         temp_dir = self.make_temp_dir()

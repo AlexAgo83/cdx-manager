@@ -414,17 +414,17 @@ def _parse_flag_args(args, schema, usage, positionals_key=None, max_positionals=
 def _parse_add_args(args):
     parsed = _parse_flag_args(
         args,
-        {},
-        "Usage: cdx add [provider] <name> [--json]",
+        {"--model": {"key": "model", "type": "str", "default": None}},
+        "Usage: cdx add [provider] <name> [--model MODEL] [--json]",
         positionals_key="values",
         max_positionals=2,
     )
     values = parsed["values"]
     if len(values) == 1:
-        return {"provider": PROVIDER_CODEX, "name": values[0]}
+        return {"provider": PROVIDER_CODEX, "name": values[0], "model": parsed["model"]}
     if len(values) == 2:
-        return {"provider": values[0], "name": values[1]}
-    raise CdxError("Usage: cdx add [provider] <name> [--json]")
+        return {"provider": values[0], "name": values[1], "model": parsed["model"]}
+    raise CdxError("Usage: cdx add [provider] <name> [--model MODEL] [--json]")
 
 
 def _parse_copy_args(args):
@@ -840,7 +840,13 @@ def _resolve_confirmation(confirm_fn, name):
 def handle_add(rest, ctx):
     json_flag, args = _parse_json_flag(rest)
     parsed = _parse_add_args(args)
+    if parsed["provider"] == PROVIDER_OLLAMA and not parsed.get("model"):
+        raise CdxError("Usage: cdx add ollama <name> --model MODEL [--json]")
+    if parsed.get("model") and parsed["provider"] != PROVIDER_OLLAMA:
+        raise CdxError("--model is only supported when adding an ollama session.")
     session = ctx["service"]["create_session"](parsed["name"], parsed["provider"])
+    if parsed.get("model"):
+        session = ctx["service"]["set_launch_settings"](parsed["name"], {"model": parsed["model"]})
     message = f"Created session {parsed['name']} ({parsed['provider']})"
     _ensure_session_authentication(
         session,

@@ -212,6 +212,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     if session["provider"] == PROVIDER_OLLAMA:
         launch = session.get("launch") or {}
         model = launch.get("model") or session["name"]
+        ollama_env = {**env, "OLLAMA_NOHISTORY": "1"}
         args = ["run", model] + _launch_config_args(session)
         if initial_prompt:
             args.append(initial_prompt)
@@ -220,7 +221,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
             "args": args,
             "options": {
                 "cwd": cwd,
-                "env": env,
+                "env": ollama_env,
             },
             "label": "ollama",
         }, env=env)
@@ -255,7 +256,7 @@ def _build_login_status_spec(session, env_override=None):
         return {"command": "agy", "args": ["--version"], "env": env,
                 "parser": lambda _output: True, "label": "antigravity cli"}
     if session["provider"] == PROVIDER_OLLAMA:
-        return {"command": "ollama", "args": ["--version"], "env": env,
+        return {"command": "ollama", "args": ["--version"], "env": {**env, "OLLAMA_NOHISTORY": "1"},
                 "parser": lambda _output: True, "label": "ollama cli"}
     env["CODEX_HOME"] = _get_auth_home(session)
 
@@ -285,7 +286,7 @@ def _build_auth_action_spec(session, action, cwd=None, env_override=None):
         if action == "logout":
             raise CdxError("Ollama sessions do not use cdx-managed authentication.")
         return {"command": "ollama", "args": ["list"],
-                "options": {"cwd": cwd, "env": env}, "label": "ollama"}
+                "options": {"cwd": cwd, "env": {**env, "OLLAMA_NOHISTORY": "1"}}, "label": "ollama"}
     env["CODEX_HOME"] = _get_auth_home(session)
     return {"command": "codex", "args": [action],
             "options": {"cwd": cwd, "env": env}, "label": f"codex {action}"}
