@@ -1,5 +1,7 @@
 import json
 import os
+import subprocess
+import sys
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
@@ -9,6 +11,7 @@ from .errors import CdxError
 MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 CLAUDE_STATUS_PROBE_MODEL = os.environ.get("CDX_CLAUDE_STATUS_MODEL", "claude-haiku-4-5-20251001")
+CLAUDE_AUTH_STATUS_TIMEOUT_SECONDS = 15
 
 
 def _read_claude_credentials(auth_home):
@@ -19,6 +22,36 @@ def _read_claude_credentials(auth_home):
         return data.get("claudeAiOauth")
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return None
+
+
+def _home_env_overrides(auth_home):
+    overrides = {"HOME": auth_home, "CLAUDE_CONFIG_DIR": auth_home}
+    if sys.platform == "win32":
+        overrides["USERPROFILE"] = auth_home
+        overrides["HOMEDRIVE"] = os.path.splitdrive(auth_home)[0] or "C:"
+        overrides["HOMEPATH"] = os.path.splitdrive(auth_home)[1] or auth_home
+    return overrides
+
+
+def _refresh_claude_cli_credentials(auth_home, runner=None, env=None):
+    if not auth_home:
+        return
+    if os.environ.get("CDX_CLAUDE_SKIP_AUTH_STATUS_REFRESH") == "1":
+        return
+    runner = runner or subprocess.run
+    command = ["claude", "auth", "status"]
+    run_env = {**(env or os.environ), **_home_env_overrides(auth_home)}
+    try:
+        runner(
+            command,
+            env=run_env,
+            capture_output=True,
+            text=True,
+            timeout=CLAUDE_AUTH_STATUS_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError, OSError):
+        return
 
 
 def _format_reset_date(unix_seconds):
@@ -109,8 +142,11 @@ def fetch_claude_rate_limit_headers(access_token):
     }
 
 
-def refresh_claude_session_status(session):
-    creds = _read_claude_credentials(session.get("authHome", ""))
+def refresh_claude_session_status(session, auth_refresher=None):
+    auth_home = session.get("authHome", "")
+    refresher = auth_refresher or _refresh_claude_cli_credentials
+    refresher(auth_home)
+    creds = _read_claude_credentials(auth_home)
     if not creds or not creds.get("accessToken"):
         return None
     return fetch_claude_rate_limit_headers(creds["accessToken"])

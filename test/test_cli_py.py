@@ -1279,6 +1279,20 @@ class CliPythonTests(unittest.TestCase):
             launch_call["options"]["env"]["HOME"],
             os.path.join(temp_dir, "profiles", "work1", "claude-home"),
         )
+        self.assertEqual(
+            launch_call["options"]["env"]["CLAUDE_CONFIG_DIR"],
+            os.path.join(temp_dir, "profiles", "work1", "claude-home"),
+        )
+
+        claude_auth_calls = [
+            call for call in harness.calls
+            if call["command"] == "claude" and call["args"][:2] == ["auth", "status"]
+        ]
+        self.assertTrue(claude_auth_calls)
+        self.assertEqual(
+            claude_auth_calls[-1]["options"]["env"]["CLAUDE_CONFIG_DIR"],
+            launch_call["options"]["env"]["CLAUDE_CONFIG_DIR"],
+        )
 
     def test_persisted_claude_launch_settings_are_applied(self):
         temp_dir = self.make_temp_dir()

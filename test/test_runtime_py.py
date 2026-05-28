@@ -152,6 +152,35 @@ class RuntimePythonTests(unittest.TestCase):
             fetch.assert_called_once_with("secret")
             self.assertEqual(result["remaining_5h_pct"], 77)
 
+    def test_refresh_claude_session_status_refreshes_cli_credentials_before_reading(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-claude-") as temp_dir:
+            cred_dir = os.path.join(temp_dir, ".claude")
+            cred_path = os.path.join(cred_dir, ".credentials.json")
+            os.makedirs(cred_dir, exist_ok=True)
+            with open(cred_path, "w", encoding="utf-8") as handle:
+                json.dump({"claudeAiOauth": {"accessToken": "stale"}}, handle)
+
+            def auth_refresher(auth_home):
+                self.assertEqual(auth_home, temp_dir)
+                with open(cred_path, "w", encoding="utf-8") as handle:
+                    json.dump({"claudeAiOauth": {"accessToken": "fresh"}}, handle)
+
+            with mock.patch("src.claude_usage.fetch_claude_rate_limit_headers", return_value={"remaining_5h_pct": 77}) as fetch:
+                result = claude_usage.refresh_claude_session_status(
+                    {"authHome": temp_dir},
+                    auth_refresher=auth_refresher,
+                )
+
+            fetch.assert_called_once_with("fresh")
+            self.assertEqual(result["remaining_5h_pct"], 77)
+
+    def test_claude_cli_credential_refresh_ignores_missing_cli(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-claude-") as temp_dir:
+            def missing_cli(*_args, **_kwargs):
+                raise FileNotFoundError("claude")
+
+            claude_usage._refresh_claude_cli_credentials(temp_dir, runner=missing_cli)
+
     def test_normalize_codex_rate_limit_snapshot(self):
         result = codex_usage.normalize_codex_rate_limit_snapshot({
             "limitId": "codex",
@@ -309,6 +338,7 @@ class RuntimePythonTests(unittest.TestCase):
                 result = provider_runtime._home_env_overrides(r"C:\Users\Test\AppData\Local\cdx\claude-home")
 
         self.assertEqual(result["HOME"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
+        self.assertEqual(result["CLAUDE_CONFIG_DIR"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
         self.assertEqual(result["USERPROFILE"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
         self.assertEqual(result["HOMEDRIVE"], "C:")
         self.assertEqual(result["HOMEPATH"], r"\Users\Test\AppData\Local\cdx\claude-home")
