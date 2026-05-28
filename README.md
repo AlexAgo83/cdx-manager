@@ -32,7 +32,7 @@ One command to launch any session. Zero auth juggling.
 
 ## What it does
 
-- **Multiple accounts, one tool.** Register as many Codex or Claude sessions as you need. Each one gets its own isolated auth environment — no cross-contamination between accounts. Antigravity sessions are launchable through `agy`; authentication is managed by Antigravity's OS keyring flow. Ollama sessions run local models through `ollama run`.
+- **Multiple providers, one tool.** Register as many Codex, Claude, Antigravity, or Ollama sessions as you need. Codex and Claude get isolated auth environments; Antigravity is launchable through `agy` with OS-keyring auth; Ollama runs local models through `ollama run`.
 - **Instant launch.** `cdx work` opens your "work" session. `cdx personal` opens another. No config files to edit mid-flow.
 - **Quick relaunch.** `cdx last` reopens the most recently launched assistant profile.
 - **Auth guardrails.** `cdx` checks authentication before launching. If a session is not logged in, it tells you exactly what to run — no silent failures.
@@ -314,7 +314,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx last [--json]` | Launch the most recent existing session from launch history |
 | `cdx context show\|path\|init\|edit\|clear\|set [text...] [--json]` | Manage the shared Markdown context for the current workspace |
 | `cdx handoff <name> [--json]` | Install the current workspace context into a target session and launch it unless `--json` is used |
-| `cdx handoff <source> <target> [--json]` | Build shared context from the source session's latest launch transcript, install it into the target session, and launch the target unless `--json` is used; supports Codex and Claude targets, including cross-provider handoff |
+| `cdx handoff <source> <target> [--json]` | Build shared context from the source session's latest launch transcript, install it into the target session, and launch the target unless `--json` is used; supports cross-provider handoff |
 | `cdx rmv <name> [--force] [--json]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
 | `cdx clean [name] [--json]` | Clear launch transcript logs for one session or all sessions |
 | `cdx export <file> [--include-auth] [--sessions a,b] [--passphrase-env VAR] [--force] [--json]` | Export sessions to a portable bundle; `--include-auth` encrypts auth data with a passphrase |

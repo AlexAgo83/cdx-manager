@@ -333,6 +333,8 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Usage:", help_io["stdout"].getvalue())
         self.assertIn("cdx update [--check] [--yes] [--json] [--version TAG]", help_io["stdout"].getvalue())
         self.assertIn("cdx ready [--refresh] [--json]", help_io["stdout"].getvalue())
+        self.assertIn("cdx set <name>|--sessions all|a,b|--provider PROVIDER", help_io["stdout"].getvalue())
+        self.assertIn("--model MODEL", help_io["stdout"].getvalue())
 
         self.assertEqual(main(["-v"], version_io), 0)
         self.assertRegex(version_io["stdout"].getvalue().strip(), r"^\d+\.\d+\.\d+$")
@@ -455,7 +457,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(lines[start:start + 7], [
             "  cdx status",
             "  cdx ready",
-            "  cdx set <name> --power medium --permission default --fast off",
+            "  cdx set --sessions all --permission default",
             "  cdx handoff <source> <target>",
             "  cdx history",
             "  cdx help",
