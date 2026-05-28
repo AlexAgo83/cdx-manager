@@ -678,6 +678,64 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Claude progress", content)
         self.assertIn("Next Steps: continue with Claude", content)
 
+    def test_handoff_from_claude_source_uses_native_project_jsonl_without_launch_log(self):
+        temp_dir = self.make_temp_dir()
+        workspace = os.path.join(temp_dir, "repo")
+        os.makedirs(workspace)
+        harness = _AuthHarness()
+
+        for name in ("corvus", "digital"):
+            self.assertEqual(main(["add", "claude", name], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "cwd": workspace,
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
+
+        native_log = os.path.join(
+            temp_dir,
+            "profiles",
+            "corvus",
+            "claude-home",
+            ".claude",
+            "projects",
+            "-tmp-repo",
+            "session.jsonl",
+        )
+        os.makedirs(os.path.dirname(native_log), exist_ok=True)
+        with open(native_log, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps({
+                "type": "user",
+                "message": {
+                    "role": "user",
+                    "content": [{"type": "text", "text": "Goal: finish the Claude handoff"}],
+                },
+            }))
+            handle.write("\n")
+            handle.write(json.dumps({
+                "type": "assistant",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "Next Steps: run the migration tests"}],
+                },
+            }))
+            handle.write("\n")
+
+        handoff_io = self.make_io()
+        self.assertEqual(main(["handoff", "corvus", "digital", "--json"], {
+            **handoff_io,
+            "env": {"CDX_HOME": temp_dir},
+            "cwd": workspace,
+        }), 0)
+
+        payload = json.loads(handoff_io["stdout"].getvalue())
+        self.assertEqual(payload["source_transcript"], native_log)
+        with open(payload["context"]["target_path"], "r", encoding="utf-8") as handle:
+            content = handle.read()
+        self.assertIn("[user]\nGoal: finish the Claude handoff", content)
+        self.assertIn("[assistant]\nNext Steps: run the migration tests", content)
+
     def test_handoff_allows_codex_to_claude_target_json(self):
         temp_dir = self.make_temp_dir()
         workspace = os.path.join(temp_dir, "repo")

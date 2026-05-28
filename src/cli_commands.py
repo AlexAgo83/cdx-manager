@@ -2,6 +2,7 @@ import asyncio
 import getpass
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timedelta
@@ -56,6 +57,7 @@ HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|t
 LAST_USAGE = "Usage: cdx last [--json]"
 API_SCHEMA_VERSION = 1
 HANDOFF_TRANSCRIPT_CHARS = 120000
+HANDOFF_NATIVE_TRANSCRIPT_CANDIDATES = 64
 
 
 def _local_now_iso():
@@ -194,9 +196,132 @@ def _latest_launch_transcript_path(session):
     return max(paths, key=lambda path: (os.path.getmtime(path), path))
 
 
-def _read_handoff_transcript(path):
+def _get_session_home(session):
+    return session.get("authHome") or session.get("sessionRoot") or session.get("codexHome", "")
+
+
+def _safe_stat(path):
+    try:
+        return os.stat(path)
+    except OSError:
+        return None
+
+
+def _sort_recent_paths(paths):
+    stats = {path: stat for path, stat in ((_path, _safe_stat(_path)) for _path in set(paths)) if stat}
+    return sorted(stats, key=lambda path: (stats[path].st_mtime, path), reverse=True)
+
+
+def _collect_native_handoff_transcript_paths(session):
+    root = _get_session_home(session)
+    if not root:
+        return []
+    candidates = []
+    direct = [
+        os.path.join(root, "history.jsonl"),
+        os.path.join(root, "session_index.jsonl"),
+    ]
+    candidates.extend(path for path in direct if _safe_stat(path))
+
+    scan_roots = [
+        os.path.join(root, "sessions"),
+        os.path.join(root, ".claude", "projects"),
+        os.path.join(root, "projects"),
+    ]
+    skip_dirs = {"cache", "plugins", "skills", "memories", "sqlite", "shell_snapshots", "tmp", "__pycache__"}
+    for scan_root in scan_roots:
+        if not os.path.isdir(scan_root):
+            continue
+        for dirpath, dirnames, filenames in os.walk(scan_root):
+            dirnames[:] = [name for name in dirnames if not name.startswith(".") and name not in skip_dirs]
+            for filename in filenames:
+                if filename.endswith(".jsonl") or filename.endswith(".log"):
+                    candidates.append(os.path.join(dirpath, filename))
+    return _sort_recent_paths(candidates)[:HANDOFF_NATIVE_TRANSCRIPT_CANDIDATES]
+
+
+def _latest_handoff_transcript_path(session):
+    launch_path = _latest_launch_transcript_path(session)
+    if launch_path:
+        return launch_path
+    native_paths = _collect_native_handoff_transcript_paths(session)
+    return native_paths[0] if native_paths else None
+
+
+def _collect_handoff_text_fragments(value):
+    fragments = []
+    if isinstance(value, str):
+        text = value.strip()
+        if text:
+            fragments.append(text)
+    elif isinstance(value, list):
+        for item in value:
+            fragments.extend(_collect_handoff_text_fragments(item))
+    elif isinstance(value, dict):
+        if isinstance(value.get("text"), str):
+            fragments.extend(_collect_handoff_text_fragments(value.get("text")))
+        if isinstance(value.get("content"), (str, list, dict)):
+            fragments.extend(_collect_handoff_text_fragments(value.get("content")))
+        if isinstance(value.get("message"), dict):
+            fragments.extend(_collect_handoff_text_fragments(value.get("message")))
+        if isinstance(value.get("payload"), dict):
+            fragments.extend(_collect_handoff_text_fragments(value.get("payload")))
+    return fragments
+
+
+def _jsonl_record_to_handoff_text(record):
+    if not isinstance(record, dict):
+        return None
+    message = record.get("message") if isinstance(record.get("message"), dict) else {}
+    role = (
+        message.get("role")
+        or record.get("role")
+        or record.get("type")
+        or record.get("sender")
+        or "entry"
+    )
+    text_sources = []
+    for key in ("content", "text", "payload"):
+        if key in record:
+            text_sources.append(record.get(key))
+    for key in ("content", "text"):
+        if key in message:
+            text_sources.append(message.get(key))
+    fragments = []
+    for value in text_sources:
+        fragments.extend(_collect_handoff_text_fragments(value))
+    text = "\n".join(fragment for fragment in fragments if fragment).strip()
+    if not text:
+        return None
+    role = re.sub(r"[^A-Za-z0-9_-]+", "-", str(role).strip()).strip("-") or "entry"
+    return f"[{role}]\n{text}"
+
+
+def _read_jsonl_handoff_transcript(path):
+    entries = []
     with open(path, "r", encoding="utf-8", errors="replace") as handle:
-        content = handle.read()
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                text = _jsonl_record_to_handoff_text(json.loads(line))
+            except json.JSONDecodeError:
+                text = None
+            if text:
+                entries.append(text)
+    if entries:
+        return "\n\n".join(entries)
+    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        return handle.read()
+
+
+def _read_handoff_transcript(path):
+    if path.endswith(".jsonl"):
+        content = _read_jsonl_handoff_transcript(path)
+    else:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            content = handle.read()
     if len(content) <= HANDOFF_TRANSCRIPT_CHARS:
         return content, False
     return content[-HANDOFF_TRANSCRIPT_CHARS:], True
@@ -1620,9 +1745,9 @@ def handle_handoff(rest, ctx):
     target = ctx["service"]["get_session"](target_name)
     if not target:
         raise CdxError(f"Unknown session: {target_name}")
-    transcript_path = _latest_launch_transcript_path(source)
+    transcript_path = _latest_handoff_transcript_path(source)
     if not transcript_path:
-        raise CdxError(f"No launch transcript found for session: {source_name}")
+        raise CdxError(f"No transcript found for session: {source_name}")
     transcript, truncated = _read_handoff_transcript(transcript_path)
     context = _build_handoff_context(source, target, transcript_path, transcript, truncated=truncated)
     write_result = write_context(ctx["service"]["base_dir"], context, ctx.get("cwd"))

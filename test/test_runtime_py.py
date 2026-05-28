@@ -443,6 +443,21 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertIn("--effort", claude_spec["fallback"]["args"])
         self.assertIn("low", claude_spec["fallback"]["args"])
 
+    def test_linux_launch_spec_uses_util_linux_script_command_form(self):
+        session = {
+            "name": "claude",
+            "provider": "claude",
+            "authHome": "/tmp/claude-home",
+        }
+
+        with mock.patch("src.provider_runtime.sys.platform", "linux"):
+            spec = provider_runtime._build_launch_spec(session, cwd="/tmp/repo", initial_prompt="resume this")
+
+        self.assertEqual(spec["command"], "script")
+        self.assertEqual(spec["args"][:3], ["-q", "-F", "-c"])
+        self.assertIn("claude --name claude 'resume this'", spec["args"][3])
+        self.assertTrue(spec["args"][4].endswith(".log"))
+
 
 if __name__ == "__main__":
     unittest.main()

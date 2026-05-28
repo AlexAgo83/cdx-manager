@@ -1,6 +1,6 @@
 # CDX Manager
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.6.0-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.6.1-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
 **Run multiple Codex and Claude sessions from one terminal. Switch between accounts instantly.**
 
@@ -67,6 +67,7 @@ One command to launch any session. Zero auth juggling.
   - Codex live source: `codex app-server` JSON-RPC `account/rateLimits/read`, normalized into 5-hour, weekly, reset, credit, and plan fields.
   - Fallback: `status-source` scans provider JSONL history files and terminal log transcripts, strips ANSI/OSC sequences, and extracts `usage%`, `5h remaining%`, and `week remaining%` via pattern matching.
 - Claude status refreshes are cached briefly by default; pass `--refresh` to force a live rate-limit probe.
+- On Linux, transcript capture uses the `util-linux` `script -c` command form.
 - If `script` is unavailable, Codex launch falls back to running without transcript capture.
 - On Windows, transcript capture is optional. If no compatible `script` wrapper is installed, Codex still launches normally without transcript capture.
 - Auth probe: synchronous subprocess call to `codex login status` or `claude auth status` before any interactive launch.
@@ -131,7 +132,7 @@ For a specific version:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.sh -o install.sh
-CDX_VERSION=v0.6.0 sh install.sh
+CDX_VERSION=v0.6.1 sh install.sh
 ```
 
 From source:

@@ -131,7 +131,7 @@ def _wrap_launch_with_transcript(session, spec, capture_transcript=True, env=Non
             args = args + [transcript_path]
         args = args + [spec["command"]] + spec["args"]
     else:
-        args = ["-q", "-F", transcript_path, spec["command"]] + spec["args"]
+        args = _default_script_args(transcript_path, spec)
     return {
         "command": script_bin,
         "args": args,
@@ -140,6 +140,13 @@ def _wrap_launch_with_transcript(session, spec, capture_transcript=True, env=Non
         "fallback": spec,
         "transcript_path": transcript_path,
     }
+
+
+def _default_script_args(transcript_path, spec):
+    if sys.platform.startswith("linux"):
+        command = shlex.join([spec["command"]] + spec["args"])
+        return ["-q", "-F", "-c", command, transcript_path]
+    return ["-q", "-F", transcript_path, spec["command"]] + spec["args"]
 
 
 def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None):
