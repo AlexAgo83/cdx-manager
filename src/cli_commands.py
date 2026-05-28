@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 from .claude_refresh import _refresh_claude_sessions
 from .cli_render import _dim, _info, _success, _warn
-from .config import PROVIDER_CODEX
+from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CODEX
 from .context_store import (
     clear_context,
     edit_context,
@@ -1505,10 +1505,11 @@ def handle_login(rest, ctx):
     session = ctx["service"]["get_session"](args[0])
     if not session:
         raise CdxError(f"Unknown session: {args[0]}")
-    _run_interactive_provider_command(
-        session, "logout", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
-        signal_emitter=ctx.get("signal_emitter")
-    )
+    if session["provider"] != PROVIDER_ANTIGRAVITY:
+        _run_interactive_provider_command(
+            session, "logout", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
+            signal_emitter=ctx.get("signal_emitter")
+        )
     _run_interactive_provider_command(
         session, "login", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
         signal_emitter=ctx.get("signal_emitter")
@@ -1533,6 +1534,8 @@ def handle_logout(rest, ctx):
     session = ctx["service"]["get_session"](args[0])
     if not session:
         raise CdxError(f"Unknown session: {args[0]}")
+    if session["provider"] == PROVIDER_ANTIGRAVITY:
+        raise CdxError("Antigravity logout is managed inside agy. Launch the session and run /logout.")
     _run_interactive_provider_command(
         session, "logout", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
         signal_emitter=ctx.get("signal_emitter")

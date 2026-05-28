@@ -62,6 +62,15 @@ class SessionServicePythonTests(unittest.TestCase):
 
         self.assertTrue(os.path.exists(os.path.join(session["authHome"], "auth.json")))
 
+    def test_create_antigravity_session_uses_dedicated_home(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+
+        session = service["create_session"]("agy1", "antigravity")
+
+        self.assertTrue(session["authHome"].endswith(os.path.join("agy1", "antigravity-home")))
+        self.assertTrue(os.path.isdir(session["authHome"]))
+
     def test_status_rows_do_not_expose_auth_home(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

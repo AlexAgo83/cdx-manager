@@ -7,7 +7,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
-from .config import PROVIDER_CLAUDE, PROVIDER_CODEX
+from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX
 from .errors import CdxError
 
 
@@ -36,6 +36,15 @@ def _home_env_overrides(auth_home):
     set all three to ensure profile isolation works regardless of the platform.
     """
     overrides = {"HOME": auth_home, "CLAUDE_CONFIG_DIR": auth_home}
+    if sys.platform == "win32":
+        overrides["USERPROFILE"] = auth_home
+        overrides["HOMEDRIVE"] = os.path.splitdrive(auth_home)[0] or "C:"
+        overrides["HOMEPATH"] = os.path.splitdrive(auth_home)[1] or auth_home
+    return overrides
+
+
+def _antigravity_env_overrides(auth_home):
+    overrides = {"HOME": auth_home}
     if sys.platform == "win32":
         overrides["USERPROFILE"] = auth_home
         overrides["HOMEDRIVE"] = os.path.splitdrive(auth_home)[0] or "C:"
@@ -84,6 +93,12 @@ def _launch_config_args(session):
             args += ["--effort", power]
         if permission:
             args += LAUNCH_PERMISSION_ARGS[PROVIDER_CLAUDE].get(permission, [])
+        return args
+    if provider == PROVIDER_ANTIGRAVITY:
+        if permission == "review":
+            args += ["--sandbox"]
+        if permission == "full":
+            args += ["--dangerously-skip-permissions"]
         return args
     if power:
         args += ["-c", f'model_reasoning_effort="{power}"']
@@ -171,6 +186,19 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
             },
             "label": "claude",
         }, env=env)
+    if session["provider"] == PROVIDER_ANTIGRAVITY:
+        args = _launch_config_args(session)
+        if initial_prompt:
+            args += ["--prompt-interactive", initial_prompt]
+        return _wrap_launch_with_transcript(session, {
+            "command": "agy",
+            "args": args,
+            "options": {
+                "cwd": cwd,
+                "env": {**env, **_antigravity_env_overrides(_get_auth_home(session))},
+            },
+            "label": "antigravity",
+        }, env=env)
     args = ["--no-alt-screen", "--cd", cwd] + _launch_config_args(session)
     if initial_prompt:
         args.append(initial_prompt)
@@ -197,6 +225,10 @@ def _build_login_status_spec(session, env_override=None):
 
         return {"command": "claude", "args": ["auth", "status"], "env": env,
                 "parser": parser, "label": "claude auth status"}
+    if session["provider"] == PROVIDER_ANTIGRAVITY:
+        env.update(_antigravity_env_overrides(_get_auth_home(session)))
+        return {"command": "agy", "args": ["--version"], "env": env,
+                "parser": lambda _output: True, "label": "antigravity cli"}
     env["CODEX_HOME"] = _get_auth_home(session)
 
     def parser(output):
@@ -215,6 +247,12 @@ def _build_auth_action_spec(session, action, cwd=None, env_override=None):
         env.update(_home_env_overrides(_get_auth_home(session)))
         return {"command": "claude", "args": ["auth", action],
                 "options": {"cwd": cwd, "env": env}, "label": f"claude auth {action}"}
+    if session["provider"] == PROVIDER_ANTIGRAVITY:
+        if action == "logout":
+            raise CdxError("Antigravity logout is managed inside agy. Launch the session and run /logout.")
+        env.update(_antigravity_env_overrides(_get_auth_home(session)))
+        return {"command": "agy", "args": [],
+                "options": {"cwd": cwd, "env": env}, "label": "antigravity"}
     env["CODEX_HOME"] = _get_auth_home(session)
     return {"command": "codex", "args": [action],
             "options": {"cwd": cwd, "env": env}, "label": f"codex {action}"}

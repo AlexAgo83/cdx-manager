@@ -111,6 +111,8 @@ class _AuthHarness:
                 "oauth" if authed else "none",
             )
             return {"stdout": text, "stderr": ""}
+        if command == "agy" and args == ["--version"]:
+            return {"stdout": "agy 1.0.0\n", "stderr": ""}
         return {"stdout": "", "stderr": ""}
 
     def spawn(self, argv, **kwargs):
@@ -140,6 +142,8 @@ class _AuthHarness:
             self.auth_by_home[home] = True
         if command == "claude" and args == ["auth", "logout"]:
             self.auth_by_home[home] = False
+        if command == "agy":
+            self.auth_by_home[home] = True
         return _Child()
 
 
@@ -1292,6 +1296,45 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(
             claude_auth_calls[-1]["options"]["env"]["CLAUDE_CONFIG_DIR"],
             launch_call["options"]["env"]["CLAUDE_CONFIG_DIR"],
+        )
+
+    def test_add_and_launch_antigravity_session(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        create_io = self.make_io()
+        self.assertEqual(main([
+            "add", "antigravity", "agy1"
+        ], {
+            **create_io,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        self.assertIn("Created session agy1 (antigravity)", create_io["stdout"].getvalue())
+
+        launch_io = self.make_io()
+        self.assertEqual(main([
+            "agy1"
+        ], {
+            **launch_io,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        self.assertIn("Launching antigravity session agy1", launch_io["stdout"].getvalue())
+
+        launch_call = next(
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "agy")
+        )
+        self.assertEqual(
+            launch_call["options"]["cwd"],
+            os.getcwd(),
+        )
+        self.assertEqual(
+            launch_call["options"]["env"]["HOME"],
+            os.path.join(temp_dir, "profiles", "agy1", "antigravity-home"),
         )
 
     def test_persisted_claude_launch_settings_are_applied(self):

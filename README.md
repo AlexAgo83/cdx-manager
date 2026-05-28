@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.6.1-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
-**Run multiple Codex and Claude sessions from one terminal. Switch between accounts instantly.**
+**Run multiple Codex, Claude, and Antigravity sessions from one terminal. Switch between accounts instantly.**
 
 If you use AI coding tools at scale ; multiple accounts, multiple providers : you know the friction: re-authenticating, losing context, juggling environment variables. `cdx` removes all of that.
 
@@ -32,7 +32,7 @@ One command to launch any session. Zero auth juggling.
 
 ## What it does
 
-- **Multiple accounts, one tool.** Register as many Codex or Claude sessions as you need. Each one gets its own isolated auth environment — no cross-contamination between accounts.
+- **Multiple accounts, one tool.** Register as many Codex or Claude sessions as you need. Each one gets its own isolated auth environment — no cross-contamination between accounts. Antigravity sessions are launchable through `agy`; authentication is managed by Antigravity's OS keyring flow.
 - **Instant launch.** `cdx work` opens your "work" session. `cdx personal` opens another. No config files to edit mid-flow.
 - **Quick relaunch.** `cdx last` reopens the most recently launched assistant profile.
 - **Auth guardrails.** `cdx` checks authentication before launching. If a session is not logged in, it tells you exactly what to run — no silent failures.
@@ -55,6 +55,7 @@ One command to launch any session. Zero auth juggling.
 - Environment isolation per session:
   - Codex sessions override `CODEX_HOME` to a dedicated profile directory.
   - Claude sessions override `HOME` to a dedicated profile directory.
+  - Antigravity sessions launch `agy` with a dedicated `HOME` for file-based settings; Google account credentials may still be stored in the OS keyring by Antigravity itself.
   - New Codex sessions seed their auth home from your existing global `~/.codex/auth.json` when available, so an already logged-in Codex CLI can be reused without giving up per-session isolation afterward.
 - Persistence:
   - Session registry at `~/.cdx/sessions.json` (versioned JSON store).
@@ -82,7 +83,7 @@ One command to launch any session. Zero auth juggling.
 
 - Node.js 18+ with npm
 - Python 3.9+
-- `codex` and/or `claude` CLI installed and available in your PATH
+- `codex`, `claude`, and/or `agy` CLI installed and available in your PATH
 
 On Windows, the npm launcher looks for Python in this order: `py -3`, `python`, then `python3`. Make sure at least one of those commands resolves to Python 3.
 

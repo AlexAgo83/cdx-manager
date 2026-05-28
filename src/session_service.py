@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from urllib.parse import quote
 
 from .backup_bundle import decode_bundle, encode_bundle
-from .config import PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDERS, get_cdx_home
+from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDERS, get_cdx_home
 from .codex_usage import fetch_codex_rate_limits
 from .errors import CdxError
 from .session_store import create_session_store
@@ -337,6 +337,8 @@ def create_session_service(options=None):
         root = _get_session_root(name)
         if provider == PROVIDER_CLAUDE:
             return os.path.join(root, "claude-home")
+        if provider == PROVIDER_ANTIGRAVITY:
+            return os.path.join(root, "antigravity-home")
         return root
 
     def _normalize_provider(provider):

@@ -473,6 +473,34 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertIn("--effort", claude_spec["fallback"]["args"])
         self.assertIn("low", claude_spec["fallback"]["args"])
 
+    def test_build_launch_spec_supports_antigravity(self):
+        session = {
+            "name": "agy1",
+            "provider": "antigravity",
+            "authHome": "/tmp/agy-home",
+            "launch": {"permission": "full"},
+        }
+
+        spec = provider_runtime._build_launch_spec(session, cwd="/tmp/repo", initial_prompt="resume this")
+
+        self.assertEqual(spec["fallback"]["command"], "agy")
+        self.assertEqual(spec["fallback"]["args"], ["--dangerously-skip-permissions", "--prompt-interactive", "resume this"])
+        self.assertEqual(spec["fallback"]["options"]["cwd"], "/tmp/repo")
+        self.assertEqual(spec["fallback"]["options"]["env"]["HOME"], "/tmp/agy-home")
+
+    def test_build_launch_spec_maps_antigravity_review_to_sandbox(self):
+        session = {
+            "name": "agy1",
+            "provider": "antigravity",
+            "authHome": "/tmp/agy-home",
+            "launch": {"permission": "review"},
+        }
+
+        spec = provider_runtime._build_launch_spec(session, cwd="/tmp/repo")
+
+        self.assertEqual(spec["fallback"]["command"], "agy")
+        self.assertEqual(spec["fallback"]["args"], ["--sandbox"])
+
     def test_linux_launch_spec_uses_util_linux_script_command_form(self):
         session = {
             "name": "claude",
