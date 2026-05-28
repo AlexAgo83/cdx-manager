@@ -501,6 +501,23 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertEqual(spec["fallback"]["command"], "agy")
         self.assertEqual(spec["fallback"]["args"], ["--sandbox"])
 
+    def test_build_launch_spec_supports_ollama(self):
+        session = {
+            "name": "local",
+            "provider": "ollama",
+            "authHome": "/tmp/ollama-home",
+            "launch": {"model": "llama3.2", "power": "xhigh", "permission": "full"},
+        }
+
+        spec = provider_runtime._build_launch_spec(session, cwd="/tmp/repo", initial_prompt="hello")
+
+        self.assertEqual(spec["fallback"]["command"], "ollama")
+        self.assertEqual(
+            spec["fallback"]["args"],
+            ["run", "llama3.2", "--think", "high", "--experimental-yolo", "hello"],
+        )
+        self.assertEqual(spec["fallback"]["options"]["cwd"], "/tmp/repo")
+
     def test_linux_launch_spec_uses_util_linux_script_command_form(self):
         session = {
             "name": "claude",

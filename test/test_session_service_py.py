@@ -71,6 +71,17 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertTrue(session["authHome"].endswith(os.path.join("agy1", "antigravity-home")))
         self.assertTrue(os.path.isdir(session["authHome"]))
 
+    def test_ollama_launch_model_setting_can_be_set_and_unset(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("local", "ollama")
+
+        updated = service["set_launch_settings"]("local", {"model": "llama3.2"})
+        self.assertEqual(updated["launch"]["model"], "llama3.2")
+
+        updated = service["unset_launch_settings"]("local", ["model"])
+        self.assertNotIn("launch", updated)
+
     def test_status_rows_do_not_expose_auth_home(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

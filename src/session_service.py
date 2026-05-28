@@ -55,6 +55,7 @@ STATUS_CACHE_TTL_SECONDS = 60
 CLAUDE_STATUS_CACHE_TTL_SECONDS = 10 * 60
 LAUNCH_POWER_VALUES = {"low", "medium", "high", "xhigh", "max"}
 LAUNCH_PERMISSION_VALUES = {"review", "default", "auto", "full"}
+MAX_LAUNCH_MODEL_LENGTH = 128
 
 
 def _encode(name):
@@ -112,6 +113,13 @@ def _normalize_launch_settings(settings):
                 normalized["fast"] = False
             else:
                 raise CdxError(f"Unsupported fast value: {settings['fast']}")
+    if "model" in settings and settings["model"] is not None:
+        model = str(settings["model"]).strip()
+        if not model:
+            raise CdxError("Model cannot be empty.")
+        if len(model) > MAX_LAUNCH_MODEL_LENGTH or any(ord(ch) < 32 or ord(ch) == 127 for ch in model):
+            raise CdxError("Model contains unsupported characters.")
+        normalized["model"] = model
     return normalized
 
 
@@ -738,7 +746,7 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         if not keys:
             raise CdxError("At least one launch setting is required.")
-        allowed = {"power", "permission", "fast"}
+        allowed = {"power", "permission", "fast", "model"}
         unknown = [key for key in keys if key not in allowed]
         if unknown:
             raise CdxError(f"Unsupported launch setting: {', '.join(unknown)}")

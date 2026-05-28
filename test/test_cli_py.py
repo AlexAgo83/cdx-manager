@@ -113,6 +113,8 @@ class _AuthHarness:
             return {"stdout": text, "stderr": ""}
         if command == "agy" and args == ["--version"]:
             return {"stdout": "agy 1.0.0\n", "stderr": ""}
+        if command == "ollama" and args == ["--version"]:
+            return {"stdout": "ollama version is 0.12.10\n", "stderr": ""}
         return {"stdout": "", "stderr": ""}
 
     def spawn(self, argv, **kwargs):
@@ -143,6 +145,8 @@ class _AuthHarness:
         if command == "claude" and args == ["auth", "logout"]:
             self.auth_by_home[home] = False
         if command == "agy":
+            self.auth_by_home[home] = True
+        if command == "ollama":
             self.auth_by_home[home] = True
         return _Child()
 
@@ -1335,6 +1339,55 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(
             launch_call["options"]["env"]["HOME"],
             os.path.join(temp_dir, "profiles", "agy1", "antigravity-home"),
+        )
+
+    def test_add_set_model_and_launch_ollama_session(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        create_io = self.make_io()
+        self.assertEqual(main([
+            "add", "ollama", "local"
+        ], {
+            **create_io,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        self.assertIn("Created session local (ollama)", create_io["stdout"].getvalue())
+
+        self.assertEqual(main([
+            "set", "local", "--model", "llama3.2", "--power", "medium", "--permission", "full"
+        ], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        config_io = self.make_io()
+        self.assertEqual(main(["config", "local"], {
+            **config_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertIn("model:      llama3.2", config_io["stdout"].getvalue())
+
+        launch_io = self.make_io()
+        self.assertEqual(main([
+            "local"
+        ], {
+            **launch_io,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        self.assertIn("Launching ollama session local", launch_io["stdout"].getvalue())
+
+        launch_call = next(
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "ollama")
+        )
+        self.assertEqual(
+            _script_launch_args(launch_call)[:6],
+            ["run", "llama3.2", "--think", "medium", "--experimental-yolo"],
         )
 
     def test_persisted_claude_launch_settings_are_applied(self):

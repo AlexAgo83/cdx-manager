@@ -7,7 +7,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
-from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX
+from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
 from .errors import CdxError
 
 
@@ -99,6 +99,12 @@ def _launch_config_args(session):
             args += ["--sandbox"]
         if permission == "full":
             args += ["--dangerously-skip-permissions"]
+        return args
+    if provider == PROVIDER_OLLAMA:
+        if power:
+            args += ["--think", power if power in ("low", "medium", "high") else "high"]
+        if permission == "full":
+            args += ["--experimental-yolo"]
         return args
     if power:
         args += ["-c", f'model_reasoning_effort="{power}"']
@@ -199,6 +205,21 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
             },
             "label": "antigravity",
         }, env=env)
+    if session["provider"] == PROVIDER_OLLAMA:
+        launch = session.get("launch") or {}
+        model = launch.get("model") or session["name"]
+        args = ["run", model] + _launch_config_args(session)
+        if initial_prompt:
+            args.append(initial_prompt)
+        return _wrap_launch_with_transcript(session, {
+            "command": "ollama",
+            "args": args,
+            "options": {
+                "cwd": cwd,
+                "env": env,
+            },
+            "label": "ollama",
+        }, env=env)
     args = ["--no-alt-screen", "--cd", cwd] + _launch_config_args(session)
     if initial_prompt:
         args.append(initial_prompt)
@@ -229,6 +250,9 @@ def _build_login_status_spec(session, env_override=None):
         env.update(_antigravity_env_overrides(_get_auth_home(session)))
         return {"command": "agy", "args": ["--version"], "env": env,
                 "parser": lambda _output: True, "label": "antigravity cli"}
+    if session["provider"] == PROVIDER_OLLAMA:
+        return {"command": "ollama", "args": ["--version"], "env": env,
+                "parser": lambda _output: True, "label": "ollama cli"}
     env["CODEX_HOME"] = _get_auth_home(session)
 
     def parser(output):
@@ -253,6 +277,11 @@ def _build_auth_action_spec(session, action, cwd=None, env_override=None):
         env.update(_antigravity_env_overrides(_get_auth_home(session)))
         return {"command": "agy", "args": [],
                 "options": {"cwd": cwd, "env": env}, "label": "antigravity"}
+    if session["provider"] == PROVIDER_OLLAMA:
+        if action == "logout":
+            raise CdxError("Ollama sessions do not use cdx-managed authentication.")
+        return {"command": "ollama", "args": ["list"],
+                "options": {"cwd": cwd, "env": env}, "label": "ollama"}
     env["CODEX_HOME"] = _get_auth_home(session)
     return {"command": "codex", "args": [action],
             "options": {"cwd": cwd, "env": env}, "label": f"codex {action}"}

@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 from .claude_refresh import _refresh_claude_sessions
 from .cli_render import _dim, _info, _success, _warn
-from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CODEX
+from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CODEX, PROVIDER_OLLAMA
 from .context_store import (
     clear_context,
     edit_context,
@@ -50,8 +50,8 @@ EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--
 IMPORT_USAGE = "Usage: cdx import <file> [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
 CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--json]"
-SET_USAGE = "Usage: cdx set <name> [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--json]"
-UNSET_USAGE = "Usage: cdx unset <name> (--power|--permission|--fast|--all) [--json]"
+SET_USAGE = "Usage: cdx set <name> [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--model MODEL] [--json]"
+UNSET_USAGE = "Usage: cdx unset <name> (--power|--permission|--fast|--model|--all) [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
 LAST_USAGE = "Usage: cdx last [--json]"
@@ -470,13 +470,14 @@ def _parse_set_args(args):
         "--power": {"key": "power", "type": "str", "default": None},
         "--permission": {"key": "permission", "type": "str", "default": None},
         "--fast": {"key": "fast", "type": "str", "default": None, "transform": _parse_fast_value},
+        "--model": {"key": "model", "type": "str", "default": None},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, SET_USAGE, positionals_key="names", max_positionals=1)
     if len(parsed["names"]) != 1:
         raise CdxError(SET_USAGE)
     settings = {
         key: parsed[key]
-        for key in ("power", "permission", "fast")
+        for key in ("power", "permission", "fast", "model")
         if parsed[key] is not None
     }
     if not settings:
@@ -489,13 +490,14 @@ def _parse_unset_args(args):
         "--power": {"key": "power", "type": "bool", "default": False},
         "--permission": {"key": "permission", "type": "bool", "default": False},
         "--fast": {"key": "fast", "type": "bool", "default": False},
+        "--model": {"key": "model", "type": "bool", "default": False},
         "--all": {"key": "all", "type": "bool", "default": False},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, UNSET_USAGE, positionals_key="names", max_positionals=1)
     if len(parsed["names"]) != 1:
         raise CdxError(UNSET_USAGE)
-    keys = ["power", "permission", "fast"] if parsed["all"] else [
-        key for key in ("power", "permission", "fast") if parsed[key]
+    keys = ["power", "permission", "fast", "model"] if parsed["all"] else [
+        key for key in ("power", "permission", "fast", "model") if parsed[key]
     ]
     if not keys:
         raise CdxError(UNSET_USAGE)
@@ -882,6 +884,7 @@ def _format_launch_config(session):
         f"power:      {launch.get('power') or 'default'}",
         f"permission: {launch.get('permission') or 'default'}",
         f"fast:       {'on' if launch.get('fast') is True else 'off' if launch.get('fast') is False else 'default'}",
+        f"model:      {launch.get('model') or 'default'}",
     ])
 
 
@@ -1505,7 +1508,7 @@ def handle_login(rest, ctx):
     session = ctx["service"]["get_session"](args[0])
     if not session:
         raise CdxError(f"Unknown session: {args[0]}")
-    if session["provider"] != PROVIDER_ANTIGRAVITY:
+    if session["provider"] not in (PROVIDER_ANTIGRAVITY, PROVIDER_OLLAMA):
         _run_interactive_provider_command(
             session, "logout", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
             signal_emitter=ctx.get("signal_emitter")
@@ -1536,6 +1539,8 @@ def handle_logout(rest, ctx):
         raise CdxError(f"Unknown session: {args[0]}")
     if session["provider"] == PROVIDER_ANTIGRAVITY:
         raise CdxError("Antigravity logout is managed inside agy. Launch the session and run /logout.")
+    if session["provider"] == PROVIDER_OLLAMA:
+        raise CdxError("Ollama sessions do not use cdx-managed authentication.")
     _run_interactive_provider_command(
         session, "logout", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
         signal_emitter=ctx.get("signal_emitter")
