@@ -212,6 +212,14 @@ def _extract_status_blocks_from_text(text, provider=None, source_ref=None, times
             ]],
         ):
             items.append({"source_ref": source_ref, "timestamp": timestamp, "text": block})
+        for block in collect_blocks(
+            re.compile(r"No stats available yet\.?\s+Start using Claude Code", re.I),
+            [re.compile(p, re.I) for p in [
+                r"^Esc to cancel\b", r"^To continue this session\b", r"^╰",
+            ]],
+            max_span=40,
+        ):
+            items.append({"source_ref": source_ref, "timestamp": timestamp, "text": block})
 
     if provider != PROVIDER_CLAUDE:
         for block in collect_blocks(
@@ -456,6 +464,11 @@ def extract_named_statuses_from_text(text):
             result["remaining_5h_pct"] = max(0, 100 - session_used)
         if "remaining_week_pct" not in result and week_used is not None:
             result["remaining_week_pct"] = max(0, 100 - week_used)
+
+    if re.search(r"No stats available yet\.?\s+Start using Claude Code", normalized, re.I):
+        result.setdefault("usage_pct", 0)
+        result.setdefault("remaining_5h_pct", 100)
+        result.setdefault("remaining_week_pct", 100)
 
     # Table header row
     header_idx = next(

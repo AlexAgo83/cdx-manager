@@ -961,6 +961,8 @@ def create_session_service(options=None):
                 "enabled": enabled,
                 "active": bool(_session_runtime(s["name"])) if enabled else False,
                 "status": "enabled" if enabled else "disabled",
+                "auth_status": (s.get("auth") or {}).get("status") or "unknown",
+                "auth_checked_at": _to_local_iso((s.get("auth") or {}).get("lastCheckedAt")),
                 "remaining_5h_pct": row_status.get("remaining_5h_pct") if row_status else None,
                 "remaining_week_pct": row_status.get("remaining_week_pct") if row_status else None,
                 "credits": row_status.get("credits") if row_status else None,

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import signal
 import shlex
 import shutil
@@ -58,6 +59,15 @@ def _anthropic_credentials_path(auth_home):
     return os.path.join(auth_home, "credentials", f"{_anthropic_profile_name()}.json")
 
 
+def _clean_oauth_token(token):
+    if not token:
+        return None
+    text = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", str(token)).strip()
+    if not text or text.startswith("<") or any(ord(ch) < 32 or ord(ch) == 127 for ch in text):
+        return None
+    return text
+
+
 def _claude_env(base_env, auth_home):
     env = {**base_env, **_home_env_overrides(auth_home)}
     env.pop("CLAUDE_CONFIG_DIR", None)
@@ -73,9 +83,17 @@ def _read_anthropic_oauth_token(auth_home):
     except (FileNotFoundError, OSError, json.JSONDecodeError):
         return None
     token = credentials.get("access_token") if isinstance(credentials, dict) else None
-    if not token:
-        return None
-    return str(token)
+    return _clean_oauth_token(token)
+
+
+def _has_local_claude_auth(auth_home):
+    try:
+        with open(os.path.join(auth_home, ".claude", ".credentials.json"), "r", encoding="utf-8") as handle:
+            credentials = json.load(handle)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return False
+    oauth = credentials.get("claudeAiOauth") if isinstance(credentials, dict) else None
+    return bool(isinstance(oauth, dict) and _clean_oauth_token(oauth.get("accessToken")))
 
 
 def _read_claude_account_email(auth_home):
@@ -377,6 +395,8 @@ def _resolve_command(command, env=None):
 def _probe_provider_auth(session, spawn_sync=None, env_override=None):
     spawn_sync = spawn_sync or subprocess.run
     spec = _build_login_status_spec(session, env_override)
+    if session.get("provider") == PROVIDER_CLAUDE and _has_local_claude_auth(_get_auth_home(session)):
+        return True
     if session.get("provider") == PROVIDER_CODEX:
         auth_path = os.path.join(_get_auth_home(session), "auth.json")
         if os.path.isfile(auth_path):

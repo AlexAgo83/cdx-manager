@@ -152,6 +152,23 @@ class RuntimePythonTests(unittest.TestCase):
             fetch.assert_called_once_with("secret")
             self.assertEqual(result["remaining_5h_pct"], 77)
 
+    def test_refresh_claude_session_status_prefers_cli_credentials_over_setup_token(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-claude-") as temp_dir:
+            cli_cred_dir = os.path.join(temp_dir, ".claude")
+            setup_cred_dir = os.path.join(temp_dir, "credentials")
+            os.makedirs(cli_cred_dir, exist_ok=True)
+            os.makedirs(setup_cred_dir, exist_ok=True)
+            with open(os.path.join(cli_cred_dir, ".credentials.json"), "w", encoding="utf-8") as handle:
+                json.dump({"claudeAiOauth": {"accessToken": "fresh-cli"}}, handle)
+            with open(os.path.join(setup_cred_dir, "default.json"), "w", encoding="utf-8") as handle:
+                json.dump({"type": "oauth_token", "access_token": "<token>\x1b[39m"}, handle)
+
+            with mock.patch("src.claude_usage.fetch_claude_rate_limit_headers", return_value={"remaining_5h_pct": 77}) as fetch:
+                result = claude_usage.refresh_claude_session_status({"authHome": temp_dir})
+
+            fetch.assert_called_once_with("fresh-cli")
+            self.assertEqual(result["remaining_5h_pct"], 77)
+
     def test_refresh_claude_session_status_reads_anthropic_credentials(self):
         with tempfile.TemporaryDirectory(prefix="cdx-claude-") as temp_dir:
             cred_dir = os.path.join(temp_dir, "credentials")
@@ -492,6 +509,41 @@ class RuntimePythonTests(unittest.TestCase):
 
         self.assertEqual(spec["env"]["CLAUDE_CODE_OAUTH_TOKEN"], "secret")
         self.assertEqual(spec["env"]["ANTHROPIC_PROFILE"], "default")
+
+    def test_probe_provider_auth_short_circuits_when_claude_cli_oauth_token_exists(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-claude-") as temp_dir:
+            cred_dir = os.path.join(temp_dir, ".claude")
+            os.makedirs(cred_dir, exist_ok=True)
+            with open(os.path.join(cred_dir, ".credentials.json"), "w", encoding="utf-8") as handle:
+                json.dump({"claudeAiOauth": {"accessToken": "secret"}}, handle)
+
+            session = {
+                "name": "work",
+                "provider": "claude",
+                "authHome": temp_dir,
+            }
+
+            with mock.patch("src.provider_runtime.subprocess.run", side_effect=AssertionError("should not probe")):
+                self.assertTrue(provider_runtime._probe_provider_auth(session))
+
+    def test_probe_provider_auth_does_not_trust_invalid_claude_setup_token(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-claude-") as temp_dir:
+            cred_dir = os.path.join(temp_dir, "credentials")
+            os.makedirs(cred_dir, exist_ok=True)
+            with open(os.path.join(cred_dir, "default.json"), "w", encoding="utf-8") as handle:
+                json.dump({"type": "oauth_token", "access_token": "<token>\x1b[39m"}, handle)
+
+            session = {
+                "name": "work",
+                "provider": "claude",
+                "authHome": temp_dir,
+            }
+
+            def fake_run(*_args, **_kwargs):
+                return SimpleNamespace(stdout='{"loggedIn": false}\n', stderr="")
+
+            with mock.patch("src.provider_runtime.subprocess.run", side_effect=fake_run):
+                self.assertFalse(provider_runtime._probe_provider_auth(session))
 
     def test_build_launch_spec_validates_initial_prompt(self):
         session = {

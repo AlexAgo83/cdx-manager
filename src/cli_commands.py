@@ -33,6 +33,7 @@ from .notify import (
 from .provider_runtime import (
     _ensure_session_authentication,
     _list_launch_transcript_paths,
+    _probe_provider_auth,
     _run_interactive_provider_command,
 )
 from .repair import format_repair_report, repair_health
@@ -840,6 +841,7 @@ def _resolve_confirmation(confirm_fn, name):
 def _extract_claude_oauth_token(text):
     if not text:
         return None
+    text = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", str(text))
     patterns = [
         r"CLAUDE_CODE_OAUTH_TOKEN=([^\s\"']+)",
         r"(sk-ant-oat[0-9A-Za-z._-]+)",
@@ -847,7 +849,10 @@ def _extract_claude_oauth_token(text):
     for pattern in patterns:
         match = re.search(pattern, text)
         if match:
-            return match.group(1).strip()
+            token = match.group(1).strip()
+            if token.startswith("<") or any(ord(ch) < 32 or ord(ch) == 127 for ch in token):
+                continue
+            return token
     return None
 
 
@@ -1615,6 +1620,20 @@ def handle_status(rest, ctx):
         }
         for item in refresh_errors
     ]
+    auth_refresh = _refresh_claude_auth_states(
+        ctx["service"],
+        target_names=args if len(args) == 1 else None,
+        spawn_sync=ctx.get("spawn_sync"),
+        env_override=ctx.get("env"),
+    )
+    warnings.extend([
+        {
+            "code": "claude_auth_probe_failed",
+            "session": item.get("session") or "unknown",
+            "message": item.get("error") or "unknown error",
+        }
+        for item in auth_refresh.get("errors", [])
+    ])
     update_warning = _update_notice_warning(ctx)
     if update_warning:
         warnings.append(update_warning)
@@ -1643,6 +1662,38 @@ def handle_status(rest, ctx):
     _write_refresh_warnings(refresh_errors, ctx)
     _write_update_notice(ctx)
     return 0
+
+
+def _refresh_claude_auth_states(service, target_names=None, spawn_sync=None, env_override=None):
+    target_names = set(target_names or [])
+    errors = []
+    updated = []
+    for session in service["list_sessions"]():
+        if session["provider"] != PROVIDER_CLAUDE:
+            continue
+        if session.get("enabled", True) is False:
+            continue
+        if target_names and session["name"] not in target_names:
+            continue
+        if (session.get("auth") or {}).get("status") not in ("authenticated", "logged_out"):
+            continue
+        try:
+            authenticated = _probe_provider_auth(
+                session,
+                spawn_sync=spawn_sync,
+                env_override=env_override,
+            )
+            now = _local_now_iso()
+            service["update_auth_state"](session["name"], lambda auth: {
+                **auth,
+                "status": "authenticated" if authenticated else "logged_out",
+                "lastCheckedAt": now,
+                **({"lastAuthenticatedAt": now} if authenticated else {}),
+            })
+            updated.append(session["name"])
+        except Exception as error:
+            errors.append({"session": session["name"], "error": str(error)})
+    return {"updated": updated, "errors": errors}
 
 
 def _write_refresh_warnings(refresh_errors, ctx, stream="out"):

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.request
@@ -14,24 +15,37 @@ CLAUDE_STATUS_PROBE_MODEL = os.environ.get("CDX_CLAUDE_STATUS_MODEL", "claude-ha
 CLAUDE_AUTH_STATUS_TIMEOUT_SECONDS = 15
 
 
-def _read_claude_credentials(auth_home):
-    anthropic_cred_path = os.path.join(auth_home, "credentials", "default.json")
-    try:
-        with open(anthropic_cred_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        token = data.get("access_token") if isinstance(data, dict) else None
-        if token:
-            return {"accessToken": token}
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        pass
+def _clean_oauth_token(token):
+    if not token:
+        return None
+    text = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", str(token)).strip()
+    if not text or text.startswith("<") or any(ord(ch) < 32 or ord(ch) == 127 for ch in text):
+        return None
+    return text
 
+
+def _read_claude_credentials(auth_home):
     cred_path = os.path.join(auth_home, ".claude", ".credentials.json")
     try:
         with open(cred_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return data.get("claudeAiOauth")
+        creds = data.get("claudeAiOauth") if isinstance(data, dict) else None
+        token = _clean_oauth_token(creds.get("accessToken")) if isinstance(creds, dict) else None
+        if token:
+            return {**creds, "accessToken": token}
     except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return None
+        pass
+
+    anthropic_cred_path = os.path.join(auth_home, "credentials", "default.json")
+    try:
+        with open(anthropic_cred_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        token = _clean_oauth_token(data.get("access_token") if isinstance(data, dict) else None)
+        if token:
+            return {"accessToken": token}
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+    return None
 
 
 def _home_env_overrides(auth_home):

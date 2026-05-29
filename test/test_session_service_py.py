@@ -116,6 +116,21 @@ class SessionServicePythonTests(unittest.TestCase):
         rows = service["get_status_rows"]()
         self.assertNotIn("auth_home", rows[0])
 
+    def test_status_rows_include_auth_status(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["update_auth_state"]("main", lambda auth: {
+            **auth,
+            "status": "authenticated",
+            "lastCheckedAt": "2026-04-15T10:00:00+00:00",
+        })
+
+        rows = service["get_status_rows"]()
+
+        self.assertEqual(rows[0]["auth_status"], "authenticated")
+        self.assertEqual(rows[0]["auth_checked_at"], "2026-04-15T12:00:00+02:00")
+
     def test_status_rows_reuse_fresh_cache_unless_forced(self):
         temp_dir = self.make_temp_dir()
         calls = []

@@ -18,6 +18,7 @@ from src.cli import (
     format_json_error,
     main,
 )
+from src.cli_commands import _extract_claude_oauth_token
 from src.errors import CdxError
 from src.health import collect_health_report
 from src.session_service import create_session_service
@@ -234,6 +235,7 @@ class CliPythonTests(unittest.TestCase):
             {
                 "session_name": "blocked",
                 "provider": "codex",
+                "auth_status": "authenticated",
                 "available_pct": 0,
                 "remaining_5h_pct": 0,
                 "remaining_week_pct": 80,
@@ -245,6 +247,7 @@ class CliPythonTests(unittest.TestCase):
             {
                 "session_name": "available",
                 "provider": "codex",
+                "auth_status": "authenticated",
                 "available_pct": 42,
                 "remaining_5h_pct": 42,
                 "remaining_week_pct": 90,
@@ -256,6 +259,7 @@ class CliPythonTests(unittest.TestCase):
             {
                 "session_name": "credit",
                 "provider": "codex",
+                "auth_status": "authenticated",
                 "available_pct": 95,
                 "remaining_5h_pct": 95,
                 "remaining_week_pct": 95,
@@ -267,9 +271,74 @@ class CliPythonTests(unittest.TestCase):
         ])
 
         lines = output.splitlines()
+        self.assertIn("AUTH", lines[0])
+        self.assertIn("logged", lines[1])
         self.assertTrue(lines[1].startswith("available"))
         self.assertTrue(lines[2].startswith("credit"))
         self.assertTrue(lines[3].startswith("blocked"))
+
+    def test_status_priority_skips_logged_out_sessions(self):
+        output = _format_status_rows([
+            {
+                "session_name": "loggedout",
+                "provider": "claude",
+                "auth_status": "logged_out",
+                "available_pct": 100,
+                "remaining_5h_pct": 100,
+                "remaining_week_pct": 100,
+                "credits": None,
+                "reset_5h_at": None,
+                "reset_week_at": None,
+                "updated_at": None,
+            },
+            {
+                "session_name": "loggedin",
+                "provider": "claude",
+                "auth_status": "authenticated",
+                "available_pct": 50,
+                "remaining_5h_pct": 50,
+                "remaining_week_pct": 50,
+                "credits": None,
+                "reset_5h_at": None,
+                "reset_week_at": None,
+                "updated_at": None,
+            },
+        ])
+
+        self.assertIn("Priority: use loggedin first", output)
+        self.assertNotIn("use loggedout", output)
+
+    def test_status_auth_is_not_applicable_for_local_providers(self):
+        output = _format_status_rows([
+            {
+                "session_name": "local",
+                "provider": "ollama",
+                "auth_status": "authenticated",
+                "available_pct": None,
+                "remaining_5h_pct": None,
+                "remaining_week_pct": None,
+                "credits": None,
+                "reset_5h_at": None,
+                "reset_week_at": None,
+                "updated_at": None,
+            },
+            {
+                "session_name": "agy",
+                "provider": "antigravity",
+                "auth_status": "authenticated",
+                "available_pct": None,
+                "remaining_5h_pct": None,
+                "remaining_week_pct": None,
+                "credits": None,
+                "reset_5h_at": None,
+                "reset_week_at": None,
+                "updated_at": None,
+            },
+        ])
+
+        lines = output.splitlines()
+        self.assertRegex(lines[1], r"\bollama\s+enabled\s+n/a\b")
+        self.assertRegex(lines[2], r"\bantigravity\s+enabled\s+n/a\b")
 
     def test_status_small_hides_metadata_columns(self):
         rows = [
@@ -1590,6 +1659,22 @@ class CliPythonTests(unittest.TestCase):
             credentials = json.load(handle)
         self.assertEqual(credentials["access_token"], "sk-ant-oat-test")
         self.assertFalse(os.path.exists(_script_transcript_path(script_call)))
+
+    def test_claude_setup_token_extraction_strips_ansi_sequences(self):
+        token = _extract_claude_oauth_token(
+            "export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-test\x1b[39m\n"
+        )
+
+        self.assertEqual(token, "sk-ant-oat-test")
+
+    def test_claude_setup_token_extraction_skips_placeholder_hint(self):
+        token = _extract_claude_oauth_token("\n".join([
+            "Your OAuth token (valid for 1 year):",
+            "sk-ant-oat01-real-token",
+            "Use this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=<token>",
+        ]))
+
+        self.assertEqual(token, "sk-ant-oat01-real-token")
 
     def test_add_set_model_and_launch_ollama_session(self):
         temp_dir = self.make_temp_dir()

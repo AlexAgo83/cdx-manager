@@ -66,27 +66,40 @@ def _format_status_rows(rows, use_color=False, small=False):
     if small:
         headers = ["SESSION", "STATUS", "OK", "5H", "WEEK", "RESET 5H", "RESET WEEK"]
     elif has_provider:
-        headers = ["SESSION", "PROV.", "STATUS", "OK", "5H", "WEEK", "BLOCK", "CR", "RESET 5H", "RESET WEEK", "UPDATED"]
+        headers = ["SESSION", "PROV.", "STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR", "RESET 5H", "RESET WEEK", "UPDATED"]
     else:
-        headers = ["SESSION", "STATUS", "OK", "5H", "WEEK", "BLOCK", "CR", "RESET 5H", "RESET WEEK", "UPDATED"]
+        headers = ["SESSION", "STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR", "RESET 5H", "RESET WEEK", "UPDATED"]
     if not rows:
         if small:
             return "SESSION  STATUS  OK  5H  WEEK  RESET 5H  RESET WEEK\nNo saved sessions yet."
         return "SESSION  STATUS  OK  5H  WEEK  BLOCK  CR  RESET 5H  RESET WEEK  UPDATED\nNo saved sessions yet."
     headers = [_style(header, "1", use_color) for header in headers]
     active_rows = [r for r in rows if r.get("enabled", True) is not False]
+    priority_candidates = [
+        r for r in active_rows
+        if _format_auth_status(r) != "logged out"
+    ]
     disabled_rows = sorted(
         [r for r in rows if r.get("enabled", True) is False],
         key=lambda r: r.get("session_name") or "",
     )
-    priority = _recommend_priority_sessions(active_rows)
+    priority = _recommend_priority_sessions(priority_candidates)
+    priority_names = {r.get("session_name") for r in priority}
+    non_priority_active = [
+        r for r in active_rows
+        if r.get("session_name") not in priority_names
+    ]
     table_rows = []
-    for r in priority + disabled_rows:
+    for r in priority + non_priority_active + disabled_rows:
         base = [_format_session_name(r)]
         if has_provider:
             base.append(r.get("provider") or "n/a")
         status = r.get("status") or ("enabled" if r.get("enabled", True) else "disabled")
         base.append(_style(status, "2" if status == "disabled" else "32", use_color))
+        if not small:
+            auth = _format_auth_status(r)
+            auth_color = "32" if auth == "logged" else "31" if auth == "logged out" else "2"
+            base.append(_style(auth, auth_color, use_color))
         if r.get("enabled", True) is False:
             usage_columns = [_style("-", "2", use_color)] * 5
         else:
@@ -140,6 +153,19 @@ def _format_current_session_line(rows):
 
 def _format_session_name(row):
     return f"{row['session_name']}*" if row.get("active") else row["session_name"]
+
+
+def _format_auth_status(row):
+    if row.get("enabled", True) is False:
+        return "-"
+    if row.get("provider") in ("antigravity", "ollama"):
+        return "n/a"
+    status = str(row.get("auth_status") or "").strip().lower()
+    if status == "authenticated":
+        return "logged"
+    if status == "logged_out":
+        return "logged out"
+    return "unknown"
 
 
 def _recommend_priority_sessions(rows):
@@ -295,10 +321,13 @@ def _now_timestamp():
 
 
 def _format_status_detail(row, use_color=False):
+    auth = _format_auth_status(row)
+    auth_color = "32" if auth == "logged" else "31" if auth == "logged out" else "2"
     lines = [
         f"{_style('Session:', '1', use_color)} {_format_session_name(row)}",
         f"{_style('Provider:', '1', use_color)} {row.get('provider') or 'n/a'}",
         f"{_style('Status:', '1', use_color)} {_style(row.get('status') or ('enabled' if row.get('enabled', True) else 'disabled'), '2' if row.get('enabled', True) is False else '32', use_color)}",
+        f"{_style('Auth:', '1', use_color)} {_style(auth, auth_color, use_color)}",
         f"{_style('Available:', '1', use_color)} {_style_pct(row.get('available_pct'), use_color)}",
         f"{_style('5h left:', '1', use_color)} {_style_pct(row.get('remaining_5h_pct'), use_color)}",
         f"{_style('Week left:', '1', use_color)} {_style_pct(row.get('remaining_week_pct'), use_color)}",

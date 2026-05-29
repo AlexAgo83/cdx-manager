@@ -54,6 +54,13 @@ class StatusSourcePythonTests(unittest.TestCase):
         self.assertIsNotNone(result["reset_5h_at"])
         self.assertEqual(result["reset_week_at"], "Apr 17 05:00")
 
+    def test_extract_named_statuses_from_claude_no_stats_message(self):
+        result = extract_named_statuses_from_text("No stats available yet. Start using Claude Code!")
+
+        self.assertEqual(result["usage_pct"], 0)
+        self.assertEqual(result["remaining_5h_pct"], 100)
+        self.assertEqual(result["remaining_week_pct"], 100)
+
     def test_find_latest_status_artifact_selects_most_recent_candidate(self):
         with tempfile.TemporaryDirectory(prefix="cdx-status-source-") as temp_dir:
             log_dir = os.path.join(temp_dir, "log")
