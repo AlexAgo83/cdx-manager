@@ -1105,6 +1105,29 @@ class CliPythonTests(unittest.TestCase):
         payload = json.loads(select_io["stdout"].getvalue())
         self.assertEqual(payload["session"], "beta")
 
+    def test_headless_selection_priority_breaks_reasoning_ties_after_minimum_filter(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        service["create_session"]("lowp", "codex")
+        service["create_session"]("highp", "codex")
+        service["set_launch_settings"]("lowp", {"power": "low", "priority": 0})
+        service["set_launch_settings"]("highp", {"power": "high", "priority": 100})
+        for name in ("lowp", "highp"):
+            service["update_auth_state"](name, lambda auth: {**auth, "status": "authenticated"})
+            service["record_status"](name, {"remaining_5h_pct": 80, "remaining_week_pct": 80})
+
+        low_min_io = self.make_io()
+        self.assertEqual(main([
+            "select", "--provider", "codex", "--min-reasoning-effort", "low", "--require-ready", "--json"
+        ], {**low_min_io, "service": service}), 0)
+        self.assertEqual(json.loads(low_min_io["stdout"].getvalue())["session"], "highp")
+
+        high_min_io = self.make_io()
+        self.assertEqual(main([
+            "select", "--provider", "codex", "--min-reasoning-effort", "high", "--require-ready", "--json"
+        ], {**high_min_io, "service": service}), 0)
+        self.assertEqual(json.loads(high_min_io["stdout"].getvalue())["session"], "highp")
+
     def test_unset_launch_settings_can_target_all_sessions(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()

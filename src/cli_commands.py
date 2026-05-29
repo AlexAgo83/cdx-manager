@@ -1473,8 +1473,8 @@ def _select_headless_session(ctx, provider, min_reasoning_effort=None, require_r
             "sort_key": (
                 -cooldown_sort,
                 -available_sort,
-                _reasoning_rank(_session_reasoning_effort(session)),
                 -_session_selection_priority(session),
+                _reasoning_rank(_session_reasoning_effort(session)),
                 session["name"],
             ),
         })
