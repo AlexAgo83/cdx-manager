@@ -533,7 +533,8 @@ class CliPythonTests(unittest.TestCase):
             return {"returncode": 0, "stdout": "", "stderr": ""}
 
         def run_version_check(command, **kwargs):
-            self.assertEqual(command, [cdx_path, "-v"])
+            self.assertEqual(os.path.normcase(command[0]), os.path.normcase(cdx_path))
+            self.assertEqual(command[1:], ["-v"])
             return {"returncode": 0, "stdout": "8.8.8\n", "stderr": ""}
 
         update_io = self.make_io()
@@ -552,7 +553,7 @@ class CliPythonTests(unittest.TestCase):
         payload = json.loads(update_io["stdout"].getvalue())
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["warnings"][0]["code"], "update_version_mismatch")
-        self.assertEqual(payload["warnings"][0]["path"], cdx_path)
+        self.assertEqual(os.path.normcase(payload["warnings"][0]["path"]), os.path.normcase(cdx_path))
         self.assertEqual(payload["warnings"][0]["resolved_version"], "8.8.8")
 
     def test_non_status_outputs_use_color_when_enabled(self):

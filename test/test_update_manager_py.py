@@ -93,5 +93,5 @@ class UpdateManagerPythonTests(unittest.TestCase):
         self.assertEqual(warning["code"], "update_version_mismatch")
         self.assertEqual(warning["target_version"], "1.2.3")
         self.assertEqual(warning["resolved_version"], "1.2.2")
-        self.assertEqual(warning["path"], cdx_path)
+        self.assertEqual(os.path.normcase(warning["path"]), os.path.normcase(cdx_path))
         self.assertEqual(captured["env"], {"PATH": bin_dir})
