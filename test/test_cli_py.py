@@ -3300,6 +3300,43 @@ class CliPythonTests(unittest.TestCase):
         with self.assertRaisesRegex(CdxError, "Usage: cdx ready"):
             main(["ready", "--once"], self.make_io())
 
+    def test_select_returns_ready_codex_session_as_json(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        service["create_session"]("low", "codex")
+        service["create_session"]("full", "codex")
+        service["update_auth_state"]("low", lambda auth: {**auth, "status": "authenticated"})
+        service["update_auth_state"]("full", lambda auth: {**auth, "status": "authenticated"})
+        service["record_status"]("low", {"remaining_5h_pct": 20, "remaining_week_pct": 20})
+        service["record_status"]("full", {"remaining_5h_pct": 80, "remaining_week_pct": 80})
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "select", "--provider", "codex", "--min-reasoning-effort", "low", "--require-ready", "--json"
+        ], {**io_obj, "service": service}), 0)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["session"], "full")
+        self.assertEqual(payload["provider"], "codex")
+        self.assertEqual(payload["selection_policy"], "ready_then_cooldown_then_health_then_priority_then_name")
+
+    def test_select_reports_no_suitable_session(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        service["create_session"]("loggedout", "codex")
+        service["update_auth_state"]("loggedout", lambda auth: {**auth, "status": "logged_out"})
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "select", "--provider", "codex", "--min-power", "low", "--require-ready", "--json"
+        ], {**io_obj, "service": service}), 1)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["source"], "cdx")
+        self.assertEqual(payload["error"]["code"], "no_suitable_session")
+
     def test_notify_next_ready_ignores_disabled_sessions(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

@@ -40,6 +40,8 @@ RESERVED_SESSION_NAMES = {
     "ren",
     "rename",
     "rmv",
+    "run",
+    "select",
     "config",
     "set",
     "status",

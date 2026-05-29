@@ -33,6 +33,7 @@ from .notify import (
 from .provider_runtime import (
     _ensure_session_authentication,
     _list_launch_transcript_paths,
+    _normalize_reasoning_effort,
     _probe_provider_auth,
     _run_interactive_provider_command,
 )
@@ -57,6 +58,7 @@ SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVI
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
 LAST_USAGE = "Usage: cdx last [--json]"
+SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort low|medium|high] [--min-power low|medium|high] [--require-ready] [--refresh] --json"
 API_SCHEMA_VERSION = 1
 HANDOFF_TRANSCRIPT_CHARS = 120000
 HANDOFF_NATIVE_TRANSCRIPT_CANDIDATES = 64
@@ -73,6 +75,23 @@ def _json_success(action, message, warnings=None, **extra):
         "action": action,
         "message": message,
         "warnings": warnings or [],
+    }
+    payload.update(extra)
+    return payload
+
+
+def _json_failure(action, code, message, source="cdx", exit_code=1, warnings=None, **extra):
+    payload = {
+        "schema_version": API_SCHEMA_VERSION,
+        "ok": False,
+        "action": action,
+        "warnings": warnings or [],
+        "error": {
+            "source": source,
+            "code": code,
+            "message": message,
+            "exit_code": exit_code,
+        },
     }
     payload.update(extra)
     return payload
@@ -541,6 +560,31 @@ def _parse_config_args(args):
     if len(parsed["names"]) != 1:
         raise CdxError(CONFIG_USAGE)
     return {"name": parsed["names"][0], "json": parsed["json"]}
+
+
+def _parse_select_args(args):
+    parsed = _parse_flag_args(args, {
+        "--provider": {"key": "provider", "type": "str", "default": None, "transform": lambda value: _parse_provider_filter(value, SELECT_USAGE)},
+        "--min-reasoning-effort": {"key": "min_reasoning_effort", "type": "str", "default": None},
+        "--min-power": {"key": "min_power", "type": "str", "default": None},
+        "--require-ready": {"key": "require_ready", "type": "bool", "default": False},
+        "--refresh": {"key": "refresh", "type": "bool", "default": False},
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, SELECT_USAGE)
+    if not parsed["provider"] or not parsed["json"]:
+        raise CdxError(SELECT_USAGE)
+    effort = _normalize_reasoning_effort(
+        reasoning_effort=parsed["min_reasoning_effort"],
+        power=parsed["min_power"],
+        usage=SELECT_USAGE,
+    ).get("reasoning_effort")
+    return {
+        "provider": parsed["provider"],
+        "min_reasoning_effort": effort,
+        "require_ready": parsed["require_ready"],
+        "refresh": parsed["refresh"],
+        "json": parsed["json"],
+    }
 
 
 def _parse_positive_int(value):
@@ -1025,6 +1069,46 @@ def handle_enable(rest, ctx):
     return 0
 
 
+def handle_select(rest, ctx):
+    parsed = _parse_select_args(rest)
+    selected = _select_headless_session(
+        ctx,
+        parsed["provider"],
+        min_reasoning_effort=parsed["min_reasoning_effort"],
+        require_ready=parsed["require_ready"],
+        force_refresh=parsed["refresh"],
+    )
+    policy = "ready_then_cooldown_then_health_then_priority_then_name"
+    if not selected:
+        message = "No suitable session found."
+        _write_json(ctx, _json_failure(
+            "select",
+            "no_suitable_session",
+            message,
+            provider=parsed["provider"],
+            min_reasoning_effort=parsed["min_reasoning_effort"],
+            require_ready=parsed["require_ready"],
+            selection_policy=policy,
+        ))
+        return 1
+    session = selected["session"]
+    row = selected.get("row") or {}
+    reason = "lowest available suitable session"
+    _write_json(ctx, _json_success(
+        "select",
+        f"Selected session {session['name']}",
+        session=session["name"],
+        provider=session["provider"],
+        reason=reason,
+        selection_policy=policy,
+        min_reasoning_effort=parsed["min_reasoning_effort"],
+        reasoning_effort=_session_reasoning_effort(session),
+        available_pct=row.get("available_pct"),
+        auth_status=row.get("auth_status"),
+    ))
+    return 0
+
+
 def _format_launch_config(session):
     launch = session.get("launch") or {}
     return "\n".join([
@@ -1060,6 +1144,75 @@ def _resolve_bulk_launch_targets(parsed, service):
     if not targets:
         raise CdxError("No sessions matched.")
     return targets
+
+
+def _reasoning_rank(value):
+    order = {"low": 0, "medium": 1, "high": 2, "xhigh": 2, "max": 2}
+    return order.get(str(value or "low").lower(), 0)
+
+
+def _session_reasoning_effort(session):
+    launch = session.get("launch") or {}
+    return (
+        launch.get("reasoning_effort")
+        or launch.get("reasoningEffort")
+        or launch.get("power")
+        or ("low" if launch.get("fast") is True else None)
+        or "low"
+    )
+
+
+def _row_blocks_ready(row):
+    auth = row.get("auth_status") or "unknown"
+    if auth not in ("authenticated", "n/a"):
+        return True
+    available = row.get("available_pct")
+    if available is not None:
+        try:
+            if float(available) <= 0:
+                return True
+        except (TypeError, ValueError):
+            return True
+    return False
+
+
+def _select_headless_session(ctx, provider, min_reasoning_effort=None, require_ready=False, force_refresh=False):
+    sessions = [
+        session for session in ctx["service"]["list_sessions"]()
+        if session.get("provider") == provider and session.get("enabled", True) is not False
+    ]
+    minimum = _reasoning_rank(min_reasoning_effort)
+    sessions = [
+        session for session in sessions
+        if _reasoning_rank(_session_reasoning_effort(session)) >= minimum
+    ]
+    rows = ctx["service"]["get_status_rows"](force_refresh=force_refresh)
+    row_by_name = {row.get("session_name"): row for row in rows}
+    candidates = []
+    for session in sessions:
+        row = row_by_name.get(session["name"], {})
+        if require_ready and _row_blocks_ready(row):
+            continue
+        available = row.get("available_pct")
+        try:
+            available_sort = float(available) if available is not None else -1.0
+        except (TypeError, ValueError):
+            available_sort = -1.0
+        cooldown_sort = 1 if available_sort > 0 else 0
+        candidates.append({
+            "session": session,
+            "row": row,
+            "sort_key": (
+                -cooldown_sort,
+                -available_sort,
+                _reasoning_rank(_session_reasoning_effort(session)),
+                session["name"],
+            ),
+        })
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item["sort_key"])
+    return candidates[0]
 
 
 def _format_bulk_launch_summary(sessions):

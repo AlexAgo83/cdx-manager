@@ -28,6 +28,7 @@ from .cli_commands import (
     handle_remove,
     handle_repair,
     handle_rename,
+    handle_select,
     handle_status,
     handle_set,
     handle_unset,
@@ -72,6 +73,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx status [--json] [--refresh]', '36', use_color)}",
         f"  {_style('cdx status --small|-s [--refresh]', '36', use_color)}",
         f"  {_style('cdx status <name> [--json] [--refresh]', '36', use_color)}",
+        f"  {_style('cdx select --provider PROVIDER [--min-reasoning-effort low|medium|high] [--require-ready] --json', '36', use_color)}",
         f"  {_style('cdx context show|path|init|edit|clear|set [text...] [--json]', '36', use_color)}",
         f"  {_style('cdx config <name> [--json]', '36', use_color)}",
         f"  {_style('cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]', '36', use_color)}",
@@ -233,7 +235,7 @@ def main(argv, options=None):
         "version": VERSION,
         "cwd": options.get("cwd") or os.getcwd(),
         "update_notice": _get_update_notice(service, env, options) if command not in (
-            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "context", "config", "set", "unset", "power", "perm", "fast", "model", "history", "handoff", "login", "logout", "disable", "enable", "export", "import", "help", "version"
+            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "context", "config", "set", "unset", "power", "perm", "fast", "model", "history", "handoff", "login", "logout", "disable", "enable", "export", "import", "select", "help", "version"
         ) else None,
         "use_color": use_color,
     }
@@ -308,6 +310,9 @@ def main(argv, options=None):
 
     if command == "status":
         return handle_status(rest, ctx)
+
+    if command == "select":
+        return handle_select(rest, ctx)
 
     if command == "login":
         return handle_login(rest, ctx)
