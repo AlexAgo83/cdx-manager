@@ -3426,6 +3426,29 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["error"]["code"], "provider_failed")
         self.assertEqual(payload["exit_code"], 7)
 
+    def test_run_explicit_session_rejects_disabled_session(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        session = service["create_session"]("work", "codex")
+        os.makedirs(session["authHome"], exist_ok=True)
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "token"}}, handle)
+        service["set_session_enabled"]("work", False)
+
+        def spawn(_argv, **_kwargs):
+            raise AssertionError("disabled sessions must not be launched")
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json"
+        ], {**io_obj, "service": service, "spawn_headless": spawn}), 1)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["source"], "cdx")
+        self.assertEqual(payload["error"]["code"], "session_disabled")
+        self.assertIn("Session is disabled: work", payload["error"]["message"])
+
     def test_run_auto_selects_session_from_provider(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})

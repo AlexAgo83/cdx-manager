@@ -1198,6 +1198,15 @@ def _run_usage_payload():
     }
 
 
+def _run_cdx_error_code(error):
+    message = str(error)
+    if message.startswith("Usage:"):
+        return "invalid_request"
+    if message.startswith("Session is disabled:"):
+        return "session_disabled"
+    return "cdx_error"
+
+
 def _run_result_payload(ok, parsed, session, run_info=None, error=None, error_source=None, error_code=None):
     run_info = run_info or {}
     return {
@@ -1235,6 +1244,8 @@ def handle_run(rest, ctx):
             session = ctx["service"]["get_session"](parsed["name"])
             if not session:
                 raise CdxError(f"Unknown session: {parsed['name']}")
+            if session.get("enabled", True) is False:
+                raise CdxError(f"Session is disabled: {parsed['name']}")
         else:
             selected = _select_headless_session(
                 ctx,
@@ -1323,7 +1334,7 @@ def handle_run(rest, ctx):
             locals().get("session"),
             error=error,
             error_source="cdx",
-            error_code="invalid_request" if str(error).startswith("Usage:") else "cdx_error",
+            error_code=_run_cdx_error_code(error),
         ))
         return error.exit_code
 
