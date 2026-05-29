@@ -32,7 +32,7 @@ LAUNCH_PERMISSION_ARGS = {
 HEADLESS_CODEX_PERMISSION_ARGS = {
     "review": ["-s", "read-only"],
     "default": ["-s", "workspace-write"],
-    "auto": ["-s", "workspace-write"],
+    "auto": ["-s", "workspace-write", "-c", 'approval_policy="never"'],
     "full": ["--dangerously-bypass-approvals-and-sandbox"],
 }
 

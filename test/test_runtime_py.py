@@ -687,6 +687,7 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertIn('model_reasoning_effort="high"', spec["args"])
         self.assertIn("-s", spec["args"])
         self.assertIn("workspace-write", spec["args"])
+        self.assertIn('approval_policy="never"', spec["args"])
         self.assertIn("do it", spec["args"])
         self.assertEqual(spec["options"]["env"]["CODEX_HOME"], "/tmp/codex-home")
 
