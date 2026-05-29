@@ -24,6 +24,7 @@ Release date: 2026-05-29
 ## Coverage and Tests
 
 - Added focused coverage for update checking, context storage, RTK launch preferences, post-update shadow warnings, and per-session stats aggregation.
+- Fixed Windows CI portability in tests that exercise npm shim paths, version mismatch warnings, and context write byte counts.
 - Increased the Python test suite to 260 tests.
 
 ## Release Metadata
