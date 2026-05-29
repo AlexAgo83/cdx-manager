@@ -449,6 +449,9 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("cdx set <name>|--sessions all|a,b|--provider PROVIDER", help_io["stdout"].getvalue())
         self.assertIn("--model MODEL", help_io["stdout"].getvalue())
         self.assertIn("--priority 0..100", help_io["stdout"].getvalue())
+        self.assertIn("--min-power low|medium|high", help_io["stdout"].getvalue())
+        self.assertIn("--power low|medium|high", help_io["stdout"].getvalue())
+        self.assertIn("workspace-write|read-only|danger-full-access", help_io["stdout"].getvalue())
 
         self.assertEqual(main(["-v"], version_io), 0)
         self.assertRegex(version_io["stdout"].getvalue().strip(), r"^\d+\.\d+\.\d+$")
