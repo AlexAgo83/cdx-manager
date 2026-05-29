@@ -189,14 +189,23 @@ def _to_local_iso(value):
     return parsed.astimezone().isoformat()
 
 
+def _normalize_pct_value(value):
+    if value is None:
+        return None
+    try:
+        return max(0, min(100, round(float(value))))
+    except (TypeError, ValueError):
+        return None
+
+
 def _normalize_status_payload(payload=None):
     if payload is None:
         payload = {}
     now = _local_now_iso()
     return {
-        "usage_pct": payload.get("usage_pct"),
-        "remaining_5h_pct": payload.get("remaining_5h_pct"),
-        "remaining_week_pct": payload.get("remaining_week_pct"),
+        "usage_pct": _normalize_pct_value(payload.get("usage_pct")),
+        "remaining_5h_pct": _normalize_pct_value(payload.get("remaining_5h_pct")),
+        "remaining_week_pct": _normalize_pct_value(payload.get("remaining_week_pct")),
         "credits": payload.get("credits"),
         "reset_5h_at": payload.get("reset_5h_at"),
         "reset_week_at": payload.get("reset_week_at"),
@@ -297,8 +306,8 @@ def _compute_available_pct(status):
     if not status:
         return None
     values = [
-        status.get("remaining_5h_pct"),
-        status.get("remaining_week_pct"),
+        _normalize_pct_value(status.get("remaining_5h_pct")),
+        _normalize_pct_value(status.get("remaining_week_pct")),
     ]
     values = [value for value in values if value is not None]
     if not values:
@@ -981,8 +990,8 @@ def create_session_service(options=None):
                 "status": "enabled" if enabled else "disabled",
                 "auth_status": (s.get("auth") or {}).get("status") or "unknown",
                 "auth_checked_at": _to_local_iso((s.get("auth") or {}).get("lastCheckedAt")),
-                "remaining_5h_pct": row_status.get("remaining_5h_pct") if row_status else None,
-                "remaining_week_pct": row_status.get("remaining_week_pct") if row_status else None,
+                "remaining_5h_pct": _normalize_pct_value(row_status.get("remaining_5h_pct")) if row_status else None,
+                "remaining_week_pct": _normalize_pct_value(row_status.get("remaining_week_pct")) if row_status else None,
                 "credits": row_status.get("credits") if row_status else None,
                 "available_pct": _compute_available_pct(row_status),
                 "reset_5h_at": row_status.get("reset_5h_at") if row_status else None,

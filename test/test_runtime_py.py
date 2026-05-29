@@ -100,6 +100,16 @@ class RuntimePythonTests(unittest.TestCase):
 
         self.assertEqual(captured["body"]["model"], "test-model")
 
+    def test_fetch_claude_rate_limit_headers_clamps_remaining_percentages(self):
+        headers = {
+            "anthropic-ratelimit-unified-5h-utilization": "1.10",
+            "anthropic-ratelimit-unified-7d-utilization": "-0.20",
+        }
+        with mock.patch("urllib.request.urlopen", return_value=_Response(headers)):
+            result = claude_usage.fetch_claude_rate_limit_headers("token")
+        self.assertEqual(result["remaining_5h_pct"], 0)
+        self.assertEqual(result["remaining_week_pct"], 100)
+
     def test_fetch_claude_rate_limit_headers_from_http_error_headers(self):
         headers = {
             "anthropic-ratelimit-unified-5h-utilization": "0.50",

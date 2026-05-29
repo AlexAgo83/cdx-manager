@@ -75,7 +75,7 @@ def _style_pct(value, use_color=False):
     text = _format_pct(value)
     if value is None:
         return _style(text, "2", use_color)
-    if value == 0:
+    if value <= 0:
         return _style(text, "31", use_color)
     if value <= 10:
         return _style(text, "33", use_color)

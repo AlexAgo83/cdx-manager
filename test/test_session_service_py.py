@@ -162,6 +162,23 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(second_rows[0]["available_pct"], 70)
         self.assertEqual(forced_rows[0]["available_pct"], 70)
 
+    def test_status_rows_clamp_cached_percentages(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["record_status"]("main", {
+            "usage_pct": -5,
+            "remaining_5h_pct": -10,
+            "remaining_week_pct": 130,
+            "updated_at": datetime.now().astimezone().isoformat(),
+        })
+
+        rows = service["get_status_rows"]()
+
+        self.assertEqual(rows[0]["remaining_5h_pct"], 0)
+        self.assertEqual(rows[0]["remaining_week_pct"], 100)
+        self.assertEqual(rows[0]["available_pct"], 0)
+
     def test_remove_session_surfaces_profile_delete_failure(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

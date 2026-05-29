@@ -87,6 +87,15 @@ def _format_reset_date(unix_seconds):
     return f"{MONTH_ABBR[dt.month - 1]} {dt.day} {str(dt.hour).zfill(2)}:{str(dt.minute).zfill(2)}"
 
 
+def _remaining_from_utilization(value):
+    if value is None:
+        return None
+    try:
+        return max(0, min(100, round((1 - float(value)) * 100)))
+    except (TypeError, ValueError):
+        return None
+
+
 def _read_http_error_message(error):
     try:
         body = error.read().decode("utf-8", errors="replace")
@@ -159,8 +168,8 @@ def fetch_claude_rate_limit_headers(access_token):
     reset_at = reset_week_at or reset_5h_at
 
     return {
-        "remaining_5h_pct": round((1 - utilization_5h) * 100) if utilization_5h is not None else None,
-        "remaining_week_pct": round((1 - utilization_7d) * 100) if utilization_7d is not None else None,
+        "remaining_5h_pct": _remaining_from_utilization(utilization_5h),
+        "remaining_week_pct": _remaining_from_utilization(utilization_7d),
         "reset_5h_at": reset_5h_at,
         "reset_week_at": reset_week_at,
         "reset_at": reset_at,
