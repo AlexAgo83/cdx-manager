@@ -467,7 +467,21 @@ class RuntimePythonTests(unittest.TestCase):
 
         self.assertEqual(calls[0][0][0], "C:/nvm4w/nodejs/codex.cmd")
 
-    def test_probe_provider_auth_short_circuits_when_codex_auth_file_exists(self):
+    def test_probe_provider_auth_short_circuits_when_codex_auth_file_has_tokens(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-codex-") as temp_dir:
+            with open(os.path.join(temp_dir, "auth.json"), "w", encoding="utf-8") as handle:
+                handle.write("{\"tokens\": {\"access_token\": \"codex-access-token\"}}\n")
+
+            session = {
+                "name": "main",
+                "provider": "codex",
+                "authHome": temp_dir,
+            }
+
+            with mock.patch("src.provider_runtime.subprocess.run", side_effect=AssertionError("should not probe")):
+                self.assertTrue(provider_runtime._probe_provider_auth(session))
+
+    def test_probe_provider_auth_does_not_trust_empty_codex_auth_file(self):
         with tempfile.TemporaryDirectory(prefix="cdx-codex-") as temp_dir:
             with open(os.path.join(temp_dir, "auth.json"), "w", encoding="utf-8") as handle:
                 handle.write("{\"tokens\": {}}\n")
@@ -478,8 +492,11 @@ class RuntimePythonTests(unittest.TestCase):
                 "authHome": temp_dir,
             }
 
-            with mock.patch("src.provider_runtime.subprocess.run", side_effect=AssertionError("should not probe")):
-                self.assertTrue(provider_runtime._probe_provider_auth(session))
+            def fake_run(_argv, **_kwargs):
+                return SimpleNamespace(stdout="Not logged in\n", stderr="")
+
+            with mock.patch("src.provider_runtime.subprocess.run", side_effect=fake_run):
+                self.assertFalse(provider_runtime._probe_provider_auth(session))
 
     def test_claude_login_uses_profile_email_hint_when_available(self):
         with tempfile.TemporaryDirectory(prefix="cdx-claude-") as temp_dir:

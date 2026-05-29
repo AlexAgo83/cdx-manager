@@ -96,6 +96,23 @@ def _has_local_claude_auth(auth_home):
     return bool(isinstance(oauth, dict) and _clean_oauth_token(oauth.get("accessToken")))
 
 
+def _has_local_codex_auth(auth_home):
+    try:
+        with open(os.path.join(auth_home, "auth.json"), "r", encoding="utf-8") as handle:
+            auth = json.load(handle)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(auth, dict):
+        return False
+    tokens = auth.get("tokens")
+    if not isinstance(tokens, dict):
+        return False
+    return any(
+        _clean_oauth_token(tokens.get(name))
+        for name in ("id_token", "access_token", "refresh_token")
+    )
+
+
 def _read_claude_account_email(auth_home):
     config_path = os.path.join(auth_home, ".claude.json")
     try:
@@ -397,10 +414,8 @@ def _probe_provider_auth(session, spawn_sync=None, env_override=None):
     spec = _build_login_status_spec(session, env_override)
     if session.get("provider") == PROVIDER_CLAUDE and _has_local_claude_auth(_get_auth_home(session)):
         return True
-    if session.get("provider") == PROVIDER_CODEX:
-        auth_path = os.path.join(_get_auth_home(session), "auth.json")
-        if os.path.isfile(auth_path):
-            return True
+    if session.get("provider") == PROVIDER_CODEX and _has_local_codex_auth(_get_auth_home(session)):
+        return True
     try:
         if spawn_sync is subprocess.run:
             command = _resolve_command(spec["command"], spec["env"])
