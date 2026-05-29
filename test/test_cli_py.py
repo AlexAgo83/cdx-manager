@@ -3663,6 +3663,23 @@ class CliPythonTests(unittest.TestCase):
             "total_tokens": None,
         })
 
+    def test_run_no_suitable_session_includes_launcher(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        service["create_session"]("loggedout", "codex")
+        service["update_auth_state"]("loggedout", lambda auth: {**auth, "status": "logged_out"})
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "--provider", "codex", "--cwd", target_dir, "--prompt", "Do it", "--json"
+        ], {**io_obj, "service": service}), 1)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["action"], "run")
+        self.assertEqual(payload["launcher"], "cdx")
+        self.assertEqual(payload["error"]["code"], "no_suitable_session")
+
     def test_run_timeout_uses_provider_timeout_error(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})

@@ -1281,6 +1281,7 @@ def handle_run(rest, ctx):
                     "run",
                     "no_suitable_session",
                     "No suitable session found.",
+                    launcher="cdx",
                     provider=parsed["provider"],
                 ))
                 return 1
