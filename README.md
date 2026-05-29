@@ -393,7 +393,7 @@ Success payloads follow a shared envelope:
 }
 ```
 
-Errors use a shared stderr JSON envelope whenever `--json` is present:
+Most commands use a shared stderr JSON envelope for errors whenever `--json` is present:
 
 ```json
 {
@@ -407,7 +407,7 @@ Errors use a shared stderr JSON envelope whenever `--json` is present:
 }
 ```
 
-`status --json` and similar commands also use the same envelope and place non-fatal issues in `warnings` instead of mixing plain-text diagnostics into `stderr`.
+`status --json` and similar commands also use the same envelope and place non-fatal issues in `warnings` instead of mixing plain-text diagnostics into `stderr`. `cdx run --json` is the exception: it always writes one final JSON payload to stdout, including cdx-side and provider-start errors, so supervisors can parse a single result stream while provider stdout and stderr are captured to files.
 
 This makes `cdx-manager` usable from editor plugins, scripts, and desktop apps without scraping human-readable terminal output.
 
