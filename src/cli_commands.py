@@ -1218,6 +1218,12 @@ def _run_cdx_error_code(error):
         return "session_disabled"
     if "CLI not found on PATH" in message:
         return "provider_cli_not_found"
+    if (
+        message.startswith("Unsupported reasoning effort:")
+        or message.startswith("Unsupported power:")
+        or "--reasoning-effort and --power must match" in message
+    ):
+        return "invalid_reasoning_effort"
     return "cdx_error"
 
 

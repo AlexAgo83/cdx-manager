@@ -3496,6 +3496,26 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["error"]["code"], "session_disabled")
         self.assertIn("Session is disabled: work", payload["error"]["message"])
 
+    def test_run_reasoning_power_conflict_has_stable_validation_code(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        service["create_session"]("work", "codex")
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work",
+            "--cwd", target_dir,
+            "--prompt", "Do it",
+            "--reasoning-effort", "low",
+            "--power", "high",
+            "--json",
+        ], {**io_obj, "service": service}), 1)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["source"], "cdx")
+        self.assertEqual(payload["error"]["code"], "invalid_reasoning_effort")
+
     def test_run_auto_selects_session_from_provider(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})
