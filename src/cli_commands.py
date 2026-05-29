@@ -1431,7 +1431,10 @@ def _session_selection_priority(session):
 
 
 def _row_blocks_ready(row):
-    auth = row.get("auth_status") or "unknown"
+    if row.get("provider") in (PROVIDER_ANTIGRAVITY, PROVIDER_OLLAMA):
+        auth = "n/a"
+    else:
+        auth = row.get("auth_status") or "unknown"
     if auth not in ("authenticated", "n/a"):
         return True
     available = row.get("available_pct")

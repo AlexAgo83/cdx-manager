@@ -3407,6 +3407,22 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["error"]["source"], "cdx")
         self.assertEqual(payload["error"]["code"], "no_suitable_session")
 
+    def test_select_require_ready_allows_local_no_auth_provider(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        service["create_session"]("local", "ollama")
+        service["set_launch_settings"]("local", {"model": "llama3.2"})
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "select", "--provider", "ollama", "--require-ready", "--json"
+        ], {**io_obj, "service": service}), 0)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["session"], "local")
+        self.assertEqual(payload["provider"], "ollama")
+
     def test_run_explicit_session_returns_json_and_captures_provider_output(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})
