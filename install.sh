@@ -34,7 +34,7 @@ sha256_file() {
 
 resolve_expected_sha256() {
   curl -fsSL "$CHECKSUMS_URL" |
-    python3 - "$1" <<'PY'
+    python3 -c '
 import json
 import sys
 
@@ -48,7 +48,7 @@ release = (payload.get("releases") or {}).get(tag) or {}
 value = release.get("github_tarball_sha256")
 if value:
     print(value)
-PY
+' "$1"
 }
 
 if [ -z "$VERSION" ]; then
