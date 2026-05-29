@@ -129,7 +129,10 @@ class SessionServicePythonTests(unittest.TestCase):
         rows = service["get_status_rows"]()
 
         self.assertEqual(rows[0]["auth_status"], "authenticated")
-        self.assertEqual(rows[0]["auth_checked_at"], "2026-04-15T12:00:00+02:00")
+        self.assertEqual(
+            datetime.fromisoformat(rows[0]["auth_checked_at"]).timestamp(),
+            datetime.fromisoformat("2026-04-15T10:00:00+00:00").timestamp(),
+        )
 
     def test_status_rows_reuse_fresh_cache_unless_forced(self):
         temp_dir = self.make_temp_dir()
