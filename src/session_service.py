@@ -123,6 +123,18 @@ def _normalize_launch_settings(settings):
                 normalized["fast"] = False
             else:
                 raise CdxError(f"Unsupported fast value: {settings['fast']}")
+    if "rtk" in settings and settings["rtk"] is not None:
+        value = settings["rtk"]
+        if isinstance(value, bool):
+            normalized["rtk"] = value
+        else:
+            text = str(value).strip().lower()
+            if text in ("on", "true", "1", "yes"):
+                normalized["rtk"] = True
+            elif text in ("off", "false", "0", "no"):
+                normalized["rtk"] = False
+            else:
+                raise CdxError(f"Unsupported rtk value: {settings['rtk']}")
     if "model" in settings and settings["model"] is not None:
         model = str(settings["model"]).strip()
         if not model:
@@ -800,7 +812,7 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         if not keys:
             raise CdxError("At least one launch setting is required.")
-        allowed = {"power", "permission", "fast", "model", "priority"}
+        allowed = {"power", "permission", "fast", "rtk", "model", "priority"}
         unknown = [key for key in keys if key not in allowed]
         if unknown:
             raise CdxError(f"Unsupported launch setting: {', '.join(unknown)}")

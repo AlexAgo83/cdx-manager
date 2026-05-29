@@ -106,7 +106,10 @@ class SessionServicePythonTests(unittest.TestCase):
         updated = service["set_launch_settings"]("local", {"model": "llama3.2"})
         self.assertEqual(updated["launch"]["model"], "llama3.2")
 
-        updated = service["unset_launch_settings"]("local", ["model"])
+        updated = service["set_launch_settings"]("local", {"rtk": "on"})
+        self.assertTrue(updated["launch"]["rtk"])
+
+        updated = service["unset_launch_settings"]("local", ["model", "rtk"])
         self.assertNotIn("launch", updated)
 
     def test_status_rows_do_not_expose_auth_home(self):

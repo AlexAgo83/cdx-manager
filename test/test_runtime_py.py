@@ -691,6 +691,21 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertIn("do it", spec["args"])
         self.assertEqual(spec["options"]["env"]["CODEX_HOME"], "/tmp/codex-home")
 
+    def test_build_headless_launch_spec_injects_rtk_preference(self):
+        session = {
+            "name": "main",
+            "provider": "codex",
+            "authHome": "/tmp/codex-home",
+            "launch": {"rtk": True},
+        }
+
+        spec = provider_runtime._build_headless_launch_spec(session, cwd="/tmp/repo", initial_prompt="do it")
+
+        prompt = spec["args"][-1]
+        self.assertIn("prefer RTK wrappers", prompt)
+        self.assertIn("rtk <command>", prompt)
+        self.assertTrue(prompt.endswith("do it"))
+
     def test_build_headless_launch_spec_uses_claude_print_json(self):
         session = {
             "name": "claude",

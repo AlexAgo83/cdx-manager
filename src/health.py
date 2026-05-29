@@ -39,6 +39,14 @@ def collect_health_report(service, base_dir, env=None):
         status = "OK" if path else "WARN"
         issues.append(_issue(status, f"{command}_cli", f"{command} CLI {'found' if path else 'not found'}", path))
 
+    rtk_path = shutil.which("rtk", path=env.get("PATH"))
+    issues.append(_issue(
+        "OK" if rtk_path else "WARN",
+        "rtk_cli",
+        "RTK CLI found" if rtk_path else "RTK CLI not found; assistants can still run normally but may use more context on noisy commands",
+        rtk_path,
+    ))
+
     script_bin = env.get("CDX_SCRIPT_BIN", "script")
     script_path = shutil.which(script_bin, path=env.get("PATH"))
     issues.append(_issue(

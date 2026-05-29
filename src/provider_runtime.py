@@ -15,6 +15,10 @@ from .errors import CdxError
 
 LOG_ROTATE_BYTES = 10 * 1024 * 1024  # 10 MB
 REASONING_EFFORT_VALUES = {"low", "medium", "high"}
+RTK_PROMPT = (
+    "When running noisy shell commands, prefer RTK wrappers (`rtk <command>`) if `rtk` is available. "
+    "Use raw commands when exact, unfiltered output is required."
+)
 LAUNCH_PERMISSION_ARGS = {
     PROVIDER_CLAUDE: {
         "review": ["--permission-mode", "plan"],
@@ -284,7 +288,20 @@ def _default_script_args(transcript_path, spec):
     return ["-q", "-F", transcript_path, spec["command"]] + spec["args"]
 
 
+def _rtk_enabled(session):
+    return (session.get("launch") or {}).get("rtk") is True
+
+
+def _with_launch_preferences(session, initial_prompt=None):
+    if not _rtk_enabled(session):
+        return initial_prompt
+    if initial_prompt:
+        return f"{RTK_PROMPT}\n\n{initial_prompt}"
+    return RTK_PROMPT
+
+
 def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None, capture_transcript=True):
+    initial_prompt = _with_launch_preferences(session, initial_prompt)
     _validate_initial_prompt(initial_prompt)
     cwd = cwd or os.getcwd()
     env_override = env_override or {}
@@ -358,6 +375,7 @@ def _validate_initial_prompt(initial_prompt):
 
 
 def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_prompt=None):
+    initial_prompt = _with_launch_preferences(session, initial_prompt)
     _validate_initial_prompt(initial_prompt)
     cwd = cwd or os.getcwd()
     env = {**os.environ, **(env_override or {})}

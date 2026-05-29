@@ -449,6 +449,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("cdx set <name>|--sessions all|a,b|--provider PROVIDER", help_io["stdout"].getvalue())
         self.assertIn("--model MODEL", help_io["stdout"].getvalue())
         self.assertIn("--priority 0..100", help_io["stdout"].getvalue())
+        self.assertIn("--rtk on|off", help_io["stdout"].getvalue())
         self.assertIn("--min-power low|medium|high", help_io["stdout"].getvalue())
         self.assertIn("--power low|medium|high", help_io["stdout"].getvalue())
         self.assertIn("workspace-write|read-only|danger-full-access", help_io["stdout"].getvalue())
@@ -1148,6 +1149,28 @@ class CliPythonTests(unittest.TestCase):
 
         payload = json.loads(select_io["stdout"].getvalue())
         self.assertEqual(payload["session"], "beta")
+
+    def test_set_launch_rtk_preference_can_be_unset(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        self.assertEqual(main(["add", "main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        set_io = self.make_io()
+        self.assertEqual(main([
+            "set", "main", "--rtk", "on", "--json"
+        ], {**set_io, "env": {"CDX_HOME": temp_dir}}), 0)
+        self.assertTrue(json.loads(set_io["stdout"].getvalue())["launch"]["rtk"])
+
+        unset_io = self.make_io()
+        self.assertEqual(main([
+            "unset", "main", "--rtk", "--json"
+        ], {**unset_io, "env": {"CDX_HOME": temp_dir}}), 0)
+        self.assertNotIn("rtk", json.loads(unset_io["stdout"].getvalue())["launch"])
 
     def test_headless_selection_priority_breaks_reasoning_ties_after_minimum_filter(self):
         target_dir = self.make_temp_dir()
@@ -3227,6 +3250,20 @@ class CliPythonTests(unittest.TestCase):
 
         issue = next(item for item in report["issues"] if item["code"] == "script_cli")
         self.assertIn("expected on many Windows setups", issue["message"])
+
+    def test_doctor_reports_rtk_availability(self):
+        temp_dir = self.make_temp_dir()
+        service = {
+            "list_sessions": lambda: [],
+            "get_session_root": lambda _name: temp_dir,
+        }
+
+        with mock.patch("src.health.shutil.which", side_effect=lambda command, path=None: "/usr/bin/rtk" if command == "rtk" else None):
+            report = collect_health_report(service, temp_dir, env={"PATH": "/usr/bin"})
+
+        issue = next(item for item in report["issues"] if item["code"] == "rtk_cli")
+        self.assertEqual(issue["status"], "OK")
+        self.assertEqual(issue["detail"], "/usr/bin/rtk")
 
     def test_json_error_payload_has_machine_readable_contract(self):
         error = CdxError("Unknown session: missing", exit_code=3)

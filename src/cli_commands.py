@@ -54,8 +54,8 @@ EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--
 IMPORT_USAGE = "Usage: cdx import <file> [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
 CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--json]"
-SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--model MODEL] [--priority 0..100] [--json]"
-UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--model|--priority|--all) [--json]"
+SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--model MODEL] [--priority 0..100] [--json]"
+UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--model|--priority|--all) [--json]"
 SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
@@ -504,6 +504,7 @@ def _parse_set_args(args):
         "--power": {"key": "power", "type": "str", "default": None},
         "--permission": {"key": "permission", "type": "str", "default": None},
         "--fast": {"key": "fast", "type": "str", "default": None, "transform": _parse_fast_value},
+        "--rtk": {"key": "rtk", "type": "str", "default": None, "transform": _parse_fast_value},
         "--model": {"key": "model", "type": "str", "default": None},
         "--priority": {"key": "priority", "type": "str", "default": None, "transform": _parse_priority_value},
         "--sessions": {"key": "sessions", "type": "str", "default": None, "transform": _parse_set_unset_sessions},
@@ -520,7 +521,7 @@ def _parse_set_args(args):
         raise CdxError(SET_USAGE)
     settings = {
         key: parsed[key]
-        for key in ("power", "permission", "fast", "model", "priority")
+        for key in ("power", "permission", "fast", "rtk", "model", "priority")
         if parsed[key] is not None
     }
     if not settings:
@@ -539,6 +540,7 @@ def _parse_unset_args(args):
         "--power": {"key": "power", "type": "bool", "default": False},
         "--permission": {"key": "permission", "type": "bool", "default": False},
         "--fast": {"key": "fast", "type": "bool", "default": False},
+        "--rtk": {"key": "rtk", "type": "bool", "default": False},
         "--model": {"key": "model", "type": "bool", "default": False},
         "--priority": {"key": "priority", "type": "bool", "default": False},
         "--all": {"key": "all", "type": "bool", "default": False},
@@ -554,8 +556,8 @@ def _parse_unset_args(args):
         raise CdxError(UNSET_USAGE)
     if not parsed["names"] and not parsed["sessions"] and not parsed["provider"]:
         raise CdxError(UNSET_USAGE)
-    keys = ["power", "permission", "fast", "model", "priority"] if parsed["all"] else [
-        key for key in ("power", "permission", "fast", "model", "priority") if parsed[key]
+    keys = ["power", "permission", "fast", "rtk", "model", "priority"] if parsed["all"] else [
+        key for key in ("power", "permission", "fast", "rtk", "model", "priority") if parsed[key]
     ]
     if not keys:
         raise CdxError(UNSET_USAGE)
@@ -1374,6 +1376,7 @@ def _format_launch_config(session):
         f"power:      {launch.get('power') or 'default'}",
         f"permission: {launch.get('permission') or 'default'}",
         f"fast:       {'on' if launch.get('fast') is True else 'off' if launch.get('fast') is False else 'default'}",
+        f"rtk:        {'on' if launch.get('rtk') is True else 'off' if launch.get('rtk') is False else 'default'}",
         f"model:      {launch.get('model') or 'default'}",
         f"priority:   {launch.get('priority') if launch.get('priority') is not None else 'default'}",
     ])
