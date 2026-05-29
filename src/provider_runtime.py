@@ -13,6 +13,7 @@ from .errors import CdxError
 
 
 LOG_ROTATE_BYTES = 10 * 1024 * 1024  # 10 MB
+REASONING_EFFORT_VALUES = {"low", "medium", "high"}
 LAUNCH_PERMISSION_ARGS = {
     PROVIDER_CLAUDE: {
         "review": ["--permission-mode", "plan"],
@@ -158,12 +159,34 @@ def _build_launch_transcript_path(session):
 
 def _launch_power(session):
     launch = session.get("launch") or {}
-    power = launch.get("power")
+    power = launch.get("reasoning_effort") or launch.get("reasoningEffort") or launch.get("power")
     if power:
         return power
     if launch.get("fast") is True:
         return "low"
     return None
+
+
+def _normalize_reasoning_effort(reasoning_effort=None, power=None, usage="Unsupported reasoning effort."):
+    effort = str(reasoning_effort).strip().lower() if reasoning_effort is not None else None
+    alias = str(power).strip().lower() if power is not None else None
+    if effort == "":
+        raise CdxError(usage)
+    if alias == "":
+        raise CdxError(usage)
+    if effort and effort not in REASONING_EFFORT_VALUES:
+        raise CdxError(f"Unsupported reasoning effort: {reasoning_effort}")
+    if alias and alias not in REASONING_EFFORT_VALUES:
+        raise CdxError(f"Unsupported power: {power}")
+    if effort and alias and effort != alias:
+        raise CdxError("--reasoning-effort and --power must match when both are provided.")
+    resolved = effort or alias
+    if not resolved:
+        return {}
+    return {
+        "reasoning_effort": resolved,
+        "power": resolved,
+    }
 
 
 def _launch_config_args(session):

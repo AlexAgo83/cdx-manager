@@ -54,6 +54,7 @@ RESERVED_SESSION_NAMES = {
 STATUS_CACHE_TTL_SECONDS = 60
 CLAUDE_STATUS_CACHE_TTL_SECONDS = 10 * 60
 LAUNCH_POWER_VALUES = {"low", "medium", "high", "xhigh", "max"}
+LAUNCH_REASONING_EFFORT_VALUES = {"low", "medium", "high"}
 LAUNCH_PERMISSION_VALUES = {"review", "default", "auto", "full"}
 MAX_LAUNCH_MODEL_LENGTH = 128
 
@@ -96,6 +97,11 @@ def _normalize_launch_settings(settings):
         if power not in LAUNCH_POWER_VALUES:
             raise CdxError(f"Unsupported power: {settings['power']}")
         normalized["power"] = power
+    if "reasoning_effort" in settings and settings["reasoning_effort"] is not None:
+        effort = str(settings["reasoning_effort"]).strip().lower()
+        if effort not in LAUNCH_REASONING_EFFORT_VALUES:
+            raise CdxError(f"Unsupported reasoning effort: {settings['reasoning_effort']}")
+        normalized["reasoning_effort"] = effort
     if "permission" in settings and settings["permission"] is not None:
         permission = str(settings["permission"]).strip().lower()
         if permission not in LAUNCH_PERMISSION_VALUES:
