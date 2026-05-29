@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -22,7 +23,14 @@ def _normalize_version(value):
 
 
 def _is_standalone_install(package_root):
-    return package_root.parent.name == "versions"
+    if package_root.parent.name == "versions":
+        return True
+    return (
+        package_root.parent.name == "cdx-manager"
+        and re.match(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$", package_root.name) is not None
+        and (package_root / "install.sh").exists()
+        and (package_root / "bin" / "cdx").exists()
+    )
 
 
 def _is_source_checkout(package_root):

@@ -35,6 +35,21 @@ class UpdateManagerPythonTests(unittest.TestCase):
             {"mode": "standalone", "package_root": os.path.realpath(standalone_root)},
         )
 
+    def test_detects_unix_standalone_install_layout(self):
+        install_root = os.path.join(self.make_temp_dir(), "share", "cdx-manager", "1.2.3")
+        os.makedirs(os.path.join(install_root, "bin"), exist_ok=True)
+        with open(os.path.join(install_root, "package.json"), "w", encoding="utf-8") as handle:
+            handle.write("{}\n")
+        with open(os.path.join(install_root, "install.sh"), "w", encoding="utf-8") as handle:
+            handle.write("#!/bin/sh\n")
+        with open(os.path.join(install_root, "bin", "cdx"), "w", encoding="utf-8") as handle:
+            handle.write("#!/usr/bin/env python3\n")
+
+        self.assertEqual(
+            detect_installation(package_root=install_root),
+            {"mode": "standalone", "package_root": os.path.realpath(install_root)},
+        )
+
     def test_standalone_plan_uses_local_installer(self):
         standalone_root = os.path.join(self.make_temp_dir(), "versions", "1.2.3")
         os.makedirs(standalone_root, exist_ok=True)
