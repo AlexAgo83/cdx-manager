@@ -7,6 +7,7 @@ from datetime import datetime
 from types import SimpleNamespace
 from unittest import mock
 
+from src.backup_bundle import read_bundle_meta
 from src.errors import CdxError
 from src.session_service import create_session_service
 from src.session_store import create_session_store
@@ -938,6 +939,10 @@ class SessionServicePythonTests(unittest.TestCase):
 
         bundle_path = os.path.join(source_dir, "secure.cdx")
         source["export_bundle"](bundle_path, include_auth=True, passphrase="pw123")
+        with open(bundle_path, "rb") as handle:
+            bundle_meta = read_bundle_meta(handle.read())
+        self.assertEqual(bundle_meta["encryption"], "aes-256-gcm")
+        self.assertNotIn("hmac_sha256", bundle_meta)
 
         target_dir = self.make_temp_dir()
         target = create_session_service({"base_dir": target_dir})

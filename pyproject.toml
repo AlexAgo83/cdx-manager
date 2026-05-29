@@ -26,7 +26,7 @@ classifiers = [
   "Topic :: Software Development",
   "Topic :: Terminals",
 ]
-dependencies = []
+dependencies = ["cryptography>=42"]
 
 [project.urls]
 Homepage = "https://github.com/AlexAgo83/cdx-manager"
