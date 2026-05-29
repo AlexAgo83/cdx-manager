@@ -1214,6 +1214,8 @@ def _run_cdx_error_code(error):
     message = str(error)
     if message.startswith("Usage:"):
         return "invalid_request"
+    if message.startswith("Invalid cwd:"):
+        return "invalid_cwd"
     if message.startswith("Session is disabled:"):
         return "session_disabled"
     if "CLI not found on PATH" in message:
@@ -1286,6 +1288,9 @@ def handle_run(rest, ctx):
                 return 1
             session = selected["session"]
 
+        cwd = os.path.abspath(parsed["cwd"])
+        if not os.path.isdir(cwd):
+            raise CdxError(f"Invalid cwd: {parsed['cwd']}")
         prompt = _read_run_prompt(parsed)
         launch_updates = {}
         if parsed.get("model"):
@@ -1314,7 +1319,7 @@ def handle_run(rest, ctx):
         )
         run_info = _run_headless_provider_command(
             run_session,
-            cwd=os.path.abspath(parsed["cwd"]),
+            cwd=cwd,
             env_override=ctx.get("env"),
             initial_prompt=prompt,
             timeout_seconds=parsed.get("timeout_seconds"),
@@ -1324,7 +1329,7 @@ def handle_run(rest, ctx):
         if ok:
             ctx["service"]["record_launch_history"](session["name"], {
                 "status": "success",
-                "cwd": os.path.abspath(parsed["cwd"]),
+                "cwd": cwd,
                 "exit_code": 0,
                 **run_info,
             })
@@ -1334,7 +1339,7 @@ def handle_run(rest, ctx):
         error = CdxError(message, run_info.get("returncode") or 1)
         ctx["service"]["record_launch_history"](session["name"], {
             "status": "failed",
-            "cwd": os.path.abspath(parsed["cwd"]),
+            "cwd": cwd,
             "error": str(error),
             "exit_code": error.exit_code,
             **run_info,

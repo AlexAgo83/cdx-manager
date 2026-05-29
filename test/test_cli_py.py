@@ -3497,6 +3497,30 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["exit_code"], 126)
         self.assertTrue(os.path.isabs(payload["transcript_path"]))
 
+    def test_run_rejects_missing_cwd_before_provider_start(self):
+        target_dir = self.make_temp_dir()
+        missing_dir = os.path.join(target_dir, "missing")
+        service = create_session_service({"base_dir": target_dir})
+        session = service["create_session"]("work", "codex")
+        os.makedirs(session["authHome"], exist_ok=True)
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "token"}}, handle)
+
+        def spawn(_argv, **_kwargs):
+            raise AssertionError("invalid cwd must not launch provider")
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work", "--cwd", missing_dir, "--prompt", "Do it", "--json"
+        ], {**io_obj, "service": service, "spawn_headless": spawn}), 1)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["source"], "cdx")
+        self.assertEqual(payload["error"]["code"], "invalid_cwd")
+        self.assertEqual(payload["exit_code"], None)
+        self.assertEqual(payload["cwd"], os.path.abspath(missing_dir))
+
     def test_run_explicit_session_rejects_disabled_session(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})
