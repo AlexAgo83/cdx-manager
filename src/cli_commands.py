@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 from .claude_refresh import _refresh_claude_sessions
 from .cli_render import _dim, _info, _success, _warn
-from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CODEX, PROVIDER_OLLAMA, PROVIDERS
+from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA, PROVIDERS
 from .context_store import (
     clear_context,
     edit_context,
@@ -835,6 +835,72 @@ def _resolve_confirmation(confirm_fn, name):
     if hasattr(confirmed, "__await__"):
         confirmed = asyncio.get_event_loop().run_until_complete(confirmed)
     return confirmed
+
+
+def _extract_claude_oauth_token(text):
+    if not text:
+        return None
+    patterns = [
+        r"CLAUDE_CODE_OAUTH_TOKEN=([^\s\"']+)",
+        r"(sk-ant-oat[0-9A-Za-z._-]+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            return match.group(1).strip()
+    return None
+
+
+def _write_claude_oauth_token(auth_home, token):
+    cred_dir = os.path.join(auth_home, "credentials")
+    os.makedirs(cred_dir, exist_ok=True)
+    cred_path = os.path.join(cred_dir, "default.json")
+    payload = {
+        "version": "1.0",
+        "type": "oauth_token",
+        "access_token": token,
+    }
+    with open(cred_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+        handle.write("\n")
+    try:
+        os.chmod(cred_path, 0o600)
+    except OSError:
+        pass
+    return cred_path
+
+
+def _bootstrap_claude_setup_token(session, ctx):
+    ctx["out"](
+        "Claude login did not create isolated credentials; falling back to claude setup-token.\n"
+    )
+    run_info = _run_interactive_provider_command(
+        session,
+        "setup-token",
+        spawn=ctx.get("spawn"),
+        env_override=ctx.get("env"),
+        signal_emitter=ctx.get("signal_emitter"),
+    )
+    transcript_path = run_info.get("transcript_path")
+    if not transcript_path or not os.path.isfile(transcript_path):
+        raise CdxError(
+            "Claude setup-token completed, but cdx could not capture the token. "
+            "Run claude setup-token and save the token under credentials/default.json."
+        )
+    try:
+        with open(transcript_path, "r", encoding="utf-8", errors="replace") as handle:
+            transcript = handle.read()
+    finally:
+        try:
+            os.remove(transcript_path)
+        except OSError:
+            pass
+    token = _extract_claude_oauth_token(transcript)
+    if not token:
+        raise CdxError(
+            "Claude setup-token completed, but cdx could not find CLAUDE_CODE_OAUTH_TOKEN in the output."
+        )
+    return _write_claude_oauth_token(session.get("authHome") or "", token)
 
 
 def handle_add(rest, ctx):
@@ -1666,7 +1732,7 @@ def handle_login(rest, ctx):
     session = ctx["service"]["get_session"](args[0])
     if not session:
         raise CdxError(f"Unknown session: {args[0]}")
-    if session["provider"] not in (PROVIDER_ANTIGRAVITY, PROVIDER_OLLAMA):
+    if session["provider"] == PROVIDER_CODEX:
         _run_interactive_provider_command(
             session, "logout", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
             signal_emitter=ctx.get("signal_emitter")
@@ -1675,6 +1741,26 @@ def handle_login(rest, ctx):
         session, "login", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
         signal_emitter=ctx.get("signal_emitter")
     )
+    auth_probe = _ensure_session_authentication(
+        session,
+        ctx["service"],
+        spawn_sync=ctx.get("spawn_sync"),
+        env_override=ctx.get("env"),
+        behavior="probe-only",
+    )
+    if not auth_probe.get("authenticated") and session["provider"] == PROVIDER_CLAUDE:
+        _bootstrap_claude_setup_token(session, ctx)
+        auth_probe = _ensure_session_authentication(
+            session,
+            ctx["service"],
+            spawn_sync=ctx.get("spawn_sync"),
+            env_override=ctx.get("env"),
+            behavior="probe-only",
+        )
+    if not auth_probe.get("authenticated"):
+        raise CdxError(
+            f"Login command completed, but session {session['name']} is still not authenticated."
+        )
     now = _local_now_iso()
     ctx["service"]["update_auth_state"](args[0], lambda auth: {
         **auth, "status": "authenticated",

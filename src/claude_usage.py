@@ -15,6 +15,16 @@ CLAUDE_AUTH_STATUS_TIMEOUT_SECONDS = 15
 
 
 def _read_claude_credentials(auth_home):
+    anthropic_cred_path = os.path.join(auth_home, "credentials", "default.json")
+    try:
+        with open(anthropic_cred_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        token = data.get("access_token") if isinstance(data, dict) else None
+        if token:
+            return {"accessToken": token}
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
     cred_path = os.path.join(auth_home, ".claude", ".credentials.json")
     try:
         with open(cred_path, "r", encoding="utf-8") as f:
@@ -27,7 +37,7 @@ def _read_claude_credentials(auth_home):
 def _home_env_overrides(auth_home):
     overrides = {
         "HOME": auth_home,
-        "CLAUDE_CONFIG_DIR": auth_home,
+        "ANTHROPIC_CONFIG_DIR": auth_home,
         "CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS": "1",
     }
     if sys.platform == "win32":

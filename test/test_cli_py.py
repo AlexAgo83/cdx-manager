@@ -72,9 +72,10 @@ class _Child:
 
 
 class _AuthHarness:
-    def __init__(self, initial_auth=None):
+    def __init__(self, initial_auth=None, claude_login_authenticates=True):
         self.calls = []
         self.auth_by_home = dict(initial_auth or {})
+        self.claude_login_authenticates = claude_login_authenticates
 
     @staticmethod
     def _get_home(payload):
@@ -87,11 +88,19 @@ class _AuthHarness:
     def _auth_path(home):
         return os.path.join(home, "auth.json") if home else None
 
+    @staticmethod
+    def _claude_oauth_path(home):
+        return os.path.join(home, "credentials", "default.json") if home else None
+
     def _is_authed(self, home):
-        if home in self.auth_by_home:
-            return self.auth_by_home[home]
+        if self.auth_by_home.get(home):
+            return True
         auth_path = self._auth_path(home)
-        return bool(auth_path and os.path.isfile(auth_path))
+        claude_oauth_path = self._claude_oauth_path(home)
+        return bool(
+            (auth_path and os.path.isfile(auth_path))
+            or (claude_oauth_path and os.path.isfile(claude_oauth_path))
+        )
 
     def spawn_sync(self, command, args, options=None):
         options = options or {}
@@ -140,10 +149,17 @@ class _AuthHarness:
                     os.remove(self._auth_path(home))
                 except FileNotFoundError:
                     pass
-        if command == "claude" and args == ["auth", "login"]:
-            self.auth_by_home[home] = True
+        if command == "claude" and args[:2] == ["auth", "login"]:
+            self.auth_by_home[home] = self.claude_login_authenticates
         if command == "claude" and args == ["auth", "logout"]:
             self.auth_by_home[home] = False
+        if command == "script" and _script_launch_invokes(self.calls[-1], "claude"):
+            launch_args = _script_launch_args(self.calls[-1])
+            if launch_args == ["setup-token"]:
+                transcript_path = _script_transcript_path(self.calls[-1])
+                os.makedirs(os.path.dirname(transcript_path), exist_ok=True)
+                with open(transcript_path, "w", encoding="utf-8") as handle:
+                    handle.write("Use this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-test\n")
         if command == "agy":
             self.auth_by_home[home] = True
         if command == "ollama":
@@ -1449,9 +1465,10 @@ class CliPythonTests(unittest.TestCase):
             os.path.join(temp_dir, "profiles", "work1", "claude-home"),
         )
         self.assertEqual(
-            launch_call["options"]["env"]["CLAUDE_CONFIG_DIR"],
+            launch_call["options"]["env"]["ANTHROPIC_CONFIG_DIR"],
             os.path.join(temp_dir, "profiles", "work1", "claude-home"),
         )
+        self.assertNotIn("CLAUDE_CONFIG_DIR", launch_call["options"]["env"])
         self.assertEqual(
             launch_call["options"]["env"]["CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS"],
             "1",
@@ -1462,10 +1479,7 @@ class CliPythonTests(unittest.TestCase):
             if call["command"] == "claude" and call["args"][:2] == ["auth", "status"]
         ]
         self.assertTrue(claude_auth_calls)
-        self.assertEqual(
-            claude_auth_calls[-1]["options"]["env"]["CLAUDE_CONFIG_DIR"],
-            launch_call["options"]["env"]["CLAUDE_CONFIG_DIR"],
-        )
+        self.assertNotIn("CLAUDE_CONFIG_DIR", claude_auth_calls[-1]["options"]["env"])
 
     def test_add_and_launch_antigravity_session(self):
         temp_dir = self.make_temp_dir()
@@ -1505,6 +1519,77 @@ class CliPythonTests(unittest.TestCase):
             launch_call["options"]["env"]["HOME"],
             os.path.join(temp_dir, "profiles", "agy1", "antigravity-home"),
         )
+
+    def test_login_claude_does_not_logout_first(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        self.assertEqual(main([
+            "add", "claude", "work1"
+        ], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir, "CODEX_HOME": "/tmp/codex", "CLAUDE_CONFIG_DIR": "/tmp/wrong"},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        harness.calls.clear()
+
+        login_io = self.make_io()
+        self.assertEqual(main([
+            "login", "work1", "--json"
+        ], {
+            **login_io,
+            "env": {"CDX_HOME": temp_dir, "CODEX_HOME": "/tmp/codex", "CLAUDE_CONFIG_DIR": "/tmp/wrong"},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        claude_spawns = [
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "claude"
+        ]
+        self.assertEqual([call["args"] for call in claude_spawns], [["auth", "login"]])
+        self.assertEqual(
+            claude_spawns[0]["options"]["env"]["ANTHROPIC_CONFIG_DIR"],
+            os.path.join(temp_dir, "profiles", "work1", "claude-home"),
+        )
+        self.assertNotIn("CODEX_HOME", claude_spawns[0]["options"]["env"])
+        self.assertNotIn("CLAUDE_CONFIG_DIR", claude_spawns[0]["options"]["env"])
+
+    def test_login_claude_falls_back_to_setup_token(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness(claude_login_authenticates=False)
+
+        self.assertEqual(main([
+            "add", "claude", "work1"
+        ], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        harness.calls.clear()
+
+        login_io = self.make_io()
+        self.assertEqual(main([
+            "login", "work1", "--json"
+        ], {
+            **login_io,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        script_call = next(
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "claude")
+        )
+        self.assertEqual(_script_launch_args(script_call), ["setup-token"])
+        cred_path = os.path.join(temp_dir, "profiles", "work1", "claude-home", "credentials", "default.json")
+        with open(cred_path, "r", encoding="utf-8") as handle:
+            credentials = json.load(handle)
+        self.assertEqual(credentials["access_token"], "sk-ant-oat-test")
+        self.assertFalse(os.path.exists(_script_transcript_path(script_call)))
 
     def test_add_set_model_and_launch_ollama_session(self):
         temp_dir = self.make_temp_dir()

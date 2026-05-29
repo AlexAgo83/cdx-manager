@@ -433,6 +433,8 @@ def create_session_service(options=None):
     def _auth_bundle_paths(provider):
         if provider == PROVIDER_CLAUDE:
             return [
+                "claude-home/configs/default.json",
+                "claude-home/credentials/default.json",
                 "claude-home/.claude/.credentials.json",
                 "claude-home/.claude.json",
                 "claude-home/auth.json",

@@ -31,13 +31,16 @@ LAUNCH_PERMISSION_ARGS = {
 def _home_env_overrides(auth_home):
     """Return env vars that point the claude CLI to the given home directory.
 
-    On Unix, only HOME is needed.  On Windows, Node.js resolves the home
-    directory via USERPROFILE (and falls back to HOMEDRIVE+HOMEPATH), so we
-    set all three to ensure profile isolation works regardless of the platform.
+    On Unix, only HOME is needed. Claude Code resolves its auth files relative
+    to HOME; forcing CLAUDE_CONFIG_DIR to this directory makes current Claude
+    Code builds ignore otherwise valid isolated credentials. On Windows, Node.js
+    resolves the home directory via USERPROFILE (and falls back to
+    HOMEDRIVE+HOMEPATH), so we set all three to ensure profile isolation works
+    regardless of the platform.
     """
     overrides = {
         "HOME": auth_home,
-        "CLAUDE_CONFIG_DIR": auth_home,
+        "ANTHROPIC_CONFIG_DIR": auth_home,
         "CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS": "1",
     }
     if sys.platform == "win32":
@@ -45,6 +48,48 @@ def _home_env_overrides(auth_home):
         overrides["HOMEDRIVE"] = os.path.splitdrive(auth_home)[0] or "C:"
         overrides["HOMEPATH"] = os.path.splitdrive(auth_home)[1] or auth_home
     return overrides
+
+
+def _anthropic_profile_name():
+    return "default"
+
+
+def _anthropic_credentials_path(auth_home):
+    return os.path.join(auth_home, "credentials", f"{_anthropic_profile_name()}.json")
+
+
+def _claude_env(base_env, auth_home):
+    env = {**base_env, **_home_env_overrides(auth_home)}
+    env.pop("CLAUDE_CONFIG_DIR", None)
+    env.pop("CODEX_HOME", None)
+    env.setdefault("ANTHROPIC_PROFILE", _anthropic_profile_name())
+    return env
+
+
+def _read_anthropic_oauth_token(auth_home):
+    try:
+        with open(_anthropic_credentials_path(auth_home), "r", encoding="utf-8") as handle:
+            credentials = json.load(handle)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return None
+    token = credentials.get("access_token") if isinstance(credentials, dict) else None
+    if not token:
+        return None
+    return str(token)
+
+
+def _read_claude_account_email(auth_home):
+    config_path = os.path.join(auth_home, ".claude.json")
+    try:
+        with open(config_path, "r", encoding="utf-8") as handle:
+            config = json.load(handle)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return None
+    account = config.get("oauthAccount") if isinstance(config, dict) else None
+    email = account.get("emailAddress") if isinstance(account, dict) else None
+    if not email:
+        return None
+    return str(email).strip()
 
 
 def _antigravity_env_overrides(auth_home):
@@ -187,12 +232,17 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
         args = ["--name", session["name"]] + _launch_config_args(session)
         if initial_prompt:
             args.append(initial_prompt)
+        auth_home = _get_auth_home(session)
+        claude_env = _claude_env(env, auth_home)
+        oauth_token = _read_anthropic_oauth_token(auth_home)
+        if oauth_token:
+            claude_env["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token
         return _wrap_launch_with_transcript(session, {
             "command": "claude",
             "args": args,
             "options": {
                 "cwd": cwd,
-                "env": {**env, **_home_env_overrides(_get_auth_home(session))},
+                "env": claude_env,
             },
             "label": "claude",
         }, env=env)
@@ -241,7 +291,11 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
 def _build_login_status_spec(session, env_override=None):
     env = {**os.environ, **(env_override or {})}
     if session["provider"] == PROVIDER_CLAUDE:
-        env.update(_home_env_overrides(_get_auth_home(session)))
+        auth_home = _get_auth_home(session)
+        env = _claude_env(env, auth_home)
+        oauth_token = _read_anthropic_oauth_token(auth_home)
+        if oauth_token:
+            env["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token
 
         def parser(output):
             try:
@@ -273,9 +327,20 @@ def _build_auth_action_spec(session, action, cwd=None, env_override=None):
     cwd = cwd or os.getcwd()
     env = {**os.environ, **(env_override or {})}
     if session["provider"] == PROVIDER_CLAUDE:
-        env.update(_home_env_overrides(_get_auth_home(session)))
-        return {"command": "claude", "args": ["auth", action],
-                "options": {"cwd": cwd, "env": env}, "label": f"claude auth {action}"}
+        auth_home = _get_auth_home(session)
+        env = _claude_env(env, auth_home)
+        args = ["auth", action]
+        label = f"claude auth {action}"
+        if action == "setup-token":
+            spec = {"command": "claude", "args": ["setup-token"],
+                    "options": {"cwd": cwd, "env": env}, "label": "claude setup-token"}
+            return _wrap_launch_with_transcript(session, spec, env=env)
+        if action == "login":
+            email = _read_claude_account_email(auth_home)
+            if email:
+                args += ["--email", email]
+        return {"command": "claude", "args": args,
+                "options": {"cwd": cwd, "env": env}, "label": label}
     if session["provider"] == PROVIDER_ANTIGRAVITY:
         if action == "logout":
             raise CdxError("Antigravity logout is managed inside agy. Launch the session and run /logout.")

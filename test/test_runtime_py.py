@@ -152,6 +152,17 @@ class RuntimePythonTests(unittest.TestCase):
             fetch.assert_called_once_with("secret")
             self.assertEqual(result["remaining_5h_pct"], 77)
 
+    def test_refresh_claude_session_status_reads_anthropic_credentials(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-claude-") as temp_dir:
+            cred_dir = os.path.join(temp_dir, "credentials")
+            os.makedirs(cred_dir, exist_ok=True)
+            with open(os.path.join(cred_dir, "default.json"), "w", encoding="utf-8") as handle:
+                json.dump({"type": "oauth_token", "access_token": "secret"}, handle)
+            with mock.patch("src.claude_usage.fetch_claude_rate_limit_headers", return_value={"remaining_5h_pct": 77}) as fetch:
+                result = claude_usage.refresh_claude_session_status({"authHome": temp_dir})
+            fetch.assert_called_once_with("secret")
+            self.assertEqual(result["remaining_5h_pct"], 77)
+
     def test_refresh_claude_session_status_refreshes_cli_credentials_before_reading(self):
         with tempfile.TemporaryDirectory(prefix="cdx-claude-") as temp_dir:
             cred_dir = os.path.join(temp_dir, ".claude")
@@ -180,6 +191,20 @@ class RuntimePythonTests(unittest.TestCase):
                 raise FileNotFoundError("claude")
 
             claude_usage._refresh_claude_cli_credentials(temp_dir, runner=missing_cli)
+
+    def test_claude_cli_credential_refresh_uses_home_without_config_dir(self):
+        calls = []
+
+        def runner(command, **kwargs):
+            calls.append((command, kwargs))
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        claude_usage._refresh_claude_cli_credentials("/tmp/claude-home", runner=runner, env={})
+
+        self.assertEqual(calls[0][0], ["claude", "auth", "status"])
+        self.assertEqual(calls[0][1]["env"]["HOME"], "/tmp/claude-home")
+        self.assertEqual(calls[0][1]["env"]["ANTHROPIC_CONFIG_DIR"], "/tmp/claude-home")
+        self.assertNotIn("CLAUDE_CONFIG_DIR", calls[0][1]["env"])
 
     def test_normalize_codex_rate_limit_snapshot(self):
         result = codex_usage.normalize_codex_rate_limit_snapshot({
@@ -338,7 +363,8 @@ class RuntimePythonTests(unittest.TestCase):
                 result = provider_runtime._home_env_overrides(r"C:\Users\Test\AppData\Local\cdx\claude-home")
 
         self.assertEqual(result["HOME"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
-        self.assertEqual(result["CLAUDE_CONFIG_DIR"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
+        self.assertEqual(result["ANTHROPIC_CONFIG_DIR"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
+        self.assertNotIn("CLAUDE_CONFIG_DIR", result)
         self.assertEqual(result["CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS"], "1")
         self.assertEqual(result["USERPROFILE"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
         self.assertEqual(result["HOMEDRIVE"], "C:")
@@ -437,6 +463,35 @@ class RuntimePythonTests(unittest.TestCase):
 
             with mock.patch("src.provider_runtime.subprocess.run", side_effect=AssertionError("should not probe")):
                 self.assertTrue(provider_runtime._probe_provider_auth(session))
+
+    def test_claude_login_uses_profile_email_hint_when_available(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-claude-") as temp_dir:
+            with open(os.path.join(temp_dir, ".claude.json"), "w", encoding="utf-8") as handle:
+                json.dump({"oauthAccount": {"emailAddress": "user@example.com"}}, handle)
+
+            spec = provider_runtime._build_auth_action_spec({
+                "name": "work",
+                "provider": "claude",
+                "authHome": temp_dir,
+            }, "login")
+
+        self.assertEqual(spec["args"], ["auth", "login", "--email", "user@example.com"])
+
+    def test_claude_auth_probe_uses_anthropic_oauth_token_when_available(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-claude-") as temp_dir:
+            cred_dir = os.path.join(temp_dir, "credentials")
+            os.makedirs(cred_dir, exist_ok=True)
+            with open(os.path.join(cred_dir, "default.json"), "w", encoding="utf-8") as handle:
+                json.dump({"type": "oauth_token", "access_token": "secret"}, handle)
+
+            spec = provider_runtime._build_login_status_spec({
+                "name": "work",
+                "provider": "claude",
+                "authHome": temp_dir,
+            })
+
+        self.assertEqual(spec["env"]["CLAUDE_CODE_OAUTH_TOKEN"], "secret")
+        self.assertEqual(spec["env"]["ANTHROPIC_PROFILE"], "default")
 
     def test_build_launch_spec_validates_initial_prompt(self):
         session = {
