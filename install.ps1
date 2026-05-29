@@ -12,14 +12,14 @@ if (-not $ChecksumsUrl) {
     $ChecksumsUrl = "https://raw.githubusercontent.com/$repo/main/checksums/release-archives.json"
 }
 
-function Require-Command {
+function Has-Command {
     param([string]$Name)
-    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
-        throw "cdx install: missing required command: $Name"
-    }
+    return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
-Require-Command python
+if (-not (Has-Command py) -and -not (Has-Command python) -and -not (Has-Command python3)) {
+    throw "cdx install: missing required command: py, python, or python3"
+}
 
 if (-not $Prefix) {
     $Prefix = Join-Path $env:LOCALAPPDATA "cdx-manager"

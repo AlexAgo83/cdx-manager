@@ -78,13 +78,20 @@ class UpdateManagerPythonTests(unittest.TestCase):
             handle.write("#!/bin/sh\n")
         os.chmod(cdx_path, 0o755)
 
+        captured = {}
+
+        def runner(command, **kwargs):
+            captured["env"] = kwargs["env"]
+            return SimpleNamespace(returncode=0, stdout="1.2.2\n", stderr="")
+
         warning = verify_updated_command(
             "1.2.3",
-            runner=lambda command, **kwargs: SimpleNamespace(returncode=0, stdout="1.2.2\n", stderr=""),
-            env={"PATH": bin_dir},
+            runner=runner,
+            env={"PATH": bin_dir, "ACCESS_TOKEN": "secret"},
         )
 
         self.assertEqual(warning["code"], "update_version_mismatch")
         self.assertEqual(warning["target_version"], "1.2.3")
         self.assertEqual(warning["resolved_version"], "1.2.2")
         self.assertEqual(warning["path"], cdx_path)
+        self.assertEqual(captured["env"], {"PATH": bin_dir})

@@ -209,6 +209,16 @@ def run_update_plan(plan, runner=None, env=None):
     return results
 
 
+def _version_check_env(env):
+    source = env or os.environ
+    allowed = {
+        key: source[key]
+        for key in ("PATH", "PATHEXT", "SystemRoot", "COMSPEC", "WINDIR")
+        if source.get(key)
+    }
+    return allowed
+
+
 def verify_updated_command(target_version, runner=None, env=None):
     target = _normalize_version(target_version)
     if not target:
@@ -228,7 +238,7 @@ def verify_updated_command(target_version, runner=None, env=None):
         result = runner(
             [executable, "-v"],
             cwd=None,
-            env=env,
+            env=_version_check_env(env),
             check=False,
             capture_output=True,
             text=True,
