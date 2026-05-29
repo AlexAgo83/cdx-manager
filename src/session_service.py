@@ -791,7 +791,7 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         if not keys:
             raise CdxError("At least one launch setting is required.")
-        allowed = {"power", "permission", "fast", "model"}
+        allowed = {"power", "permission", "fast", "model", "priority"}
         unknown = [key for key in keys if key not in allowed]
         if unknown:
             raise CdxError(f"Unsupported launch setting: {', '.join(unknown)}")
