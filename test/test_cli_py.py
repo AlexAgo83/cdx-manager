@@ -445,6 +445,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("cdx update [--check] [--yes] [--json] [--version TAG]", help_io["stdout"].getvalue())
         self.assertIn("cdx ready [--refresh] [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b>", help_io["stdout"].getvalue())
+        self.assertIn("cdx stats [name]", help_io["stdout"].getvalue())
         self.assertIn("cdx add [provider] <name> [--model MODEL] [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx set <name>|--sessions all|a,b|--provider PROVIDER", help_io["stdout"].getvalue())
         self.assertIn("--model MODEL", help_io["stdout"].getvalue())
@@ -1533,6 +1534,77 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Period:", output)
         self.assertIn("work", output)
         self.assertNotIn("5m00s", output)
+
+    def test_stats_aggregates_known_usage_by_session(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("work")
+        service["create_session"]("personal")
+        now = datetime(2026, 5, 28, 12, 0, 0).astimezone()
+        recent = now - timedelta(days=1)
+        old = now - timedelta(days=9)
+        service["record_launch_history"]("work", {
+            "status": "success",
+            "duration_ms": 120000,
+            "started_at": recent.isoformat(),
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 4,
+                "reasoning_tokens": 2,
+                "total_tokens": 14,
+            },
+        })
+        service["record_launch_history"]("work", {
+            "status": "failed",
+            "duration_ms": 30000,
+            "started_at": recent.isoformat(),
+            "usage": {
+                "input_tokens": 3,
+                "output_tokens": 0,
+                "total_tokens": 3,
+            },
+        })
+        service["record_launch_history"]("work", {
+            "status": "success",
+            "duration_ms": 60000,
+            "started_at": old.isoformat(),
+            "usage": {"total_tokens": 99},
+        })
+        service["record_launch_history"]("personal", {
+            "status": "success",
+            "duration_ms": 1000,
+            "started_at": recent.isoformat(),
+        })
+
+        stats_io = self.make_io()
+        self.assertEqual(main(["stats", "--since", "7d", "--json"], {
+            **stats_io,
+            "service": service,
+            "now": lambda: now.timestamp(),
+        }), 0)
+
+        payload = json.loads(stats_io["stdout"].getvalue())
+        rows = {row["session_name"]: row for row in payload["stats"]}
+        self.assertEqual(rows["work"]["launches"], 2)
+        self.assertEqual(rows["work"]["failures"], 1)
+        self.assertEqual(rows["work"]["usage_runs"], 2)
+        self.assertEqual(rows["work"]["input_tokens"], 13)
+        self.assertEqual(rows["work"]["output_tokens"], 4)
+        self.assertEqual(rows["work"]["reasoning_tokens"], 2)
+        self.assertEqual(rows["work"]["total_tokens"], 17)
+        self.assertEqual(rows["personal"]["usage_runs"], 0)
+        self.assertEqual(payload["totals"]["total_tokens"], 17)
+
+        text_io = self.make_io()
+        self.assertEqual(main(["stats", "work", "--since", "7d"], {
+            **text_io,
+            "service": service,
+            "now": lambda: now.timestamp(),
+        }), 0)
+        output = text_io["stdout"].getvalue()
+        self.assertIn("Assistant stats:", output)
+        self.assertIn("work", output)
+        self.assertIn("17 tokens", output)
 
     def test_disable_command_marks_session_and_blocks_launch(self):
         temp_dir = self.make_temp_dir()
@@ -3566,6 +3638,8 @@ class CliPythonTests(unittest.TestCase):
             "reasoning_tokens": 2,
             "total_tokens": 16,
         })
+        history = service["get_launch_history"]("work", limit=1)
+        self.assertEqual(history[0]["usage"], payload["usage"])
         self.assertTrue(os.path.isabs(payload["transcript_path"]))
         with open(payload["stdout_path"], encoding="utf-8") as handle:
             self.assertIn("input_tokens", handle.read())

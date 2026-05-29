@@ -30,6 +30,7 @@ from .cli_commands import (
     handle_rename,
     handle_run,
     handle_select,
+    handle_stats,
     handle_status,
     handle_set,
     handle_unset,
@@ -82,6 +83,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--model MODEL] [--priority 0..100] [--json]', '36', use_color)}",
         f"  {_style('cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--model|--priority|--all) [--json]', '36', use_color)}",
         f"  {_style('cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]', '36', use_color)}",
+        f"  {_style('cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]', '36', use_color)}",
         f"  {_style('cdx last [--json]', '36', use_color)}",
         f"  {_style('cdx handoff <name> [--json]', '36', use_color)}",
         f"  {_style('cdx handoff <source> <target> [--json]', '36', use_color)}",
@@ -238,7 +240,7 @@ def main(argv, options=None):
         "version": VERSION,
         "cwd": options.get("cwd") or os.getcwd(),
         "update_notice": _get_update_notice(service, env, options) if command not in (
-            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "context", "config", "set", "unset", "power", "perm", "fast", "model", "history", "handoff", "login", "logout", "disable", "enable", "export", "import", "select", "run", "help", "version"
+            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "context", "config", "set", "unset", "power", "perm", "fast", "model", "history", "stats", "handoff", "login", "logout", "disable", "enable", "export", "import", "select", "run", "help", "version"
         ) else None,
         "use_color": use_color,
     }
@@ -304,6 +306,9 @@ def main(argv, options=None):
 
     if command == "history":
         return handle_history(rest, ctx)
+
+    if command == "stats":
+        return handle_stats(rest, ctx)
 
     if command == "last":
         return handle_last(rest, ctx)

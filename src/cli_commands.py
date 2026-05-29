@@ -59,6 +59,7 @@ UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (-
 SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
+STATS_USAGE = "Usage: cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
 LAST_USAGE = "Usage: cdx last [--json]"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort low|medium|high] [--min-power low|medium|high] [--require-ready] [--refresh] --json"
 RUN_USAGE = "Usage: cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--reasoning-effort low|medium|high] [--power low|medium|high] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] --json"
@@ -820,6 +821,22 @@ def _parse_history_args(args, now=None):
     }
 
 
+def _parse_stats_args(args, now=None):
+    now = now or datetime.now().astimezone()
+    parsed = _parse_flag_args(args, {
+        "--since": {"key": "since", "type": "str", "default": None},
+        "--from": {"key": "from", "type": "str", "default": None},
+        "--to": {"key": "to", "type": "str", "default": None},
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, STATS_USAGE, positionals_key="names", max_positionals=1)
+    period = _parse_history_period(parsed, now)
+    return {
+        "name": parsed["names"][0] if parsed["names"] else None,
+        "period": period,
+        "json": parsed["json"],
+    }
+
+
 def _read_option_value(args, index, usage):
     if index + 1 >= len(args):
         raise CdxError(usage)
@@ -1227,7 +1244,7 @@ def _run_cdx_error_code(error):
 
 def _run_result_payload(ok, parsed, session, run_info=None, error=None, error_source=None, error_code=None):
     run_info = run_info or {}
-    usage = (
+    usage = run_info.get("usage") if isinstance(run_info.get("usage"), dict) else (
         extract_run_usage(session.get("provider"), run_info.get("stdout_path"))
         if session else
         empty_usage()
@@ -1326,6 +1343,8 @@ def handle_run(rest, ctx):
             timeout_seconds=parsed.get("timeout_seconds"),
             spawn=ctx.get("spawn_headless") or ctx.get("spawn"),
         )
+        usage = extract_run_usage(run_session.get("provider"), run_info.get("stdout_path"))
+        run_info = {**run_info, "usage": usage}
         ok = run_info.get("returncode") == 0
         if ok:
             ctx["service"]["record_launch_history"](session["name"], {
@@ -1546,6 +1565,79 @@ def _summarize_history(entries):
     )
 
 
+def _token_value(usage, key):
+    if not isinstance(usage, dict):
+        return None
+    value = usage.get(key)
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
+def _summarize_stats(entries):
+    rows = {}
+    for entry in entries:
+        name = entry.get("session_name") or "-"
+        row = rows.setdefault(name, {
+            "session_name": name,
+            "provider": entry.get("provider") or "-",
+            "launches": 0,
+            "successes": 0,
+            "failures": 0,
+            "duration_ms": 0,
+            "usage_runs": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 0,
+            "last_started_at": None,
+        })
+        row["launches"] += 1
+        if entry.get("status") == "success":
+            row["successes"] += 1
+        elif entry.get("status") == "failed":
+            row["failures"] += 1
+        try:
+            row["duration_ms"] += int(entry.get("duration_ms") or 0)
+        except (TypeError, ValueError):
+            pass
+        usage = entry.get("usage") if isinstance(entry.get("usage"), dict) else {}
+        parsed_usage = {
+            key: _token_value(usage, key)
+            for key in ("input_tokens", "output_tokens", "reasoning_tokens", "total_tokens")
+        }
+        if any(value is not None for value in parsed_usage.values()):
+            row["usage_runs"] += 1
+            for key, value in parsed_usage.items():
+                row[key] += value or 0
+        started = entry.get("started_at")
+        if started and (not row["last_started_at"] or started > row["last_started_at"]):
+            row["last_started_at"] = started
+            row["provider"] = entry.get("provider") or row["provider"]
+    return sorted(
+        rows.values(),
+        key=lambda item: (item["total_tokens"], item["duration_ms"], item.get("last_started_at") or "", item["session_name"]),
+        reverse=True,
+    )
+
+
+def _stats_totals(rows):
+    return {
+        "sessions": len(rows),
+        "launches": sum(row["launches"] for row in rows),
+        "successes": sum(row["successes"] for row in rows),
+        "failures": sum(row["failures"] for row in rows),
+        "duration_ms": sum(row["duration_ms"] for row in rows),
+        "usage_runs": sum(row["usage_runs"] for row in rows),
+        "input_tokens": sum(row["input_tokens"] for row in rows),
+        "output_tokens": sum(row["output_tokens"] for row in rows),
+        "reasoning_tokens": sum(row["reasoning_tokens"] for row in rows),
+        "total_tokens": sum(row["total_tokens"] for row in rows),
+    }
+
+
 def _format_history_period(period):
     if not _has_history_period(period or {}):
         return None
@@ -1611,6 +1703,55 @@ def _format_history(entries, use_color=False):
         "",
         _dim("Full transcript paths and cwd are available with --json.", use_color),
     ])
+
+
+def _format_token_count(value):
+    try:
+        amount = int(value)
+    except (TypeError, ValueError):
+        return "-"
+    if amount >= 1000000:
+        return f"{amount / 1000000:.1f}M"
+    if amount >= 1000:
+        return f"{amount / 1000:.1f}K"
+    return str(amount)
+
+
+def _format_stats(rows, totals, period=None, use_color=False):
+    from .cli_render import _format_relative_age, _pad_table
+
+    if not rows:
+        return "No launch stats for this period." if _has_history_period(period or {}) else "No launch stats."
+    table = [["SESSION", "PROV.", "RUNS", "USAGE", "IN", "OUT", "REASON", "TOTAL", "TIME", "LAST"]]
+    for row in rows:
+        table.append([
+            row["session_name"],
+            row["provider"],
+            str(row["launches"]),
+            str(row["usage_runs"]),
+            _format_token_count(row["input_tokens"]),
+            _format_token_count(row["output_tokens"]),
+            _format_token_count(row["reasoning_tokens"]),
+            _format_token_count(row["total_tokens"]),
+            _format_duration_ms(row["duration_ms"]),
+            _format_relative_age(row.get("last_started_at")),
+        ])
+    lines = ["Assistant stats:"]
+    period_line = _format_history_period(period or {})
+    if period_line:
+        lines.extend([period_line, ""])
+    lines.append(_pad_table(table))
+    lines.extend([
+        "",
+        _dim(
+            "Totals: "
+            f"{totals['launches']} runs, {totals['usage_runs']} with usage, "
+            f"{_format_token_count(totals['total_tokens'])} tokens, "
+            f"{_format_duration_ms(totals['duration_ms'])}.",
+            use_color,
+        ),
+    ])
+    return "\n".join(lines)
 
 
 def _apply_launch_settings(parsed, ctx, action="set"):
@@ -1722,6 +1863,32 @@ def handle_history(rest, ctx):
         ctx["out"](f"{_format_history_summary(entries, period=parsed['period'], use_color=ctx['use_color'])}\n")
         return 0
     ctx["out"](f"{_format_history(entries, use_color=ctx['use_color'])}\n")
+    return 0
+
+
+def handle_stats(rest, ctx):
+    now_fn = ctx["options"].get("now") or time.time
+    now = datetime.fromtimestamp(now_fn()).astimezone()
+    parsed = _parse_stats_args(rest, now=now)
+    entries = ctx["service"]["get_launch_history"](parsed["name"], limit=0)
+    entries = _filter_history_period(entries, parsed["period"])
+    rows = _summarize_stats(entries)
+    totals = _stats_totals(rows)
+    message = (
+        f"Calculated stats for {parsed['name']}"
+        if parsed["name"]
+        else "Calculated stats"
+    )
+    if parsed["json"]:
+        _write_json(ctx, _json_success(
+            "stats",
+            message,
+            period=_public_history_period(parsed["period"]),
+            stats=rows,
+            totals=totals,
+        ))
+        return 0
+    ctx["out"](f"{_format_stats(rows, totals, period=parsed['period'], use_color=ctx['use_color'])}\n")
     return 0
 
 

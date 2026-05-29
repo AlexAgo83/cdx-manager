@@ -340,6 +340,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx notify --next-ready [--poll seconds] [--once] [--schedule] [--refresh] [--json]` | Wait until the recommended session is usable, or schedule the next known reset notification |
 | `cdx select --provider PROVIDER [--min-reasoning-effort low\|medium\|high] [--min-power low\|medium\|high] [--require-ready] [--refresh] --json` | Select a suitable session for headless automation |
 | `cdx run [session] --cwd PATH (--prompt-file PATH\|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--reasoning-effort low\|medium\|high] [--power low\|medium\|high] [--permission MODE] [--timeout-seconds N] --json` | Run one headless task and return a stable JSON result |
+| `cdx stats [name] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Aggregate launch counts, duration, and known headless token usage by session |
 | `cdx status [--json] [--refresh]` | Show token usage table for all sessions; JSON returns a versioned payload with structured warnings |
 | `cdx status --small [--refresh]` / `cdx status -s [--refresh]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
 | `cdx status <name> [--json] [--refresh]` | Show detailed usage breakdown for one session |
@@ -371,6 +372,7 @@ Commands with machine-readable output:
 - `cdx context ... --json`
 - `cdx handoff ... --json`
 - `cdx history ... --json`
+- `cdx stats ... --json`
 - `cdx last --json`
 - `cdx doctor --json`
 - `cdx repair --json`
@@ -440,6 +442,13 @@ cdx run \
 ```
 
 The result includes `launcher: "cdx"`, `run_id`, selected `session`, `provider`, `exit_code`, `duration_seconds`, absolute `transcript_path`, `stdout_path`, `stderr_path`, and normalized usage token fields. Codex headless runs use `codex exec --json`; Claude headless runs use `claude --print --output-format json`. Token counts are `null` when the provider does not expose a supported JSON or JSONL usage shape.
+
+Known headless token usage is persisted in launch history and can be aggregated later:
+
+```bash
+cdx stats --since 7d --json
+cdx stats work
+```
 
 `cdx select` exposes the same session selection logic directly:
 
