@@ -378,6 +378,22 @@ def _combine_headless_transcript(paths):
                 transcript.write("\n")
 
 
+def _headless_run_info(paths, spec, start_time, returncode):
+    end_time = datetime.now(timezone.utc)
+    return {
+        **paths,
+        "started_at": start_time.isoformat().replace("+00:00", "Z"),
+        "ended_at": end_time.isoformat().replace("+00:00", "Z"),
+        "duration_ms": int((end_time - start_time).total_seconds() * 1000),
+        "command": spec.get("command"),
+        "args": list(spec.get("args") or []),
+        "label": spec.get("label"),
+        "pid": None,
+        "returncode": returncode,
+        "timed_out": False,
+    }
+
+
 def _run_headless_provider_command(session, cwd=None, env_override=None, initial_prompt=None,
                                    timeout_seconds=None, spawn=None, run_id=None):
     spawn = spawn or subprocess.Popen
@@ -408,18 +424,12 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
         except FileNotFoundError as error:
             _combine_headless_transcript(paths)
             cdx_error = CdxError(f"{spec['label']} CLI not found on PATH: {spec['command']}", 127)
-            cdx_error.run_info = {
-                **paths,
-                "started_at": start_time.isoformat().replace("+00:00", "Z"),
-                "ended_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                "duration_ms": 0,
-                "command": spec.get("command"),
-                "args": list(spec.get("args") or []),
-                "label": spec.get("label"),
-                "pid": None,
-                "returncode": 127,
-                "timed_out": False,
-            }
+            cdx_error.run_info = _headless_run_info(paths, spec, start_time, 127)
+            raise cdx_error from error
+        except OSError as error:
+            _combine_headless_transcript(paths)
+            cdx_error = CdxError(f"Failed to start {spec['label']}: {error}", 126)
+            cdx_error.run_info = _headless_run_info(paths, spec, start_time, 126)
             raise cdx_error from error
         try:
             if timeout_seconds is None:
