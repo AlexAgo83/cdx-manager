@@ -448,6 +448,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("cdx add [provider] <name> [--model MODEL] [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx set <name>|--sessions all|a,b|--provider PROVIDER", help_io["stdout"].getvalue())
         self.assertIn("--model MODEL", help_io["stdout"].getvalue())
+        self.assertIn("--priority 0..100", help_io["stdout"].getvalue())
 
         self.assertEqual(main(["-v"], version_io), 0)
         self.assertRegex(version_io["stdout"].getvalue().strip(), r"^\d+\.\d+\.\d+$")
@@ -1080,6 +1081,29 @@ class CliPythonTests(unittest.TestCase):
         subset_payload = json.loads(subset_io["stdout"].getvalue())
         self.assertEqual([session["name"] for session in subset_payload["sessions"]], ["work1", "local"])
         self.assertTrue(all(session["launch"]["fast"] for session in subset_payload["sessions"]))
+
+    def test_set_launch_priority_affects_headless_selection_tie_breaker(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        service["create_session"]("alpha", "codex")
+        service["create_session"]("beta", "codex")
+        for name in ("alpha", "beta"):
+            service["update_auth_state"](name, lambda auth: {**auth, "status": "authenticated"})
+            service["record_status"](name, {"remaining_5h_pct": 80, "remaining_week_pct": 80})
+
+        set_io = self.make_io()
+        self.assertEqual(main([
+            "set", "beta", "--priority", "50", "--json"
+        ], {**set_io, "service": service}), 0)
+        self.assertEqual(json.loads(set_io["stdout"].getvalue())["launch"]["priority"], 50)
+
+        select_io = self.make_io()
+        self.assertEqual(main([
+            "select", "--provider", "codex", "--require-ready", "--json"
+        ], {**select_io, "service": service}), 0)
+
+        payload = json.loads(select_io["stdout"].getvalue())
+        self.assertEqual(payload["session"], "beta")
 
     def test_unset_launch_settings_can_target_all_sessions(self):
         temp_dir = self.make_temp_dir()

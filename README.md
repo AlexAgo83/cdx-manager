@@ -263,6 +263,7 @@ cdx set work --power medium --permission full --fast off
 cdx set personal --power low --permission review
 cdx set --sessions all --permission auto
 cdx set --provider ollama --model llama3.2
+cdx set work --priority 80
 cdx power all low
 cdx perm provider:claude review
 cdx model provider:ollama llama3.2
@@ -275,12 +276,13 @@ Those values are stored on the session and reapplied every time you run `cdx wor
 cdx unset work --power
 cdx unset --sessions work,personal --fast
 cdx unset --provider claude --permission
+cdx unset work --priority
 cdx unset work --all
 cdx power all default
 cdx model provider:ollama default
 ```
 
-`--power` maps to Codex `model_reasoning_effort` and Claude `--effort`. `--permission` maps to provider-native permission flags. `--fast on` uses low effort when no explicit power is set.
+`--power` maps to Codex `model_reasoning_effort` and Claude `--effort`. `--permission` maps to provider-native permission flags. `--fast on` uses low effort when no explicit power is set. `--priority` is a 0..100 selector preference used as a tie-breaker after readiness and availability.
 
 ### Launch History
 
@@ -317,8 +319,8 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx enable <name> [--json]` | Re-enable a disabled session |
 | `cdx config <name> [--json]` | Show persistent launch settings for a session |
 | `cdx power\|perm\|fast\|model <name\|all\|provider:PROVIDER\|a,b> <value\|default> [--json]` | Shortcut commands for setting or clearing one launch setting |
-| `cdx set <name>\|--sessions all\|a,b\|--provider PROVIDER [--power low\|medium\|high\|xhigh\|max] [--permission review\|default\|auto\|full] [--fast on\|off] [--model MODEL] [--json]` | Persist launch settings for one or more sessions |
-| `cdx unset <name>\|--sessions all\|a,b\|--provider PROVIDER (--power\|--permission\|--fast\|--model\|--all) [--json]` | Remove persisted launch settings and fall back to provider defaults |
+| `cdx set <name>\|--sessions all\|a,b\|--provider PROVIDER [--power low\|medium\|high\|xhigh\|max] [--permission review\|default\|auto\|full] [--fast on\|off] [--model MODEL] [--priority 0..100] [--json]` | Persist launch settings for one or more sessions |
+| `cdx unset <name>\|--sessions all\|a,b\|--provider PROVIDER (--power\|--permission\|--fast\|--model\|--priority\|--all) [--json]` | Remove persisted launch settings and fall back to provider defaults |
 | `cdx history [name] [--limit N] [--summary] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Show recent launch history or aggregate total launch time per assistant, optionally filtered by period |
 | `cdx last [--json]` | Launch the most recent existing session from launch history |
 | `cdx context show\|path\|init\|edit\|clear\|set [text...] [--json]` | Manage the shared Markdown context for the current workspace |

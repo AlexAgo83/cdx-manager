@@ -53,8 +53,8 @@ EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--
 IMPORT_USAGE = "Usage: cdx import <file> [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
 CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--json]"
-SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--model MODEL] [--json]"
-UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--model|--all) [--json]"
+SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--model MODEL] [--priority 0..100] [--json]"
+UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--model|--priority|--all) [--json]"
 SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
@@ -488,12 +488,23 @@ def _parse_fast_value(value):
     raise CdxError(SET_USAGE)
 
 
+def _parse_priority_value(value):
+    try:
+        priority = int(value)
+    except (TypeError, ValueError) as error:
+        raise CdxError(SET_USAGE) from error
+    if priority < 0 or priority > 100:
+        raise CdxError(SET_USAGE)
+    return priority
+
+
 def _parse_set_args(args):
     parsed = _parse_flag_args(args, {
         "--power": {"key": "power", "type": "str", "default": None},
         "--permission": {"key": "permission", "type": "str", "default": None},
         "--fast": {"key": "fast", "type": "str", "default": None, "transform": _parse_fast_value},
         "--model": {"key": "model", "type": "str", "default": None},
+        "--priority": {"key": "priority", "type": "str", "default": None, "transform": _parse_priority_value},
         "--sessions": {"key": "sessions", "type": "str", "default": None, "transform": _parse_set_unset_sessions},
         "--provider": {"key": "provider", "type": "str", "default": None, "transform": lambda value: _parse_provider_filter(value, SET_USAGE)},
         "--json": {"key": "json", "type": "bool", "default": False},
@@ -508,7 +519,7 @@ def _parse_set_args(args):
         raise CdxError(SET_USAGE)
     settings = {
         key: parsed[key]
-        for key in ("power", "permission", "fast", "model")
+        for key in ("power", "permission", "fast", "model", "priority")
         if parsed[key] is not None
     }
     if not settings:
@@ -528,6 +539,7 @@ def _parse_unset_args(args):
         "--permission": {"key": "permission", "type": "bool", "default": False},
         "--fast": {"key": "fast", "type": "bool", "default": False},
         "--model": {"key": "model", "type": "bool", "default": False},
+        "--priority": {"key": "priority", "type": "bool", "default": False},
         "--all": {"key": "all", "type": "bool", "default": False},
         "--sessions": {"key": "sessions", "type": "str", "default": None, "transform": _parse_set_unset_sessions},
         "--provider": {"key": "provider", "type": "str", "default": None, "transform": lambda value: _parse_provider_filter(value, UNSET_USAGE)},
@@ -541,8 +553,8 @@ def _parse_unset_args(args):
         raise CdxError(UNSET_USAGE)
     if not parsed["names"] and not parsed["sessions"] and not parsed["provider"]:
         raise CdxError(UNSET_USAGE)
-    keys = ["power", "permission", "fast", "model"] if parsed["all"] else [
-        key for key in ("power", "permission", "fast", "model") if parsed[key]
+    keys = ["power", "permission", "fast", "model", "priority"] if parsed["all"] else [
+        key for key in ("power", "permission", "fast", "model", "priority") if parsed[key]
     ]
     if not keys:
         raise CdxError(UNSET_USAGE)
@@ -1351,6 +1363,7 @@ def _format_launch_config(session):
         f"permission: {launch.get('permission') or 'default'}",
         f"fast:       {'on' if launch.get('fast') is True else 'off' if launch.get('fast') is False else 'default'}",
         f"model:      {launch.get('model') or 'default'}",
+        f"priority:   {launch.get('priority') if launch.get('priority') is not None else 'default'}",
     ])
 
 
@@ -1394,6 +1407,14 @@ def _session_reasoning_effort(session):
         or ("low" if launch.get("fast") is True else None)
         or "low"
     )
+
+
+def _session_selection_priority(session):
+    launch = session.get("launch") or {}
+    try:
+        return int(launch.get("priority") or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _row_blocks_ready(row):
@@ -1440,6 +1461,7 @@ def _select_headless_session(ctx, provider, min_reasoning_effort=None, require_r
                 -cooldown_sort,
                 -available_sort,
                 _reasoning_rank(_session_reasoning_effort(session)),
+                -_session_selection_priority(session),
                 session["name"],
             ),
         })

@@ -59,6 +59,8 @@ LAUNCH_POWER_VALUES = {"low", "medium", "high", "xhigh", "max"}
 LAUNCH_REASONING_EFFORT_VALUES = {"low", "medium", "high"}
 LAUNCH_PERMISSION_VALUES = {"review", "default", "auto", "full"}
 MAX_LAUNCH_MODEL_LENGTH = 128
+MIN_LAUNCH_PRIORITY = 0
+MAX_LAUNCH_PRIORITY = 100
 
 
 def _encode(name):
@@ -128,6 +130,14 @@ def _normalize_launch_settings(settings):
         if len(model) > MAX_LAUNCH_MODEL_LENGTH or any(ord(ch) < 32 or ord(ch) == 127 for ch in model):
             raise CdxError("Model contains unsupported characters.")
         normalized["model"] = model
+    if "priority" in settings and settings["priority"] is not None:
+        try:
+            priority = int(settings["priority"])
+        except (TypeError, ValueError) as error:
+            raise CdxError(f"Unsupported priority: {settings['priority']}") from error
+        if priority < MIN_LAUNCH_PRIORITY or priority > MAX_LAUNCH_PRIORITY:
+            raise CdxError(f"Unsupported priority: {settings['priority']}")
+        normalized["priority"] = priority
     return normalized
 
 
