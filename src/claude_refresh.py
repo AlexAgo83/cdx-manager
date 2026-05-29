@@ -38,6 +38,7 @@ def _refresh_claude_sessions(service, refresh_fn=None, target_names=None, force=
         s for s in sessions
         if s["provider"] == PROVIDER_CLAUDE
         and s.get("enabled", True) is not False
+        and (s.get("auth") or {}).get("status") != "logged_out"
         and (not target_names or s["name"] in target_names)
         and (force or _is_stale(s, ttl_seconds=ttl_seconds))
     ]

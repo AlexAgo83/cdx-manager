@@ -2663,6 +2663,31 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["warnings"][0]["code"], "claude_refresh_failed")
         self.assertEqual(json_io["stderr"].getvalue(), "")
 
+    def test_status_rechecks_claude_auth_before_usage_refresh(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("claude", "claude")
+        service["update_auth_state"]("claude", lambda auth: {
+            **auth,
+            "status": "authenticated",
+        })
+
+        def refresh(_session):
+            raise AssertionError("logged out Claude sessions should not refresh usage")
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status", "--refresh"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn_sync": _AuthHarness().spawn_sync,
+            "refreshClaudeSessionStatus": refresh,
+        }), 0)
+
+        rows = service["get_status_rows"]()
+        self.assertEqual(rows[0]["auth_status"], "logged_out")
+        self.assertIn("logged out", status_io["stdout"].getvalue())
+
     def test_status_small_flag_renders_compact_table(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

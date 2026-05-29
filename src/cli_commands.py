@@ -1598,6 +1598,20 @@ def handle_status(rest, ctx):
     if len(args) == 1 and parsed["small"]:
         raise CdxError(STATUS_USAGE)
 
+    auth_refresh = _refresh_claude_auth_states(
+        ctx["service"],
+        target_names=args if len(args) == 1 else None,
+        spawn_sync=ctx.get("spawn_sync"),
+        env_override=ctx.get("env"),
+    )
+    warnings = [
+        {
+            "code": "claude_auth_probe_failed",
+            "session": item.get("session") or "unknown",
+            "message": item.get("error") or "unknown error",
+        }
+        for item in auth_refresh.get("errors", [])
+    ]
     refresh_result = _refresh_claude_sessions(
         ctx["service"],
         ctx.get("refresh_fn"),
@@ -1611,27 +1625,13 @@ def handle_status(rest, ctx):
         }
         for item in refresh_result.get("errors", [])
     ]
-    warnings = [
+    warnings.extend([
         {
             "code": "claude_refresh_failed",
             "session": item.get("session") or "unknown",
             "message": item.get("error") or "unknown error",
         }
         for item in refresh_errors
-    ]
-    auth_refresh = _refresh_claude_auth_states(
-        ctx["service"],
-        target_names=args if len(args) == 1 else None,
-        spawn_sync=ctx.get("spawn_sync"),
-        env_override=ctx.get("env"),
-    )
-    warnings.extend([
-        {
-            "code": "claude_auth_probe_failed",
-            "session": item.get("session") or "unknown",
-            "message": item.get("error") or "unknown error",
-        }
-        for item in auth_refresh.get("errors", [])
     ])
     update_warning = _update_notice_warning(ctx)
     if update_warning:
