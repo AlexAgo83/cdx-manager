@@ -1,10 +1,10 @@
 ## item_007_automatic_headless_session_selection - Automatic headless session selection
 > From version: 0.6.5
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90
 > Confidence: 82
-> Progress: 0
+> Progress: 100
 > Complexity: Medium
 > Theme: Integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -76,3 +76,4 @@ flowchart TD
 # Notes
 - Derived from request `req_000_orchestia_headless_json_task_runner`.
 - Source file: `logics/request/req_000_orchestia_headless_json_task_runner.md`.
+- Delivered by `cdx select --json` and the shared selector used by `cdx run --provider`.

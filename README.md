@@ -334,6 +334,8 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx ready [--refresh] [--json]` | Schedule an OS notification for the next cooling-down assistant that becomes ready, then return immediately |
 | `cdx notify <name> --at-reset [--poll seconds] [--once] [--schedule] [--refresh] [--json]` | Wait for a session reset time or schedule an OS wake-up notification when due |
 | `cdx notify --next-ready [--poll seconds] [--once] [--schedule] [--refresh] [--json]` | Wait until the recommended session is usable, or schedule the next known reset notification |
+| `cdx select --provider PROVIDER [--min-reasoning-effort low\|medium\|high] [--min-power low\|medium\|high] [--require-ready] [--refresh] --json` | Select a suitable session for headless automation |
+| `cdx run [session] --cwd PATH (--prompt-file PATH\|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--reasoning-effort low\|medium\|high] [--power low\|medium\|high] [--permission MODE] [--timeout-seconds N] --json` | Run one headless task and return a stable JSON result |
 | `cdx status [--json] [--refresh]` | Show token usage table for all sessions; JSON returns a versioned payload with structured warnings |
 | `cdx status --small [--refresh]` / `cdx status -s [--refresh]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
 | `cdx status <name> [--json] [--refresh]` | Show detailed usage breakdown for one session |
@@ -371,6 +373,8 @@ Commands with machine-readable output:
 - `cdx update --json`
 - `cdx ready --json`
 - `cdx notify ... --json`
+- `cdx select ... --json`
+- `cdx run ... --json`
 
 Success payloads follow a shared envelope:
 
@@ -404,6 +408,40 @@ Errors use a shared stderr JSON envelope whenever `--json` is present:
 `status --json` and similar commands also use the same envelope and place non-fatal issues in `warnings` instead of mixing plain-text diagnostics into `stderr`.
 
 This makes `cdx-manager` usable from editor plugins, scripts, and desktop apps without scraping human-readable terminal output.
+
+### Headless Runs
+
+`cdx run` is designed for supervisors such as Orchestia. In `--json` mode, stdout contains only the final JSON payload; provider stdout and stderr are captured to files.
+
+```bash
+cdx run codex-work \
+  --cwd /path/to/workspace \
+  --prompt-file task_prompt.md \
+  --model gpt-5.3-codex \
+  --reasoning-effort low \
+  --permission workspace-write \
+  --timeout-seconds 1800 \
+  --json
+```
+
+Use provider-based auto-selection when the caller wants cdx-manager to pick the account:
+
+```bash
+cdx run \
+  --provider codex \
+  --cwd /path/to/workspace \
+  --prompt "Summarize the repo status." \
+  --reasoning-effort low \
+  --json
+```
+
+The result includes `run_id`, selected `session`, `provider`, `exit_code`, `duration_seconds`, absolute `transcript_path`, `stdout_path`, `stderr_path`, and normalized usage token fields. Token counts are `null` when the provider does not expose them.
+
+`cdx select` exposes the same session selection logic directly:
+
+```bash
+cdx select --provider codex --min-reasoning-effort low --require-ready --json
+```
 
 ---
 

@@ -1,10 +1,10 @@
 ## item_008_provider_neutral_reasoning_effort_mapping - Provider-neutral reasoning effort mapping
 > From version: 0.6.5
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90
 > Confidence: 84
-> Progress: 0
+> Progress: 100
 > Complexity: Medium
 > Theme: Integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -75,3 +75,4 @@ flowchart TD
 # Notes
 - Derived from request `req_000_orchestia_headless_json_task_runner`.
 - Source file: `logics/request/req_000_orchestia_headless_json_task_runner.md`.
+- Delivered by normalized `--reasoning-effort` handling and `--power` alias support.

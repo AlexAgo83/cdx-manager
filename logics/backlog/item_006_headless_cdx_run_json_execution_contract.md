@@ -1,10 +1,10 @@
 ## item_006_headless_cdx_run_json_execution_contract - Headless cdx run JSON execution contract
 > From version: 0.6.5
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90
 > Confidence: 82
-> Progress: 0
+> Progress: 100
 > Complexity: High
 > Theme: Integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -79,3 +79,4 @@ flowchart TD
 # Notes
 - Derived from request `req_000_orchestia_headless_json_task_runner`.
 - Source file: `logics/request/req_000_orchestia_headless_json_task_runner.md`.
+- Delivered by local implementation commits for reasoning normalization, `cdx select`, `cdx run`, and headless artifacts.

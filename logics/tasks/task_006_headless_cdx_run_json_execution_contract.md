@@ -1,10 +1,10 @@
 ## task_006_headless_cdx_run_json_execution_contract - Headless cdx run JSON execution contract
 > From version: 0.6.5
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 88
 > Confidence: 78
-> Progress: 0
+> Progress: 100
 > Complexity: High
 > Theme: Integration
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -36,17 +36,17 @@ stateDiagram-v2
 ```
 
 # Plan
-- [ ] 1. Design the `cdx run` argument contract for explicit session, cwd, prompt file, inline prompt, model, reasoning effort, permission, timeout, and JSON mode.
-- [ ] 2. Add parser/help text and JSON envelope plumbing without breaking existing commands.
-- [ ] 3. Implement explicit-session headless launch for Codex using the existing session/provider runtime boundaries.
-- [ ] 4. Add `run_id`, duration measurement, exit code capture, and success/failure JSON response construction.
-- [ ] 5. Enforce JSON-only stdout when `--json` is active.
-- [ ] 6. Implement `--timeout-seconds` lifecycle handling with graceful termination then force-kill fallback.
-- [ ] 7. Return `error.source: "cdx"` for validation/launch errors and `error.source: "provider"` for provider process failures.
-- [ ] 8. Add focused tests for parser validation, success envelope, cdx error envelope, provider failure envelope, JSON-only stdout, inline prompt, prompt file, and timeout.
-- [ ] 9. Update README/help docs and linked Logics docs.
-- [ ] CHECKPOINT: leave the current wave commit-ready and update linked Logics docs before continuing.
-- [ ] GATE: do not close the task until relevant tests and lint pass.
+- [x] 1. Design the `cdx run` argument contract for explicit session, cwd, prompt file, inline prompt, model, reasoning effort, permission, timeout, and JSON mode.
+- [x] 2. Add parser/help text and JSON envelope plumbing without breaking existing commands.
+- [x] 3. Implement explicit-session headless launch for Codex using the existing session/provider runtime boundaries.
+- [x] 4. Add `run_id`, duration measurement, exit code capture, and success/failure JSON response construction.
+- [x] 5. Enforce JSON-only stdout when `--json` is active.
+- [x] 6. Implement `--timeout-seconds` lifecycle handling with graceful termination then force-kill fallback.
+- [x] 7. Return `error.source: "cdx"` for validation/launch errors and `error.source: "provider"` for provider process failures.
+- [x] 8. Add focused tests for parser validation, success envelope, cdx error envelope, provider failure envelope, JSON-only stdout, inline prompt, prompt file, and timeout.
+- [x] 9. Update README/help docs and linked Logics docs.
+- [x] CHECKPOINT: leave the current wave commit-ready and update linked Logics docs before continuing.
+- [x] GATE: do not close the task until relevant tests and lint pass.
 
 # Validation
 - `npm run lint`
@@ -84,9 +84,13 @@ stateDiagram-v2
 - Skip when: Work is only about selection ranking, effort mapping, or artifact token details.
 
 # Definition of Done (DoD)
-- [ ] Scope implemented and acceptance criteria covered.
-- [ ] Validation commands executed and results captured.
-- [ ] Linked request/backlog/task docs updated.
-- [ ] Status is `Done` and progress is `100%`.
+- [x] Scope implemented and acceptance criteria covered.
+- [x] Validation commands executed and results captured.
+- [x] Linked request/backlog/task docs updated.
+- [x] Status is `Done` and progress is `100%`.
 
 # Report
+- Implemented `cdx run` as a headless JSON-first command with explicit session execution, prompt file and inline prompt support, timeout handling, run metadata, and cdx/provider error source separation.
+- Validation evidence:
+  - `python -m unittest discover -s test -p 'test_cli_py.py' -k 'run_'`
+  - `python -m py_compile src/cli.py src/cli_commands.py src/provider_runtime.py`

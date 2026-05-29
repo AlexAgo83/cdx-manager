@@ -1,10 +1,10 @@
 ## task_009_headless_run_artifacts_usage_and_error_reporting - Headless run artifacts usage and error reporting
 > From version: 0.6.5
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 88
 > Confidence: 78
-> Progress: 0
+> Progress: 100
 > Complexity: High
 > Theme: Integration
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -35,16 +35,16 @@ stateDiagram-v2
 ```
 
 # Plan
-- [ ] 1. Define artifact layout and naming for headless run transcript, stdout, and stderr files.
-- [ ] 2. Ensure `cdx run --json` returns absolute artifact paths whenever files exist.
-- [ ] 3. Capture provider stdout/stderr to files while keeping stdout reserved for final JSON.
-- [ ] 4. Normalize usage fields as `input_tokens`, `output_tokens`, `reasoning_tokens`, and `total_tokens`, using `null` when unavailable.
-- [ ] 5. Include artifact paths and usage fields on both success and failure responses.
-- [ ] 6. Standardize `error.source`, `error.code`, `error.message`, and provider-specific details where available.
-- [ ] 7. Add tests for success artifacts, cdx validation failure, provider failure, unknown usage, JSON-only stdout, and absolute paths.
-- [ ] 8. Document remaining retention/cleanup decision and update linked Logics docs.
-- [ ] CHECKPOINT: leave the current wave commit-ready and update linked Logics docs before continuing.
-- [ ] GATE: do not close the task until relevant tests and lint pass.
+- [x] 1. Define artifact layout and naming for headless run transcript, stdout, and stderr files.
+- [x] 2. Ensure `cdx run --json` returns absolute artifact paths whenever files exist.
+- [x] 3. Capture provider stdout/stderr to files while keeping stdout reserved for final JSON.
+- [x] 4. Normalize usage fields as `input_tokens`, `output_tokens`, `reasoning_tokens`, and `total_tokens`, using `null` when unavailable.
+- [x] 5. Include artifact paths and usage fields on both success and failure responses.
+- [x] 6. Standardize `error.source`, `error.code`, `error.message`, and provider-specific details where available.
+- [x] 7. Add tests for success artifacts, cdx validation failure, provider failure, unknown usage, JSON-only stdout, and absolute paths.
+- [x] 8. Document remaining retention/cleanup decision and update linked Logics docs.
+- [x] CHECKPOINT: leave the current wave commit-ready and update linked Logics docs before continuing.
+- [x] GATE: do not close the task until relevant tests and lint pass.
 
 # Validation
 - `npm run lint`
@@ -82,9 +82,13 @@ stateDiagram-v2
 - Skip when: Work is only about selector ranking or effort mapping.
 
 # Definition of Done (DoD)
-- [ ] Scope implemented and acceptance criteria covered.
-- [ ] Validation commands executed and results captured.
-- [ ] Linked request/backlog/task docs updated.
-- [ ] Status is `Done` and progress is `100%`.
+- [x] Scope implemented and acceptance criteria covered.
+- [x] Validation commands executed and results captured.
+- [x] Linked request/backlog/task docs updated.
+- [x] Status is `Done` and progress is `100%`.
 
 # Report
+- Implemented absolute transcript/stdout/stderr artifact paths, stream capture, normalized null usage fields, timeout errors, and cdx/provider error source reporting.
+- Validation evidence:
+  - `python -m unittest discover -s test -p 'test_cli_py.py' -k 'run_'`
+  - `python -m py_compile src/provider_runtime.py test/test_cli_py.py`

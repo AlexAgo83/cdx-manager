@@ -1,10 +1,10 @@
 ## task_008_provider_neutral_reasoning_effort_mapping - Provider-neutral reasoning effort mapping
 > From version: 0.6.5
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90
 > Confidence: 82
-> Progress: 0
+> Progress: 100
 > Complexity: Medium
 > Theme: Integration
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -35,16 +35,16 @@ stateDiagram-v2
 ```
 
 # Plan
-- [ ] 1. Add a central normalization helper for `--reasoning-effort` and `--power`.
-- [ ] 2. Validate allowed values `low`, `medium`, and `high`.
-- [ ] 3. Reject conflicting `--reasoning-effort` and `--power` values with `error.source: "cdx"`.
-- [ ] 4. Map normalized effort to Codex launch options.
-- [ ] 5. Return resolved `reasoning_effort` and `power` in `cdx run` and selection JSON responses.
-- [ ] 6. Leave explicit extension points for Claude/Ollama mappings without changing the public schema.
-- [ ] 7. Add tests for preferred option, alias option, conflict handling, invalid values, Codex mapping, and response fields.
-- [ ] 8. Update CLI help/README and linked Logics docs.
-- [ ] CHECKPOINT: leave the current wave commit-ready and update linked Logics docs before continuing.
-- [ ] GATE: do not close the task until relevant tests and lint pass.
+- [x] 1. Add a central normalization helper for `--reasoning-effort` and `--power`.
+- [x] 2. Validate allowed values `low`, `medium`, and `high`.
+- [x] 3. Reject conflicting `--reasoning-effort` and `--power` values with `error.source: "cdx"`.
+- [x] 4. Map normalized effort to Codex launch options.
+- [x] 5. Return resolved `reasoning_effort` and `power` in `cdx run` and selection JSON responses.
+- [x] 6. Leave explicit extension points for Claude/Ollama mappings without changing the public schema.
+- [x] 7. Add tests for preferred option, alias option, conflict handling, invalid values, Codex mapping, and response fields.
+- [x] 8. Update CLI help/README and linked Logics docs.
+- [x] CHECKPOINT: leave the current wave commit-ready and update linked Logics docs before continuing.
+- [x] GATE: do not close the task until relevant tests and lint pass.
 
 # Validation
 - `npm run lint`
@@ -81,9 +81,13 @@ stateDiagram-v2
 - Skip when: Work is only about selection ranking or artifact output.
 
 # Definition of Done (DoD)
-- [ ] Scope implemented and acceptance criteria covered.
-- [ ] Validation commands executed and results captured.
-- [ ] Linked request/backlog/task docs updated.
-- [ ] Status is `Done` and progress is `100%`.
+- [x] Scope implemented and acceptance criteria covered.
+- [x] Validation commands executed and results captured.
+- [x] Linked request/backlog/task docs updated.
+- [x] Status is `Done` and progress is `100%`.
 
 # Report
+- Implemented normalized `--reasoning-effort` handling with `--power` alias support, conflict validation, Codex launch mapping, and JSON response fields.
+- Validation evidence:
+  - `python -m unittest discover -s test -p 'test_runtime_py.py' -k 'launch_spec'`
+  - `python -m unittest discover -s test -p 'test_cli_py.py' -k 'run_'`

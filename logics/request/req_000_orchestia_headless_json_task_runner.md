@@ -1,9 +1,9 @@
 ## req_000_orchestia_headless_json_task_runner - Headless JSON task runner for Orchestia
 > From version: 0.6.5
 > Schema version: 1.0
-> Status: Draft
-> Understanding: 88
-> Confidence: 82
+> Status: Done
+> Understanding: 95
+> Confidence: 90
 > Complexity: High
 > Theme: Integration
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
@@ -202,6 +202,10 @@ flowchart TD
 # Companion docs
 - Product brief(s): (none yet)
 - Architecture decision(s): (none yet)
+
+# Delivery
+- Delivered in linked backlog items `item_006` through `item_009` and linked tasks `task_006` through `task_009`.
+- First implementation is Codex-focused and keeps the headless JSON schema provider-neutral for later Claude/Ollama support.
 
 # AI Context
 - Summary: Orchestia needs a stable headless JSON CLI contract for selecting a ready cdx session and running assistant tasks in a workspace with normalized result metadata.

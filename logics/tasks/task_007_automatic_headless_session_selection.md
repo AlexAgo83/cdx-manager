@@ -1,10 +1,10 @@
 ## task_007_automatic_headless_session_selection - Automatic headless session selection
 > From version: 0.6.5
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 88
 > Confidence: 80
-> Progress: 0
+> Progress: 100
 > Complexity: Medium
 > Theme: Integration
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -35,17 +35,17 @@ stateDiagram-v2
 ```
 
 # Plan
-- [ ] 1. Define a reusable selection service that consumes existing session, provider, auth, quota, cooldown, and readiness data.
-- [ ] 2. Implement `cdx select --provider PROVIDER --min-reasoning-effort LEVEL --require-ready --json`.
-- [ ] 3. Keep `--min-power LEVEL` as a compatibility alias.
-- [ ] 4. Apply deterministic ranking: provider match, readiness, cooldown avoidance, healthiest quota/availability, configured priority, then session name.
-- [ ] 5. Return stable JSON with `ok`, `session`, `provider`, `reason`, `selection_policy`, warnings, and error fields.
-- [ ] 6. Return `ok: false` with `error.source: "cdx"` when no suitable session exists.
-- [ ] 7. Wire `cdx run --provider codex` to the same selector once the run command is available.
-- [ ] 8. Add tests for ready selection, readiness exclusion, cooldown/quota ranking, alias behavior, deterministic tie-breaking, no-match error, and run-command reuse.
-- [ ] 9. Update README/help docs and linked Logics docs.
-- [ ] CHECKPOINT: leave the current wave commit-ready and update linked Logics docs before continuing.
-- [ ] GATE: do not close the task until relevant tests and lint pass.
+- [x] 1. Define a reusable selection service that consumes existing session, provider, auth, quota, cooldown, and readiness data.
+- [x] 2. Implement `cdx select --provider PROVIDER --min-reasoning-effort LEVEL --require-ready --json`.
+- [x] 3. Keep `--min-power LEVEL` as a compatibility alias.
+- [x] 4. Apply deterministic ranking: provider match, readiness, cooldown avoidance, healthiest quota/availability, configured priority, then session name.
+- [x] 5. Return stable JSON with `ok`, `session`, `provider`, `reason`, `selection_policy`, warnings, and error fields.
+- [x] 6. Return `ok: false` with `error.source: "cdx"` when no suitable session exists.
+- [x] 7. Wire `cdx run --provider codex` to the same selector once the run command is available.
+- [x] 8. Add tests for ready selection, readiness exclusion, cooldown/quota ranking, alias behavior, deterministic tie-breaking, no-match error, and run-command reuse.
+- [x] 9. Update README/help docs and linked Logics docs.
+- [x] CHECKPOINT: leave the current wave commit-ready and update linked Logics docs before continuing.
+- [x] GATE: do not close the task until relevant tests and lint pass.
 
 # Validation
 - `npm run lint`
@@ -82,9 +82,13 @@ stateDiagram-v2
 - Skip when: Work is only about executing provider processes or artifact capture.
 
 # Definition of Done (DoD)
-- [ ] Scope implemented and acceptance criteria covered.
-- [ ] Validation commands executed and results captured.
-- [ ] Linked request/backlog/task docs updated.
-- [ ] Status is `Done` and progress is `100%`.
+- [x] Scope implemented and acceptance criteria covered.
+- [x] Validation commands executed and results captured.
+- [x] Linked request/backlog/task docs updated.
+- [x] Status is `Done` and progress is `100%`.
 
 # Report
+- Implemented `cdx select --json`, `--min-reasoning-effort`, `--min-power` aliasing, no-match JSON errors, and provider-based auto-selection for `cdx run`.
+- Validation evidence:
+  - `python -m unittest discover -s test -p 'test_cli_py.py' -k 'select'`
+  - `python -m unittest discover -s test -p 'test_cli_py.py' -k 'run_'`
