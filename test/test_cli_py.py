@@ -2804,8 +2804,8 @@ class CliPythonTests(unittest.TestCase):
         service = create_session_service({"base_dir": temp_dir})
         service["create_session"]("main")
         service["record_status"]("main", {
-            "remaining_5h_pct": 0,
-            "remaining_week_pct": 80,
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 95,
             "updated_at": "2026-04-15T10:00:00+00:00",
         })
 
@@ -2815,7 +2815,10 @@ class CliPythonTests(unittest.TestCase):
             "service": service,
             "env": {"CDX_HOME": temp_dir, "CLICOLOR_FORCE": "1"},
         }), 0)
-        self.assertIn("\033[", color_io["stdout"].getvalue())
+        color_output = color_io["stdout"].getvalue()
+        self.assertIn("\033[", color_output)
+        self.assertIn("\033[32m80%\033[0m", color_output)
+        self.assertIn("\033[96m95%\033[0m", color_output)
 
         plain_io = {**self.make_io(), "stdout": _TtyStream()}
         self.assertEqual(main(["status"], {

@@ -79,6 +79,8 @@ def _style_pct(value, use_color=False):
         return _style(text, "31", use_color)
     if value <= 10:
         return _style(text, "33", use_color)
+    if value > 80:
+        return _style(text, "96", use_color)
     return _style(text, "32", use_color)
 
 
