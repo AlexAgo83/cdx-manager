@@ -892,19 +892,18 @@ def _bootstrap_claude_setup_token(session, ctx):
             "Claude setup-token completed, but cdx could not capture the token. "
             "Run claude setup-token and save the token under credentials/default.json."
         )
-    try:
-        with open(transcript_path, "r", encoding="utf-8", errors="replace") as handle:
-            transcript = handle.read()
-    finally:
-        try:
-            os.remove(transcript_path)
-        except OSError:
-            pass
+    with open(transcript_path, "r", encoding="utf-8", errors="replace") as handle:
+        transcript = handle.read()
     token = _extract_claude_oauth_token(transcript)
     if not token:
         raise CdxError(
-            "Claude setup-token completed, but cdx could not find CLAUDE_CODE_OAUTH_TOKEN in the output."
+            "Claude setup-token completed, but cdx could not find CLAUDE_CODE_OAUTH_TOKEN in the output. "
+            f"Transcript kept at: {transcript_path}"
         )
+    try:
+        os.remove(transcript_path)
+    except OSError:
+        pass
     return _write_claude_oauth_token(session.get("authHome") or "", token)
 
 

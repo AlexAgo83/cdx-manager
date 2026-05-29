@@ -73,10 +73,11 @@ class _Child:
 
 
 class _AuthHarness:
-    def __init__(self, initial_auth=None, claude_login_authenticates=True):
+    def __init__(self, initial_auth=None, claude_login_authenticates=True, claude_setup_token_text=None):
         self.calls = []
         self.auth_by_home = dict(initial_auth or {})
         self.claude_login_authenticates = claude_login_authenticates
+        self.claude_setup_token_text = claude_setup_token_text
 
     @staticmethod
     def _get_home(payload):
@@ -160,7 +161,10 @@ class _AuthHarness:
                 transcript_path = _script_transcript_path(self.calls[-1])
                 os.makedirs(os.path.dirname(transcript_path), exist_ok=True)
                 with open(transcript_path, "w", encoding="utf-8") as handle:
-                    handle.write("Use this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-test\n")
+                    handle.write(
+                        self.claude_setup_token_text
+                        or "Use this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-test\n"
+                    )
         if command == "agy":
             self.auth_by_home[home] = True
         if command == "ollama":
@@ -1659,6 +1663,35 @@ class CliPythonTests(unittest.TestCase):
             credentials = json.load(handle)
         self.assertEqual(credentials["access_token"], "sk-ant-oat-test")
         self.assertFalse(os.path.exists(_script_transcript_path(script_call)))
+
+    def test_login_claude_keeps_setup_token_transcript_when_extraction_fails(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness(
+            claude_login_authenticates=False,
+            claude_setup_token_text="Use this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=<token>\n",
+        )
+
+        self.assertEqual(main(["add", "claude", "work1"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        harness.calls.clear()
+
+        with self.assertRaisesRegex(CdxError, "Transcript kept at"):
+            main(["login", "work1"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            })
+
+        script_call = next(
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "claude")
+        )
+        self.assertTrue(os.path.exists(_script_transcript_path(script_call)))
 
     def test_claude_setup_token_extraction_strips_ansi_sequences(self):
         token = _extract_claude_oauth_token(
