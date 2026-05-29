@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -206,6 +207,66 @@ def run_update_plan(plan, runner=None, env=None):
         if code not in (0, None):
             break
     return results
+
+
+def verify_updated_command(target_version, runner=None, env=None):
+    target = _normalize_version(target_version)
+    if not target:
+        return None
+    env = env or os.environ
+    executable = shutil.which("cdx", path=env.get("PATH"))
+    if not executable:
+        return {
+            "code": "update_version_check_failed",
+            "message": "Updated cdx-manager, but no cdx executable was found on PATH.",
+            "target_version": target,
+            "resolved_version": None,
+            "path": None,
+        }
+    runner = runner or subprocess.run
+    try:
+        result = runner(
+            [executable, "-v"],
+            cwd=None,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as error:
+        return {
+            "code": "update_version_check_failed",
+            "message": f"Updated cdx-manager, but failed to verify {executable}: {error}",
+            "target_version": target,
+            "resolved_version": None,
+            "path": executable,
+        }
+
+    version = str(_result_text(result, "stdout") or "").strip().splitlines()
+    version = _normalize_version(version[0]) if version else None
+    code = _result_code(result)
+    if code not in (0, None) or not version:
+        message = str(_result_text(result, "stderr") or _result_text(result, "stdout") or "").strip()
+        suffix = f": {message}" if message else "."
+        return {
+            "code": "update_version_check_failed",
+            "message": f"Updated cdx-manager, but failed to verify {executable}{suffix}",
+            "target_version": target,
+            "resolved_version": version,
+            "path": executable,
+        }
+    if version != target:
+        return {
+            "code": "update_version_mismatch",
+            "message": (
+                f"Updated cdx-manager to {target}, but PATH resolves {executable} "
+                f"which reports {version}."
+            ),
+            "target_version": target,
+            "resolved_version": version,
+            "path": executable,
+        }
+    return None
 
 
 def format_update_failure(results):

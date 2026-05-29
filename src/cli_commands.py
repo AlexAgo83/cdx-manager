@@ -43,7 +43,7 @@ from .backup_bundle import read_bundle_meta
 from .run_usage import empty_usage, extract_run_usage
 from .status_view import _format_status_detail, _format_status_rows
 from .update_check import LatestReleaseCheckError, fetch_latest_release, fetch_latest_release_or_raise, is_newer_version
-from .update_manager import build_update_plan, format_update_failure, run_update_plan
+from .update_manager import build_update_plan, format_update_failure, run_update_plan, verify_updated_command
 
 
 STATUS_USAGE = "Usage: cdx status [--json] [--refresh] | cdx status --small|-s [--refresh] | cdx status <name> [--json] [--refresh]"
@@ -1227,7 +1227,7 @@ def _run_result_payload(ok, parsed, session, run_info=None, error=None, error_so
     run_info = run_info or {}
     usage = (
         extract_run_usage(session.get("provider"), run_info.get("stdout_path"))
-        if ok and session else
+        if session else
         empty_usage()
     )
     return {
@@ -2352,11 +2352,21 @@ def handle_update(rest, ctx):
     if failed:
         raise CdxError(format_update_failure(results))
 
+    warnings = []
+    version_warning = verify_updated_command(
+        target_version,
+        runner=ctx["options"].get("runVersionCheck"),
+        env=ctx.get("env"),
+    )
+    if version_warning:
+        warnings.append(version_warning)
+
     message = f"Updated cdx-manager to {target_version}"
     if json_flag:
         _write_json(ctx, _json_success(
             "update",
             message,
+            warnings=warnings,
             updated=True,
             current_version=current_version,
             target_version=target_version,
@@ -2365,6 +2375,8 @@ def handle_update(rest, ctx):
         ))
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    for warning in warnings:
+        ctx["out"](f"{_warn(warning['message'], ctx['use_color'])}\n")
     return 0
 
 

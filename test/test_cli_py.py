@@ -497,6 +497,9 @@ class CliPythonTests(unittest.TestCase):
             })
             return {"returncode": 0, "stdout": "", "stderr": ""}
 
+        def run_version_check(command, **kwargs):
+            return {"returncode": 0, "stdout": "9.9.9\n", "stderr": ""}
+
         list_io = self.make_io()
         self.assertEqual(main(["update", "--yes"], {
             **list_io,
@@ -507,10 +510,48 @@ class CliPythonTests(unittest.TestCase):
                 "url": "https://example.invalid/release",
             },
             "runUpdate": run_update,
+            "runVersionCheck": run_version_check,
         }), 0)
 
         self.assertEqual(commands[0]["command"], ["npm", "install", "-g", "cdx-manager@9.9.9"])
         self.assertIn("Updated cdx-manager to 9.9.9", list_io["stdout"].getvalue())
+
+    def test_update_warns_when_path_resolves_old_version(self):
+        temp_dir = self.make_temp_dir()
+        bin_dir = os.path.join(temp_dir, "bin")
+        os.makedirs(bin_dir, exist_ok=True)
+        cdx_path = os.path.join(bin_dir, "cdx")
+        with open(os.path.join(temp_dir, "package.json"), "w", encoding="utf-8") as handle:
+            handle.write("{}\n")
+        with open(cdx_path, "w", encoding="utf-8") as handle:
+            handle.write("#!/bin/sh\n")
+        os.chmod(cdx_path, 0o755)
+
+        def run_update(command, cwd=None, env=None, check=False):
+            return {"returncode": 0, "stdout": "", "stderr": ""}
+
+        def run_version_check(command, **kwargs):
+            self.assertEqual(command, [cdx_path, "-v"])
+            return {"returncode": 0, "stdout": "8.8.8\n", "stderr": ""}
+
+        update_io = self.make_io()
+        self.assertEqual(main(["update", "--yes", "--json"], {
+            **update_io,
+            "env": {"CDX_HOME": temp_dir, "PATH": bin_dir},
+            "packageRoot": temp_dir,
+            "fetchLatestRelease": lambda: {
+                "latest_version": "9.9.9",
+                "url": "https://example.invalid/release",
+            },
+            "runUpdate": run_update,
+            "runVersionCheck": run_version_check,
+        }), 0)
+
+        payload = json.loads(update_io["stdout"].getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["warnings"][0]["code"], "update_version_mismatch")
+        self.assertEqual(payload["warnings"][0]["path"], cdx_path)
+        self.assertEqual(payload["warnings"][0]["resolved_version"], "8.8.8")
 
     def test_non_status_outputs_use_color_when_enabled(self):
         temp_dir = self.make_temp_dir()
@@ -3506,6 +3547,13 @@ class CliPythonTests(unittest.TestCase):
             json.dump({"tokens": {"access_token": "token"}}, handle)
 
         def spawn(_argv, **kwargs):
+            kwargs["stdout"].write(json.dumps({
+                "usage": {
+                    "input_tokens": 3,
+                    "output_tokens": 0,
+                    "total_tokens": 3,
+                },
+            }) + "\n")
             kwargs["stderr"].write("failed\n")
             return _HeadlessChild(7)
 
@@ -3519,6 +3567,12 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["error"]["source"], "provider")
         self.assertEqual(payload["error"]["code"], "provider_failed")
         self.assertEqual(payload["exit_code"], 7)
+        self.assertEqual(payload["usage"], {
+            "input_tokens": 3,
+            "output_tokens": 0,
+            "reasoning_tokens": None,
+            "total_tokens": 3,
+        })
 
     def test_run_missing_provider_cli_returns_json_error(self):
         target_dir = self.make_temp_dir()

@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
-from src.update_manager import build_update_plan, detect_installation
+from src.update_manager import build_update_plan, detect_installation, verify_updated_command
 from src.errors import CdxError
 
 
@@ -69,3 +69,22 @@ class UpdateManagerPythonTests(unittest.TestCase):
         with mock.patch("src.update_manager.subprocess.run", return_value=SimpleNamespace(stdout=" M src/cli.py\n", returncode=0)):
             with self.assertRaisesRegex(CdxError, "uncommitted changes"):
                 build_update_plan(package_root=source_root)
+
+    def test_verify_updated_command_reports_path_version_mismatch(self):
+        bin_dir = os.path.join(self.make_temp_dir(), "bin")
+        os.makedirs(bin_dir, exist_ok=True)
+        cdx_path = os.path.join(bin_dir, "cdx")
+        with open(cdx_path, "w", encoding="utf-8") as handle:
+            handle.write("#!/bin/sh\n")
+        os.chmod(cdx_path, 0o755)
+
+        warning = verify_updated_command(
+            "1.2.3",
+            runner=lambda command, **kwargs: SimpleNamespace(returncode=0, stdout="1.2.2\n", stderr=""),
+            env={"PATH": bin_dir},
+        )
+
+        self.assertEqual(warning["code"], "update_version_mismatch")
+        self.assertEqual(warning["target_version"], "1.2.3")
+        self.assertEqual(warning["resolved_version"], "1.2.2")
+        self.assertEqual(warning["path"], cdx_path)
