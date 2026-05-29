@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.0
+- Prepared the public `0.7.0` release metadata, package versions, CLI version output, README badge, pinned installer example, and curated release changelog.
+- Promoted the Orchestia headless automation work as the release focus: `cdx run --json`, `cdx select --json`, provider-neutral reasoning effort, deterministic selection, run artifacts, and stable error envelopes.
+- Kept release-gate documentation and rollback coverage in place for risky completed Logics tasks.
+
 ## 0.6.5
 - Delivered the headless `cdx run --json` contract for Orchestia with explicit-session execution, provider selection, normalized reasoning effort, timeout handling, and stable cdx/provider error envelopes.
 - Added run artifacts for headless execution, including absolute transcript, stdout, and stderr paths plus normalized usage fields that remain explicit when token counts are unavailable.

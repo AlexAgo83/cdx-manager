@@ -1,8 +1,8 @@
 # Release Notes
 
-## 0.6.5
+## 0.7.0
 
-`cdx-manager` 0.6.5 is release-ready from the Logics gate perspective.
+`cdx-manager` 0.7.0 is release-ready from the Logics gate perspective.
 
 ### Highlights
 
@@ -11,6 +11,7 @@
 - Normalized provider-neutral `--reasoning-effort` handling while keeping `--power` as a compatibility alias.
 - Added transcript/stdout/stderr artifact paths, nullable usage fields, timeout handling, and stable cdx/provider error source reporting.
 - Preserved the existing multi-session CLI behavior, auth isolation, status overview, installers, and packaging surfaces.
+- Updated package metadata, CLI version output, README badge, pinned installer example, and curated release changelog for `0.7.0`.
 
 ### Validation
 
