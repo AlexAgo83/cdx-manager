@@ -3450,7 +3450,15 @@ class CliPythonTests(unittest.TestCase):
 
         def spawn(argv, **kwargs):
             calls.append({"argv": argv, "kwargs": kwargs})
-            kwargs["stdout"].write("provider stdout\n")
+            kwargs["stdout"].write(json.dumps({
+                "type": "usage",
+                "usage": {
+                    "input_tokens": 11,
+                    "output_tokens": 5,
+                    "output_tokens_details": {"reasoning_tokens": 2},
+                    "total_tokens": 16,
+                },
+            }) + "\n")
             kwargs["stderr"].write("provider stderr\n")
             return _HeadlessChild(0)
 
@@ -3470,14 +3478,23 @@ class CliPythonTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["session"], "work")
         self.assertEqual(payload["provider"], "codex")
+        self.assertEqual(payload["launcher"], "cdx")
         self.assertEqual(payload["model"], "gpt-5.3-codex")
         self.assertEqual(payload["reasoning_effort"], "low")
         self.assertEqual(payload["exit_code"], 0)
+        self.assertEqual(payload["usage"], {
+            "input_tokens": 11,
+            "output_tokens": 5,
+            "reasoning_tokens": 2,
+            "total_tokens": 16,
+        })
         self.assertTrue(os.path.isabs(payload["transcript_path"]))
         with open(payload["stdout_path"], encoding="utf-8") as handle:
-            self.assertIn("provider stdout", handle.read())
+            self.assertIn("input_tokens", handle.read())
         with open(payload["stderr_path"], encoding="utf-8") as handle:
             self.assertIn("provider stderr", handle.read())
+        self.assertEqual(calls[0]["argv"][:2], ["codex", "exec"])
+        self.assertIn("--json", calls[0]["argv"])
         self.assertIn("Do it", calls[0]["argv"])
 
     def test_run_provider_failure_uses_provider_error_source(self):
@@ -3638,6 +3655,7 @@ class CliPythonTests(unittest.TestCase):
         payload = json.loads(io_obj["stdout"].getvalue())
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["session"], "auto")
+        self.assertEqual(payload["launcher"], "cdx")
         self.assertEqual(payload["usage"], {
             "input_tokens": None,
             "output_tokens": None,

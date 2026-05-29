@@ -1,10 +1,10 @@
 ## task_011_implement_provider_native_headless_cdx_run_launch_modes - Implement provider native headless cdx run launch modes
 > From version: 0.7.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 88
 > Confidence: 76
-> Progress: 0
+> Progress: 100
 > Complexity: High
 > Theme: Headless automation
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -38,24 +38,24 @@ stateDiagram-v2
 ```
 
 # Plan
-- [ ] 1. Inspect current Codex and Claude CLI options and capture minimal real fixture outputs for `codex exec --json` and `claude --print --output-format json` or `stream-json`.
-- [ ] 2. Design a provider-runtime branch for headless runs that is separate from interactive `cdx <session>` launch behavior.
-- [ ] 3. Implement Codex headless launch using `codex exec --json` or the current verified non-interactive equivalent, preserving `CODEX_HOME`, cwd, model, permission, and reasoning effort mapping.
-- [ ] 4. Implement Claude headless launch using `claude --print` with a verified JSON or stream-json output mode, preserving isolated auth home, model, permission, and effort mapping.
-- [ ] 5. Keep cdx stdout reserved for the final cdx JSON payload while provider stdout/stderr continue to write to artifact files.
-- [ ] 6. Preserve structured error handling for invalid cwd, provider start failure, provider non-zero exit, and timeout.
-- [ ] 7. Add tests for provider command construction, successful simulated runs, non-zero provider exit, timeout behavior, and artifact capture.
-- [ ] 8. Update linked Logics docs with final fixture evidence and any provider-mode constraints.
-- [ ] CHECKPOINT: leave the wave commit-ready and update linked Logics docs before continuing.
-- [ ] GATE: do not close a wave or step until the relevant automated tests and quality checks have been run successfully.
+- [x] 1. Inspect current Codex and Claude CLI options and capture minimal real fixture outputs for `codex exec --json` and `claude --print --output-format json` or `stream-json`.
+- [x] 2. Design a provider-runtime branch for headless runs that is separate from interactive `cdx <session>` launch behavior.
+- [x] 3. Implement Codex headless launch using `codex exec --json` or the current verified non-interactive equivalent, preserving `CODEX_HOME`, cwd, model, permission, and reasoning effort mapping.
+- [x] 4. Implement Claude headless launch using `claude --print` with a verified JSON or stream-json output mode, preserving isolated auth home, model, permission, and effort mapping.
+- [x] 5. Keep cdx stdout reserved for the final cdx JSON payload while provider stdout/stderr continue to write to artifact files.
+- [x] 6. Preserve structured error handling for invalid cwd, provider start failure, provider non-zero exit, and timeout.
+- [x] 7. Add tests for provider command construction, successful simulated runs, non-zero provider exit, timeout behavior, and artifact capture.
+- [x] 8. Update linked Logics docs with final fixture evidence and any provider-mode constraints.
+- [x] CHECKPOINT: leave the wave commit-ready and update linked Logics docs before continuing.
+- [x] GATE: do not close a wave or step until the relevant automated tests and quality checks have been run successfully.
 
 # Backlog
 - `item_011_use_provider_native_headless_launch_modes_for_cdx_run`
 
 # Definition of Done (DoD)
-- [ ] Code is implemented and reviewed.
-- [ ] Validation passes.
-- [ ] Linked docs are synchronized.
+- [x] Code is implemented and reviewed.
+- [x] Validation passes.
+- [x] Linked docs are synchronized.
 
 # Validation
 - `python -m py_compile bin/cdx src/*.py test/test_*_py.py`
@@ -74,7 +74,13 @@ stateDiagram-v2
 - AC7 -> Plan: command construction and artifact tests.
 
 # Report
-- Implementation complete.
+- Implemented a dedicated headless launch spec path in `src/provider_runtime.py`.
+- Codex headless runs now use `codex exec --json -C <cwd>` with isolated `CODEX_HOME`, model, sandbox, and reasoning effort mapping.
+- Claude headless runs now use `claude --print --output-format json` with isolated auth home, model, permission, and effort mapping.
+- Validation evidence:
+  - `python -m unittest discover -s test -p 'test_runtime_py.py'`
+  - `python -m unittest discover -s test -p 'test_cli_py.py' -k 'run_'`
+  - `npm run lint`
 
 # AI Context
 - Summary: Implement provider-native non-interactive launch modes for headless `cdx run --json` while preserving cdx artifact capture and final JSON output.

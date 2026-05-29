@@ -29,6 +29,12 @@ LAUNCH_PERMISSION_ARGS = {
         "full": ["-s", "danger-full-access", "-a", "never"],
     },
 }
+HEADLESS_CODEX_PERMISSION_ARGS = {
+    "review": ["-s", "read-only"],
+    "default": ["-s", "workspace-write"],
+    "auto": ["-s", "workspace-write"],
+    "full": ["--dangerously-bypass-approvals-and-sandbox"],
+}
 
 
 def _home_env_overrides(auth_home):
@@ -279,11 +285,7 @@ def _default_script_args(transcript_path, spec):
 
 
 def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None, capture_transcript=True):
-    if initial_prompt is not None:
-        if not isinstance(initial_prompt, str):
-            raise CdxError("initial_prompt must be a string.")
-        if len(initial_prompt) > 32768:
-            raise CdxError("initial_prompt exceeds maximum allowed length.")
+    _validate_initial_prompt(initial_prompt)
     cwd = cwd or os.getcwd()
     env_override = env_override or {}
     env = {**os.environ, **env_override}
@@ -347,6 +349,68 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     }, capture_transcript=capture_transcript, env=env)
 
 
+def _validate_initial_prompt(initial_prompt):
+    if initial_prompt is not None:
+        if not isinstance(initial_prompt, str):
+            raise CdxError("initial_prompt must be a string.")
+        if len(initial_prompt) > 32768:
+            raise CdxError("initial_prompt exceeds maximum allowed length.")
+
+
+def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_prompt=None):
+    _validate_initial_prompt(initial_prompt)
+    cwd = cwd or os.getcwd()
+    env = {**os.environ, **(env_override or {})}
+    launch = session.get("launch") or {}
+    power = _launch_power(session)
+    permission = launch.get("permission")
+    model = launch.get("model")
+
+    if session["provider"] == PROVIDER_CLAUDE:
+        args = ["--print", "--output-format", "json", "--name", session["name"]]
+        if model:
+            args += ["--model", model]
+        args += _launch_config_args(session)
+        if initial_prompt:
+            args.append(initial_prompt)
+        auth_home = _get_auth_home(session)
+        claude_env = _claude_env(env, auth_home)
+        oauth_token = _read_anthropic_oauth_token(auth_home)
+        if oauth_token:
+            claude_env["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token
+        return {
+            "command": "claude",
+            "args": args,
+            "options": {"cwd": cwd, "env": claude_env},
+            "label": "claude",
+        }
+
+    if session["provider"] == PROVIDER_CODEX:
+        args = ["exec", "--json", "-C", cwd]
+        if model:
+            args += ["-m", model]
+        if power:
+            args += ["-c", f'model_reasoning_effort="{power}"']
+        if permission:
+            args += HEADLESS_CODEX_PERMISSION_ARGS.get(permission, [])
+        if initial_prompt:
+            args.append(initial_prompt)
+        return {
+            "command": "codex",
+            "args": args,
+            "options": {"cwd": cwd, "env": {**env, "CODEX_HOME": _get_auth_home(session)}},
+            "label": "codex",
+        }
+
+    return _build_launch_spec(
+        session,
+        cwd=cwd,
+        env_override=env_override,
+        initial_prompt=initial_prompt,
+        capture_transcript=False,
+    )
+
+
 def _headless_artifact_paths(session, run_id=None):
     run_id = run_id or uuid.uuid4().hex
     log_dir = _get_launch_transcript_dir(session)
@@ -397,12 +461,11 @@ def _headless_run_info(paths, spec, start_time, returncode):
 def _run_headless_provider_command(session, cwd=None, env_override=None, initial_prompt=None,
                                    timeout_seconds=None, spawn=None, run_id=None):
     spawn = spawn or subprocess.Popen
-    spec = _build_launch_spec(
+    spec = _build_headless_launch_spec(
         session,
         cwd=cwd,
         env_override=env_override,
         initial_prompt=initial_prompt,
-        capture_transcript=False,
     )
     paths = _headless_artifact_paths(session, run_id=run_id)
     start_time = datetime.now(timezone.utc)

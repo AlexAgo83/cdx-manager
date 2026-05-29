@@ -1,10 +1,10 @@
 ## item_010_populate_cdx_run_usage_and_launcher_payload - Populate cdx run usage and launcher payload
 > From version: 0.7.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 92
 > Confidence: 82
-> Progress: 0
+> Progress: 100
 > Complexity: Medium
 > Theme: Headless automation
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -84,3 +84,4 @@ flowchart TD
 
 # Notes
 - This item may be implemented after `item_011` or in the same PR if the provider-native output shapes are covered by fixtures.
+- Implemented alongside `item_011_use_provider_native_headless_launch_modes_for_cdx_run`; usage extraction is limited to supported Codex/Claude JSON or JSONL shapes and returns nulls for unsupported or malformed artifacts.

@@ -14,6 +14,7 @@ from src import cli
 from src import codex_usage
 from src import notify
 from src import provider_runtime
+from src import run_usage
 from src.errors import CdxError
 from src.provider_runtime import _run_interactive_provider_command
 
@@ -668,6 +669,89 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertEqual(spec["args"][:3], ["-q", "-F", "-c"])
         self.assertIn("claude --name claude 'resume this'", spec["args"][3])
         self.assertTrue(spec["args"][4].endswith(".log"))
+
+    def test_build_headless_launch_spec_uses_codex_exec_json(self):
+        session = {
+            "name": "main",
+            "provider": "codex",
+            "authHome": "/tmp/codex-home",
+            "launch": {"model": "gpt-test", "power": "high", "permission": "auto"},
+        }
+
+        spec = provider_runtime._build_headless_launch_spec(session, cwd="/tmp/repo", initial_prompt="do it")
+
+        self.assertEqual(spec["command"], "codex")
+        self.assertEqual(spec["args"][:4], ["exec", "--json", "-C", "/tmp/repo"])
+        self.assertIn("-m", spec["args"])
+        self.assertIn("gpt-test", spec["args"])
+        self.assertIn('model_reasoning_effort="high"', spec["args"])
+        self.assertIn("-s", spec["args"])
+        self.assertIn("workspace-write", spec["args"])
+        self.assertIn("do it", spec["args"])
+        self.assertEqual(spec["options"]["env"]["CODEX_HOME"], "/tmp/codex-home")
+
+    def test_build_headless_launch_spec_uses_claude_print_json(self):
+        session = {
+            "name": "claude",
+            "provider": "claude",
+            "authHome": "/tmp/claude-home",
+            "launch": {"model": "sonnet", "power": "low", "permission": "review"},
+        }
+
+        spec = provider_runtime._build_headless_launch_spec(session, cwd="/tmp/repo", initial_prompt="do it")
+
+        self.assertEqual(spec["command"], "claude")
+        self.assertEqual(spec["args"][:3], ["--print", "--output-format", "json"])
+        self.assertIn("--model", spec["args"])
+        self.assertIn("sonnet", spec["args"])
+        self.assertIn("--permission-mode", spec["args"])
+        self.assertIn("plan", spec["args"])
+        self.assertIn("do it", spec["args"])
+        self.assertEqual(spec["options"]["cwd"], "/tmp/repo")
+        self.assertEqual(spec["options"]["env"]["HOME"], "/tmp/claude-home")
+
+    def test_run_usage_extracts_claude_json_usage(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-usage-") as temp_dir:
+            path = os.path.join(temp_dir, "stdout.log")
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump({
+                    "result": "done",
+                    "usage": {
+                        "input_tokens": 12,
+                        "cache_creation_input_tokens": 3,
+                        "cache_read_input_tokens": 5,
+                        "output_tokens": 7,
+                    },
+                }, handle)
+
+            self.assertEqual(run_usage.extract_run_usage("claude", path), {
+                "input_tokens": 20,
+                "output_tokens": 7,
+                "reasoning_tokens": None,
+                "total_tokens": 27,
+            })
+
+    def test_run_usage_extracts_latest_jsonl_usage(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-usage-") as temp_dir:
+            path = os.path.join(temp_dir, "stdout.log")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps({"type": "started"}) + "\n")
+                handle.write(json.dumps({
+                    "type": "usage",
+                    "usage": {
+                        "input_tokens": 10,
+                        "output_tokens": 4,
+                        "output_tokens_details": {"reasoning_tokens": 2},
+                        "total_tokens": 14,
+                    },
+                }) + "\n")
+
+            self.assertEqual(run_usage.extract_run_usage("codex", path), {
+                "input_tokens": 10,
+                "output_tokens": 4,
+                "reasoning_tokens": 2,
+                "total_tokens": 14,
+            })
 
 
 if __name__ == "__main__":

@@ -1,10 +1,10 @@
 ## item_011_use_provider_native_headless_launch_modes_for_cdx_run - Use provider native headless launch modes for cdx run
 > From version: 0.7.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90
 > Confidence: 78
-> Progress: 0
+> Progress: 100
 > Complexity: High
 > Theme: Headless automation
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -82,3 +82,4 @@ flowchart TD
   - Codex through current `cdx run` path failed with `stdin is not a terminal`.
   - Claude through current `cdx run` path returned plain text stdout only.
 - This item should be delivered before or alongside `item_010_populate_cdx_run_usage_and_launcher_payload`, because usage extraction depends on stable provider output.
+- Implemented by adding a dedicated headless launch builder that uses `codex exec --json` for Codex and `claude --print --output-format json` for Claude while preserving provider stream artifact capture.

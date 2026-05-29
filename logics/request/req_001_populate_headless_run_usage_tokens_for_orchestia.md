@@ -1,9 +1,9 @@
 ## req_001_populate_headless_run_usage_tokens_for_orchestia - Populate headless run usage tokens for Orchestia
-> From version: 0.7.0
+> From version: 0.7.1
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 92%
-> Confidence: 82%
+> Status: Done
+> Understanding: 100%
+> Confidence: 92%
 > Complexity: Medium
 > Theme: Headless automation
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
@@ -26,6 +26,7 @@
   - Codex launched through the current interactive command path failed in non-TTY mode with `stdin is not a terminal`;
   - Claude launched successfully, but stdout contained only the final text response, not JSONL usage metadata.
 - The installed provider CLIs expose more suitable non-interactive modes: `claude --print --output-format json|stream-json` and `codex exec --json`. Any implementation that promises token extraction should first decide whether `cdx run` should switch its headless provider launch path to those modes, or keep tokens null until verified provider output is available.
+- Implemented in this repository by switching Codex headless runs to `codex exec --json`, Claude headless runs to `claude --print --output-format json`, adding top-level `launcher: "cdx"`, and parsing known JSON/JSONL usage shapes from captured stdout artifacts.
 
 ```mermaid
 %% logics-kind: request
@@ -80,6 +81,14 @@ flowchart TD
 - `npm run lint`
 - `npm test`
 - `python3 -m logics_manager lint --require-status`
+
+# Report
+- Implemented provider-native headless launch modes for Codex and Claude without changing interactive launches.
+- Added conservative usage extraction from provider stdout artifacts and the additive `launcher: "cdx"` result field.
+- Validation evidence:
+  - `python -m unittest discover -s test -p 'test_runtime_py.py'`
+  - `python -m unittest discover -s test -p 'test_cli_py.py' -k 'run_'`
+  - `npm run lint`
 
 # Companion docs
 - Product brief(s): (none yet)

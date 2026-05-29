@@ -40,6 +40,7 @@ from .provider_runtime import (
 )
 from .repair import format_repair_report, repair_health
 from .backup_bundle import read_bundle_meta
+from .run_usage import empty_usage, extract_run_usage
 from .status_view import _format_status_detail, _format_status_rows
 from .update_check import LatestReleaseCheckError, fetch_latest_release, fetch_latest_release_or_raise, is_newer_version
 from .update_manager import build_update_plan, format_update_failure, run_update_plan
@@ -1201,15 +1202,6 @@ def _read_run_prompt(parsed):
         raise CdxError(f"Unable to read prompt file: {parsed['prompt_file']}") from error
 
 
-def _run_usage_payload():
-    return {
-        "input_tokens": None,
-        "output_tokens": None,
-        "reasoning_tokens": None,
-        "total_tokens": None,
-    }
-
-
 def _run_cdx_error_code(error):
     message = str(error)
     if message.startswith("Usage:"):
@@ -1233,10 +1225,16 @@ def _run_cdx_error_code(error):
 
 def _run_result_payload(ok, parsed, session, run_info=None, error=None, error_source=None, error_code=None):
     run_info = run_info or {}
+    usage = (
+        extract_run_usage(session.get("provider"), run_info.get("stdout_path"))
+        if ok and session else
+        empty_usage()
+    )
     return {
         "schema_version": API_SCHEMA_VERSION,
         "ok": bool(ok),
         "action": "run",
+        "launcher": "cdx",
         "session": session.get("name") if session else None,
         "provider": session.get("provider") if session else parsed.get("provider"),
         "model": parsed.get("model") or ((session.get("launch") or {}).get("model") if session else None),
@@ -1249,7 +1247,7 @@ def _run_result_payload(ok, parsed, session, run_info=None, error=None, error_so
         "transcript_path": run_info.get("transcript_path"),
         "stdout_path": run_info.get("stdout_path"),
         "stderr_path": run_info.get("stderr_path"),
-        "usage": _run_usage_payload(),
+        "usage": usage,
         "warnings": [],
         "error": None if ok else {
             "source": error_source or "cdx",
