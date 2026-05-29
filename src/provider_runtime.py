@@ -6,6 +6,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import uuid
 from datetime import datetime, timezone
 
 from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
@@ -277,7 +278,7 @@ def _default_script_args(transcript_path, spec):
     return ["-q", "-F", transcript_path, spec["command"]] + spec["args"]
 
 
-def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None):
+def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None, capture_transcript=True):
     if initial_prompt is not None:
         if not isinstance(initial_prompt, str):
             raise CdxError("initial_prompt must be a string.")
@@ -303,7 +304,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
                 "env": claude_env,
             },
             "label": "claude",
-        }, env=env)
+        }, capture_transcript=capture_transcript, env=env)
     if session["provider"] == PROVIDER_ANTIGRAVITY:
         args = _launch_config_args(session)
         if initial_prompt:
@@ -316,7 +317,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
                 "env": {**env, **_antigravity_env_overrides(_get_auth_home(session))},
             },
             "label": "antigravity",
-        }, env=env)
+        }, capture_transcript=capture_transcript, env=env)
     if session["provider"] == PROVIDER_OLLAMA:
         launch = session.get("launch") or {}
         model = launch.get("model") or session["name"]
@@ -332,7 +333,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
                 "env": ollama_env,
             },
             "label": "ollama",
-        }, env=env)
+        }, capture_transcript=capture_transcript, env=env)
     args = ["--no-alt-screen", "--cd", cwd] + _launch_config_args(session)
     if initial_prompt:
         args.append(initial_prompt)
@@ -343,7 +344,104 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
             "env": {**env, "CODEX_HOME": _get_auth_home(session)},
         },
         "label": "codex",
-    }, env=env)
+    }, capture_transcript=capture_transcript, env=env)
+
+
+def _headless_artifact_paths(session, run_id=None):
+    run_id = run_id or uuid.uuid4().hex
+    log_dir = _get_launch_transcript_dir(session)
+    os.makedirs(log_dir, exist_ok=True)
+    prefix = os.path.join(log_dir, f"cdx-run-{run_id}")
+    return {
+        "run_id": run_id,
+        "transcript_path": os.path.abspath(f"{prefix}.log"),
+        "stdout_path": os.path.abspath(f"{prefix}.stdout.log"),
+        "stderr_path": os.path.abspath(f"{prefix}.stderr.log"),
+    }
+
+
+def _combine_headless_transcript(paths):
+    transcript_path = paths["transcript_path"]
+    with open(transcript_path, "w", encoding="utf-8", errors="replace") as transcript:
+        for label, path_key in (("stdout", "stdout_path"), ("stderr", "stderr_path")):
+            path = paths.get(path_key)
+            if not path:
+                continue
+            transcript.write(f"--- {label} ---\n")
+            try:
+                with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                    transcript.write(handle.read())
+            except OSError:
+                pass
+            if not transcript.tell() or not str(transcript.tell()).endswith("\n"):
+                transcript.write("\n")
+
+
+def _run_headless_provider_command(session, cwd=None, env_override=None, initial_prompt=None,
+                                   timeout_seconds=None, spawn=None, run_id=None):
+    spawn = spawn or subprocess.Popen
+    spec = _build_launch_spec(
+        session,
+        cwd=cwd,
+        env_override=env_override,
+        initial_prompt=initial_prompt,
+        capture_transcript=False,
+    )
+    paths = _headless_artifact_paths(session, run_id=run_id)
+    start_time = datetime.now(timezone.utc)
+    command = spec["command"]
+    if spawn is subprocess.Popen:
+        command = _resolve_command(command, spec.get("options", {}).get("env"))
+
+    child = None
+    timed_out = False
+    with open(paths["stdout_path"], "w", encoding="utf-8", errors="replace") as stdout_file, \
+            open(paths["stderr_path"], "w", encoding="utf-8", errors="replace") as stderr_file:
+        child = spawn(
+            [command] + spec["args"],
+            stdout=stdout_file,
+            stderr=stderr_file,
+            **{k: v for k, v in spec.get("options", {}).items() if k not in ("stdio", "stdout", "stderr")},
+        )
+        try:
+            if timeout_seconds is None:
+                child.wait()
+            else:
+                child.wait(timeout=timeout_seconds)
+        except TypeError:
+            child.wait()
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            try:
+                child.terminate()
+                child.wait(timeout=5)
+            except Exception:
+                try:
+                    child.kill()
+                except Exception:
+                    pass
+                try:
+                    child.wait()
+                except Exception:
+                    pass
+
+    _combine_headless_transcript(paths)
+    end_time = datetime.now(timezone.utc)
+    returncode = getattr(child, "returncode", None) if child is not None else None
+    if timed_out and (returncode is None or returncode == 0):
+        returncode = 124
+    return {
+        **paths,
+        "started_at": start_time.isoformat().replace("+00:00", "Z"),
+        "ended_at": end_time.isoformat().replace("+00:00", "Z"),
+        "duration_ms": int((end_time - start_time).total_seconds() * 1000),
+        "command": spec.get("command"),
+        "args": list(spec.get("args") or []),
+        "label": spec.get("label"),
+        "pid": getattr(child, "pid", None),
+        "returncode": returncode,
+        "timed_out": timed_out,
+    }
 
 
 def _build_login_status_spec(session, env_override=None):

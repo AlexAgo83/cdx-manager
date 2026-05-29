@@ -35,6 +35,7 @@ from .provider_runtime import (
     _list_launch_transcript_paths,
     _normalize_reasoning_effort,
     _probe_provider_auth,
+    _run_headless_provider_command,
     _run_interactive_provider_command,
 )
 from .repair import format_repair_report, repair_health
@@ -59,6 +60,7 @@ CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
 LAST_USAGE = "Usage: cdx last [--json]"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort low|medium|high] [--min-power low|medium|high] [--require-ready] [--refresh] --json"
+RUN_USAGE = "Usage: cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--reasoning-effort low|medium|high] [--power low|medium|high] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] --json"
 API_SCHEMA_VERSION = 1
 HANDOFF_TRANSCRIPT_CHARS = 120000
 HANDOFF_NATIVE_TRANSCRIPT_CANDIDATES = 64
@@ -587,6 +589,74 @@ def _parse_select_args(args):
     }
 
 
+def _parse_timeout_seconds(value):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as error:
+        raise CdxError(RUN_USAGE) from error
+    if parsed <= 0:
+        raise CdxError(RUN_USAGE)
+    return parsed
+
+
+def _normalize_run_permission(value):
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    aliases = {
+        "workspace-write": "default",
+        "read-only": "review",
+        "danger-full-access": "full",
+    }
+    text = aliases.get(text, text)
+    if text not in ("review", "default", "auto", "full"):
+        raise CdxError(RUN_USAGE)
+    return text
+
+
+def _parse_run_args(args):
+    parsed = _parse_flag_args(args, {
+        "--cwd": {"key": "cwd", "type": "str", "default": None},
+        "--prompt-file": {"key": "prompt_file", "type": "str", "default": None},
+        "--prompt": {"key": "prompt", "type": "str", "default": None},
+        "--provider": {"key": "provider", "type": "str", "default": None, "transform": lambda value: _parse_provider_filter(value, RUN_USAGE)},
+        "--model": {"key": "model", "type": "str", "default": None},
+        "--reasoning-effort": {"key": "reasoning_effort", "type": "str", "default": None},
+        "--power": {"key": "power", "type": "str", "default": None},
+        "--permission": {"key": "permission", "type": "str", "default": None, "transform": _normalize_run_permission},
+        "--timeout-seconds": {"key": "timeout_seconds", "type": "str", "default": None, "transform": _parse_timeout_seconds},
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, RUN_USAGE, positionals_key="names", max_positionals=1)
+    if not parsed["json"]:
+        raise CdxError(RUN_USAGE)
+    name = parsed["names"][0] if parsed["names"] else None
+    if name and parsed["provider"]:
+        raise CdxError(RUN_USAGE)
+    if not name and not parsed["provider"]:
+        raise CdxError(RUN_USAGE)
+    if not parsed["cwd"]:
+        raise CdxError(RUN_USAGE)
+    if bool(parsed["prompt_file"]) == bool(parsed["prompt"]):
+        raise CdxError(RUN_USAGE)
+    effort = _normalize_reasoning_effort(
+        reasoning_effort=parsed["reasoning_effort"],
+        power=parsed["power"],
+        usage=RUN_USAGE,
+    )
+    return {
+        "name": name,
+        "provider": parsed["provider"],
+        "cwd": parsed["cwd"],
+        "prompt_file": parsed["prompt_file"],
+        "prompt": parsed["prompt"],
+        "model": parsed["model"],
+        "permission": parsed["permission"],
+        "timeout_seconds": parsed["timeout_seconds"],
+        "reasoning_effort": effort.get("reasoning_effort"),
+        "power": effort.get("power"),
+    }
+
+
 def _parse_positive_int(value):
     try:
         parsed = int(value)
@@ -1107,6 +1177,155 @@ def handle_select(rest, ctx):
         auth_status=row.get("auth_status"),
     ))
     return 0
+
+
+def _read_run_prompt(parsed):
+    if parsed.get("prompt") is not None:
+        return parsed["prompt"]
+    try:
+        with open(parsed["prompt_file"], "r", encoding="utf-8") as handle:
+            return handle.read()
+    except OSError as error:
+        raise CdxError(f"Unable to read prompt file: {parsed['prompt_file']}") from error
+
+
+def _run_usage_payload():
+    return {
+        "input_tokens": None,
+        "output_tokens": None,
+        "reasoning_tokens": None,
+        "total_tokens": None,
+    }
+
+
+def _run_result_payload(ok, parsed, session, run_info=None, error=None, error_source=None, error_code=None):
+    run_info = run_info or {}
+    return {
+        "schema_version": API_SCHEMA_VERSION,
+        "ok": bool(ok),
+        "action": "run",
+        "session": session.get("name") if session else None,
+        "provider": session.get("provider") if session else parsed.get("provider"),
+        "model": parsed.get("model") or ((session.get("launch") or {}).get("model") if session else None),
+        "reasoning_effort": parsed.get("reasoning_effort") or ((session.get("launch") or {}).get("reasoning_effort") if session else None),
+        "power": parsed.get("power") or ((session.get("launch") or {}).get("power") if session else None),
+        "cwd": os.path.abspath(parsed.get("cwd") or os.getcwd()),
+        "run_id": run_info.get("run_id"),
+        "exit_code": run_info.get("returncode"),
+        "duration_seconds": (run_info.get("duration_ms") / 1000.0) if run_info.get("duration_ms") is not None else None,
+        "transcript_path": run_info.get("transcript_path"),
+        "stdout_path": run_info.get("stdout_path"),
+        "stderr_path": run_info.get("stderr_path"),
+        "usage": _run_usage_payload(),
+        "warnings": [],
+        "error": None if ok else {
+            "source": error_source or "cdx",
+            "code": error_code or "cdx_error",
+            "message": str(error) if error else "Run failed.",
+            "provider_code": run_info.get("returncode") if error_source == "provider" else None,
+        },
+    }
+
+
+def handle_run(rest, ctx):
+    try:
+        parsed = _parse_run_args(rest)
+        session = None
+        if parsed["name"]:
+            session = ctx["service"]["get_session"](parsed["name"])
+            if not session:
+                raise CdxError(f"Unknown session: {parsed['name']}")
+        else:
+            selected = _select_headless_session(
+                ctx,
+                parsed["provider"],
+                min_reasoning_effort=parsed["reasoning_effort"],
+                require_ready=True,
+                force_refresh=False,
+            )
+            if not selected:
+                _write_json(ctx, _json_failure(
+                    "run",
+                    "no_suitable_session",
+                    "No suitable session found.",
+                    provider=parsed["provider"],
+                ))
+                return 1
+            session = selected["session"]
+
+        prompt = _read_run_prompt(parsed)
+        launch_updates = {}
+        if parsed.get("model"):
+            launch_updates["model"] = parsed["model"]
+        if parsed.get("permission"):
+            launch_updates["permission"] = parsed["permission"]
+        if parsed.get("reasoning_effort"):
+            launch_updates["reasoning_effort"] = parsed["reasoning_effort"]
+            launch_updates["power"] = parsed["reasoning_effort"]
+        run_session = {
+            **session,
+            "launch": {
+                **(session.get("launch") or {}),
+                **launch_updates,
+            },
+        }
+        _ensure_session_authentication(
+            run_session,
+            ctx["service"],
+            spawn=ctx.get("spawn"),
+            spawn_sync=ctx.get("spawn_sync"),
+            env_override=ctx.get("env"),
+            stdin_is_tty=False,
+            behavior="launch",
+            signal_emitter=ctx.get("signal_emitter"),
+        )
+        run_info = _run_headless_provider_command(
+            run_session,
+            cwd=os.path.abspath(parsed["cwd"]),
+            env_override=ctx.get("env"),
+            initial_prompt=prompt,
+            timeout_seconds=parsed.get("timeout_seconds"),
+            spawn=ctx.get("spawn_headless") or ctx.get("spawn"),
+        )
+        ok = run_info.get("returncode") == 0
+        if ok:
+            ctx["service"]["record_launch_history"](session["name"], {
+                "status": "success",
+                "cwd": os.path.abspath(parsed["cwd"]),
+                "exit_code": 0,
+                **run_info,
+            })
+            _write_json(ctx, _run_result_payload(True, parsed, run_session, run_info=run_info))
+            return 0
+        message = "Provider process timed out." if run_info.get("timed_out") else "Provider process exited with a non-zero status."
+        error = CdxError(message, run_info.get("returncode") or 1)
+        ctx["service"]["record_launch_history"](session["name"], {
+            "status": "failed",
+            "cwd": os.path.abspath(parsed["cwd"]),
+            "error": str(error),
+            "exit_code": error.exit_code,
+            **run_info,
+        })
+        _write_json(ctx, _run_result_payload(
+            False,
+            parsed,
+            run_session,
+            run_info=run_info,
+            error=error,
+            error_source="provider",
+            error_code="provider_timeout" if run_info.get("timed_out") else "provider_failed",
+        ))
+        return error.exit_code or 1
+    except CdxError as error:
+        _write_json(ctx, _run_result_payload(
+            False,
+            locals().get("parsed", {}) or {},
+            locals().get("session"),
+            error=error,
+            error_source="cdx",
+            error_code="invalid_request" if str(error).startswith("Usage:") else "cdx_error",
+        ))
+        return error.exit_code
 
 
 def _format_launch_config(session):

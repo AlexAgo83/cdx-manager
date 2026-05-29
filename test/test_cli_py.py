@@ -72,6 +72,21 @@ class _Child:
         self.returncode = -int(sig)
 
 
+class _HeadlessChild:
+    def __init__(self, returncode=0):
+        self.returncode = returncode
+        self.pid = 4321
+
+    def wait(self, timeout=None):
+        return self.returncode
+
+    def terminate(self):
+        self.returncode = 124
+
+    def kill(self):
+        self.returncode = 124
+
+
 class _AuthHarness:
     def __init__(self, initial_auth=None, claude_login_authenticates=True, claude_setup_token_text=None):
         self.calls = []
@@ -3336,6 +3351,73 @@ class CliPythonTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["error"]["source"], "cdx")
         self.assertEqual(payload["error"]["code"], "no_suitable_session")
+
+    def test_run_explicit_session_returns_json_and_captures_provider_output(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        session = service["create_session"]("work", "codex")
+        os.makedirs(session["authHome"], exist_ok=True)
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "token"}}, handle)
+        prompt_path = os.path.join(target_dir, "prompt.md")
+        with open(prompt_path, "w", encoding="utf-8") as handle:
+            handle.write("Do it")
+        calls = []
+
+        def spawn(argv, **kwargs):
+            calls.append({"argv": argv, "kwargs": kwargs})
+            kwargs["stdout"].write("provider stdout\n")
+            kwargs["stderr"].write("provider stderr\n")
+            return _HeadlessChild(0)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work",
+            "--cwd", target_dir,
+            "--prompt-file", prompt_path,
+            "--model", "gpt-5.3-codex",
+            "--reasoning-effort", "low",
+            "--permission", "workspace-write",
+            "--timeout-seconds", "30",
+            "--json",
+        ], {**io_obj, "service": service, "spawn_headless": spawn}), 0)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["session"], "work")
+        self.assertEqual(payload["provider"], "codex")
+        self.assertEqual(payload["model"], "gpt-5.3-codex")
+        self.assertEqual(payload["reasoning_effort"], "low")
+        self.assertEqual(payload["exit_code"], 0)
+        self.assertTrue(os.path.isabs(payload["transcript_path"]))
+        with open(payload["stdout_path"], encoding="utf-8") as handle:
+            self.assertIn("provider stdout", handle.read())
+        with open(payload["stderr_path"], encoding="utf-8") as handle:
+            self.assertIn("provider stderr", handle.read())
+        self.assertIn("Do it", calls[0]["argv"])
+
+    def test_run_provider_failure_uses_provider_error_source(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        session = service["create_session"]("work", "codex")
+        os.makedirs(session["authHome"], exist_ok=True)
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "token"}}, handle)
+
+        def spawn(_argv, **kwargs):
+            kwargs["stderr"].write("failed\n")
+            return _HeadlessChild(7)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json"
+        ], {**io_obj, "service": service, "spawn_headless": spawn}), 7)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["source"], "provider")
+        self.assertEqual(payload["error"]["code"], "provider_failed")
+        self.assertEqual(payload["exit_code"], 7)
 
     def test_notify_next_ready_ignores_disabled_sessions(self):
         temp_dir = self.make_temp_dir()

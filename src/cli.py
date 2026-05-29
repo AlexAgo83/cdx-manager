@@ -28,6 +28,7 @@ from .cli_commands import (
     handle_remove,
     handle_repair,
     handle_rename,
+    handle_run,
     handle_select,
     handle_status,
     handle_set,
@@ -74,6 +75,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx status --small|-s [--refresh]', '36', use_color)}",
         f"  {_style('cdx status <name> [--json] [--refresh]', '36', use_color)}",
         f"  {_style('cdx select --provider PROVIDER [--min-reasoning-effort low|medium|high] [--require-ready] --json', '36', use_color)}",
+        f"  {_style('cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--reasoning-effort low|medium|high] [--permission MODE] [--timeout-seconds N] --json', '36', use_color)}",
         f"  {_style('cdx context show|path|init|edit|clear|set [text...] [--json]', '36', use_color)}",
         f"  {_style('cdx config <name> [--json]', '36', use_color)}",
         f"  {_style('cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]', '36', use_color)}",
@@ -230,12 +232,13 @@ def main(argv, options=None):
         "service": service,
         "signal_emitter": signal_emitter,
         "spawn": spawn,
+        "spawn_headless": options.get("spawn_headless"),
         "spawn_sync": spawn_sync,
         "stdin_is_tty": stdin_is_tty,
         "version": VERSION,
         "cwd": options.get("cwd") or os.getcwd(),
         "update_notice": _get_update_notice(service, env, options) if command not in (
-            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "context", "config", "set", "unset", "power", "perm", "fast", "model", "history", "handoff", "login", "logout", "disable", "enable", "export", "import", "select", "help", "version"
+            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "context", "config", "set", "unset", "power", "perm", "fast", "model", "history", "handoff", "login", "logout", "disable", "enable", "export", "import", "select", "run", "help", "version"
         ) else None,
         "use_color": use_color,
     }
@@ -313,6 +316,9 @@ def main(argv, options=None):
 
     if command == "select":
         return handle_select(rest, ctx)
+
+    if command == "run":
+        return handle_run(rest, ctx)
 
     if command == "login":
         return handle_login(rest, ctx)
