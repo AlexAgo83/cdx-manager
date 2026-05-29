@@ -87,6 +87,13 @@ class _HeadlessChild:
         self.returncode = 124
 
 
+class _TimeoutChild(_HeadlessChild):
+    def wait(self, timeout=None):
+        if timeout is not None and self.returncode == 0:
+            raise subprocess.TimeoutExpired("codex", timeout)
+        return self.returncode
+
+
 class _AuthHarness:
     def __init__(self, initial_auth=None, claude_login_authenticates=True, claude_setup_token_text=None):
         self.calls = []
@@ -3418,6 +3425,57 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["error"]["source"], "provider")
         self.assertEqual(payload["error"]["code"], "provider_failed")
         self.assertEqual(payload["exit_code"], 7)
+
+    def test_run_auto_selects_session_from_provider(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        session = service["create_session"]("auto", "codex")
+        os.makedirs(session["authHome"], exist_ok=True)
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "token"}}, handle)
+        service["update_auth_state"]("auto", lambda auth: {**auth, "status": "authenticated"})
+        service["record_status"]("auto", {"remaining_5h_pct": 75, "remaining_week_pct": 75})
+
+        def spawn(_argv, **kwargs):
+            kwargs["stdout"].write("ok\n")
+            return _HeadlessChild(0)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "--provider", "codex", "--cwd", target_dir, "--prompt", "Do it", "--json"
+        ], {**io_obj, "service": service, "spawn_headless": spawn}), 0)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["session"], "auto")
+        self.assertEqual(payload["usage"], {
+            "input_tokens": None,
+            "output_tokens": None,
+            "reasoning_tokens": None,
+            "total_tokens": None,
+        })
+
+    def test_run_timeout_uses_provider_timeout_error(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        session = service["create_session"]("work", "codex")
+        os.makedirs(session["authHome"], exist_ok=True)
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "token"}}, handle)
+
+        def spawn(_argv, **_kwargs):
+            return _TimeoutChild(0)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work", "--cwd", target_dir, "--prompt", "Slow", "--timeout-seconds", "0.01", "--json"
+        ], {**io_obj, "service": service, "spawn_headless": spawn}), 124)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["source"], "provider")
+        self.assertEqual(payload["error"]["code"], "provider_timeout")
+        self.assertEqual(payload["exit_code"], 124)
 
     def test_notify_next_ready_ignores_disabled_sessions(self):
         temp_dir = self.make_temp_dir()

@@ -370,10 +370,11 @@ def _combine_headless_transcript(paths):
             transcript.write(f"--- {label} ---\n")
             try:
                 with open(path, "r", encoding="utf-8", errors="replace") as handle:
-                    transcript.write(handle.read())
+                    content = handle.read()
             except OSError:
-                pass
-            if not transcript.tell() or not str(transcript.tell()).endswith("\n"):
+                content = ""
+            transcript.write(content)
+            if content and not content.endswith("\n"):
                 transcript.write("\n")
 
 
