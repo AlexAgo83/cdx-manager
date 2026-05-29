@@ -8,6 +8,7 @@
 > Complexity: Medium
 > Theme: CLI
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Maintenance edit: Added release-gate rollback coverage without changing task scope or completion status.
 
 # Context
 - Derived from backlog item `item_003_command_ergonomics_validation_and_safety`.
@@ -77,6 +78,12 @@ stateDiagram-v2
 - Keywords: help, usage, validation, safety, delete, version, error handling, alias flags
 - Use when: Use when shaping the user-facing command experience.
 - Skip when: Skip when the change is only about storage or provider routing.
+
+# Risks & rollback
+- Risk: CLI validation or safer removal prompts can block existing user workflows if the command parser becomes too strict.
+- Mitigation: Keep backward-compatible aliases such as `-h`, preserve readable usage hints, and cover duplicate/unknown/invalid command paths in CLI tests.
+- Rollback: Revert the command parser/help and removal-safety changes for this slice, then rerun `npm test`, `npm run lint`, and the focused CLI validation tests before release.
+
 # Validation
 - Run the relevant automated tests for the changed surface before closing the current wave or step.
 - Run the relevant lint or quality checks before closing the current wave or step.

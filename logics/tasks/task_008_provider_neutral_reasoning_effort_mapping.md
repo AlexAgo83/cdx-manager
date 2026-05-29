@@ -2,9 +2,9 @@
 > From version: 0.6.5
 > Schema version: 1.0
 > Status: Done
-> Understanding: 90
-> Confidence: 82
-> Progress: 100
+> Understanding: 90%
+> Confidence: 82%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Integration
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -79,6 +79,11 @@ stateDiagram-v2
 - Keywords: reasoning-effort, power, alias, Codex, model_reasoning_effort, provider-neutral
 - Use when: Implementing or testing provider effort option handling.
 - Skip when: Work is only about selection ranking or artifact output.
+
+# Risks & rollback
+- Risk: Effort normalization can send the wrong provider launch option or accept conflicting public aliases.
+- Mitigation: Normalize `--reasoning-effort` and `--power` centrally, reject conflicts, and test preferred, alias, invalid, and mapped Codex launch values.
+- Rollback: Revert the normalization helper and require the previous provider-specific option path until mappings are corrected.
 
 # Definition of Done (DoD)
 - [x] Scope implemented and acceptance criteria covered.

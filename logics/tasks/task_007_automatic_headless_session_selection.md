@@ -2,9 +2,9 @@
 > From version: 0.6.5
 > Schema version: 1.0
 > Status: Done
-> Understanding: 88
-> Confidence: 80
-> Progress: 100
+> Understanding: 88%
+> Confidence: 80%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Integration
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -80,6 +80,11 @@ stateDiagram-v2
 - Keywords: cdx select, provider, readiness, quota, cooldown, ranking, min-reasoning-effort, Orchestia
 - Use when: Implementing account/session selection.
 - Skip when: Work is only about executing provider processes or artifact capture.
+
+# Risks & rollback
+- Risk: Automatic selection can choose an unavailable or lower-priority account if readiness, cooldown, or quota signals are misread.
+- Mitigation: Keep ranking deterministic, expose selection reasons in JSON, and test readiness exclusion, cooldown ranking, and tie-breaking.
+- Rollback: Revert selector reuse and require explicit `--session` for headless runs until selection policy is corrected.
 
 # Definition of Done (DoD)
 - [x] Scope implemented and acceptance criteria covered.

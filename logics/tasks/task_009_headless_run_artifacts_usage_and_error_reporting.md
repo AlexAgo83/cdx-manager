@@ -2,9 +2,9 @@
 > From version: 0.6.5
 > Schema version: 1.0
 > Status: Done
-> Understanding: 88
-> Confidence: 78
-> Progress: 100
+> Understanding: 88%
+> Confidence: 78%
+> Progress: 100%
 > Complexity: High
 > Theme: Integration
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -80,6 +80,11 @@ stateDiagram-v2
 - Keywords: transcript_path, stdout_path, stderr_path, usage, tokens, error.source, cdx error, provider error
 - Use when: Implementing diagnostics and artifact reporting for headless runs.
 - Skip when: Work is only about selector ranking or effort mapping.
+
+# Risks & rollback
+- Risk: Artifact capture can hide provider output, omit diagnostic paths, or report misleading token usage.
+- Mitigation: Return absolute artifact paths on success and failure, keep usage fields nullable when unknown, and test JSON-only stdout plus cdx/provider error paths.
+- Rollback: Revert artifact capture and usage-reporting additions while preserving the base `cdx run --json` envelope; consumers should treat artifact fields as unavailable during rollback.
 
 # Definition of Done (DoD)
 - [x] Scope implemented and acceptance criteria covered.

@@ -8,6 +8,7 @@
 > Complexity: High
 > Theme: Auth
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Maintenance edit: Added release-gate rollback coverage without changing task scope or completion status.
 
 # Context
 - Derived from backlog item `item_001_persistent_codex_session_storage_and_rehydration`.
@@ -74,6 +75,12 @@ stateDiagram-v2
 - Keywords: persistence, rehydration, login state, session recovery, Codex
 - Use when: Use when working on session persistence, reconnect avoidance, and recovery behavior.
 - Skip when: Skip when the change is only about command listing or provider selection.
+
+# Risks & rollback
+- Risk: Persistence or rehydration changes can bind a launch to stale or wrong session state.
+- Mitigation: Keep session state scoped by session name, report expired or missing state clearly, and validate wrong-account prevention through tests.
+- Rollback: Revert the persistence/rehydration implementation for this slice and restore the previous manual-auth behavior; affected users can remove the session directory under `~/.cdx/profiles/<name>/` and recreate the session.
+
 # Validation
 - Run the relevant automated tests for the changed surface before closing the current wave or step.
 - Run the relevant lint or quality checks before closing the current wave or step.

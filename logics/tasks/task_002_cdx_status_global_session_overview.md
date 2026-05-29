@@ -8,6 +8,7 @@
 > Complexity: Medium
 > Theme: CLI
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Maintenance edit: Added release-gate rollback coverage without changing task scope or completion status.
 
 # Context
 - Derived from backlog item `item_004_cdx_status_global_session_overview`.
@@ -76,6 +77,12 @@ stateDiagram-v2
 - Keywords: cdx, status, global view, session comparison, detail view
 - Use when: Use when implementing the session-status overview command and its per-session detail output.
 - Skip when: Skip when the change is unrelated to status recall or session comparison.
+
+# Risks & rollback
+- Risk: Status parsing can surface stale or cross-session data if transcript/history sources are selected in the wrong order.
+- Mitigation: Prefer persisted per-session status and live provider data before transcript fallbacks, strip terminal control sequences, and test that one session cannot inherit another session's status.
+- Rollback: Revert the status resolver and rendering changes for this slice; users keep their session registry and can rerun provider `/status` manually until the fixed resolver is restored.
+
 # Validation
 - Run the relevant automated tests for the changed surface before closing the current wave or step.
 - Run the relevant lint or quality checks before closing the current wave or step.

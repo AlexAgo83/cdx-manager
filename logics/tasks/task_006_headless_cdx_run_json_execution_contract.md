@@ -2,9 +2,9 @@
 > From version: 0.6.5
 > Schema version: 1.0
 > Status: Done
-> Understanding: 88
-> Confidence: 78
-> Progress: 100
+> Understanding: 88%
+> Confidence: 78%
+> Progress: 100%
 > Complexity: High
 > Theme: Integration
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -82,6 +82,11 @@ stateDiagram-v2
 - Keywords: cdx run, headless, json, run_id, timeout, prompt-file, prompt, exit_code, Orchestia
 - Use when: Implementing the task execution command.
 - Skip when: Work is only about selection ranking, effort mapping, or artifact token details.
+
+# Risks & rollback
+- Risk: The headless JSON contract is an integration boundary, so schema drift or stdout noise can break Orchestia automation.
+- Mitigation: Keep stdout reserved for final JSON in `--json` mode, separate cdx/provider errors, and cover prompt, timeout, and envelope paths with focused tests.
+- Rollback: Revert the `cdx run` command wiring and JSON envelope changes for this slice; Orchestia should pause headless calls until the previous stable CLI is restored.
 
 # Definition of Done (DoD)
 - [x] Scope implemented and acceptance criteria covered.

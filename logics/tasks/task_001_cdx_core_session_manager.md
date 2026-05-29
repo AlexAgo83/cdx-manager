@@ -8,6 +8,7 @@
 > Complexity: Medium
 > Theme: CLI
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Maintenance edit: Added release-gate rollback coverage without changing task scope or completion status.
 
 # Context
 - Derived from backlog item `item_000_cdx_core_session_manager`.
@@ -78,6 +79,12 @@ stateDiagram-v2
 - Keywords: cdx, session, list, add, remove, launch, help, version, provider, Codex, Claude
 - Use when: Use when implementing the terminal-facing command surface for named Codex sessions.
 - Skip when: Skip when the work is only about auth storage, provider expansion, or CLI polish outside the core command flow.
+
+# Risks & rollback
+- Risk: Core session-manager changes affect the default `cdx` path, including add, remove, list, and launch behavior.
+- Mitigation: Keep registry writes versioned, make removals explicit, and validate the no-argument, add, launch, remove, help, and version paths with automated tests.
+- Rollback: Revert the core session-manager changes and keep the existing registry file intact; if a rollback encounters incompatible registry data, recreate the affected session with `cdx add`.
+
 # Validation
 - Run the relevant automated tests for the changed surface before closing the current wave or step.
 - Run the relevant lint or quality checks before closing the current wave or step.

@@ -8,6 +8,7 @@
 > Complexity: High
 > Theme: Auth
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Maintenance edit: Added release-gate rollback coverage without changing task scope or completion status.
 
 # Context
 - Derived from backlog item `item_005_cdx_session_auth_management`.
@@ -87,6 +88,11 @@ stateDiagram-v2
 - Keywords: auth, login, logout, onboarding, session isolation, Codex, Claude
 - Use when: Use when implementing per-session login bootstrap or explicit reauthentication commands.
 - Skip when: Skip when the work is only about listing sessions or status extraction.
+
+# Risks & rollback
+- Risk: Auth lifecycle changes can delete or reuse credentials for the wrong named session.
+- Mitigation: Scope login/logout to one session home, preserve provider assignment, and keep non-interactive auth failures explicit instead of silently launching.
+- Rollback: Revert the auth-management command changes; if needed, recreate only the affected session profile under `~/.cdx/profiles/<name>/` and rerun `cdx login <name>`.
 
 # Validation
 - Run the relevant automated tests for the changed surface before closing the current wave or step.

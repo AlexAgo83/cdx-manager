@@ -8,6 +8,7 @@
 > Complexity: Medium
 > Theme: General
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Maintenance edit: Added release-gate rollback coverage without changing task scope or completion status.
 
 # Context
 - Orchestrate the execution of the full `cdx` delivery plan in locked waves.
@@ -104,6 +105,12 @@ stateDiagram-v2
 - Keywords: cdx, implementation, execution, waves, validation, checkpoints
 - Use when: Use when coordinating the delivery order and checkpoints for the cdx rollout.
 - Skip when: Skip when the work belongs to a single feature slice rather than the delivery plan.
+
+# Risks & rollback
+- Risk: The execution plan coordinates multiple risky slices, so a partial rollback can leave docs and implementation checkpoints out of sync.
+- Mitigation: Keep each wave independently validated, record wave-level completion evidence, and update linked Logics docs as each wave closes.
+- Rollback: Roll back by wave in reverse order: status recall, multi-provider routing, command ergonomics, then persistence/core session behavior. Re-run the validation suite after each reverted wave.
+
 # Validation
 - Confirm each wave leaves the repository in a commit-ready state before the next wave starts.
 - Run the relevant automated tests and lint/quality checks for each wave before closing it.

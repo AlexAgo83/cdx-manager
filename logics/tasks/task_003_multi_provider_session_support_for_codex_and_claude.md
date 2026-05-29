@@ -8,6 +8,7 @@
 > Complexity: High
 > Theme: CLI
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Maintenance edit: Added release-gate rollback coverage without changing task scope or completion status.
 
 # Context
 - Derived from backlog item `item_002_multi_provider_session_support_for_codex_and_claude`.
@@ -75,6 +76,12 @@ stateDiagram-v2
 - Keywords: provider, Codex, Claude, session, routing, list output
 - Use when: Use when implementing provider-aware session creation, launch, or display.
 - Skip when: Skip when the change only concerns persistence or command ergonomics.
+
+# Risks & rollback
+- Risk: Provider routing mistakes can launch a session with the wrong home directory or authentication scope.
+- Mitigation: Persist the provider per session, validate unsupported providers at command boundaries, and test Codex and Claude launch/auth environment isolation.
+- Rollback: Revert the provider-routing changes and normalize affected registry entries back to Codex-only sessions before launch.
+
 # Validation
 - Run the relevant automated tests for the changed surface before closing the current wave or step.
 - Run the relevant lint or quality checks before closing the current wave or step.
