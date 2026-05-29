@@ -3365,6 +3365,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["session"], "full")
         self.assertEqual(payload["provider"], "codex")
+        self.assertEqual(payload["reason"], "highest availability suitable session")
         self.assertEqual(payload["selection_policy"], "ready_then_cooldown_then_health_then_priority_then_name")
 
     def test_select_reports_no_suitable_session(self):

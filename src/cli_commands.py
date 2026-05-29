@@ -1175,7 +1175,7 @@ def handle_select(rest, ctx):
         return 1
     session = selected["session"]
     row = selected.get("row") or {}
-    reason = "lowest available suitable session"
+    reason = "highest availability suitable session"
     _write_json(ctx, _json_success(
         "select",
         f"Selected session {session['name']}",
