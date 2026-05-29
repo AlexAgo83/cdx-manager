@@ -54,22 +54,18 @@ Use the following indicators in architecture docs:
 
 ## Automation
 
-This repository uses a reusable Logics skills kit (usually imported as a submodule under `logics/skills/`).
-Canonical examples use `python ...`; if your environment only exposes `python3` or `py -3`, use that equivalent launcher instead.
+This repository keeps Logics workflow documents in `logics/` and uses the external `logics-manager` CLI for automation.
+Do not vendor the Logics kit in this repository; `logics/skills/` should not be present.
 
-- Create/promote request/backlog/task docs: `python logics/skills/logics.py flow ...`
-- Lint Logics docs: `python logics/skills/logics.py lint --require-status`
-- Bootstrap folders (this script): `python logics/skills/logics.py bootstrap`
+- Create/promote request/backlog/task docs: `logics-manager flow ...`
+- Lint Logics docs: `logics-manager lint --require-status`
+- Bootstrap/check folders: `logics-manager bootstrap`
+- If the executable is not on `PATH`, use `python3 -m logics_manager ...`.
 
 ## MCP
 
-Available MCP skills include:
-
-- Chrome DevTools: `logics/skills/logics-mcp-chrome-devtools/SKILL.md`
-- Terminal: `logics/skills/logics-mcp-terminal/SKILL.md`
-- Figma: `logics/skills/logics-mcp-figma/SKILL.md`
-- Linear: `logics/skills/logics-mcp-linear/SKILL.md`
-- Notion: `logics/skills/logics-mcp-notion/SKILL.md`
+Logics MCP tooling is provided by the installed Logics manager package, not by repo-local files.
+Use `logics-manager mcp tools` to inspect available tools.
 
 ## Validation
 
