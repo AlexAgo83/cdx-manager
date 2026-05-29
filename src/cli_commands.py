@@ -1204,6 +1204,8 @@ def _run_cdx_error_code(error):
         return "invalid_request"
     if message.startswith("Session is disabled:"):
         return "session_disabled"
+    if "CLI not found on PATH" in message:
+        return "provider_cli_not_found"
     return "cdx_error"
 
 
@@ -1328,10 +1330,12 @@ def handle_run(rest, ctx):
         ))
         return error.exit_code or 1
     except CdxError as error:
+        run_info = getattr(error, "run_info", None)
         _write_json(ctx, _run_result_payload(
             False,
             locals().get("parsed", {}) or {},
             locals().get("session"),
+            run_info=run_info,
             error=error,
             error_source="cdx",
             error_code=_run_cdx_error_code(error),

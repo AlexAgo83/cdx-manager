@@ -398,12 +398,29 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
     timed_out = False
     with open(paths["stdout_path"], "w", encoding="utf-8", errors="replace") as stdout_file, \
             open(paths["stderr_path"], "w", encoding="utf-8", errors="replace") as stderr_file:
-        child = spawn(
-            [command] + spec["args"],
-            stdout=stdout_file,
-            stderr=stderr_file,
-            **{k: v for k, v in spec.get("options", {}).items() if k not in ("stdio", "stdout", "stderr")},
-        )
+        try:
+            child = spawn(
+                [command] + spec["args"],
+                stdout=stdout_file,
+                stderr=stderr_file,
+                **{k: v for k, v in spec.get("options", {}).items() if k not in ("stdio", "stdout", "stderr")},
+            )
+        except FileNotFoundError as error:
+            _combine_headless_transcript(paths)
+            cdx_error = CdxError(f"{spec['label']} CLI not found on PATH: {spec['command']}", 127)
+            cdx_error.run_info = {
+                **paths,
+                "started_at": start_time.isoformat().replace("+00:00", "Z"),
+                "ended_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "duration_ms": 0,
+                "command": spec.get("command"),
+                "args": list(spec.get("args") or []),
+                "label": spec.get("label"),
+                "pid": None,
+                "returncode": 127,
+                "timed_out": False,
+            }
+            raise cdx_error from error
         try:
             if timeout_seconds is None:
                 child.wait()
