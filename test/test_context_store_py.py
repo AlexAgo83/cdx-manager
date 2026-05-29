@@ -29,7 +29,7 @@ class ContextStorePythonTests(unittest.TestCase):
 
             written = write_context(temp_dir, "Goal: ship\n\n", cwd=workspace)
             self.assertEqual(read_context(temp_dir, cwd=workspace), "Goal: ship\n")
-            self.assertEqual(written["bytes"], len("Goal: ship\n".encode("utf-8")))
+            self.assertEqual(written["bytes"], os.path.getsize(get_context_path(temp_dir, cwd=workspace)))
 
             self.assertTrue(clear_context(temp_dir, cwd=workspace)["removed"])
             self.assertFalse(clear_context(temp_dir, cwd=workspace)["removed"])

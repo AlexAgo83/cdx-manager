@@ -522,7 +522,7 @@ class CliPythonTests(unittest.TestCase):
         temp_dir = self.make_temp_dir()
         bin_dir = os.path.join(temp_dir, "bin")
         os.makedirs(bin_dir, exist_ok=True)
-        cdx_path = os.path.join(bin_dir, "cdx")
+        cdx_path = os.path.join(bin_dir, "cdx.cmd" if os.name == "nt" else "cdx")
         with open(os.path.join(temp_dir, "package.json"), "w", encoding="utf-8") as handle:
             handle.write("{}\n")
         with open(cdx_path, "w", encoding="utf-8") as handle:

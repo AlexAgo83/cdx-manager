@@ -73,7 +73,7 @@ class UpdateManagerPythonTests(unittest.TestCase):
     def test_verify_updated_command_reports_path_version_mismatch(self):
         bin_dir = os.path.join(self.make_temp_dir(), "bin")
         os.makedirs(bin_dir, exist_ok=True)
-        cdx_path = os.path.join(bin_dir, "cdx")
+        cdx_path = os.path.join(bin_dir, "cdx.cmd" if os.name == "nt" else "cdx")
         with open(cdx_path, "w", encoding="utf-8") as handle:
             handle.write("#!/bin/sh\n")
         os.chmod(cdx_path, 0o755)
