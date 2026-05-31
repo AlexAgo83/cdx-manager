@@ -1392,6 +1392,18 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("SESSION", output)
         self.assertIn("failed", output)
 
+        service = create_session_service({"base_dir": temp_dir})
+        service["start_session_runtime"]("main", {"pid": os.getpid()})
+        color_io = {**self.make_io(), "stdout": _TtyStream()}
+        self.assertEqual(main(["history", "--limit", "1"], {
+            **color_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir, "CLICOLOR_FORCE": "1"},
+        }), 0)
+        color_output = color_io["stdout"].getvalue()
+        self.assertIn("\033[", color_output)
+        self.assertIn("main*", color_output)
+
         summary_io = self.make_io()
         self.assertEqual(main(["history", "--summary", "--json"], {
             **summary_io,
@@ -1403,15 +1415,26 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(summary_payload["summary"][0]["successes"], 1)
         self.assertEqual(summary_payload["summary"][0]["failures"], 1)
         self.assertGreaterEqual(summary_payload["summary"][0]["duration_ms"], 0)
+        self.assertEqual(summary_payload["summary"][0]["session_name"], "main")
 
         summary_text_io = self.make_io()
         self.assertEqual(main(["history", "--summary"], {
             **summary_text_io,
+            "service": service,
             "env": {"CDX_HOME": temp_dir},
         }), 0)
         summary_output = summary_text_io["stdout"].getvalue()
         self.assertIn("Assistant time:", summary_output)
         self.assertIn("LAUNCHES", summary_output)
+        self.assertIn("main*", summary_output)
+
+        summary_color_io = {**self.make_io(), "stdout": _TtyStream()}
+        self.assertEqual(main(["history", "--summary"], {
+            **summary_color_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir, "CLICOLOR_FORCE": "1"},
+        }), 0)
+        self.assertIn("\033[", summary_color_io["stdout"].getvalue())
 
     def test_last_launches_most_recent_existing_session(self):
         temp_dir = self.make_temp_dir()

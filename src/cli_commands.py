@@ -1682,49 +1682,57 @@ def _format_period_display(value):
     return parsed.strftime("%Y-%m-%d %H:%M")
 
 
-def _format_history_summary(entries, period=None, use_color=False):
+def _format_history_summary(entries, period=None, use_color=False, active_sessions=None):
     from .cli_render import _format_relative_age, _pad_table
 
+    active_sessions = active_sessions or set()
     summary = _summarize_history(entries)
     if not summary:
         return "No launch history for this period." if _has_history_period(period or {}) else "No launch history."
-    rows = [["SESSION", "PROV.", "LAUNCHES", "OK", "FAIL", "TIME", "LAST"]]
+    rows = [[_style(value, "1", use_color) for value in ["SESSION", "PROV.", "LAUNCHES", "OK", "FAIL", "TIME", "LAST"]]]
     for row in summary:
+        session_name = row["session_name"]
+        display_name = f"{session_name}*" if session_name in active_sessions else session_name
         rows.append([
-            row["session_name"],
-            row["provider"],
-            str(row["launches"]),
-            str(row["successes"]),
-            str(row["failures"]),
-            _format_duration_ms(row["duration_ms"]),
-            _format_relative_age(row.get("last_started_at")),
+            _style(display_name, "36", use_color),
+            _dim(row["provider"], use_color),
+            _style(str(row["launches"]), "1", use_color),
+            _style(str(row["successes"]), "32" if row["successes"] else "2", use_color),
+            _style(str(row["failures"]), "31" if row["failures"] else "2", use_color),
+            _style(_format_duration_ms(row["duration_ms"]), "33" if row["duration_ms"] else "2", use_color),
+            _dim(_format_relative_age(row.get("last_started_at")), use_color),
         ])
-    lines = ["Assistant time:"]
+    lines = [_style("Assistant time:", "1", use_color)]
     period_line = _format_history_period(period or {})
     if period_line:
-        lines.extend([period_line, ""])
+        lines.extend([_dim(period_line, use_color), ""])
     lines.append(_pad_table(rows))
     return "\n".join(lines)
 
 
-def _format_history(entries, use_color=False):
+def _format_history(entries, use_color=False, active_sessions=None):
     from .cli_render import _format_relative_age, _pad_table
 
+    active_sessions = active_sessions or set()
     if not entries:
         return "No launch history."
-    rows = [["SESSION", "PROV.", "RESULT", "DURATION", "WHEN", "TRANSCRIPT"]]
+    rows = [[_style(value, "1", use_color) for value in ["SESSION", "PROV.", "RESULT", "DURATION", "WHEN", "TRANSCRIPT"]]]
     for entry in entries:
         transcript_path = entry.get("transcript_path")
+        session_name = entry.get("session_name") or "-"
+        display_name = f"{session_name}*" if session_name in active_sessions else session_name
+        status = entry.get("status") or "-"
+        status_color = "32" if status == "success" else "31" if status == "failed" else "2"
         rows.append([
-            entry.get("session_name") or "-",
-            entry.get("provider") or "-",
-            entry.get("status") or "-",
-            _format_duration_ms(entry.get("duration_ms")),
-            _format_relative_age(entry.get("started_at")),
-            os.path.basename(transcript_path) if transcript_path else "-",
+            _style(display_name, "36", use_color),
+            _dim(entry.get("provider") or "-", use_color),
+            _style(status, status_color, use_color),
+            _style(_format_duration_ms(entry.get("duration_ms")), "33" if entry.get("duration_ms") else "2", use_color),
+            _dim(_format_relative_age(entry.get("started_at")), use_color),
+            _dim(os.path.basename(transcript_path) if transcript_path else "-", use_color),
         ])
     return "\n".join([
-        "Recent launches:",
+        _style("Recent launches:", "1", use_color),
         _pad_table(rows),
         "",
         _dim("Full transcript paths and cwd are available with --json.", use_color),
@@ -1783,6 +1791,14 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
         ),
     ])
     return "\n".join(lines)
+
+
+def _active_session_names(ctx):
+    return {
+        row["name"]
+        for row in ctx["service"]["format_list_rows"]()
+        if row.get("active")
+    }
 
 
 def _apply_launch_settings(parsed, ctx, action="set"):
@@ -1890,10 +1906,11 @@ def handle_history(rest, ctx):
             payload["summary"] = _summarize_history(entries)
         _write_json(ctx, _json_success("history", message, **payload))
         return 0
+    active_sessions = _active_session_names(ctx)
     if parsed["summary"]:
-        ctx["out"](f"{_format_history_summary(entries, period=parsed['period'], use_color=ctx['use_color'])}\n")
+        ctx["out"](f"{_format_history_summary(entries, period=parsed['period'], use_color=ctx['use_color'], active_sessions=active_sessions)}\n")
         return 0
-    ctx["out"](f"{_format_history(entries, use_color=ctx['use_color'])}\n")
+    ctx["out"](f"{_format_history(entries, use_color=ctx['use_color'], active_sessions=active_sessions)}\n")
     return 0
 
 
@@ -1919,11 +1936,7 @@ def handle_stats(rest, ctx):
             totals=totals,
         ))
         return 0
-    active_sessions = {
-        row["name"]
-        for row in ctx["service"]["format_list_rows"]()
-        if row.get("active")
-    }
+    active_sessions = _active_session_names(ctx)
     ctx["out"](f"{_format_stats(rows, totals, period=parsed['period'], use_color=ctx['use_color'], active_sessions=active_sessions)}\n")
     return 0
 
