@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from .cli_render import (
     _dim,
@@ -61,6 +62,17 @@ def _style_reset_time(value, use_color=False):
     return text
 
 
+def _format_credits(value, empty="n/a"):
+    if value is None:
+        return empty
+    try:
+        normalized = str(value).strip().replace(",", "")
+        rounded = Decimal(normalized).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return f"{rounded:.2f}"
+    except (InvalidOperation, ValueError):
+        return str(value)
+
+
 def _format_status_rows(rows, use_color=False, small=False):
     has_provider = len({r["provider"] for r in rows}) > 1 and not small
     if small:
@@ -114,7 +126,7 @@ def _format_status_rows(rows, use_color=False, small=False):
             base += usage_columns
         else:
             block = "-" if r.get("enabled", True) is False else _format_blocking_quota(r)
-            credits = str(r["credits"]) if r.get("credits") is not None else "-"
+            credits = _format_credits(r.get("credits"), empty="-")
             base += usage_columns[:3] + [
                 _style(block, "33" if block not in ("?", "-") else "2", use_color),
                 _style(credits, "33" if r.get("credits") is not None else "2", use_color),
@@ -332,7 +344,7 @@ def _format_status_detail(row, use_color=False):
         f"{_style('5h left:', '1', use_color)} {_style_pct(row.get('remaining_5h_pct'), use_color)}",
         f"{_style('Week left:', '1', use_color)} {_style_pct(row.get('remaining_week_pct'), use_color)}",
         f"{_style('Block:', '1', use_color)} {_style(_format_blocking_quota(row), '33', use_color)}",
-        f"{_style('Credits:', '1', use_color)} {_style(row['credits'] if row.get('credits') is not None else 'n/a', '33' if row.get('credits') is not None else '2', use_color)}",
+        f"{_style('Credits:', '1', use_color)} {_style(_format_credits(row.get('credits')), '33' if row.get('credits') is not None else '2', use_color)}",
         f"{_style('5h reset:', '1', use_color)} {_style_reset_time(row.get('reset_5h_at'), use_color)}",
         f"{_style('Week reset:', '1', use_color)} {_style_reset_time(row.get('reset_week_at'), use_color)}",
         f"{_style('Updated:', '1', use_color)} {_dim(_format_relative_age(row.get('updated_at')), use_color)}",

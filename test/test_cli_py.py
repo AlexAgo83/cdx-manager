@@ -303,6 +303,25 @@ class CliPythonTests(unittest.TestCase):
         self.assertTrue(lines[2].startswith("credit"))
         self.assertTrue(lines[3].startswith("blocked"))
 
+    def test_status_table_formats_credits_with_two_decimals(self):
+        output = _format_status_rows([
+            {
+                "session_name": "credit",
+                "provider": "codex",
+                "auth_status": "authenticated",
+                "available_pct": 95,
+                "remaining_5h_pct": 95,
+                "remaining_week_pct": 95,
+                "credits": "453.456",
+                "reset_5h_at": None,
+                "reset_week_at": None,
+                "updated_at": None,
+            },
+        ])
+
+        self.assertRegex(output.splitlines()[1], r"\b453\.46\b")
+        self.assertNotIn("453.456", output)
+
     def test_status_priority_skips_logged_out_sessions(self):
         output = _format_status_rows([
             {
