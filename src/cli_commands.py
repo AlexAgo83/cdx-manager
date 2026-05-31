@@ -180,14 +180,23 @@ def _make_export_progress(ctx):
 
 
 def _make_status_progress(ctx):
+    progress_state = {"checked": 0, "total": 0}
+
     def progress(event):
         kind = event.get("event")
         if kind == "status_started":
+            progress_state["checked"] = 0
+            progress_state["total"] = event.get("check_count", event.get("session_count", 0)) or 0
             message = f"Resolving status for {event.get('session_count', 0)} session(s)..."
             ctx["out"](f"{_info(message, ctx['use_color'])}\n")
         elif kind == "session_started":
             provider = event.get("provider") or "session"
             message = f"Checking {event.get('session_name')} ({provider})..."
+            ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
+        elif kind == "session_finished" and not event.get("cache_hit"):
+            progress_state["checked"] += 1
+            total = progress_state["total"] or progress_state["checked"]
+            message = f"Checked {event.get('session_name')} ({progress_state['checked']}/{total})."
             ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
         elif kind == "status_finished":
             message = f"Resolved {event.get('row_count', 0)} status row(s)."
@@ -196,17 +205,26 @@ def _make_status_progress(ctx):
 
 
 def _make_notify_progress(ctx):
+    progress_state = {"checked": 0, "total": 0}
+
     def progress(event):
         kind = event.get("event")
         if kind == "notify_check_started":
             target = event.get("session_name") or "next ready session"
             ctx["out"](f"{_info(f'Checking notification target: {target}...', ctx['use_color'])}\n")
         elif kind == "status_started":
+            progress_state["checked"] = 0
+            progress_state["total"] = event.get("check_count", event.get("session_count", 0)) or 0
             message = f"Loading status for {event.get('session_count', 0)} session(s)..."
             ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
         elif kind == "session_started":
             provider = event.get("provider") or "session"
             message = f"Checking {event.get('session_name')} ({provider})..."
+            ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
+        elif kind == "session_finished" and not event.get("cache_hit"):
+            progress_state["checked"] += 1
+            total = progress_state["total"] or progress_state["checked"]
+            message = f"Checked {event.get('session_name')} ({progress_state['checked']}/{total})."
             ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
         elif kind == "notify_waiting":
             message = f"{event.get('message')}; checking again in {event.get('poll')}s..."

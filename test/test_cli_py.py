@@ -2602,6 +2602,7 @@ class CliPythonTests(unittest.TestCase):
         output = status_io["stdout"].getvalue()
         self.assertIn("Resolving status for 1 session(s)...", output)
         self.assertIn("Checking main (codex)...", output)
+        self.assertIn("Checked main (1/1).", output)
         self.assertIn("Resolved 1 status row(s).", output)
         self.assertIn("Current: last launched main (just now).", output)
 
@@ -2719,6 +2720,7 @@ class CliPythonTests(unittest.TestCase):
             "env": {"CDX_HOME": temp_dir},
         }), 0)
         self.assertIn("Checking main (codex)...", first_io["stdout"].getvalue())
+        self.assertIn("Checked main (1/1).", first_io["stdout"].getvalue())
 
         second_io = self.make_io()
         self.assertEqual(main(["status"], {
@@ -2727,6 +2729,7 @@ class CliPythonTests(unittest.TestCase):
             "env": {"CDX_HOME": temp_dir},
         }), 0)
         self.assertNotIn("Checking main (codex)...", second_io["stdout"].getvalue())
+        self.assertNotIn("Checked main", second_io["stdout"].getvalue())
         self.assertEqual(len(calls), 1)
 
     def test_status_cached_claude_rows_do_not_show_checking_progress_within_refresh_ttl(self):

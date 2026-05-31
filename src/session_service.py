@@ -5,6 +5,7 @@ import base64
 import sys
 import tempfile
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from urllib.parse import quote
 
@@ -55,6 +56,7 @@ RESERVED_SESSION_NAMES = {
 }
 STATUS_CACHE_TTL_SECONDS = 60
 CLAUDE_STATUS_CACHE_TTL_SECONDS = 10 * 60
+MAX_STATUS_WORKERS = 8
 LAUNCH_POWER_VALUES = {"low", "medium", "high", "xhigh", "max"}
 LAUNCH_REASONING_EFFORT_VALUES = {"low", "medium", "high"}
 LAUNCH_PERMISSION_VALUES = {"review", "default", "auto", "full"}
@@ -939,14 +941,9 @@ def create_session_service(options=None):
 
     def get_status_rows(progress_callback=None, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS):
         sessions = list_sessions()
-        if progress_callback:
-            progress_callback({
-                "event": "status_started",
-                "session_count": len(sessions),
-            })
-        resolved = []
-        for s in sessions:
-            cache_hit = (
+
+        def _status_cache_hit(s):
+            return (
                 s.get("enabled", True) is False
                 or (
                     s.get("lastStatus")
@@ -954,28 +951,56 @@ def create_session_service(options=None):
                     and _is_status_cache_fresh(s, ttl_seconds=cache_ttl_seconds)
                 )
             )
-            if progress_callback and not cache_hit:
-                progress_callback({
-                    "event": "session_started",
-                    "session_name": s["name"],
-                    "provider": s["provider"],
-                })
+
+        cache_hits = {
+            s["name"]: _status_cache_hit(s)
+            for s in sessions
+        }
+        if progress_callback:
+            progress_callback({
+                "event": "status_started",
+                "session_count": len(sessions),
+                "check_count": sum(1 for cache_hit in cache_hits.values() if not cache_hit),
+            })
+
+        def _resolve_row_session(s):
             status = _resolve_session_status(
                 s,
                 force_refresh=force_refresh,
                 cache_ttl_seconds=cache_ttl_seconds,
             )
-            if progress_callback:
-                progress_callback({
-                    "event": "session_finished",
-                    "session_name": s["name"],
-                    "has_status": bool(status),
-                })
-            resolved.append({
+            return {
                 **s,
                 "lastStatus": status,
                 "lastStatusAt": (status and status.get("updated_at")) or s.get("lastStatusAt"),
-            })
+            }
+
+        resolved_by_name = {}
+        if sessions:
+            max_workers = min(MAX_STATUS_WORKERS, len(sessions))
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {}
+                for s in sessions:
+                    cache_hit = cache_hits[s["name"]]
+                    if progress_callback and not cache_hit:
+                        progress_callback({
+                            "event": "session_started",
+                            "session_name": s["name"],
+                            "provider": s["provider"],
+                        })
+                    futures[executor.submit(_resolve_row_session, s)] = s
+                for future in as_completed(futures):
+                    s = futures[future]
+                    resolved = future.result()
+                    resolved_by_name[s["name"]] = resolved
+                    if progress_callback:
+                        progress_callback({
+                            "event": "session_finished",
+                            "session_name": s["name"],
+                            "has_status": bool(resolved.get("lastStatus")),
+                            "cache_hit": cache_hits[s["name"]],
+                        })
+        resolved = [resolved_by_name[s["name"]] for s in sessions]
 
         def sort_key(s):
             at = s.get("lastStatusAt") or ""

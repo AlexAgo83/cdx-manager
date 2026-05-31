@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import tempfile
+import threading
 import unittest
 from datetime import datetime
 from types import SimpleNamespace
@@ -164,6 +165,37 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(first_rows[0]["available_pct"], 70)
         self.assertEqual(second_rows[0]["available_pct"], 70)
         self.assertEqual(forced_rows[0]["available_pct"], 70)
+
+    def test_status_rows_refresh_sessions_in_parallel(self):
+        temp_dir = self.make_temp_dir()
+        barrier = threading.Barrier(2, timeout=1)
+        lock = threading.Lock()
+        calls = []
+
+        def fetch_status(session):
+            with lock:
+                calls.append(session["name"])
+                call_index = len(calls)
+            if call_index <= 2:
+                barrier.wait()
+            return {
+                "remaining_5h_pct": 80,
+                "remaining_week_pct": 70,
+                "updated_at": datetime.now().astimezone().isoformat(),
+            }
+
+        service = create_session_service({
+            "base_dir": temp_dir,
+            "fetchCodexRateLimits": fetch_status,
+        })
+        service["create_session"]("main")
+        service["create_session"]("work1")
+        service["create_session"]("work2")
+
+        rows = service["get_status_rows"](force_refresh=True)
+
+        self.assertEqual(set(calls), {"main", "work1", "work2"})
+        self.assertEqual({row["available_pct"] for row in rows}, {70})
 
     def test_status_rows_clamp_cached_percentages(self):
         temp_dir = self.make_temp_dir()
