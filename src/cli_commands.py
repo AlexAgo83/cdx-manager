@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta
 
 from .claude_refresh import _refresh_claude_sessions
-from .cli_render import _dim, _info, _success, _warn
+from .cli_render import _dim, _info, _style, _success, _warn
 from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA, PROVIDERS
 from .context_store import (
     clear_context,
@@ -1547,7 +1547,15 @@ def _format_duration_ms(value):
         return f"{seconds:.1f}s"
     minutes = int(seconds // 60)
     remaining = int(seconds % 60)
-    return f"{minutes}m{remaining:02d}s"
+    if minutes < 60:
+        return f"{minutes}m {remaining:02d}s"
+    hours = minutes // 60
+    remaining_minutes = minutes % 60
+    if hours < 24:
+        return f"{hours}h {remaining_minutes:02d}m"
+    days = hours // 24
+    remaining_hours = hours % 24
+    return f"{days}d {remaining_hours:02d}h"
 
 
 def _summarize_history(entries):
@@ -1735,29 +1743,34 @@ def _format_token_count(value):
     return str(amount)
 
 
-def _format_stats(rows, totals, period=None, use_color=False):
+def _format_stats(rows, totals, period=None, use_color=False, active_sessions=None):
     from .cli_render import _format_relative_age, _pad_table
 
+    active_sessions = active_sessions or set()
     if not rows:
         return "No launch stats for this period." if _has_history_period(period or {}) else "No launch stats."
-    table = [["SESSION", "PROV.", "RUNS", "USAGE", "IN", "OUT", "REASON", "TOTAL", "TIME", "LAST"]]
+    table = [[_style(value, "1", use_color) for value in [
+        "SESSION", "PROV.", "RUNS", "USAGE", "IN", "OUT", "REASON", "TOTAL", "TIME", "LAST"
+    ]]]
     for row in rows:
+        session_name = row["session_name"]
+        display_name = f"{session_name}*" if session_name in active_sessions else session_name
         table.append([
-            row["session_name"],
-            row["provider"],
-            str(row["launches"]),
-            str(row["usage_runs"]),
-            _format_token_count(row["input_tokens"]),
-            _format_token_count(row["output_tokens"]),
-            _format_token_count(row["reasoning_tokens"]),
-            _format_token_count(row["total_tokens"]),
-            _format_duration_ms(row["duration_ms"]),
-            _format_relative_age(row.get("last_started_at")),
+            _style(display_name, "36", use_color),
+            _dim(row["provider"], use_color),
+            _style(str(row["launches"]), "1", use_color),
+            _style(str(row["usage_runs"]), "32" if row["usage_runs"] else "2", use_color),
+            _style(_format_token_count(row["input_tokens"]), "96" if row["input_tokens"] else "2", use_color),
+            _style(_format_token_count(row["output_tokens"]), "96" if row["output_tokens"] else "2", use_color),
+            _style(_format_token_count(row["reasoning_tokens"]), "95" if row["reasoning_tokens"] else "2", use_color),
+            _style(_format_token_count(row["total_tokens"]), "1;96" if row["total_tokens"] else "2", use_color),
+            _style(_format_duration_ms(row["duration_ms"]), "33" if row["duration_ms"] else "2", use_color),
+            _dim(_format_relative_age(row.get("last_started_at")), use_color),
         ])
-    lines = ["Assistant stats:"]
+    lines = [_style("Assistant stats:", "1", use_color)]
     period_line = _format_history_period(period or {})
     if period_line:
-        lines.extend([period_line, ""])
+        lines.extend([_dim(period_line, use_color), ""])
     lines.append(_pad_table(table))
     lines.extend([
         "",
@@ -1906,7 +1919,12 @@ def handle_stats(rest, ctx):
             totals=totals,
         ))
         return 0
-    ctx["out"](f"{_format_stats(rows, totals, period=parsed['period'], use_color=ctx['use_color'])}\n")
+    active_sessions = {
+        row["name"]
+        for row in ctx["service"]["format_list_rows"]()
+        if row.get("active")
+    }
+    ctx["out"](f"{_format_stats(rows, totals, period=parsed['period'], use_color=ctx['use_color'], active_sessions=active_sessions)}\n")
     return 0
 
 

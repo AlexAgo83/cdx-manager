@@ -1565,7 +1565,7 @@ class CliPythonTests(unittest.TestCase):
         old = now - timedelta(days=9)
         service["record_launch_history"]("work", {
             "status": "success",
-            "duration_ms": 120000,
+            "duration_ms": 7500000,
             "started_at": recent.isoformat(),
             "usage": {
                 "input_tokens": 10,
@@ -1615,6 +1615,8 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(rows["personal"]["usage_runs"], 0)
         self.assertEqual(payload["totals"]["total_tokens"], 17)
 
+        service["start_session_runtime"]("work", {"pid": os.getpid()})
+
         text_io = self.make_io()
         self.assertEqual(main(["stats", "work", "--since", "7d"], {
             **text_io,
@@ -1623,8 +1625,18 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
         output = text_io["stdout"].getvalue()
         self.assertIn("Assistant stats:", output)
-        self.assertIn("work", output)
+        self.assertIn("work*", output)
+        self.assertIn("2h 05m", output)
         self.assertIn("17 tokens", output)
+
+        color_io = {**self.make_io(), "stdout": _TtyStream()}
+        self.assertEqual(main(["stats", "work", "--since", "7d"], {
+            **color_io,
+            "service": service,
+            "env": {"CLICOLOR_FORCE": "1"},
+            "now": lambda: now.timestamp(),
+        }), 0)
+        self.assertIn("\033[", color_io["stdout"].getvalue())
 
     def test_disable_command_marks_session_and_blocks_launch(self):
         temp_dir = self.make_temp_dir()
