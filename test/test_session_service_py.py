@@ -91,6 +91,17 @@ class SessionServicePythonTests(unittest.TestCase):
 
         self.assertTrue(os.path.exists(os.path.join(session["authHome"], "auth.json")))
 
+    def test_create_session_rejects_dot_path_names(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+
+        for name in (".", ".."):
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(CdxError, "cannot be . or .."):
+                    service["create_session"](name)
+
+        self.assertFalse(os.path.exists(os.path.join(temp_dir, "auth.json")))
+
     def test_create_antigravity_session_uses_dedicated_home(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -1067,6 +1078,26 @@ class SessionServicePythonTests(unittest.TestCase):
 
         self.assertIsNone(target["get_session"]("main"))
         self.assertEqual(target["get_session"]("side")["name"], "side")
+
+    def test_import_rejects_dot_path_session_names(self):
+        temp_dir = self.make_temp_dir()
+        target_dir = os.path.join(temp_dir, "target")
+        target = create_session_service({"base_dir": target_dir})
+        bundle_path = os.path.join(temp_dir, "bad.cdx")
+        payload = {
+            "schema_version": 1,
+            "sessions": [{"name": "..", "provider": "codex"}],
+            "states": {},
+            "profiles": {},
+        }
+        from src.backup_bundle import encode_bundle
+        with open(bundle_path, "wb") as handle:
+            handle.write(encode_bundle(payload))
+
+        with self.assertRaisesRegex(CdxError, "cannot be . or .."):
+            target["import_bundle"](bundle_path)
+
+        self.assertFalse(os.path.exists(os.path.join(target_dir, "auth.json")))
 
     def test_import_rejects_missing_subset_sessions(self):
         source_dir = self.make_temp_dir()

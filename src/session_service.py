@@ -462,6 +462,8 @@ def create_session_service(options=None):
             raise CdxError("Session name is required")
         if str(name) != str(name).strip():
             raise CdxError("Session name cannot start or end with whitespace")
+        if str(name) in (".", ".."):
+            raise CdxError("Session name cannot be . or ..")
         if len(str(name)) > MAX_SESSION_NAME_LENGTH:
             raise CdxError(f"Session name is too long (max {MAX_SESSION_NAME_LENGTH} characters)")
         if any(ord(ch) < 32 or ord(ch) == 127 for ch in str(name)):
