@@ -39,6 +39,7 @@ RESERVED_SESSION_NAMES = {
     "logout",
     "model",
     "mv",
+    "next",
     "notify",
     "perm",
     "power",

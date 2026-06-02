@@ -463,6 +463,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Usage:", help_io["stdout"].getvalue())
         self.assertIn("cdx update [--check] [--yes] [--json] [--version TAG]", help_io["stdout"].getvalue())
         self.assertIn("cdx ready [--refresh] [--json]", help_io["stdout"].getvalue())
+        self.assertIn("cdx next [--json] [--refresh]", help_io["stdout"].getvalue())
         self.assertIn("cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b>", help_io["stdout"].getvalue())
         self.assertIn("cdx stats [name]", help_io["stdout"].getvalue())
         self.assertIn("cdx add [provider] <name> [--model MODEL] [--json]", help_io["stdout"].getvalue())
@@ -634,8 +635,9 @@ class CliPythonTests(unittest.TestCase):
 
         lines = list_io["stdout"].getvalue().splitlines()
         start = lines.index("Next actions:") + 1
-        self.assertEqual(lines[start:start + 9], [
+        self.assertEqual(lines[start:start + 10], [
             "  cdx status",
+            "  cdx next",
             "  cdx configs",
             "  cdx stats",
             "  cdx ready",
@@ -3151,6 +3153,63 @@ class CliPythonTests(unittest.TestCase):
             "Priority: use regular first (80% OK), next credit (95% OK).",
             status_io["stdout"].getvalue(),
         )
+
+    def test_next_uses_same_priority_recommendation_as_status(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("credit")
+        service["create_session"]("regular")
+        service["record_status"]("credit", {
+            "remaining_5h_pct": 95,
+            "remaining_week_pct": 95,
+            "credits": 453,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+        service["record_status"]("regular", {
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 80,
+            "updated_at": "2026-04-15T09:00:00+00:00",
+        })
+
+        next_io = self.make_io()
+        self.assertEqual(main(["next"], {
+            **next_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        output = next_io["stdout"].getvalue()
+        self.assertIn("Next assistant:", output)
+        self.assertIn("regular", output)
+        self.assertIn("use regular first (80% OK)", output)
+        self.assertIn("Run: cdx regular", output)
+
+        json_io = self.make_io()
+        self.assertEqual(main(["next", "--json"], {
+            **json_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        payload = json.loads(json_io["stdout"].getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["action"], "next")
+        self.assertEqual(payload["recommended_action"], "use")
+        self.assertEqual(payload["session"]["name"], "regular")
+        self.assertEqual(payload["command"], "cdx regular")
+        self.assertEqual(payload["selection_policy"], "status_priority")
+
+    def test_next_reports_no_suitable_session(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+
+        next_io = self.make_io()
+        self.assertEqual(main(["next", "--json"], {
+            **next_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 1)
+        payload = json.loads(next_io["stdout"].getvalue())
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["code"], "no_suitable_session")
 
     def test_status_treats_five_percent_available_as_empty_for_priority(self):
         temp_dir = self.make_temp_dir()

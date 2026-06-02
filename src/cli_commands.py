@@ -41,7 +41,7 @@ from .provider_runtime import (
 from .repair import format_repair_report, repair_health
 from .backup_bundle import read_bundle_meta
 from .run_usage import empty_usage, extract_run_usage
-from .status_view import _format_status_detail, _format_status_rows
+from .status_view import _format_status_detail, _format_status_rows, format_priority_instruction, recommend_priority_rows
 from .update_check import LatestReleaseCheckError, fetch_latest_release, fetch_latest_release_or_raise, is_newer_version
 from .update_manager import build_update_plan, format_update_failure, run_update_plan, verify_updated_command
 
@@ -63,6 +63,7 @@ HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|t
 STATS_USAGE = "Usage: cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
 LAST_USAGE = "Usage: cdx last [--json]"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort low|medium|high] [--min-power low|medium|high] [--require-ready] [--refresh] --json"
+NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
 RUN_USAGE = "Usage: cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--reasoning-effort low|medium|high] [--power low|medium|high] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] --json"
 API_SCHEMA_VERSION = 1
 HANDOFF_TRANSCRIPT_CHARS = 120000
@@ -629,6 +630,14 @@ def _parse_select_args(args):
         "refresh": parsed["refresh"],
         "json": parsed["json"],
     }
+
+
+def _parse_next_args(args):
+    parsed = _parse_flag_args(args, {
+        "--refresh": {"key": "refresh", "type": "bool", "default": False},
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, NEXT_USAGE)
+    return {"json": parsed["json"], "refresh": parsed["refresh"]}
 
 
 def _parse_timeout_seconds(value):
@@ -1234,6 +1243,75 @@ def handle_select(rest, ctx):
         available_pct=row.get("available_pct"),
         auth_status=row.get("auth_status"),
     ))
+    return 0
+
+
+def _format_next_pct(value):
+    return "n/a" if value is None else f"{value}%"
+
+
+def _next_action(row):
+    instruction = format_priority_instruction(row, "first")
+    return "refresh" if instruction.startswith("refresh ") else "use"
+
+
+def _format_next_selection(session, row, use_color=False):
+    from .cli_render import _pad_table
+
+    action = _next_action(row)
+    command = f"cdx status {session['name']} --refresh" if action == "refresh" else f"cdx {session['name']}"
+    rows = [[_style(value, "1", use_color) for value in ["SESSION", "PROVIDER", "OK", "5H", "WEEK", "REASON"]]]
+    rows.append([
+        _style(session["name"], "36", use_color),
+        _dim(session.get("provider") or "-", use_color),
+        _format_next_pct(row.get("available_pct")),
+        _format_next_pct(row.get("remaining_5h_pct")),
+        _format_next_pct(row.get("remaining_week_pct")),
+        format_priority_instruction(row, "first"),
+    ])
+    return "\n".join([
+        _style("Next assistant:", "1", use_color),
+        _pad_table(rows),
+        "",
+        f"{_style('Run:', '1', use_color)} {_style(command, '36', use_color)}",
+    ])
+
+
+def handle_next(rest, ctx):
+    parsed = _parse_next_args(rest)
+    rows = ctx["service"]["get_status_rows"](force_refresh=parsed["refresh"])
+    priority = recommend_priority_rows(rows)
+    if not priority:
+        message = "No usable session status yet."
+        if parsed["json"]:
+            _write_json(ctx, _json_failure("next", "no_suitable_session", message, selection_policy="status_priority"))
+            return 1
+        ctx["out"](f"{_warn(message, ctx['use_color'])}\n")
+        return 1
+    row = priority[0]
+    session_name = row.get("session_name")
+    session = ctx["service"]["get_session"](session_name)
+    if not session:
+        message = f"Selected status row has no matching session: {session_name}"
+        if parsed["json"]:
+            _write_json(ctx, _json_failure("next", "missing_session", message, selection_policy="status_priority", row=row))
+            return 1
+        raise CdxError(message)
+    action = _next_action(row)
+    message = f"Selected next session {session['name']}"
+    if parsed["json"]:
+        _write_json(ctx, _json_success(
+            "next",
+            message,
+            session=session,
+            row=row,
+            recommended_action=action,
+            command=f"cdx status {session['name']} --refresh" if action == "refresh" else f"cdx {session['name']}",
+            reason=format_priority_instruction(row, "first"),
+            selection_policy="status_priority",
+        ))
+        return 0
+    ctx["out"](f"{_format_next_selection(session, row, ctx['use_color'])}\n")
     return 0
 
 

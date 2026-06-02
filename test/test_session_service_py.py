@@ -313,7 +313,7 @@ class SessionServicePythonTests(unittest.TestCase):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
 
-        for name in ("add", "update", "context", "handoff", "ready", "last", "power", "perm", "fast", "model"):
+        for name in ("add", "update", "context", "handoff", "ready", "next", "last", "power", "perm", "fast", "model"):
             with self.subTest(name=name):
                 with self.assertRaisesRegex(CdxError, f"Session name is reserved: {name}"):
                     service["create_session"](name)

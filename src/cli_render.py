@@ -146,6 +146,7 @@ def _format_sessions(service, use_color=False):
     lines += [
         _style("Next actions:", "1", use_color),
         f"  {_style('cdx status', '36', use_color)}",
+        f"  {_style('cdx next', '36', use_color)}",
         f"  {_style('cdx configs', '36', use_color)}",
         f"  {_style('cdx stats', '36', use_color)}",
         f"  {_style('cdx ready', '36', use_color)}",

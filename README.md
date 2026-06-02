@@ -241,6 +241,9 @@ cdx work
 # Check usage across all sessions
 cdx status
 
+# Pick the best session using the same priority logic as status
+cdx next
+
 # Notify when the next cooling-down assistant is ready
 cdx ready
 ```
@@ -340,6 +343,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx ready [--refresh] [--json]` | Schedule an OS notification for the next cooling-down assistant that becomes ready, then return immediately |
 | `cdx notify <name> --at-reset [--poll seconds] [--once] [--schedule] [--refresh] [--json]` | Wait for a session reset time or schedule an OS wake-up notification when due |
 | `cdx notify --next-ready [--poll seconds] [--once] [--schedule] [--refresh] [--json]` | Wait until the recommended session is usable, or schedule the next known reset notification |
+| `cdx next [--json] [--refresh]` | Select the best next assistant using the same priority logic as `cdx status` |
 | `cdx select --provider PROVIDER [--min-reasoning-effort low\|medium\|high] [--min-power low\|medium\|high] [--require-ready] [--refresh] --json` | Select a suitable session for headless automation |
 | `cdx run [session] --cwd PATH (--prompt-file PATH\|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--reasoning-effort low\|medium\|high] [--power low\|medium\|high] [--permission MODE] [--timeout-seconds N] --json` | Run one headless task and return a stable JSON result |
 | `cdx stats [name] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Aggregate launch counts, duration, and known headless token usage by session |

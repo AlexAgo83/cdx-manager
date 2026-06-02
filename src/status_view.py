@@ -87,15 +87,11 @@ def _format_status_rows(rows, use_color=False, small=False):
         return "SESSION  STATUS  OK  5H  WEEK  BLOCK  CR  RESET 5H  RESET WEEK  UPDATED\nNo saved sessions yet."
     headers = [_style(header, "1", use_color) for header in headers]
     active_rows = [r for r in rows if r.get("enabled", True) is not False]
-    priority_candidates = [
-        r for r in active_rows
-        if _format_auth_status(r) != "logged out"
-    ]
+    priority = recommend_priority_rows(rows)
     disabled_rows = sorted(
         [r for r in rows if r.get("enabled", True) is False],
         key=lambda r: r.get("session_name") or "",
     )
-    priority = _recommend_priority_sessions(priority_candidates)
     priority_names = {r.get("session_name") for r in priority}
     non_priority_active = [
         r for r in active_rows
@@ -178,6 +174,19 @@ def _format_auth_status(row):
     if status == "logged_out":
         return "logged out"
     return "unknown"
+
+
+def recommend_priority_rows(rows):
+    active_rows = [r for r in rows if r.get("enabled", True) is not False]
+    priority_candidates = [
+        r for r in active_rows
+        if _format_auth_status(r) != "logged out"
+    ]
+    return _recommend_priority_sessions(priority_candidates)
+
+
+def format_priority_instruction(row, position="first"):
+    return _priority_instruction(row, position)
 
 
 def _recommend_priority_sessions(rows):

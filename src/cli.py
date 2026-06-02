@@ -26,6 +26,7 @@ from .cli_commands import (
     handle_logout,
     handle_launch_setting_alias,
     handle_notify,
+    handle_next,
     handle_remove,
     handle_repair,
     handle_rename,
@@ -76,6 +77,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx status [--json] [--refresh]', '36', use_color)}",
         f"  {_style('cdx status --small|-s [--refresh]', '36', use_color)}",
         f"  {_style('cdx status <name> [--json] [--refresh]', '36', use_color)}",
+        f"  {_style('cdx next [--json] [--refresh]', '36', use_color)}",
         f"  {_style('cdx select --provider PROVIDER [--min-reasoning-effort low|medium|high] [--min-power low|medium|high] [--require-ready] [--refresh] --json', '36', use_color)}",
         f"  {_style('cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--reasoning-effort low|medium|high] [--power low|medium|high] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] --json', '36', use_color)}",
         f"  {_style('cdx context show|path|init|edit|clear|set [text...] [--json]', '36', use_color)}",
@@ -242,7 +244,7 @@ def main(argv, options=None):
         "version": VERSION,
         "cwd": options.get("cwd") or os.getcwd(),
         "update_notice": _get_update_notice(service, env, options) if command not in (
-            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "context", "config", "configs", "set", "unset", "power", "perm", "fast", "model", "history", "stats", "handoff", "login", "logout", "disable", "enable", "export", "import", "select", "run", "help", "version"
+            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "next", "context", "config", "configs", "set", "unset", "power", "perm", "fast", "model", "history", "stats", "handoff", "login", "logout", "disable", "enable", "export", "import", "select", "run", "help", "version"
         ) else None,
         "use_color": use_color,
     }
@@ -290,6 +292,9 @@ def main(argv, options=None):
 
     if command == "notify":
         return handle_notify(rest, ctx)
+
+    if command == "next":
+        return handle_next(rest, ctx)
 
     if command == "context":
         return handle_context(rest, ctx)
