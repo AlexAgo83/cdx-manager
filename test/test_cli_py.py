@@ -1245,7 +1245,9 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
         payload = json.loads(unset_io["stdout"].getvalue())
         self.assertEqual(payload["updated_count"], 2)
-        self.assertTrue(all("launch" not in session for session in payload["sessions"]))
+        self.assertTrue(all("permission" not in session["launch"] for session in payload["sessions"]))
+        self.assertTrue(all(session["launch"]["power"] == "medium" for session in payload["sessions"]))
+        self.assertTrue(all(session["launch"]["fast"] is False for session in payload["sessions"]))
 
     def test_launch_setting_aliases_update_single_and_bulk_targets(self):
         temp_dir = self.make_temp_dir()
@@ -1315,7 +1317,7 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
         payload = json.loads(clear_io["stdout"].getvalue())
         self.assertEqual(payload["action"], "power")
-        self.assertEqual(payload["launch"], {})
+        self.assertEqual(payload["launch"], {"fast": False})
 
     def test_session_list_hides_fast_off_launch_label(self):
         temp_dir = self.make_temp_dir()
@@ -1331,7 +1333,7 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
 
         output = list_io["stdout"].getvalue()
-        self.assertIn("default", output)
+        self.assertIn("medium", output)
         self.assertNotIn("fast-off", output)
 
     def test_launch_history_records_success_and_failure(self):
@@ -1987,7 +1989,10 @@ class CliPythonTests(unittest.TestCase):
             "spawn": harness.spawn,
             "spawn_sync": harness.spawn_sync,
         }), 0)
-        self.assertEqual(json.loads(create_io["stdout"].getvalue())["session"]["launch"]["model"], "llama3.2")
+        launch = json.loads(create_io["stdout"].getvalue())["session"]["launch"]
+        self.assertEqual(launch["model"], "llama3.2")
+        self.assertEqual(launch["power"], "medium")
+        self.assertIs(launch["fast"], False)
 
         self.assertEqual(main(["power", "local", "medium"], {
             **self.make_io(),

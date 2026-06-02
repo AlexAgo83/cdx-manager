@@ -256,7 +256,7 @@ cdx ready --refresh
 
 ### Persistent Launch Settings
 
-By default, `cdx` launches provider CLIs without forcing model effort, permission mode, or fast behavior. Set only the values you want to pin:
+New sessions start with `power=medium` and `fast=off`, so launches are predictable without enabling fast mode. Set or override only the values you want to pin:
 
 ```bash
 cdx set work --power medium --permission full --fast off
@@ -272,7 +272,7 @@ cdx config work
 cdx configs
 ```
 
-Those values are stored on the session and reapplied every time you run `cdx work`. Remove overrides to return to provider defaults:
+Those values are stored on the session and reapplied every time you run `cdx work`. Remove overrides to return to provider-native defaults:
 
 ```bash
 cdx unset work --power

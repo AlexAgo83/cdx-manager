@@ -23,6 +23,7 @@ RESERVED_SESSION_NAMES = {
     "add",
     "clean",
     "context",
+    "configs",
     "cp",
     "disable",
     "doctor",
@@ -45,6 +46,7 @@ RESERVED_SESSION_NAMES = {
     "select",
     "config",
     "set",
+    "stats",
     "status",
     "unset",
     "update",
@@ -63,6 +65,10 @@ LAUNCH_PERMISSION_VALUES = {"review", "default", "auto", "full"}
 MAX_LAUNCH_MODEL_LENGTH = 128
 MIN_LAUNCH_PRIORITY = 0
 MAX_LAUNCH_PRIORITY = 100
+DEFAULT_LAUNCH_SETTINGS = {
+    "power": "medium",
+    "fast": False,
+}
 
 
 def _encode(name):
@@ -544,6 +550,7 @@ def create_session_service(options=None):
             "lastLaunchedAt": None,
             "lastStatusAt": None,
             "lastStatus": None,
+            "launch": dict(DEFAULT_LAUNCH_SETTINGS),
             "auth": {
                 "status": "unknown",
                 "lastCheckedAt": None,

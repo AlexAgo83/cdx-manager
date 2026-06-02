@@ -29,8 +29,9 @@ class SessionServicePythonTests(unittest.TestCase):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
 
-        service["create_session"]("main")
+        main = service["create_session"]("main")
         service["create_session"]("work1", "claude")
+        self.assertEqual(main["launch"], {"power": "medium", "fast": False})
 
         rows = service["format_list_rows"]()
         self.assertEqual([row["name"] for row in rows], ["main", "work1"])
@@ -111,7 +112,7 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertTrue(updated["launch"]["rtk"])
 
         updated = service["unset_launch_settings"]("local", ["model", "rtk"])
-        self.assertNotIn("launch", updated)
+        self.assertEqual(updated["launch"], {"power": "medium", "fast": False})
 
     def test_status_rows_do_not_expose_auth_home(self):
         temp_dir = self.make_temp_dir()
