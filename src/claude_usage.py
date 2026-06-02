@@ -15,6 +15,10 @@ CLAUDE_STATUS_PROBE_MODEL = os.environ.get("CDX_CLAUDE_STATUS_MODEL", "claude-ha
 CLAUDE_AUTH_STATUS_TIMEOUT_SECONDS = 15
 
 
+class ClaudeAuthInvalidError(CdxError):
+    pass
+
+
 def _clean_oauth_token(token):
     if not token:
         return None
@@ -142,6 +146,10 @@ def fetch_claude_rate_limit_headers(access_token):
             headers = {k.lower(): v for k, v in resp.getheaders()}
     except urllib.error.HTTPError as e:
         headers = {k.lower(): v for k, v in e.headers.items()}
+        if e.code == 401:
+            message = _read_http_error_message(e)
+            suffix = f": {message}" if message else ""
+            raise ClaudeAuthInvalidError(f"Claude usage unavailable (HTTP {e.code}{suffix})") from e
         if (
             "anthropic-ratelimit-unified-5h-utilization" not in headers
             and "anthropic-ratelimit-unified-7d-utilization" not in headers

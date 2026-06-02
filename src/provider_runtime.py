@@ -108,6 +108,12 @@ def _has_local_claude_auth(auth_home):
     return bool(isinstance(oauth, dict) and _clean_oauth_token(oauth.get("accessToken")))
 
 
+def _read_claude_launch_oauth_token(auth_home):
+    if _has_local_claude_auth(auth_home):
+        return None
+    return _read_anthropic_oauth_token(auth_home)
+
+
 def _has_local_codex_auth(auth_home):
     try:
         with open(os.path.join(auth_home, "auth.json"), "r", encoding="utf-8") as handle:
@@ -312,7 +318,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
             args.append(initial_prompt)
         auth_home = _get_auth_home(session)
         claude_env = _claude_env(env, auth_home)
-        oauth_token = _read_anthropic_oauth_token(auth_home)
+        oauth_token = _read_claude_launch_oauth_token(auth_home)
         if oauth_token:
             claude_env["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token
         return _wrap_launch_with_transcript(session, {
@@ -393,7 +399,7 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
             args.append(initial_prompt)
         auth_home = _get_auth_home(session)
         claude_env = _claude_env(env, auth_home)
-        oauth_token = _read_anthropic_oauth_token(auth_home)
+        oauth_token = _read_claude_launch_oauth_token(auth_home)
         if oauth_token:
             claude_env["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token
         return {
@@ -558,7 +564,7 @@ def _build_login_status_spec(session, env_override=None):
     if session["provider"] == PROVIDER_CLAUDE:
         auth_home = _get_auth_home(session)
         env = _claude_env(env, auth_home)
-        oauth_token = _read_anthropic_oauth_token(auth_home)
+        oauth_token = _read_claude_launch_oauth_token(auth_home)
         if oauth_token:
             env["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token
 
@@ -831,6 +837,10 @@ def _should_retry_without_transcript(spec):
 def _ensure_session_authentication(session, service, spawn=None, spawn_sync=None,
                                    stdin_is_tty=True, env_override=None, behavior="launch",
                                    signal_emitter=None):
+    if behavior == "launch" and (session.get("auth") or {}).get("status") == "logged_out":
+        raise CdxError(
+            f"Session {session['name']} is not authenticated. Run: cdx login {session['name']}"
+        )
     is_authenticated = _probe_provider_auth(session, spawn_sync=spawn_sync, env_override=env_override)
     if is_authenticated:
         return {"authenticated": True, "checked": True}

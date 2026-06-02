@@ -1442,6 +1442,27 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
         self.assertIn("\033[", summary_color_io["stdout"].getvalue())
 
+    def test_launch_rejects_session_marked_logged_out(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("claude", "claude")
+        service["update_auth_state"]("claude", lambda auth: {
+            **auth,
+            "status": "logged_out",
+        })
+
+        def should_not_spawn(*_args, **_kwargs):
+            raise AssertionError("logged-out sessions should not launch")
+
+        with self.assertRaisesRegex(CdxError, "Run: cdx login claude"):
+            main(["claude"], {
+                **self.make_io(),
+                "service": service,
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": should_not_spawn,
+                "spawn_sync": should_not_spawn,
+            })
+
     def test_last_launches_most_recent_existing_session(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
@@ -3024,6 +3045,34 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(len(payload["rows"]), 1)
         self.assertEqual(payload["warnings"][0]["code"], "claude_refresh_failed")
         self.assertEqual(json_io["stderr"].getvalue(), "")
+
+    def test_status_marks_claude_logged_out_after_invalid_usage_auth(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("claude", "claude")
+        service["update_auth_state"]("claude", lambda auth: {
+            **auth,
+            "status": "authenticated",
+        })
+
+        def refresh(_session):
+            from src.claude_usage import ClaudeAuthInvalidError
+
+            raise ClaudeAuthInvalidError("Claude usage unavailable (HTTP 401: Invalid authentication credentials)")
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status", "claude", "--json", "--refresh"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn_sync": _AuthHarness(initial_auth={
+                service["get_session"]("claude")["authHome"]: True,
+            }).spawn_sync,
+            "refreshClaudeSessionStatus": refresh,
+        }), 0)
+        payload = json.loads(status_io["stdout"].getvalue())
+        self.assertEqual(payload["session"]["auth_status"], "logged_out")
+        self.assertEqual(payload["warnings"][0]["code"], "claude_refresh_failed")
 
     def test_status_rechecks_claude_auth_before_usage_refresh(self):
         temp_dir = self.make_temp_dir()

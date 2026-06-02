@@ -144,6 +144,22 @@ class RuntimePythonTests(unittest.TestCase):
             with self.assertRaisesRegex(CdxError, "Claude usage unavailable .*subscription inactive"):
                 claude_usage.fetch_claude_rate_limit_headers("token")
 
+    def test_fetch_claude_rate_limit_headers_raises_invalid_auth_on_401(self):
+        body = json.dumps({"error": {"message": "Invalid authentication credentials"}}).encode("utf-8")
+        error = urllib.error.HTTPError(
+            url="https://api.anthropic.com/v1/messages",
+            code=401,
+            msg="unauthorized",
+            hdrs={},
+            fp=io.BytesIO(body),
+        )
+        with mock.patch("urllib.request.urlopen", side_effect=error):
+            with self.assertRaisesRegex(
+                claude_usage.ClaudeAuthInvalidError,
+                "Invalid authentication credentials",
+            ):
+                claude_usage.fetch_claude_rate_limit_headers("token")
+
     def test_fetch_claude_rate_limit_headers_returns_none_on_url_error(self):
         with mock.patch("urllib.request.urlopen", side_effect=urllib.error.URLError("offline")):
             self.assertIsNone(claude_usage.fetch_claude_rate_limit_headers("token"))
@@ -536,6 +552,26 @@ class RuntimePythonTests(unittest.TestCase):
             })
 
         self.assertEqual(spec["env"]["CLAUDE_CODE_OAUTH_TOKEN"], "secret")
+        self.assertEqual(spec["env"]["ANTHROPIC_PROFILE"], "default")
+
+    def test_claude_auth_probe_does_not_override_native_auth_with_setup_token(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-claude-") as temp_dir:
+            native_dir = os.path.join(temp_dir, ".claude")
+            fallback_dir = os.path.join(temp_dir, "credentials")
+            os.makedirs(native_dir, exist_ok=True)
+            os.makedirs(fallback_dir, exist_ok=True)
+            with open(os.path.join(native_dir, ".credentials.json"), "w", encoding="utf-8") as handle:
+                json.dump({"claudeAiOauth": {"accessToken": "fresh-native"}}, handle)
+            with open(os.path.join(fallback_dir, "default.json"), "w", encoding="utf-8") as handle:
+                json.dump({"type": "oauth_token", "access_token": "stale-fallback"}, handle)
+
+            spec = provider_runtime._build_login_status_spec({
+                "name": "work",
+                "provider": "claude",
+                "authHome": temp_dir,
+            })
+
+        self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", spec["env"])
         self.assertEqual(spec["env"]["ANTHROPIC_PROFILE"], "default")
 
     def test_probe_provider_auth_short_circuits_when_claude_cli_oauth_token_exists(self):
