@@ -1268,6 +1268,18 @@ def _run_cdx_error_code(error):
     return "cdx_error"
 
 
+def _run_payload_reasoning_effort(parsed, session):
+    launch = (session.get("launch") or {}) if session else {}
+    return (
+        parsed.get("reasoning_effort")
+        or parsed.get("power")
+        or launch.get("reasoning_effort")
+        or launch.get("reasoningEffort")
+        or launch.get("power")
+        or ("low" if launch.get("fast") is True else None)
+    )
+
+
 def _run_result_payload(ok, parsed, session, run_info=None, error=None, error_source=None, error_code=None):
     run_info = run_info or {}
     usage = run_info.get("usage") if isinstance(run_info.get("usage"), dict) else (
@@ -1283,7 +1295,7 @@ def _run_result_payload(ok, parsed, session, run_info=None, error=None, error_so
         "session": session.get("name") if session else None,
         "provider": session.get("provider") if session else parsed.get("provider"),
         "model": parsed.get("model") or ((session.get("launch") or {}).get("model") if session else None),
-        "reasoning_effort": parsed.get("reasoning_effort") or ((session.get("launch") or {}).get("reasoning_effort") if session else None),
+        "reasoning_effort": _run_payload_reasoning_effort(parsed, session),
         "power": parsed.get("power") or ((session.get("launch") or {}).get("power") if session else None),
         "cwd": os.path.abspath(parsed.get("cwd") or os.getcwd()),
         "run_id": run_info.get("run_id"),

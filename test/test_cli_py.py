@@ -3783,6 +3783,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["launcher"], "cdx")
         self.assertEqual(payload["model"], "gpt-5.3-codex")
         self.assertEqual(payload["reasoning_effort"], "low")
+        self.assertEqual(payload["power"], "low")
         self.assertEqual(payload["exit_code"], 0)
         self.assertEqual(payload["usage"], {
             "input_tokens": 11,
@@ -3800,6 +3801,26 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(calls[0]["argv"][:2], ["codex", "exec"])
         self.assertIn("--json", calls[0]["argv"])
         self.assertIn("Do it", calls[0]["argv"])
+
+    def test_run_json_reports_default_power_as_reasoning_effort(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        session = service["create_session"]("work", "codex")
+        os.makedirs(session["authHome"], exist_ok=True)
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "token"}}, handle)
+
+        def spawn(_argv, **_kwargs):
+            return _HeadlessChild(0)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json"
+        ], {**io_obj, "service": service, "spawn_headless": spawn}), 0)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertEqual(payload["reasoning_effort"], "medium")
+        self.assertEqual(payload["power"], "medium")
 
     def test_run_provider_failure_uses_provider_error_source(self):
         target_dir = self.make_temp_dir()
