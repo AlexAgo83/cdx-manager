@@ -118,7 +118,8 @@ With the standalone PowerShell installer:
 
 ```powershell
 Invoke-WebRequest https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.ps1 -OutFile install.ps1
-# Optional: set CDX_SHA256 before running if you have a trusted checksum
+# Optional: set CDX_SHA256 before running if you have a trusted checksum.
+# Set CDX_ALLOW_UNVERIFIED=1 only if you intentionally accept an unverified archive.
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
@@ -126,7 +127,8 @@ With the standalone GitHub installer:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AlexAgo83/cdx-manager/main/install.sh -o install.sh
-# Optional: set CDX_SHA256 before running if you have a trusted checksum
+# Optional: set CDX_SHA256 before running if you have a trusted checksum.
+# Set CDX_ALLOW_UNVERIFIED=1 only if you intentionally accept an unverified archive.
 sh install.sh
 ```
 
@@ -183,6 +185,7 @@ Security note:
 
 - The standalone installers try to resolve official release checksums from `checksums/release-archives.json`.
 - You can still override verification explicitly through `CDX_SHA256`.
+- If no checksum is available, standalone installers fail closed unless `CDX_ALLOW_UNVERIFIED=1` is set.
 - Prefer `npm`, `pipx`, or `uv` when you want registry-backed install flows.
 - If you use the standalone script, download it first, inspect it, and prefer a release with an official checksum entry.
 

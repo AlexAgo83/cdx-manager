@@ -62,7 +62,11 @@ try {
             throw "cdx install: checksum mismatch for $tag`nexpected: $Sha256`nactual:   $actualSha256"
         }
     } else {
-        Write-Warning "No official checksum available for $tag; continuing without verification."
+        if ($env:CDX_ALLOW_UNVERIFIED -eq "1") {
+            Write-Warning "No official checksum available for $tag; continuing because CDX_ALLOW_UNVERIFIED=1."
+        } else {
+            throw "cdx install: no official checksum available for $tag. Set CDX_ALLOW_UNVERIFIED=1 to install without checksum verification."
+        }
     }
     Expand-Archive -Path $archivePath -DestinationPath $extractRoot -Force
 

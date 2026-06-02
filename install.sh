@@ -86,7 +86,13 @@ if [ -n "$EXPECTED_SHA256" ]; then
     exit 1
   fi
 else
-  echo "cdx install: warning: no official checksum available for $TAG; continuing without verification" >&2
+  if [ "${CDX_ALLOW_UNVERIFIED:-}" = "1" ]; then
+    echo "cdx install: warning: no official checksum available for $TAG; continuing because CDX_ALLOW_UNVERIFIED=1" >&2
+  else
+    echo "cdx install: no official checksum available for $TAG" >&2
+    echo "Set CDX_ALLOW_UNVERIFIED=1 to install without checksum verification." >&2
+    exit 1
+  fi
 fi
 
 tar -xzf "$TMP_DIR/cdx-manager.tar.gz" -C "$TMP_DIR"
