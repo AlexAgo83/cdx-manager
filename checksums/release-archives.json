@@ -44,6 +44,10 @@
     "v0.7.3": {
       "github_tarball_sha256": "f68ac90a51c723eef9ae2b66106baa954f2fff8129fb5353e8eeb26b258b06c9",
       "github_zip_sha256": "dde2512701808450b39c5c4431317d95d017f9944435db83ac4497b645feb719"
+    },
+    "v0.7.4": {
+      "github_tarball_sha256": "02b399899e611300ddf367bfb8c22ad57b499e94265e50256c8afe3f4bd73851",
+      "github_zip_sha256": "87043d49cdd50dcd7d51349984ea4abfb1a2ff50f2eab69c75a421bedd2f2fe8"
     }
   }
 }
