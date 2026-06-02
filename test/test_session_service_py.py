@@ -313,16 +313,10 @@ class SessionServicePythonTests(unittest.TestCase):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
 
-        with self.assertRaisesRegex(CdxError, "Session name is reserved: add"):
-            service["create_session"]("add")
-        with self.assertRaisesRegex(CdxError, "Session name is reserved: update"):
-            service["create_session"]("update")
-        with self.assertRaisesRegex(CdxError, "Session name is reserved: context"):
-            service["create_session"]("context")
-        with self.assertRaisesRegex(CdxError, "Session name is reserved: handoff"):
-            service["create_session"]("handoff")
-        with self.assertRaisesRegex(CdxError, "Session name is reserved: ready"):
-            service["create_session"]("ready")
+        for name in ("add", "update", "context", "handoff", "ready", "last", "power", "perm", "fast", "model"):
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(CdxError, f"Session name is reserved: {name}"):
+                    service["create_session"](name)
 
     def test_rejects_invalid_session_name_shapes(self):
         temp_dir = self.make_temp_dir()
