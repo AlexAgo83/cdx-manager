@@ -40,7 +40,8 @@ from .provider_runtime import (
 )
 from .repair import format_repair_report, repair_health
 from .backup_bundle import read_bundle_meta
-from .run_usage import empty_usage, extract_run_usage
+from .run_usage import extract_run_usage
+from .run_command import read_run_prompt, run_cdx_error_code, run_result_payload
 from .status_view import _format_status_detail, _format_status_rows, format_priority_instruction, recommend_priority_rows
 from .update_check import LatestReleaseCheckError, fetch_latest_release, fetch_latest_release_or_raise, is_newer_version
 from .update_manager import build_update_plan, format_update_failure, run_update_plan, verify_updated_command
@@ -1315,84 +1316,6 @@ def handle_next(rest, ctx):
     return 0
 
 
-def _read_run_prompt(parsed):
-    if parsed.get("prompt") is not None:
-        return parsed["prompt"]
-    try:
-        with open(parsed["prompt_file"], "r", encoding="utf-8") as handle:
-            return handle.read()
-    except OSError as error:
-        raise CdxError(f"Unable to read prompt file: {parsed['prompt_file']}") from error
-
-
-def _run_cdx_error_code(error):
-    message = str(error)
-    if message.startswith("Usage:"):
-        return "invalid_request"
-    if message.startswith("Invalid cwd:"):
-        return "invalid_cwd"
-    if message.startswith("Session is disabled:"):
-        return "session_disabled"
-    if "CLI not found on PATH" in message:
-        return "provider_cli_not_found"
-    if message.startswith("Failed to start "):
-        return "provider_start_failed"
-    if (
-        message.startswith("Unsupported reasoning effort:")
-        or message.startswith("Unsupported power:")
-        or "--reasoning-effort and --power must match" in message
-    ):
-        return "invalid_reasoning_effort"
-    return "cdx_error"
-
-
-def _run_payload_reasoning_effort(parsed, session):
-    launch = (session.get("launch") or {}) if session else {}
-    return (
-        parsed.get("reasoning_effort")
-        or parsed.get("power")
-        or launch.get("reasoning_effort")
-        or launch.get("reasoningEffort")
-        or launch.get("power")
-        or ("low" if launch.get("fast") is True else None)
-    )
-
-
-def _run_result_payload(ok, parsed, session, run_info=None, error=None, error_source=None, error_code=None):
-    run_info = run_info or {}
-    usage = run_info.get("usage") if isinstance(run_info.get("usage"), dict) else (
-        extract_run_usage(session.get("provider"), run_info.get("stdout_path"))
-        if session else
-        empty_usage()
-    )
-    return {
-        "schema_version": API_SCHEMA_VERSION,
-        "ok": bool(ok),
-        "action": "run",
-        "launcher": "cdx",
-        "session": session.get("name") if session else None,
-        "provider": session.get("provider") if session else parsed.get("provider"),
-        "model": parsed.get("model") or ((session.get("launch") or {}).get("model") if session else None),
-        "reasoning_effort": _run_payload_reasoning_effort(parsed, session),
-        "power": parsed.get("power") or ((session.get("launch") or {}).get("power") if session else None),
-        "cwd": os.path.abspath(parsed.get("cwd") or os.getcwd()),
-        "run_id": run_info.get("run_id"),
-        "exit_code": run_info.get("returncode"),
-        "duration_seconds": (run_info.get("duration_ms") / 1000.0) if run_info.get("duration_ms") is not None else None,
-        "transcript_path": run_info.get("transcript_path"),
-        "stdout_path": run_info.get("stdout_path"),
-        "stderr_path": run_info.get("stderr_path"),
-        "usage": usage,
-        "warnings": [],
-        "error": None if ok else {
-            "source": error_source or "cdx",
-            "code": error_code or "cdx_error",
-            "message": str(error) if error else "Run failed.",
-            "provider_code": run_info.get("returncode") if error_source == "provider" else None,
-        },
-    }
-
-
 def handle_run(rest, ctx):
     try:
         parsed = _parse_run_args(rest)
@@ -1425,7 +1348,7 @@ def handle_run(rest, ctx):
         cwd = os.path.abspath(parsed["cwd"])
         if not os.path.isdir(cwd):
             raise CdxError(f"Invalid cwd: {parsed['cwd']}")
-        prompt = _read_run_prompt(parsed)
+        prompt = read_run_prompt(parsed)
         launch_updates = {}
         if parsed.get("model"):
             launch_updates["model"] = parsed["model"]
@@ -1470,7 +1393,7 @@ def handle_run(rest, ctx):
                 "exit_code": 0,
                 **run_info,
             })
-            _write_json(ctx, _run_result_payload(True, parsed, run_session, run_info=run_info))
+            _write_json(ctx, run_result_payload(API_SCHEMA_VERSION, True, parsed, run_session, run_info=run_info))
             return 0
         message = "Provider process timed out." if run_info.get("timed_out") else "Provider process exited with a non-zero status."
         error = CdxError(message, run_info.get("returncode") or 1)
@@ -1481,7 +1404,8 @@ def handle_run(rest, ctx):
             "exit_code": error.exit_code,
             **run_info,
         })
-        _write_json(ctx, _run_result_payload(
+        _write_json(ctx, run_result_payload(
+            API_SCHEMA_VERSION,
             False,
             parsed,
             run_session,
@@ -1493,14 +1417,15 @@ def handle_run(rest, ctx):
         return error.exit_code or 1
     except CdxError as error:
         run_info = getattr(error, "run_info", None)
-        _write_json(ctx, _run_result_payload(
+        _write_json(ctx, run_result_payload(
+            API_SCHEMA_VERSION,
             False,
             locals().get("parsed", {}) or {},
             locals().get("session"),
             run_info=run_info,
             error=error,
             error_source="cdx",
-            error_code=_run_cdx_error_code(error),
+            error_code=run_cdx_error_code(error),
         ))
         return error.exit_code
 
