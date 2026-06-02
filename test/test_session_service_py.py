@@ -977,6 +977,22 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(imported["lastStatus"]["remaining_5h_pct"], 81)
         self.assertTrue(os.path.exists(os.path.join(target_dir, "state", "main.json")))
 
+    def test_export_bundle_does_not_restrict_existing_parent_directory(self):
+        if os.name == "nt":
+            self.skipTest("permission bits are not portable on Windows")
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("main")
+        export_dir = os.path.join(source_dir, "shared")
+        os.makedirs(export_dir)
+        os.chmod(export_dir, 0o755)
+
+        bundle_path = os.path.join(export_dir, "backup.cdx")
+        source["export_bundle"](bundle_path)
+
+        self.assertEqual(oct(os.stat(export_dir).st_mode & 0o777), "0o755")
+        self.assertEqual(oct(os.stat(bundle_path).st_mode & 0o777), "0o600")
+
     def test_export_import_round_trip_with_auth_bundle(self):
         source_dir = self.make_temp_dir()
         source = create_session_service({"base_dir": source_dir})

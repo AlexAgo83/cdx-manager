@@ -1124,7 +1124,7 @@ def create_session_service(options=None):
         bundle_bytes = encode_bundle(payload, include_auth=include_auth, passphrase=passphrase)
         if progress_callback:
             progress_callback({"event": "writing_started", "path": file_path, "bundle_size_bytes": len(bundle_bytes)})
-        _ensure_private_dir(os.path.dirname(os.path.abspath(file_path)) or ".")
+        os.makedirs(os.path.dirname(os.path.abspath(file_path)) or ".", exist_ok=True)
         with open(file_path, "wb") as handle:
             handle.write(bundle_bytes)
         if sys.platform != "win32":
