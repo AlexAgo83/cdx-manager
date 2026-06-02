@@ -39,6 +39,7 @@ HEADLESS_CODEX_PERMISSION_ARGS = {
     "auto": ["-s", "workspace-write", "-c", 'approval_policy="never"'],
     "full": ["--dangerously-bypass-approvals-and-sandbox"],
 }
+REDACTED_PROMPT_ARG = "[prompt redacted]"
 
 
 def _home_env_overrides(auth_home):
@@ -407,6 +408,7 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
             "args": args,
             "options": {"cwd": cwd, "env": claude_env},
             "label": "claude",
+            "sensitive_args": [initial_prompt] if initial_prompt else [],
         }
 
     if session["provider"] == PROVIDER_CODEX:
@@ -424,6 +426,7 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
             "args": args,
             "options": {"cwd": cwd, "env": {**env, "CODEX_HOME": _get_auth_home(session)}},
             "label": "codex",
+            "sensitive_args": [initial_prompt] if initial_prompt else [],
         }
 
     return _build_launch_spec(
@@ -474,12 +477,20 @@ def _headless_run_info(paths, spec, start_time, returncode):
         "ended_at": end_time.isoformat().replace("+00:00", "Z"),
         "duration_ms": int((end_time - start_time).total_seconds() * 1000),
         "command": spec.get("command"),
-        "args": list(spec.get("args") or []),
+        "args": _redact_sensitive_args(spec),
         "label": spec.get("label"),
         "pid": None,
         "returncode": returncode,
         "timed_out": False,
     }
+
+
+def _redact_sensitive_args(spec):
+    args = list(spec.get("args") or [])
+    sensitive = {value for value in (spec.get("sensitive_args") or []) if value}
+    if not sensitive:
+        return args
+    return [REDACTED_PROMPT_ARG if arg in sensitive else arg for arg in args]
 
 
 def _run_headless_provider_command(session, cwd=None, env_override=None, initial_prompt=None,
@@ -551,7 +562,7 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
         "ended_at": end_time.isoformat().replace("+00:00", "Z"),
         "duration_ms": int((end_time - start_time).total_seconds() * 1000),
         "command": spec.get("command"),
-        "args": list(spec.get("args") or []),
+        "args": _redact_sensitive_args(spec),
         "label": spec.get("label"),
         "pid": getattr(child, "pid", None),
         "returncode": returncode,

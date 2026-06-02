@@ -3901,6 +3901,8 @@ class CliPythonTests(unittest.TestCase):
         })
         history = service["get_launch_history"]("work", limit=1)
         self.assertEqual(history[0]["usage"], payload["usage"])
+        self.assertIn("[prompt redacted]", history[0]["args"])
+        self.assertNotIn("Do it", history[0]["args"])
         self.assertTrue(os.path.isabs(payload["transcript_path"]))
         with open(payload["stdout_path"], encoding="utf-8") as handle:
             self.assertIn("input_tokens", handle.read())
