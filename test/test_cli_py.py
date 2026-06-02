@@ -1054,7 +1054,7 @@ class CliPythonTests(unittest.TestCase):
 
         set_io = self.make_io()
         self.assertEqual(main([
-            "set", "main", "--power", "medium", "--permission", "full", "--fast", "off", "--json"
+            "set", "main", "--power", "medium", "--permission", "full", "--fast", "off", "--model", "gpt-test", "--json"
         ], {
             **set_io,
             "env": {"CDX_HOME": temp_dir},
@@ -1064,6 +1064,7 @@ class CliPythonTests(unittest.TestCase):
             "power": "medium",
             "permission": "full",
             "fast": False,
+            "model": "gpt-test",
         })
 
         self.assertEqual(main(["main"], {
@@ -1077,6 +1078,8 @@ class CliPythonTests(unittest.TestCase):
             if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "codex")
         ][-1]
         launch_text = _script_launch_text(launch_call)
+        self.assertIn("--model", launch_text)
+        self.assertIn("gpt-test", launch_text)
         self.assertIn("-c", launch_text)
         self.assertIn('model_reasoning_effort="medium"', launch_text)
         self.assertIn("danger-full-access", launch_text)
@@ -2086,7 +2089,7 @@ class CliPythonTests(unittest.TestCase):
             "spawn_sync": harness.spawn_sync,
         }), 0)
 
-        self.assertEqual(main(["set", "work1", "--power", "high", "--permission", "review", "--fast", "on"], {
+        self.assertEqual(main(["set", "work1", "--power", "high", "--permission", "review", "--fast", "on", "--model", "sonnet"], {
             **self.make_io(),
             "env": {"CDX_HOME": temp_dir},
         }), 0)
@@ -2105,6 +2108,8 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("review", config_io["stdout"].getvalue())
         self.assertIn("Fast", config_io["stdout"].getvalue())
         self.assertIn("on", config_io["stdout"].getvalue())
+        self.assertIn("Model", config_io["stdout"].getvalue())
+        self.assertIn("sonnet", config_io["stdout"].getvalue())
         self.assertIn(
             "Set a value: cdx set work1 --power medium --permission auto --fast on --rtk on --model MODEL --priority 80",
             config_io["stdout"].getvalue(),
@@ -2121,8 +2126,8 @@ class CliPythonTests(unittest.TestCase):
             if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "claude")
         ][-1]
         self.assertEqual(
-            _script_launch_args(launch_call)[:6],
-            ["--name", "work1", "--effort", "high", "--permission-mode", "plan"],
+            _script_launch_args(launch_call)[:8],
+            ["--name", "work1", "--model", "sonnet", "--effort", "high", "--permission-mode", "plan"],
         )
 
     def test_configs_lists_all_launch_settings_in_table(self):

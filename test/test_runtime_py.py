@@ -664,6 +664,38 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertIn("--effort", claude_spec["fallback"]["args"])
         self.assertIn("low", claude_spec["fallback"]["args"])
 
+    def test_build_launch_spec_injects_rtk_preference_with_initial_prompt(self):
+        session = {
+            "name": "main",
+            "provider": "codex",
+            "authHome": "/tmp/codex-home",
+            "launch": {"rtk": True},
+        }
+
+        spec = provider_runtime._build_launch_spec(session, cwd="/tmp/repo", initial_prompt="resume")
+
+        prompt = spec["fallback"]["args"][-1]
+        self.assertIn("prefer RTK wrappers", prompt)
+        self.assertIn("rtk <command>", prompt)
+        self.assertTrue(prompt.endswith("resume"))
+
+    def test_build_launch_spec_uses_codex_model_setting(self):
+        session = {
+            "name": "main",
+            "provider": "codex",
+            "authHome": "/tmp/codex-home",
+            "launch": {"model": "gpt-test", "power": "medium", "permission": "auto"},
+        }
+
+        spec = provider_runtime._build_launch_spec(session, cwd="/tmp/repo")
+
+        args = spec["fallback"]["args"]
+        self.assertIn("--model", args)
+        self.assertIn("gpt-test", args)
+        self.assertIn('model_reasoning_effort="medium"', args)
+        self.assertIn("workspace-write", args)
+        self.assertIn("never", args)
+
     def test_build_launch_spec_supports_antigravity(self):
         session = {
             "name": "agy1",
@@ -737,7 +769,7 @@ class RuntimePythonTests(unittest.TestCase):
 
         self.assertEqual(spec["command"], "codex")
         self.assertEqual(spec["args"][:4], ["exec", "--json", "-C", "/tmp/repo"])
-        self.assertIn("-m", spec["args"])
+        self.assertIn("--model", spec["args"])
         self.assertIn("gpt-test", spec["args"])
         self.assertIn('model_reasoning_effort="high"', spec["args"])
         self.assertIn("-s", spec["args"])

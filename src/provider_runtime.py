@@ -314,7 +314,11 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     env_override = env_override or {}
     env = {**os.environ, **env_override}
     if session["provider"] == PROVIDER_CLAUDE:
-        args = ["--name", session["name"]] + _launch_config_args(session)
+        launch = session.get("launch") or {}
+        args = ["--name", session["name"]]
+        if launch.get("model"):
+            args += ["--model", launch["model"]]
+        args += _launch_config_args(session)
         if initial_prompt:
             args.append(initial_prompt)
         auth_home = _get_auth_home(session)
@@ -360,7 +364,11 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
             },
             "label": "ollama",
         }, capture_transcript=capture_transcript, env=env)
-    args = ["--no-alt-screen", "--cd", cwd] + _launch_config_args(session)
+    launch = session.get("launch") or {}
+    args = ["--no-alt-screen", "--cd", cwd]
+    if launch.get("model"):
+        args += ["--model", launch["model"]]
+    args += _launch_config_args(session)
     if initial_prompt:
         args.append(initial_prompt)
     return _wrap_launch_with_transcript(session, {
@@ -414,7 +422,7 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
     if session["provider"] == PROVIDER_CODEX:
         args = ["exec", "--json", "-C", cwd]
         if model:
-            args += ["-m", model]
+            args += ["--model", model]
         if power:
             args += ["-c", f'model_reasoning_effort="{power}"']
         if permission:
