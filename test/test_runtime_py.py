@@ -2,6 +2,7 @@ import json
 import os
 import io
 import signal
+import subprocess
 import tempfile
 import unittest
 import urllib.error
@@ -507,6 +508,24 @@ class RuntimePythonTests(unittest.TestCase):
 
             with mock.patch("src.provider_runtime.subprocess.run", side_effect=AssertionError("should not probe")):
                 self.assertTrue(provider_runtime._probe_provider_auth(session))
+
+    def test_probe_provider_auth_can_force_live_codex_probe(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-codex-") as temp_dir:
+            with open(os.path.join(temp_dir, "auth.json"), "w", encoding="utf-8") as handle:
+                handle.write("{\"tokens\": {\"access_token\": \"codex-access-token\"}}\n")
+            session = {
+                "provider": "codex",
+                "authHome": temp_dir,
+            }
+
+            def fake_run(_argv, **_kwargs):
+                return subprocess.CompletedProcess([], 0, "Not logged in\n", "")
+
+            with mock.patch("src.provider_runtime.subprocess.run", side_effect=fake_run):
+                self.assertFalse(provider_runtime._probe_provider_auth(
+                    session,
+                    trust_local_credentials=False,
+                ))
 
     def test_probe_provider_auth_does_not_trust_empty_codex_auth_file(self):
         with tempfile.TemporaryDirectory(prefix="cdx-codex-") as temp_dir:

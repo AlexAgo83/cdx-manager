@@ -241,6 +241,14 @@ class CliPythonTests(unittest.TestCase):
             "stderr": _Stream(),
         }
 
+    def make_run_ctx(self, io_obj, service, **overrides):
+        return {
+            **io_obj,
+            "service": service,
+            "spawn_sync": _AuthHarness().spawn_sync,
+            **overrides,
+        }
+
     def test_reset_time_formatting_uses_countdown(self):
         now = datetime.now().astimezone()
         future = now + timedelta(hours=2, minutes=30)
@@ -3882,7 +3890,7 @@ class CliPythonTests(unittest.TestCase):
             "--permission", "workspace-write",
             "--timeout-seconds", "30",
             "--json",
-        ], {**io_obj, "service": service, "spawn_headless": spawn}), 0)
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 0)
 
         payload = json.loads(io_obj["stdout"].getvalue())
         self.assertTrue(payload["ok"])
@@ -3926,11 +3934,38 @@ class CliPythonTests(unittest.TestCase):
         io_obj = self.make_io()
         self.assertEqual(main([
             "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json"
-        ], {**io_obj, "service": service, "spawn_headless": spawn}), 0)
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 0)
 
         payload = json.loads(io_obj["stdout"].getvalue())
         self.assertEqual(payload["reasoning_effort"], "medium")
         self.assertEqual(payload["power"], "medium")
+
+    def test_run_requires_live_auth_probe_even_when_local_token_exists(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        session = service["create_session"]("work", "codex")
+        os.makedirs(session["authHome"], exist_ok=True)
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "token"}}, handle)
+
+        def spawn_sync(command, args, _options=None):
+            self.assertEqual(command, "codex")
+            self.assertEqual(args, ["login", "status"])
+            return {"stdout": "Not logged in\n", "stderr": ""}
+
+        def spawn(_argv, **_kwargs):
+            raise AssertionError("unauthenticated headless runs must not launch provider")
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json"
+        ], {**io_obj, "service": service, "spawn_headless": spawn, "spawn_sync": spawn_sync}), 1)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["source"], "cdx")
+        self.assertEqual(payload["error"]["code"], "cdx_error")
+        self.assertIn("not authenticated", payload["error"]["message"])
 
     def test_run_provider_failure_uses_provider_error_source(self):
         target_dir = self.make_temp_dir()
@@ -3954,7 +3989,7 @@ class CliPythonTests(unittest.TestCase):
         io_obj = self.make_io()
         self.assertEqual(main([
             "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json"
-        ], {**io_obj, "service": service, "spawn_headless": spawn}), 7)
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 7)
 
         payload = json.loads(io_obj["stdout"].getvalue())
         self.assertFalse(payload["ok"])
@@ -3982,7 +4017,7 @@ class CliPythonTests(unittest.TestCase):
         io_obj = self.make_io()
         self.assertEqual(main([
             "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json"
-        ], {**io_obj, "service": service, "spawn_headless": spawn}), 127)
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 127)
 
         payload = json.loads(io_obj["stdout"].getvalue())
         self.assertFalse(payload["ok"])
@@ -4005,7 +4040,7 @@ class CliPythonTests(unittest.TestCase):
         io_obj = self.make_io()
         self.assertEqual(main([
             "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json"
-        ], {**io_obj, "service": service, "spawn_headless": spawn}), 126)
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 126)
 
         payload = json.loads(io_obj["stdout"].getvalue())
         self.assertFalse(payload["ok"])
@@ -4029,7 +4064,7 @@ class CliPythonTests(unittest.TestCase):
         io_obj = self.make_io()
         self.assertEqual(main([
             "run", "work", "--cwd", missing_dir, "--prompt", "Do it", "--json"
-        ], {**io_obj, "service": service, "spawn_headless": spawn}), 1)
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 1)
 
         payload = json.loads(io_obj["stdout"].getvalue())
         self.assertFalse(payload["ok"])
@@ -4053,7 +4088,7 @@ class CliPythonTests(unittest.TestCase):
         io_obj = self.make_io()
         self.assertEqual(main([
             "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json"
-        ], {**io_obj, "service": service, "spawn_headless": spawn}), 1)
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 1)
 
         payload = json.loads(io_obj["stdout"].getvalue())
         self.assertFalse(payload["ok"])
@@ -4074,7 +4109,7 @@ class CliPythonTests(unittest.TestCase):
             "--reasoning-effort", "low",
             "--power", "high",
             "--json",
-        ], {**io_obj, "service": service}), 1)
+        ], self.make_run_ctx(io_obj, service)), 1)
 
         payload = json.loads(io_obj["stdout"].getvalue())
         self.assertFalse(payload["ok"])
@@ -4098,7 +4133,7 @@ class CliPythonTests(unittest.TestCase):
         io_obj = self.make_io()
         self.assertEqual(main([
             "run", "--provider", "codex", "--cwd", target_dir, "--prompt", "Do it", "--json"
-        ], {**io_obj, "service": service, "spawn_headless": spawn}), 0)
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 0)
 
         payload = json.loads(io_obj["stdout"].getvalue())
         self.assertTrue(payload["ok"])
@@ -4120,7 +4155,7 @@ class CliPythonTests(unittest.TestCase):
         io_obj = self.make_io()
         self.assertEqual(main([
             "run", "--provider", "codex", "--cwd", target_dir, "--prompt", "Do it", "--json"
-        ], {**io_obj, "service": service}), 1)
+        ], self.make_run_ctx(io_obj, service)), 1)
 
         payload = json.loads(io_obj["stdout"].getvalue())
         self.assertFalse(payload["ok"])
@@ -4142,7 +4177,7 @@ class CliPythonTests(unittest.TestCase):
         io_obj = self.make_io()
         self.assertEqual(main([
             "run", "work", "--cwd", target_dir, "--prompt", "Slow", "--timeout-seconds", "0.01", "--json"
-        ], {**io_obj, "service": service, "spawn_headless": spawn}), 124)
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 124)
 
         payload = json.loads(io_obj["stdout"].getvalue())
         self.assertFalse(payload["ok"])

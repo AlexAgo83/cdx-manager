@@ -656,13 +656,14 @@ def _resolve_command(command, env=None):
     return shutil.which(command, path=env.get("PATH")) or command
 
 
-def _probe_provider_auth(session, spawn_sync=None, env_override=None):
+def _probe_provider_auth(session, spawn_sync=None, env_override=None, trust_local_credentials=True):
     spawn_sync = spawn_sync or subprocess.run
     spec = _build_login_status_spec(session, env_override)
-    if session.get("provider") == PROVIDER_CLAUDE and _has_local_claude_auth(_get_auth_home(session)):
-        return True
-    if session.get("provider") == PROVIDER_CODEX and _has_local_codex_auth(_get_auth_home(session)):
-        return True
+    if trust_local_credentials:
+        if session.get("provider") == PROVIDER_CLAUDE and _has_local_claude_auth(_get_auth_home(session)):
+            return True
+        if session.get("provider") == PROVIDER_CODEX and _has_local_codex_auth(_get_auth_home(session)):
+            return True
     try:
         if spawn_sync is subprocess.run:
             command = _resolve_command(spec["command"], spec["env"])
@@ -847,12 +848,17 @@ def _should_retry_without_transcript(spec):
 
 def _ensure_session_authentication(session, service, spawn=None, spawn_sync=None,
                                    stdin_is_tty=True, env_override=None, behavior="launch",
-                                   signal_emitter=None):
+                                   signal_emitter=None, trust_local_credentials=True):
     if behavior == "launch" and (session.get("auth") or {}).get("status") == "logged_out":
         raise CdxError(
             f"Session {session['name']} is not authenticated. Run: cdx login {session['name']}"
         )
-    is_authenticated = _probe_provider_auth(session, spawn_sync=spawn_sync, env_override=env_override)
+    is_authenticated = _probe_provider_auth(
+        session,
+        spawn_sync=spawn_sync,
+        env_override=env_override,
+        trust_local_credentials=trust_local_credentials,
+    )
     if is_authenticated:
         return {"authenticated": True, "checked": True}
     if behavior == "probe-only":

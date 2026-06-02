@@ -1450,6 +1450,7 @@ def handle_run(rest, ctx):
             stdin_is_tty=False,
             behavior="launch",
             signal_emitter=ctx.get("signal_emitter"),
+            trust_local_credentials=False,
         )
         run_info = _run_headless_provider_command(
             run_session,
