@@ -10,6 +10,7 @@ from .cli_commands import (
     handle_add,
     handle_clean,
     handle_config,
+    handle_configs,
     handle_context,
     handle_copy,
     handle_doctor,
@@ -79,6 +80,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--reasoning-effort low|medium|high] [--power low|medium|high] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] --json', '36', use_color)}",
         f"  {_style('cdx context show|path|init|edit|clear|set [text...] [--json]', '36', use_color)}",
         f"  {_style('cdx config <name> [--json]', '36', use_color)}",
+        f"  {_style('cdx configs [--json]', '36', use_color)}",
         f"  {_style('cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]', '36', use_color)}",
         f"  {_style('cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--model MODEL] [--priority 0..100] [--json]', '36', use_color)}",
         f"  {_style('cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--model|--priority|--all) [--json]', '36', use_color)}",
@@ -240,7 +242,7 @@ def main(argv, options=None):
         "version": VERSION,
         "cwd": options.get("cwd") or os.getcwd(),
         "update_notice": _get_update_notice(service, env, options) if command not in (
-            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "context", "config", "set", "unset", "power", "perm", "fast", "model", "history", "stats", "handoff", "login", "logout", "disable", "enable", "export", "import", "select", "run", "help", "version"
+            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "context", "config", "configs", "set", "unset", "power", "perm", "fast", "model", "history", "stats", "handoff", "login", "logout", "disable", "enable", "export", "import", "select", "run", "help", "version"
         ) else None,
         "use_color": use_color,
     }
@@ -294,6 +296,9 @@ def main(argv, options=None):
 
     if command == "config":
         return handle_config(rest, ctx)
+
+    if command == "configs":
+        return handle_configs(rest, ctx)
 
     if command == "set":
         return handle_set(rest, ctx)

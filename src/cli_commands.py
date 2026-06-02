@@ -58,6 +58,7 @@ SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--pow
 UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--model|--priority|--all) [--json]"
 SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
+CONFIGS_USAGE = "Usage: cdx configs [--json]"
 HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
 STATS_USAGE = "Usage: cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
 LAST_USAGE = "Usage: cdx last [--json]"
@@ -596,6 +597,13 @@ def _parse_config_args(args):
     if len(parsed["names"]) != 1:
         raise CdxError(CONFIG_USAGE)
     return {"name": parsed["names"][0], "json": parsed["json"]}
+
+
+def _parse_configs_args(args):
+    parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, CONFIGS_USAGE)
+    return {"json": parsed["json"]}
 
 
 def _parse_select_args(args):
@@ -1406,16 +1414,89 @@ def handle_run(rest, ctx):
         return error.exit_code
 
 
-def _format_launch_config(session):
+def _format_launch_config(session, use_color=False):
+    from .cli_render import _dim, _pad_table, _style
+
     launch = session.get("launch") or {}
+    rows = [[_style("SETTING", "1", use_color), _style("VALUE", "1", use_color)]]
+    for key, label in [
+        ("power", "Power"),
+        ("permission", "Permission"),
+        ("fast", "Fast"),
+        ("rtk", "RTK"),
+        ("model", "Model"),
+        ("priority", "Priority"),
+    ]:
+        rows.append([
+            _dim(label, use_color),
+            _format_launch_setting_value(launch, key, use_color=use_color),
+        ])
+    provider_label = f"({session['provider']})"
     return "\n".join([
-        f"{session['name']} ({session['provider']})",
-        f"power:      {launch.get('power') or 'default'}",
-        f"permission: {launch.get('permission') or 'default'}",
-        f"fast:       {'on' if launch.get('fast') is True else 'off' if launch.get('fast') is False else 'default'}",
-        f"rtk:        {'on' if launch.get('rtk') is True else 'off' if launch.get('rtk') is False else 'default'}",
-        f"model:      {launch.get('model') or 'default'}",
-        f"priority:   {launch.get('priority') if launch.get('priority') is not None else 'default'}",
+        _style("Launch settings:", "1", use_color),
+        f"{_style(session['name'], '36', use_color)} {_dim(provider_label, use_color)}",
+        _pad_table(rows),
+        "",
+        _dim(_format_launch_settings_hint(session["name"]), use_color),
+    ])
+
+
+def _format_launch_settings_hint(name="<name>"):
+    return (
+        f"Set a value: cdx set {name} --power medium --permission auto "
+        "--fast on --rtk on --model MODEL --priority 80"
+    )
+
+
+def _format_launch_setting_value(launch, key, use_color=False):
+    if key == "fast" or key == "rtk":
+        if launch.get(key) is True:
+            return _style("on", "32", use_color)
+        if launch.get(key) is False:
+            return _style("off", "2", use_color)
+        return _dim("default", use_color)
+    value = launch.get(key)
+    if value is None or value == "":
+        return _dim("default", use_color)
+    if key == "priority":
+        return _style(str(value), "33", use_color)
+    if key == "power":
+        return _style(str(value), "96", use_color)
+    if key == "permission":
+        return _style(str(value), "32", use_color)
+    return str(value)
+
+
+def _format_launch_configs(sessions, use_color=False):
+    from .cli_render import _dim, _pad_table, _style
+
+    if not sessions:
+        return "\n".join([
+            _style("Launch settings:", "1", use_color),
+            "No sessions.",
+            "",
+            _dim(_format_launch_settings_hint(), use_color),
+        ])
+    rows = [[_style(value, "1", use_color) for value in [
+        "SESSION", "PROVIDER", "POWER", "PERMISSION", "FAST", "RTK", "MODEL", "PRIORITY"
+    ]]]
+    for session in sessions:
+        launch = session.get("launch") or {}
+        rows.append([
+            _style(session["name"], "36", use_color),
+            _dim(session.get("provider") or "-", use_color),
+            _format_launch_setting_value(launch, "power", use_color),
+            _format_launch_setting_value(launch, "permission", use_color),
+            _format_launch_setting_value(launch, "fast", use_color),
+            _format_launch_setting_value(launch, "rtk", use_color),
+            _format_launch_setting_value(launch, "model", use_color),
+            _format_launch_setting_value(launch, "priority", use_color),
+        ])
+    return "\n".join([
+        _style("Launch settings:", "1", use_color),
+        _pad_table(rows),
+        "",
+        _dim(_format_launch_settings_hint(), use_color),
     ])
 
 
@@ -1825,7 +1906,7 @@ def _apply_launch_settings(parsed, ctx, action="set"):
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
     if len(sessions) == 1:
-        ctx["out"](f"{_format_launch_config(sessions[0])}\n")
+        ctx["out"](f"{_format_launch_config(sessions[0], ctx['use_color'])}\n")
     return 0
 
 
@@ -1853,7 +1934,7 @@ def _clear_launch_settings(parsed, ctx, action="unset"):
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
     if len(sessions) == 1:
-        ctx["out"](f"{_format_launch_config(sessions[0])}\n")
+        ctx["out"](f"{_format_launch_config(sessions[0], ctx['use_color'])}\n")
     return 0
 
 
@@ -1881,7 +1962,18 @@ def handle_config(rest, ctx):
     if parsed["json"]:
         _write_json(ctx, _json_success("config", message, session=session, launch=session.get("launch") or {}))
         return 0
-    ctx["out"](f"{_format_launch_config(session)}\n")
+    ctx["out"](f"{_format_launch_config(session, ctx['use_color'])}\n")
+    return 0
+
+
+def handle_configs(rest, ctx):
+    parsed = _parse_configs_args(rest)
+    sessions = ctx["service"]["list_sessions"]()
+    message = f"Listed launch settings for {len(sessions)} session{'s' if len(sessions) != 1 else ''}"
+    if parsed["json"]:
+        _write_json(ctx, _json_success("configs", message, count=len(sessions), sessions=sessions))
+        return 0
+    ctx["out"](f"{_format_launch_configs(sessions, ctx['use_color'])}\n")
     return 0
 
 

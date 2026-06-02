@@ -634,8 +634,10 @@ class CliPythonTests(unittest.TestCase):
 
         lines = list_io["stdout"].getvalue().splitlines()
         start = lines.index("Next actions:") + 1
-        self.assertEqual(lines[start:start + 7], [
+        self.assertEqual(lines[start:start + 9], [
             "  cdx status",
+            "  cdx configs",
+            "  cdx stats",
             "  cdx ready",
             "  cdx perm all default",
             "  cdx handoff <source> <target>",
@@ -2001,7 +2003,8 @@ class CliPythonTests(unittest.TestCase):
             **config_io,
             "env": {"CDX_HOME": temp_dir},
         }), 0)
-        self.assertIn("model:      llama3.2", config_io["stdout"].getvalue())
+        self.assertIn("Model", config_io["stdout"].getvalue())
+        self.assertIn("llama3.2", config_io["stdout"].getvalue())
 
         launch_io = self.make_io()
         self.assertEqual(main([
@@ -2057,9 +2060,19 @@ class CliPythonTests(unittest.TestCase):
             **config_io,
             "env": {"CDX_HOME": temp_dir},
         }), 0)
-        self.assertIn("power:      high", config_io["stdout"].getvalue())
-        self.assertIn("permission: review", config_io["stdout"].getvalue())
-        self.assertIn("fast:       on", config_io["stdout"].getvalue())
+        self.assertIn("Launch settings:", config_io["stdout"].getvalue())
+        self.assertIn("SETTING", config_io["stdout"].getvalue())
+        self.assertIn("VALUE", config_io["stdout"].getvalue())
+        self.assertIn("Power", config_io["stdout"].getvalue())
+        self.assertIn("high", config_io["stdout"].getvalue())
+        self.assertIn("Permission", config_io["stdout"].getvalue())
+        self.assertIn("review", config_io["stdout"].getvalue())
+        self.assertIn("Fast", config_io["stdout"].getvalue())
+        self.assertIn("on", config_io["stdout"].getvalue())
+        self.assertIn(
+            "Set a value: cdx set work1 --power medium --permission auto --fast on --rtk on --model MODEL --priority 80",
+            config_io["stdout"].getvalue(),
+        )
 
         self.assertEqual(main(["work1"], {
             **self.make_io(),
@@ -2075,6 +2088,82 @@ class CliPythonTests(unittest.TestCase):
             _script_launch_args(launch_call)[:6],
             ["--name", "work1", "--effort", "high", "--permission-mode", "plan"],
         )
+
+    def test_configs_lists_all_launch_settings_in_table(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        self.assertEqual(main(["add", "work"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        self.assertEqual(main(["add", "claude", "personal"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        self.assertEqual(main(["set", "work", "--power", "high", "--permission", "auto", "--fast", "off", "--rtk", "on", "--priority", "80"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        configs_io = self.make_io()
+        self.assertEqual(main(["configs"], {
+            **configs_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        output = configs_io["stdout"].getvalue()
+        self.assertIn("Launch settings:", output)
+        self.assertIn("SESSION", output)
+        self.assertIn("PROVIDER", output)
+        self.assertIn("POWER", output)
+        self.assertIn("PERMISSION", output)
+        self.assertIn("FAST", output)
+        self.assertIn("RTK", output)
+        self.assertIn("PRIORITY", output)
+        self.assertIn("work", output)
+        self.assertIn("codex", output)
+        self.assertIn("high", output)
+        self.assertIn("auto", output)
+        self.assertIn("off", output)
+        self.assertIn("on", output)
+        self.assertIn("80", output)
+        self.assertIn("personal", output)
+        self.assertIn("default", output)
+        self.assertIn(
+            "Set a value: cdx set <name> --power medium --permission auto --fast on --rtk on --model MODEL --priority 80",
+            output,
+        )
+
+    def test_configs_json_lists_all_sessions(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        self.assertEqual(main(["add", "work"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        self.assertEqual(main(["set", "work", "--power", "medium"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        configs_io = self.make_io()
+        self.assertEqual(main(["configs", "--json"], {
+            **configs_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        payload = json.loads(configs_io["stdout"].getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["action"], "configs")
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["sessions"][0]["name"], "work")
+        self.assertEqual(payload["sessions"][0]["launch"]["power"], "medium")
 
     def test_handoff_launches_claude_target_with_initial_prompt(self):
         temp_dir = self.make_temp_dir()
