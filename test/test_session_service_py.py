@@ -125,6 +125,23 @@ class SessionServicePythonTests(unittest.TestCase):
         updated = service["unset_launch_settings"]("local", ["model", "rtk"])
         self.assertEqual(updated["launch"], {"power": "medium", "fast": False})
 
+    def test_fast_setting_toggles_default_power(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        updated = service["set_launch_settings"]("main", {"fast": "on"})
+        self.assertEqual(updated["launch"], {"fast": True})
+
+        updated = service["set_launch_settings"]("main", {"power": "high"})
+        self.assertEqual(updated["launch"], {"fast": False, "power": "high"})
+
+        updated = service["set_launch_settings"]("main", {"fast": "on"})
+        self.assertEqual(updated["launch"], {"fast": True})
+
+        updated = service["set_launch_settings"]("main", {"fast": "off"})
+        self.assertEqual(updated["launch"], {"fast": False, "power": "medium"})
+
     def test_status_rows_do_not_expose_auth_home(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

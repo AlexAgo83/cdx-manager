@@ -1208,6 +1208,57 @@ class CliPythonTests(unittest.TestCase):
         ], {**unset_io, "env": {"CDX_HOME": temp_dir}}), 0)
         self.assertNotIn("rtk", json.loads(unset_io["stdout"].getvalue())["launch"])
 
+    def test_fast_on_overrides_default_power_for_codex_and_claude_launch(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        for args in (["add", "main"], ["add", "claude", "work1"]):
+            self.assertEqual(main(args, {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
+
+        set_io = self.make_io()
+        self.assertEqual(main([
+            "set", "--sessions", "main,work1", "--fast", "on", "--json"
+        ], {**set_io, "env": {"CDX_HOME": temp_dir}}), 0)
+        payload = json.loads(set_io["stdout"].getvalue())
+        self.assertTrue(all(session["launch"] == {"fast": True} for session in payload["sessions"]))
+
+        self.assertEqual(main(["main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        codex_call = [
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "codex")
+        ][-1]
+        codex_text = _script_launch_text(codex_call)
+        self.assertIn('model_reasoning_effort="low"', codex_text)
+        self.assertNotIn('model_reasoning_effort="medium"', codex_text)
+
+        self.assertEqual(main(["work1"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        claude_call = [
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "claude")
+        ][-1]
+        self.assertIn("--effort", _script_launch_args(claude_call))
+        self.assertIn("low", _script_launch_args(claude_call))
+
+        unset_io = self.make_io()
+        self.assertEqual(main([
+            "set", "main", "--fast", "off", "--json"
+        ], {**unset_io, "env": {"CDX_HOME": temp_dir}}), 0)
+        self.assertEqual(json.loads(unset_io["stdout"].getvalue())["launch"], {"fast": False, "power": "medium"})
+
     def test_headless_selection_priority_breaks_reasoning_ties_after_minimum_filter(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})

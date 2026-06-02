@@ -291,7 +291,7 @@ cdx power all default
 cdx model provider:ollama default
 ```
 
-`--model` maps to Codex `--model`, Claude `--model`, and Ollama `ollama run <model>`. `--power` maps to Codex `model_reasoning_effort` and Claude `--effort`. `--permission` maps to provider-native permission flags. `--fast on` uses low effort when no explicit power is set. `--priority` is a 0..100 selector preference used as a tie-breaker after readiness and availability. `--rtk on` injects a launch instruction that encourages assistants to use RTK (`rtk <command>`) for noisy terminal commands when RTK is available, while keeping raw commands for exact output.
+`--model` maps to Codex `--model`, Claude `--model`, and Ollama `ollama run <model>`. `--power` maps to Codex `model_reasoning_effort` and Claude `--effort`. `--permission` maps to provider-native permission flags. `--fast on` clears the stored power setting and uses low effort; setting `--power` again disables fast mode. `--priority` is a 0..100 selector preference used as a tie-breaker after readiness and availability. `--rtk on` injects a launch instruction that encourages assistants to use RTK (`rtk <command>`) for noisy terminal commands when RTK is available, while keeping raw commands for exact output.
 
 ### Launch History
 

@@ -816,6 +816,16 @@ def create_session_service(options=None):
             raise CdxError("At least one launch setting is required.")
         current = _normalize_launch_settings(session.get("launch") or {})
         launch = {**current, **updates}
+        explicit_power = "power" in updates or "reasoning_effort" in updates
+        if explicit_power and "fast" not in updates:
+            launch["fast"] = False
+        if "fast" in updates and not explicit_power:
+            if updates["fast"] is True:
+                launch.pop("power", None)
+                launch.pop("reasoning_effort", None)
+                launch.pop("reasoningEffort", None)
+            elif not any(key in launch for key in ("power", "reasoning_effort", "reasoningEffort")):
+                launch["power"] = DEFAULT_LAUNCH_SETTINGS["power"]
         now = _local_now_iso()
         return store["update_session"](name, lambda s: {
             **s,
