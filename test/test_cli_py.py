@@ -2181,6 +2181,41 @@ class CliPythonTests(unittest.TestCase):
             ["--name", "work1", "--model", "sonnet", "--effort", "high", "--permission-mode", "plan"],
         )
 
+    def test_persisted_claude_api_model_is_normalized_for_cli_launch(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        self.assertEqual(main(["add", "claude", "work1"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        self.assertEqual(main(["set", "work1", "--model", "claude-sonnet-4-5-20250929"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        config_io = self.make_io()
+        self.assertEqual(main(["config", "work1"], {
+            **config_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertIn("claude-sonnet-4-5-20250929", config_io["stdout"].getvalue())
+
+        self.assertEqual(main(["work1"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        launch_call = [
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "claude")
+        ][-1]
+        model_index = _script_launch_args(launch_call).index("--model") + 1
+        self.assertEqual(_script_launch_args(launch_call)[model_index], "claude-sonnet-4-5")
+
     def test_configs_lists_all_launch_settings_in_table(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()

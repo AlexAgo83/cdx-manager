@@ -40,6 +40,14 @@ HEADLESS_CODEX_PERMISSION_ARGS = {
     "full": ["--dangerously-bypass-approvals-and-sandbox"],
 }
 REDACTED_PROMPT_ARG = "[prompt redacted]"
+CLAUDE_CLI_MODEL_ALIASES = {
+    "claude-sonnet": "sonnet",
+    "claude-opus": "opus",
+    "claude-haiku": "haiku",
+    "sonnet-latest": "sonnet",
+    "opus-latest": "opus",
+    "haiku-latest": "haiku",
+}
 
 
 def _home_env_overrides(auth_home):
@@ -207,6 +215,26 @@ def _normalize_reasoning_effort(reasoning_effort=None, power=None, usage="Unsupp
     }
 
 
+def _claude_cli_model(model):
+    if not model:
+        return model
+    raw = str(model).strip()
+    normalized = raw.lower().replace("_", "-")
+    if normalized in CLAUDE_CLI_MODEL_ALIASES:
+        return CLAUDE_CLI_MODEL_ALIASES[normalized]
+
+    marketing = re.fullmatch(r"(?:claude-)?(sonnet|opus|haiku)-(\d+)(?:[.-](\d+))?", normalized)
+    if marketing:
+        family, major, minor = marketing.groups()
+        return f"claude-{family}-{major}-{minor}" if minor else family
+
+    dated = re.fullmatch(r"(claude-(?:sonnet|opus|haiku)-4(?:-\d+)*)-\d{8}", normalized)
+    if dated:
+        return dated.group(1)
+
+    return raw
+
+
 def _launch_config_args(session):
     launch = session.get("launch") or {}
     args = []
@@ -317,7 +345,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
         launch = session.get("launch") or {}
         args = ["--name", session["name"]]
         if launch.get("model"):
-            args += ["--model", launch["model"]]
+            args += ["--model", _claude_cli_model(launch["model"])]
         args += _launch_config_args(session)
         if initial_prompt:
             args.append(initial_prompt)
@@ -402,7 +430,7 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
     if session["provider"] == PROVIDER_CLAUDE:
         args = ["--print", "--output-format", "json", "--name", session["name"]]
         if model:
-            args += ["--model", model]
+            args += ["--model", _claude_cli_model(model)]
         args += _launch_config_args(session)
         if initial_prompt:
             args.append(initial_prompt)

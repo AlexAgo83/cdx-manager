@@ -813,6 +813,25 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertEqual(spec["options"]["cwd"], "/tmp/repo")
         self.assertEqual(spec["options"]["env"]["HOME"], "/tmp/claude-home")
 
+    def test_claude_launch_model_normalizes_api_and_marketing_names(self):
+        self.assertEqual(provider_runtime._claude_cli_model("claude-sonnet-4-5-20250929"), "claude-sonnet-4-5")
+        self.assertEqual(provider_runtime._claude_cli_model("sonnet-4.5"), "claude-sonnet-4-5")
+        self.assertEqual(provider_runtime._claude_cli_model("claude-opus"), "opus")
+        self.assertEqual(provider_runtime._claude_cli_model("custom-model"), "custom-model")
+
+    def test_build_headless_launch_spec_normalizes_claude_model_for_cli(self):
+        session = {
+            "name": "claude",
+            "provider": "claude",
+            "authHome": "/tmp/claude-home",
+            "launch": {"model": "claude-sonnet-4-5-20250929"},
+        }
+
+        spec = provider_runtime._build_headless_launch_spec(session, cwd="/tmp/repo", initial_prompt="do it")
+
+        model_index = spec["args"].index("--model") + 1
+        self.assertEqual(spec["args"][model_index], "claude-sonnet-4-5")
+
     def test_run_usage_extracts_claude_json_usage(self):
         with tempfile.TemporaryDirectory(prefix="cdx-usage-") as temp_dir:
             path = os.path.join(temp_dir, "stdout.log")
