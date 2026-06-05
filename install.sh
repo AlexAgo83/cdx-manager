@@ -6,7 +6,9 @@ VERSION="${CDX_VERSION:-}"
 PREFIX="${PREFIX:-$HOME/.local}"
 BIN_DIR="${BIN_DIR:-$PREFIX/bin}"
 INSTALL_ROOT="${CDX_INSTALL_ROOT:-$PREFIX/share/cdx-manager}"
-CHECKSUMS_URL="${CDX_CHECKSUMS_URL:-https://raw.githubusercontent.com/$REPO/main/checksums/release-archives.json}"
+DEFAULT_CHECKSUMS_URL="https://raw.githubusercontent.com/$REPO/main/checksums/release-archives.json"
+CHECKSUMS_URL="${CDX_CHECKSUMS_URL:-$DEFAULT_CHECKSUMS_URL}"
+CHECKSUMS_API_URL="${CDX_CHECKSUMS_API_URL:-https://api.github.com/repos/$REPO/contents/checksums/release-archives.json?ref=main}"
 
 need() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -51,6 +53,27 @@ if value:
 ' "$1"
 }
 
+resolve_expected_sha256_from_api() {
+  curl -fsSL "$CHECKSUMS_API_URL" |
+    python3 -c '
+import base64
+import json
+import sys
+
+tag = sys.argv[1]
+try:
+    response = json.load(sys.stdin)
+    payload = json.loads(base64.b64decode(response.get("content") or b"").decode("utf-8"))
+except Exception:
+    raise SystemExit(1)
+
+release = (payload.get("releases") or {}).get(tag) or {}
+value = release.get("github_tarball_sha256")
+if value:
+    print(value)
+' "$1"
+}
+
 if [ -z "$VERSION" ]; then
   VERSION="$(
     curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" |
@@ -75,6 +98,9 @@ curl -fsSL "$ARCHIVE_URL" -o "$TMP_DIR/cdx-manager.tar.gz"
 EXPECTED_SHA256="${CDX_SHA256:-}"
 if [ -z "$EXPECTED_SHA256" ]; then
   EXPECTED_SHA256="$(resolve_expected_sha256 "$TAG" 2>/dev/null || true)"
+fi
+if [ -z "$EXPECTED_SHA256" ] && [ "$CHECKSUMS_URL" = "$DEFAULT_CHECKSUMS_URL" ]; then
+  EXPECTED_SHA256="$(resolve_expected_sha256_from_api "$TAG" 2>/dev/null || true)"
 fi
 
 if [ -n "$EXPECTED_SHA256" ]; then

@@ -11,6 +11,12 @@ $repo = "AlexAgo83/cdx-manager"
 if (-not $ChecksumsUrl) {
     $ChecksumsUrl = "https://raw.githubusercontent.com/$repo/main/checksums/release-archives.json"
 }
+$defaultChecksumsUrl = "https://raw.githubusercontent.com/$repo/main/checksums/release-archives.json"
+$checksumsApiUrl = if ($env:CDX_CHECKSUMS_API_URL) {
+    $env:CDX_CHECKSUMS_API_URL
+} else {
+    "https://api.github.com/repos/$repo/contents/checksums/release-archives.json?ref=main"
+}
 
 function Has-Command {
     param([string]$Name)
@@ -52,6 +58,15 @@ try {
     if (-not $Sha256) {
         try {
             $checksums = Invoke-RestMethod -Uri $ChecksumsUrl
+            $Sha256 = $checksums.releases.$tag.github_zip_sha256
+        } catch {
+        }
+    }
+    if ((-not $Sha256) -and ($ChecksumsUrl -eq $defaultChecksumsUrl)) {
+        try {
+            $checksumsResponse = Invoke-RestMethod -Uri $checksumsApiUrl
+            $checksumsJson = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($checksumsResponse.content))
+            $checksums = $checksumsJson | ConvertFrom-Json
             $Sha256 = $checksums.releases.$tag.github_zip_sha256
         } catch {
         }
