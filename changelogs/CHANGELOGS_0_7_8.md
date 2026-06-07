@@ -21,10 +21,10 @@ Release date: 2026-06-08
 - `npm run lint`
 - `npm test`
 - `python -m unittest discover -s test -p 'test_*_py.py'`
-- `python logics/skills/logics.py lint --require-status`
+- `python3 -m logics_manager lint --require-status`
 - `git diff --check`
 - `node bin/cdx.js --version`
 - `python3 bin/cdx --version`
 - `npm --cache /private/tmp/cdx-npm-cache pack --dry-run`
 - `python -m build`
-- `twine check dist/*`
+- `python -m twine check dist/*`
