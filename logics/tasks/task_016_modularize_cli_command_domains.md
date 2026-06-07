@@ -1,18 +1,18 @@
 ## task_016_modularize_cli_command_domains - Modularize CLI command domains
 > From version: 0.7.8
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Status: Done
+> Understanding: 100%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 
 # Definition of Done (DoD)
-- [ ] The backlog scope is implemented.
-- [ ] Acceptance criteria are covered.
-- [ ] Validation passes.
+- [x] The backlog scope is implemented.
+- [x] Acceptance criteria are covered.
+- [x] Validation passes.
 
 # Backlog
 - `item_016_modularize_cli_command_domains`
@@ -20,7 +20,7 @@
 
 ```mermaid
 %% logics-kind: task
-%% logics-signature: task|modularize-cli-command-domains|item-016-modularize-cli-command-domains|1-confirm-scope|run-python3-m-logics-manager-lint-requi
+%% logics-signature: task|modularize-cli-command-domains|item-016-modularize-cli-command-domains|1-confirm-scope|node-bin-python-runner-js-m-unittest-dis
 flowchart TD
     Backlog[Backlog item] --> Build[Implementation]
     Build --> Validate[Validation]
@@ -42,11 +42,16 @@ flowchart TD
 - request-AC12 -> Task AC6. Proof: documentation/help alignment for the moved command domain.
 
 # Validation
-- Run `python3 -m logics_manager lint --require-status`.
-- Run `python3 -m logics_manager flow finish task task_016_modularize_cli_command_domains.md` after implementation.
+- `node bin/python-runner.js -m unittest discover -s test -p test_cli_py.py -k view`
+- `npm run lint`
+- `npm test`
+- `logics-manager lint --require-status`
+- `logics-manager audit`
 
 # Report
-- Implementation complete.
+- Extracted the `cdx view` command handler from `src/cli_commands.py` into `src/cli_view.py`.
+- Kept `src/cli_commands.py` as the compatibility facade by re-exporting `handle_view`, so existing routing from `src/cli.py` remains easy to audit.
+- Preserved the focused `cdx view` tests for delegation, missing-tool behavior, JSON diagnostics, and update suggestions.
 
 # AI Context
 - Summary: Implement modularize cli command domains.

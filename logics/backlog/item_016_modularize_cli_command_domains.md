@@ -1,10 +1,10 @@
 ## item_016_modularize_cli_command_domains - Modularize CLI command domains
 > From version: 0.7.8
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Status: Done
+> Understanding: 100%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: High
 > Theme: Code maintainability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -59,7 +59,7 @@ flowchart TD
 - Product brief(s): (none yet)
 - Architecture decision(s): (none yet)
 - Request: `req_004_harden_release_governance_and_add_logics_viewer_command`
-- Primary task(s): (none yet)
+- Primary task(s): `task_016_modularize_cli_command_domains`
 
 # AI Context
 - Summary: Reduce `src/cli_commands.py` risk by extracting one coherent command domain while preserving behavior and tests.
@@ -70,6 +70,15 @@ flowchart TD
 # Priority
 - Impact: Medium
 - Urgency: Medium
+
+# Notes
+- Delivered as the first command-domain extraction slice.
+- Validation evidence:
+  - `node bin/python-runner.js -m unittest discover -s test -p test_cli_py.py -k view`
+  - `npm run lint`
+  - `npm test`
+  - `logics-manager lint --require-status`
+  - `logics-manager audit`
 
 # Tasks
 - `task_016_modularize_cli_command_domains`

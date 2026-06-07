@@ -23,6 +23,10 @@ Release date: 2026-06-08
 - The npm and PyPI publication workflows now run the checksum/version gate before registry upload.
 - Release prep now requires generating `checksums/release-archives.json` entries for the matching `vX.Y.Z` tag before publication.
 
+## Maintainability
+
+- Extracted the `cdx view` command domain into a dedicated module while keeping the existing CLI routing and JSON diagnostics unchanged.
+
 ## Validation and Regression Evidence
 
 - `npm run lint`

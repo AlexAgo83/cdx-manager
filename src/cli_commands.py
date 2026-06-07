@@ -21,13 +21,7 @@ from .context_store import (
 )
 from .errors import CdxError
 from .health import collect_health_report, format_health_report
-from .logics_view import (
-    LOGICS_MANAGER_INSTALL_HINT,
-    build_viewer_diagnostics,
-    missing_logics_manager_failure,
-    resolve_logics_manager,
-    run_logics_viewer,
-)
+from .cli_view import handle_view
 from .notify import (
     format_notify_event,
     format_scheduled_notification,
@@ -57,7 +51,6 @@ from .update_manager import build_update_plan, format_update_failure, run_update
 STATUS_USAGE = "Usage: cdx status [--json] [--refresh] | cdx status --small|-s [--refresh] | cdx status <name> [--json] [--refresh]"
 DOCTOR_USAGE = "Usage: cdx doctor [--json]"
 REPAIR_USAGE = "Usage: cdx repair [--dry-run] [--force] [--json]"
-VIEW_USAGE = "Usage: cdx view [--json]"
 UPDATE_USAGE = "Usage: cdx update [--check] [--yes] [--json] [--version TAG]"
 EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
 IMPORT_USAGE = "Usage: cdx import <file> [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
@@ -2211,59 +2204,6 @@ def handle_repair(rest, ctx):
         ctx["out"](f"{format_repair_report(report, use_color=ctx['use_color'])}\n")
         if dry_run:
             ctx["out"](f"{_dim('Tip: run cdx repair --force to apply safe repairs.', ctx['use_color'])}\n")
-    return 0
-
-
-def handle_view(rest, ctx):
-    json_flag = "--json" in rest
-    unknown = [arg for arg in rest if arg != "--json"]
-    if unknown:
-        raise CdxError(VIEW_USAGE)
-
-    env = ctx.get("env")
-    cwd = ctx.get("cwd")
-    executable = resolve_logics_manager(env=env)
-    update_checker = ctx["options"].get("checkLogicsManagerForUpdate")
-    update_notice = None
-    if executable:
-        if update_checker:
-            update_notice = update_checker(
-                ctx["service"]["base_dir"],
-                env=env,
-                now_fn=ctx["options"].get("now"),
-                runner=ctx["options"].get("runLogicsVersionCheck"),
-            )
-        else:
-            from .update_check import check_logics_manager_for_update
-
-            update_notice = check_logics_manager_for_update(
-                ctx["service"]["base_dir"],
-                env=env,
-                now_fn=ctx["options"].get("now"),
-                runner=ctx["options"].get("runLogicsVersionCheck"),
-            )
-
-    failure = None if executable else missing_logics_manager_failure()
-    diagnostics = build_viewer_diagnostics(executable, cwd, update_notice=update_notice, failure=failure)
-    warnings = _update_notice_warnings({"update_notices": [update_notice]}) if update_notice else []
-
-    if json_flag:
-        _write_json(ctx, _json_success("view", "Collected Logics viewer diagnostics", warnings=warnings, viewer=diagnostics))
-        return 0
-
-    if not executable:
-        raise CdxError(f"logics-manager is required for cdx view. {LOGICS_MANAGER_INSTALL_HINT}")
-
-    for warning in warnings:
-        ctx["out"](f"{_warn(warning['message'], ctx['use_color'])}\n")
-
-    try:
-        result = run_logics_viewer(executable, cwd, env=env, runner=ctx.get("spawn_sync"))
-    except FileNotFoundError as error:
-        raise CdxError(f"logics-manager is required for cdx view. {LOGICS_MANAGER_INSTALL_HINT}") from error
-    returncode = getattr(result, "returncode", 0)
-    if returncode not in (0, None):
-        raise CdxError("logics-manager view failed.", exit_code=returncode)
     return 0
 
 

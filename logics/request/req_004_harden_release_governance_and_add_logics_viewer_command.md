@@ -1,7 +1,7 @@
 ## req_004_harden_release_governance_and_add_logics_viewer_command - Harden release governance and add Logics viewer command
 > From version: 0.7.8
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
 > Complexity: High
