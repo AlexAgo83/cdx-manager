@@ -1,18 +1,18 @@
 ## task_014_version_logics_md_as_project_guidance - Version LOGICS.md as project guidance
 > From version: 0.7.8
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Status: Done
+> Understanding: 100%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 
 # Definition of Done (DoD)
-- [ ] The backlog scope is implemented.
-- [ ] Acceptance criteria are covered.
-- [ ] Validation passes.
+- [x] The backlog scope is implemented.
+- [x] Acceptance criteria are covered.
+- [x] Validation passes.
 
 # Backlog
 - `item_014_version_logics_md_as_project_guidance`
@@ -20,7 +20,7 @@
 
 ```mermaid
 %% logics-kind: task
-%% logics-signature: task|version-logics-md-as-project-guidance|item-014-version-logics-md-as-project-gu|1-confirm-scope|run-python3-m-logics-manager-lint-requi
+%% logics-signature: task|version-logics-md-as-project-guidance|item-014-version-logics-md-as-project-gu|1-confirm-scope|python3-scripts-verify-project-docs-py
 flowchart TD
     Backlog[Backlog item] --> Build[Implementation]
     Build --> Validate[Validation]
@@ -40,11 +40,15 @@ flowchart TD
 - request-AC12 -> Task AC5. Proof: documentation/help alignment for versioned project guidance.
 
 # Validation
-- Run `python3 -m logics_manager lint --require-status`.
-- Run `python3 -m logics_manager flow finish task task_014_version_logics_md_as_project_guidance.md` after implementation.
+- `python3 scripts/verify_project_docs.py`
+- `npm run lint`
+- `logics-manager lint --require-status`
+- `logics-manager audit`
 
 # Report
-- Implementation complete.
+- Removed `LOGICS.md` from `.gitignore` so the tracked project guidance is not treated as an ignored local artifact.
+- Added `scripts/verify_project_docs.py` to require `LOGICS.md` and verify the core Logics command families stay documented.
+- Wired the project-doc validation into `npm run lint`.
 
 # AI Context
 - Summary: Implement version logics.md as project guidance.

@@ -44,7 +44,7 @@
   "scripts": {
     "test": "npm run test:py",
     "test:py": "node bin/python-runner.js -m unittest discover -s test -p test_*_py.py",
-    "lint": "node --check bin/cdx.js && node --check bin/python-runner.js && node bin/python-runner.js -m py_compile bin/cdx src/*.py test/test_*_py.py",
+    "lint": "node --check bin/cdx.js && node --check bin/python-runner.js && node bin/python-runner.js scripts/verify_project_docs.py && node bin/python-runner.js -m py_compile bin/cdx src/*.py scripts/*.py test/test_*_py.py",
     "prepublishOnly": "npm run lint && npm test",
     "link": "npm link",
     "unlink": "npm unlink -g cdx-manager"

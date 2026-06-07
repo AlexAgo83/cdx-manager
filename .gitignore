@@ -2,7 +2,6 @@
 AGENTS.md
 .env.local
 .claude/
-LOGICS.md
 logics.yaml
 logics/.cache/
 logics/.cache/hybrid_assist_audit.jsonl

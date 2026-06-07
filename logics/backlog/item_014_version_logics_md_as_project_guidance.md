@@ -1,10 +1,10 @@
 ## item_014_version_logics_md_as_project_guidance - Version LOGICS.md as project guidance
 > From version: 0.7.8
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 95%
+> Status: Done
+> Understanding: 100%
 > Confidence: 95%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Low
 > Theme: Workflow governance
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -54,7 +54,7 @@ flowchart TD
 - Product brief(s): (none yet)
 - Architecture decision(s): (none yet)
 - Request: `req_004_harden_release_governance_and_add_logics_viewer_command`
-- Primary task(s): (none yet)
+- Primary task(s): `task_014_version_logics_md_as_project_guidance`
 
 # AI Context
 - Summary: Make LOGICS.md a normal tracked project instruction file and validate that its core Logics guidance remains present.
@@ -65,6 +65,14 @@ flowchart TD
 # Priority
 - Impact: Medium
 - Urgency: High
+
+# Notes
+- Delivered as repository guidance validation.
+- Validation evidence:
+  - `python3 scripts/verify_project_docs.py`
+  - `npm run lint`
+  - `logics-manager lint --require-status`
+  - `logics-manager audit`
 
 # Tasks
 - `task_014_version_logics_md_as_project_guidance`
