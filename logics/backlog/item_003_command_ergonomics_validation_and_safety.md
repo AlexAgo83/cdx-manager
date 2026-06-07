@@ -2,8 +2,8 @@
 > From version: 0.1.0
 > Schema version: 1.0
 > Status: Done
-> Understanding: 91%
-> Confidence: 86%
+> Understanding: 100%
+> Confidence: 95%
 > Progress: 100%
 > Complexity: Medium
 > Theme: CLI
@@ -21,7 +21,7 @@
 
 ```mermaid
 %% logics-kind: backlog
-%% logics-signature: backlog|command-ergonomics-validation-and-safety|command-ergonomics-validation-and-safety|a-terminal-tool-becomes-frustrating-if|ac1-cdx-and-cdx-help-explain
+%% logics-signature: backlog|command-ergonomics-validation-and-safety|req-003-historical-cdx-session-manager-b|a-terminal-tool-becomes-frustrating-if|ac1-cdx-and-cdx-help-explain
 flowchart TD
     Request[command ergonomics validation and safety] --> Problem[A terminal tool becomes frustrating if]
     Problem --> Scope[command ergonomics validation and safety]
@@ -57,8 +57,8 @@ flowchart TD
 
 # Links
 - Product brief(s): `logics/product/prod_000_codex_multi_account_session_manager.md`
-- Architecture decision(s): (none yet)
-- Request: (none yet)
+- Architecture decision(s): `adr_001_code_quality_and_security_improvements`
+- Request: `req_003_historical_cdx_session_manager_baseline`
 - Primary task(s): `task_000_command_ergonomics_validation_and_safety`
 <!-- When creating a task from this item, add: Derived from `this file path` in the task # Links section -->
 

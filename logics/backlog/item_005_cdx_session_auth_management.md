@@ -2,7 +2,7 @@
 > From version: 0.1.0
 > Schema version: 1.0
 > Status: Done
-> Understanding: 95%
+> Understanding: 100%
 > Confidence: 95%
 > Progress: 100%
 > Complexity: High
@@ -23,7 +23,7 @@
 
 ```mermaid
 %% logics-kind: backlog
-%% logics-signature: backlog|cdx-session-auth-management|cdx-session-auth-management|a-named-session-is-not-truly|ac1-cdx-add-name-creates-the
+%% logics-signature: backlog|cdx-session-auth-management|req-003-historical-cdx-session-manager-b|a-named-session-is-not-truly|ac1-cdx-add-name-creates-the
 flowchart TD
     Request[cdx session auth management] --> Problem[A named session is not truly usable]
     Problem --> Scope[cdx session auth management]
@@ -58,7 +58,7 @@ flowchart TD
 # Links
 - Product brief(s): `logics/product/prod_000_codex_multi_account_session_manager.md`
 - Architecture decision(s): `logics/architecture/adr_000_persist_and_restore_cdx_sessions.md`
-- Request: (none yet)
+- Request: `req_003_historical_cdx_session_manager_baseline`
 - Primary task(s): `task_005_cdx_session_auth_management`
 
 # AI Context

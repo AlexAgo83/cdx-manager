@@ -2,8 +2,8 @@
 > From version: 0.1.0
 > Schema version: 1.0
 > Status: Done
-> Understanding: 91%
-> Confidence: 91%
+> Understanding: 100%
+> Confidence: 95%
 > Progress: 100%
 > Complexity: Medium
 > Theme: CLI
@@ -22,7 +22,7 @@
 
 ```mermaid
 %% logics-kind: backlog
-%% logics-signature: backlog|cdx-status-global-session-overview|cdx-status-global-session-overview|users-need-a-single-command-that|ac1-cdx-status-lists-every-saved
+%% logics-signature: backlog|cdx-status-global-session-overview|req-003-historical-cdx-session-manager-b|users-need-a-single-command-that|ac1-cdx-status-lists-every-saved
 flowchart TD
     Request[cdx status global session overview] --> Problem[Users need a single command that]
     Problem --> Scope[cdx status global session overview]
@@ -56,8 +56,8 @@ flowchart TD
 
 # Links
 - Product brief(s): `logics/product/prod_000_codex_multi_account_session_manager.md`, `logics/product/prod_001_per_session_codex_status_recall.md`
-- Architecture decision(s): (none yet)
-- Request: (none yet)
+- Architecture decision(s): `adr_000_persist_and_restore_cdx_sessions`
+- Request: `req_003_historical_cdx_session_manager_baseline`
 - Primary task(s): `task_002_cdx_status_global_session_overview`
 <!-- When creating a task from this item, add: Derived from `this file path` in the task # Links section -->
 

@@ -1,9 +1,9 @@
 ## req_002_support_logics_manager_suggestions_and_update_notices - Support logics-manager suggestions and update notices
-> From version: 0.7.6
+> From version: 0.7.8
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 95%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 95%
 > Complexity: Medium
 > Theme: Operator workflow
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
@@ -52,13 +52,26 @@ flowchart TD
 - Different install managers may report `logics-manager` versions differently; update suggestions must degrade silently when uncertain.
 
 # Companion docs
-- Product brief(s): (none yet)
-- Architecture decision(s): (none yet)
+- Product brief(s): (none needed; operator guidance is covered by the linked ADR)
+- Architecture decision(s): `adr_003_logics_and_companion_tool_launch_guidance`
 
 # References
-- `logics_manager/flow.py`
-- `logics_manager/assist.py`
-- `tests/python/test_logics_manager_cli.py`
+- `logics/backlog/item_012_support_logics_manager_suggestions_and_update_notices.md`
+- `logics/tasks/task_012_support_logics_manager_suggestions_and_update_notices.md`
+- `logics/architecture/adr_003_logics_and_companion_tool_launch_guidance.md`
+- `README.md`
+- `src/cli.py`
+- `src/cli_commands.py`
+- `src/provider_runtime.py`
+- `src/update_check.py`
+- `test/test_cli_py.py`
+- `test/test_runtime_py.py`
+- `test/test_update_check_py.py`
+
+# Delivery
+- Delivered in `0.7.8`.
+- Implemented Logics launch guidance, `--logics` session settings, config rendering, companion tool update warnings, and RTK preference handling.
+- Validation evidence is captured in the linked backlog/task and `changelogs/CHANGELOGS_0_7_8.md`.
 
 # AI Context
 - Summary: Draft a bounded request for support logics-manager suggestions and update notices.
@@ -67,4 +80,5 @@ flowchart TD
 - Skip when: The work already has an existing request or should go straight to a backlog slice.
 
 # Backlog
-- none
+- `logics/backlog/item_012_support_logics_manager_suggestions_and_update_notices.md`
+- `item_012_support_logics_manager_suggestions_and_update_notices`

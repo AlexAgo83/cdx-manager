@@ -2,8 +2,8 @@
 > From version: 0.1.0
 > Schema version: 1.0
 > Status: Done
-> Understanding: 92%
-> Confidence: 86%
+> Understanding: 100%
+> Confidence: 95%
 > Progress: 100%
 > Complexity: High
 > Theme: CLI
@@ -21,7 +21,7 @@
 
 ```mermaid
 %% logics-kind: backlog
-%% logics-signature: backlog|multi-provider-session-support-for-codex|multi-provider-session-support-for-codex|the-product-should-support-more-than|ac1-a-session-can-be-created
+%% logics-signature: backlog|multi-provider-session-support-for-codex|req-003-historical-cdx-session-manager-b|the-product-should-support-more-than|ac1-a-session-can-be-created
 flowchart TD
     Request[multi-provider session support for Codex a] --> Problem[The product should support more than]
     Problem --> Scope[multi-provider session support for Codex a]
@@ -53,8 +53,8 @@ flowchart TD
 
 # Links
 - Product brief(s): `logics/product/prod_000_codex_multi_account_session_manager.md`
-- Architecture decision(s): (none yet)
-- Request: (none yet)
+- Architecture decision(s): `adr_000_persist_and_restore_cdx_sessions`
+- Request: `req_003_historical_cdx_session_manager_baseline`
 - Primary task(s): `task_003_multi_provider_session_support_for_codex_and_claude`
 <!-- When creating a task from this item, add: Derived from `this file path` in the task # Links section -->
 

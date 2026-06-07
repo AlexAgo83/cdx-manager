@@ -2,8 +2,8 @@
 > From version: 0.1.0
 > Schema version: 1.0
 > Status: Done
-> Understanding: 96%
-> Confidence: 91%
+> Understanding: 100%
+> Confidence: 95%
 > Progress: 100%
 > Complexity: Medium
 > Theme: CLI
@@ -24,7 +24,7 @@
 
 ```mermaid
 %% logics-kind: backlog
-%% logics-signature: backlog|cdx-core-session-manager|cdx-core-session-manager|the-product-needs-a-single-terminal|ac1-cdx-with-no-arguments-prints
+%% logics-signature: backlog|cdx-core-session-manager|req-003-historical-cdx-session-manager-b|the-product-needs-a-single-terminal|ac1-cdx-with-no-arguments-prints
 flowchart TD
     Request[cdx core session manager] --> Problem[The product needs a single terminal]
     Problem --> Scope[cdx core session manager]
@@ -62,8 +62,8 @@ flowchart TD
 
 # Links
 - Product brief(s): `logics/product/prod_000_codex_multi_account_session_manager.md`
-- Architecture decision(s): (none yet)
-- Request: (none yet)
+- Architecture decision(s): `adr_000_persist_and_restore_cdx_sessions`
+- Request: `req_003_historical_cdx_session_manager_baseline`
 - Primary task(s): `task_001_cdx_core_session_manager`
 <!-- When creating a task from this item, add: Derived from `this file path` in the task # Links section -->
 

@@ -2,8 +2,8 @@
 > From version: 0.6.5
 > Schema version: 1.0
 > Status: Done
-> Understanding: 88%
-> Confidence: 78%
+> Understanding: 100%
+> Confidence: 95%
 > Progress: 100%
 > Complexity: High
 > Theme: Integration
@@ -55,13 +55,14 @@ stateDiagram-v2
 - Manual or mocked smoke test proving stdout contains only final JSON in `--json` mode.
 
 # AC Traceability
-- AC1 -> Plan: explicit-session `cdx run` with workspace, prompt file, model, effort, permission, and JSON mode.
-- AC2 -> Plan: inline prompt support and prompt-source validation.
-- AC3 -> Plan: stable success envelope with run metadata.
-- AC4 -> Plan: cdx-side error envelope.
-- AC5 -> Plan: provider-side error envelope.
-- AC6 -> Plan: timeout handling.
-- AC7 -> Plan: JSON-only stdout tests.
+- AC1 -> Plan: explicit-session `cdx run` with workspace, prompt file, model, effort, permission, and JSON mode. Proof: `test_cli_py.py` run command coverage.
+- AC2 -> Plan: inline prompt support and prompt-source validation. Proof: prompt-file and inline-prompt tests.
+- AC3 -> Plan: stable success envelope with run metadata. Proof: run payload assertions.
+- AC4 -> Plan: cdx-side error envelope. Proof: validation error tests.
+- AC5 -> Plan: provider-side error envelope. Proof: provider non-zero tests.
+- AC6 -> Plan: timeout handling. Proof: timeout lifecycle test coverage.
+- AC7 -> Plan: JSON-only stdout tests. Proof: provider streams captured outside cdx stdout.
+- request-AC8 -> Plan: linked backlog/task promotion for the first delivery slices. Proof: `item_006` through `item_009`.
 
 # Decision framing
 - Product framing: Consider
@@ -72,8 +73,8 @@ stateDiagram-v2
 - Architecture follow-up: Link ADR if implementation changes provider runtime abstractions.
 
 # Links
-- Product brief(s): (none yet)
-- Architecture decision(s): (none yet)
+- Product brief(s): `prod_002_headless_automation_contract_for_orchestia`
+- Architecture decision(s): `adr_002_provider_native_headless_run_boundary`
 - Derived from `item_006_headless_cdx_run_json_execution_contract`
 - Request(s): `req_000_orchestia_headless_json_task_runner`
 

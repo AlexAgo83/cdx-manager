@@ -81,7 +81,7 @@ stateDiagram-v2
 - Product brief(s): `prod_000_codex_multi_account_session_manager`
 - Architecture decision(s): `adr_000_persist_and_restore_cdx_sessions`
 - Derived from `item_005_cdx_session_auth_management`
-- Request(s): `req_XXX_example`
+- Request(s): `req_003_historical_cdx_session_manager_baseline`
 
 # AI Context
 - Summary: Manage the login lifecycle for one named session at a time, including first-run onboarding, explicit reauth, and logout.

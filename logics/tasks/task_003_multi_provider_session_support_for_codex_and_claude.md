@@ -67,9 +67,9 @@ stateDiagram-v2
 
 # Links
 - Product brief(s): `prod_000_codex_multi_account_session_manager`
-- Architecture decision(s): (none yet)
+- Architecture decision(s): `adr_000_persist_and_restore_cdx_sessions`
 - Derived from `item_002_multi_provider_session_support_for_codex_and_claude`
-- Request(s): `req_XXX_example`
+- Request(s): `req_003_historical_cdx_session_manager_baseline`
 
 # AI Context
 - Summary: Extend session handling so named sessions can target Codex or Claude explicitly.

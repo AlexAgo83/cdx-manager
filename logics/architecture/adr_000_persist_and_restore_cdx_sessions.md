@@ -2,7 +2,7 @@
 > Date: 2026-04-15
 > Status: Accepted
 > Drivers: Persistent login state, explicit recovery, local privacy, predictable session reuse, per-session provider isolation.
-> Related request: `req_XXX_example`
+> Related request: `req_003_historical_cdx_session_manager_baseline`
 > Related backlog: `item_001_persistent_codex_session_storage_and_rehydration`
 > Related task: `task_000_persistent_codex_session_storage_and_rehydration`
 > Reminder: Update status, linked refs, decision rationale, consequences, migration plan, and follow-up work when you edit this doc.

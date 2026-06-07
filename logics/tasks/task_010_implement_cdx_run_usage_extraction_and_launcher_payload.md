@@ -2,9 +2,9 @@
 > From version: 0.7.0
 > Schema version: 1.0
 > Status: Done
-> Understanding: 90
-> Confidence: 82
-> Progress: 100
+> Understanding: 100%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Headless automation
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -63,14 +63,16 @@ stateDiagram-v2
 - `python3 -m logics_manager lint --require-status`
 
 # AC Traceability
-- AC1 -> Plan: top-level launcher field.
-- AC2 -> Plan: verified provider usage parsing.
-- AC3 -> Plan: all-null fallback behavior.
-- AC4 -> Plan: Claude fixture coverage.
-- AC5 -> Plan: Codex fixture coverage.
-- AC6 -> Plan: conservative parser boundaries.
-- AC7 -> Plan: unittest and CLI integration coverage.
-- AC8 -> Plan: additive payload compatibility.
+- AC1 -> Plan: top-level launcher field. Proof: `launcher: "cdx"` payload assertions.
+- AC2 -> Plan: verified provider usage parsing. Proof: `src/run_usage.py` parser tests.
+- AC3 -> Plan: all-null fallback behavior. Proof: missing, malformed, unsupported, and unknown-output tests.
+- AC4 -> Plan: Claude fixture coverage. Proof: Claude JSON/JSONL fixture tests.
+- AC5 -> Plan: Codex fixture coverage. Proof: Codex `exec --json` fixture tests.
+- AC6 -> Plan: conservative parser boundaries. Proof: no free-text token parsing in `src/run_usage.py`.
+- AC7 -> Plan: unittest and CLI integration coverage. Proof: `test_runtime_py.py` and `test_cli_py.py` focused runs.
+- AC8 -> Plan: additive payload compatibility. Proof: existing artifact paths and result fields remain asserted.
+- AC9 -> Plan: avoid selection string changes. Proof: no `cdx select` reason text changes in this slice.
+- AC10 -> Plan: provider-native headless modes coordinated through `item_011`. Proof: provider stdout/stderr captured as artifacts.
 
 # Report
 - Implemented `src/run_usage.py` with conservative Codex/Claude JSON and JSONL usage extraction, unknown-format null fallback, and no free-text token parsing.
@@ -88,5 +90,5 @@ stateDiagram-v2
 
 # Links
 - Request: `req_001_populate_headless_run_usage_tokens_for_orchestia`
-- Product brief(s): (none yet)
-- Architecture decision(s): (none yet)
+- Product brief(s): `prod_002_headless_automation_contract_for_orchestia`
+- Architecture decision(s): `adr_002_provider_native_headless_run_boundary`

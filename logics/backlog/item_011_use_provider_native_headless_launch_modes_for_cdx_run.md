@@ -2,9 +2,9 @@
 > From version: 0.7.0
 > Schema version: 1.0
 > Status: Done
-> Understanding: 90
-> Confidence: 78
-> Progress: 100
+> Understanding: 100%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: High
 > Theme: Headless automation
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -62,8 +62,8 @@ flowchart TD
 - Architecture follow-up: Decide whether provider-native headless mode should become mandatory for all providers or only for providers with verified support.
 
 # Links
-- Product brief(s): (none yet)
-- Architecture decision(s): (none yet)
+- Product brief(s): `prod_002_headless_automation_contract_for_orchestia`
+- Architecture decision(s): `adr_002_provider_native_headless_run_boundary`
 - Request: `req_001_populate_headless_run_usage_tokens_for_orchestia`
 - Primary task(s): `task_011_implement_provider_native_headless_cdx_run_launch_modes`
 

@@ -2,7 +2,7 @@
 > Date: 2026-05-23
 > Status: Accepted
 > Drivers: Security hardening, test coverage, code duplication reduction, performance, maintainability, implementation completion.
-> Related request: `req_XXX_audit_2026_05`
+> Related request: `req_003_historical_cdx_session_manager_baseline`
 > Related backlog: `item_003_command_ergonomics_validation_and_safety`
 > Related task: `task_000_command_ergonomics_validation_and_safety`
 > Reminder: Update status, linked refs, decision rationale, consequences, migration plan, and follow-up work when you edit this doc.

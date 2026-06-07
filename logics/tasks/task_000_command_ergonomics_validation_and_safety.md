@@ -35,13 +35,13 @@ stateDiagram-v2
 ```
 
 # Plan
-- [ ] 1. Confirm scope, dependencies, and linked acceptance criteria.
-- [ ] 2. Implement the next coherent delivery wave from the backlog item.
-- [ ] 3. Checkpoint the wave in a commit-ready state, validate it, and update the linked Logics docs.
-- [ ] CHECKPOINT: leave the current wave commit-ready and update the linked Logics docs before continuing.
-- [ ] CHECKPOINT: if the shared AI runtime is active and healthy, run `python logics/skills/logics.py flow assist commit-all` for the current step, item, or wave commit checkpoint.
-- [ ] GATE: do not close a wave or step until the relevant automated tests and quality checks have been run successfully.
-- [ ] FINAL: Update related Logics docs
+- [x] 1. Confirm scope, dependencies, and linked acceptance criteria.
+- [x] 2. Implement the next coherent delivery wave from the backlog item.
+- [x] 3. Checkpoint the wave in a commit-ready state, validate it, and update the linked Logics docs.
+- [x] CHECKPOINT: leave the current wave commit-ready and update the linked Logics docs before continuing.
+- [x] CHECKPOINT: if the shared AI runtime is active and healthy, run `python logics/skills/logics.py flow assist commit-all` for the current step, item, or wave commit checkpoint.
+- [x] GATE: do not close a wave or step until the relevant automated tests and quality checks have been run successfully.
+- [x] FINAL: Update related Logics docs
 
 # Delivery checkpoints
 - Each completed wave should leave the repository in a coherent, commit-ready state.
@@ -69,9 +69,9 @@ stateDiagram-v2
 
 # Links
 - Product brief(s): `prod_000_codex_multi_account_session_manager`
-- Architecture decision(s): (none yet)
+- Architecture decision(s): `adr_001_code_quality_and_security_improvements`
 - Derived from `item_003_command_ergonomics_validation_and_safety`
-- Request(s): `req_XXX_example`
+- Request(s): `req_003_historical_cdx_session_manager_baseline`
 
 # AI Context
 - Summary: Improve command help, validation, and safety for the cdx CLI surface.
@@ -90,11 +90,11 @@ stateDiagram-v2
 - Confirm the completed wave leaves the repository in a commit-ready state.
 
 # Definition of Done (DoD)
-- [ ] Scope implemented and acceptance criteria covered.
-- [ ] Validation commands executed and results captured.
-- [ ] No wave or step was closed before the relevant automated tests and quality checks passed.
-- [ ] Linked request/backlog/task docs updated during completed waves and at closure.
-- [ ] Each completed wave left a commit-ready checkpoint or an explicit exception is documented.
-- [ ] Status is `Done` and progress is `100%`.
+- [x] Scope implemented and acceptance criteria covered.
+- [x] Validation commands executed and results captured.
+- [x] No wave or step was closed before the relevant automated tests and quality checks passed.
+- [x] Linked request/backlog/task docs updated during completed waves and at closure.
+- [x] Each completed wave left a commit-ready checkpoint or an explicit exception is documented.
+- [x] Status is `Done` and progress is `100%`.
 
 # Report

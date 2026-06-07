@@ -2,8 +2,8 @@
 > From version: 0.1.0
 > Schema version: 1.0
 > Status: Done
-> Understanding: 96%
-> Confidence: 91%
+> Understanding: 100%
+> Confidence: 95%
 > Progress: 100%
 > Complexity: High
 > Theme: Auth
@@ -21,7 +21,7 @@
 
 ```mermaid
 %% logics-kind: backlog
-%% logics-signature: backlog|persistent-codex-session-storage-and-reh|persistent-codex-session-storage-and-reh|a-named-session-is-not-useful|ac1-a-saved-session-can-be
+%% logics-signature: backlog|persistent-codex-session-storage-and-reh|req-003-historical-cdx-session-manager-b|a-named-session-is-not-useful|ac1-a-saved-session-can-be
 flowchart TD
     Request[persistent Codex session storage and rehyd] --> Problem[A named session is not useful]
     Problem --> Scope[persistent Codex session storage and rehyd]
@@ -52,7 +52,7 @@ flowchart TD
 # Links
 - Product brief(s): `logics/product/prod_000_codex_multi_account_session_manager.md`
 - Architecture decision(s): `logics/architecture/adr_000_persist_and_restore_cdx_sessions.md`
-- Request: (none yet)
+- Request: `req_003_historical_cdx_session_manager_baseline`
 - Primary task(s): `task_000_persistent_codex_session_storage_and_rehydration`
 <!-- When creating a task from this item, add: Derived from `this file path` in the task # Links section -->
 

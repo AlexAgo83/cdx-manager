@@ -68,9 +68,9 @@ stateDiagram-v2
 
 # Links
 - Product brief(s): `prod_000_codex_multi_account_session_manager`, `prod_001_per_session_codex_status_recall`
-- Architecture decision(s): (none yet)
+- Architecture decision(s): `adr_000_persist_and_restore_cdx_sessions`
 - Derived from `item_004_cdx_status_global_session_overview`
-- Request(s): `req_XXX_example`
+- Request(s): `req_003_historical_cdx_session_manager_baseline`
 
 # AI Context
 - Summary: Global cdx status view that compares the latest stored usage data for all sessions and supports per-session detail.

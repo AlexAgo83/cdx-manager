@@ -2,8 +2,8 @@
 > From version: 0.6.5
 > Schema version: 1.0
 > Status: Done
-> Understanding: 90%
-> Confidence: 82%
+> Understanding: 100%
+> Confidence: 95%
 > Progress: 100%
 > Complexity: Medium
 > Theme: Integration
@@ -69,8 +69,8 @@ stateDiagram-v2
 - Architecture follow-up: Link ADR if provider mappings become extensive.
 
 # Links
-- Product brief(s): (none yet)
-- Architecture decision(s): (none yet)
+- Product brief(s): `prod_002_headless_automation_contract_for_orchestia`
+- Architecture decision(s): `adr_002_provider_native_headless_run_boundary`
 - Derived from `item_008_provider_neutral_reasoning_effort_mapping`
 - Request(s): `req_000_orchestia_headless_json_task_runner`
 

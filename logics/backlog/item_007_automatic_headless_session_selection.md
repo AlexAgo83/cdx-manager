@@ -2,9 +2,9 @@
 > From version: 0.6.5
 > Schema version: 1.0
 > Status: Done
-> Understanding: 90
-> Confidence: 82
-> Progress: 100
+> Understanding: 100%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -58,8 +58,8 @@ flowchart TD
 - Architecture follow-up: Link ADR if selection policy becomes configurable.
 
 # Links
-- Product brief(s): (none yet)
-- Architecture decision(s): (none yet)
+- Product brief(s): `prod_002_headless_automation_contract_for_orchestia`
+- Architecture decision(s): `adr_002_provider_native_headless_run_boundary`
 - Request: `req_000_orchestia_headless_json_task_runner`
 - Primary task(s): `task_007_automatic_headless_session_selection`
 

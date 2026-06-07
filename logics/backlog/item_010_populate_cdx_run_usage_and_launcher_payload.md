@@ -2,9 +2,9 @@
 > From version: 0.7.0
 > Schema version: 1.0
 > Status: Done
-> Understanding: 92
-> Confidence: 82
-> Progress: 100
+> Understanding: 100%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Headless automation
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -66,8 +66,8 @@ flowchart TD
 - Architecture follow-up: Document provider fixture examples once collected.
 
 # Links
-- Product brief(s): (none yet)
-- Architecture decision(s): (none yet)
+- Product brief(s): `prod_002_headless_automation_contract_for_orchestia`
+- Architecture decision(s): `adr_002_provider_native_headless_run_boundary`
 - Request: `req_001_populate_headless_run_usage_tokens_for_orchestia`
 - Depends on: `item_011_use_provider_native_headless_launch_modes_for_cdx_run`
 - Primary task(s): `task_010_implement_cdx_run_usage_extraction_and_launcher_payload`

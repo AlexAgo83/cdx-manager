@@ -2,9 +2,9 @@
 > From version: 0.6.5
 > Schema version: 1.0
 > Status: Done
-> Understanding: 90
-> Confidence: 82
-> Progress: 100
+> Understanding: 100%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: High
 > Theme: Integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -44,13 +44,14 @@ flowchart TD
 - AC7: JSON mode does not mix provider stdout/stderr into stdout; provider streams are reserved for artifact handling in the related artifact slice.
 
 # AC Traceability
-- AC1 -> Scope: explicit session execution with workspace, prompt file, model, reasoning effort, permission, and JSON mode.
-- AC2 -> Scope: inline prompt support for small jobs and smoke tests.
-- AC3 -> Scope: stable Orchestia result envelope.
-- AC4 -> Scope: cdx-side error semantics.
-- AC5 -> Scope: provider-side error semantics.
-- AC6 -> Scope: first-version timeout support.
-- AC7 -> Scope: final-JSON-only stdout behavior.
+- AC1 -> Scope: explicit session execution with workspace, prompt file, model, reasoning effort, permission, and JSON mode. Proof: `cdx run` parser and CLI tests.
+- AC2 -> Scope: inline prompt support for small jobs and smoke tests. Proof: prompt source validation tests.
+- AC3 -> Scope: stable Orchestia result envelope. Proof: run result payload tests.
+- AC4 -> Scope: cdx-side error semantics. Proof: cdx validation error envelope tests.
+- AC5 -> Scope: provider-side error semantics. Proof: provider failure envelope tests.
+- AC6 -> Scope: first-version timeout support. Proof: timeout handling tests.
+- AC7 -> Scope: final-JSON-only stdout behavior. Proof: JSON-mode stdout tests.
+- request-AC8 -> Scope: promoted into backlog slices `item_006` through `item_009`. Proof: linked delivery chain.
 
 # Decision framing
 - Product framing: Required
@@ -61,8 +62,8 @@ flowchart TD
 - Architecture follow-up: Create or link an ADR before implementation if the launch pipeline needs structural changes.
 
 # Links
-- Product brief(s): (none yet)
-- Architecture decision(s): (none yet)
+- Product brief(s): `prod_002_headless_automation_contract_for_orchestia`
+- Architecture decision(s): `adr_002_provider_native_headless_run_boundary`
 - Request: `req_000_orchestia_headless_json_task_runner`
 - Primary task(s): `task_006_headless_cdx_run_json_execution_contract`
 
