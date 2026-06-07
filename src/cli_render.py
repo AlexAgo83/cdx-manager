@@ -110,6 +110,10 @@ def _format_launch_text(launch):
         parts.append(launch["permission"])
     if launch.get("fast") is True:
         parts.append("fast-on")
+    if launch.get("logics") is True:
+        parts.append("logics-on")
+    elif launch.get("logics") is False:
+        parts.append("logics-off")
     return "/".join(parts) or "default"
 
 

@@ -5,8 +5,10 @@ import tempfile
 
 from src.update_check import (
     LatestReleaseCheckError,
+    check_logics_manager_for_update,
     check_for_update,
     fetch_latest_release,
+    fetch_latest_logics_manager_version,
     fetch_latest_release_or_raise,
     is_newer_version,
     _fetch_latest_release,
@@ -87,6 +89,52 @@ class UpdateCheckPythonTests(unittest.TestCase):
     def test_fetch_latest_release_returns_none_on_network_error(self):
         with mock.patch("src.update_check.urllib.request.urlopen", side_effect=urllib.error.URLError("offline")):
             self.assertIsNone(fetch_latest_release())
+
+    def test_fetch_latest_logics_manager_version_uses_npm_package(self):
+        captured = {}
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return b'{"version":"2.4.0"}'
+
+        def open_url(request, timeout=None):
+            captured["url"] = request.full_url
+            captured["timeout"] = timeout
+            return Response()
+
+        with mock.patch("src.update_check.urllib.request.urlopen", side_effect=open_url):
+            self.assertEqual(fetch_latest_logics_manager_version(), "2.4.0")
+
+        self.assertIn("@grifhinz%2Flogics-manager", captured["url"])
+        self.assertEqual(captured["timeout"], 1)
+
+    def test_check_logics_manager_for_update_uses_installed_version_and_cache(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-logics-update-check-") as temp_dir:
+            runner = mock.Mock(return_value=mock.Mock(returncode=0, stdout="logics-manager 2.3.0\n", stderr=""))
+            with mock.patch("src.update_check.shutil.which", return_value="/usr/bin/logics-manager"):
+                with mock.patch("src.update_check.fetch_latest_logics_manager_version", return_value="2.4.0") as fetch:
+                    first = check_logics_manager_for_update(temp_dir, env={"PATH": "/usr/bin"}, now_fn=lambda: 1000, runner=runner)
+                    second = check_logics_manager_for_update(temp_dir, env={"PATH": "/usr/bin"}, now_fn=lambda: 1001, runner=runner)
+
+        fetch.assert_called_once()
+        self.assertEqual(first["tool"], "logics-manager")
+        self.assertEqual(first["latest_version"], "2.4.0")
+        self.assertEqual(first["current_version"], "2.3.0")
+        self.assertEqual(first["update_command"], "logics-manager self-update")
+        self.assertFalse(first["cached"])
+        self.assertTrue(second["cached"])
+
+    def test_check_logics_manager_for_update_skips_when_cli_missing(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-logics-update-check-") as temp_dir:
+            with mock.patch("src.update_check.shutil.which", return_value=None):
+                result = check_logics_manager_for_update(temp_dir, env={"PATH": "/usr/bin"})
+        self.assertIsNone(result)
 
     def test_fetch_error_messages_cover_common_failures(self):
         not_found = urllib.error.HTTPError("url", 404, "missing", None, None)

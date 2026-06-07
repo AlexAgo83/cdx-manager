@@ -58,7 +58,7 @@ from .status_view import (
     _format_status_detail,
     _format_status_rows,
 )
-from .update_check import check_for_update
+from .update_check import check_for_update, check_logics_manager_for_update
 
 VERSION = "0.7.6"
 
@@ -84,8 +84,8 @@ def _print_help(use_color=False):
         f"  {_style('cdx config <name> [--json]', '36', use_color)}",
         f"  {_style('cdx configs [--json]', '36', use_color)}",
         f"  {_style('cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]', '36', use_color)}",
-        f"  {_style('cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--model MODEL] [--priority 0..100] [--json]', '36', use_color)}",
-        f"  {_style('cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--model|--priority|--all) [--json]', '36', use_color)}",
+        f"  {_style('cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--model MODEL] [--priority 0..100] [--json]', '36', use_color)}",
+        f"  {_style('cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--logics|--model|--priority|--all) [--json]', '36', use_color)}",
         f"  {_style('cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]', '36', use_color)}",
         f"  {_style('cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]', '36', use_color)}",
         f"  {_style('cdx last [--json]', '36', use_color)}",
@@ -158,22 +158,52 @@ def _get_update_notice(service, env, options):
     )
 
 
-def _update_warning_payload(notice):
-    if not notice:
+def _get_update_notices(service, env, options):
+    notices = []
+    cdx_notice = _get_update_notice(service, env, options)
+    if cdx_notice:
+        notices.append({"tool": "cdx-manager", **cdx_notice})
+    checker = options.get("checkLogicsManagerForUpdate") or check_logics_manager_for_update
+    logics_notice = checker(
+        service["base_dir"],
+        env=env,
+        now_fn=options.get("now"),
+    )
+    if logics_notice:
+        notices.append(logics_notice)
+    return notices
+
+
+def _update_warning_payload(notices):
+    if isinstance(notices, dict):
+        notices = [notices]
+    if not notices:
         return []
-    message = f"Update available: cdx-manager {notice['latest_version']} (current {VERSION})"
-    return [{
-        "code": "update_available",
-        "message": message,
-        "latest_version": notice["latest_version"],
-        "url": notice.get("url"),
-    }]
+    warnings = []
+    for notice in notices:
+        tool = notice.get("tool") or "cdx-manager"
+        current = notice.get("current_version") or VERSION
+        command = notice.get("update_command") or ("cdx update" if tool == "cdx-manager" else None)
+        message = f"Update available: {tool} {notice['latest_version']} (current {current})"
+        if command:
+            message = f"{message}. Run: {command}"
+        warnings.append({
+            "code": "update_available" if tool == "cdx-manager" else f"{tool.replace('-', '_')}_update_available",
+            "message": message,
+            "tool": tool,
+            "latest_version": notice["latest_version"],
+            "current_version": current,
+            "update_command": command,
+            "url": notice.get("url"),
+        })
+    return warnings
 
 
-def _update_warning_text(notice):
-    if not notice:
+def _update_warning_text(notices):
+    payloads = _update_warning_payload(notices)
+    if not payloads:
         return None
-    return f"Update available: cdx-manager {notice['latest_version']} (current {VERSION}). Run: cdx update"
+    return "\n".join(payload["message"] for payload in payloads)
 
 
 # ---------------------------------------------------------------------------
@@ -216,15 +246,16 @@ def main(argv, options=None):
 
     if argv == ["--json"]:
         rows = service["format_list_rows"]()
-        notice = _get_update_notice(service, env, options)
-        out(f"{json.dumps(_list_json_payload(rows, notice=notice), indent=2)}\n")
+        notices = _get_update_notices(service, env, options)
+        out(f"{json.dumps(_list_json_payload(rows, notices=notices), indent=2)}\n")
         return 0
 
     if not argv:
-        notice = _get_update_notice(service, env, options)
+        notices = _get_update_notices(service, env, options)
         out(f"{_format_sessions(service, use_color=use_color)}\n")
-        if notice:
-            out(f"{_style(_update_warning_text(notice), '33', use_color)}\n")
+        warning_text = _update_warning_text(notices)
+        if warning_text:
+            out(f"{_style(warning_text, '33', use_color)}\n")
         return 0
 
     command, *rest = argv
@@ -243,7 +274,7 @@ def main(argv, options=None):
         "stdin_is_tty": stdin_is_tty,
         "version": VERSION,
         "cwd": options.get("cwd") or os.getcwd(),
-        "update_notice": _get_update_notice(service, env, options) if command not in (
+        "update_notices": _get_update_notices(service, env, options) if command not in (
             "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "next", "context", "config", "configs", "set", "unset", "power", "perm", "fast", "model", "history", "stats", "handoff", "login", "logout", "disable", "enable", "export", "import", "select", "run", "help", "version"
         ) else None,
         "use_color": use_color,
@@ -355,13 +386,13 @@ def main(argv, options=None):
     raise CdxError(f"Unknown command: {command}. Use cdx --help.")
 
 
-def _list_json_payload(rows, notice=None):
+def _list_json_payload(rows, notices=None):
     return {
         "schema_version": API_SCHEMA_VERSION,
         "ok": True,
         "action": "list",
         "message": "Listed known sessions",
-        "warnings": _update_warning_payload(notice),
+        "warnings": _update_warning_payload(notices),
         "sessions": rows,
     }
 

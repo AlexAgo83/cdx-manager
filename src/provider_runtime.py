@@ -19,6 +19,14 @@ RTK_PROMPT = (
     "When running noisy shell commands, prefer RTK wrappers (`rtk <command>`) if `rtk` is available. "
     "Use raw commands when exact, unfiltered output is required."
 )
+LOGICS_PROMPT = (
+    "When `logics-manager` is available, prefer it for Logics workflow operations: use "
+    "`logics-manager status`, `health`, `audit`, and `lint` for workflow state and validation; "
+    "`logics-manager view` for the browser viewer and focus workflows; "
+    "`logics-manager sync read-doc|list-docs|search-docs|context-pack` for bounded document context; "
+    "`logics-manager flow ...` for request/backlog/task lifecycle changes; and `logics-manager mcp ...` "
+    "when an MCP surface is the right fit."
+)
 LAUNCH_PERMISSION_ARGS = {
     PROVIDER_CLAUDE: {
         "review": ["--permission-mode", "plan"],
@@ -327,20 +335,40 @@ def _rtk_enabled(session):
     return (session.get("launch") or {}).get("rtk") is True
 
 
-def _with_launch_preferences(session, initial_prompt=None):
-    if not _rtk_enabled(session):
+def _logics_manager_available(path=None):
+    return shutil.which("logics-manager", path=path) is not None
+
+
+def _logics_enabled(session, env=None):
+    launch = session.get("launch") or {}
+    if launch.get("logics") is False:
+        return False
+    if launch.get("logics") is True:
+        return True
+    env = env or os.environ
+    return _logics_manager_available(path=env.get("PATH"))
+
+
+def _with_launch_preferences(session, initial_prompt=None, env=None):
+    prompts = []
+    if _rtk_enabled(session):
+        prompts.append(RTK_PROMPT)
+    if _logics_enabled(session, env=env):
+        prompts.append(LOGICS_PROMPT)
+    if not prompts:
         return initial_prompt
     if initial_prompt:
-        return f"{RTK_PROMPT}\n\n{initial_prompt}"
-    return RTK_PROMPT
+        prompts.append(initial_prompt)
+    return "\n\n".join(prompts)
 
 
 def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None, capture_transcript=True):
-    initial_prompt = _with_launch_preferences(session, initial_prompt)
     _validate_initial_prompt(initial_prompt)
     cwd = cwd or os.getcwd()
     env_override = env_override or {}
     env = {**os.environ, **env_override}
+    initial_prompt = _with_launch_preferences(session, initial_prompt, env=env)
+    _validate_initial_prompt(initial_prompt)
     if session["provider"] == PROVIDER_CLAUDE:
         launch = session.get("launch") or {}
         args = ["--name", session["name"]]
@@ -418,10 +446,11 @@ def _validate_initial_prompt(initial_prompt):
 
 
 def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_prompt=None):
-    initial_prompt = _with_launch_preferences(session, initial_prompt)
     _validate_initial_prompt(initial_prompt)
     cwd = cwd or os.getcwd()
     env = {**os.environ, **(env_override or {})}
+    initial_prompt = _with_launch_preferences(session, initial_prompt, env=env)
+    _validate_initial_prompt(initial_prompt)
     launch = session.get("launch") or {}
     power = _launch_power(session)
     permission = launch.get("permission")

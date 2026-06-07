@@ -47,6 +47,18 @@ def collect_health_report(service, base_dir, env=None):
         rtk_path,
     ))
 
+    logics_path = shutil.which("logics-manager", path=env.get("PATH"))
+    issues.append(_issue(
+        "OK" if logics_path else "WARN",
+        "logics_manager_cli",
+        (
+            "logics-manager CLI found"
+            if logics_path
+            else "logics-manager CLI not found; Logics workflow guidance will not be auto-enabled"
+        ),
+        logics_path,
+    ))
+
     script_bin = env.get("CDX_SCRIPT_BIN", "script")
     script_path = shutil.which(script_bin, path=env.get("PATH"))
     issues.append(_issue(

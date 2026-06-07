@@ -55,8 +55,8 @@ EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--
 IMPORT_USAGE = "Usage: cdx import <file> [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
 CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--json]"
-SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--model MODEL] [--priority 0..100] [--json]"
-UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--model|--priority|--all) [--json]"
+SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--model MODEL] [--priority 0..100] [--json]"
+UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--logics|--model|--priority|--all) [--json]"
 SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 CONFIGS_USAGE = "Usage: cdx configs [--json]"
@@ -109,23 +109,42 @@ def _write_json(ctx, payload):
 
 
 def _update_notice_warning(ctx):
-    notice = ctx.get("update_notice")
-    if not notice:
+    notices = ctx.get("update_notices") or []
+    if not notices:
         return None
-    return {
-        "code": "update_available",
-        "message": f"Update available: cdx-manager {notice['latest_version']}",
-        "latest_version": notice["latest_version"],
-        "url": notice.get("url"),
-    }
+    warnings = _update_notice_warnings(ctx)
+    return warnings[0] if warnings else None
+
+
+def _update_notice_warnings(ctx):
+    warnings = []
+    for notice in ctx.get("update_notices") or []:
+        tool = notice.get("tool") or "cdx-manager"
+        current = notice.get("current_version") or ctx.get("version")
+        command = notice.get("update_command") or ("cdx update" if tool == "cdx-manager" else None)
+        message = f"Update available: {tool} {notice['latest_version']}"
+        if current:
+            message = f"{message} (current {current})"
+        if command:
+            message = f"{message}. Run: {command}"
+        warnings.append({
+            "code": "update_available" if tool == "cdx-manager" else f"{tool.replace('-', '_')}_update_available",
+            "message": message,
+            "tool": tool,
+            "latest_version": notice["latest_version"],
+            "current_version": current,
+            "update_command": command,
+            "url": notice.get("url"),
+        })
+    return warnings
 
 
 def _write_update_notice(ctx):
-    notice = ctx.get("update_notice")
-    if not notice:
+    warnings = _update_notice_warnings(ctx)
+    if not warnings:
         return
-    text = f"Update available: cdx-manager {notice['latest_version']} (current version installed may be older). Run: cdx update"
-    ctx["out"](f"{_warn(text, ctx['use_color'])}\n")
+    for warning in warnings:
+        ctx["out"](f"{_warn(warning['message'], ctx['use_color'])}\n")
 
 
 def _format_bytes(value):
@@ -527,6 +546,7 @@ def _parse_set_args(args):
         "--permission": {"key": "permission", "type": "str", "default": None},
         "--fast": {"key": "fast", "type": "str", "default": None, "transform": _parse_fast_value},
         "--rtk": {"key": "rtk", "type": "str", "default": None, "transform": _parse_fast_value},
+        "--logics": {"key": "logics", "type": "str", "default": None, "transform": _parse_fast_value},
         "--model": {"key": "model", "type": "str", "default": None},
         "--priority": {"key": "priority", "type": "str", "default": None, "transform": _parse_priority_value},
         "--sessions": {"key": "sessions", "type": "str", "default": None, "transform": _parse_set_unset_sessions},
@@ -543,7 +563,7 @@ def _parse_set_args(args):
         raise CdxError(SET_USAGE)
     settings = {
         key: parsed[key]
-        for key in ("power", "permission", "fast", "rtk", "model", "priority")
+        for key in ("power", "permission", "fast", "rtk", "logics", "model", "priority")
         if parsed[key] is not None
     }
     if not settings:
@@ -563,6 +583,7 @@ def _parse_unset_args(args):
         "--permission": {"key": "permission", "type": "bool", "default": False},
         "--fast": {"key": "fast", "type": "bool", "default": False},
         "--rtk": {"key": "rtk", "type": "bool", "default": False},
+        "--logics": {"key": "logics", "type": "bool", "default": False},
         "--model": {"key": "model", "type": "bool", "default": False},
         "--priority": {"key": "priority", "type": "bool", "default": False},
         "--all": {"key": "all", "type": "bool", "default": False},
@@ -578,8 +599,8 @@ def _parse_unset_args(args):
         raise CdxError(UNSET_USAGE)
     if not parsed["names"] and not parsed["sessions"] and not parsed["provider"]:
         raise CdxError(UNSET_USAGE)
-    keys = ["power", "permission", "fast", "rtk", "model", "priority"] if parsed["all"] else [
-        key for key in ("power", "permission", "fast", "rtk", "model", "priority") if parsed[key]
+    keys = ["power", "permission", "fast", "rtk", "logics", "model", "priority"] if parsed["all"] else [
+        key for key in ("power", "permission", "fast", "rtk", "logics", "model", "priority") if parsed[key]
     ]
     if not keys:
         raise CdxError(UNSET_USAGE)
@@ -1440,6 +1461,7 @@ def _format_launch_config(session, use_color=False):
         ("permission", "Permission"),
         ("fast", "Fast"),
         ("rtk", "RTK"),
+        ("logics", "Logics"),
         ("model", "Model"),
         ("priority", "Priority"),
     ]:
@@ -1460,16 +1482,18 @@ def _format_launch_config(session, use_color=False):
 def _format_launch_settings_hint(name="<name>"):
     return (
         f"Set a value: cdx set {name} --power medium --permission auto "
-        "--fast on --rtk on --model MODEL --priority 80"
+        "--fast on --rtk on --logics on --model MODEL --priority 80"
     )
 
 
 def _format_launch_setting_value(launch, key, use_color=False):
-    if key == "fast" or key == "rtk":
+    if key in ("fast", "rtk", "logics"):
         if launch.get(key) is True:
             return _style("on", "32", use_color)
         if launch.get(key) is False:
             return _style("off", "2", use_color)
+        if key == "logics":
+            return _dim("auto", use_color)
         return _dim("default", use_color)
     value = launch.get(key)
     if value is None or value == "":
@@ -1494,7 +1518,7 @@ def _format_launch_configs(sessions, use_color=False):
             _dim(_format_launch_settings_hint(), use_color),
         ])
     rows = [[_style(value, "1", use_color) for value in [
-        "SESSION", "PROVIDER", "POWER", "PERMISSION", "FAST", "RTK", "MODEL", "PRIORITY"
+        "SESSION", "PROVIDER", "POWER", "PERMISSION", "FAST", "RTK", "LOGICS", "MODEL", "PRIORITY"
     ]]]
     for session in sessions:
         launch = session.get("launch") or {}
@@ -1505,6 +1529,7 @@ def _format_launch_configs(sessions, use_color=False):
             _format_launch_setting_value(launch, "permission", use_color),
             _format_launch_setting_value(launch, "fast", use_color),
             _format_launch_setting_value(launch, "rtk", use_color),
+            _format_launch_setting_value(launch, "logics", use_color),
             _format_launch_setting_value(launch, "model", use_color),
             _format_launch_setting_value(launch, "priority", use_color),
         ])
@@ -2384,9 +2409,7 @@ def handle_status(rest, ctx):
         }
         for item in refresh_errors
     ])
-    update_warning = _update_notice_warning(ctx)
-    if update_warning:
-        warnings.append(update_warning)
+    warnings.extend(_update_notice_warnings(ctx))
 
     status_progress = None if parsed["json"] else _make_status_progress(ctx)
     rows = ctx["service"]["get_status_rows"](
@@ -2709,10 +2732,7 @@ def handle_update(rest, ctx):
 
 def handle_launch(command, ctx, initial_prompt=None):
     json_flag = "--json" in ctx.get("raw_args", ctx["options"].get("raw_args", []))
-    update_notice = ctx.get("update_notice")
-    warnings = []
-    if update_notice:
-        warnings.append(_update_notice_warning(ctx))
+    warnings = _update_notice_warnings(ctx)
     session = ctx["service"]["launch_session"](command)
     _ensure_session_authentication(
         session,

@@ -1208,6 +1208,78 @@ class CliPythonTests(unittest.TestCase):
         ], {**unset_io, "env": {"CDX_HOME": temp_dir}}), 0)
         self.assertNotIn("rtk", json.loads(unset_io["stdout"].getvalue())["launch"])
 
+    def test_set_launch_logics_preference_can_be_unset(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        self.assertEqual(main(["add", "main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        set_io = self.make_io()
+        self.assertEqual(main([
+            "set", "main", "--logics", "off", "--json"
+        ], {**set_io, "env": {"CDX_HOME": temp_dir}}), 0)
+        self.assertFalse(json.loads(set_io["stdout"].getvalue())["launch"]["logics"])
+
+        unset_io = self.make_io()
+        self.assertEqual(main([
+            "unset", "main", "--logics", "--json"
+        ], {**unset_io, "env": {"CDX_HOME": temp_dir}}), 0)
+        self.assertNotIn("logics", json.loads(unset_io["stdout"].getvalue())["launch"])
+
+    def test_logics_prompt_defaults_on_when_cli_is_detected_and_can_be_disabled(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        self.assertEqual(main(["add", "main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        with mock.patch(
+            "src.provider_runtime.shutil.which",
+            side_effect=lambda command, path=None: "/usr/bin/logics-manager" if command == "logics-manager" else None,
+        ):
+            self.assertEqual(main(["main"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir, "PATH": "/usr/bin"},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
+
+        launch_call = [
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "codex")
+        ][-1]
+        self.assertIn("logics-manager status", _script_launch_text(launch_call))
+        self.assertIn("logics-manager view", _script_launch_text(launch_call))
+
+        self.assertEqual(main(["set", "main", "--logics", "off"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        with mock.patch(
+            "src.provider_runtime.shutil.which",
+            side_effect=lambda command, path=None: "/usr/bin/logics-manager" if command == "logics-manager" else None,
+        ):
+            self.assertEqual(main(["main"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir, "PATH": "/usr/bin"},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
+
+        launch_call = [
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "codex")
+        ][-1]
+        self.assertNotIn("logics-manager status", _script_launch_text(launch_call))
+
     def test_fast_on_overrides_default_power_for_codex_and_claude_launch(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
@@ -2113,7 +2185,7 @@ class CliPythonTests(unittest.TestCase):
         )
         self.assertEqual(launch_call["options"]["env"]["OLLAMA_NOHISTORY"], "1")
         self.assertEqual(
-            _script_launch_args(launch_call)[:6],
+            _script_launch_args(launch_call)[:5],
             ["run", "llama3.2", "--think", "medium", "--experimental-yolo"],
         )
 
@@ -2162,7 +2234,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Model", config_io["stdout"].getvalue())
         self.assertIn("sonnet", config_io["stdout"].getvalue())
         self.assertIn(
-            "Set a value: cdx set work1 --power medium --permission auto --fast on --rtk on --model MODEL --priority 80",
+            "Set a value: cdx set work1 --power medium --permission auto --fast on --rtk on --logics on --model MODEL --priority 80",
             config_io["stdout"].getvalue(),
         )
 
@@ -2261,7 +2333,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("personal", output)
         self.assertIn("default", output)
         self.assertIn(
-            "Set a value: cdx set <name> --power medium --permission auto --fast on --rtk on --model MODEL --priority 80",
+            "Set a value: cdx set <name> --power medium --permission auto --fast on --rtk on --logics on --model MODEL --priority 80",
             output,
         )
 
@@ -3696,6 +3768,23 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(issue["status"], "OK")
         self.assertEqual(issue["detail"], "/usr/bin/rtk")
 
+    def test_doctor_reports_logics_manager_availability(self):
+        temp_dir = self.make_temp_dir()
+        service = {
+            "list_sessions": lambda: [],
+            "get_session_root": lambda _name: temp_dir,
+        }
+
+        with mock.patch(
+            "src.health.shutil.which",
+            side_effect=lambda command, path=None: "/usr/bin/logics-manager" if command == "logics-manager" else None,
+        ):
+            report = collect_health_report(service, temp_dir, env={"PATH": "/usr/bin"})
+
+        issue = next(item for item in report["issues"] if item["code"] == "logics_manager_cli")
+        self.assertEqual(issue["status"], "OK")
+        self.assertEqual(issue["detail"], "/usr/bin/logics-manager")
+
     def test_json_error_payload_has_machine_readable_contract(self):
         error = CdxError("Unknown session: missing", exit_code=3)
         payload = json.loads(format_json_error(error))
@@ -4009,7 +4098,7 @@ class CliPythonTests(unittest.TestCase):
             self.assertIn("provider stderr", handle.read())
         self.assertEqual(calls[0]["argv"][:2], ["codex", "exec"])
         self.assertIn("--json", calls[0]["argv"])
-        self.assertIn("Do it", calls[0]["argv"])
+        self.assertTrue(any("Do it" in arg for arg in calls[0]["argv"]))
 
     def test_run_json_reports_default_power_as_reasoning_effort(self):
         target_dir = self.make_temp_dir()

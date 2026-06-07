@@ -2,6 +2,7 @@ import json
 import os
 import io
 import signal
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -64,6 +65,17 @@ class _FakeProcess:
 
 
 class RuntimePythonTests(unittest.TestCase):
+    def setUp(self):
+        self._real_which = shutil.which
+        self._which_patch = mock.patch("src.provider_runtime.shutil.which", side_effect=self._which_without_logics)
+        self._which_patch.start()
+        self.addCleanup(self._which_patch.stop)
+
+    def _which_without_logics(self, command, path=None):
+        if command == "logics-manager":
+            return None
+        return self._real_which(command, path=path)
+
     def format_local_reset(self, unix_seconds):
         dt = datetime.fromtimestamp(unix_seconds, tz=timezone.utc).astimezone()
         return f"{dt.strftime('%b')} {dt.day} {str(dt.hour).zfill(2)}:{str(dt.minute).zfill(2)}"

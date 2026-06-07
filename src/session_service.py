@@ -149,6 +149,18 @@ def _normalize_launch_settings(settings):
                 normalized["rtk"] = False
             else:
                 raise CdxError(f"Unsupported rtk value: {settings['rtk']}")
+    if "logics" in settings and settings["logics"] is not None:
+        value = settings["logics"]
+        if isinstance(value, bool):
+            normalized["logics"] = value
+        else:
+            text = str(value).strip().lower()
+            if text in ("on", "true", "1", "yes"):
+                normalized["logics"] = True
+            elif text in ("off", "false", "0", "no"):
+                normalized["logics"] = False
+            else:
+                raise CdxError(f"Unsupported logics value: {settings['logics']}")
     if "model" in settings and settings["model"] is not None:
         model = str(settings["model"]).strip()
         if not model:
@@ -839,7 +851,7 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         if not keys:
             raise CdxError("At least one launch setting is required.")
-        allowed = {"power", "permission", "fast", "rtk", "model", "priority"}
+        allowed = {"power", "permission", "fast", "rtk", "logics", "model", "priority"}
         unknown = [key for key in keys if key not in allowed]
         if unknown:
             raise CdxError(f"Unsupported launch setting: {', '.join(unknown)}")
