@@ -65,6 +65,7 @@ Do not vendor the Logics kit in this repository; `logics/skills/` should not be 
 ## MCP
 
 Logics MCP tooling is provided by the installed Logics manager package, not by repo-local files.
+Use `cdx view` as the cdx-manager shortcut for `logics-manager view`; use `cdx view --json` to inspect availability, command, update, and failure diagnostics without opening the browser viewer.
 
 Release workflow guardrail:
 

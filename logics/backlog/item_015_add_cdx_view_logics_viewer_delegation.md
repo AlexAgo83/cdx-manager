@@ -1,10 +1,10 @@
 ## item_015_add_cdx_view_logics_viewer_delegation - Add cdx view Logics viewer delegation
 > From version: 0.7.8
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 95%
-> Confidence: 90%
-> Progress: 0%
+> Status: Done
+> Understanding: 100%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Operator workflow
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -62,7 +62,7 @@ flowchart TD
 - Product brief(s): (none yet)
 - Architecture decision(s): `adr_003_logics_and_companion_tool_launch_guidance`
 - Request: `req_004_harden_release_governance_and_add_logics_viewer_command`
-- Primary task(s): (none yet)
+- Primary task(s): `task_015_add_cdx_view_logics_viewer_delegation`
 
 # AI Context
 - Summary: Add `cdx view` as a thin, optional wrapper around `logics-manager view`, including JSON diagnostics and update hints.
@@ -73,6 +73,14 @@ flowchart TD
 # Priority
 - Impact: Medium
 - Urgency: Medium
+
+# Notes
+- Delivered as optional companion-tool delegation.
+- Validation evidence:
+  - `node bin/python-runner.js -m unittest discover -s test -p test_cli_py.py -k view`
+  - `npm run lint`
+  - `logics-manager lint --require-status`
+  - `logics-manager audit`
 
 # Tasks
 - `task_015_add_cdx_view_logics_viewer_delegation`

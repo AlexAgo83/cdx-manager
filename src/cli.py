@@ -37,6 +37,7 @@ from .cli_commands import (
     handle_set,
     handle_unset,
     handle_update,
+    handle_view,
 )
 from .cli_render import (
     _format_sessions,
@@ -104,6 +105,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx import <file> [--sessions a,b] [--passphrase-env VAR] [--force] [--json]', '36', use_color)}",
         f"  {_style('cdx doctor [--json]', '36', use_color)}",
         f"  {_style('cdx repair [--dry-run] [--force] [--json]', '36', use_color)}",
+        f"  {_style('cdx view [--json]', '36', use_color)}",
         f"  {_style('cdx update [--check] [--yes] [--json] [--version TAG]', '36', use_color)}",
         f"  {_style('cdx ready [--refresh] [--json]', '36', use_color)}",
         f"  {_style('cdx notify <name> --at-reset [--schedule] [--refresh] [--json]', '36', use_color)}",
@@ -275,7 +277,7 @@ def main(argv, options=None):
         "version": VERSION,
         "cwd": options.get("cwd") or os.getcwd(),
         "update_notices": _get_update_notices(service, env, options) if command not in (
-            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "update", "ready", "notify", "next", "context", "config", "configs", "set", "unset", "power", "perm", "fast", "model", "history", "stats", "handoff", "login", "logout", "disable", "enable", "export", "import", "select", "run", "help", "version"
+            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "view", "update", "ready", "notify", "next", "context", "config", "configs", "set", "unset", "power", "perm", "fast", "model", "history", "stats", "handoff", "login", "logout", "disable", "enable", "export", "import", "select", "run", "help", "version"
         ) else None,
         "use_color": use_color,
     }
@@ -312,6 +314,9 @@ def main(argv, options=None):
 
     if command == "repair":
         return handle_repair(rest, ctx)
+
+    if command == "view":
+        return handle_view(rest, ctx)
 
     if command == "update":
         return handle_update(rest, ctx)

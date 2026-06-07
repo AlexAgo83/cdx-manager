@@ -78,6 +78,7 @@ Use these direct commands when `logics-manager` is on `PATH`:
 - `logics-manager audit`: check workflow consistency, gates, companion docs, and traceability.
 - `logics-manager lint --require-status`: validate document structure and required status fields.
 - `logics-manager view`: open the browser viewer for visual navigation and focus workflows.
+- `cdx view`: open the same viewer through cdx when `logics-manager` is installed; use `cdx view --json` for diagnostics without launching a browser.
 - `logics-manager sync list-docs`: list bounded document context.
 - `logics-manager sync read-doc <ref-or-path>`: read one managed document.
 - `logics-manager sync search-docs <query>`: search the corpus without broad file scans.

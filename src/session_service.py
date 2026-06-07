@@ -56,6 +56,7 @@ RESERVED_SESSION_NAMES = {
     "status",
     "unset",
     "update",
+    "view",
     "version",
     "--help",
     "-h",

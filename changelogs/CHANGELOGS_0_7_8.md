@@ -5,6 +5,7 @@ Release date: 2026-06-08
 ## Launch Guidance
 
 - Added update guidance for `logics-manager` so `cdx` can surface a newer companion CLI version alongside the existing `cdx-manager` update notice.
+- Added `cdx view` as a thin shortcut for `logics-manager view`, plus `cdx view --json` diagnostics for companion availability and update suggestions.
 - Added RTK launch preference handling so noisy assistant shell commands can be wrapped with `rtk` when the session setting asks for filtered command output.
 - Extended provider launch metadata and health checks so companion tool hints appear without making `logics-manager` or RTK hard runtime dependencies.
 
