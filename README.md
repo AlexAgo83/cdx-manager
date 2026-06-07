@@ -41,7 +41,7 @@ One command to launch any session. Zero auth juggling.
 - **Session control.** Disable a session without deleting it when an account is temporarily out of credits; disabled sessions remain visible and sort last.
 - **Persistent launch settings.** Pin per-session power, permission, and fast-mode preferences once; `cdx` reapplies them on every launch until you unset them.
 - **Launch history.** Inspect recent launches with provider, result, duration, working directory, launch settings, and transcript path.
-- **Update prompts.** Periodic update checks surface `cdx update` directly in the `cdx`, `cdx status`, and launch output when a newer release is available.
+- **Update prompts.** Periodic update checks surface `cdx update` directly in the `cdx`, `cdx status`, and launch output when a newer release is available. When `logics-manager` is installed, `cdx` can also suggest `logics-manager self-update`.
 - **Shared handoff context.** Keep a per-workspace Markdown context, or build one from a source session transcript, and install it into another assistant session before switching providers or accounts.
 - **Passive status resolution.** Codex status is read from the local Codex app-server rate-limit API when available, with legacy transcript/history parsing kept as a fallback.
 - **Session transcript capture.** Every launch is recorded to a local log file via `script`, giving you a full terminal transcript for each session.
@@ -271,6 +271,7 @@ cdx set --sessions all --permission auto
 cdx set --provider ollama --model llama3.2
 cdx set work --priority 80
 cdx set work --rtk on
+cdx set work --logics off
 cdx power all low
 cdx perm provider:claude review
 cdx model provider:ollama llama3.2
@@ -286,12 +287,13 @@ cdx unset --sessions work,personal --fast
 cdx unset --provider claude --permission
 cdx unset work --priority
 cdx unset work --rtk
+cdx unset work --logics
 cdx unset work --all
 cdx power all default
 cdx model provider:ollama default
 ```
 
-`--model` maps to Codex `--model`, Claude `--model`, and Ollama `ollama run <model>`. `--power` maps to Codex `model_reasoning_effort` and Claude `--effort`. `--permission` maps to provider-native permission flags. `--fast on` clears the stored power setting and uses low effort; setting `--power` again disables fast mode. `--priority` is a 0..100 selector preference used as a tie-breaker after readiness and availability. `--rtk on` injects a launch instruction that encourages assistants to use RTK (`rtk <command>`) for noisy terminal commands when RTK is available, while keeping raw commands for exact output.
+`--model` maps to Codex `--model`, Claude `--model`, and Ollama `ollama run <model>`. `--power` maps to Codex `model_reasoning_effort` and Claude `--effort`. `--permission` maps to provider-native permission flags. `--fast on` clears the stored power setting and uses low effort; setting `--power` again disables fast mode. `--priority` is a 0..100 selector preference used as a tie-breaker after readiness and availability. `--rtk on` injects a launch instruction that encourages assistants to use RTK (`rtk <command>`) for noisy terminal commands when RTK is available, while keeping raw commands for exact output. Logics guidance is auto-enabled when `logics-manager` is available; use `--logics off` to disable that guidance for a session, or `--logics on` to pin it explicitly.
 
 ### Launch History
 
@@ -329,8 +331,8 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx config <name> [--json]` | Show persistent launch settings for a session |
 | `cdx configs [--json]` | Show persistent launch settings for all sessions in one table |
 | `cdx power\|perm\|fast\|model <name\|all\|provider:PROVIDER\|a,b> <value\|default> [--json]` | Shortcut commands for setting or clearing one launch setting |
-| `cdx set <name>\|--sessions all\|a,b\|--provider PROVIDER [--power low\|medium\|high\|xhigh\|max] [--permission review\|default\|auto\|full] [--fast on\|off] [--rtk on\|off] [--model MODEL] [--priority 0..100] [--json]` | Persist launch settings for one or more sessions |
-| `cdx unset <name>\|--sessions all\|a,b\|--provider PROVIDER (--power\|--permission\|--fast\|--rtk\|--model\|--priority\|--all) [--json]` | Remove persisted launch settings and fall back to provider defaults |
+| `cdx set <name>\|--sessions all\|a,b\|--provider PROVIDER [--power low\|medium\|high\|xhigh\|max] [--permission review\|default\|auto\|full] [--fast on\|off] [--rtk on\|off] [--logics on\|off] [--model MODEL] [--priority 0..100] [--json]` | Persist launch settings for one or more sessions |
+| `cdx unset <name>\|--sessions all\|a,b\|--provider PROVIDER (--power\|--permission\|--fast\|--rtk\|--logics\|--model\|--priority\|--all) [--json]` | Remove persisted launch settings and fall back to provider defaults |
 | `cdx history [name] [--limit N] [--summary] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Show recent launch history or aggregate total launch time per assistant, optionally filtered by period |
 | `cdx last [--json]` | Launch the most recent existing session from launch history |
 | `cdx context show\|path\|init\|edit\|clear\|set [text...] [--json]` | Manage the shared Markdown context for the current workspace |
