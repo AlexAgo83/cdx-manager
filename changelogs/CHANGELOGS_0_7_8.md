@@ -16,9 +16,16 @@ Release date: 2026-06-08
 
 - Updated package metadata, CLI version output, README badge, pinned installer example, and release changelog to `v0.7.8`.
 
+## Release Governance
+
+- Added `npm run release:validate` as the required pre-publication gate for version alignment and GitHub archive checksum metadata.
+- The npm and PyPI publication workflows now run the checksum/version gate before registry upload.
+- Release prep now requires generating `checksums/release-archives.json` entries for the matching `vX.Y.Z` tag before publication.
+
 ## Validation and Regression Evidence
 
 - `npm run lint`
+- `npm run release:validate`
 - `npm test`
 - `python -m unittest discover -s test -p 'test_*_py.py'`
 - `python3 -m logics_manager lint --require-status`

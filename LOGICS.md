@@ -65,6 +65,8 @@ Before release prep:
 - Run `logics-manager status`.
 - Run `logics-manager health`.
 - Run `logics-manager audit`.
+- Run `npm run release:validate` before any registry publication.
+- Generate archive checksums with `python3 scripts/update_release_checksums.py --tag vX.Y.Z` once GitHub tag archives exist, commit `checksums/release-archives.json` to `main`, and only publish the GitHub release after the checksum gate passes for the same tag/version.
 - If the full audit intentionally excludes legacy docs, state the legacy cutoff or scoped audit command in the release notes.
 
 ## Preferred Commands
@@ -111,7 +113,7 @@ Use the validation set that matches the changed surface:
 
 - Logics-only: `logics-manager lint --require-status`, plus `logics-manager audit` when changing request/backlog/task links.
 - CLI behavior: `npm run lint`, `npm test`, and focused `python -m unittest discover -s test -p 'test_*_py.py' -k <pattern>` when appropriate.
-- Release prep: version checks, package checks, Logics validation, `git diff --check`, and the release checklist in the relevant changelog.
+- Release prep: `npm run release:validate`, version checks, package checks, Logics validation, `git diff --check`, and the release checklist in the relevant changelog.
 
 ## Maintenance Notes
 

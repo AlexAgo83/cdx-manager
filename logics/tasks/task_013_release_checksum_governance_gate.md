@@ -1,18 +1,18 @@
 ## task_013_release_checksum_governance_gate - Release checksum governance gate
 > From version: 0.7.8
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Status: Done
+> Understanding: 100%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 
 # Definition of Done (DoD)
-- [ ] The backlog scope is implemented.
-- [ ] Acceptance criteria are covered.
-- [ ] Validation passes.
+- [x] The backlog scope is implemented.
+- [x] Acceptance criteria are covered.
+- [x] Validation passes.
 
 # Backlog
 - `item_013_release_checksum_governance_gate`
@@ -20,7 +20,7 @@
 
 ```mermaid
 %% logics-kind: task
-%% logics-signature: task|release-checksum-governance-gate|item-013-release-checksum-governance-gat|1-confirm-scope|run-python3-m-logics-manager-lint-requi
+%% logics-signature: task|release-checksum-governance-gate|item-013-release-checksum-governance-gat|1-confirm-scope|npm-run-release-validate
 flowchart TD
     Backlog[Backlog item] --> Build[Implementation]
     Build --> Validate[Validation]
@@ -42,11 +42,16 @@ flowchart TD
 - request-AC12 -> Task AC5. Proof: documentation/help alignment for release validation.
 
 # Validation
-- Run `python3 -m logics_manager lint --require-status`.
-- Run `python3 -m logics_manager flow finish task task_013_release_checksum_governance_gate.md` after implementation.
+- `npm run release:validate`
+- `node bin/python-runner.js -m unittest discover -s test -p test_release_checksums_py.py`
+- `npm run lint`
+- `logics-manager lint --require-status`
+- `logics-manager audit`
 
 # Report
-- Implementation complete.
+- Added `scripts/verify_release_checksums.py` to enforce version alignment and required GitHub archive checksum fields.
+- Wired release validation into npm `prepublishOnly` and both npm/PyPI publication workflows before registry upload.
+- Updated README, Logics guidance, release notes, and script help references for the checksum-first release order.
 
 # AI Context
 - Summary: Implement release checksum governance gate.

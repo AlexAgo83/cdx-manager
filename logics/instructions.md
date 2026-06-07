@@ -65,6 +65,11 @@ Do not vendor the Logics kit in this repository; `logics/skills/` should not be 
 ## MCP
 
 Logics MCP tooling is provided by the installed Logics manager package, not by repo-local files.
+
+Release workflow guardrail:
+
+- Run `npm run release:validate` before npm or PyPI publication.
+- Generate GitHub archive checksums with `python3 scripts/update_release_checksums.py --tag vX.Y.Z` once the tag archives exist, commit the checksum file, and keep README, helper CLI text, changelog/release guidance, and Logics docs aligned when release validation changes.
 Use `logics-manager mcp tools` to inspect available tools.
 
 ## Validation

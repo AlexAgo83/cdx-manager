@@ -189,6 +189,13 @@ Security note:
 - Prefer `npm`, `pipx`, or `uv` when you want registry-backed install flows.
 - If you use the standalone script, download it first, inspect it, and prefer a release with an official checksum entry.
 
+Release maintainer note:
+
+- Before publishing npm or PyPI packages, run `npm run release:validate`.
+- The release tag must match `package.json`, `pyproject.toml`, `src/cli.py`, and `VERSION`.
+- `checksums/release-archives.json` must include the matching `vX.Y.Z` entry with both `github_tarball_sha256` and `github_zip_sha256`.
+- Use `python3 scripts/update_release_checksums.py --tag vX.Y.Z` after the GitHub tag archives exist, commit the checksum update to `main`, then publish the GitHub release only after `npm run release:validate`, `npm run lint`, and `npm test` pass.
+
 ### Environment
 
 By default, `cdx` stores all data under `~/.cdx/`. Override with:
@@ -500,7 +507,8 @@ Notes:
 
 - `npm test`: run the Python test suite
 - `npm run test:py`: run the Python unit tests through the portable launcher
-- `npm run lint`: check the Node launcher and byte-compile the Python sources and tests
+- `npm run lint`: check project guidance, the Node launcher, and byte-compile the Python sources, scripts, and tests
+- `npm run release:validate`: verify version alignment and required GitHub release archive checksum metadata before publication
 - `npm run link`: link `cdx` globally for local development (`npm link`)
 - `npm run unlink`: remove the global link
 

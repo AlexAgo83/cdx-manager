@@ -1,10 +1,10 @@
 ## item_013_release_checksum_governance_gate - Release checksum governance gate
 > From version: 0.7.8
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 95%
-> Confidence: 90%
-> Progress: 0%
+> Status: Done
+> Understanding: 100%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Release governance
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -55,7 +55,7 @@ flowchart TD
 - Product brief(s): (none yet)
 - Architecture decision(s): (none yet)
 - Request: `req_004_harden_release_governance_and_add_logics_viewer_command`
-- Primary task(s): (none yet)
+- Primary task(s): `task_013_release_checksum_governance_gate`
 
 # AI Context
 - Summary: Add a release gate that prevents npm/PyPI publication when current-version GitHub archive checksums are missing.
@@ -66,6 +66,15 @@ flowchart TD
 # Priority
 - Impact: High
 - Urgency: High
+
+# Notes
+- Delivered as a pre-publication release validation gate.
+- Validation evidence:
+  - `npm run release:validate`
+  - `node bin/python-runner.js -m unittest discover -s test -p test_release_checksums_py.py`
+  - `npm run lint`
+  - `logics-manager lint --require-status`
+  - `logics-manager audit`
 
 # Tasks
 - `task_013_release_checksum_governance_gate`
