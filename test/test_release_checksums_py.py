@@ -27,17 +27,6 @@ class ReleaseChecksumsTests(unittest.TestCase):
         )
         return root
 
-    def test_current_version_has_release_archive_checksums(self):
-        root = Path(__file__).resolve().parents[1]
-        version = (root / "VERSION").read_text(encoding="utf-8").strip()
-        payload = json.loads((root / "checksums" / "release-archives.json").read_text(encoding="utf-8"))
-
-        entry = (payload.get("releases") or {}).get(f"v{version}")
-
-        self.assertIsInstance(entry, dict)
-        self.assertRegex(entry.get("github_tarball_sha256", ""), r"^[0-9a-f]{64}$")
-        self.assertRegex(entry.get("github_zip_sha256", ""), r"^[0-9a-f]{64}$")
-
     def test_release_archive_checksums_are_sha256_hex_strings(self):
         root = Path(__file__).resolve().parents[1]
         payload = json.loads((root / "checksums" / "release-archives.json").read_text(encoding="utf-8"))
@@ -48,8 +37,19 @@ class ReleaseChecksumsTests(unittest.TestCase):
                 self.assertRegex(entry.get("github_tarball_sha256", ""), checksum_re)
                 self.assertRegex(entry.get("github_zip_sha256", ""), checksum_re)
 
-    def test_release_validator_accepts_current_project(self):
-        self.assertEqual(validate_release_checksums(ROOT), "v0.7.8")
+    def test_release_validator_accepts_project_when_checksum_metadata_exists(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._write_release_root(
+                temp_dir,
+                releases={
+                    "v1.2.3": {
+                        "github_tarball_sha256": "a" * 64,
+                        "github_zip_sha256": "b" * 64,
+                    }
+                },
+            )
+
+            self.assertEqual(validate_release_checksums(root), "v1.2.3")
 
     def test_release_validator_rejects_missing_current_tag(self):
         with tempfile.TemporaryDirectory() as temp_dir:

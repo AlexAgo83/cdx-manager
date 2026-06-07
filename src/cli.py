@@ -61,7 +61,7 @@ from .status_view import (
 )
 from .update_check import check_for_update, check_logics_manager_for_update
 
-VERSION = "0.7.8"
+VERSION = "0.8.0"
 
 
 # ---------------------------------------------------------------------------

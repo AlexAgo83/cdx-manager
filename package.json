@@ -1,6 +1,6 @@
 {
   "name": "cdx-manager",
-  "version": "0.7.8",
+  "version": "0.8.0",
   "description": "Terminal session manager for Codex and Claude accounts.",
   "license": "MIT",
   "author": "Alexandre Agostini",
