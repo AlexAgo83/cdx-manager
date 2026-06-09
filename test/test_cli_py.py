@@ -3807,6 +3807,25 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(calls[0][0], ["/usr/bin/logics-manager", "view"])
         self.assertEqual(calls[0][1]["cwd"], cwd)
 
+    def test_view_ctrl_c_exits_cleanly_without_traceback(self):
+        temp_dir = self.make_temp_dir()
+
+        def interrupted(_argv, **_kwargs):
+            raise KeyboardInterrupt()
+
+        with mock.patch("src.logics_view.shutil.which", return_value="/usr/bin/logics-manager"):
+            io_obj = self.make_io()
+            self.assertEqual(main(["view"], {
+                **io_obj,
+                "env": {"CDX_HOME": temp_dir, "PATH": "/usr/bin"},
+                "cwd": temp_dir,
+                "spawn_sync": interrupted,
+                "checkLogicsManagerForUpdate": lambda *_args, **_kwargs: None,
+            }), 130)
+
+        self.assertEqual(io_obj["stdout"].getvalue(), "\n")
+        self.assertEqual(io_obj["stderr"].getvalue(), "")
+
     def test_view_missing_logics_manager_is_actionable(self):
         temp_dir = self.make_temp_dir()
 

@@ -95,6 +95,9 @@ def handle_view(rest, ctx):
         result = run_logics_viewer(executable, cwd, env=env, runner=ctx.get("spawn_sync"))
     except FileNotFoundError as error:
         raise CdxError(f"logics-manager is required for cdx view. {LOGICS_MANAGER_INSTALL_HINT}") from error
+    except KeyboardInterrupt:
+        ctx["out"]("\n")
+        return 130
     returncode = getattr(result, "returncode", 0)
     if returncode not in (0, None):
         raise CdxError("logics-manager view failed.", exit_code=returncode)
