@@ -1,9 +1,9 @@
 ## req_005_add_observable_assistant_run_registry_and_structured_task_reports - Add observable assistant run registry and structured task reports
-> From version: 0.8.0
+> From version: 0.8.1
 > Schema version: 1.0
 > Status: Draft
-> Understanding: 95%
-> Confidence: 90%
+> Understanding: 96%
+> Confidence: 91%
 > Complexity: High
 > Theme: Assistant orchestration
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
@@ -87,3 +87,4 @@ flowchart TD
 
 # Backlog
 - none
+- `item_017_add_observable_assistant_run_registry_and_structured_task_reports`
