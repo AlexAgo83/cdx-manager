@@ -31,6 +31,9 @@ from .cli_commands import (
     handle_repair,
     handle_rename,
     handle_run,
+    handle_run_report,
+    handle_run_status,
+    handle_runs,
     handle_select,
     handle_stats,
     handle_status,
@@ -81,6 +84,9 @@ def _print_help(use_color=False):
         f"  {_style('cdx next [--json] [--refresh]', '36', use_color)}",
         f"  {_style('cdx select --provider PROVIDER [--min-reasoning-effort low|medium|high] [--min-power low|medium|high] [--require-ready] [--refresh] --json', '36', use_color)}",
         f"  {_style('cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--reasoning-effort low|medium|high] [--power low|medium|high] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] --json', '36', use_color)}",
+        f"  {_style('cdx runs [--limit N] --json', '36', use_color)}",
+        f"  {_style('cdx run-status <run_id> --json', '36', use_color)}",
+        f"  {_style('cdx run-report <run_id> --json', '36', use_color)}",
         f"  {_style('cdx context show|path|init|edit|clear|set [text...] [--json]', '36', use_color)}",
         f"  {_style('cdx config <name> [--json]', '36', use_color)}",
         f"  {_style('cdx configs [--json]', '36', use_color)}",
@@ -370,6 +376,15 @@ def main(argv, options=None):
 
     if command == "run":
         return handle_run(rest, ctx)
+
+    if command == "runs":
+        return handle_runs(rest, ctx)
+
+    if command == "run-status":
+        return handle_run_status(rest, ctx)
+
+    if command == "run-report":
+        return handle_run_report(rest, ctx)
 
     if command == "login":
         return handle_login(rest, ctx)

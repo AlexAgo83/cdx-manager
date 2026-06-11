@@ -4196,6 +4196,78 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("--json", calls[0]["argv"])
         self.assertTrue(any("Do it" in arg for arg in calls[0]["argv"]))
 
+    def test_run_registry_exposes_recent_status_and_report_json(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        session = service["create_session"]("work", "codex")
+        os.makedirs(session["authHome"], exist_ok=True)
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "token"}}, handle)
+
+        def spawn(_argv, **kwargs):
+            kwargs["stdout"].write("done\n")
+            return _HeadlessChild(0)
+
+        run_io = self.make_io()
+        self.assertEqual(main([
+            "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json"
+        ], self.make_run_ctx(run_io, service, spawn_headless=spawn)), 0)
+        run_payload = json.loads(run_io["stdout"].getvalue())
+
+        runs_io = self.make_io()
+        self.assertEqual(main(["runs", "--json"], self.make_run_ctx(runs_io, service)), 0)
+        runs_payload = json.loads(runs_io["stdout"].getvalue())
+        self.assertEqual(runs_payload["runs"][0]["run_id"], run_payload["run_id"])
+        self.assertEqual(runs_payload["runs"][0]["status"], "succeeded")
+
+        status_io = self.make_io()
+        self.assertEqual(main(["run-status", run_payload["run_id"], "--json"], self.make_run_ctx(status_io, service)), 0)
+        status_payload = json.loads(status_io["stdout"].getvalue())
+        self.assertEqual(status_payload["run"]["run_id"], run_payload["run_id"])
+        self.assertEqual(status_payload["run"]["artifacts"]["stdout_path"], run_payload["stdout_path"])
+
+        report_io = self.make_io()
+        self.assertEqual(main(["run-report", run_payload["run_id"], "--json"], self.make_run_ctx(report_io, service)), 0)
+        report_payload = json.loads(report_io["stdout"].getvalue())
+        self.assertEqual(report_payload["report"]["final_payload"]["run_id"], run_payload["run_id"])
+        self.assertEqual(report_payload["report"]["usage"], run_payload["usage"])
+
+    def test_run_code_review_kind_persists_structured_task_report(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        session = service["create_session"]("review", "codex")
+        os.makedirs(session["authHome"], exist_ok=True)
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "token"}}, handle)
+
+        def spawn(_argv, **kwargs):
+            kwargs["stdout"].write(json.dumps({
+                "summary": "One issue found.",
+                "findings": [{
+                    "severity": "high",
+                    "path": "src/app.py",
+                    "line": 12,
+                    "message": "Missing validation.",
+                }],
+                "next_steps": ["Create a Logics request for the finding."],
+            }))
+            return _HeadlessChild(0)
+
+        run_io = self.make_io()
+        self.assertEqual(main([
+            "run", "review", "--cwd", target_dir, "--prompt", "Review it", "--kind", "code-review", "--json"
+        ], self.make_run_ctx(run_io, service, spawn_headless=spawn)), 0)
+        run_payload = json.loads(run_io["stdout"].getvalue())
+
+        report_io = self.make_io()
+        self.assertEqual(main(["run-report", run_payload["run_id"], "--json"], self.make_run_ctx(report_io, service)), 0)
+        report_payload = json.loads(report_io["stdout"].getvalue())
+        task_report = report_payload["report"]["task_report"]
+        self.assertEqual(task_report["kind"], "code-review")
+        self.assertEqual(task_report["summary"], "One issue found.")
+        self.assertEqual(task_report["findings"][0]["path"], "src/app.py")
+        self.assertEqual(task_report["next_steps"], ["Create a Logics request for the finding."])
+
     def test_run_json_reports_default_power_as_reasoning_effort(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})

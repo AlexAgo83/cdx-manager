@@ -33,6 +33,7 @@ from .notify import (
 )
 from .provider_runtime import (
     _ensure_session_authentication,
+    _headless_artifact_paths,
     _list_launch_transcript_paths,
     _normalize_reasoning_effort,
     _probe_provider_auth,
@@ -41,6 +42,7 @@ from .provider_runtime import (
 )
 from .repair import format_repair_report, repair_health
 from .backup_bundle import read_bundle_meta
+from .run_registry import RunRegistry, build_code_review_report
 from .run_usage import extract_run_usage
 from .run_command import read_run_prompt, run_cdx_error_code, run_result_payload
 from .status_view import _format_status_detail, _format_status_rows, format_priority_instruction, recommend_priority_rows
@@ -66,7 +68,10 @@ STATS_USAGE = "Usage: cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--
 LAST_USAGE = "Usage: cdx last [--json]"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort low|medium|high] [--min-power low|medium|high] [--require-ready] [--refresh] --json"
 NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
-RUN_USAGE = "Usage: cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--reasoning-effort low|medium|high] [--power low|medium|high] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] --json"
+RUN_USAGE = "Usage: cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort low|medium|high] [--power low|medium|high] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] --json"
+RUNS_USAGE = "Usage: cdx runs [--limit N] --json"
+RUN_STATUS_USAGE = "Usage: cdx run-status <run_id> --json"
+RUN_REPORT_USAGE = "Usage: cdx run-report <run_id> --json"
 API_SCHEMA_VERSION = 1
 HANDOFF_TRANSCRIPT_CHARS = 120000
 HANDOFF_NATIVE_TRANSCRIPT_CANDIDATES = 64
@@ -695,6 +700,7 @@ def _parse_run_args(args):
         "--prompt": {"key": "prompt", "type": "str", "default": None},
         "--provider": {"key": "provider", "type": "str", "default": None, "transform": lambda value: _parse_provider_filter(value, RUN_USAGE)},
         "--model": {"key": "model", "type": "str", "default": None},
+        "--kind": {"key": "kind", "type": "str", "default": "assistant"},
         "--reasoning-effort": {"key": "reasoning_effort", "type": "str", "default": None},
         "--power": {"key": "power", "type": "str", "default": None},
         "--permission": {"key": "permission", "type": "str", "default": None, "transform": _normalize_run_permission},
@@ -712,6 +718,8 @@ def _parse_run_args(args):
         raise CdxError(RUN_USAGE)
     if bool(parsed["prompt_file"]) == bool(parsed["prompt"]):
         raise CdxError(RUN_USAGE)
+    if parsed["kind"] not in ("assistant", "code-review"):
+        raise CdxError(RUN_USAGE)
     effort = _normalize_reasoning_effort(
         reasoning_effort=parsed["reasoning_effort"],
         power=parsed["power"],
@@ -723,6 +731,7 @@ def _parse_run_args(args):
         "cwd": parsed["cwd"],
         "prompt_file": parsed["prompt_file"],
         "prompt": parsed["prompt"],
+        "kind": parsed["kind"],
         "model": parsed["model"],
         "permission": parsed["permission"],
         "timeout_seconds": parsed["timeout_seconds"],
@@ -1338,7 +1347,65 @@ def handle_next(rest, ctx):
     return 0
 
 
+def _parse_runs_args(rest):
+    return _parse_flag_args(rest, {
+        "--limit": {"key": "limit", "type": "str", "default": 20, "transform": _parse_positive_int},
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, RUNS_USAGE, max_positionals=0)
+
+
+def _parse_run_id_json_args(rest, usage):
+    parsed = _parse_flag_args(rest, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, usage, positionals_key="ids", max_positionals=1)
+    if not parsed["json"] or len(parsed["ids"]) != 1:
+        raise CdxError(usage)
+    return {"run_id": parsed["ids"][0], "json": True}
+
+
+def _run_registry(ctx):
+    return RunRegistry(ctx["service"]["base_dir"])
+
+
+def handle_runs(rest, ctx):
+    parsed = _parse_runs_args(rest)
+    if not parsed["json"]:
+        raise CdxError(RUNS_USAGE)
+    runs = _run_registry(ctx).list(limit=parsed["limit"])
+    _write_json(ctx, _json_success("runs", "Runs loaded.", runs=runs))
+    return 0
+
+
+def handle_run_status(rest, ctx):
+    parsed = _parse_run_id_json_args(rest, RUN_STATUS_USAGE)
+    run = _run_registry(ctx).get(parsed["run_id"])
+    if not run:
+        _write_json(ctx, _json_failure("run-status", "run_not_found", f"Unknown run: {parsed['run_id']}"))
+        return 1
+    _write_json(ctx, _json_success("run-status", "Run loaded.", run=run))
+    return 0
+
+
+def handle_run_report(rest, ctx):
+    parsed = _parse_run_id_json_args(rest, RUN_REPORT_USAGE)
+    run = _run_registry(ctx).get(parsed["run_id"])
+    if not run:
+        _write_json(ctx, _json_failure("run-report", "run_not_found", f"Unknown run: {parsed['run_id']}"))
+        return 1
+    _write_json(ctx, _json_success("run-report", "Run report loaded.", report={
+        "run": run,
+        "final_payload": run.get("final_payload"),
+        "task_report": run.get("task_report"),
+        "artifacts": run.get("artifacts") or {},
+        "usage": run.get("usage"),
+        "error": run.get("error"),
+    }))
+    return 0
+
+
 def handle_run(rest, ctx):
+    registry = None
+    run_id = None
     try:
         parsed = _parse_run_args(rest)
         session = None
@@ -1397,6 +1464,22 @@ def handle_run(rest, ctx):
             signal_emitter=ctx.get("signal_emitter"),
             trust_local_credentials=False,
         )
+        registry = _run_registry(ctx)
+        artifacts = _headless_artifact_paths(run_session)
+        run_id = artifacts["run_id"]
+        registry.start(
+            run_id,
+            kind=parsed.get("kind"),
+            session=run_session.get("name"),
+            provider=run_session.get("provider"),
+            model=parsed.get("model") or ((run_session.get("launch") or {}).get("model")),
+            cwd=cwd,
+            artifacts={
+                "transcript_path": artifacts.get("transcript_path"),
+                "stdout_path": artifacts.get("stdout_path"),
+                "stderr_path": artifacts.get("stderr_path"),
+            },
+        )
         run_info = _run_headless_provider_command(
             run_session,
             cwd=cwd,
@@ -1404,29 +1487,32 @@ def handle_run(rest, ctx):
             initial_prompt=prompt,
             timeout_seconds=parsed.get("timeout_seconds"),
             spawn=ctx.get("spawn_headless") or ctx.get("spawn"),
+            run_id=run_id,
         )
         usage = extract_run_usage(run_session.get("provider"), run_info.get("stdout_path"))
         run_info = {**run_info, "usage": usage}
         ok = run_info.get("returncode") == 0
         if ok:
+            final_payload = run_result_payload(API_SCHEMA_VERSION, True, parsed, run_session, run_info=run_info)
+            task_report = build_code_review_report(run_id, final_payload) if parsed.get("kind") == "code-review" else None
+            registry.finish(
+                run_id,
+                status="succeeded",
+                final_payload=final_payload,
+                run_info=run_info,
+                task_report=task_report,
+            )
             ctx["service"]["record_launch_history"](session["name"], {
                 "status": "success",
                 "cwd": cwd,
                 "exit_code": 0,
                 **run_info,
             })
-            _write_json(ctx, run_result_payload(API_SCHEMA_VERSION, True, parsed, run_session, run_info=run_info))
+            _write_json(ctx, final_payload)
             return 0
         message = "Provider process timed out." if run_info.get("timed_out") else "Provider process exited with a non-zero status."
         error = CdxError(message, run_info.get("returncode") or 1)
-        ctx["service"]["record_launch_history"](session["name"], {
-            "status": "failed",
-            "cwd": cwd,
-            "error": str(error),
-            "exit_code": error.exit_code,
-            **run_info,
-        })
-        _write_json(ctx, run_result_payload(
+        final_payload = run_result_payload(
             API_SCHEMA_VERSION,
             False,
             parsed,
@@ -1435,11 +1521,27 @@ def handle_run(rest, ctx):
             error=error,
             error_source="provider",
             error_code="provider_timeout" if run_info.get("timed_out") else "provider_failed",
-        ))
+        )
+        registry.finish(
+            run_id,
+            status="timed_out" if run_info.get("timed_out") else "failed",
+            final_payload=final_payload,
+            run_info=run_info,
+            error=final_payload.get("error"),
+            task_report=build_code_review_report(run_id, final_payload) if parsed.get("kind") == "code-review" else None,
+        )
+        ctx["service"]["record_launch_history"](session["name"], {
+            "status": "failed",
+            "cwd": cwd,
+            "error": str(error),
+            "exit_code": error.exit_code,
+            **run_info,
+        })
+        _write_json(ctx, final_payload)
         return error.exit_code or 1
     except CdxError as error:
         run_info = getattr(error, "run_info", None)
-        _write_json(ctx, run_result_payload(
+        final_payload = run_result_payload(
             API_SCHEMA_VERSION,
             False,
             locals().get("parsed", {}) or {},
@@ -1448,7 +1550,16 @@ def handle_run(rest, ctx):
             error=error,
             error_source="cdx",
             error_code=run_cdx_error_code(error),
-        ))
+        )
+        if registry and run_id:
+            registry.finish(
+                run_id,
+                status="failed",
+                final_payload=final_payload,
+                run_info=run_info,
+                error=final_payload.get("error"),
+            )
+        _write_json(ctx, final_payload)
         return error.exit_code
 
 
