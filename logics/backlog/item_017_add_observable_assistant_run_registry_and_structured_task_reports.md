@@ -1,10 +1,10 @@
 ## item_017_add_observable_assistant_run_registry_and_structured_task_reports - Add observable assistant run registry and structured task reports
 > From version: 0.8.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: High
 > Theme: Operator workflow and runtime integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -77,6 +77,7 @@ flowchart TD
 - Hybrid rationale: Derived from request `req_005_add_observable_assistant_run_registry_and_structured_task_reports` and kept bounded to one coherent delivery slice.
 - Source file: `logics/request/req_005_add_observable_assistant_run_registry_and_structured_task_reports.md`.
 - Generated locally by logics-manager.
+- Task `task_017_add_observable_assistant_run_registry_and_structured_task_reports` was finished via `logics-manager flow finish task` on 2026-06-11.
 
 # Tasks
 - `task_017_add_observable_assistant_run_registry_and_structured_task_reports`

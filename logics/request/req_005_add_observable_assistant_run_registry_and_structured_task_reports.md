@@ -1,7 +1,7 @@
 ## req_005_add_observable_assistant_run_registry_and_structured_task_reports - Add observable assistant run registry and structured task reports
 > From version: 0.8.1
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 96%
 > Confidence: 91%
 > Complexity: High
