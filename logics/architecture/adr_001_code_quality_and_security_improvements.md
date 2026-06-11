@@ -1,6 +1,6 @@
 ## adr_001_code_quality_and_security_improvements - Code Quality, Security and Performance Improvements
 > Date: 2026-05-23
-> Status: Accepted
+> Status: Settled
 > Drivers: Security hardening, test coverage, code duplication reduction, performance, maintainability, implementation completion.
 > Related request: `req_003_historical_cdx_session_manager_baseline`
 > Related backlog: `item_003_command_ergonomics_validation_and_safety`

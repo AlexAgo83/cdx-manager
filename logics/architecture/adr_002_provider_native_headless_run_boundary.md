@@ -1,6 +1,6 @@
 ## adr_002_provider_native_headless_run_boundary - Provider native headless run boundary
 > Date: 2026-06-08
-> Status: Accepted
+> Status: Settled
 > Drivers: JSON-only stdout contract, non-TTY provider execution, provider artifact capture, token usage extraction, supervisor compatibility.
 > Related request: `req_000_orchestia_headless_json_task_runner`, `req_001_populate_headless_run_usage_tokens_for_orchestia`
 > Related backlog: `item_006_headless_cdx_run_json_execution_contract`, `item_007_automatic_headless_session_selection`, `item_008_provider_neutral_reasoning_effort_mapping`, `item_009_headless_run_artifacts_usage_and_error_reporting`, `item_010_populate_cdx_run_usage_and_launcher_payload`, `item_011_use_provider_native_headless_launch_modes_for_cdx_run`

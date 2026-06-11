@@ -1,6 +1,6 @@
 ## spec_001_cdx_status_overview - cdx status usage overview
 > From version: 0.1.0
-> Status: Active
+> Status: Settled
 > Related backlog: `item_004_cdx_status_global_session_overview`
 > Related task: `task_002_cdx_status_global_session_overview`
 > Understanding: 90%

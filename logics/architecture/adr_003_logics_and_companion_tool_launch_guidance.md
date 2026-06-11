@@ -1,6 +1,6 @@
 ## adr_003_logics_and_companion_tool_launch_guidance - Logics and companion tool launch guidance
 > Date: 2026-06-08
-> Status: Accepted
+> Status: Settled
 > Drivers: assistant launch hygiene, optional companion tools, Logics workflow navigation, update notices, no hard dependency on RTK or logics-manager.
 > Related request: `req_002_support_logics_manager_suggestions_and_update_notices`
 > Related backlog: `item_012_support_logics_manager_suggestions_and_update_notices`

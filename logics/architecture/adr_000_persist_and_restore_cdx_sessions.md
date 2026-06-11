@@ -1,6 +1,6 @@
 ## adr_000_persist_and_restore_cdx_sessions - Persist and restore cdx sessions
 > Date: 2026-04-15
-> Status: Accepted
+> Status: Settled
 > Drivers: Persistent login state, explicit recovery, local privacy, predictable session reuse, per-session provider isolation.
 > Related request: `req_003_historical_cdx_session_manager_baseline`
 > Related backlog: `item_001_persistent_codex_session_storage_and_rehydration`

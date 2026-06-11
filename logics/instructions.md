@@ -33,7 +33,7 @@ Use the following indicators in request/backlog/task items:
 Use the following indicators in product briefs:
 
 * `Date: YYYY-MM-DD` : The last meaningful framing date for this brief.
-* `Status: Draft | Proposed | Active | Validated | Rejected | Superseded | Archived` : Product maturity of the brief.
+* `Status: Draft | Proposed | Settled | Validated | Rejected | Superseded | Archived` : Product maturity of the brief.
 * `Related request:` : Primary linked request ref when available.
 * `Related backlog:` : Primary linked backlog ref when available.
 * `Related task:` : Primary linked task ref when available.
@@ -44,7 +44,7 @@ Use the following indicators in product briefs:
 Use the following indicators in architecture docs:
 
 * `Date: YYYY-MM-DD` : The date of the current ADR revision.
-* `Status: Draft | Proposed | Accepted | Rejected | Superseded | Archived` : Decision state.
+* `Status: Draft | Proposed | Settled | Rejected | Superseded | Archived` : Decision state.
 * `Drivers:` : Main technical or operational drivers behind the decision.
 * `Related request:` : Primary linked request ref when available.
 * `Related backlog:` : Primary linked backlog ref when available.

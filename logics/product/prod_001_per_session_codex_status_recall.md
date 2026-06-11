@@ -1,6 +1,6 @@
 ## prod_001_per_session_codex_status_recall - Per-session Codex status usage recall
 > Date: 2026-04-15
-> Status: Active
+> Status: Settled
 > Related request: `req_003_historical_cdx_session_manager_baseline`
 > Related backlog: `item_004_cdx_status_global_session_overview`
 > Related task: `task_002_cdx_status_global_session_overview`

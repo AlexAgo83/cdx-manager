@@ -4,18 +4,18 @@
 
 | Doc | Title | Status | Progress | Path |
 |---|---|---|---|---|
-| [adr_000_persist_and_restore_cdx_sessions](architecture/adr_000_persist_and_restore_cdx_sessions.md) | Persist and restore cdx sessions | Accepted |  | architecture/adr_000_persist_and_restore_cdx_sessions.md |
-| [adr_001_code_quality_and_security_improvements](architecture/adr_001_code_quality_and_security_improvements.md) | Phase 3 — Code Quality and Performance | Accepted |  | architecture/adr_001_code_quality_and_security_improvements.md |
-| [adr_002_provider_native_headless_run_boundary](architecture/adr_002_provider_native_headless_run_boundary.md) | Provider native headless run boundary | Accepted |  | architecture/adr_002_provider_native_headless_run_boundary.md |
-| [adr_003_logics_and_companion_tool_launch_guidance](architecture/adr_003_logics_and_companion_tool_launch_guidance.md) | Logics and companion tool launch guidance | Accepted |  | architecture/adr_003_logics_and_companion_tool_launch_guidance.md |
+| [adr_000_persist_and_restore_cdx_sessions](architecture/adr_000_persist_and_restore_cdx_sessions.md) | Persist and restore cdx sessions | Settled |  | architecture/adr_000_persist_and_restore_cdx_sessions.md |
+| [adr_001_code_quality_and_security_improvements](architecture/adr_001_code_quality_and_security_improvements.md) | Phase 3 — Code Quality and Performance | Settled |  | architecture/adr_001_code_quality_and_security_improvements.md |
+| [adr_002_provider_native_headless_run_boundary](architecture/adr_002_provider_native_headless_run_boundary.md) | Provider native headless run boundary | Settled |  | architecture/adr_002_provider_native_headless_run_boundary.md |
+| [adr_003_logics_and_companion_tool_launch_guidance](architecture/adr_003_logics_and_companion_tool_launch_guidance.md) | Logics and companion tool launch guidance | Settled |  | architecture/adr_003_logics_and_companion_tool_launch_guidance.md |
 
 ## Product briefs
 
 | Doc | Title | Status | Progress | Path |
 |---|---|---|---|---|
-| [prod_000_codex_multi_account_session_manager](product/prod_000_codex_multi_account_session_manager.md) | Codex multi-account session manager | Active |  | product/prod_000_codex_multi_account_session_manager.md |
-| [prod_001_per_session_codex_status_recall](product/prod_001_per_session_codex_status_recall.md) | Per-session Codex status usage recall | Active |  | product/prod_001_per_session_codex_status_recall.md |
-| [prod_002_headless_automation_contract_for_orchestia](product/prod_002_headless_automation_contract_for_orchestia.md) | Headless automation contract for Orchestia | Active |  | product/prod_002_headless_automation_contract_for_orchestia.md |
+| [prod_000_codex_multi_account_session_manager](product/prod_000_codex_multi_account_session_manager.md) | Codex multi-account session manager | Settled |  | product/prod_000_codex_multi_account_session_manager.md |
+| [prod_001_per_session_codex_status_recall](product/prod_001_per_session_codex_status_recall.md) | Per-session Codex status usage recall | Settled |  | product/prod_001_per_session_codex_status_recall.md |
+| [prod_002_headless_automation_contract_for_orchestia](product/prod_002_headless_automation_contract_for_orchestia.md) | Headless automation contract for Orchestia | Settled |  | product/prod_002_headless_automation_contract_for_orchestia.md |
 
 ## Requests
 
