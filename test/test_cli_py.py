@@ -1256,7 +1256,7 @@ class CliPythonTests(unittest.TestCase):
             if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "codex")
         ][-1]
         self.assertIn("logics-manager status", _script_launch_text(launch_call))
-        self.assertIn("logics-manager view", _script_launch_text(launch_call))
+        self.assertIn("cdx view", _script_launch_text(launch_call))
 
         self.assertEqual(main(["set", "main", "--logics", "off"], {
             **self.make_io(),
