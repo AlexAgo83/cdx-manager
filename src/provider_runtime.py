@@ -22,7 +22,7 @@ RTK_PROMPT = (
 LOGICS_PROMPT = (
     "When `logics-manager` is available, prefer it for Logics workflow operations: use "
     "`logics-manager status`, `health`, `audit`, and `lint` for workflow state and validation; "
-    "`logics-manager view` for the browser viewer and focus workflows; "
+    "`cdx view` for the browser viewer and focus workflows (supports `--lan`, `--focus <ref>`, `--port`, and all other viewer flags); "
     "`logics-manager sync read-doc|list-docs|search-docs|context-pack` for bounded document context; "
     "`logics-manager flow ...` for request/backlog/task lifecycle changes; and `logics-manager mcp ...` "
     "when an MCP surface is the right fit."
