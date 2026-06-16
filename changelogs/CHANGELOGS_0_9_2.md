@@ -3,6 +3,7 @@
 ## Highlights
 
 - `cdx import` gains a `--merge` flag to fill in missing data without overwriting what already exists locally.
+- npm and PyPI publication workflows now verify that the release tag's commit has a successful `CI` run before any registry upload step.
 
 ## Changes
 
@@ -27,5 +28,6 @@ With `--merge`, for each session that already exists locally:
 
 - `npm run prepublishOnly`
 - `npm pack --dry-run`
+- `python -m unittest discover -s test -p 'test_release_ci_py.py'`
 - `logics-manager lint --require-status`
 - `logics-manager audit --legacy-cutoff-version 1.1.0 --group-by-doc`
