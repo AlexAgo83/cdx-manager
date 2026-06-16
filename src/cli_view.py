@@ -12,7 +12,7 @@ from .logics_view import (
 from .update_check import check_logics_manager_for_update
 
 
-VIEW_USAGE = "Usage: cdx view [--json]"
+VIEW_USAGE = "Usage: cdx view [--json] [--lan] [--lan-rw] [--focus <ref>] [--read] [--port <port>] [--host <host>] [--refresh-interval <s>] [--tls] [--open] [--no-open]"
 API_SCHEMA_VERSION = 1
 
 
@@ -67,18 +67,44 @@ def _logics_manager_update_notice(ctx, env):
     )
 
 
+_VIEWER_FLAGS = {
+    "--lan", "--lan-rw", "--tls", "--read", "--open", "--no-open",
+}
+_VIEWER_VALUE_FLAGS = {
+    "--host", "--port", "--tls-cert", "--tls-key", "--refresh-interval", "--focus",
+}
+
+
+def _parse_view_args(rest):
+    json_flag = False
+    viewer_args = []
+    i = 0
+    while i < len(rest):
+        arg = rest[i]
+        if arg == "--json":
+            json_flag = True
+        elif arg in _VIEWER_FLAGS:
+            viewer_args.append(arg)
+        elif arg in _VIEWER_VALUE_FLAGS:
+            if i + 1 >= len(rest):
+                raise CdxError(f"{arg} requires a value. {VIEW_USAGE}")
+            viewer_args.extend([arg, rest[i + 1]])
+            i += 1
+        else:
+            raise CdxError(f"Unknown option: {arg}\n{VIEW_USAGE}")
+        i += 1
+    return json_flag, viewer_args
+
+
 def handle_view(rest, ctx):
-    json_flag = "--json" in rest
-    unknown = [arg for arg in rest if arg != "--json"]
-    if unknown:
-        raise CdxError(VIEW_USAGE)
+    json_flag, viewer_args = _parse_view_args(rest)
 
     env = ctx.get("env")
     cwd = ctx.get("cwd")
     executable = resolve_logics_manager(env=env)
     update_notice = _logics_manager_update_notice(ctx, env) if executable else None
     failure = None if executable else missing_logics_manager_failure()
-    diagnostics = build_viewer_diagnostics(executable, cwd, update_notice=update_notice, failure=failure)
+    diagnostics = build_viewer_diagnostics(executable, cwd, update_notice=update_notice, failure=failure, extra_args=viewer_args)
     warnings = _update_notice_warnings([update_notice])
 
     if json_flag:
@@ -92,7 +118,7 @@ def handle_view(rest, ctx):
         ctx["out"](f"{_warn(warning['message'], ctx['use_color'])}\n")
 
     try:
-        result = run_logics_viewer(executable, cwd, env=env, runner=ctx.get("spawn_sync"))
+        result = run_logics_viewer(executable, cwd, env=env, extra_args=viewer_args, runner=ctx.get("spawn_sync"))
     except FileNotFoundError as error:
         raise CdxError(f"logics-manager is required for cdx view. {LOGICS_MANAGER_INSTALL_HINT}") from error
     except KeyboardInterrupt:
