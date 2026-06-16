@@ -64,7 +64,7 @@ from .status_view import (
 )
 from .update_check import check_for_update, check_logics_manager_for_update
 
-VERSION = "0.9.1"
+VERSION = "0.9.2"
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +108,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx rmv <name> [--force] [--json]', '36', use_color)}",
         f"  {_style('cdx clean [name] [--json]', '36', use_color)}",
         f"  {_style('cdx export <file> [--include-auth] [--sessions a,b] [--passphrase-env VAR] [--force] [--json]', '36', use_color)}",
-        f"  {_style('cdx import <file> [--sessions a,b] [--passphrase-env VAR] [--force] [--json]', '36', use_color)}",
+        f"  {_style('cdx import <file> [--sessions a,b] [--passphrase-env VAR] [--force|--merge] [--json]', '36', use_color)}",
         f"  {_style('cdx doctor [--json]', '36', use_color)}",
         f"  {_style('cdx repair [--dry-run] [--force] [--json]', '36', use_color)}",
         f"  {_style('cdx view [--json]', '36', use_color)}",
