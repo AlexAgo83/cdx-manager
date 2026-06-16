@@ -55,7 +55,7 @@ DOCTOR_USAGE = "Usage: cdx doctor [--json]"
 REPAIR_USAGE = "Usage: cdx repair [--dry-run] [--force] [--json]"
 UPDATE_USAGE = "Usage: cdx update [--check] [--yes] [--json] [--version TAG]"
 EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
-IMPORT_USAGE = "Usage: cdx import <file> [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
+IMPORT_USAGE = "Usage: cdx import <file> [--force|--merge] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
 CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--json]"
 SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power low|medium|high|xhigh|max] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--model MODEL] [--priority 0..100] [--json]"
@@ -1000,6 +1000,7 @@ def _parse_export_args(args):
 def _parse_import_args(args):
     parsed = _parse_flag_args(args, {
         "--force": {"key": "force", "type": "bool", "default": False},
+        "--merge": {"key": "merge", "type": "bool", "default": False},
         "--json": {"key": "json", "type": "bool", "default": False},
         "--sessions": {
             "key": "session_names",
@@ -1012,6 +1013,8 @@ def _parse_import_args(args):
     parsed["file_path"] = parsed.pop("positionals")[0] if parsed["positionals"] else None
     if not parsed["file_path"]:
         raise CdxError(IMPORT_USAGE)
+    if parsed["force"] and parsed["merge"]:
+        raise CdxError("--force and --merge are mutually exclusive.")
     return parsed
 
 
@@ -2643,6 +2646,7 @@ def handle_import(rest, ctx):
         passphrase=passphrase,
         session_names=parsed["session_names"],
         force=parsed["force"],
+        merge=parsed["merge"],
     )
     session_count = len(result["session_names"])
     auth_suffix = " with auth" if result["include_auth"] else ""

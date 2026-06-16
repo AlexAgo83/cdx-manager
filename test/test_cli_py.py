@@ -2817,6 +2817,18 @@ class CliPythonTests(unittest.TestCase):
                 "env": {"CDX_HOME": temp_dir},
             })
 
+    def test_import_rejects_force_and_merge_together(self):
+        temp_dir = self.make_temp_dir()
+        bundle_path = os.path.join(temp_dir, "backup.cdx")
+        with open(bundle_path, "wb") as handle:
+            handle.write(b"placeholder")
+
+        with self.assertRaisesRegex(CdxError, "mutually exclusive"):
+            main(["import", bundle_path, "--force", "--merge"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+            })
+
     def test_update_parser_supports_schema_flags(self):
         temp_dir = self.make_temp_dir()
         update_io = self.make_io()

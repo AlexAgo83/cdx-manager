@@ -1173,7 +1173,7 @@ def create_session_service(options=None):
             "bundle_size_bytes": len(bundle_bytes),
         }
 
-    def import_bundle(file_path, passphrase=None, session_names=None, force=False):
+    def import_bundle(file_path, passphrase=None, session_names=None, force=False, merge=False):
         if not file_path or not os.path.isfile(file_path):
             raise CdxError(f"Bundle file not found: {file_path}")
         with open(file_path, "rb") as handle:
@@ -1193,15 +1193,18 @@ def create_session_service(options=None):
 
         existing = {session["name"] for session in list_sessions()}
         conflicts = [name for name in names if name in existing]
-        if conflicts and not force:
+        if conflicts and not force and not merge:
             raise CdxError(f"Import would overwrite existing sessions: {', '.join(conflicts)}")
 
         for session_payload in imported_sessions:
             name = session_payload["name"]
             _validate_new_session_name(name)
             provider = _normalize_provider(session_payload["provider"])
-            if name in existing:
+            is_existing = name in existing
+
+            if is_existing and force:
                 remove_session(name)
+                is_existing = False
 
             session_root = _get_session_root(name)
             auth_home = _get_session_auth_home(name, provider)
@@ -1210,18 +1213,38 @@ def create_session_service(options=None):
             _ensure_private_dir(session_root)
             _ensure_private_dir(auth_home)
 
-            session_record = {
-                **session_payload,
-                "provider": provider,
-                "enabled": session_payload.get("enabled", True) is not False,
-                "sessionRoot": session_root,
-                "authHome": auth_home,
-            }
-            store["replace_session"](name, session_record)
+            if is_existing and merge:
+                existing_record = store["get_session"](name) or {}
+                bundle_record = {
+                    **session_payload,
+                    "provider": provider,
+                    "enabled": session_payload.get("enabled", True) is not False,
+                    "sessionRoot": session_root,
+                    "authHome": auth_home,
+                }
+                # Existing values take precedence; bundle fills in missing keys only.
+                merged_record = {**bundle_record, **{k: v for k, v in existing_record.items() if v is not None}}
+                merged_record["sessionRoot"] = session_root
+                merged_record["authHome"] = auth_home
+                store["replace_session"](name, merged_record)
+            else:
+                session_record = {
+                    **session_payload,
+                    "provider": provider,
+                    "enabled": session_payload.get("enabled", True) is not False,
+                    "sessionRoot": session_root,
+                    "authHome": auth_home,
+                }
+                store["replace_session"](name, session_record)
 
             state = (payload.get("states") or {}).get(name)
             if state is not None:
-                store["write_session_state"](name, state)
+                if is_existing and merge:
+                    existing_state = store["read_session_state"](name) or {}
+                    merged_state = {**state, **{k: v for k, v in existing_state.items() if v is not None}}
+                    store["write_session_state"](name, merged_state)
+                else:
+                    store["write_session_state"](name, state)
 
             for item in (payload.get("profiles") or {}).get(name, []):
                 rel_path = _safe_relpath(item.get("path"))
@@ -1230,6 +1253,9 @@ def create_session_service(options=None):
                 except (AttributeError, ValueError, UnicodeEncodeError) as error:
                     raise CdxError(f"Bundle contains invalid file data for session {name}: {rel_path}") from error
                 dest_path = os.path.join(session_root, rel_path)
+                # In merge mode, skip files that already exist locally.
+                if is_existing and merge and os.path.exists(dest_path):
+                    continue
                 _ensure_private_dir(os.path.dirname(dest_path))
                 with open(dest_path, "wb") as handle:
                     handle.write(content)

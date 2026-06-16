@@ -1140,6 +1140,128 @@ class SessionServicePythonTests(unittest.TestCase):
         with self.assertRaisesRegex(CdxError, "Invalid bundle passphrase or corrupted bundle"):
             target["import_bundle"](bundle_path, passphrase="wrong")
 
+    def test_import_merge_fills_missing_state_fields(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("main")
+        source["record_status"]("main", {
+            "remaining_5h_pct": 75,
+            "remaining_week_pct": 60,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+        bundle_path = os.path.join(source_dir, "backup.cdx")
+        source["export_bundle"](bundle_path)
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        target["create_session"]("main")
+        # Target has a local status already set.
+        target["record_status"]("main", {
+            "remaining_5h_pct": 90,
+            "remaining_week_pct": 85,
+            "updated_at": "2026-04-16T12:00:00+00:00",
+        })
+
+        target["import_bundle"](bundle_path, merge=True)
+
+        imported = target["get_session"]("main")
+        # Local status must be preserved (not overwritten by bundle).
+        self.assertEqual(imported["lastStatus"]["remaining_5h_pct"], 90)
+        self.assertEqual(imported["lastStatus"]["remaining_week_pct"], 85)
+
+    def test_import_merge_fills_gaps_from_bundle(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("main")
+        source["record_status"]("main", {
+            "remaining_5h_pct": 75,
+            "remaining_week_pct": 60,
+            "updated_at": "2026-04-15T10:00:00+00:00",
+        })
+        bundle_path = os.path.join(source_dir, "backup.cdx")
+        source["export_bundle"](bundle_path)
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        target["create_session"]("main")
+        # Target has no status set, so bundle values should fill the gap.
+
+        target["import_bundle"](bundle_path, merge=True)
+
+        imported = target["get_session"]("main")
+        self.assertEqual(imported["lastStatus"]["remaining_5h_pct"], 75)
+
+    def _make_bundle_with_profile(self, name, provider, rel_path, content_str):
+        import base64 as _b64
+        from src.backup_bundle import encode_bundle
+        payload = {
+            "schema_version": 1,
+            "sessions": [{"name": name, "provider": provider}],
+            "states": {},
+            "profiles": {
+                name: [{"path": rel_path, "data_b64": _b64.b64encode(content_str.encode()).decode()}]
+            },
+        }
+        return encode_bundle(payload)
+
+    def test_import_merge_skips_existing_profile_files(self):
+        temp_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": temp_dir})
+        target["create_session"]("claude1", "claude")
+
+        local_token_path = os.path.join(temp_dir, "profiles", "claude1", "auth.json")
+        os.makedirs(os.path.dirname(local_token_path), exist_ok=True)
+        with open(local_token_path, "w", encoding="utf-8") as handle:
+            handle.write('{"token":"local-token"}')
+
+        bundle_bytes = self._make_bundle_with_profile("claude1", "claude", "auth.json", '{"token":"bundle-token"}')
+        bundle_path = os.path.join(temp_dir, "bundle.cdx")
+        with open(bundle_path, "wb") as handle:
+            handle.write(bundle_bytes)
+
+        target["import_bundle"](bundle_path, merge=True)
+
+        with open(local_token_path, "r", encoding="utf-8") as handle:
+            content = handle.read()
+        # Existing local file must not be overwritten.
+        self.assertEqual(content, '{"token":"local-token"}')
+
+    def test_import_merge_imports_missing_profile_files(self):
+        temp_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": temp_dir})
+        target["create_session"]("claude1", "claude")
+        # No local auth file — bundle should fill the gap.
+
+        bundle_bytes = self._make_bundle_with_profile("claude1", "claude", "auth.json", '{"token":"bundle-token"}')
+        bundle_path = os.path.join(temp_dir, "bundle.cdx")
+        with open(bundle_path, "wb") as handle:
+            handle.write(bundle_bytes)
+
+        target["import_bundle"](bundle_path, merge=True)
+
+        local_token_path = os.path.join(temp_dir, "profiles", "claude1", "auth.json")
+        self.assertTrue(os.path.exists(local_token_path))
+        with open(local_token_path, "r", encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), '{"token":"bundle-token"}')
+
+    def test_import_merge_allows_new_sessions(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("alpha")
+        source["create_session"]("beta")
+        bundle_path = os.path.join(source_dir, "backup.cdx")
+        source["export_bundle"](bundle_path)
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        target["create_session"]("alpha")
+        # beta doesn't exist locally — it should be imported normally.
+
+        target["import_bundle"](bundle_path, merge=True)
+
+        self.assertIsNotNone(target["get_session"]("alpha"))
+        self.assertIsNotNone(target["get_session"]("beta"))
+
     def test_reset_date_formats_are_supported(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
