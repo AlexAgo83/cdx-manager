@@ -1,9 +1,9 @@
 ## task_017_add_observable_assistant_run_registry_and_structured_task_reports - Add observable assistant run registry and structured task reports
-> From version: 0.8.0
+> From version: 0.9.0
 > Schema version: 1.0
 > Status: Done
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
@@ -59,3 +59,13 @@ flowchart TD
 - Request: `req_005_add_observable_assistant_run_registry_and_structured_task_reports`
 - Product brief(s): (none yet)
 - Architecture decision(s): (none yet)
+
+# AC Traceability
+- request-AC1 -> Task AC1. Proof: headless runs are registered before start with stable run_id and metadata.
+- request-AC2 -> Task AC2. Proof: headless runs transition to terminal status (succeeded, failed, stale, etc.).
+- request-AC3 -> Task AC3. Proof: cdx runs list and run-status commands return JSON status.
+- request-AC4 -> Task AC4. Proof: run-report command returns full execution findings as JSON.
+- request-AC5 -> Task AC5. Proof: stdout is preserved as a single JSON object for run execution.
+- request-AC6 -> Task AC6. Proof: code-review run kind produces structured findings, severities, and next steps.
+- request-AC7 -> Task AC7. Proof: code-review report shape is documented and ready for Logics integration.
+- request-AC8 -> Task AC8. Proof: unit tests cover persistence, cleanup, status/report CLI, and parser fallbacks.
