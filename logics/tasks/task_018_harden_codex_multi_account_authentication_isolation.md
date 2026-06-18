@@ -1,18 +1,18 @@
 ## task_018_harden_codex_multi_account_authentication_isolation - Harden Codex multi-account authentication isolation
 > From version: 0.9.2
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 
 # Definition of Done (DoD)
-- [ ] The backlog scope is implemented.
-- [ ] Acceptance criteria are covered.
-- [ ] Validation passes.
+- [x] The backlog scope is implemented.
+- [x] Acceptance criteria are covered.
+- [x] Validation passes.
 
 # Backlog
 - `item_019_harden_codex_multi_account_authentication_isolation`
@@ -41,9 +41,15 @@ flowchart TD
 # Validation
 - Run `python3 -m logics_manager lint --require-status`.
 - Run `python3 -m logics_manager flow finish task task_018_harden_codex_multi_account_authentication_isolation.md` after implementation.
+- Implemented Codex multi-account auth hardening: removed implicit pre-login logout, added live auth probing for login/launch, added doctor diagnostics for per-session authHome/local token/live status without raw tokens, documented multi-account repair flow, and validated with npm run lint, npm test, and logics-manager lint --require-status.
+- Finish workflow executed on 2026-06-18.
+- Linked backlog/request close verification passed.
 
 # Report
 - Implementation complete.
+- Finished on 2026-06-18.
+- Linked backlog item(s): `item_019_harden_codex_multi_account_authentication_isolation`
+- Related request(s): `req_007_harden_codex_multi_account_auth_isolation`
 
 # AI Context
 - Summary: Implement harden codex multi-account authentication isolation.

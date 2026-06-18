@@ -2290,6 +2290,7 @@ def handle_doctor(rest, ctx):
         ctx["service"],
         ctx["service"]["base_dir"],
         env=ctx.get("env"),
+        spawn_sync=ctx.get("spawn_sync"),
     )
     if json_flag:
         _write_json(ctx, _json_success("doctor", "Collected health report", report=report))
@@ -2672,11 +2673,6 @@ def handle_login(rest, ctx):
     session = ctx["service"]["get_session"](args[0])
     if not session:
         raise CdxError(f"Unknown session: {args[0]}")
-    if session["provider"] == PROVIDER_CODEX:
-        _run_interactive_provider_command(
-            session, "logout", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
-            signal_emitter=ctx.get("signal_emitter")
-        )
     _run_interactive_provider_command(
         session, "login", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
         signal_emitter=ctx.get("signal_emitter")
@@ -2687,6 +2683,7 @@ def handle_login(rest, ctx):
         spawn_sync=ctx.get("spawn_sync"),
         env_override=ctx.get("env"),
         behavior="probe-only",
+        trust_local_credentials=False,
     )
     if not auth_probe.get("authenticated") and session["provider"] == PROVIDER_CLAUDE:
         _bootstrap_claude_setup_token(session, ctx)
@@ -2696,6 +2693,7 @@ def handle_login(rest, ctx):
             spawn_sync=ctx.get("spawn_sync"),
             env_override=ctx.get("env"),
             behavior="probe-only",
+            trust_local_credentials=False,
         )
     if not auth_probe.get("authenticated"):
         raise CdxError(
@@ -2859,6 +2857,7 @@ def handle_launch(command, ctx, initial_prompt=None):
         stdin_is_tty=ctx["stdin_is_tty"],
         behavior="launch",
         signal_emitter=ctx.get("signal_emitter"),
+        trust_local_credentials=False,
     )
     message = f"Launching {session['provider']} session {session['name']}"
     if not json_flag:

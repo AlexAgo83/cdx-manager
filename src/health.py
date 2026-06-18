@@ -6,6 +6,8 @@ import tempfile
 from urllib.parse import quote, unquote
 
 from .cli_render import _pad_table, _style
+from .config import PROVIDER_CODEX
+from .provider_runtime import codex_auth_diagnostic
 
 
 def _encode(name):
@@ -30,7 +32,7 @@ def _issue(status, code, message, detail=None, repairable=False):
     }
 
 
-def collect_health_report(service, base_dir, env=None):
+def collect_health_report(service, base_dir, env=None, spawn_sync=None):
     env = env or os.environ
     issues = []
 
@@ -79,9 +81,46 @@ def collect_health_report(service, base_dir, env=None):
         state_path = _state_file_path(base_dir, name)
         if not os.path.isfile(state_path):
             issues.append(_issue("FAIL", "missing_state", f"session {name} state file is missing", state_path, True))
+        if session.get("provider") == PROVIDER_CODEX:
+            issues.extend(_codex_auth_issues(session, spawn_sync=spawn_sync, env=env))
 
     issues.extend(_collect_profile_issues(base_dir, session_names))
     return {"base_dir": base_dir, "issues": issues, "summary": summarize_health(issues)}
+
+
+def _codex_auth_issues(session, spawn_sync=None, env=None):
+    name = session["name"]
+    diag = codex_auth_diagnostic(session, spawn_sync=spawn_sync, env_override=env)
+    identity = diag.get("account_email") or "unknown account"
+    issues = [
+        _issue(
+            "OK" if diag.get("auth_json_exists") else "WARN",
+            "codex_auth_file",
+            f"session {name} Codex auth file {'found' if diag.get('auth_json_exists') else 'missing'} ({identity})",
+            {
+                "session": name,
+                "auth_home": diag.get("auth_home"),
+                "auth_json_exists": diag.get("auth_json_exists"),
+                "local_tokens_present": diag.get("local_tokens_present"),
+                "account_email": diag.get("account_email"),
+            },
+        )
+    ]
+    live_status = diag.get("live_status")
+    live_ok = live_status == "authenticated"
+    live_warn = live_status in ("logged_out", "error")
+    issues.append(_issue(
+        "OK" if live_ok else "WARN" if live_warn else "WARN",
+        "codex_live_auth",
+        f"session {name} live Codex auth status: {live_status}",
+        {
+            "session": name,
+            "auth_home": diag.get("auth_home"),
+            "live_status": live_status,
+            "live_error": diag.get("live_error"),
+        },
+    ))
+    return issues
 
 
 def _check_cdx_home(base_dir):

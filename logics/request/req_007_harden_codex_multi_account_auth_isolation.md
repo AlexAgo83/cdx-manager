@@ -1,7 +1,7 @@
 ## req_007_harden_codex_multi_account_auth_isolation - Harden Codex multi-account authentication isolation
 > From version: 0.9.2
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 80%
 > Complexity: Medium

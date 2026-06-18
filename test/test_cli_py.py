@@ -2057,6 +2057,42 @@ class CliPythonTests(unittest.TestCase):
         self.assertNotIn("CODEX_HOME", claude_spawns[0]["options"]["env"])
         self.assertNotIn("CLAUDE_CONFIG_DIR", claude_spawns[0]["options"]["env"])
 
+    def test_login_codex_does_not_logout_first_or_touch_other_account(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        for name in ("work1", "work2"):
+            self.assertEqual(main(["add", name], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
+        harness.calls.clear()
+
+        service = create_session_service({"base_dir": temp_dir})
+        other = service["get_session"]("work2")
+        other_auth = os.path.join(other["authHome"], "auth.json")
+        with open(other_auth, "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "other-token"}}, handle)
+
+        login_io = self.make_io()
+        self.assertEqual(main(["login", "work1", "--json"], {
+            **login_io,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        codex_spawns = [
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "codex"
+        ]
+        self.assertEqual([call["args"] for call in codex_spawns], [["login"]])
+        self.assertTrue(os.path.exists(other_auth))
+        with open(other_auth, "r", encoding="utf-8") as handle:
+            self.assertEqual(json.load(handle)["tokens"]["access_token"], "other-token")
+
     def test_login_claude_falls_back_to_setup_token(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness(claude_login_authenticates=False)
@@ -3757,6 +3793,30 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["report"]["summary"]["fail"], 1)
         self.assertTrue(any(issue["code"] == "missing_state" for issue in payload["report"]["issues"]))
 
+    def test_doctor_reports_codex_auth_diagnostic_without_tokens(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        session = service["create_session"]("main")
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "secret-token"}}, handle)
+        harness = _AuthHarness(initial_auth={session["authHome"]: True})
+
+        doctor_io = self.make_io()
+        self.assertEqual(main(["doctor", "--json"], {
+            **doctor_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        payload = json.loads(doctor_io["stdout"].getvalue())
+        auth_file = next(issue for issue in payload["report"]["issues"] if issue["code"] == "codex_auth_file")
+        live_auth = next(issue for issue in payload["report"]["issues"] if issue["code"] == "codex_live_auth")
+        self.assertTrue(auth_file["detail"]["auth_json_exists"])
+        self.assertTrue(auth_file["detail"]["local_tokens_present"])
+        self.assertEqual(live_auth["detail"]["live_status"], "authenticated")
+        self.assertNotIn("secret-token", json.dumps(payload))
+
     def test_doctor_windows_script_warning_mentions_expected_fallback(self):
         temp_dir = self.make_temp_dir()
         service = {
@@ -4330,6 +4390,30 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["error"]["source"], "cdx")
         self.assertEqual(payload["error"]["code"], "cdx_error")
         self.assertIn("not authenticated", payload["error"]["message"])
+
+    def test_launch_requires_live_auth_probe_even_when_local_token_exists(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        session = service["create_session"]("work", "codex")
+        os.makedirs(session["authHome"], exist_ok=True)
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "token"}}, handle)
+
+        def spawn_sync(command, args, _options=None):
+            self.assertEqual(command, "codex")
+            self.assertEqual(args, ["login", "status"])
+            return {"stdout": "Not logged in\n", "stderr": ""}
+
+        def spawn(_argv, **_kwargs):
+            raise AssertionError("unauthenticated interactive launches must not start provider")
+
+        with self.assertRaisesRegex(CdxError, "not authenticated"):
+            main(["work"], {
+                **self.make_io(),
+                "service": service,
+                "spawn": spawn,
+                "spawn_sync": spawn_sync,
+            })
 
     def test_run_provider_failure_uses_provider_error_source(self):
         target_dir = self.make_temp_dir()

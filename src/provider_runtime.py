@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import uuid
+import base64
 from datetime import datetime, timezone
 
 from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
@@ -146,6 +147,64 @@ def _has_local_codex_auth(auth_home):
         _clean_oauth_token(tokens.get(name))
         for name in ("id_token", "access_token", "refresh_token")
     )
+
+
+def _decode_jwt_claims(token):
+    if not token or "." not in str(token):
+        return {}
+    parts = str(token).split(".")
+    if len(parts) < 2:
+        return {}
+    padding = "=" * (-len(parts[1]) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode(parts[1] + padding)
+        return json.loads(decoded.decode("utf-8"))
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return {}
+
+
+def _read_codex_account_email(auth_home):
+    try:
+        with open(os.path.join(auth_home, "auth.json"), "r", encoding="utf-8") as handle:
+            auth = json.load(handle)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return None
+    tokens = auth.get("tokens") if isinstance(auth, dict) else {}
+    if not isinstance(tokens, dict):
+        return None
+    for token_name in ("id_token", "access_token"):
+        claims = _decode_jwt_claims(tokens.get(token_name))
+        email = claims.get("email")
+        if not email and token_name == "access_token":
+            profile = claims.get("https://api.openai.com/profile") or {}
+            email = profile.get("email") if isinstance(profile, dict) else None
+        if email:
+            return str(email).strip().lower()
+    return None
+
+
+def codex_auth_diagnostic(session, spawn_sync=None, env_override=None):
+    auth_home = _get_auth_home(session)
+    auth_path = os.path.join(auth_home, "auth.json")
+    result = {
+        "auth_home": auth_home,
+        "auth_json_exists": os.path.isfile(auth_path),
+        "local_tokens_present": _has_local_codex_auth(auth_home),
+        "account_email": _read_codex_account_email(auth_home),
+        "live_status": "unknown",
+        "live_error": None,
+    }
+    try:
+        result["live_status"] = "authenticated" if _probe_provider_auth(
+            session,
+            spawn_sync=spawn_sync,
+            env_override=env_override,
+            trust_local_credentials=False,
+        ) else "logged_out"
+    except CdxError as error:
+        result["live_status"] = "error"
+        result["live_error"] = str(error)
+    return result
 
 
 def _read_claude_account_email(auth_home):
