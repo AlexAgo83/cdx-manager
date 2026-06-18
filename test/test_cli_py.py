@@ -479,8 +479,8 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("--model MODEL", help_io["stdout"].getvalue())
         self.assertIn("--priority 0..100", help_io["stdout"].getvalue())
         self.assertIn("--rtk on|off", help_io["stdout"].getvalue())
-        self.assertIn("--min-power low|medium|high", help_io["stdout"].getvalue())
-        self.assertIn("--power low|medium|high", help_io["stdout"].getvalue())
+        self.assertIn("--min-power minimal|low|medium|high|xhigh", help_io["stdout"].getvalue())
+        self.assertIn("--power minimal|low|medium|high|xhigh", help_io["stdout"].getvalue())
         self.assertIn("workspace-write|read-only|danger-full-access", help_io["stdout"].getvalue())
 
         self.assertEqual(main(["-v"], version_io), 0)
@@ -1280,7 +1280,7 @@ class CliPythonTests(unittest.TestCase):
         ][-1]
         self.assertNotIn("logics-manager status", _script_launch_text(launch_call))
 
-    def test_fast_on_overrides_default_power_for_codex_and_claude_launch(self):
+    def test_fast_on_enables_codex_service_tier_without_lowering_power(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
         for args in (["add", "main"], ["add", "claude", "work1"]):
@@ -1296,7 +1296,10 @@ class CliPythonTests(unittest.TestCase):
             "set", "--sessions", "main,work1", "--fast", "on", "--json"
         ], {**set_io, "env": {"CDX_HOME": temp_dir}}), 0)
         payload = json.loads(set_io["stdout"].getvalue())
-        self.assertTrue(all(session["launch"] == {"fast": True} for session in payload["sessions"]))
+        self.assertTrue(all(
+            session["launch"] == {"power": "medium", "fast": True, "fastMode": "service_tier"}
+            for session in payload["sessions"]
+        ))
 
         self.assertEqual(main(["main"], {
             **self.make_io(),
@@ -1309,8 +1312,9 @@ class CliPythonTests(unittest.TestCase):
             if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "codex")
         ][-1]
         codex_text = _script_launch_text(codex_call)
-        self.assertIn('model_reasoning_effort="low"', codex_text)
-        self.assertNotIn('model_reasoning_effort="medium"', codex_text)
+        self.assertIn('model_reasoning_effort="medium"', codex_text)
+        self.assertIn('service_tier="fast"', codex_text)
+        self.assertIn("features.fast_mode=true", codex_text)
 
         self.assertEqual(main(["work1"], {
             **self.make_io(),
@@ -1323,7 +1327,7 @@ class CliPythonTests(unittest.TestCase):
             if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "claude")
         ][-1]
         self.assertIn("--effort", _script_launch_args(claude_call))
-        self.assertIn("low", _script_launch_args(claude_call))
+        self.assertIn("medium", _script_launch_args(claude_call))
 
         unset_io = self.make_io()
         self.assertEqual(main([

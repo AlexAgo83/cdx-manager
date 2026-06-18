@@ -707,6 +707,38 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertIn('model_reasoning_effort="medium"', args)
         self.assertIn("workspace-write", args)
         self.assertIn("never", args)
+        self.assertIn('service_tier="flex"', args)
+        self.assertIn("features.fast_mode=false", args)
+
+    def test_build_launch_spec_enables_codex_fast_only_with_service_tier_marker(self):
+        session = {
+            "name": "main",
+            "provider": "codex",
+            "authHome": "/tmp/codex-home",
+            "launch": {"fast": True, "fastMode": "service_tier"},
+        }
+
+        spec = provider_runtime._build_launch_spec(session, cwd="/tmp/repo")
+        args = spec["fallback"]["args"]
+
+        self.assertIn('service_tier="fast"', args)
+        self.assertIn("features.fast_mode=true", args)
+        self.assertNotIn('model_reasoning_effort="low"', args)
+
+    def test_build_launch_spec_keeps_legacy_fast_as_low_effort_without_fast_tier(self):
+        session = {
+            "name": "main",
+            "provider": "codex",
+            "authHome": "/tmp/codex-home",
+            "launch": {"fast": True},
+        }
+
+        spec = provider_runtime._build_launch_spec(session, cwd="/tmp/repo")
+        args = spec["fallback"]["args"]
+
+        self.assertIn('model_reasoning_effort="low"', args)
+        self.assertIn('service_tier="flex"', args)
+        self.assertIn("features.fast_mode=false", args)
 
     def test_build_launch_spec_supports_antigravity(self):
         session = {
@@ -789,6 +821,20 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertIn('approval_policy="never"', spec["args"])
         self.assertIn("do it", spec["args"])
         self.assertEqual(spec["options"]["env"]["CODEX_HOME"], "/tmp/codex-home")
+
+    def test_build_headless_launch_spec_supports_minimal_and_xhigh_reasoning(self):
+        for power in ("minimal", "xhigh"):
+            session = {
+                "name": "main",
+                "provider": "codex",
+                "authHome": "/tmp/codex-home",
+                "launch": {"power": power},
+            }
+
+            spec = provider_runtime._build_headless_launch_spec(session, cwd="/tmp/repo", initial_prompt="do it")
+
+            self.assertIn(f'model_reasoning_effort="{power}"', spec["args"])
+            self.assertIn('service_tier="flex"', spec["args"])
 
     def test_build_headless_launch_spec_injects_rtk_preference(self):
         session = {

@@ -66,8 +66,8 @@ RESERVED_SESSION_NAMES = {
 STATUS_CACHE_TTL_SECONDS = 60
 CLAUDE_STATUS_CACHE_TTL_SECONDS = 10 * 60
 MAX_STATUS_WORKERS = 8
-LAUNCH_POWER_VALUES = {"low", "medium", "high", "xhigh", "max"}
-LAUNCH_REASONING_EFFORT_VALUES = {"low", "medium", "high"}
+LAUNCH_POWER_VALUES = {"minimal", "low", "medium", "high", "xhigh"}
+LAUNCH_REASONING_EFFORT_VALUES = {"minimal", "low", "medium", "high", "xhigh"}
 LAUNCH_PERMISSION_VALUES = {"review", "default", "auto", "full"}
 MAX_LAUNCH_MODEL_LENGTH = 128
 MIN_LAUNCH_PRIORITY = 0
@@ -107,7 +107,7 @@ def _seed_codex_auth_from_global(auth_home, env=None):
     return True
 
 
-def _normalize_launch_settings(settings):
+def _normalize_launch_settings(settings, mark_fast_service_tier=True):
     normalized = {}
     if not settings:
         return normalized
@@ -138,6 +138,12 @@ def _normalize_launch_settings(settings):
                 normalized["fast"] = False
             else:
                 raise CdxError(f"Unsupported fast value: {settings['fast']}")
+        if normalized["fast"] is True and mark_fast_service_tier:
+            normalized["fastMode"] = "service_tier"
+        else:
+            normalized.pop("fastMode", None)
+        if settings.get("fastMode") == "service_tier" and normalized["fast"] is True:
+            normalized["fastMode"] = "service_tier"
     if "rtk" in settings and settings["rtk"] is not None:
         value = settings["rtk"]
         if isinstance(value, bool):
@@ -827,17 +833,15 @@ def create_session_service(options=None):
         updates = _normalize_launch_settings(settings)
         if not updates:
             raise CdxError("At least one launch setting is required.")
-        current = _normalize_launch_settings(session.get("launch") or {})
+        current = _normalize_launch_settings(session.get("launch") or {}, mark_fast_service_tier=False)
         launch = {**current, **updates}
         explicit_power = "power" in updates or "reasoning_effort" in updates
-        if explicit_power and "fast" not in updates:
+        if explicit_power and "fast" not in updates and launch.get("fastMode") != "service_tier":
             launch["fast"] = False
-        if "fast" in updates and not explicit_power:
-            if updates["fast"] is True:
-                launch.pop("power", None)
-                launch.pop("reasoning_effort", None)
-                launch.pop("reasoningEffort", None)
-            elif not any(key in launch for key in ("power", "reasoning_effort", "reasoningEffort")):
+            launch.pop("fastMode", None)
+        if updates.get("fast") is False:
+            launch.pop("fastMode", None)
+            if not any(key in launch for key in ("power", "reasoning_effort", "reasoningEffort")):
                 launch["power"] = DEFAULT_LAUNCH_SETTINGS["power"]
         now = _local_now_iso()
         return store["update_session"](name, lambda s: {

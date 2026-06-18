@@ -1,18 +1,18 @@
 ## task_018_keep_codex_fast_mode_opt_in_and_normalize_launch_settings - Keep Codex Fast mode opt-in and normalize launch settings
 > From version: 0.9.2
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 
 # Definition of Done (DoD)
-- [ ] The backlog scope is implemented.
-- [ ] Acceptance criteria are covered.
-- [ ] Validation passes.
+- [x] The backlog scope is implemented.
+- [x] Acceptance criteria are covered.
+- [x] Validation passes.
 
 # Backlog
 - `item_018_keep_codex_fast_mode_opt_in_and_normalize_launch_settings`
@@ -44,9 +44,15 @@ flowchart TD
 # Validation
 - Run `python3 -m logics_manager lint --require-status`.
 - Run `python3 -m logics_manager flow finish task task_018_keep_codex_fast_mode_opt_in_and_normalize_launch_settings.md` after implementation.
+- Implemented Codex Fast service-tier opt-in with default flex/non-Fast overrides, preserved legacy fast=true as low effort, normalized reasoning values to minimal|low|medium|high|xhigh, rejected max, updated README/help, and validated with npm run lint, npm test, and logics-manager lint --require-status.
+- Finish workflow executed on 2026-06-18.
+- Linked backlog/request close verification passed.
 
 # Report
 - Implementation complete.
+- Finished on 2026-06-18.
+- Linked backlog item(s): `item_018_keep_codex_fast_mode_opt_in_and_normalize_launch_settings`
+- Related request(s): `req_006_codex_fast_mode_opt_in_upgrade_safe`
 
 # AI Context
 - Summary: Implement keep codex fast mode opt-in and normalize launch settings.

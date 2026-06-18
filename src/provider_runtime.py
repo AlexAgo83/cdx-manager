@@ -14,7 +14,7 @@ from .errors import CdxError
 
 
 LOG_ROTATE_BYTES = 10 * 1024 * 1024  # 10 MB
-REASONING_EFFORT_VALUES = {"low", "medium", "high"}
+REASONING_EFFORT_VALUES = {"minimal", "low", "medium", "high", "xhigh"}
 RTK_PROMPT = (
     "When running noisy shell commands, prefer RTK wrappers (`rtk <command>`) if `rtk` is available. "
     "Use raw commands when exact, unfiltered output is required."
@@ -196,9 +196,23 @@ def _launch_power(session):
     power = launch.get("reasoning_effort") or launch.get("reasoningEffort") or launch.get("power")
     if power:
         return power
-    if launch.get("fast") is True:
+    if _legacy_fast_low_effort(launch):
         return "low"
     return None
+
+
+def _legacy_fast_low_effort(launch):
+    return launch.get("fast") is True and launch.get("fastMode") != "service_tier"
+
+
+def _codex_fast_enabled(launch):
+    return launch.get("fast") is True and launch.get("fastMode") == "service_tier"
+
+
+def _codex_fast_config_args(launch):
+    if _codex_fast_enabled(launch):
+        return ["-c", 'service_tier="fast"', "-c", "features.fast_mode=true"]
+    return ["-c", 'service_tier="flex"', "-c", "features.fast_mode=false"]
 
 
 def _normalize_reasoning_effort(reasoning_effort=None, power=None, usage="Unsupported reasoning effort."):
@@ -269,6 +283,7 @@ def _launch_config_args(session):
         return args
     if power:
         args += ["-c", f'model_reasoning_effort="{power}"']
+    args += _codex_fast_config_args(launch)
     if permission:
         args += LAUNCH_PERMISSION_ARGS[PROVIDER_CODEX].get(permission, [])
     return args
@@ -482,6 +497,7 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
             args += ["--model", model]
         if power:
             args += ["-c", f'model_reasoning_effort="{power}"']
+        args += _codex_fast_config_args(launch)
         if permission:
             args += HEADLESS_CODEX_PERMISSION_ARGS.get(permission, [])
         if initial_prompt:

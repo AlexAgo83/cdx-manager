@@ -1,7 +1,7 @@
 ## req_006_codex_fast_mode_opt_in_upgrade_safe - Keep Codex Fast mode opt-in and normalize launch settings
 > From version: 0.9.2
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 95%
 > Confidence: 85%
 > Complexity: Medium

@@ -43,7 +43,7 @@ def run_payload_reasoning_effort(parsed, session):
         or launch.get("reasoning_effort")
         or launch.get("reasoningEffort")
         or launch.get("power")
-        or ("low" if launch.get("fast") is True else None)
+        or ("low" if launch.get("fast") is True and launch.get("fastMode") != "service_tier" else None)
     )
 
 
