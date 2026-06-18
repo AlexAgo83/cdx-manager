@@ -3,6 +3,7 @@ import getpass
 import json
 import os
 import re
+import shlex
 import sys
 import time
 from datetime import datetime, timedelta
@@ -37,6 +38,7 @@ from .provider_runtime import (
     _list_launch_transcript_paths,
     _normalize_reasoning_effort,
     _probe_provider_auth,
+    get_resume_capability,
     _run_headless_provider_command,
     _run_interactive_provider_command,
 )
@@ -66,6 +68,8 @@ CONFIGS_USAGE = "Usage: cdx configs [--json]"
 HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
 STATS_USAGE = "Usage: cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
 LAST_USAGE = "Usage: cdx last [--json]"
+RESUME_USAGE = "Usage: cdx resume <name> [--json]"
+CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--json]"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json"
 NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
 RUN_USAGE = "Usage: cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] --json"
@@ -2844,10 +2848,83 @@ def handle_update(rest, ctx):
     return 0
 
 
-def handle_launch(command, ctx, initial_prompt=None):
+def _resume_capability_for_session(session, ctx):
+    capability = get_resume_capability(session, cwd=ctx.get("cwd") or os.getcwd())
+    return {
+        "session": session["name"],
+        "provider": session["provider"],
+        "resumable": bool(capability.get("resumable")),
+        "strategy": capability.get("strategy"),
+        "reason": capability.get("reason"),
+        "command_preview": capability.get("command_preview") or [],
+    }
+
+
+def _format_resume_capability(capability, use_color=False):
+    name = capability["session"]
+    provider = capability["provider"]
+    if capability["resumable"]:
+        preview = shlex.join(capability.get("command_preview") or [])
+        detail = f"({provider}, {capability['strategy']})"
+        return (
+            f"{_success(f'{name} can resume', use_color)} "
+            f"{_dim(detail, use_color)}\n"
+            f"{_dim(preview, use_color)}"
+        )
+    reason = capability.get("reason") or "not_supported"
+    return (
+        f"{_warn(f'{name} cannot resume', use_color)} "
+        f"{_dim(f'({provider}, {reason})', use_color)}"
+    )
+
+
+def handle_can_resume(rest, ctx):
+    json_flag, args = _parse_json_flag(rest)
+    if len(args) != 1:
+        raise CdxError(CAN_RESUME_USAGE)
+    session = ctx["service"]["get_session"](args[0])
+    if not session:
+        raise CdxError(f"Unknown session: {args[0]}")
+    if session.get("enabled", True) is False:
+        capability = {
+            "session": session["name"],
+            "provider": session["provider"],
+            "resumable": False,
+            "strategy": "session_disabled",
+            "reason": "session_disabled",
+            "command_preview": [],
+        }
+    else:
+        capability = _resume_capability_for_session(session, ctx)
+    if json_flag:
+        _write_json(ctx, {
+            "schema_version": API_SCHEMA_VERSION,
+            "ok": True,
+            **capability,
+        })
+        return 0
+    ctx["out"](f"{_format_resume_capability(capability, ctx['use_color'])}\n")
+    return 0
+
+
+def handle_resume(rest, ctx):
+    json_flag, args = _parse_json_flag(rest)
+    if len(args) != 1:
+        raise CdxError(RESUME_USAGE)
+    return handle_launch(args[0], ctx, resume=True, force_json=json_flag)
+
+
+def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=None):
     json_flag = "--json" in ctx.get("raw_args", ctx["options"].get("raw_args", []))
+    if force_json is not None:
+        json_flag = force_json
     warnings = _update_notice_warnings(ctx)
     session = ctx["service"]["launch_session"](command)
+    capability = _resume_capability_for_session(session, ctx) if resume else None
+    if capability and not capability["resumable"]:
+        raise CdxError(
+            f"Provider {session['provider']} does not support native resume through cdx."
+        )
     _ensure_session_authentication(
         session,
         ctx["service"],
@@ -2859,7 +2936,11 @@ def handle_launch(command, ctx, initial_prompt=None):
         signal_emitter=ctx.get("signal_emitter"),
         trust_local_credentials=False,
     )
-    message = f"Launching {session['provider']} session {session['name']}"
+    message = (
+        f"Resuming {session['provider']} session {session['name']}"
+        if resume else
+        f"Launching {session['provider']} session {session['name']}"
+    )
     if not json_flag:
         ctx["out"](f"{_info(message, ctx['use_color'])}\n")
         _write_update_notice(ctx)
@@ -2880,7 +2961,7 @@ def handle_launch(command, ctx, initial_prompt=None):
 
     try:
         run_info = _run_interactive_provider_command(
-            session, "launch", spawn=ctx.get("spawn"), cwd=cwd, env_override=ctx.get("env"),
+            session, "resume" if resume else "launch", spawn=ctx.get("spawn"), cwd=cwd, env_override=ctx.get("env"),
             signal_emitter=ctx.get("signal_emitter"), initial_prompt=initial_prompt,
             lifecycle_callback=runtime_lifecycle,
         )
@@ -2903,12 +2984,16 @@ def handle_launch(command, ctx, initial_prompt=None):
         raise
     ctx["service"]["record_launch_history"](session["name"], {
         "status": "success",
+        "action": "resume" if resume else "launch",
         "cwd": cwd,
         "exit_code": 0,
         **run_info,
     })
     if json_flag:
-        _write_json(ctx, _json_success("launch", message, warnings=warnings, session=ctx["service"]["get_session"](session["name"])))
+        extra = {"session": ctx["service"]["get_session"](session["name"])}
+        if capability:
+            extra["resume"] = capability
+        _write_json(ctx, _json_success("resume" if resume else "launch", message, warnings=warnings, **extra))
     return 0
 
 

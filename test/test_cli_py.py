@@ -474,6 +474,8 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("cdx next [--json] [--refresh]", help_io["stdout"].getvalue())
         self.assertIn("cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b>", help_io["stdout"].getvalue())
         self.assertIn("cdx stats [name]", help_io["stdout"].getvalue())
+        self.assertIn("cdx resume <name> [--json]", help_io["stdout"].getvalue())
+        self.assertIn("cdx can-resume <name> [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx add [provider] <name> [--model MODEL] [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx set <name>|--sessions all|a,b|--provider PROVIDER", help_io["stdout"].getvalue())
         self.assertIn("--model MODEL", help_io["stdout"].getvalue())
@@ -1040,6 +1042,92 @@ class CliPythonTests(unittest.TestCase):
         self.assertTrue(transcript_path.endswith(".log"))
         self.assertTrue(_script_launch_invokes(launch_call, "codex"))
         self.assertEqual(_script_launch_args(launch_call)[:3], ["--no-alt-screen", "--cd", os.getcwd()])
+
+    def test_resume_flag_launches_codex_resume(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        self.assertEqual(main(["add", "main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        resume_io = self.make_io()
+        self.assertEqual(main(["main", "-r"], {
+            **resume_io,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+            "cwd": "/tmp/repo",
+        }), 0)
+
+        self.assertIn("Resuming codex session main", resume_io["stdout"].getvalue())
+        resume_call = harness.calls[-1]
+        self.assertEqual(resume_call["command"], "script")
+        self.assertTrue(_script_launch_invokes(resume_call, "codex"))
+        self.assertEqual(_script_launch_args(resume_call)[:4], ["resume", "--last", "--cd", "/tmp/repo"])
+
+    def test_resume_command_launches_claude_continue_json(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+
+        self.assertEqual(main(["add", "claude", "work"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        resume_io = self.make_io()
+        self.assertEqual(main(["resume", "work", "--json"], {
+            **resume_io,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+            "cwd": "/tmp/repo",
+        }), 0)
+
+        payload = json.loads(resume_io["stdout"].getvalue())
+        self.assertEqual(payload["action"], "resume")
+        self.assertEqual(payload["resume"]["strategy"], "provider_continue")
+        resume_call = harness.calls[-1]
+        self.assertEqual(resume_call["command"], "script")
+        self.assertTrue(_script_launch_invokes(resume_call, "claude"))
+        self.assertEqual(_script_launch_args(resume_call)[:3], ["--continue", "--name", "work"])
+
+    def test_can_resume_reports_json_without_launching_provider(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main", "codex")
+
+        io_obj = self.make_io()
+        self.assertEqual(main(["can-resume", "main", "--json"], {
+            **io_obj,
+            "service": service,
+            "spawn": lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not spawn")),
+            "cwd": "/tmp/repo",
+        }), 0)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["resumable"])
+        self.assertEqual(payload["provider"], "codex")
+        self.assertEqual(payload["strategy"], "provider_last")
+        self.assertEqual(payload["command_preview"], ["codex", "resume", "--last", "--cd", "/tmp/repo"])
+
+    def test_resume_rejects_unsupported_provider_without_normal_launch(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("local", "ollama")
+
+        with self.assertRaisesRegex(CdxError, "does not support native resume"):
+            main(["local", "--resume"], {
+                **self.make_io(),
+                "service": service,
+                "spawn": lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not spawn")),
+            })
 
     def test_persisted_codex_launch_settings_are_applied_until_unset(self):
         temp_dir = self.make_temp_dir()

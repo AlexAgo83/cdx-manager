@@ -329,6 +329,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx --json` | List all sessions as a machine-readable JSON payload |
 | `cdx <name>` | Launch a session (checks auth first) |
 | `cdx <name> [--json]` | Launch a session; `--json` returns a structured success payload after the interactive run ends |
+| `cdx <name> -r` / `cdx <name> --resume` | Resume the provider-native conversation for a session when supported |
 | `cdx add [provider] <name> [--model MODEL] [--json]` | Register a new session (`provider`: `codex`, `claude`, `antigravity`, or `ollama`; Ollama requires `--model`) |
 | `cdx cp <source> <dest> [--json]` | Copy a session into another session name, overwriting the destination if it exists |
 | `cdx ren <source> <dest> [--json]` | Rename a session and move its auth data |
@@ -343,6 +344,8 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx unset <name>\|--sessions all\|a,b\|--provider PROVIDER (--power\|--permission\|--fast\|--rtk\|--logics\|--model\|--priority\|--all) [--json]` | Remove persisted launch settings and fall back to provider defaults |
 | `cdx history [name] [--limit N] [--summary] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Show recent launch history or aggregate total launch time per assistant, optionally filtered by period |
 | `cdx last [--json]` | Launch the most recent existing session from launch history |
+| `cdx resume <name> [--json]` | Resume the provider-native conversation for a session using the named command form |
+| `cdx can-resume <name> [--json]` | Check whether a session supports native resume without launching the provider |
 | `cdx context show\|path\|init\|edit\|clear\|set [text...] [--json]` | Manage the shared Markdown context for the current workspace |
 | `cdx handoff <name> [--json]` | Install the current workspace context into a target session and launch it unless `--json` is used |
 | `cdx handoff <source> <target> [--json]` | Build shared context from the source session's latest launch transcript, install it into the target session, and launch the target unless `--json` is used; supports cross-provider handoff |

@@ -11,6 +11,7 @@ from .cli_commands import (
     handle_clean,
     handle_config,
     handle_configs,
+    handle_can_resume,
     handle_context,
     handle_copy,
     handle_doctor,
@@ -30,6 +31,7 @@ from .cli_commands import (
     handle_remove,
     handle_repair,
     handle_rename,
+    handle_resume,
     handle_run,
     handle_run_report,
     handle_run_status,
@@ -96,6 +98,8 @@ def _print_help(use_color=False):
         f"  {_style('cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]', '36', use_color)}",
         f"  {_style('cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]', '36', use_color)}",
         f"  {_style('cdx last [--json]', '36', use_color)}",
+        f"  {_style('cdx resume <name> [--json]', '36', use_color)}",
+        f"  {_style('cdx can-resume <name> [--json]', '36', use_color)}",
         f"  {_style('cdx handoff <name> [--json]', '36', use_color)}",
         f"  {_style('cdx handoff <source> <target> [--json]', '36', use_color)}",
         f"  {_style('cdx add [provider] <name> [--model MODEL] [--json]', '36', use_color)}",
@@ -283,7 +287,7 @@ def main(argv, options=None):
         "version": VERSION,
         "cwd": options.get("cwd") or os.getcwd(),
         "update_notices": _get_update_notices(service, env, options) if command not in (
-            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "view", "update", "ready", "notify", "next", "context", "config", "configs", "set", "unset", "power", "perm", "fast", "model", "history", "stats", "handoff", "login", "logout", "disable", "enable", "export", "import", "select", "run", "help", "version"
+            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "view", "update", "ready", "notify", "next", "context", "config", "configs", "set", "unset", "power", "perm", "fast", "model", "history", "stats", "resume", "can-resume", "handoff", "login", "logout", "disable", "enable", "export", "import", "select", "run", "help", "version"
         ) else None,
         "use_color": use_color,
     }
@@ -365,6 +369,12 @@ def main(argv, options=None):
     if command == "last":
         return handle_last(rest, ctx)
 
+    if command == "resume":
+        return handle_resume(rest, ctx)
+
+    if command == "can-resume":
+        return handle_can_resume(rest, ctx)
+
     if command == "handoff":
         return handle_handoff(rest, ctx)
 
@@ -400,8 +410,8 @@ def main(argv, options=None):
         out(f"{_print_version()}\n")
         return 0
 
-    if not rest or rest == ["--json"]:
-        return handle_launch(command, ctx)
+    if all(arg in ("--json", "-r", "--resume") for arg in rest):
+        return handle_launch(command, ctx, resume=("-r" in rest or "--resume" in rest))
 
     raise CdxError(f"Unknown command: {command}. Use cdx --help.")
 
