@@ -91,6 +91,7 @@ def _usage_from_dict(value):
     output_tokens = _int_value(usage.get("output_tokens"), usage.get("completion_tokens"))
     reasoning_tokens = _int_value(
         usage.get("reasoning_tokens"),
+        usage.get("reasoning_output_tokens"),
         _nested_int(usage, "output_tokens_details", "reasoning_tokens"),
         _nested_int(usage, "completion_tokens_details", "reasoning_tokens"),
     )

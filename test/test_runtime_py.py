@@ -933,6 +933,36 @@ class RuntimePythonTests(unittest.TestCase):
                 "total_tokens": 14,
             })
 
+    def test_run_usage_extracts_codex_turn_completed_usage(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-usage-") as temp_dir:
+            path = os.path.join(temp_dir, "stdout.log")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps({"type": "thread.started", "thread_id": "thread-1"}) + "\n")
+                handle.write(json.dumps({
+                    "type": "item.completed",
+                    "item": {
+                        "id": "item_0",
+                        "type": "agent_message",
+                        "text": "done",
+                    },
+                }) + "\n")
+                handle.write(json.dumps({
+                    "type": "turn.completed",
+                    "usage": {
+                        "input_tokens": 17489,
+                        "cached_input_tokens": 4992,
+                        "output_tokens": 9,
+                        "reasoning_output_tokens": 3,
+                    },
+                }) + "\n")
+
+            self.assertEqual(run_usage.extract_run_usage("codex", path), {
+                "input_tokens": 17489,
+                "output_tokens": 9,
+                "reasoning_tokens": 3,
+                "total_tokens": 17498,
+            })
+
 
 if __name__ == "__main__":
     unittest.main()
