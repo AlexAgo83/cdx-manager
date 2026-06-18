@@ -511,6 +511,90 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     }, capture_transcript=capture_transcript, env=env)
 
 
+def _redacted_resume_command_preview(session, cwd=None):
+    capability = get_resume_capability(session, cwd=cwd)
+    return capability.get("command_preview")
+
+
+def get_resume_capability(session, cwd=None):
+    provider = session.get("provider")
+    cwd = cwd or os.getcwd()
+    if provider == PROVIDER_CODEX:
+        return {
+            "resumable": True,
+            "provider": provider,
+            "strategy": "provider_last",
+            "reason": "supported",
+            "command_preview": ["codex", "resume", "--last", "--cd", cwd],
+        }
+    if provider == PROVIDER_CLAUDE:
+        return {
+            "resumable": True,
+            "provider": provider,
+            "strategy": "provider_continue",
+            "reason": "supported",
+            "command_preview": ["claude", "--continue"],
+        }
+    return {
+        "resumable": False,
+        "provider": provider,
+        "strategy": "not_supported",
+        "reason": "not_supported",
+        "command_preview": [],
+    }
+
+
+def _build_resume_spec(session, cwd=None, env_override=None, capture_transcript=True):
+    cwd = cwd or os.getcwd()
+    env_override = env_override or {}
+    env = {**os.environ, **env_override}
+    capability = get_resume_capability(session, cwd=cwd)
+    if not capability["resumable"]:
+        raise CdxError(f"Provider {session.get('provider')} does not support native resume through cdx.")
+
+    resume_prompt = _with_launch_preferences(session, env=env)
+    _validate_initial_prompt(resume_prompt)
+
+    if session["provider"] == PROVIDER_CLAUDE:
+        launch = session.get("launch") or {}
+        args = ["--continue", "--name", session["name"]]
+        if launch.get("model"):
+            args += ["--model", _claude_cli_model(launch["model"])]
+        args += _launch_config_args(session)
+        if resume_prompt:
+            args.append(resume_prompt)
+        auth_home = _get_auth_home(session)
+        claude_env = _claude_env(env, auth_home)
+        oauth_token = _read_claude_launch_oauth_token(auth_home)
+        if oauth_token:
+            claude_env["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token
+        return _wrap_launch_with_transcript(session, {
+            "command": "claude",
+            "args": args,
+            "options": {
+                "cwd": cwd,
+                "env": claude_env,
+            },
+            "label": "claude resume",
+        }, capture_transcript=capture_transcript, env=env)
+
+    launch = session.get("launch") or {}
+    args = ["resume", "--last", "--cd", cwd]
+    if launch.get("model"):
+        args += ["--model", launch["model"]]
+    args += _launch_config_args(session)
+    if resume_prompt:
+        args.append(resume_prompt)
+    return _wrap_launch_with_transcript(session, {
+        "command": "codex",
+        "args": args,
+        "options": {
+            "env": {**env, "CODEX_HOME": _get_auth_home(session)},
+        },
+        "label": "codex resume",
+    }, capture_transcript=capture_transcript, env=env)
+
+
 def _validate_initial_prompt(initial_prompt):
     if initial_prompt is not None:
         if not isinstance(initial_prompt, str):
@@ -846,11 +930,14 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
                                       env_override=None, signal_emitter=None,
                                       initial_prompt=None, lifecycle_callback=None):
     spawn = spawn or subprocess.Popen
-    spec = (
-        _build_launch_spec(session, cwd=cwd, env_override=env_override, initial_prompt=initial_prompt)
-        if action == "launch"
-        else _build_auth_action_spec(session, action, cwd=cwd, env_override=env_override)
-    )
+    if action == "launch":
+        spec = _build_launch_spec(session, cwd=cwd, env_override=env_override, initial_prompt=initial_prompt)
+    elif action == "resume":
+        if initial_prompt is not None:
+            raise CdxError("initial_prompt is not supported for resume.")
+        spec = _build_resume_spec(session, cwd=cwd, env_override=env_override)
+    else:
+        spec = _build_auth_action_spec(session, action, cwd=cwd, env_override=env_override)
     def start_child(current_spec):
         command = current_spec["command"]
         if spawn is subprocess.Popen:

@@ -801,6 +801,61 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertIn("claude --name claude 'resume this'", spec["args"][3])
         self.assertTrue(spec["args"][4].endswith(".log"))
 
+    def test_build_resume_spec_uses_codex_resume_last(self):
+        session = {
+            "name": "main",
+            "provider": "codex",
+            "authHome": "/tmp/codex-home",
+            "launch": {"model": "gpt-test", "power": "high", "permission": "auto"},
+        }
+
+        spec = provider_runtime._build_resume_spec(session, cwd="/tmp/repo")
+        args = spec["fallback"]["args"]
+
+        self.assertEqual(spec["fallback"]["command"], "codex")
+        self.assertEqual(args[:4], ["resume", "--last", "--cd", "/tmp/repo"])
+        self.assertIn("--model", args)
+        self.assertIn("gpt-test", args)
+        self.assertIn('model_reasoning_effort="high"', args)
+        self.assertIn("workspace-write", args)
+        self.assertIn("never", args)
+        self.assertEqual(spec["fallback"]["options"]["env"]["CODEX_HOME"], "/tmp/codex-home")
+
+    def test_build_resume_spec_uses_claude_continue(self):
+        session = {
+            "name": "work",
+            "provider": "claude",
+            "authHome": "/tmp/claude-home",
+            "launch": {"model": "sonnet-latest", "power": "medium", "permission": "review"},
+        }
+
+        spec = provider_runtime._build_resume_spec(session, cwd="/tmp/repo")
+        args = spec["fallback"]["args"]
+
+        self.assertEqual(spec["fallback"]["command"], "claude")
+        self.assertEqual(args[:3], ["--continue", "--name", "work"])
+        self.assertIn("--model", args)
+        self.assertIn("sonnet", args)
+        self.assertIn("--effort", args)
+        self.assertIn("medium", args)
+        self.assertIn("--permission-mode", args)
+        self.assertIn("plan", args)
+        self.assertEqual(spec["fallback"]["options"]["cwd"], "/tmp/repo")
+        self.assertEqual(spec["fallback"]["options"]["env"]["HOME"], "/tmp/claude-home")
+
+    def test_resume_capability_reports_unsupported_provider(self):
+        session = {
+            "name": "local",
+            "provider": "ollama",
+            "authHome": "/tmp/ollama-home",
+        }
+
+        capability = provider_runtime.get_resume_capability(session, cwd="/tmp/repo")
+
+        self.assertFalse(capability["resumable"])
+        self.assertEqual(capability["strategy"], "not_supported")
+        self.assertEqual(capability["reason"], "not_supported")
+
     def test_build_headless_launch_spec_uses_codex_exec_json(self):
         session = {
             "name": "main",
