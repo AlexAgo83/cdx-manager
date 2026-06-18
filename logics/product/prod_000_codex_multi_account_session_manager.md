@@ -1,10 +1,10 @@
 ## prod_000_codex_multi_account_session_manager - Codex multi-account session manager
 > Date: 2026-04-15
 > Status: Settled
-> Related request: (none yet)
-> Related backlog: `item_000_cdx_core_session_manager`, `item_001_persistent_codex_session_storage_and_rehydration`, `item_002_multi_provider_session_support_for_codex_and_claude`, `item_003_command_ergonomics_validation_and_safety`, `item_004_cdx_status_global_session_overview`, `item_005_cdx_session_auth_management`
-> Related task: `task_005_cdx_session_auth_management`
-> Related architecture: `adr_000_persist_and_restore_cdx_sessions`
+> Related request: `req_008_add_provider_native_session_resume_commands`
+> Related backlog: `item_000_cdx_core_session_manager`, `item_001_persistent_codex_session_storage_and_rehydration`, `item_002_multi_provider_session_support_for_codex_and_claude`, `item_003_command_ergonomics_validation_and_safety`, `item_004_cdx_status_global_session_overview`, `item_005_cdx_session_auth_management`, `item_020_add_provider_native_session_resume_commands`
+> Related task: `task_005_cdx_session_auth_management`, `task_019_add_provider_native_session_resume_commands`
+> Related architecture: `adr_000_persist_and_restore_cdx_sessions`, `adr_004_provider_native_resume_command_boundary`
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
 
 # Overview
@@ -39,6 +39,7 @@ That creates friction, increases context mistakes, and makes daily usage slower 
 - Allow targeted reauthentication and sign-out with `cdx login <name>` and `cdx logout <name>`.
 - Allow a session to be removed with `cdx rmv <name>`.
 - Preserve user session state so reconnecting is not required every time.
+- Allow a user to intentionally resume the previous provider-native conversation for a named session when the provider supports native resume.
 - Support `cdx status` as a global overview for comparing the latest usage data across saved sessions.
 
 # Non-goals
@@ -50,6 +51,7 @@ That creates friction, increases context mistakes, and makes daily usage slower 
 - In: Named session catalog, list output, create, delete, and direct launch.
 - In: Persistence of login state so the user does not start from a fresh reconnect each session.
 - In: An extensible multi-provider model, with Codex as the priority and Claude as a natural candidate.
+- In: A provider-native resume path that is explicit and separate from a fresh session launch.
 - In: Standard CLI affordances such as `--help`/`-h` and `--version`/`-v`.
 - In: A global `cdx status` overview for comparing the latest usage data across saved sessions.
 - Out: Advanced enterprise policy management, centralized provisioning, or sharing sessions between users.
@@ -62,6 +64,7 @@ That creates friction, increases context mistakes, and makes daily usage slower 
 - The CLI contract should stay conventional: `cdx` lists, `add` creates, `rmv` deletes, and `--help`/`--version` behave as standard flags.
 - `cdx add` should act as onboarding: create the session and immediately trigger login when the session has no valid credentials yet.
 - `cdx login` and `cdx logout` should manage the account behind one named session without affecting the others.
+- `cdx resume <name>` and `cdx <name> --resume` should continue provider-native conversation state when supported, while normal `cdx <name>` remains a regular launch.
 - `cdx status` should be the global comparison surface; per-session storage remains the backing model.
 - The status payload should be interpreted as usage metrics, including remaining percentages over the 5h and week windows when present.
 - Claude support should remain secondary until it meaningfully improves daily usage.
@@ -69,6 +72,7 @@ That creates friction, increases context mistakes, and makes daily usage slower 
 # Success signals
 - A user can see their sessions in one command and start one without an intermediate step.
 - Users naturally return to `cdx` to change context instead of manually reauthenticating their assistants.
+- Users can distinguish between launching a named provider context and resuming its previous conversation.
 - Repeated reconnects drop sharply in daily use.
 - Users describe the tool as reliable for switching from `main` to `work1` or `work2` without confusion.
 
@@ -81,6 +85,9 @@ That creates friction, increases context mistakes, and makes daily usage slower 
 - `logics/product/prod_001_per_session_codex_status_recall.md`
 - `logics/backlog/item_005_cdx_session_auth_management.md`
 - `logics/specs/spec_003_cdx_session_auth_management.md`
+- `logics/request/req_008_add_provider_native_session_resume_commands.md`
+- `logics/backlog/item_020_add_provider_native_session_resume_commands.md`
+- `logics/architecture/adr_004_provider_native_resume_command_boundary.md`
 
 # Open questions
 - Should list output remain purely human-readable, or also expose a script-friendly mode later?
