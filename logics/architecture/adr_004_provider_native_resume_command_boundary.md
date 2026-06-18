@@ -1,6 +1,6 @@
 ## adr_004_provider_native_resume_command_boundary - Provider-native resume command boundary
 > Date: 2026-06-18
-> Status: Proposed
+> Status: Settled
 > Drivers: Provider-native continuity, named session isolation, predictable CLI behavior, scriptable capability checks.
 > Related request: `req_008_add_provider_native_session_resume_commands`
 > Related backlog: `item_020_add_provider_native_session_resume_commands`
@@ -62,7 +62,6 @@ flowchart LR
 - `logics/product/prod_000_codex_multi_account_session_manager.md`
 
 # Follow-up work
-- Implement provider runtime resume specs.
-- Add CLI routing and JSON capability output.
-- Add README/help documentation and focused tests.
+- Implemented provider runtime resume specs in `d01b778`.
+- Implemented CLI routing, JSON capability output, README/help documentation, and focused tests in `48eaa30`.
 - Revisit explicit provider conversation id support after the first `provider_last`/`provider_continue` delivery is stable.

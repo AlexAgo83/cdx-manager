@@ -1,10 +1,10 @@
 ## item_020_add_provider_native_session_resume_commands - Add provider-native session resume commands
 > From version: 0.9.3
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Provider workflow
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -94,6 +94,19 @@ flowchart TD
 - Default Claude strategy: `provider_continue`, implemented as `claude --continue` scoped by isolated `HOME` and cwd.
 - Optional later Claude refinement: `provider_resume_value`, implemented through `claude --resume <value>` when `cdx` records or accepts an explicit value.
 - `cdx handoff` remains the cross-provider continuity workflow; it should not be conflated with native resume.
+
+# Report
+- Added provider runtime resume specs for Codex and Claude.
+- Added `cdx <name> -r`, `cdx <name> --resume`, `cdx resume <name> [--json]`, and `cdx can-resume <name> [--json]`.
+- Added unsupported-provider resume failures for Antigravity and Ollama instead of falling back to normal launch.
+- Updated README and CLI help with the new command surface.
+- Validation evidence:
+  - `python -m unittest discover -s test -p 'test_runtime_py.py' -k resume`
+  - `python -m unittest discover -s test -p 'test_cli_py.py' -k resume`
+  - `python -m unittest discover -s test -p 'test_cli_py.py' -k help`
+  - `python -m unittest discover -s test -p 'test_*_py.py' -k resume`
+  - `npm run lint`
+  - `npm test`
 
 # Tasks
 - `task_019_add_provider_native_session_resume_commands`

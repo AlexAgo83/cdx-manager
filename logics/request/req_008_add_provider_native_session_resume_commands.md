@@ -1,9 +1,9 @@
 ## req_008_add_provider_native_session_resume_commands - Add provider-native session resume commands
-> From version: 0.9.3
+> From version: 0.9.3-delivered
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 95%
-> Confidence: 90%
+> Status: Done
+> Understanding: 100%
+> Confidence: 95%
 > Complexity: Medium
 > Theme: Provider workflow
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
@@ -65,8 +65,10 @@ flowchart TD
 - Skip when: The work only changes authentication, status parsing, or headless `cdx run` behavior without touching interactive resume.
 
 # Delivery
-- Deliver as one implementation slice from `item_020_add_provider_native_session_resume_commands`.
-- Do not close this request until README/help, tests, JSON contracts, and linked backlog/task docs are updated with validation evidence.
+- Delivered in `item_020_add_provider_native_session_resume_commands` and `task_019_add_provider_native_session_resume_commands`.
+- Runtime implementation commit: `d01b778` (`Add provider runtime resume specs`).
+- CLI/docs implementation commit: `48eaa30` (`Add resume CLI commands`).
+- README/help, tests, JSON contracts, and linked backlog/task docs were updated with validation evidence.
 
 # Backlog
 - `logics/backlog/item_020_add_provider_native_session_resume_commands.md`
