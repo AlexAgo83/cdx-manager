@@ -234,6 +234,32 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(set(calls), {"main", "work1", "work2"})
         self.assertEqual({row["available_pct"] for row in rows}, {70})
 
+    def test_status_row_refreshes_only_named_session(self):
+        temp_dir = self.make_temp_dir()
+        calls = []
+
+        def fetch_status(session):
+            calls.append(session["name"])
+            return {
+                "remaining_5h_pct": 80,
+                "remaining_week_pct": 70,
+                "updated_at": datetime.now().astimezone().isoformat(),
+            }
+
+        service = create_session_service({
+            "base_dir": temp_dir,
+            "fetchCodexRateLimits": fetch_status,
+        })
+        service["create_session"]("main")
+        service["create_session"]("work1")
+        service["create_session"]("work2")
+
+        row = service["get_status_row"]("work1", force_refresh=True)
+
+        self.assertEqual(calls, ["work1"])
+        self.assertEqual(row["session_name"], "work1")
+        self.assertEqual(row["available_pct"], 70)
+
     def test_status_rows_clamp_cached_percentages(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

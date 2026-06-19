@@ -983,21 +983,99 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         return updated
 
+    def _status_cache_hit(s, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS):
+        return (
+            s.get("enabled", True) is False
+            or (
+                s.get("lastStatus")
+                and not force_refresh
+                and _is_status_cache_fresh(s, ttl_seconds=cache_ttl_seconds)
+            )
+        )
+
+    def _resolve_row_session(s, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS):
+        status = _resolve_session_status(
+            s,
+            force_refresh=force_refresh,
+            cache_ttl_seconds=cache_ttl_seconds,
+        )
+        return {
+            **s,
+            "lastStatus": status,
+            "lastStatusAt": (status and status.get("updated_at")) or s.get("lastStatusAt"),
+        }
+
+    def _status_row_from_session(s):
+        status = s.get("lastStatus")
+        enabled = s.get("enabled", True) is not False
+        row_status = status if enabled else None
+        return {
+            "session_name": s["name"],
+            "provider": s["provider"],
+            "enabled": enabled,
+            "active": bool(_session_runtime(s["name"])) if enabled else False,
+            "status": "enabled" if enabled else "disabled",
+            "auth_status": (s.get("auth") or {}).get("status") or "unknown",
+            "auth_checked_at": _to_local_iso((s.get("auth") or {}).get("lastCheckedAt")),
+            "remaining_5h_pct": _normalize_pct_value(row_status.get("remaining_5h_pct")) if row_status else None,
+            "remaining_week_pct": _normalize_pct_value(row_status.get("remaining_week_pct")) if row_status else None,
+            "credits": row_status.get("credits") if row_status else None,
+            "available_pct": _compute_available_pct(row_status),
+            "reset_5h_at": row_status.get("reset_5h_at") if row_status else None,
+            "reset_week_at": row_status.get("reset_week_at") if row_status else None,
+            "reset_at": row_status.get("reset_at") if row_status else None,
+            "updated_at": _to_local_iso(s.get("lastStatusAt")),
+            "last_launched_at": _to_local_iso(s.get("lastLaunchedAt")),
+        }
+
+    def get_status_row(name, progress_callback=None, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS):
+        session = store["get_session"](name)
+        if not session:
+            raise CdxError(f"Unknown session: {name}")
+        cache_hit = _status_cache_hit(
+            session,
+            force_refresh=force_refresh,
+            cache_ttl_seconds=cache_ttl_seconds,
+        )
+        if progress_callback:
+            progress_callback({
+                "event": "status_started",
+                "session_count": 1,
+                "check_count": 0 if cache_hit else 1,
+            })
+            if not cache_hit:
+                progress_callback({
+                    "event": "session_started",
+                    "session_name": session["name"],
+                    "provider": session["provider"],
+                })
+        resolved = _resolve_row_session(
+            session,
+            force_refresh=force_refresh,
+            cache_ttl_seconds=cache_ttl_seconds,
+        )
+        if progress_callback:
+            progress_callback({
+                "event": "session_finished",
+                "session_name": session["name"],
+                "has_status": bool(resolved.get("lastStatus")),
+                "cache_hit": cache_hit,
+            })
+            progress_callback({
+                "event": "status_finished",
+                "row_count": 1,
+            })
+        return _status_row_from_session(resolved)
+
     def get_status_rows(progress_callback=None, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS):
         sessions = list_sessions()
 
-        def _status_cache_hit(s):
-            return (
-                s.get("enabled", True) is False
-                or (
-                    s.get("lastStatus")
-                    and not force_refresh
-                    and _is_status_cache_fresh(s, ttl_seconds=cache_ttl_seconds)
-                )
-            )
-
         cache_hits = {
-            s["name"]: _status_cache_hit(s)
+            s["name"]: _status_cache_hit(
+                s,
+                force_refresh=force_refresh,
+                cache_ttl_seconds=cache_ttl_seconds,
+            )
             for s in sessions
         }
         if progress_callback:
@@ -1006,18 +1084,6 @@ def create_session_service(options=None):
                 "session_count": len(sessions),
                 "check_count": sum(1 for cache_hit in cache_hits.values() if not cache_hit),
             })
-
-        def _resolve_row_session(s):
-            status = _resolve_session_status(
-                s,
-                force_refresh=force_refresh,
-                cache_ttl_seconds=cache_ttl_seconds,
-            )
-            return {
-                **s,
-                "lastStatus": status,
-                "lastStatusAt": (status and status.get("updated_at")) or s.get("lastStatusAt"),
-            }
 
         resolved_by_name = {}
         if sessions:
@@ -1032,7 +1098,12 @@ def create_session_service(options=None):
                             "session_name": s["name"],
                             "provider": s["provider"],
                         })
-                    futures[executor.submit(_resolve_row_session, s)] = s
+                    futures[executor.submit(
+                        _resolve_row_session,
+                        s,
+                        force_refresh=force_refresh,
+                        cache_ttl_seconds=cache_ttl_seconds,
+                    )] = s
                 for future in as_completed(futures):
                     s = futures[future]
                     resolved = future.result()
@@ -1060,27 +1131,7 @@ def create_session_service(options=None):
 
         rows = []
         for s in resolved:
-            status = s.get("lastStatus")
-            enabled = s.get("enabled", True) is not False
-            row_status = status if enabled else None
-            rows.append({
-                "session_name": s["name"],
-                "provider": s["provider"],
-                "enabled": enabled,
-                "active": bool(_session_runtime(s["name"])) if enabled else False,
-                "status": "enabled" if enabled else "disabled",
-                "auth_status": (s.get("auth") or {}).get("status") or "unknown",
-                "auth_checked_at": _to_local_iso((s.get("auth") or {}).get("lastCheckedAt")),
-                "remaining_5h_pct": _normalize_pct_value(row_status.get("remaining_5h_pct")) if row_status else None,
-                "remaining_week_pct": _normalize_pct_value(row_status.get("remaining_week_pct")) if row_status else None,
-                "credits": row_status.get("credits") if row_status else None,
-                "available_pct": _compute_available_pct(row_status),
-                "reset_5h_at": row_status.get("reset_5h_at") if row_status else None,
-                "reset_week_at": row_status.get("reset_week_at") if row_status else None,
-                "reset_at": row_status.get("reset_at") if row_status else None,
-                "updated_at": _to_local_iso(s.get("lastStatusAt")),
-                "last_launched_at": _to_local_iso(s.get("lastLaunchedAt")),
-            })
+            rows.append(_status_row_from_session(s))
         if progress_callback:
             progress_callback({
                 "event": "status_finished",
@@ -1295,6 +1346,7 @@ def create_session_service(options=None):
         "record_launch_history": record_launch_history,
         "get_launch_history": get_launch_history,
         "update_auth_state": update_auth_state,
+        "get_status_row": get_status_row,
         "get_status_rows": get_status_rows,
         "format_list_rows": format_list_rows,
         "get_session_auth_home": get_session_auth_home,
