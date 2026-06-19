@@ -291,6 +291,24 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertIsNone(by_name["main"]["available_pct"])
         self.assertEqual(by_name["work1"]["available_pct"], 25)
 
+    def test_status_timeout_env_applies_to_codex_fetch(self):
+        temp_dir = self.make_temp_dir()
+        with mock.patch("src.session_service.fetch_codex_rate_limits", return_value={
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 70,
+            "updated_at": datetime.now().astimezone().isoformat(),
+        }) as fetch_status:
+            service = create_session_service({
+                "base_dir": temp_dir,
+                "env": {"CDX_STATUS_TIMEOUT_SECONDS": "0.75"},
+            })
+            service["create_session"]("main")
+
+            row = service["get_status_row"]("main", force_refresh=True)
+
+        self.assertEqual(row["available_pct"], 70)
+        self.assertEqual(fetch_status.call_args.kwargs["timeout"], 0.75)
+
     def test_status_rows_clamp_cached_percentages(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

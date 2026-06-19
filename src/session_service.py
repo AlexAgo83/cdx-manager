@@ -67,6 +67,7 @@ RESERVED_SESSION_NAMES = {
 }
 STATUS_CACHE_TTL_SECONDS = 60
 CLAUDE_STATUS_CACHE_TTL_SECONDS = 10 * 60
+STATUS_PROBE_TIMEOUT_SECONDS = 5
 MAX_STATUS_WORKERS = 8
 LAUNCH_POWER_VALUES = {"minimal", "low", "medium", "high", "xhigh"}
 LAUNCH_REASONING_EFFORT_VALUES = {"minimal", "low", "medium", "high", "xhigh"}
@@ -278,6 +279,18 @@ def _status_cache_ttl_seconds(session, ttl_seconds=STATUS_CACHE_TTL_SECONDS):
     return ttl_seconds
 
 
+def _parse_status_timeout_seconds(value):
+    if value in (None, ""):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed <= 0:
+        return None
+    return parsed
+
+
 def _is_status_cache_fresh(session, ttl_seconds=STATUS_CACHE_TTL_SECONDS):
     status = session.get("lastStatus") or {}
     if _is_low_confidence_status_source(status):
@@ -433,7 +446,19 @@ def create_session_service(options=None):
     env = options.get("env", os.environ)
     base_dir = options.get("base_dir") or get_cdx_home(env)
     store = options.get("store") or create_session_store(base_dir)
-    codex_status_fetcher = options.get("fetchCodexRateLimits") or fetch_codex_rate_limits
+    custom_codex_status_fetcher = options.get("fetchCodexRateLimits")
+    codex_status_fetcher = custom_codex_status_fetcher or fetch_codex_rate_limits
+    default_status_timeout_seconds = (
+        _parse_status_timeout_seconds(options.get("statusTimeoutSeconds"))
+        or _parse_status_timeout_seconds(env.get("CDX_STATUS_TIMEOUT_SECONDS"))
+        or STATUS_PROBE_TIMEOUT_SECONDS
+    )
+
+    def _fetch_codex_status(session, timeout_seconds=None):
+        if custom_codex_status_fetcher:
+            return custom_codex_status_fetcher(session)
+        timeout = timeout_seconds or default_status_timeout_seconds
+        return codex_status_fetcher(session, timeout=timeout)
 
     def _get_session_root(name):
         return os.path.join(base_dir, "profiles", _encode(name))
@@ -907,7 +932,13 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         return store["list_launch_history"](session_name=name, limit=limit)
 
-    def _resolve_session_status(session, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS, cache_only=False):
+    def _resolve_session_status(
+        session,
+        force_refresh=False,
+        cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS,
+        cache_only=False,
+        status_timeout_seconds=None,
+    ):
         current_status = session.get("lastStatus")
         if session.get("enabled", True) is False:
             return current_status
@@ -919,7 +950,10 @@ def create_session_service(options=None):
             session["name"], session["provider"]
         )
         if session["provider"] == PROVIDER_CODEX and codex_status_fetcher:
-            live_status = codex_status_fetcher({**session, "authHome": source_root})
+            live_status = _fetch_codex_status(
+                {**session, "authHome": source_root},
+                timeout_seconds=status_timeout_seconds,
+            )
             if live_status:
                 record_status(session["name"], live_status)
                 return live_status
@@ -996,12 +1030,19 @@ def create_session_service(options=None):
             )
         )
 
-    def _resolve_row_session(s, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS, cache_only=False):
+    def _resolve_row_session(
+        s,
+        force_refresh=False,
+        cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS,
+        cache_only=False,
+        status_timeout_seconds=None,
+    ):
         status = _resolve_session_status(
             s,
             force_refresh=force_refresh,
             cache_ttl_seconds=cache_ttl_seconds,
             cache_only=cache_only,
+            status_timeout_seconds=status_timeout_seconds,
         )
         return {
             **s,
@@ -1032,7 +1073,14 @@ def create_session_service(options=None):
             "last_launched_at": _to_local_iso(s.get("lastLaunchedAt")),
         }
 
-    def get_status_row(name, progress_callback=None, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS, cache_only=False):
+    def get_status_row(
+        name,
+        progress_callback=None,
+        force_refresh=False,
+        cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS,
+        cache_only=False,
+        status_timeout_seconds=None,
+    ):
         session = store["get_session"](name)
         if not session:
             raise CdxError(f"Unknown session: {name}")
@@ -1059,6 +1107,7 @@ def create_session_service(options=None):
             force_refresh=force_refresh,
             cache_ttl_seconds=cache_ttl_seconds,
             cache_only=cache_only,
+            status_timeout_seconds=status_timeout_seconds,
         )
         if progress_callback:
             progress_callback({
@@ -1073,7 +1122,13 @@ def create_session_service(options=None):
             })
         return _status_row_from_session(resolved)
 
-    def get_status_rows(progress_callback=None, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS, cache_only=False):
+    def get_status_rows(
+        progress_callback=None,
+        force_refresh=False,
+        cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS,
+        cache_only=False,
+        status_timeout_seconds=None,
+    ):
         sessions = list_sessions()
 
         cache_hits = {
@@ -1111,6 +1166,7 @@ def create_session_service(options=None):
                         force_refresh=force_refresh,
                         cache_ttl_seconds=cache_ttl_seconds,
                         cache_only=cache_only,
+                        status_timeout_seconds=status_timeout_seconds,
                     )] = s
                 for future in as_completed(futures):
                     s = futures[future]

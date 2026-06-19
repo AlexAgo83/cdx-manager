@@ -3844,6 +3844,27 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["rows"][0]["session_name"], "main")
         self.assertEqual(payload["rows"][0]["available_pct"], 33)
 
+    def test_status_timeout_flag_applies_to_codex_fetch(self):
+        temp_dir = self.make_temp_dir()
+        with mock.patch("src.session_service.fetch_codex_rate_limits", return_value={
+            "remaining_5h_pct": 80,
+            "remaining_week_pct": 70,
+            "updated_at": datetime.now().astimezone().isoformat(),
+        }) as fetch_status:
+            service = create_session_service({"base_dir": temp_dir})
+            service["create_session"]("main")
+
+            status_io = self.make_io()
+            self.assertEqual(main(["status", "main", "--json", "--refresh", "--timeout", "0.5"], {
+                **status_io,
+                "service": service,
+                "env": {"CDX_HOME": temp_dir},
+            }), 0)
+
+        payload = json.loads(status_io["stdout"].getvalue())
+        self.assertEqual(payload["session"]["available_pct"], 70)
+        self.assertEqual(fetch_status.call_args.kwargs["timeout"], 0.5)
+
     def test_invalid_status_syntax_raises_usage_error(self):
         with self.assertRaises(CdxError) as ctx:
             main(["status", "main", "extra"], self.make_io())
@@ -3857,6 +3878,9 @@ class CliPythonTests(unittest.TestCase):
         with self.assertRaises(CdxError) as refresh_cached_ctx:
             main(["status", "--refresh", "--cached"], self.make_io())
         self.assertIn("cdx status [--json]", str(refresh_cached_ctx.exception))
+        with self.assertRaises(CdxError) as timeout_ctx:
+            main(["status", "--timeout", "0"], self.make_io())
+        self.assertIn("--timeout SECONDS", str(timeout_ctx.exception))
 
     def test_non_interactive_login_and_remove_are_rejected(self):
         temp_dir = self.make_temp_dir()

@@ -69,6 +69,7 @@ One command to launch any session. Zero auth juggling.
   - Primary source: recorded status fields on the session record.
   - Codex live source: `codex app-server` JSON-RPC `account/rateLimits/read`, normalized into 5-hour, weekly, reset, credit, and plan fields.
   - Fallback: `status-source` scans provider JSONL history files and terminal log transcripts, strips ANSI/OSC sequences, and extracts `usage%`, `5h remaining%`, and `week remaining%` via pattern matching.
+- Status latency controls: use `cdx status --cached` to skip live probes, `cdx status --timeout SECONDS` for one command, or `CDX_STATUS_TIMEOUT_SECONDS` to lower the default Codex live-probe timeout.
 - Claude status refreshes are cached briefly by default; pass `--refresh` to force a live rate-limit probe.
 - On Linux, transcript capture uses the `util-linux` `script -c` command form.
 - If `script` is unavailable, Codex launch falls back to running without transcript capture.
@@ -364,9 +365,9 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx select --provider PROVIDER [--min-reasoning-effort minimal\|low\|medium\|high\|xhigh] [--min-power minimal\|low\|medium\|high\|xhigh] [--require-ready] [--refresh] --json` | Select a suitable session for headless automation |
 | `cdx run [session] --cwd PATH (--prompt-file PATH\|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--reasoning-effort minimal\|low\|medium\|high\|xhigh] [--power minimal\|low\|medium\|high\|xhigh] [--permission MODE] [--timeout-seconds N] --json` | Run one headless task and return a stable JSON result |
 | `cdx stats [name] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Aggregate launch counts, duration, and known headless token usage by session |
-| `cdx status [--json] [--refresh\|--cached]` | Show token usage table for all sessions; `--cached` skips live provider probes and returns only stored status |
-| `cdx status --small [--refresh\|--cached]` / `cdx status -s [--refresh\|--cached]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
-| `cdx status <name> [--json] [--refresh\|--cached]` | Show detailed usage breakdown for one session; `--cached` avoids live provider refreshes |
+| `cdx status [--json] [--refresh\|--cached] [--timeout SECONDS]` | Show token usage table for all sessions; `--cached` skips live provider probes and returns only stored status |
+| `cdx status --small [--refresh\|--cached] [--timeout SECONDS]` / `cdx status -s [--refresh\|--cached] [--timeout SECONDS]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
+| `cdx status <name> [--json] [--refresh\|--cached] [--timeout SECONDS]` | Show detailed usage breakdown for one session; `--cached` avoids live provider refreshes |
 | `cdx --help` | Show usage |
 | `cdx --version` | Show version |
 
@@ -429,7 +430,7 @@ Most commands use a shared stderr JSON envelope for errors whenever `--json` is 
   "ok": false,
   "error": {
     "code": "invalid_usage",
-    "message": "Usage: cdx status [--json] [--refresh|--cached] | ...",
+    "message": "Usage: cdx status [--json] [--refresh|--cached] [--timeout SECONDS] | ...",
     "exit_code": 1
   }
 }

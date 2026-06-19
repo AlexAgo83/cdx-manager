@@ -52,7 +52,7 @@ from .update_check import LatestReleaseCheckError, fetch_latest_release, fetch_l
 from .update_manager import build_update_plan, format_update_failure, run_update_plan, verify_updated_command
 
 
-STATUS_USAGE = "Usage: cdx status [--json] [--refresh|--cached] | cdx status --small|-s [--refresh|--cached] | cdx status <name> [--json] [--refresh|--cached]"
+STATUS_USAGE = "Usage: cdx status [--json] [--refresh|--cached] [--timeout SECONDS] | cdx status --small|-s [--refresh|--cached] [--timeout SECONDS] | cdx status <name> [--json] [--refresh|--cached] [--timeout SECONDS]"
 DOCTOR_USAGE = "Usage: cdx doctor [--json]"
 REPAIR_USAGE = "Usage: cdx repair [--dry-run] [--force] [--json]"
 UPDATE_USAGE = "Usage: cdx update [--check] [--yes] [--json] [--version TAG]"
@@ -672,13 +672,13 @@ def _parse_next_args(args):
     return {"json": parsed["json"], "refresh": parsed["refresh"]}
 
 
-def _parse_timeout_seconds(value):
+def _parse_timeout_seconds(value, usage=RUN_USAGE):
     try:
         parsed = float(value)
     except (TypeError, ValueError) as error:
-        raise CdxError(RUN_USAGE) from error
+        raise CdxError(usage) from error
     if parsed <= 0:
-        raise CdxError(RUN_USAGE)
+        raise CdxError(usage)
     return parsed
 
 
@@ -2488,6 +2488,7 @@ def handle_status(rest, ctx):
         "-s": {"key": "small", "type": "bool", "default": False},
         "--refresh": {"key": "refresh", "type": "bool", "default": False},
         "--cached": {"key": "cached", "type": "bool", "default": False},
+        "--timeout": {"key": "timeout", "type": "str", "default": None, "transform": lambda value: _parse_timeout_seconds(value, STATUS_USAGE)},
     }, STATUS_USAGE, positionals_key="args", max_positionals=1)
     if parsed["json"] and parsed["small"]:
         raise CdxError(STATUS_USAGE)
@@ -2549,6 +2550,7 @@ def handle_status(rest, ctx):
             progress_callback=status_progress,
             force_refresh=parsed["refresh"],
             cache_only=parsed["cached"],
+            status_timeout_seconds=parsed["timeout"],
         )
         if parsed["json"]:
             _write_json(ctx, _json_success("status", f"Collected status for {args[0]}", warnings=warnings, session=row))
@@ -2562,6 +2564,7 @@ def handle_status(rest, ctx):
         progress_callback=status_progress,
         force_refresh=parsed["refresh"],
         cache_only=parsed["cached"],
+        status_timeout_seconds=parsed["timeout"],
     )
     if parsed["json"]:
         _write_json(ctx, _json_success("status", "Collected session status rows", warnings=warnings, rows=rows))
