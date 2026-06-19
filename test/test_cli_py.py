@@ -3777,6 +3777,38 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(row["reset_week_at"], "Apr 17 10:10")
         self.assertEqual(row["reset_at"], "Apr 17 10:10")
 
+    def test_status_detail_refreshes_only_named_session(self):
+        temp_dir = self.make_temp_dir()
+        calls = []
+
+        def fetch_status(session):
+            calls.append(session["name"])
+            return {
+                "remaining_5h_pct": 80,
+                "remaining_week_pct": 70,
+                "updated_at": datetime.now().astimezone().isoformat(),
+            }
+
+        service = create_session_service({
+            "base_dir": temp_dir,
+            "fetchCodexRateLimits": fetch_status,
+        })
+        service["create_session"]("main")
+        service["create_session"]("work1")
+        service["create_session"]("work2")
+
+        detail_io = self.make_io()
+        self.assertEqual(main(["status", "work1", "--json", "--refresh"], {
+            **detail_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        payload = json.loads(detail_io["stdout"].getvalue())
+        self.assertEqual(calls, ["work1"])
+        self.assertEqual(payload["session"]["session_name"], "work1")
+        self.assertEqual(payload["session"]["available_pct"], 70)
+
     def test_invalid_status_syntax_raises_usage_error(self):
         with self.assertRaises(CdxError) as ctx:
             main(["status", "main", "extra"], self.make_io())

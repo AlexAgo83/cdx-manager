@@ -2532,26 +2532,28 @@ def handle_status(rest, ctx):
     warnings.extend(_update_notice_warnings(ctx))
 
     status_progress = None if parsed["json"] else _make_status_progress(ctx)
-    rows = ctx["service"]["get_status_rows"](
-        progress_callback=status_progress,
-        force_refresh=parsed["refresh"],
-    )
-    if len(args) == 0:
+    if len(args) == 1:
+        row = ctx["service"]["get_status_row"](
+            args[0],
+            progress_callback=status_progress,
+            force_refresh=parsed["refresh"],
+        )
         if parsed["json"]:
-            _write_json(ctx, _json_success("status", "Collected session status rows", warnings=warnings, rows=rows))
+            _write_json(ctx, _json_success("status", f"Collected status for {args[0]}", warnings=warnings, session=row))
             return 0
-        ctx["out"](f"{_format_status_rows(rows, use_color=ctx['use_color'], small=parsed['small'])}\n")
+        ctx["out"](f"{_format_status_detail(row, use_color=ctx['use_color'])}\n")
         _write_refresh_warnings(refresh_errors, ctx)
         _write_update_notice(ctx)
         return 0
 
-    row = next((r for r in rows if r["session_name"] == args[0]), None)
-    if not row:
-        raise CdxError(f"Unknown session: {args[0]}")
+    rows = ctx["service"]["get_status_rows"](
+        progress_callback=status_progress,
+        force_refresh=parsed["refresh"],
+    )
     if parsed["json"]:
-        _write_json(ctx, _json_success("status", f"Collected status for {args[0]}", warnings=warnings, session=row))
+        _write_json(ctx, _json_success("status", "Collected session status rows", warnings=warnings, rows=rows))
         return 0
-    ctx["out"](f"{_format_status_detail(row, use_color=ctx['use_color'])}\n")
+    ctx["out"](f"{_format_status_rows(rows, use_color=ctx['use_color'], small=parsed['small'])}\n")
     _write_refresh_warnings(refresh_errors, ctx)
     _write_update_notice(ctx)
     return 0
