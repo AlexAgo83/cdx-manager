@@ -364,9 +364,9 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx select --provider PROVIDER [--min-reasoning-effort minimal\|low\|medium\|high\|xhigh] [--min-power minimal\|low\|medium\|high\|xhigh] [--require-ready] [--refresh] --json` | Select a suitable session for headless automation |
 | `cdx run [session] --cwd PATH (--prompt-file PATH\|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--reasoning-effort minimal\|low\|medium\|high\|xhigh] [--power minimal\|low\|medium\|high\|xhigh] [--permission MODE] [--timeout-seconds N] --json` | Run one headless task and return a stable JSON result |
 | `cdx stats [name] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Aggregate launch counts, duration, and known headless token usage by session |
-| `cdx status [--json] [--refresh]` | Show token usage table for all sessions; JSON returns a versioned payload with structured warnings |
-| `cdx status --small [--refresh]` / `cdx status -s [--refresh]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
-| `cdx status <name> [--json] [--refresh]` | Show detailed usage breakdown for one session |
+| `cdx status [--json] [--refresh\|--cached]` | Show token usage table for all sessions; `--cached` skips live provider probes and returns only stored status |
+| `cdx status --small [--refresh\|--cached]` / `cdx status -s [--refresh\|--cached]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
+| `cdx status <name> [--json] [--refresh\|--cached]` | Show detailed usage breakdown for one session; `--cached` avoids live provider refreshes |
 | `cdx --help` | Show usage |
 | `cdx --version` | Show version |
 
@@ -429,7 +429,7 @@ Most commands use a shared stderr JSON envelope for errors whenever `--json` is 
   "ok": false,
   "error": {
     "code": "invalid_usage",
-    "message": "Usage: cdx status [--json] [--refresh] | ...",
+    "message": "Usage: cdx status [--json] [--refresh|--cached] | ...",
     "exit_code": 1
   }
 }

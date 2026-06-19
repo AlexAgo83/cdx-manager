@@ -52,7 +52,7 @@ from .update_check import LatestReleaseCheckError, fetch_latest_release, fetch_l
 from .update_manager import build_update_plan, format_update_failure, run_update_plan, verify_updated_command
 
 
-STATUS_USAGE = "Usage: cdx status [--json] [--refresh] | cdx status --small|-s [--refresh] | cdx status <name> [--json] [--refresh]"
+STATUS_USAGE = "Usage: cdx status [--json] [--refresh|--cached] | cdx status --small|-s [--refresh|--cached] | cdx status <name> [--json] [--refresh|--cached]"
 DOCTOR_USAGE = "Usage: cdx doctor [--json]"
 REPAIR_USAGE = "Usage: cdx repair [--dry-run] [--force] [--json]"
 UPDATE_USAGE = "Usage: cdx update [--check] [--yes] [--json] [--version TAG]"
@@ -2487,18 +2487,25 @@ def handle_status(rest, ctx):
         "--small": {"key": "small", "type": "bool", "default": False},
         "-s": {"key": "small", "type": "bool", "default": False},
         "--refresh": {"key": "refresh", "type": "bool", "default": False},
+        "--cached": {"key": "cached", "type": "bool", "default": False},
     }, STATUS_USAGE, positionals_key="args", max_positionals=1)
     if parsed["json"] and parsed["small"]:
+        raise CdxError(STATUS_USAGE)
+    if parsed["refresh"] and parsed["cached"]:
         raise CdxError(STATUS_USAGE)
     args = parsed["args"]
     if len(args) == 1 and parsed["small"]:
         raise CdxError(STATUS_USAGE)
 
-    auth_refresh = _refresh_claude_auth_states(
-        ctx["service"],
-        target_names=args if len(args) == 1 else None,
-        spawn_sync=ctx.get("spawn_sync"),
-        env_override=ctx.get("env"),
+    auth_refresh = (
+        {"errors": []}
+        if parsed["cached"]
+        else _refresh_claude_auth_states(
+            ctx["service"],
+            target_names=args if len(args) == 1 else None,
+            spawn_sync=ctx.get("spawn_sync"),
+            env_override=ctx.get("env"),
+        )
     )
     warnings = [
         {
@@ -2508,11 +2515,15 @@ def handle_status(rest, ctx):
         }
         for item in auth_refresh.get("errors", [])
     ]
-    refresh_result = _refresh_claude_sessions(
-        ctx["service"],
-        ctx.get("refresh_fn"),
-        target_names=args if len(args) == 1 else None,
-        force=parsed["refresh"],
+    refresh_result = (
+        {"errors": []}
+        if parsed["cached"]
+        else _refresh_claude_sessions(
+            ctx["service"],
+            ctx.get("refresh_fn"),
+            target_names=args if len(args) == 1 else None,
+            force=parsed["refresh"],
+        )
     )
     refresh_errors = [
         {
@@ -2537,6 +2548,7 @@ def handle_status(rest, ctx):
             args[0],
             progress_callback=status_progress,
             force_refresh=parsed["refresh"],
+            cache_only=parsed["cached"],
         )
         if parsed["json"]:
             _write_json(ctx, _json_success("status", f"Collected status for {args[0]}", warnings=warnings, session=row))
@@ -2549,6 +2561,7 @@ def handle_status(rest, ctx):
     rows = ctx["service"]["get_status_rows"](
         progress_callback=status_progress,
         force_refresh=parsed["refresh"],
+        cache_only=parsed["cached"],
     )
     if parsed["json"]:
         _write_json(ctx, _json_success("status", "Collected session status rows", warnings=warnings, rows=rows))

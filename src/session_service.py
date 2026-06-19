@@ -907,9 +907,11 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         return store["list_launch_history"](session_name=name, limit=limit)
 
-    def _resolve_session_status(session, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS):
+    def _resolve_session_status(session, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS, cache_only=False):
         current_status = session.get("lastStatus")
         if session.get("enabled", True) is False:
+            return current_status
+        if cache_only:
             return current_status
         if current_status and not force_refresh and _is_status_cache_fresh(session, ttl_seconds=cache_ttl_seconds):
             return current_status
@@ -983,9 +985,10 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         return updated
 
-    def _status_cache_hit(s, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS):
+    def _status_cache_hit(s, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS, cache_only=False):
         return (
-            s.get("enabled", True) is False
+            cache_only
+            or s.get("enabled", True) is False
             or (
                 s.get("lastStatus")
                 and not force_refresh
@@ -993,11 +996,12 @@ def create_session_service(options=None):
             )
         )
 
-    def _resolve_row_session(s, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS):
+    def _resolve_row_session(s, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS, cache_only=False):
         status = _resolve_session_status(
             s,
             force_refresh=force_refresh,
             cache_ttl_seconds=cache_ttl_seconds,
+            cache_only=cache_only,
         )
         return {
             **s,
@@ -1028,7 +1032,7 @@ def create_session_service(options=None):
             "last_launched_at": _to_local_iso(s.get("lastLaunchedAt")),
         }
 
-    def get_status_row(name, progress_callback=None, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS):
+    def get_status_row(name, progress_callback=None, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS, cache_only=False):
         session = store["get_session"](name)
         if not session:
             raise CdxError(f"Unknown session: {name}")
@@ -1036,6 +1040,7 @@ def create_session_service(options=None):
             session,
             force_refresh=force_refresh,
             cache_ttl_seconds=cache_ttl_seconds,
+            cache_only=cache_only,
         )
         if progress_callback:
             progress_callback({
@@ -1053,6 +1058,7 @@ def create_session_service(options=None):
             session,
             force_refresh=force_refresh,
             cache_ttl_seconds=cache_ttl_seconds,
+            cache_only=cache_only,
         )
         if progress_callback:
             progress_callback({
@@ -1067,7 +1073,7 @@ def create_session_service(options=None):
             })
         return _status_row_from_session(resolved)
 
-    def get_status_rows(progress_callback=None, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS):
+    def get_status_rows(progress_callback=None, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS, cache_only=False):
         sessions = list_sessions()
 
         cache_hits = {
@@ -1075,6 +1081,7 @@ def create_session_service(options=None):
                 s,
                 force_refresh=force_refresh,
                 cache_ttl_seconds=cache_ttl_seconds,
+                cache_only=cache_only,
             )
             for s in sessions
         }
@@ -1103,6 +1110,7 @@ def create_session_service(options=None):
                         s,
                         force_refresh=force_refresh,
                         cache_ttl_seconds=cache_ttl_seconds,
+                        cache_only=cache_only,
                     )] = s
                 for future in as_completed(futures):
                     s = futures[future]

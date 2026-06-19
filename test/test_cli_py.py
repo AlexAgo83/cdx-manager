@@ -3809,6 +3809,41 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["session"]["session_name"], "work1")
         self.assertEqual(payload["session"]["available_pct"], 70)
 
+    def test_status_cached_skips_provider_refresh(self):
+        temp_dir = self.make_temp_dir()
+        calls = []
+
+        def fetch_status(session):
+            calls.append(session["name"])
+            return {
+                "remaining_5h_pct": 80,
+                "remaining_week_pct": 70,
+                "updated_at": datetime.now().astimezone().isoformat(),
+            }
+
+        service = create_session_service({
+            "base_dir": temp_dir,
+            "fetchCodexRateLimits": fetch_status,
+        })
+        service["create_session"]("main")
+        service["record_status"]("main", {
+            "remaining_5h_pct": 33,
+            "remaining_week_pct": 66,
+            "updated_at": datetime.now().astimezone().isoformat(),
+        })
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status", "--json", "--cached"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        payload = json.loads(status_io["stdout"].getvalue())
+        self.assertEqual(calls, [])
+        self.assertEqual(payload["rows"][0]["session_name"], "main")
+        self.assertEqual(payload["rows"][0]["available_pct"], 33)
+
     def test_invalid_status_syntax_raises_usage_error(self):
         with self.assertRaises(CdxError) as ctx:
             main(["status", "main", "extra"], self.make_io())
@@ -3819,6 +3854,9 @@ class CliPythonTests(unittest.TestCase):
         with self.assertRaises(CdxError) as json_ctx:
             main(["status", "--small", "--json"], self.make_io())
         self.assertIn("cdx status --small|-s", str(json_ctx.exception))
+        with self.assertRaises(CdxError) as refresh_cached_ctx:
+            main(["status", "--refresh", "--cached"], self.make_io())
+        self.assertIn("cdx status [--json]", str(refresh_cached_ctx.exception))
 
     def test_non_interactive_login_and_remove_are_rejected(self):
         temp_dir = self.make_temp_dir()

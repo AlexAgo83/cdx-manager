@@ -260,6 +260,37 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(row["session_name"], "work1")
         self.assertEqual(row["available_pct"], 70)
 
+    def test_cached_status_rows_skip_provider_fetch(self):
+        temp_dir = self.make_temp_dir()
+        calls = []
+
+        def fetch_status(session):
+            calls.append(session["name"])
+            return {
+                "remaining_5h_pct": 80,
+                "remaining_week_pct": 70,
+                "updated_at": datetime.now().astimezone().isoformat(),
+            }
+
+        service = create_session_service({
+            "base_dir": temp_dir,
+            "fetchCodexRateLimits": fetch_status,
+        })
+        service["create_session"]("main")
+        service["create_session"]("work1")
+        service["record_status"]("work1", {
+            "remaining_5h_pct": 25,
+            "remaining_week_pct": 50,
+            "updated_at": datetime.now().astimezone().isoformat(),
+        })
+
+        rows = service["get_status_rows"](force_refresh=True, cache_only=True)
+
+        self.assertEqual(calls, [])
+        by_name = {row["session_name"]: row for row in rows}
+        self.assertIsNone(by_name["main"]["available_pct"])
+        self.assertEqual(by_name["work1"]["available_pct"], 25)
+
     def test_status_rows_clamp_cached_percentages(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
