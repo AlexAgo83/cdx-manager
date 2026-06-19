@@ -1,0 +1,192 @@
+{
+  "schema_version": "1.0",
+  "project": {
+    "id": "cdx-manager",
+    "display_name": "CDX Manager",
+    "release_profile": "node-python-cli"
+  },
+  "version_sources": [
+    { "path": "VERSION", "format": "plain_text", "required": true },
+    { "path": "package.json", "format": "json", "selector": "version", "required": true },
+    { "path": "pyproject.toml", "format": "toml", "selector": "project.version", "required": true },
+    { "path": "src/cli.py", "format": "plain_text", "selector": "VERSION", "required": true },
+    { "path": "README.md", "format": "plain_text", "selector": "badge.version", "required": true }
+  ],
+  "changelog": {
+    "required": true,
+    "version_heading_required": true,
+    "paths": [
+      {
+        "path": "changelogs/CHANGELOGS_{version_underscore}.md",
+        "format": "markdown",
+        "required": true
+      }
+    ]
+  },
+  "release_notes": {
+    "required": true,
+    "paths": [
+      {
+        "path": "changelogs/CHANGELOGS_{version_underscore}.md",
+        "format": "markdown",
+        "required": true,
+        "description": "The checked-in changelog file is the source of truth for GitHub release notes."
+      }
+    ]
+  },
+  "state_machine": [
+    "planning",
+    "preparing",
+    "local_validation",
+    "commit_ready",
+    "pushed",
+    "ci_verification",
+    "github_release",
+    "external_publication",
+    "ready",
+    "blocked"
+  ],
+  "gates": [
+    {
+      "id": "version_metadata",
+      "state": "preparing",
+      "required": true,
+      "description": "VERSION, package.json, pyproject.toml, src/cli.py, README badge, and package lock metadata must agree.",
+      "evidence_kinds": ["file"]
+    },
+    {
+      "id": "changelog",
+      "state": "preparing",
+      "required": true,
+      "description": "A versioned changelog must describe the release and be used as GitHub release notes.",
+      "evidence_kinds": ["file"]
+    },
+    {
+      "id": "release_checksums",
+      "state": "local_validation",
+      "required": true,
+      "description": "checksums/release-archives.json must contain both GitHub archive SHA-256 values for the target tag before registry publication.",
+      "evidence_kinds": ["command", "file"]
+    },
+    {
+      "id": "local_validation",
+      "state": "local_validation",
+      "required": true,
+      "description": "Local lint, test, release validation, Logics validation, and diff hygiene must pass before publication.",
+      "evidence_kinds": ["command"]
+    },
+    {
+      "id": "git_push",
+      "state": "pushed",
+      "required": true,
+      "description": "The release commit and checksum metadata must be pushed to main before publication.",
+      "evidence_kinds": ["git"]
+    },
+    {
+      "id": "ci",
+      "state": "ci_verification",
+      "required": true,
+      "description": "GitHub CI must be green for the release commit before npm, PyPI, or GitHub release publication is considered ready.",
+      "evidence_kinds": ["ci"]
+    },
+    {
+      "id": "github_release",
+      "state": "github_release",
+      "required": true,
+      "description": "The GitHub release must use the checked-in changelog and the tag matching the version metadata.",
+      "evidence_kinds": ["github_release"]
+    },
+    {
+      "id": "npm_publication",
+      "state": "external_publication",
+      "required": true,
+      "description": "The npm package publish workflow must complete for the target version.",
+      "evidence_kinds": ["external"]
+    },
+    {
+      "id": "pypi_publication",
+      "state": "external_publication",
+      "required": true,
+      "description": "The PyPI package publish workflow must complete for the target version.",
+      "evidence_kinds": ["external"]
+    }
+  ],
+  "evidence": {
+    "store": {
+      "path": "logics/release/evidence.jsonl",
+      "format": "jsonl",
+      "required": true
+    },
+    "freshness": {
+      "match_target_version": true,
+      "match_commit_for_source_gates": true,
+      "match_tag_for_publication_gates": true,
+      "max_age_seconds": 86400
+    },
+    "required_fields": ["kind", "status", "observed_at", "target_version", "commit", "tag", "summary"]
+  },
+  "validation_commands": [
+    { "id": "release_validate", "command": ["npm", "run", "release:validate"], "required": true, "evidence_kind": "command" },
+    { "id": "lint", "command": ["npm", "run", "lint"], "required": true, "evidence_kind": "command" },
+    { "id": "test", "command": ["npm", "test"], "required": true, "evidence_kind": "command" },
+    { "id": "logics_lint", "command": ["logics-manager", "lint", "--require-status"], "required": true, "evidence_kind": "command" },
+    { "id": "logics_audit", "command": ["logics-manager", "audit"], "required": true, "evidence_kind": "command" },
+    { "id": "diff_check", "command": ["git", "diff", "--check"], "required": true, "evidence_kind": "command" },
+    { "id": "npm_pack", "command": ["npm", "--cache", "/private/tmp/cdx-npm-cache", "pack", "--dry-run"], "required": true, "evidence_kind": "command" },
+    { "id": "python_build", "command": ["python", "-m", "build"], "required": true, "evidence_kind": "command" },
+    { "id": "twine_check", "command": ["python", "-m", "twine", "check", "dist/*"], "required": true, "evidence_kind": "command" }
+  ],
+  "git": {
+    "release_branch_policy": "main_only",
+    "allowed_branches": ["main"],
+    "tag_policy": { "required": true, "pattern": "v{version}" },
+    "require_clean_worktree": true,
+    "require_pushed_commit": true
+  },
+  "github_release": {
+    "required": true,
+    "mode": "gh_cli",
+    "draft_allowed": false,
+    "asset_paths": [
+      {
+        "path": "changelogs/CHANGELOGS_{version_underscore}.md",
+        "format": "markdown",
+        "required": true,
+        "description": "Used as the GitHub release notes file."
+      }
+    ]
+  },
+  "external_publication": [
+    {
+      "id": "npm_package",
+      "kind": "package_registry",
+      "required": true,
+      "url_template": "https://www.npmjs.com/package/cdx-manager/v/{version}",
+      "description": "Verify the npm registry exposes the target package version."
+    },
+    {
+      "id": "pypi_package",
+      "kind": "package_registry",
+      "required": true,
+      "url_template": "https://pypi.org/pypi/cdx-manager/{version}/json",
+      "description": "Verify the PyPI version-specific JSON endpoint for the target package version."
+    },
+    {
+      "id": "publish_npm_workflow",
+      "kind": "manual_check",
+      "required": true,
+      "description": "Verify the Publish npm workflow completed successfully for the target tag/version."
+    },
+    {
+      "id": "publish_pypi_workflow",
+      "kind": "manual_check",
+      "required": true,
+      "description": "Verify the Publish PyPI workflow completed successfully for the target tag/version."
+    }
+  ],
+  "assistant_readiness": {
+    "must_inspect_status_before_claiming_ready": true,
+    "readiness_source": "project_owned_evidence",
+    "publication_requires_explicit_operator_approval": true
+  }
+}

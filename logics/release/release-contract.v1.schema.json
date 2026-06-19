@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://logics-manager.local/schemas/release-contract.v1.schema.json",
+  "title": "Logics release workflow contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project",
+    "version_sources",
+    "changelog",
+    "state_machine",
+    "gates",
+    "evidence",
+    "git",
+    "github_release",
+    "assistant_readiness"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "display_name"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "display_name": { "type": "string", "minLength": 1 },
+        "release_profile": { "type": "string" }
+      }
+    },
+    "version_sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/version_source" }
+    },
+    "changelog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["paths", "required"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/path_rule" }
+        },
+        "version_heading_required": { "type": "boolean" }
+      }
+    },
+    "release_notes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": { "type": "boolean" },
+        "paths": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/path_rule" }
+        }
+      }
+    },
+    "state_machine": {
+      "type": "array",
+      "minItems": 10,
+      "items": { "$ref": "#/$defs/release_state" }
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/gate" }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["store", "freshness"],
+      "properties": {
+        "store": { "$ref": "#/$defs/path_rule" },
+        "freshness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["match_target_version", "match_commit_for_source_gates"],
+          "properties": {
+            "match_target_version": { "type": "boolean" },
+            "match_commit_for_source_gates": { "type": "boolean" },
+            "match_tag_for_publication_gates": { "type": "boolean" },
+            "max_age_seconds": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "required_fields": {
+          "type": "array",
+          "items": {
+            "enum": ["kind", "status", "observed_at", "target_version", "commit", "tag", "summary"]
+          }
+        }
+      }
+    },
+    "validation_commands": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/command" }
+    },
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["release_branch_policy", "tag_policy"],
+      "properties": {
+        "release_branch_policy": {
+          "enum": ["current_branch", "main_only", "configured_branches", "manual"]
+        },
+        "allowed_branches": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "tag_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["required", "pattern"],
+          "properties": {
+            "required": { "type": "boolean" },
+            "pattern": { "type": "string", "minLength": 1 }
+          }
+        },
+        "require_clean_worktree": { "type": "boolean" },
+        "require_pushed_commit": { "type": "boolean" }
+      }
+    },
+    "github_release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "mode"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "mode": { "enum": ["manual", "gh_cli", "api", "not_applicable"] },
+        "draft_allowed": { "type": "boolean" },
+        "asset_paths": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/path_rule" }
+        }
+      }
+    },
+    "external_publication": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/external_check" }
+    },
+    "assistant_readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["must_inspect_status_before_claiming_ready", "readiness_source"],
+      "properties": {
+        "must_inspect_status_before_claiming_ready": { "const": true },
+        "readiness_source": { "enum": ["project_owned_evidence"] },
+        "publication_requires_explicit_operator_approval": { "type": "boolean" }
+      }
+    }
+  },
+  "$defs": {
+    "path_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "format": { "type": "string" },
+        "required": { "type": "boolean" },
+        "description": { "type": "string" }
+      }
+    },
+    "version_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "format"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "format": { "enum": ["json", "toml", "plain_text"] },
+        "selector": { "type": "string" },
+        "required": { "type": "boolean" }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "command", "required"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "command": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "required": { "type": "boolean" },
+        "evidence_kind": { "enum": ["command"] }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "state", "required", "evidence_kinds"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "state": { "$ref": "#/$defs/release_state" },
+        "required": { "type": "boolean" },
+        "description": { "type": "string" },
+        "evidence_kinds": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/evidence_kind" }
+        }
+      }
+    },
+    "external_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "required", "kind"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["package_registry", "deployment", "documentation", "manual_check"] },
+        "required": { "type": "boolean" },
+        "url_template": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "evidence_kind": {
+      "enum": ["command", "file", "git", "ci", "github_release", "external"]
+    },
+    "release_state": {
+      "enum": [
+        "planning",
+        "preparing",
+        "local_validation",
+        "commit_ready",
+        "pushed",
+        "ci_verification",
+        "github_release",
+        "external_publication",
+        "ready",
+        "blocked"
+      ]
+    }
+  }
+}
