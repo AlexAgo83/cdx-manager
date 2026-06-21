@@ -2,7 +2,7 @@ import inspect
 import threading
 from datetime import datetime, timezone
 
-from .claude_usage import ClaudeAuthInvalidError, refresh_claude_session_status
+from .claude_usage import refresh_claude_session_status
 from .config import PROVIDER_CLAUDE
 from .errors import CdxError
 
@@ -82,24 +82,6 @@ def _refresh_claude_sessions(service, refresh_fn=None, target_names=None, force=
             t.start()
         for t in threads:
             t.join(timeout=10)
-
-    invalid_auth = sorted({
-        item.get("session")
-        for item in errors
-        if item.get("session") and isinstance(item.get("error"), ClaudeAuthInvalidError)
-    })
-    if invalid_auth and service.get("update_auth_state"):
-        now = datetime.now(timezone.utc).astimezone().isoformat()
-        for name in invalid_auth:
-            try:
-                service["update_auth_state"](name, lambda auth: {
-                    **auth,
-                    "status": "logged_out",
-                    "lastCheckedAt": now,
-                    "lastLoggedOutAt": now,
-                })
-            except CdxError:
-                pass
 
     for name, usage in results.items():
         try:

@@ -3357,7 +3357,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["warnings"][0]["code"], "claude_refresh_failed")
         self.assertEqual(json_io["stderr"].getvalue(), "")
 
-    def test_status_marks_claude_logged_out_after_invalid_usage_auth(self):
+    def test_status_keeps_claude_auth_after_invalid_usage_auth_when_probe_succeeds(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
         service["create_session"]("claude", "claude")
@@ -3382,7 +3382,7 @@ class CliPythonTests(unittest.TestCase):
             "refreshClaudeSessionStatus": refresh,
         }), 0)
         payload = json.loads(status_io["stdout"].getvalue())
-        self.assertEqual(payload["session"]["auth_status"], "logged_out")
+        self.assertEqual(payload["session"]["auth_status"], "authenticated")
         self.assertEqual(payload["warnings"][0]["code"], "claude_refresh_failed")
 
     def test_status_rechecks_claude_auth_before_usage_refresh(self):
