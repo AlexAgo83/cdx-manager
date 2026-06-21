@@ -7,7 +7,7 @@ import urllib.request
 from datetime import datetime, timezone
 
 
-UPDATE_CHECK_TTL_SECONDS = 12 * 60 * 60
+UPDATE_CHECK_TTL_SECONDS = 60 * 60
 LATEST_RELEASE_URL = "https://api.github.com/repos/AlexAgo83/cdx-manager/releases/latest"
 LOGICS_MANAGER_LATEST_URL = "https://registry.npmjs.org/@grifhinz%2Flogics-manager/latest"
 

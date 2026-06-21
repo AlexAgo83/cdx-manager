@@ -67,12 +67,15 @@ class UpdateCheckPythonTests(unittest.TestCase):
                 fetch.return_value = {"latest_version": "1.2.3", "url": "https://example.test/release"}
                 first = check_for_update(temp_dir, "1.0.0", now_fn=lambda: 1000)
                 second = check_for_update(temp_dir, "1.0.0", now_fn=lambda: 1001)
+                third = check_for_update(temp_dir, "1.0.0", now_fn=lambda: 4600)
 
-        fetch.assert_called_once()
+        self.assertEqual(fetch.call_count, 2)
         self.assertEqual(first["latest_version"], "1.2.3")
         self.assertFalse(first["cached"])
         self.assertEqual(second["latest_version"], "1.2.3")
         self.assertTrue(second["cached"])
+        self.assertEqual(third["latest_version"], "1.2.3")
+        self.assertFalse(third["cached"])
 
     def test_check_for_update_can_be_disabled(self):
         with tempfile.TemporaryDirectory(prefix="cdx-update-check-") as temp_dir:
@@ -121,14 +124,16 @@ class UpdateCheckPythonTests(unittest.TestCase):
                 with mock.patch("src.update_check.fetch_latest_logics_manager_version", return_value="2.4.0") as fetch:
                     first = check_logics_manager_for_update(temp_dir, env={"PATH": "/usr/bin"}, now_fn=lambda: 1000, runner=runner)
                     second = check_logics_manager_for_update(temp_dir, env={"PATH": "/usr/bin"}, now_fn=lambda: 1001, runner=runner)
+                    third = check_logics_manager_for_update(temp_dir, env={"PATH": "/usr/bin"}, now_fn=lambda: 4600, runner=runner)
 
-        fetch.assert_called_once()
+        self.assertEqual(fetch.call_count, 2)
         self.assertEqual(first["tool"], "logics-manager")
         self.assertEqual(first["latest_version"], "2.4.0")
         self.assertEqual(first["current_version"], "2.3.0")
         self.assertEqual(first["update_command"], "logics-manager self-update")
         self.assertFalse(first["cached"])
         self.assertTrue(second["cached"])
+        self.assertFalse(third["cached"])
 
     def test_check_logics_manager_for_update_skips_when_cli_missing(self):
         with tempfile.TemporaryDirectory(prefix="cdx-logics-update-check-") as temp_dir:
