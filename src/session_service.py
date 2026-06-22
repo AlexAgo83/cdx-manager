@@ -13,6 +13,7 @@ from .backup_bundle import decode_bundle, encode_bundle
 from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDERS, get_cdx_home
 from .codex_usage import fetch_codex_rate_limits
 from .errors import CdxError
+from .fs_utils import remove_tree
 from .session_store import create_session_store
 from .status_source import find_latest_status_artifact
 
@@ -641,7 +642,7 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         if quarantine_root:
             try:
-                shutil.rmtree(quarantine_root)
+                remove_tree(quarantine_root)
             except OSError as error:
                 raise CdxError(
                     f"Removed session {name}, but failed to delete archived profile {quarantine_root}: {error}"
@@ -701,14 +702,14 @@ def create_session_service(options=None):
             overwritten = bool(existing)
         except Exception:
             if moved_temp and os.path.exists(dest_root):
-                shutil.rmtree(dest_root, ignore_errors=True)
+                remove_tree(dest_root, ignore_errors=True)
             if backup_root and os.path.exists(backup_root) and not os.path.exists(dest_root):
                 os.rename(backup_root, dest_root)
             raise
         finally:
             if backup_root and os.path.exists(backup_root):
-                shutil.rmtree(backup_root, ignore_errors=True)
-            shutil.rmtree(temp_parent, ignore_errors=True)
+                remove_tree(backup_root, ignore_errors=True)
+            remove_tree(temp_parent, ignore_errors=True)
         if not result["ok"]:
             raise CdxError(f"Failed to create session: {dest_name}")
         return {"session": result["session"], "overwritten": overwritten}

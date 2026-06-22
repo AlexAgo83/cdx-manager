@@ -1,7 +1,7 @@
 import json
 import os
-import shutil
 
+from .fs_utils import remove_tree
 from .health import collect_health_report
 
 
@@ -69,7 +69,7 @@ def _apply_recreate_state(service, name):
 
 
 def _apply_remove_path(path):
-    shutil.rmtree(path)
+    remove_tree(path)
     return "applied"
 
 

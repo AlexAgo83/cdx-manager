@@ -333,7 +333,7 @@ class SessionServicePythonTests(unittest.TestCase):
         profile_root = service["get_session_root"]("main")
         self.assertTrue(os.path.exists(profile_root))
 
-        with mock.patch("src.session_service.shutil.rmtree", side_effect=OSError("locked")):
+        with mock.patch("src.fs_utils.shutil.rmtree", side_effect=OSError("locked")):
             with self.assertRaisesRegex(CdxError, "failed to delete archived profile"):
                 service["remove_session"]("main")
 
@@ -343,6 +343,36 @@ class SessionServicePythonTests(unittest.TestCase):
             if name.startswith(".main.remove.")
         ]
         self.assertEqual(len(quarantined), 1)
+
+    @unittest.skipIf(sys.platform == "win32", "POSIX permission repair test")
+    def test_remove_session_deletes_read_only_profile_cache(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main", "claude")
+        profile_root = service["get_session_root"]("main")
+        readonly_dir = os.path.join(
+            profile_root,
+            "claude-home",
+            "go",
+            "pkg",
+            "mod",
+            "google.golang.org",
+            "protobuf@v1.36.10",
+        )
+        os.makedirs(readonly_dir, exist_ok=True)
+        marker = os.path.join(readonly_dir, "readonly.txt")
+        with open(marker, "w", encoding="utf-8") as handle:
+            handle.write("cache")
+        os.chmod(marker, 0o400)
+        os.chmod(readonly_dir, 0o500)
+
+        removed = service["remove_session"]("main")
+
+        self.assertEqual(removed["name"], "main")
+        self.assertIsNone(service["get_session"]("main"))
+        profiles_dir = os.path.dirname(profile_root)
+        self.assertFalse(os.path.exists(profile_root))
+        self.assertFalse(any(name.startswith(".main.remove.") for name in os.listdir(profiles_dir)))
 
     def test_launch_rehydrates_state_and_missing_state_fails(self):
         temp_dir = self.make_temp_dir()
