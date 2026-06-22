@@ -37,15 +37,17 @@ jobs:
           python-version: "3.11"
 
       - name: Install Python dependencies
-        run: python -m pip install -e .
+        run: python -m pip install -e ".[dev]"
 
       - name: Lint
-        run: python -m py_compile bin/cdx src/*.py test/test_*_py.py
+        run: |
+          python -m ruff check .
+          python -m py_compile bin/cdx src/*.py scripts/*.py test/test_*_py.py
         env:
           PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
 
       - name: Test
-        run: python -m unittest discover -s test -p 'test_*_py.py'
+        run: python -m pytest --cov=src --cov-report=term-missing
         env:
           PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
 

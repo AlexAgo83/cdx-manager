@@ -6,6 +6,7 @@
 git clone <repo>
 cd cdx-manager
 make install
+python3 -m pip install -e ".[dev]"
 ```
 
 Run the test suite before making any changes to establish a clean baseline:
@@ -35,14 +36,15 @@ Both commands must pass with no errors before opening a pull request.
 
 ## Code Style
 
-- No runtime dependencies. Keep the install footprint at zero.
+- Do not add runtime dependencies unless the feature needs them. Put development-only tools in the `dev` extra.
+- `ruff` is the project linter. Keep new files import-clean and free of Pyflakes errors.
 - All I/O goes through `stdout`/`stderr` options passed into `main()`, never directly to `sys.stdout`. This keeps every command unit-testable without spawning a subprocess.
 - Errors use `CdxError` from `src/errors.py`. Set `exit_code` when a specific exit code matters.
 - Do not add comments for self-evident code. Add a comment only when the logic is non-obvious.
 
 ## Tests
 
-Tests use Python's built-in `unittest` runner.
+Tests run through `pytest`. CI also runs `pytest` with coverage reporting for `src/`.
 
 Test files live under `test/` and follow the `test_*_py.py` naming convention.
 

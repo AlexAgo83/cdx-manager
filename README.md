@@ -76,7 +76,8 @@ One command to launch any session. Zero auth juggling.
 - On Windows, transcript capture is optional. If no compatible `script` wrapper is installed, Codex still launches normally without transcript capture.
 - Auth probe: synchronous subprocess call to `codex login status` or `claude auth status` before any interactive launch.
 - Signal forwarding: `SIGINT`, `SIGTERM`, and `SIGHUP` are forwarded to the child process and produce clean exit codes.
-- Test stack: Python built-in `unittest` runner with no test framework dependency.
+- Test stack: `pytest`, `pytest-cov`, and `ruff` via the documented `dev` dependency extra.
+- Python floor decision: `cdx-manager` keeps Python 3.9 support for the 0.9.x line to avoid dropping existing users before a planned compatibility break; classifiers remain aligned with `requires-python = ">=3.9"`.
 
 ---
 
@@ -147,6 +148,12 @@ From source:
 git clone <repo>
 cd cdx-manager
 make install
+```
+
+For local development, install the Python toolchain as well:
+
+```bash
+python3 -m pip install -e ".[dev]"
 ```
 
 From source on Windows:
@@ -512,9 +519,10 @@ Notes:
 
 ## Available Scripts
 
-- `npm test`: run the Python test suite
-- `npm run test:py`: run the Python unit tests through the portable launcher
-- `npm run lint`: check project guidance, the Node launcher, and byte-compile the Python sources, scripts, and tests
+- `npm test`: run the Python test suite with `pytest`
+- `npm run test:py`: run `pytest` through the portable launcher
+- `npm run test:coverage`: run `pytest` with terminal coverage reporting for `src/`
+- `npm run lint`: check project guidance, the Node launcher, `ruff`, and byte-compile the Python sources, scripts, and tests
 - `npm run release:validate`: verify version alignment and required GitHub release archive checksum metadata before publication
 - `npm run link`: link `cdx` globally for local development (`npm link`)
 - `npm run unlink`: remove the global link
