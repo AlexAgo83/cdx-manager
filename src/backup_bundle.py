@@ -105,7 +105,6 @@ def encode_bundle(payload, include_auth=False, passphrase=None):
         "created_at": _now_iso(),
         "include_auth": bool(include_auth),
         "encrypted": bool(include_auth),
-        "session_names": [item["name"] for item in payload.get("sessions", [])],
     }
     if include_auth:
         salt = os.urandom(_SALT_BYTES)
@@ -120,6 +119,7 @@ def encode_bundle(payload, include_auth=False, passphrase=None):
             "payload": _b64_encode(ciphertext),
         })
     else:
+        wrapper["session_names"] = [item["name"] for item in payload.get("sessions", [])]
         wrapper["payload"] = _b64_encode(payload_bytes)
     return json.dumps(wrapper, indent=2).encode("utf-8")
 

@@ -1,3 +1,5 @@
+import importlib.util
+import inspect
 import json
 import os
 import sys
@@ -12,6 +14,10 @@ from src.backup_bundle import read_bundle_meta
 from src.errors import CdxError
 from src.session_service import create_session_service
 from src.session_store import create_session_store
+
+
+HAS_CRYPTOGRAPHY = importlib.util.find_spec("cryptography") is not None
+CRYPTOGRAPHY_REQUIRED = "cryptography is required for encrypted auth bundle tests"
 
 
 class SessionServicePythonTests(unittest.TestCase):
@@ -343,6 +349,31 @@ class SessionServicePythonTests(unittest.TestCase):
             if name.startswith(".main.remove.")
         ]
         self.assertEqual(len(quarantined), 1)
+
+    def test_remove_tree_uses_onexc_when_available(self):
+        calls = []
+
+        def fake_rmtree(path, ignore_errors=False, onexc=None):
+            calls.append({
+                "path": path,
+                "ignore_errors": ignore_errors,
+                "onexc": onexc,
+            })
+
+        temp_dir = self.make_temp_dir()
+        signature = inspect.Signature([
+            inspect.Parameter("path", inspect.Parameter.POSITIONAL_OR_KEYWORD),
+            inspect.Parameter("ignore_errors", inspect.Parameter.POSITIONAL_OR_KEYWORD),
+            inspect.Parameter("onexc", inspect.Parameter.POSITIONAL_OR_KEYWORD),
+        ])
+        with mock.patch("src.fs_utils.shutil.rmtree", side_effect=fake_rmtree), \
+                mock.patch("src.fs_utils.inspect.signature", return_value=signature):
+            from src.fs_utils import remove_tree
+            remove_tree(temp_dir, ignore_errors=True)
+
+        self.assertEqual(calls[0]["path"], temp_dir)
+        self.assertIs(calls[0]["ignore_errors"], True)
+        self.assertTrue(callable(calls[0]["onexc"]))
 
     @unittest.skipIf(sys.platform == "win32", "POSIX permission repair test")
     def test_remove_session_deletes_read_only_profile_cache(self):
@@ -1128,6 +1159,7 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(oct(os.stat(export_dir).st_mode & 0o777), "0o755")
         self.assertEqual(oct(os.stat(bundle_path).st_mode & 0o777), "0o600")
 
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
     def test_export_import_round_trip_with_auth_bundle(self):
         source_dir = self.make_temp_dir()
         source = create_session_service({"base_dir": source_dir})
@@ -1146,6 +1178,7 @@ class SessionServicePythonTests(unittest.TestCase):
         with open(bundle_path, "rb") as handle:
             bundle_meta = read_bundle_meta(handle.read())
         self.assertEqual(bundle_meta["encryption"], "aes-256-gcm")
+        self.assertNotIn("session_names", bundle_meta)
         self.assertNotIn("hmac_sha256", bundle_meta)
 
         target_dir = self.make_temp_dir()
@@ -1158,6 +1191,28 @@ class SessionServicePythonTests(unittest.TestCase):
             self.assertEqual(handle.read(), '{"token":"secret"}')
         self.assertFalse(os.path.exists(os.path.join(target_dir, "profiles", "claude1", "claude-home", "cache", "skip.txt")))
 
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
+    def test_import_accepts_legacy_auth_bundle_with_cleartext_session_names(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("legacy")
+        bundle_path = os.path.join(source_dir, "legacy.cdx")
+        source["export_bundle"](bundle_path, include_auth=True, passphrase="pw123")
+
+        with open(bundle_path, "rb") as handle:
+            wrapper = json.loads(handle.read().decode("utf-8"))
+        wrapper["session_names"] = ["legacy"]
+        with open(bundle_path, "wb") as handle:
+            handle.write(json.dumps(wrapper, indent=2).encode("utf-8"))
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        import_result = target["import_bundle"](bundle_path, passphrase="pw123")
+
+        self.assertEqual(import_result["session_names"], ["legacy"])
+        self.assertEqual(target["get_session"]("legacy")["name"], "legacy")
+
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
     def test_auth_bundle_excludes_non_auth_profile_files(self):
         source_dir = self.make_temp_dir()
         source = create_session_service({"base_dir": source_dir})
@@ -1241,6 +1296,7 @@ class SessionServicePythonTests(unittest.TestCase):
         with self.assertRaisesRegex(CdxError, "Bundle does not contain requested sessions: missing"):
             target["import_bundle"](bundle_path, session_names=["missing"])
 
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
     def test_import_rejects_wrong_bundle_passphrase(self):
         source_dir = self.make_temp_dir()
         source = create_session_service({"base_dir": source_dir})

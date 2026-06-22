@@ -1,4 +1,5 @@
 import io
+import importlib.util
 import json
 import os
 import shlex
@@ -22,6 +23,10 @@ from src.cli_commands import _extract_claude_oauth_token
 from src.errors import CdxError
 from src.health import collect_health_report
 from src.session_service import create_session_service
+
+
+HAS_CRYPTOGRAPHY = importlib.util.find_spec("cryptography") is not None
+CRYPTOGRAPHY_REQUIRED = "cryptography is required for encrypted auth bundle tests"
 
 
 class _Stream:
@@ -2779,6 +2784,7 @@ class CliPythonTests(unittest.TestCase):
         imported_service = create_session_service({"base_dir": import_dir})
         self.assertEqual(imported_service["get_session"]("main")["name"], "main")
 
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
     def test_export_with_auth_uses_passphrase_env_and_import_restores_profile(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
@@ -2817,6 +2823,7 @@ class CliPythonTests(unittest.TestCase):
         with open(imported_auth, "r", encoding="utf-8") as handle:
             self.assertEqual(handle.read(), '{"token":"secret"}')
 
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
     def test_export_with_auth_reports_progress_and_summary(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -2921,6 +2928,7 @@ class CliPythonTests(unittest.TestCase):
                 "env": {"CDX_HOME": temp_dir},
             })
 
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
     def test_import_rejects_wrong_passphrase(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

@@ -1,3 +1,4 @@
+import inspect
 import os
 import shutil
 import stat
@@ -35,7 +36,7 @@ def _make_tree_user_writable(path):
 
 
 def remove_tree(path, ignore_errors=False):
-    def onerror(func, failing_path, _exc_info):
+    def retry_after_chmod(func, failing_path):
         parent = os.path.dirname(failing_path)
         if parent:
             _make_user_writable(parent)
@@ -46,5 +47,14 @@ def remove_tree(path, ignore_errors=False):
             if not ignore_errors:
                 raise
 
+    def onerror(func, failing_path, _exc_info):
+        retry_after_chmod(func, failing_path)
+
+    def onexc(func, failing_path, _exc):
+        retry_after_chmod(func, failing_path)
+
     _make_tree_user_writable(path)
-    shutil.rmtree(path, ignore_errors=ignore_errors, onerror=onerror)
+    if "onexc" in inspect.signature(shutil.rmtree).parameters:
+        shutil.rmtree(path, ignore_errors=ignore_errors, onexc=onexc)
+    else:
+        shutil.rmtree(path, ignore_errors=ignore_errors, onerror=onerror)

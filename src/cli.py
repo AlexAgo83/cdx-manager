@@ -69,6 +69,69 @@ from .update_check import check_for_update, check_logics_manager_for_update
 VERSION = "0.9.7"
 
 
+_COMMAND_HANDLERS = {
+    "add": handle_add,
+    "cp": handle_copy,
+    "clean": handle_clean,
+    "config": handle_config,
+    "configs": handle_configs,
+    "context": handle_context,
+    "doctor": handle_doctor,
+    "disable": handle_disable,
+    "enable": handle_enable,
+    "export": handle_export,
+    "handoff": handle_handoff,
+    "history": handle_history,
+    "import": handle_import,
+    "last": handle_last,
+    "login": handle_login,
+    "logout": handle_logout,
+    "next": handle_next,
+    "notify": handle_notify,
+    "repair": handle_repair,
+    "rename": handle_rename,
+    "resume": handle_resume,
+    "can-resume": handle_can_resume,
+    "rmv": handle_remove,
+    "run": handle_run,
+    "run-report": handle_run_report,
+    "run-status": handle_run_status,
+    "runs": handle_runs,
+    "select": handle_select,
+    "set": handle_set,
+    "stats": handle_stats,
+    "status": handle_status,
+    "unset": handle_unset,
+    "update": handle_update,
+    "view": handle_view,
+}
+
+_COMMAND_ALIASES = {
+    "ren": "rename",
+    "mv": "rename",
+}
+
+_SUPPRESS_UPDATE_NOTICE_COMMANDS = {
+    *set(_COMMAND_HANDLERS),
+    "fast",
+    "help",
+    "model",
+    "perm",
+    "power",
+    "ready",
+    "rename",
+    "version",
+} - {"status"}
+
+
+def _resolve_command(command):
+    return _COMMAND_ALIASES.get(command, command)
+
+
+def _should_check_update_notices(command):
+    return _resolve_command(command) not in _SUPPRESS_UPDATE_NOTICE_COMMANDS
+
+
 # ---------------------------------------------------------------------------
 # Help / version
 # ---------------------------------------------------------------------------
@@ -271,6 +334,7 @@ def main(argv, options=None):
         return 0
 
     command, *rest = argv
+    resolved_command = _resolve_command(command)
     ctx = {
         "env": env,
         "options": options,
@@ -286,129 +350,29 @@ def main(argv, options=None):
         "stdin_is_tty": stdin_is_tty,
         "version": VERSION,
         "cwd": options.get("cwd") or os.getcwd(),
-        "update_notices": _get_update_notices(service, env, options) if command not in (
-            "add", "cp", "ren", "rename", "mv", "rmv", "clean", "doctor", "repair", "view", "update", "ready", "notify", "next", "context", "config", "configs", "set", "unset", "power", "perm", "fast", "model", "history", "stats", "resume", "can-resume", "handoff", "login", "logout", "disable", "enable", "export", "import", "select", "run", "help", "version"
-        ) else None,
+        "update_notices": _get_update_notices(service, env, options) if _should_check_update_notices(command) else None,
         "use_color": use_color,
     }
 
-    if command == "add":
-        return handle_add(rest, ctx)
-
-    if command == "cp":
-        return handle_copy(rest, ctx)
-
-    if command in ("ren", "rename", "mv"):
-        return handle_rename(rest, ctx)
-
-    if command == "rmv":
-        return handle_remove(rest, ctx)
-
-    if command == "disable":
-        return handle_disable(rest, ctx)
-
-    if command == "enable":
-        return handle_enable(rest, ctx)
-
-    if command == "clean":
-        return handle_clean(rest, ctx)
-
-    if command == "export":
-        return handle_export(rest, ctx)
-
-    if command == "import":
-        return handle_import(rest, ctx)
-
-    if command == "doctor":
-        return handle_doctor(rest, ctx)
-
-    if command == "repair":
-        return handle_repair(rest, ctx)
-
-    if command == "view":
-        return handle_view(rest, ctx)
-
-    if command == "update":
-        return handle_update(rest, ctx)
-
-    if command == "ready":
+    if resolved_command == "ready":
         if any(arg not in ("--refresh", "--json") for arg in rest):
             raise CdxError("Usage: cdx ready [--refresh] [--json]")
         return handle_notify(["--next-ready", "--schedule", *rest], ctx)
 
-    if command == "notify":
-        return handle_notify(rest, ctx)
+    if resolved_command in ("power", "perm", "fast", "model"):
+        return handle_launch_setting_alias(resolved_command, rest, ctx)
 
-    if command == "next":
-        return handle_next(rest, ctx)
-
-    if command == "context":
-        return handle_context(rest, ctx)
-
-    if command == "config":
-        return handle_config(rest, ctx)
-
-    if command == "configs":
-        return handle_configs(rest, ctx)
-
-    if command == "set":
-        return handle_set(rest, ctx)
-
-    if command == "unset":
-        return handle_unset(rest, ctx)
-
-    if command in ("power", "perm", "fast", "model"):
-        return handle_launch_setting_alias(command, rest, ctx)
-
-    if command == "history":
-        return handle_history(rest, ctx)
-
-    if command == "stats":
-        return handle_stats(rest, ctx)
-
-    if command == "last":
-        return handle_last(rest, ctx)
-
-    if command == "resume":
-        return handle_resume(rest, ctx)
-
-    if command == "can-resume":
-        return handle_can_resume(rest, ctx)
-
-    if command == "handoff":
-        return handle_handoff(rest, ctx)
-
-    if command == "status":
-        return handle_status(rest, ctx)
-
-    if command == "select":
-        return handle_select(rest, ctx)
-
-    if command == "run":
-        return handle_run(rest, ctx)
-
-    if command == "runs":
-        return handle_runs(rest, ctx)
-
-    if command == "run-status":
-        return handle_run_status(rest, ctx)
-
-    if command == "run-report":
-        return handle_run_report(rest, ctx)
-
-    if command == "login":
-        return handle_login(rest, ctx)
-
-    if command == "logout":
-        return handle_logout(rest, ctx)
-
-    if command in ("help",):
+    if resolved_command == "help":
         out(f"{_print_help(use_color=use_color)}\n")
         return 0
 
-    if command in ("version",):
+    if resolved_command == "version":
         out(f"{_print_version()}\n")
         return 0
+
+    handler = _COMMAND_HANDLERS.get(resolved_command)
+    if handler:
+        return handler(rest, ctx)
 
     if all(arg in ("--json", "-r", "--resume") for arg in rest):
         return handle_launch(command, ctx, resume=("-r" in rest or "--resume" in rest))
