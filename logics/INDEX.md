@@ -8,6 +8,7 @@
 | [adr_001_code_quality_and_security_improvements](architecture/adr_001_code_quality_and_security_improvements.md) | Phase 3 — Code Quality and Performance | Settled |  | architecture/adr_001_code_quality_and_security_improvements.md |
 | [adr_002_provider_native_headless_run_boundary](architecture/adr_002_provider_native_headless_run_boundary.md) | Provider native headless run boundary | Settled |  | architecture/adr_002_provider_native_headless_run_boundary.md |
 | [adr_003_logics_and_companion_tool_launch_guidance](architecture/adr_003_logics_and_companion_tool_launch_guidance.md) | Logics and companion tool launch guidance | Settled |  | architecture/adr_003_logics_and_companion_tool_launch_guidance.md |
+| [adr_004_provider_native_resume_command_boundary](architecture/adr_004_provider_native_resume_command_boundary.md) | Provider-native resume command boundary | Settled |  | architecture/adr_004_provider_native_resume_command_boundary.md |
 
 ## Product briefs
 
@@ -27,6 +28,10 @@
 | [req_003_historical_cdx_session_manager_baseline](request/req_003_historical_cdx_session_manager_baseline.md) | Historical cdx session manager baseline | Done |  | request/req_003_historical_cdx_session_manager_baseline.md |
 | [req_004_harden_release_governance_and_add_logics_viewer_command](request/req_004_harden_release_governance_and_add_logics_viewer_command.md) | Harden release governance and add Logics viewer command | Done |  | request/req_004_harden_release_governance_and_add_logics_viewer_command.md |
 | [req_005_add_observable_assistant_run_registry_and_structured_task_reports](request/req_005_add_observable_assistant_run_registry_and_structured_task_reports.md) | Add observable assistant run registry and structured task reports | Done |  | request/req_005_add_observable_assistant_run_registry_and_structured_task_reports.md |
+| [req_006_codex_fast_mode_opt_in_upgrade_safe](request/req_006_codex_fast_mode_opt_in_upgrade_safe.md) | Keep Codex Fast mode opt-in and normalize launch settings | Done |  | request/req_006_codex_fast_mode_opt_in_upgrade_safe.md |
+| [req_007_harden_codex_multi_account_auth_isolation](request/req_007_harden_codex_multi_account_auth_isolation.md) | Harden Codex multi-account authentication isolation | Done |  | request/req_007_harden_codex_multi_account_auth_isolation.md |
+| [req_008_add_provider_native_session_resume_commands](request/req_008_add_provider_native_session_resume_commands.md) | Add provider-native session resume commands | Done |  | request/req_008_add_provider_native_session_resume_commands.md |
+| [req_009_address_codebase_audit_findings](request/req_009_address_codebase_audit_findings.md) | Address codebase audit findings: hardening, deprecations, and maintainability | Done |  | request/req_009_address_codebase_audit_findings.md |
 
 ## Backlog
 
@@ -50,6 +55,10 @@
 | [item_015_add_cdx_view_logics_viewer_delegation](backlog/item_015_add_cdx_view_logics_viewer_delegation.md) | Add cdx view Logics viewer delegation | Done | 100% | backlog/item_015_add_cdx_view_logics_viewer_delegation.md |
 | [item_016_modularize_cli_command_domains](backlog/item_016_modularize_cli_command_domains.md) | Modularize CLI command domains | Done | 100% | backlog/item_016_modularize_cli_command_domains.md |
 | [item_017_add_observable_assistant_run_registry_and_structured_task_reports](backlog/item_017_add_observable_assistant_run_registry_and_structured_task_reports.md) | Add observable assistant run registry and structured task reports | Done | 100% | backlog/item_017_add_observable_assistant_run_registry_and_structured_task_reports.md |
+| [item_018_keep_codex_fast_mode_opt_in_and_normalize_launch_settings](backlog/item_018_keep_codex_fast_mode_opt_in_and_normalize_launch_settings.md) | Keep Codex Fast mode opt-in and normalize launch settings | Done | 100% | backlog/item_018_keep_codex_fast_mode_opt_in_and_normalize_launch_settings.md |
+| [item_019_harden_codex_multi_account_authentication_isolation](backlog/item_019_harden_codex_multi_account_authentication_isolation.md) | Harden Codex multi-account authentication isolation | Done | 100% | backlog/item_019_harden_codex_multi_account_authentication_isolation.md |
+| [item_020_add_provider_native_session_resume_commands](backlog/item_020_add_provider_native_session_resume_commands.md) | Add provider-native session resume commands | Done | 100% | backlog/item_020_add_provider_native_session_resume_commands.md |
+| [item_021_address_codebase_audit_findings_hardening_deprecations_and_maintainability](backlog/item_021_address_codebase_audit_findings_hardening_deprecations_and_maintainability.md) | Address codebase audit findings: hardening, deprecations, and maintainability | Done | 100% | backlog/item_021_address_codebase_audit_findings_hardening_deprecations_and_maintainability.md |
 
 ## Tasks
 
@@ -74,3 +83,7 @@
 | [task_015_add_cdx_view_logics_viewer_delegation](tasks/task_015_add_cdx_view_logics_viewer_delegation.md) | Add cdx view Logics viewer delegation | Done | 100% | tasks/task_015_add_cdx_view_logics_viewer_delegation.md |
 | [task_016_modularize_cli_command_domains](tasks/task_016_modularize_cli_command_domains.md) | Modularize CLI command domains | Done | 100% | tasks/task_016_modularize_cli_command_domains.md |
 | [task_017_add_observable_assistant_run_registry_and_structured_task_reports](tasks/task_017_add_observable_assistant_run_registry_and_structured_task_reports.md) | Add observable assistant run registry and structured task reports | Done | 100% | tasks/task_017_add_observable_assistant_run_registry_and_structured_task_reports.md |
+| [task_018_harden_codex_multi_account_authentication_isolation](tasks/task_018_harden_codex_multi_account_authentication_isolation.md) | Harden Codex multi-account authentication isolation | Done | 100% | tasks/task_018_harden_codex_multi_account_authentication_isolation.md |
+| [task_018_keep_codex_fast_mode_opt_in_and_normalize_launch_settings](tasks/task_018_keep_codex_fast_mode_opt_in_and_normalize_launch_settings.md) | Keep Codex Fast mode opt-in and normalize launch settings | Done | 100% | tasks/task_018_keep_codex_fast_mode_opt_in_and_normalize_launch_settings.md |
+| [task_019_add_provider_native_session_resume_commands](tasks/task_019_add_provider_native_session_resume_commands.md) | Add provider-native session resume commands | Done | 100% | tasks/task_019_add_provider_native_session_resume_commands.md |
+| [task_020_address_codebase_audit_findings_hardening_deprecations_and_maintainability](tasks/task_020_address_codebase_audit_findings_hardening_deprecations_and_maintainability.md) | Address codebase audit findings: hardening, deprecations, and maintainability | Done | 100% | tasks/task_020_address_codebase_audit_findings_hardening_deprecations_and_maintainability.md |

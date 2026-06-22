@@ -1,10 +1,10 @@
 ## item_021_address_codebase_audit_findings_hardening_deprecations_and_maintainability - Address codebase audit findings: hardening, deprecations, and maintainability
 > From version: 0.9.7
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: High
 > Theme: Operator workflow and runtime integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -65,6 +65,7 @@ The changes must preserve current behavior and security posture (AES-256-GCM aut
 - Hybrid rationale: Derived from request `req_009_address_codebase_audit_findings` and kept bounded to one coherent delivery slice.
 - Source file: `logics/request/req_009_address_codebase_audit_findings.md`.
 - Generated locally by logics-manager.
+- Task `task_020_address_codebase_audit_findings_hardening_deprecations_and_maintainability` was finished via `logics-manager flow finish task` on 2026-06-22.
 
 # Tasks
 - `task_020_address_codebase_audit_findings_hardening_deprecations_and_maintainability`

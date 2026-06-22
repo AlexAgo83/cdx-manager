@@ -1,7 +1,7 @@
 ## req_009_address_codebase_audit_findings - Address codebase audit findings: hardening, deprecations, and maintainability
 > From version: 0.9.7
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
