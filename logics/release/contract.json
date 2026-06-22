@@ -9,7 +9,6 @@
     { "path": "VERSION", "format": "plain_text", "required": true },
     { "path": "package.json", "format": "json", "selector": "version", "required": true },
     { "path": "pyproject.toml", "format": "toml", "selector": "project.version", "required": true },
-    { "path": "src/cli.py", "format": "plain_text", "selector": "VERSION", "required": true },
     { "path": "README.md", "format": "plain_text", "selector": "badge.version", "required": true }
   ],
   "changelog": {
@@ -51,7 +50,7 @@
       "id": "version_metadata",
       "state": "preparing",
       "required": true,
-      "description": "VERSION, package.json, pyproject.toml, src/cli.py, README badge, and package lock metadata must agree.",
+      "description": "VERSION, package.json, pyproject.toml, README badge, and package lock metadata must agree. The release checksum validation also checks src/cli.py.",
       "evidence_kinds": ["file"]
     },
     {
