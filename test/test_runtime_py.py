@@ -781,10 +781,44 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertEqual(spec["fallback"]["command"], "ollama")
         self.assertEqual(
             spec["fallback"]["args"],
-            ["run", "llama3.2", "--think", "high", "--experimental-yolo", "hello"],
+            ["run", "llama3.2", "--experimental-yolo", "hello"],
         )
         self.assertEqual(spec["fallback"]["options"]["cwd"], "/tmp/repo")
         self.assertEqual(spec["fallback"]["options"]["env"]["OLLAMA_NOHISTORY"], "1")
+
+    def test_build_launch_spec_does_not_send_think_to_ollama(self):
+        session = {
+            "name": "olla",
+            "provider": "ollama",
+            "authHome": "/tmp/ollama-home",
+            "launch": {"model": "qwen2.5-coder:14b", "power": "medium"},
+        }
+
+        spec = provider_runtime._build_launch_spec(session, cwd="/tmp/repo")
+
+        self.assertEqual(spec["fallback"]["command"], "ollama")
+        self.assertEqual(spec["fallback"]["args"], ["run", "qwen2.5-coder:14b"])
+
+    def test_build_launch_spec_does_not_inject_preferences_to_ollama(self):
+        session = {
+            "name": "olla",
+            "provider": "ollama",
+            "authHome": "/tmp/ollama-home",
+            "launch": {"model": "qwen2.5-coder:14b", "rtk": True},
+        }
+
+        with mock.patch(
+            "src.provider_runtime.shutil.which",
+            side_effect=lambda command, path=None: "/usr/bin/logics-manager" if command == "logics-manager" else None,
+        ):
+            spec = provider_runtime._build_launch_spec(
+                session,
+                cwd="/tmp/repo",
+                env_override={"PATH": "/usr/bin"},
+            )
+
+        self.assertEqual(spec["fallback"]["command"], "ollama")
+        self.assertEqual(spec["fallback"]["args"], ["run", "qwen2.5-coder:14b"])
 
     def test_linux_launch_spec_uses_util_linux_script_command_form(self):
         session = {

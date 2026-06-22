@@ -2313,9 +2313,11 @@ class CliPythonTests(unittest.TestCase):
         )
         self.assertEqual(launch_call["options"]["env"]["OLLAMA_NOHISTORY"], "1")
         self.assertEqual(
-            _script_launch_args(launch_call)[:5],
-            ["run", "llama3.2", "--think", "medium", "--experimental-yolo"],
+            _script_launch_args(launch_call)[:3],
+            ["run", "llama3.2", "--experimental-yolo"],
         )
+        self.assertNotIn("logics-manager status", _script_launch_text(launch_call))
+        self.assertNotIn("prefer RTK wrappers", _script_launch_text(launch_call))
 
     def test_add_ollama_requires_model(self):
         temp_dir = self.make_temp_dir()

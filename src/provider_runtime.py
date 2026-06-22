@@ -335,8 +335,6 @@ def _launch_config_args(session):
             args += ["--dangerously-skip-permissions"]
         return args
     if provider == PROVIDER_OLLAMA:
-        if power:
-            args += ["--think", power if power in ("low", "medium", "high") else "high"]
         if permission == "full":
             args += ["--experimental-yolo"]
         return args
@@ -424,6 +422,8 @@ def _logics_enabled(session, env=None):
 
 
 def _with_launch_preferences(session, initial_prompt=None, env=None):
+    if session["provider"] == PROVIDER_OLLAMA:
+        return initial_prompt
     prompts = []
     if _rtk_enabled(session):
         prompts.append(RTK_PROMPT)
