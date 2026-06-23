@@ -21,7 +21,8 @@ Bounded context:
 - Use `logics-manager sync list-docs`, `search-docs`, and `context-pack` for bounded discovery.
 
 Workflow lifecycle:
-- Use `logics-manager flow new|promote|closeout|finish` for request, backlog, and task lifecycle changes.
+- Use `logics-manager flow new|promote|start|closeout|finish` for request, backlog, and task lifecycle changes.
+- Use `logics-manager flow start <ref>` before active implementation to mark `Status: In progress` and record `Owner`.
 - Use `logics-manager flow finish task <path>` instead of setting `Status: Done` manually.
 - Use `logics-manager sync refresh-mermaid-signatures` after editing Mermaid diagrams.
 
