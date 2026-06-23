@@ -68,6 +68,9 @@ RESERVED_SESSION_NAMES = {
 }
 STATUS_CACHE_TTL_SECONDS = 60
 CLAUDE_STATUS_CACHE_TTL_SECONDS = 10 * 60
+# Each live Codex probe spawns app-server, which can refresh+rotate the OAuth
+# token. Cache longer so routine status calls don't keep triggering refreshes.
+CODEX_STATUS_CACHE_TTL_SECONDS = 5 * 60
 STATUS_PROBE_TIMEOUT_SECONDS = 5
 MAX_STATUS_WORKERS = 8
 LAUNCH_POWER_VALUES = {"minimal", "low", "medium", "high", "xhigh"}
@@ -275,8 +278,11 @@ def _parse_status_timestamp(value):
 
 
 def _status_cache_ttl_seconds(session, ttl_seconds=STATUS_CACHE_TTL_SECONDS):
-    if session.get("provider") == PROVIDER_CLAUDE and ttl_seconds == STATUS_CACHE_TTL_SECONDS:
-        return CLAUDE_STATUS_CACHE_TTL_SECONDS
+    if ttl_seconds == STATUS_CACHE_TTL_SECONDS:
+        if session.get("provider") == PROVIDER_CLAUDE:
+            return CLAUDE_STATUS_CACHE_TTL_SECONDS
+        if session.get("provider") == PROVIDER_CODEX:
+            return CODEX_STATUS_CACHE_TTL_SECONDS
     return ttl_seconds
 
 

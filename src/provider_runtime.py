@@ -10,6 +10,7 @@ import uuid
 import base64
 from datetime import datetime, timezone
 
+from .codex_usage import codex_auth_lock
 from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
 from .errors import CdxError
 
@@ -929,6 +930,21 @@ def _signal_name(sig):
 def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
                                       env_override=None, signal_emitter=None,
                                       initial_prompt=None, lifecycle_callback=None):
+    kwargs = dict(spawn=spawn, cwd=cwd, env_override=env_override,
+                  signal_emitter=signal_emitter, initial_prompt=initial_prompt,
+                  lifecycle_callback=lifecycle_callback)
+    if session.get("provider") != PROVIDER_CODEX:
+        return _run_interactive_provider_command_impl(session, action, **kwargs)
+    # Hold the per-CODEX_HOME lock for the whole session so a concurrent status
+    # probe backs off instead of rotating the refresh_token mid-run (which logs
+    # the session out). ponytail: non-blocking, so launch never waits on a probe.
+    with codex_auth_lock(_get_auth_home(session)):
+        return _run_interactive_provider_command_impl(session, action, **kwargs)
+
+
+def _run_interactive_provider_command_impl(session, action, spawn=None, cwd=None,
+                                           env_override=None, signal_emitter=None,
+                                           initial_prompt=None, lifecycle_callback=None):
     spawn = spawn or subprocess.Popen
     if action == "launch":
         spec = _build_launch_spec(session, cwd=cwd, env_override=env_override, initial_prompt=initial_prompt)

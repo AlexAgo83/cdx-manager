@@ -356,6 +356,37 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertFalse(diagnostic["ok"])
         self.assertEqual(diagnostic["reason"], "missing_rate_limits")
 
+    @unittest.skipIf(codex_usage.fcntl is None, "flock unavailable on this platform")
+    def test_codex_probe_backs_off_when_auth_locked(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-lock-") as auth_home:
+            spawned = []
+
+            def spy(_argv, **_kwargs):
+                spawned.append(_argv)
+                raise AssertionError("probe must not spawn codex while locked")
+
+            # Hold the lock the way an interactive session would.
+            with codex_usage.codex_auth_lock(auth_home, blocking=True) as held:
+                self.assertTrue(held)
+                diagnostic = codex_usage.fetch_codex_rate_limit_diagnostic(
+                    {"authHome": auth_home},
+                    popen_factory=spy,
+                )
+            self.assertFalse(diagnostic["ok"])
+            self.assertEqual(diagnostic["reason"], "auth_locked")
+            self.assertEqual(spawned, [])
+
+            # Lock released: the probe runs again.
+            process = _FakeProcess([
+                json.dumps({"id": 1, "result": {}}) + "\n",
+                json.dumps({"id": 2, "result": {}}) + "\n",
+            ])
+            ran = codex_usage.fetch_codex_rate_limit_diagnostic(
+                {"authHome": auth_home},
+                popen_factory=lambda _argv, **_kwargs: process,
+            )
+            self.assertEqual(ran["reason"], "missing_rate_limits")
+
     def test_rotate_log_if_needed_truncates_large_file(self):
         with tempfile.TemporaryDirectory(prefix="cdx-log-") as temp_dir:
             log_path = os.path.join(temp_dir, "cdx-session.log")

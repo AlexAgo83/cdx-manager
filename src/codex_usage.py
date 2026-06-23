@@ -1,9 +1,53 @@
+import contextlib
 import json
 import os
 import queue
 import subprocess
 import threading
 from datetime import datetime, timezone
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - non-POSIX platforms
+    fcntl = None
+
+CODEX_AUTH_LOCK_NAME = ".cdx-auth.lock"
+
+
+@contextlib.contextmanager
+def codex_auth_lock(auth_home, blocking=False):
+    """Serialize codex token refreshes per CODEX_HOME.
+
+    Codex rotates its OAuth refresh_token on refresh and invalidates the old
+    one. If a status probe and an interactive session refresh the same
+    auth.json concurrently, one rotates the token from under the other and that
+    session gets logged out. This flock makes them take turns. Yields True when
+    the lock is held, False when a non-blocking acquire found it already taken.
+    ponytail: POSIX flock only; on Windows (no fcntl) this is a no-op.
+    """
+    if not auth_home or fcntl is None:
+        yield True
+        return
+    try:
+        os.makedirs(auth_home, exist_ok=True)
+        handle = open(os.path.join(auth_home, CODEX_AUTH_LOCK_NAME), "w")
+    except OSError:
+        yield True
+        return
+    flags = fcntl.LOCK_EX if blocking else fcntl.LOCK_EX | fcntl.LOCK_NB
+    try:
+        fcntl.flock(handle, flags)
+    except OSError:
+        handle.close()
+        yield False
+        return
+    try:
+        yield True
+    finally:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+        finally:
+            handle.close()
 
 MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -110,7 +154,16 @@ def fetch_codex_rate_limit_diagnostic(session, timeout=5, popen_factory=None):
     auth_home = session.get("authHome")
     if not auth_home:
         return {"ok": False, "reason": "missing_auth_home", "status": None}
+    # Back off to cached status rather than racing an interactive session's
+    # token refresh (which would log it out). The launcher holds this lock for
+    # the whole session, so a busy account simply skips the live probe.
+    with codex_auth_lock(auth_home) as acquired:
+        if not acquired:
+            return {"ok": False, "reason": "auth_locked", "status": None}
+        return _probe_codex_rate_limit_diagnostic(session, auth_home, timeout, popen_factory)
 
+
+def _probe_codex_rate_limit_diagnostic(session, auth_home, timeout=5, popen_factory=None):
     env = os.environ.copy()
     env["CODEX_HOME"] = auth_home
     popen_factory = popen_factory or subprocess.Popen
