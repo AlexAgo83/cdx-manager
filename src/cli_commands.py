@@ -2533,16 +2533,6 @@ def handle_status(rest, ctx):
         }
         for item in refresh_result.get("errors", [])
     ]
-    warnings.extend([
-        {
-            "code": "claude_refresh_failed",
-            "session": item.get("session") or "unknown",
-            "message": item.get("error") or "unknown error",
-        }
-        for item in refresh_errors
-    ])
-    warnings.extend(_update_notice_warnings(ctx))
-
     status_progress = None if parsed["json"] else _make_status_progress(ctx)
     if len(args) == 1:
         row = ctx["service"]["get_status_row"](
@@ -2552,11 +2542,16 @@ def handle_status(rest, ctx):
             cache_only=parsed["cached"],
             status_timeout_seconds=parsed["timeout"],
         )
+        output_warnings = [
+            *warnings,
+            *_refresh_warning_payloads(refresh_errors, [row]),
+            *_update_notice_warnings(ctx),
+        ]
         if parsed["json"]:
-            _write_json(ctx, _json_success("status", f"Collected status for {args[0]}", warnings=warnings, session=row))
+            _write_json(ctx, _json_success("status", f"Collected status for {args[0]}", warnings=output_warnings, session=row))
             return 0
         ctx["out"](f"{_format_status_detail(row, use_color=ctx['use_color'])}\n")
-        _write_refresh_warnings(refresh_errors, ctx)
+        _write_refresh_warnings(refresh_errors, ctx, rows=[row])
         _write_update_notice(ctx)
         return 0
 
@@ -2566,11 +2561,16 @@ def handle_status(rest, ctx):
         cache_only=parsed["cached"],
         status_timeout_seconds=parsed["timeout"],
     )
+    output_warnings = [
+        *warnings,
+        *_refresh_warning_payloads(refresh_errors, rows),
+        *_update_notice_warnings(ctx),
+    ]
     if parsed["json"]:
-        _write_json(ctx, _json_success("status", "Collected session status rows", warnings=warnings, rows=rows))
+        _write_json(ctx, _json_success("status", "Collected session status rows", warnings=output_warnings, rows=rows))
         return 0
     ctx["out"](f"{_format_status_rows(rows, use_color=ctx['use_color'], small=parsed['small'])}\n")
-    _write_refresh_warnings(refresh_errors, ctx)
+    _write_refresh_warnings(refresh_errors, ctx, rows=rows)
     _write_update_notice(ctx)
     return 0
 
@@ -2607,12 +2607,65 @@ def _refresh_claude_auth_states(service, target_names=None, spawn_sync=None, env
     return {"updated": updated, "errors": errors}
 
 
-def _write_refresh_warnings(refresh_errors, ctx, stream="out"):
-    write = ctx["err"] if stream == "err" and "err" in ctx else ctx["out"]
+def _rows_by_session(rows):
+    return {
+        row.get("session_name"): row
+        for row in (rows or [])
+        if row.get("session_name")
+    }
+
+
+def _is_invalid_claude_usage_auth(error):
+    text = str(error or "").lower()
+    return "http 401" in text and "invalid authentication credentials" in text
+
+
+def _has_valid_local_claude_auth(item, rows_by_name):
+    session = item.get("session")
+    row = rows_by_name.get(session)
+    return bool(row and row.get("provider") == PROVIDER_CLAUDE and row.get("auth_status") == "authenticated")
+
+
+def _refresh_warning_payloads(refresh_errors, rows=None):
+    rows_by_name = _rows_by_session(rows)
+    warnings = []
     for item in refresh_errors:
         session = item.get("session") or "unknown"
         error = item.get("error") or "unknown error"
-        write(f"{_warn(f'Warning: Claude refresh failed for {session}: {error}', ctx['use_color'])}\n")
+        warning = {
+            "code": "claude_refresh_failed",
+            "session": session,
+            "message": error,
+        }
+        if _is_invalid_claude_usage_auth(error) and _has_valid_local_claude_auth(item, rows_by_name):
+            warning.update({
+                "auth_status": "authenticated",
+                "status_freshness": "stale",
+                "message": (
+                    "Claude quota refresh failed, but local Claude auth is still valid; "
+                    f"cached quota may be stale. Original error: {error}"
+                ),
+            })
+        warnings.append(warning)
+    return warnings
+
+
+def _format_refresh_warning(item, rows_by_name):
+    session = item.get("session") or "unknown"
+    error = item.get("error") or "unknown error"
+    if _is_invalid_claude_usage_auth(error) and _has_valid_local_claude_auth(item, rows_by_name):
+        return (
+            f"Warning: Claude quota refresh failed for {session}, but local auth is still valid; "
+            f"cached quota may be stale. ({error})"
+        )
+    return f"Warning: Claude refresh failed for {session}: {error}"
+
+
+def _write_refresh_warnings(refresh_errors, ctx, stream="out", rows=None):
+    write = ctx["err"] if stream == "err" and "err" in ctx else ctx["out"]
+    rows_by_name = _rows_by_session(rows)
+    for item in refresh_errors:
+        write(f"{_warn(_format_refresh_warning(item, rows_by_name), ctx['use_color'])}\n")
 
 
 def handle_export(rest, ctx):

@@ -3394,6 +3394,24 @@ class CliPythonTests(unittest.TestCase):
         payload = json.loads(status_io["stdout"].getvalue())
         self.assertEqual(payload["session"]["auth_status"], "authenticated")
         self.assertEqual(payload["warnings"][0]["code"], "claude_refresh_failed")
+        self.assertEqual(payload["warnings"][0]["auth_status"], "authenticated")
+        self.assertEqual(payload["warnings"][0]["status_freshness"], "stale")
+        self.assertIn("local Claude auth is still valid", payload["warnings"][0]["message"])
+
+        text_io = self.make_io()
+        self.assertEqual(main(["status", "claude", "--refresh"], {
+            **text_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn_sync": _AuthHarness(initial_auth={
+                service["get_session"]("claude")["authHome"]: True,
+            }).spawn_sync,
+            "refreshClaudeSessionStatus": refresh,
+        }), 0)
+        self.assertIn(
+            "Warning: Claude quota refresh failed for claude, but local auth is still valid; cached quota may be stale.",
+            text_io["stdout"].getvalue(),
+        )
 
     def test_status_rechecks_claude_auth_before_usage_refresh(self):
         temp_dir = self.make_temp_dir()
