@@ -10,6 +10,7 @@ import sys
 import uuid
 from datetime import datetime, timezone
 
+from .claude_usage import _clean_oauth_token
 from .codex_usage import codex_auth_lock
 from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
 from .errors import CdxError
@@ -87,15 +88,6 @@ def _anthropic_profile_name():
 
 def _anthropic_credentials_path(auth_home):
     return os.path.join(auth_home, "credentials", f"{_anthropic_profile_name()}.json")
-
-
-def _clean_oauth_token(token):
-    if not token:
-        return None
-    text = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", str(token)).strip()
-    if not text or text.startswith("<") or any(ord(ch) < 32 or ord(ch) == 127 for ch in text):
-        return None
-    return text
 
 
 def _claude_env(base_env, auth_home):
