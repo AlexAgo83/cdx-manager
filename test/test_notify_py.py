@@ -1,6 +1,6 @@
-import unittest
 import subprocess
 import time
+import unittest
 from unittest import mock
 
 from src.notify import parse_notify_args, schedule_notification_event, send_desktop_notification

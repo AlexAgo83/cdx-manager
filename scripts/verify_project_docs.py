@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-
 REQUIRED_LOGICS_COMMANDS = (
     "status",
     "health",

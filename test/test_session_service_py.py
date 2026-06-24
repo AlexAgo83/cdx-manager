@@ -15,7 +15,6 @@ from src.errors import CdxError
 from src.session_service import create_session_service
 from src.session_store import create_session_store
 
-
 HAS_CRYPTOGRAPHY = importlib.util.find_spec("cryptography") is not None
 CRYPTOGRAPHY_REQUIRED = "cryptography is required for encrypted auth bundle tests"
 
@@ -52,7 +51,7 @@ class SessionServicePythonTests(unittest.TestCase):
         session = service["create_session"]("work1", "claude")
         settings_path = os.path.join(session["authHome"], ".claude", "settings.json")
 
-        with open(settings_path, "r", encoding="utf-8") as handle:
+        with open(settings_path, encoding="utf-8") as handle:
             settings = json.load(handle)
         self.assertIs(settings["includeCoAuthoredBy"], False)
 
@@ -66,7 +65,7 @@ class SessionServicePythonTests(unittest.TestCase):
         service = create_session_service({"base_dir": temp_dir})
         session = service["create_session"]("work1", "claude")
 
-        with open(os.path.join(session["authHome"], ".claude", "settings.json"), "r", encoding="utf-8") as handle:
+        with open(os.path.join(session["authHome"], ".claude", "settings.json"), encoding="utf-8") as handle:
             settings = json.load(handle)
         self.assertEqual(settings["theme"], "dark")
         self.assertIs(settings["includeCoAuthoredBy"], False)
@@ -1187,7 +1186,7 @@ class SessionServicePythonTests(unittest.TestCase):
 
         imported_auth = os.path.join(target_dir, "profiles", "claude1", "claude-home", "auth.json")
         self.assertTrue(os.path.exists(imported_auth))
-        with open(imported_auth, "r", encoding="utf-8") as handle:
+        with open(imported_auth, encoding="utf-8") as handle:
             self.assertEqual(handle.read(), '{"token":"secret"}')
         self.assertFalse(os.path.exists(os.path.join(target_dir, "profiles", "claude1", "claude-home", "cache", "skip.txt")))
 
@@ -1362,6 +1361,7 @@ class SessionServicePythonTests(unittest.TestCase):
 
     def _make_bundle_with_profile(self, name, provider, rel_path, content_str):
         import base64 as _b64
+
         from src.backup_bundle import encode_bundle
         payload = {
             "schema_version": 1,
@@ -1390,7 +1390,7 @@ class SessionServicePythonTests(unittest.TestCase):
 
         target["import_bundle"](bundle_path, merge=True)
 
-        with open(local_token_path, "r", encoding="utf-8") as handle:
+        with open(local_token_path, encoding="utf-8") as handle:
             content = handle.read()
         # Existing local file must not be overwritten.
         self.assertEqual(content, '{"token":"local-token"}')
@@ -1410,7 +1410,7 @@ class SessionServicePythonTests(unittest.TestCase):
 
         local_token_path = os.path.join(temp_dir, "profiles", "claude1", "auth.json")
         self.assertTrue(os.path.exists(local_token_path))
-        with open(local_token_path, "r", encoding="utf-8") as handle:
+        with open(local_token_path, encoding="utf-8") as handle:
             self.assertEqual(handle.read(), '{"token":"bundle-token"}')
 
     def test_import_merge_allows_new_sessions(self):

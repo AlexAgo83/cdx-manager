@@ -70,7 +70,7 @@ class ContextStorePythonTests(unittest.TestCase):
             )
 
             self.assertTrue(result["target_path"].endswith("shared-context.md"))
-            with open(result["target_path"], "r", encoding="utf-8") as handle:
+            with open(result["target_path"], encoding="utf-8") as handle:
                 self.assertEqual(handle.read(), "Use the cached plan.\n")
 
     def test_install_context_rejects_missing_context_or_auth_home(self):

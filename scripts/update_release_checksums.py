@@ -8,7 +8,6 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-
 DEFAULT_REPO = "AlexAgo83/cdx-manager"
 
 

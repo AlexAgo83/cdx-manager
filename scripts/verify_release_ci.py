@@ -9,7 +9,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-
 DEFAULT_WORKFLOW = "ci.yml"
 
 

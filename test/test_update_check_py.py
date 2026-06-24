@@ -1,18 +1,18 @@
-import urllib.error
-import unittest
-from unittest import mock
 import tempfile
+import unittest
+import urllib.error
+from unittest import mock
 
 from src.update_check import (
     LatestReleaseCheckError,
-    check_logics_manager_for_update,
-    check_for_update,
-    fetch_latest_release,
-    fetch_latest_logics_manager_version,
-    fetch_latest_release_or_raise,
-    is_newer_version,
     _fetch_latest_release,
     _format_fetch_error,
+    check_for_update,
+    check_logics_manager_for_update,
+    fetch_latest_logics_manager_version,
+    fetch_latest_release,
+    fetch_latest_release_or_raise,
+    is_newer_version,
 )
 
 

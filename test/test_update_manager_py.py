@@ -4,8 +4,8 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
-from src.update_manager import build_update_plan, detect_installation, verify_updated_command
 from src.errors import CdxError
+from src.update_manager import build_update_plan, detect_installation, verify_updated_command
 
 
 class UpdateManagerPythonTests(unittest.TestCase):

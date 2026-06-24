@@ -1,5 +1,5 @@
-import io
 import importlib.util
+import io
 import json
 import os
 import shlex
@@ -23,7 +23,6 @@ from src.cli_commands import _extract_claude_oauth_token
 from src.errors import CdxError
 from src.health import collect_health_report
 from src.session_service import create_session_service
-
 
 HAS_CRYPTOGRAPHY = importlib.util.find_spec("cryptography") is not None
 CRYPTOGRAPHY_REQUIRED = "cryptography is required for encrypted auth bundle tests"
@@ -144,10 +143,9 @@ class _AuthHarness:
         if command == "codex" and args[:2] == ["login", "status"]:
             return {"stdout": "Logged in using ChatGPT\n" if authed else "Not logged in\n", "stderr": ""}
         if command == "claude" and args[:2] == ["auth", "status"]:
-            text = '{"loggedIn": %s, "authMethod": "%s"}\n' % (
-                "true" if authed else "false",
-                "oauth" if authed else "none",
-            )
+            logged_in = "true" if authed else "false"
+            auth_method = "oauth" if authed else "none"
+            text = f'{{"loggedIn": {logged_in}, "authMethod": "{auth_method}"}}\n'
             return {"stdout": text, "stderr": ""}
         if command == "agy" and args == ["--version"]:
             return {"stdout": "agy 1.0.0\n", "stderr": ""}
@@ -787,7 +785,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["action"], "handoff")
         target_path = payload["context"]["target_path"]
         self.assertTrue(target_path.endswith("shared-context.md"))
-        with open(target_path, "r", encoding="utf-8") as handle:
+        with open(target_path, encoding="utf-8") as handle:
             self.assertIn("Next Steps: continue here", handle.read())
 
     def test_handoff_from_source_session_builds_context_for_target_json(self):
@@ -829,7 +827,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["target_session"]["name"], "account2")
         self.assertEqual(payload["source_transcript"], source_log)
         self.assertIn("Read $CODEX_HOME/shared-context.md first", payload["launch_prompt"])
-        with open(payload["context"]["target_path"], "r", encoding="utf-8") as handle:
+        with open(payload["context"]["target_path"], encoding="utf-8") as handle:
             content = handle.read()
         self.assertIn("Resume the work from `account1` in `account2`", content)
         self.assertIn("Goal: finish the quota handoff", content)
@@ -909,7 +907,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["target_session"]["provider"], "claude")
         self.assertIn(f"Read {target_path} first", payload["launch_prompt"])
         self.assertTrue(target_path.endswith(os.path.join("claude-home", "shared-context.md")))
-        with open(target_path, "r", encoding="utf-8") as handle:
+        with open(target_path, encoding="utf-8") as handle:
             content = handle.read()
         self.assertIn("Claude progress", content)
         self.assertIn("Next Steps: continue with Claude", content)
@@ -967,7 +965,7 @@ class CliPythonTests(unittest.TestCase):
 
         payload = json.loads(handoff_io["stdout"].getvalue())
         self.assertEqual(payload["source_transcript"], native_log)
-        with open(payload["context"]["target_path"], "r", encoding="utf-8") as handle:
+        with open(payload["context"]["target_path"], encoding="utf-8") as handle:
             content = handle.read()
         self.assertIn("[user]\nGoal: finish the Claude handoff", content)
         self.assertIn("[assistant]\nNext Steps: run the migration tests", content)
@@ -1009,7 +1007,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["source_session"]["provider"], "codex")
         self.assertEqual(payload["target_session"]["provider"], "claude")
         self.assertIn(f"Read {payload['context']['target_path']} first", payload["launch_prompt"])
-        with open(payload["context"]["target_path"], "r", encoding="utf-8") as handle:
+        with open(payload["context"]["target_path"], encoding="utf-8") as handle:
             self.assertIn("Codex context for Claude", handle.read())
 
     def test_add_and_launch_codex_session(self):
@@ -2183,7 +2181,7 @@ class CliPythonTests(unittest.TestCase):
         ]
         self.assertEqual([call["args"] for call in codex_spawns], [["login"]])
         self.assertTrue(os.path.exists(other_auth))
-        with open(other_auth, "r", encoding="utf-8") as handle:
+        with open(other_auth, encoding="utf-8") as handle:
             self.assertEqual(json.load(handle)["tokens"]["access_token"], "other-token")
 
     def test_login_claude_falls_back_to_setup_token(self):
@@ -2216,7 +2214,7 @@ class CliPythonTests(unittest.TestCase):
         )
         self.assertEqual(_script_launch_args(script_call), ["setup-token"])
         cred_path = os.path.join(temp_dir, "profiles", "work1", "claude-home", "credentials", "default.json")
-        with open(cred_path, "r", encoding="utf-8") as handle:
+        with open(cred_path, encoding="utf-8") as handle:
             credentials = json.load(handle)
         self.assertEqual(credentials["access_token"], "sk-ant-oat-test")
         self.assertFalse(os.path.exists(_script_transcript_path(script_call)))
@@ -2820,7 +2818,7 @@ class CliPythonTests(unittest.TestCase):
             "env": {"CDX_HOME": import_dir, "CDX_BUNDLE_PASSPHRASE": "pw123"},
         }), 0)
         imported_auth = os.path.join(import_dir, "profiles", "claude1", "claude-home", "auth.json")
-        with open(imported_auth, "r", encoding="utf-8") as handle:
+        with open(imported_auth, encoding="utf-8") as handle:
             self.assertEqual(handle.read(), '{"token":"secret"}')
 
     @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
