@@ -47,6 +47,7 @@ from .backup_bundle import read_bundle_meta
 from .run_registry import RunRegistry, build_code_review_report
 from .run_usage import extract_run_usage
 from .run_command import read_run_prompt, run_cdx_error_code, run_result_payload
+from .status_source import _normalize_terminal_transcript
 from .status_view import _format_status_detail, _format_status_rows, format_priority_instruction, recommend_priority_rows
 from .update_check import LatestReleaseCheckError, fetch_latest_release, fetch_latest_release_or_raise, is_newer_version
 from .update_manager import build_update_plan, format_update_failure, run_update_plan, verify_updated_command
@@ -396,7 +397,9 @@ def _read_handoff_transcript(path):
         content = _read_jsonl_handoff_transcript(path)
     else:
         with open(path, "r", encoding="utf-8", errors="replace") as handle:
-            content = handle.read()
+            # `script`-captured PTY transcript: strip ANSI/control noise before
+            # the char-budget truncation so the tail holds real text, not escapes.
+            content = _normalize_terminal_transcript(handle.read())
     if len(content) <= HANDOFF_TRANSCRIPT_CHARS:
         return content, False
     return content[-HANDOFF_TRANSCRIPT_CHARS:], True
