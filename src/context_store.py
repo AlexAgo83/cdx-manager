@@ -7,7 +7,6 @@ from datetime import datetime
 from .errors import CdxError
 from .session_store import _ensure_dir
 
-
 DEFAULT_CONTEXT_TEMPLATE = """# Shared Context
 
 ## Goal
@@ -49,7 +48,7 @@ def get_context_meta_path(base_dir, cwd=None):
 def read_context(base_dir, cwd=None):
     path = get_context_path(base_dir, cwd)
     try:
-        with open(path, "r", encoding="utf-8") as handle:
+        with open(path, encoding="utf-8") as handle:
             return handle.read()
     except FileNotFoundError:
         return ""

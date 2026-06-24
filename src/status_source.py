@@ -307,22 +307,6 @@ def _parse_month_index(name):
     return -1
 
 
-def _infer_reset_year(month, day):
-    now = datetime.now().astimezone()
-    year = now.year
-    try:
-        candidate = datetime(
-            year,
-            month + 1,
-            day,
-            tzinfo=now.tzinfo,
-        )
-    except ValueError:
-        return year
-    two_days_ago = datetime.fromtimestamp(now.timestamp() - 2 * 24 * 3600, tz=now.tzinfo)
-    return year + 1 if candidate < two_days_ago else year
-
-
 def _normalize_reset_date(raw):
     if not raw:
         return None
@@ -349,7 +333,6 @@ def _normalize_reset_date(raw):
         hours, minutes, day, month_str = int(m[1]), int(m[2]), int(m[3]), m[4]
         month = _parse_month_index(month_str)
         if month != -1:
-            year = _infer_reset_year(month, day)
             return f"{MONTH_ABBR[month]} {day} {pad(hours)}:{pad(minutes)}"
 
     # Claude: "Thursday, April 17 at 5:00 AM" or "April 17, 2026, 5 PM"
@@ -363,7 +346,6 @@ def _normalize_reset_date(raw):
         month = _parse_month_index(m[1])
         if month != -1:
             day = int(m[2])
-            year = int(m[3]) if m[3] else _infer_reset_year(month, day)
             if m[4]:
                 hours, minutes = parse_ampm(int(m[4]), int(m[5] or 0), m[6])
                 return f"{MONTH_ABBR[month]} {day} {format_time(hours, minutes)}"
@@ -397,7 +379,6 @@ def _normalize_reset_date(raw):
         month = _parse_month_index(m[1])
         if month != -1:
             day = int(m[2])
-            year = int(m[3]) if m[3] else _infer_reset_year(month, day)
             return f"{MONTH_ABBR[month]} {day}"
 
     return None

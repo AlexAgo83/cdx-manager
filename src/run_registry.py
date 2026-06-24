@@ -14,7 +14,7 @@ def registry_path(base_dir):
 
 def _read_registry(path):
     try:
-        with open(path, "r", encoding="utf-8") as handle:
+        with open(path, encoding="utf-8") as handle:
             data = json.load(handle)
     except FileNotFoundError:
         return {"schema_version": 1, "runs": []}
@@ -158,7 +158,7 @@ def read_text_file(path, limit=120000):
     if not path:
         return ""
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        with open(path, encoding="utf-8", errors="replace") as handle:
             return handle.read(limit)
     except OSError:
         return ""

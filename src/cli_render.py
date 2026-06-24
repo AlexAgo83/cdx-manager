@@ -3,7 +3,6 @@ import re
 import sys
 from datetime import datetime, timezone
 
-
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 

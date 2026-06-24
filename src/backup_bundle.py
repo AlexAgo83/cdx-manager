@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 
 from .errors import CdxError
 
-
 BUNDLE_SCHEMA_VERSION = 1
 _SALT_BYTES = 16
 _NONCE_BYTES = 16

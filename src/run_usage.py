@@ -1,6 +1,5 @@
 import json
 
-
 USAGE_KEYS = ("input_tokens", "output_tokens", "reasoning_tokens", "total_tokens")
 SUPPORTED_PROVIDERS = {"claude", "codex"}
 
@@ -15,7 +14,7 @@ def extract_run_usage(provider, stdout_path):
     if provider not in SUPPORTED_PROVIDERS:
         return empty_usage()
     try:
-        with open(stdout_path, "r", encoding="utf-8", errors="replace") as handle:
+        with open(stdout_path, encoding="utf-8", errors="replace") as handle:
             text = handle.read()
     except OSError:
         return empty_usage()

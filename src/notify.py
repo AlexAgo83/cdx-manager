@@ -13,7 +13,6 @@ from .status_view import (
     _recommend_priority_sessions,
 )
 
-
 NOTIFY_USAGE = "Usage: cdx notify <name> --at-reset [--poll seconds] [--once] [--schedule] [--refresh] | cdx notify --next-ready [--poll seconds] [--once] [--schedule] [--refresh]"
 
 

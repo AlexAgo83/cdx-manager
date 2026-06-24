@@ -8,38 +8,38 @@ from .cli_commands import (
     API_SCHEMA_VERSION,
     STATUS_USAGE,
     handle_add,
+    handle_can_resume,
     handle_clean,
     handle_config,
     handle_configs,
-    handle_can_resume,
     handle_context,
     handle_copy,
-    handle_doctor,
     handle_disable,
+    handle_doctor,
     handle_enable,
     handle_export,
-    handle_import,
     handle_handoff,
     handle_history,
+    handle_import,
     handle_last,
     handle_launch,
+    handle_launch_setting_alias,
     handle_login,
     handle_logout,
-    handle_launch_setting_alias,
-    handle_notify,
     handle_next,
+    handle_notify,
     handle_remove,
-    handle_repair,
     handle_rename,
+    handle_repair,
     handle_resume,
     handle_run,
     handle_run_report,
     handle_run_status,
     handle_runs,
     handle_select,
+    handle_set,
     handle_stats,
     handle_status,
-    handle_set,
     handle_unset,
     handle_update,
     handle_view,
@@ -67,6 +67,24 @@ from .status_view import (
 from .update_check import check_for_update, check_logics_manager_for_update
 
 VERSION = "0.9.10"
+
+# Public surface: this module is a facade. Names below are imported above
+# purely to be re-exported (consumed by tests and external callers); listing
+# them here documents that and stops F401 from treating them as dead imports.
+__all__ = [
+    "STATUS_USAGE",
+    "LOG_ROTATE_BYTES",
+    "_format_blocking_quota",
+    "_format_reset_time",
+    "_format_status_detail",
+    "_format_status_rows",
+    "_pad_table",
+    "_rotate_log_if_needed",
+    "_visible_len",
+    "cli_entry",
+    "format_json_error",
+    "main",
+]
 
 
 _COMMAND_HANDLERS = {

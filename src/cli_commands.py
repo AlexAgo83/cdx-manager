@@ -8,8 +8,10 @@ import sys
 import time
 from datetime import datetime, timedelta
 
+from .backup_bundle import read_bundle_meta
 from .claude_refresh import _refresh_claude_sessions
 from .cli_render import _dim, _info, _style, _success, _warn
+from .cli_view import handle_view as handle_view  # re-export for cli.py / tests
 from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA, PROVIDERS
 from .context_store import (
     clear_context,
@@ -22,7 +24,6 @@ from .context_store import (
 )
 from .errors import CdxError
 from .health import collect_health_report, format_health_report
-from .cli_view import handle_view
 from .notify import (
     format_notify_event,
     format_scheduled_notification,
@@ -38,20 +39,18 @@ from .provider_runtime import (
     _list_launch_transcript_paths,
     _normalize_reasoning_effort,
     _probe_provider_auth,
-    get_resume_capability,
     _run_headless_provider_command,
     _run_interactive_provider_command,
+    get_resume_capability,
 )
 from .repair import format_repair_report, repair_health
-from .backup_bundle import read_bundle_meta
+from .run_command import read_run_prompt, run_cdx_error_code, run_result_payload
 from .run_registry import RunRegistry, build_code_review_report
 from .run_usage import extract_run_usage
-from .run_command import read_run_prompt, run_cdx_error_code, run_result_payload
 from .status_source import _normalize_terminal_transcript
 from .status_view import _format_status_detail, _format_status_rows, format_priority_instruction, recommend_priority_rows
 from .update_check import LatestReleaseCheckError, fetch_latest_release, fetch_latest_release_or_raise, is_newer_version
 from .update_manager import build_update_plan, format_update_failure, run_update_plan, verify_updated_command
-
 
 STATUS_USAGE = "Usage: cdx status [--json] [--refresh|--cached] [--timeout SECONDS] | cdx status --small|-s [--refresh|--cached] [--timeout SECONDS] | cdx status <name> [--json] [--refresh|--cached] [--timeout SECONDS]"
 DOCTOR_USAGE = "Usage: cdx doctor [--json]"
@@ -375,7 +374,7 @@ def _jsonl_record_to_handoff_text(record):
 
 def _read_jsonl_handoff_transcript(path):
     entries = []
-    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+    with open(path, encoding="utf-8", errors="replace") as handle:
         for line in handle:
             line = line.strip()
             if not line:
@@ -388,7 +387,7 @@ def _read_jsonl_handoff_transcript(path):
                 entries.append(text)
     if entries:
         return "\n\n".join(entries)
-    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+    with open(path, encoding="utf-8", errors="replace") as handle:
         return handle.read()
 
 
@@ -396,7 +395,7 @@ def _read_handoff_transcript(path):
     if path.endswith(".jsonl"):
         content = _read_jsonl_handoff_transcript(path)
     else:
-        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        with open(path, encoding="utf-8", errors="replace") as handle:
             # `script`-captured PTY transcript: strip ANSI/control noise before
             # the char-budget truncation so the tail holds real text, not escapes.
             content = _normalize_terminal_transcript(handle.read())
@@ -1115,7 +1114,7 @@ def _bootstrap_claude_setup_token(session, ctx):
             "Claude setup-token completed, but cdx could not capture the token. "
             "Run claude setup-token and save the token under credentials/default.json."
         )
-    with open(transcript_path, "r", encoding="utf-8", errors="replace") as handle:
+    with open(transcript_path, encoding="utf-8", errors="replace") as handle:
         transcript = handle.read()
     token = _extract_claude_oauth_token(transcript)
     if not token:

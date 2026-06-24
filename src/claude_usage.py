@@ -3,8 +3,8 @@ import os
 import re
 import subprocess
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 
 from .errors import CdxError
@@ -31,7 +31,7 @@ def _clean_oauth_token(token):
 def _read_claude_credentials(auth_home):
     cred_path = os.path.join(auth_home, ".claude", ".credentials.json")
     try:
-        with open(cred_path, "r", encoding="utf-8") as f:
+        with open(cred_path, encoding="utf-8") as f:
             data = json.load(f)
         creds = data.get("claudeAiOauth") if isinstance(data, dict) else None
         token = _clean_oauth_token(creds.get("accessToken")) if isinstance(creds, dict) else None
@@ -42,7 +42,7 @@ def _read_claude_credentials(auth_home):
 
     anthropic_cred_path = os.path.join(auth_home, "credentials", "default.json")
     try:
-        with open(anthropic_cred_path, "r", encoding="utf-8") as f:
+        with open(anthropic_cred_path, encoding="utf-8") as f:
             data = json.load(f)
         token = _clean_oauth_token(data.get("access_token") if isinstance(data, dict) else None)
         if token:

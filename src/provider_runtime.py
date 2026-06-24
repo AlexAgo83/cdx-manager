@@ -1,19 +1,18 @@
+import base64
 import json
 import os
 import re
-import signal
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import uuid
-import base64
 from datetime import datetime, timezone
 
 from .codex_usage import codex_auth_lock
 from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
 from .errors import CdxError
-
 
 LOG_ROTATE_BYTES = 10 * 1024 * 1024  # 10 MB
 REASONING_EFFORT_VALUES = {"minimal", "low", "medium", "high", "xhigh"}
@@ -109,7 +108,7 @@ def _claude_env(base_env, auth_home):
 
 def _read_anthropic_oauth_token(auth_home):
     try:
-        with open(_anthropic_credentials_path(auth_home), "r", encoding="utf-8") as handle:
+        with open(_anthropic_credentials_path(auth_home), encoding="utf-8") as handle:
             credentials = json.load(handle)
     except (FileNotFoundError, OSError, json.JSONDecodeError):
         return None
@@ -119,7 +118,7 @@ def _read_anthropic_oauth_token(auth_home):
 
 def _has_local_claude_auth(auth_home):
     try:
-        with open(os.path.join(auth_home, ".claude", ".credentials.json"), "r", encoding="utf-8") as handle:
+        with open(os.path.join(auth_home, ".claude", ".credentials.json"), encoding="utf-8") as handle:
             credentials = json.load(handle)
     except (FileNotFoundError, OSError, json.JSONDecodeError):
         return False
@@ -135,7 +134,7 @@ def _read_claude_launch_oauth_token(auth_home):
 
 def _has_local_codex_auth(auth_home):
     try:
-        with open(os.path.join(auth_home, "auth.json"), "r", encoding="utf-8") as handle:
+        with open(os.path.join(auth_home, "auth.json"), encoding="utf-8") as handle:
             auth = json.load(handle)
     except (FileNotFoundError, OSError, json.JSONDecodeError):
         return False
@@ -166,7 +165,7 @@ def _decode_jwt_claims(token):
 
 def _read_codex_account_email(auth_home):
     try:
-        with open(os.path.join(auth_home, "auth.json"), "r", encoding="utf-8") as handle:
+        with open(os.path.join(auth_home, "auth.json"), encoding="utf-8") as handle:
             auth = json.load(handle)
     except (FileNotFoundError, OSError, json.JSONDecodeError):
         return None
@@ -211,7 +210,7 @@ def codex_auth_diagnostic(session, spawn_sync=None, env_override=None):
 def _read_claude_account_email(auth_home):
     config_path = os.path.join(auth_home, ".claude.json")
     try:
-        with open(config_path, "r", encoding="utf-8") as handle:
+        with open(config_path, encoding="utf-8") as handle:
             config = json.load(handle)
     except (FileNotFoundError, OSError, json.JSONDecodeError):
         return None
@@ -685,7 +684,7 @@ def _combine_headless_transcript(paths):
                 continue
             transcript.write(f"--- {label} ---\n")
             try:
-                with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                with open(path, encoding="utf-8", errors="replace") as handle:
                     content = handle.read()
             except OSError:
                 content = ""

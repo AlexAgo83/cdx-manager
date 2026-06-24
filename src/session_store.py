@@ -24,7 +24,7 @@ def _restrict_dir_permissions(path):
 
 def _read_json(file_path, fallback):
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
         return fallback
@@ -273,7 +273,7 @@ def create_session_store(base_dir):
     def list_launch_history(session_name=None, limit=20):
         with _file_lock(lock_file):
             try:
-                with open(launch_history_file, "r", encoding="utf-8") as handle:
+                with open(launch_history_file, encoding="utf-8") as handle:
                     lines = handle.readlines()
             except FileNotFoundError:
                 return []

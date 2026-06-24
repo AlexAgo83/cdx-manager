@@ -8,7 +8,7 @@ def read_run_prompt(parsed):
     if parsed.get("prompt") is not None:
         return parsed["prompt"]
     try:
-        with open(parsed["prompt_file"], "r", encoding="utf-8") as handle:
+        with open(parsed["prompt_file"], encoding="utf-8") as handle:
             return handle.read()
     except OSError as error:
         raise CdxError(f"Unable to read prompt file: {parsed['prompt_file']}") from error

@@ -6,7 +6,6 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 
-
 UPDATE_CHECK_TTL_SECONDS = 60 * 60
 LATEST_RELEASE_URL = "https://api.github.com/repos/AlexAgo83/cdx-manager/releases/latest"
 LOGICS_MANAGER_LATEST_URL = "https://registry.npmjs.org/@grifhinz%2Flogics-manager/latest"
@@ -49,7 +48,7 @@ def _tool_cache_path(base_dir, tool):
 
 def _read_cache(path):
     try:
-        with open(path, "r", encoding="utf-8") as handle:
+        with open(path, encoding="utf-8") as handle:
             return json.load(handle)
     except (FileNotFoundError, OSError, json.JSONDecodeError):
         return None

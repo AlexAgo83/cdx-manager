@@ -2,7 +2,6 @@ import os
 import shutil
 import subprocess
 
-
 LOGICS_MANAGER_INSTALL_HINT = "Install or update it with: npm install -g @grifhinz/logics-manager"
 
 

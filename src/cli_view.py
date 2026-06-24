@@ -11,7 +11,6 @@ from .logics_view import (
 )
 from .update_check import check_logics_manager_for_update
 
-
 VIEW_USAGE = "Usage: cdx view [--json] [--lan] [--lan-rw] [--focus <ref>] [--read] [--port <port>] [--host <host>] [--refresh-interval <s>] [--tls] [--open] [--no-open]"
 API_SCHEMA_VERSION = 1
 

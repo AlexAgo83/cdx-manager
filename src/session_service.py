@@ -1,7 +1,7 @@
+import base64
+import json
 import os
 import shutil
-import json
-import base64
 import sys
 import tempfile
 import uuid
@@ -10,8 +10,8 @@ from datetime import datetime, timezone
 from urllib.parse import quote
 
 from .backup_bundle import decode_bundle, encode_bundle
-from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDERS, get_cdx_home
 from .codex_usage import fetch_codex_rate_limits
+from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDERS, get_cdx_home
 from .errors import CdxError
 from .fs_utils import remove_tree
 from .session_store import create_session_store
@@ -407,7 +407,7 @@ def _decode_jwt_claims(token):
 def _read_expected_account_email(auth_home):
     auth_path = os.path.join(auth_home, "auth.json")
     try:
-        with open(auth_path, "r", encoding="utf-8") as handle:
+        with open(auth_path, encoding="utf-8") as handle:
             auth = json.load(handle)
     except (FileNotFoundError, OSError, json.JSONDecodeError):
         return None
@@ -429,7 +429,7 @@ def _ensure_claude_attribution_disabled(auth_home):
     settings_path = os.path.join(settings_dir, "settings.json")
     try:
         os.makedirs(settings_dir, exist_ok=True)
-        with open(settings_path, "r", encoding="utf-8") as handle:
+        with open(settings_path, encoding="utf-8") as handle:
             settings = json.load(handle)
     except FileNotFoundError:
         settings = {}
