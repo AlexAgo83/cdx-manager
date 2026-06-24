@@ -2054,11 +2054,33 @@ def handle_resume(rest, ctx):
     return handle_launch(args[0], ctx, resume=True, force_json=json_flag)
 
 
+def _warn_if_session_already_running(name, ctx):
+    # ponytail: concurrent sessions on one profile share its single OAuth
+    # .credentials.json; both refresh near token expiry and the rotated refresh
+    # token invalidates the other session -> surprise logout. Warn before adding
+    # a second live session on the same profile.
+    active = ctx["service"].get("active_session_runtime")
+    runtime = active(name) if active else None
+    if not runtime:
+        return
+    pid = runtime.get("pid")
+    ctx["out"](f"{_warn(f'A session named {name} is already running (pid {pid}).', ctx['use_color'])}\n")
+    ctx["out"](
+        f"{_dim('Two sessions on one profile share its login and can log each other out. Use a different profile instead.', ctx['use_color'])}\n"
+    )
+    if not ctx["stdin_is_tty"]:
+        return
+    answer = input(f"Launch a second {name} session anyway? [y/N] ")
+    if answer.strip().lower() not in ("y", "yes"):
+        raise CdxError("Launch cancelled.")
+
+
 def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=None):
     json_flag = "--json" in ctx.get("raw_args", ctx["options"].get("raw_args", []))
     if force_json is not None:
         json_flag = force_json
     warnings = _update_notice_warnings(ctx)
+    _warn_if_session_already_running(command, ctx)
     session = ctx["service"]["launch_session"](command)
     capability = _resume_capability_for_session(session, ctx) if resume else None
     if capability and not capability["resumable"]:

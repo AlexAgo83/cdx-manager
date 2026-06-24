@@ -1391,6 +1391,7 @@ def create_session_service(options=None):
         "copy_session": copy_session,
         "rename_session": rename_session,
         "launch_session": launch_session,
+        "active_session_runtime": _session_runtime,
         "start_session_runtime": start_session_runtime,
         "finish_session_runtime": finish_session_runtime,
         "ensure_session_state": ensure_session_state,
