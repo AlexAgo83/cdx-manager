@@ -67,7 +67,7 @@ target-version = "py39"
 line-length = 140
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP"]
+select = ["E", "F", "W", "I", "UP", "B"]
 # Deferred / stylistic-only: E501 (140-col overflows), E741/E731 naming & lambda
 # style. Not chasing these now; logic-catching rules (F, bugbear B) stay on.
 ignore = ["E501", "E741", "E731"]

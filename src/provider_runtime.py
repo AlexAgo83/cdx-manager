@@ -906,7 +906,7 @@ def _probe_provider_auth(session, spawn_sync=None, env_override=None, trust_loca
             stderr = result.get("stderr") if isinstance(result, dict) else getattr(result, "stderr", "")
             output = (stdout or "") + (stderr or "")
     except FileNotFoundError as error:
-        raise _format_probe_failure(session, spec, error)
+        raise _format_probe_failure(session, spec, error) from error
     return spec["parser"](output)
 
 

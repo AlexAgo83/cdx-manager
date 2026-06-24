@@ -445,7 +445,7 @@ def cli_entry():
             sys.stderr.write(f"{format_json_error(error)}\n")
         else:
             sys.stderr.write(f"{format_error(error)}\n")
-        raise SystemExit(error.exit_code)
+        raise SystemExit(error.exit_code) from None
 
 
 if __name__ == "__main__":

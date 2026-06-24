@@ -2597,7 +2597,7 @@ def _refresh_claude_auth_states(service, target_names=None, spawn_sync=None, env
                 env_override=env_override,
             )
             now = _local_now_iso()
-            service["update_auth_state"](session["name"], lambda auth: {
+            service["update_auth_state"](session["name"], lambda auth, authenticated=authenticated, now=now: {
                 **auth,
                 "status": "authenticated" if authenticated else "logged_out",
                 "lastCheckedAt": now,
