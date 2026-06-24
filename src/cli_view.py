@@ -1,5 +1,4 @@
-import json
-
+from .cli_helpers import _json_success, _write_json
 from .cli_render import _warn
 from .errors import CdxError
 from .logics_view import (
@@ -12,23 +11,6 @@ from .logics_view import (
 from .update_check import check_logics_manager_for_update
 
 VIEW_USAGE = "Usage: cdx view [--json] [--lan] [--lan-rw] [--focus <ref>] [--read] [--port <port>] [--host <host>] [--refresh-interval <s>] [--tls] [--open] [--no-open]"
-API_SCHEMA_VERSION = 1
-
-
-def _json_success(action, message, warnings=None, **extra):
-    payload = {
-        "schema_version": API_SCHEMA_VERSION,
-        "ok": True,
-        "action": action,
-        "message": message,
-        "warnings": warnings or [],
-    }
-    payload.update(extra)
-    return payload
-
-
-def _write_json(ctx, payload):
-    ctx["out"](f"{json.dumps(payload, indent=2)}\n")
 
 
 def _update_notice_warnings(notices):
