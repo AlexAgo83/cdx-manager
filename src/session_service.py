@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from urllib.parse import quote
 
 from .backup_bundle import decode_bundle, encode_bundle
+from .claude_usage import _decode_jwt_claims
 from .codex_usage import fetch_codex_rate_limits
 from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDERS, get_cdx_home
 from .errors import CdxError
@@ -387,21 +388,6 @@ def _is_low_confidence_status_source(status):
         return False
     source_ref = str(status.get("source_ref") or "").replace(os.sep, "/")
     return "/sessions/" in source_ref and "/rollout" in source_ref
-
-
-def _decode_jwt_claims(token):
-    if not token or "." not in str(token):
-        return {}
-    parts = str(token).split(".")
-    if len(parts) < 2:
-        return {}
-    payload = parts[1]
-    padding = "=" * (-len(payload) % 4)
-    try:
-        decoded = base64.urlsafe_b64decode(payload + padding)
-        return json.loads(decoded.decode("utf-8"))
-    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
-        return {}
 
 
 def _read_expected_account_email(auth_home):

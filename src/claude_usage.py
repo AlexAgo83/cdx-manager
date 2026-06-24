@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import re
@@ -26,6 +27,21 @@ def _clean_oauth_token(token):
     if not text or text.startswith("<") or any(ord(ch) < 32 or ord(ch) == 127 for ch in text):
         return None
     return text
+
+
+def _decode_jwt_claims(token):
+    if not token or "." not in str(token):
+        return {}
+    parts = str(token).split(".")
+    if len(parts) < 2:
+        return {}
+    payload = parts[1]
+    padding = "=" * (-len(payload) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode(payload + padding)
+        return json.loads(decoded.decode("utf-8"))
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return {}
 
 
 def _read_claude_credentials(auth_home):

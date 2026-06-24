@@ -1,4 +1,3 @@
-import base64
 import json
 import os
 import re
@@ -10,7 +9,7 @@ import sys
 import uuid
 from datetime import datetime, timezone
 
-from .claude_usage import _clean_oauth_token
+from .claude_usage import _clean_oauth_token, _decode_jwt_claims
 from .codex_usage import codex_auth_lock
 from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
 from .errors import CdxError
@@ -139,20 +138,6 @@ def _has_local_codex_auth(auth_home):
         _clean_oauth_token(tokens.get(name))
         for name in ("id_token", "access_token", "refresh_token")
     )
-
-
-def _decode_jwt_claims(token):
-    if not token or "." not in str(token):
-        return {}
-    parts = str(token).split(".")
-    if len(parts) < 2:
-        return {}
-    padding = "=" * (-len(parts[1]) % 4)
-    try:
-        decoded = base64.urlsafe_b64decode(parts[1] + padding)
-        return json.loads(decoded.decode("utf-8"))
-    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
-        return {}
 
 
 def _read_codex_account_email(auth_home):
