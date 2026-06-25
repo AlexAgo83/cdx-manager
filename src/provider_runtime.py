@@ -375,8 +375,9 @@ def _wrap_launch_with_transcript(session, spec, capture_transcript=True, env=Non
 
 def _default_script_args(transcript_path, spec):
     if sys.platform.startswith("linux"):
+        # util-linux `script` flushes with -f (lowercase); -F is the BSD/macOS spelling and errors here.
         command = shlex.join([spec["command"]] + spec["args"])
-        return ["-q", "-F", "-c", command, transcript_path]
+        return ["-q", "-f", "-c", command, transcript_path]
     return ["-q", "-F", transcript_path, spec["command"]] + spec["args"]
 
 

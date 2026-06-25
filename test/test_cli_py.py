@@ -199,7 +199,7 @@ class _AuthHarness:
 
 def _script_launch_text(call):
     args = call["args"]
-    if args[:3] == ["-q", "-F", "-c"]:
+    if args[:2] == ["-q", "-f"] and args[2:3] == ["-c"]:
         return args[3]
     return " ".join(shlex.quote(arg) for arg in args[3:])
 
@@ -211,14 +211,14 @@ def _script_launch_invokes(call, command):
 
 def _script_launch_args(call):
     args = call["args"]
-    if args[:3] == ["-q", "-F", "-c"]:
+    if args[:2] == ["-q", "-f"] and args[2:3] == ["-c"]:
         return shlex.split(args[3])[1:]
     return args[4:]
 
 
 def _script_transcript_path(call):
     args = call["args"]
-    if args[:3] == ["-q", "-F", "-c"]:
+    if args[:2] == ["-q", "-f"] and args[2:3] == ["-c"]:
         return args[4]
     return args[2]
 
