@@ -209,7 +209,14 @@ def _bootstrap_claude_setup_token(session, ctx):
         os.remove(transcript_path)
     except OSError:
         pass
-    return _write_claude_oauth_token(session.get("authHome") or "", token)
+    auth_home = session.get("authHome") or ""
+    cred_path = _write_claude_oauth_token(auth_home, token)
+    # ponytail: drop short-lived claude login creds so the ~1yr token wins at launch (provider_runtime _read_claude_launch_oauth_token)
+    try:
+        os.remove(os.path.join(auth_home, ".claude", ".credentials.json"))
+    except OSError:
+        pass
+    return cred_path
 
 
 def handle_add(rest, ctx):
@@ -223,16 +230,20 @@ def handle_add(rest, ctx):
     if parsed.get("model"):
         session = ctx["service"]["set_launch_settings"](parsed["name"], {"model": parsed["model"]})
     message = f"Created session {parsed['name']} ({parsed['provider']})"
-    _ensure_session_authentication(
-        session,
-        ctx["service"],
-        spawn=ctx.get("spawn"),
-        spawn_sync=ctx.get("spawn_sync"),
-        env_override=ctx.get("env"),
-        stdin_is_tty=ctx["stdin_is_tty"],
-        behavior="bootstrap",
-        signal_emitter=ctx.get("signal_emitter"),
-    )
+    if session["provider"] == PROVIDER_CLAUDE and ctx["stdin_is_tty"]:
+        # ponytail: mint a ~1yr setup-token instead of the ~daily claude login token
+        _bootstrap_claude_setup_token(session, ctx)
+    else:
+        _ensure_session_authentication(
+            session,
+            ctx["service"],
+            spawn=ctx.get("spawn"),
+            spawn_sync=ctx.get("spawn_sync"),
+            env_override=ctx.get("env"),
+            stdin_is_tty=ctx["stdin_is_tty"],
+            behavior="bootstrap",
+            signal_emitter=ctx.get("signal_emitter"),
+        )
     now = _local_now_iso()
     ctx["service"]["update_auth_state"](parsed["name"], lambda auth: {
         **auth,
@@ -1809,6 +1820,7 @@ def handle_import(rest, ctx):
 
 
 def handle_login(rest, ctx):
+    rest = [arg for arg in rest if arg != "--setup-token"]  # accepted for back-compat; setup-token is now the default for Claude
     json_flag, args = _parse_json_flag(rest)
     if len(args) != 1:
         raise CdxError("Usage: cdx login <name> [--json]")
@@ -1817,10 +1829,14 @@ def handle_login(rest, ctx):
     session = ctx["service"]["get_session"](args[0])
     if not session:
         raise CdxError(f"Unknown session: {args[0]}")
-    _run_interactive_provider_command(
-        session, "login", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
-        signal_emitter=ctx.get("signal_emitter")
-    )
+    if session["provider"] == PROVIDER_CLAUDE:
+        # ponytail: setup-token mints a ~1yr token; claude login mints a ~daily one that forces reconnects
+        _bootstrap_claude_setup_token(session, ctx)
+    else:
+        _run_interactive_provider_command(
+            session, "login", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
+            signal_emitter=ctx.get("signal_emitter")
+        )
     auth_probe = _ensure_session_authentication(
         session,
         ctx["service"],
@@ -1829,16 +1845,6 @@ def handle_login(rest, ctx):
         behavior="probe-only",
         trust_local_credentials=False,
     )
-    if not auth_probe.get("authenticated") and session["provider"] == PROVIDER_CLAUDE:
-        _bootstrap_claude_setup_token(session, ctx)
-        auth_probe = _ensure_session_authentication(
-            session,
-            ctx["service"],
-            spawn_sync=ctx.get("spawn_sync"),
-            env_override=ctx.get("env"),
-            behavior="probe-only",
-            trust_local_credentials=False,
-        )
     if not auth_probe.get("authenticated"):
         raise CdxError(
             f"Login command completed, but session {session['name']} is still not authenticated."
