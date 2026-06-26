@@ -17,3 +17,5 @@ Claude runtime artifacts are generated outside the repository from the integrate
 Do not edit generated runtime artifacts by hand unless you are deliberately repairing a generated artifact.
 
 Do not edit indicator lines, owner assignments, or workflow links by hand.
+When grooming or creating backlog items, set a deliberate `# Priority` tier (`High`, `Medium`, or `Low`) with a one-line rationale instead of leaving the default unreviewed.
+Sequence delivery plans and roadmaps by status priority order before lower-priority work when dependencies allow.
