@@ -15,8 +15,8 @@ STATUS_USAGE = "Usage: cdx status [--json] [--refresh|--cached] [--timeout SECON
 DOCTOR_USAGE = "Usage: cdx doctor [--json]"
 REPAIR_USAGE = "Usage: cdx repair [--dry-run] [--force] [--json]"
 UPDATE_USAGE = "Usage: cdx update [--check] [--yes] [--json] [--version TAG]"
-EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
-IMPORT_USAGE = "Usage: cdx import <file> [--force|--merge] [--json] [--sessions name1,name2] [--passphrase-env VAR]"
+EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR|--passphrase-stdin]"
+IMPORT_USAGE = "Usage: cdx import <file> [--force|--merge] [--json] [--sessions name1,name2] [--passphrase-env VAR|--passphrase-stdin]"
 CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--json]"
 SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--model MODEL] [--priority 0..100] [--json]"
@@ -585,12 +585,15 @@ def _parse_export_args(args):
             "transform": _parse_session_names,
         },
         "--passphrase-env": {"key": "passphrase_env", "type": "str", "default": None},
+        "--passphrase-stdin": {"key": "passphrase_stdin", "type": "bool", "default": False},
     }, EXPORT_USAGE, positionals_key="positionals", max_positionals=1)
     parsed["file_path"] = parsed.pop("positionals")[0] if parsed["positionals"] else None
     if not parsed["file_path"]:
         raise CdxError(EXPORT_USAGE)
-    if parsed["passphrase_env"] and not parsed["include_auth"]:
-        raise CdxError("--passphrase-env requires --include-auth for export.")
+    if parsed["passphrase_env"] and parsed["passphrase_stdin"]:
+        raise CdxError("--passphrase-env and --passphrase-stdin are mutually exclusive.")
+    if (parsed["passphrase_env"] or parsed["passphrase_stdin"]) and not parsed["include_auth"]:
+        raise CdxError("--passphrase-env/--passphrase-stdin requires --include-auth for export.")
     return parsed
 
 
@@ -606,12 +609,15 @@ def _parse_import_args(args):
             "transform": _parse_session_names,
         },
         "--passphrase-env": {"key": "passphrase_env", "type": "str", "default": None},
+        "--passphrase-stdin": {"key": "passphrase_stdin", "type": "bool", "default": False},
     }, IMPORT_USAGE, positionals_key="positionals", max_positionals=1)
     parsed["file_path"] = parsed.pop("positionals")[0] if parsed["positionals"] else None
     if not parsed["file_path"]:
         raise CdxError(IMPORT_USAGE)
     if parsed["force"] and parsed["merge"]:
         raise CdxError("--force and --merge are mutually exclusive.")
+    if parsed["passphrase_env"] and parsed["passphrase_stdin"]:
+        raise CdxError("--passphrase-env and --passphrase-stdin are mutually exclusive.")
     return parsed
 
 

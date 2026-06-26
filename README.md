@@ -359,8 +359,8 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx handoff <source> <target> [--json]` | Build shared context from the source session's latest launch transcript, install it into the target session, and launch the target unless `--json` is used; supports cross-provider handoff |
 | `cdx rmv <name> [--force] [--json]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
 | `cdx clean [name] [--json]` | Clear launch transcript logs for one session or all sessions |
-| `cdx export <file> [--include-auth] [--sessions a,b] [--passphrase-env VAR] [--force] [--json]` | Export sessions to a portable bundle; `--include-auth` encrypts auth data with a passphrase |
-| `cdx import <file> [--sessions a,b] [--passphrase-env VAR] [--force] [--json]` | Import sessions from a bundle into the current `CDX_HOME` |
+| `cdx export <file> [--include-auth] [--sessions a,b] [--passphrase-env VAR\|--passphrase-stdin] [--force] [--json]` | Export sessions to a portable bundle; `--include-auth` encrypts auth data with a passphrase |
+| `cdx import <file> [--sessions a,b] [--passphrase-env VAR\|--passphrase-stdin] [--force] [--json]` | Import sessions from a bundle into the current `CDX_HOME` |
 | `cdx doctor [--json]` | Inspect CLI dependencies, CDX_HOME permissions, missing state, orphan profiles, and pending quarantines |
 | `cdx repair [--dry-run] [--force] [--json]` | Plan or apply safe repairs for missing state files, quarantines, and orphan profiles |
 | `cdx view [--json] [--lan] [--lan-rw] [--focus <ref>] [--read] [--port <port>] [--host <host>] [--refresh-interval <s>] [--tls] [--tls-cert <path>] [--tls-key <path>] [--open] [--no-open]` | Open the Logics browser/focus viewer by delegating to `logics-manager view`; all viewer flags are forwarded; JSON mode reports diagnostics without launching it |
@@ -510,7 +510,7 @@ cdx import backup-auth.cdx --passphrase-env CDX_BUNDLE_PASSPHRASE
 Notes:
 
 - `--include-auth` is encrypted, requires a passphrase, and exports only provider credential files rather than full profile caches or logs.
-- Without `--passphrase-env`, `cdx` prompts in an interactive terminal.
+- Without `--passphrase-env`, `cdx` prompts in an interactive terminal. Non-interactive callers can pass `--passphrase-stdin` to read the passphrase from stdin (one line) instead of exposing it in the child environment.
 - `--sessions work,perso` exports or imports only a subset.
 - `--force` allows overwriting existing destination sessions during import or replacing an existing bundle file during export.
 - Auth bundles contain credentials. Treat them like secrets and delete them after transfer.

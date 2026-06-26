@@ -2853,6 +2853,50 @@ class CliPythonTests(unittest.TestCase):
             self.assertEqual(handle.read(), '{"token":"secret"}')
 
     @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
+    def test_export_and_import_accept_passphrase_from_stdin(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        self.assertEqual(main(["add", "claude", "claude1", "--json"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        auth_path = os.path.join(temp_dir, "profiles", "claude1", "claude-home", "auth.json")
+        os.makedirs(os.path.dirname(auth_path), exist_ok=True)
+        with open(auth_path, "w", encoding="utf-8") as handle:
+            handle.write('{"token":"secret"}')
+
+        export_path = os.path.join(temp_dir, "secure.cdx")
+        self.assertEqual(main([
+            "export", export_path, "--include-auth", "--passphrase-stdin", "--json",
+        ], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "read_stdin": lambda: "pw123\n",
+        }), 0)
+
+        import_dir = self.make_temp_dir()
+        self.assertEqual(main([
+            "import", export_path, "--passphrase-stdin", "--json",
+        ], {
+            **self.make_io(),
+            "env": {"CDX_HOME": import_dir},
+            "read_stdin": lambda: "pw123\n",
+        }), 0)
+        imported_auth = os.path.join(import_dir, "profiles", "claude1", "claude-home", "auth.json")
+        with open(imported_auth, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), '{"token":"secret"}')
+
+    def test_export_rejects_conflicting_passphrase_sources(self):
+        with self.assertRaisesRegex(CdxError, "mutually exclusive"):
+            main([
+                "export", "x.cdx", "--include-auth",
+                "--passphrase-env", "VAR", "--passphrase-stdin", "--json",
+            ], {**self.make_io(), "env": {}})
+
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
     def test_export_with_auth_reports_progress_and_summary(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -2951,7 +2995,7 @@ class CliPythonTests(unittest.TestCase):
         io_obj = self.make_io()
         io_obj["stdin"] = {"isTTY": False}
 
-        with self.assertRaisesRegex(CdxError, "requires an interactive terminal or --passphrase-env"):
+        with self.assertRaisesRegex(CdxError, "requires an interactive terminal"):
             main(["export", os.path.join(temp_dir, "backup.cdx"), "--include-auth"], {
                 **io_obj,
                 "env": {"CDX_HOME": temp_dir},

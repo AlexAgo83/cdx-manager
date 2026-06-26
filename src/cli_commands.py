@@ -107,15 +107,22 @@ from .update_check import LatestReleaseCheckError, fetch_latest_release, fetch_l
 from .update_manager import build_update_plan, format_update_failure, run_update_plan, verify_updated_command
 
 
-def _resolve_bundle_passphrase(ctx, env_var, prompt, confirm=False):
+def _resolve_bundle_passphrase(ctx, env_var, prompt, confirm=False, use_stdin=False):
     env = ctx.get("env", {})
     if env_var:
         passphrase = env.get(env_var)
         if not passphrase:
             raise CdxError(f"Environment variable {env_var} is empty or unset.")
         return passphrase
+    if use_stdin:
+        reader = ctx["options"].get("read_stdin")
+        raw = reader() if callable(reader) else sys.stdin.readline()
+        passphrase = (raw or "").rstrip("\r\n")
+        if not passphrase:
+            raise CdxError("Bundle passphrase from stdin is empty.")
+        return passphrase
     if not ctx["stdin_is_tty"]:
-        raise CdxError("Encrypted bundle export/import requires an interactive terminal or --passphrase-env.")
+        raise CdxError("Encrypted bundle export/import requires an interactive terminal, --passphrase-env, or --passphrase-stdin.")
     getpass_fn = ctx["options"].get("getpass") or getpass.getpass
     passphrase = getpass_fn(prompt)
     if not passphrase:
@@ -1757,6 +1764,7 @@ def handle_export(rest, ctx):
             parsed["passphrase_env"],
             "Bundle passphrase: ",
             confirm=True,
+            use_stdin=parsed["passphrase_stdin"],
         )
     result = ctx["service"]["export_bundle"](
         parsed["file_path"],
@@ -1796,6 +1804,7 @@ def handle_import(rest, ctx):
             parsed["passphrase_env"],
             "Bundle passphrase: ",
             confirm=False,
+            use_stdin=parsed["passphrase_stdin"],
         )
     result = ctx["service"]["import_bundle"](
         parsed["file_path"],
