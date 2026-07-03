@@ -13,6 +13,8 @@ Use the canonical `logics-manager` CLI to create, promote, start, and finish Log
 - `python3 -m logics_manager lint --require-status`
 - `python3 -m logics_manager audit --legacy-cutoff-version 1.1.0 --group-by-doc`
 
+Bundled agent skills (e.g. `/corpus` for scaffolding a full request chain) can be installed once per machine with `logics-manager skills install`.
+
 Claude runtime artifacts are generated outside the repository from the integrated runtime.
 Do not edit generated runtime artifacts by hand unless you are deliberately repairing a generated artifact.
 
