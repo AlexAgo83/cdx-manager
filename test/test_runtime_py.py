@@ -94,6 +94,22 @@ class RuntimePythonTests(unittest.TestCase):
             datetime.now().astimezone().utcoffset(),
         )
 
+    def test_fetch_claude_rate_limit_headers_survives_iso_reset_header(self):
+        headers = {
+            "anthropic-ratelimit-unified-5h-utilization": "0.19",
+            "anthropic-ratelimit-unified-5h-reset": "2026-07-05T18:00:00Z",
+            "anthropic-ratelimit-unified-7d-utilization": "0.25",
+            "anthropic-ratelimit-unified-7d-reset": "garbage",
+        }
+        with mock.patch("urllib.request.urlopen", return_value=_Response(headers)):
+            result = claude_usage.fetch_claude_rate_limit_headers("token")
+        self.assertEqual(result["remaining_5h_pct"], 81)
+        self.assertEqual(
+            result["reset_5h_at"],
+            self.format_local_reset(datetime.fromisoformat("2026-07-05T18:00:00+00:00").timestamp()),
+        )
+        self.assertIsNone(result["reset_week_at"])
+
     def test_fetch_claude_rate_limit_headers_uses_configured_model(self):
         captured = {}
 

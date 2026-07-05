@@ -103,8 +103,39 @@ def _refresh_claude_cli_credentials(auth_home, runner=None, env=None):
 
 
 def _format_reset_date(unix_seconds):
-    dt = datetime.fromtimestamp(unix_seconds, tz=timezone.utc).astimezone()
+    try:
+        dt = datetime.fromtimestamp(unix_seconds, tz=timezone.utc).astimezone()
+    except (TypeError, ValueError, OSError):
+        return None
     return f"{MONTH_ABBR[dt.month - 1]} {dt.day} {str(dt.hour).zfill(2)}:{str(dt.minute).zfill(2)}"
+
+
+def _parse_reset_epoch(value):
+    # The reset headers are unix seconds today, but an RFC3339 value must
+    # not abort the whole refresh.
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    try:
+        return float(text)
+    except ValueError:
+        pass
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
+
+
+def _safe_float(value):
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _remaining_from_utilization(value):
@@ -184,11 +215,11 @@ def fetch_claude_rate_limit_headers(access_token):
     if util_5h is None and util_7d is None:
         return None
 
-    utilization_5h = float(util_5h) if util_5h is not None else None
-    utilization_7d = float(util_7d) if util_7d is not None else None
+    utilization_5h = _safe_float(util_5h)
+    utilization_7d = _safe_float(util_7d)
 
-    reset_5h_at = _format_reset_date(int(reset_5h)) if reset_5h else None
-    reset_week_at = _format_reset_date(int(reset_7d)) if reset_7d else None
+    reset_5h_at = _format_reset_date(_parse_reset_epoch(reset_5h)) if reset_5h else None
+    reset_week_at = _format_reset_date(_parse_reset_epoch(reset_7d)) if reset_7d else None
     reset_at = reset_week_at or reset_5h_at
 
     return {
