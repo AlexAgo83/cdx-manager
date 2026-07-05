@@ -607,6 +607,21 @@ def _sort_recent(paths):
     )
 
 
+def _record_timestamp_epoch(value):
+    """Best-effort epoch seconds from a record timestamp (ISO string, epoch s or ms)."""
+    if value in (None, ""):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        try:
+            return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+        except (TypeError, ValueError):
+            return None
+    # ponytail: >1e11 means epoch milliseconds (that's year 5138 in seconds)
+    return number / 1000 if number > 1e11 else number
+
+
 def find_latest_status_artifact(root_dir, provider=None, expected_account_email=None):
     priority_candidates, history_candidates = _collect_candidate_files(root_dir)
     candidates = (
@@ -640,15 +655,18 @@ def find_latest_status_artifact(root_dir, provider=None, expected_account_email=
             }
         if not parsed:
             continue
-        ts = candidate.get("timestamp")
-        try:
-            score = float(ts) if ts else 0
-        except (TypeError, ValueError):
-            score = 0
+        # Score on the record's own time so sources stay comparable: falling
+        # back to file mtime would let a stale block in an actively-appended
+        # jsonl outrank a genuinely fresher terminal log.
+        epoch = _record_timestamp_epoch(candidate.get("timestamp"))
         src_file = re.sub(r":\d+$", "", candidate["source_ref"])
         stat = _safe_stat(src_file)
-        if not score and stat:
+        if epoch is not None:
+            score = epoch
+        elif stat:
             score = stat.st_mtime
+        else:
+            score = 0
         # Each record producer stamps "trusted" where it knows the source kind.
         # Untrusted records are text scraped from jsonl payloads: they can be
         # conversational noise quoting an old status block.
@@ -661,17 +679,9 @@ def find_latest_status_artifact(root_dir, provider=None, expected_account_email=
                 "source_ref": candidate["source_ref"],
                 **parsed,
             }
-            if ts:
-                try:
-                    best["updated_at"] = datetime.fromtimestamp(
-                        float(ts) / 1000, tz=timezone.utc
-                    ).astimezone().isoformat()
-                except (TypeError, ValueError):
-                    pass
-            if "updated_at" not in best:
-                if stat:
-                    best["updated_at"] = datetime.fromtimestamp(
-                        stat.st_mtime, tz=timezone.utc
-                    ).astimezone().isoformat()
+            if score:
+                best["updated_at"] = datetime.fromtimestamp(
+                    score, tz=timezone.utc
+                ).astimezone().isoformat()
 
     return best

@@ -111,6 +111,44 @@ class StatusSourcePythonTests(unittest.TestCase):
         self.assertEqual(result["remaining_5h_pct"], 7)
         self.assertEqual(result["remaining_week_pct"], 35)
 
+    def test_stale_structured_block_in_hot_rollout_loses_to_fresher_log(self):
+        import json as json_module
+        from datetime import datetime, timezone
+
+        block_time = "2026-07-05T08:00:00Z"
+        block_epoch = datetime(2026, 7, 5, 8, 0, 0, tzinfo=timezone.utc).timestamp()
+
+        with tempfile.TemporaryDirectory(prefix="cdx-status-source-") as temp_dir:
+            log_dir = os.path.join(temp_dir, "log")
+            os.makedirs(log_dir, exist_ok=True)
+            fresh_log = os.path.join(log_dir, "cdx-session-fresh.log")
+            with open(fresh_log, "w", encoding="utf-8") as handle:
+                handle.write("5h limit: [xx] 44% left\nWeekly limit: [xx] 59% left\n")
+            os.utime(fresh_log, (block_epoch + 3600, block_epoch + 3600))
+
+            # Rollout appended after the log (fresh mtime) but its rate_limits
+            # block itself predates the log: the log must win.
+            rollout = os.path.join(temp_dir, "sessions", "2026", "07", "05", "rollout.jsonl")
+            os.makedirs(os.path.dirname(rollout), exist_ok=True)
+            with open(rollout, "w", encoding="utf-8") as handle:
+                handle.write(json_module.dumps({
+                    "timestamp": block_time,
+                    "payload": {
+                        "type": "token_count",
+                        "rate_limits": {
+                            "primary": {"used_percent": 93, "window_minutes": 300, "resets_at": 1783261513},
+                            "secondary": {"used_percent": 65, "window_minutes": 10080, "resets_at": 1783413034},
+                        },
+                    },
+                }) + "\n")
+            os.utime(rollout, (block_epoch + 7200, block_epoch + 7200))
+
+            result = find_latest_status_artifact(temp_dir, provider="codex")
+
+        self.assertEqual(result["remaining_5h_pct"], 44)
+        self.assertEqual(result["remaining_week_pct"], 59)
+        self.assertEqual(result["source_ref"], fresh_log)
+
     def test_safe_relpath_rejects_traversal_and_absolute_paths(self):
         self.assertEqual(_safe_relpath("profile/auth.json"), "profile/auth.json")
 
