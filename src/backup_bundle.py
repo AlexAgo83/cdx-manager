@@ -40,6 +40,8 @@ def read_bundle_meta(data):
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise CdxError("Invalid bundle format.") from error
 
+    if not isinstance(wrapper, dict):
+        raise CdxError("Invalid bundle format.")
     if wrapper.get("schema_version") != BUNDLE_SCHEMA_VERSION:
         raise CdxError("Unsupported bundle schema version.")
     return wrapper

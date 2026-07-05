@@ -1192,6 +1192,10 @@ class SessionServicePythonTests(unittest.TestCase):
         with open(cache_path, "w", encoding="utf-8") as handle:
             handle.write("skip")
 
+        from src.errors import CdxError
+        with self.assertRaises(CdxError):
+            read_bundle_meta(b"42")
+
         bundle_path = os.path.join(source_dir, "secure.cdx")
         source["export_bundle"](bundle_path, include_auth=True, passphrase="pw123")
         with open(bundle_path, "rb") as handle:
