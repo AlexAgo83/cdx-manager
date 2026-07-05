@@ -19,7 +19,7 @@ _KEY_VALUE_PATTERNS = [
     ("usage_pct", re.compile(r"usage_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
     ("remaining_5h_pct", re.compile(r"remaining_?5h_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
     ("remaining_week_pct", re.compile(r"remaining_?week_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
-    ("credits", re.compile(r"credits?\s*[:=]\s*([\d, ]*\d[\d, ]*)\s*(?:credits?)?", re.I)),
+    ("credits", re.compile(r"credits?\s*[:=]\s*(\d[\d, ]*(?:\.\d+)?)\s*(?:credits?)?", re.I)),
     ("remaining_5h_pct", re.compile(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
     ("remaining_week_pct", re.compile(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
     ("remaining_5h_pct", re.compile(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", re.I)),
@@ -94,6 +94,15 @@ def _coerce_percentage(value):
         return None
 
 
+def _is_zero_credit_balance(value):
+    if value in (None, ""):
+        return True
+    try:
+        return float(str(value).replace(",", "").strip()) == 0
+    except (TypeError, ValueError):
+        return False
+
+
 def _extract_structured_rate_limits(record):
     if not isinstance(record, dict):
         return None
@@ -123,7 +132,11 @@ def _extract_structured_rate_limits(record):
     }
 
     balance = credits.get("balance")
-    if balance not in (None, ""):
+    if balance not in (None, "") and not (
+        _is_zero_credit_balance(balance)
+        and not credits.get("hasCredits")
+        and not credits.get("unlimited")
+    ):
         result["credits"] = str(balance).strip()
 
     result["reset_at"] = result["reset_week_at"] or result["reset_5h_at"]
@@ -428,7 +441,14 @@ def extract_named_statuses_from_text(text):
     for field, pattern in _KEY_VALUE_PATTERNS:
         if field not in result:
             m = pattern.search(normalized)
-            if m:
+            if not m:
+                continue
+            if field == "credits":
+                # Keep the decimal part; a zero balance is no credit at all.
+                value = m[1].replace(",", "").replace(" ", "")
+                if not _is_zero_credit_balance(value):
+                    result[field] = value
+            else:
                 result[field] = int(re.sub(r"\D", "", m[1]))
 
     # Claude "Current session / Current week" block

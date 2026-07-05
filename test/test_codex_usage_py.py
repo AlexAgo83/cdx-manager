@@ -95,6 +95,14 @@ class CodexUsagePureTests(unittest.TestCase):
         snap = {"credits": {"balance": 0, "hasCredits": False, "unlimited": False}}
         self.assertIsNone(normalize_codex_rate_limit_snapshot(snap)["credits"])
 
+    def test_normalize_snapshot_decimal_zero_credit_balance_is_dropped(self):
+        snap = {"credits": {"balance": "0.00", "hasCredits": False, "unlimited": False}}
+        self.assertIsNone(normalize_codex_rate_limit_snapshot(snap)["credits"])
+
+    def test_normalize_snapshot_keeps_zero_balance_when_unlimited(self):
+        snap = {"credits": {"balance": "0.00", "hasCredits": False, "unlimited": True}}
+        self.assertEqual(normalize_codex_rate_limit_snapshot(snap)["credits"], "0.00")
+
     def test_normalize_snapshot_scalar_credits(self):
         snap = {"credits": 5}
         self.assertEqual(normalize_codex_rate_limit_snapshot(snap)["credits"], 5)

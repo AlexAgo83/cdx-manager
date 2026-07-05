@@ -6,6 +6,8 @@ import subprocess
 import threading
 from datetime import datetime, timezone
 
+from .status_source import _is_zero_credit_balance
+
 try:
     import fcntl
 except ImportError:  # pragma: no cover - non-POSIX platforms
@@ -92,7 +94,7 @@ def normalize_codex_rate_limit_snapshot(snapshot):
     credit_balance = None
     if isinstance(credits, dict):
         credit_balance = credits.get("balance")
-        if not credits.get("hasCredits") and not credits.get("unlimited") and str(credit_balance or "0") == "0":
+        if not credits.get("hasCredits") and not credits.get("unlimited") and _is_zero_credit_balance(credit_balance):
             credit_balance = None
     elif credits is not None:
         credit_balance = credits

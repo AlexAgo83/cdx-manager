@@ -48,7 +48,14 @@ class StatusSourcePythonTests(unittest.TestCase):
         self.assertEqual(result["usage_pct"], 12)
         self.assertEqual(result["remaining_5h_pct"], 88)
         self.assertEqual(result["remaining_week_pct"], 66)
-        self.assertEqual(result["credits"], 1234)
+        self.assertEqual(result["credits"], "1234")
+
+    def test_extract_named_statuses_keeps_decimal_credits_and_drops_zero(self):
+        result = extract_named_statuses_from_text("usage_pct: 12%\ncredits: 3.75")
+        self.assertEqual(result["credits"], "3.75")
+
+        result = extract_named_statuses_from_text("usage_pct: 12%\ncredits: 0.00")
+        self.assertIsNone(result["credits"])
 
     def test_extract_named_statuses_from_codex_limit_block(self):
         result = extract_named_statuses_from_text("\n".join([
