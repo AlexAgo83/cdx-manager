@@ -602,7 +602,7 @@ def _sort_recent(paths):
     }
     return sorted(
         candidate_stats,
-        key=lambda fp: candidate_stats[fp].st_mtime,
+        key=lambda fp: (candidate_stats[fp].st_mtime, fp),
         reverse=True,
     )
 
