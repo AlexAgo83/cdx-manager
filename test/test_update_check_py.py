@@ -135,6 +135,19 @@ class UpdateCheckPythonTests(unittest.TestCase):
         self.assertTrue(second["cached"])
         self.assertFalse(third["cached"])
 
+    def test_check_logics_manager_for_update_does_not_cache_a_failed_fetch(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-logics-update-check-") as temp_dir:
+            runner = mock.Mock(return_value=mock.Mock(returncode=0, stdout="logics-manager 2.3.0\n", stderr=""))
+            with mock.patch("src.update_check.shutil.which", return_value="/usr/bin/logics-manager"):
+                with mock.patch("src.update_check.fetch_latest_logics_manager_version", side_effect=[None, "2.4.0"]) as fetch:
+                    failed = check_logics_manager_for_update(temp_dir, env={"PATH": "/usr/bin"}, now_fn=lambda: 1000, runner=runner)
+                    recovered = check_logics_manager_for_update(temp_dir, env={"PATH": "/usr/bin"}, now_fn=lambda: 1001, runner=runner)
+
+        self.assertIsNone(failed)
+        self.assertEqual(fetch.call_count, 2)
+        self.assertEqual(recovered["latest_version"], "2.4.0")
+        self.assertFalse(recovered["cached"])
+
     def test_check_logics_manager_for_update_skips_when_cli_missing(self):
         with tempfile.TemporaryDirectory(prefix="cdx-logics-update-check-") as temp_dir:
             with mock.patch("src.update_check.shutil.which", return_value=None):

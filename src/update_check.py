@@ -236,6 +236,10 @@ def check_logics_manager_for_update(base_dir, env=None, now_fn=None, runner=None
         return None
 
     latest_version = fetch_latest_logics_manager_version(env=env)
+    if not latest_version:
+        # Don't cache a failed fetch: a None latest_version would hide a
+        # real update for the whole TTL after the registry recovers.
+        return None
     payload = {
         "checked_at": now_ts,
         "latest_version": latest_version,
