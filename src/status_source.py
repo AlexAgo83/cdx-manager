@@ -607,6 +607,23 @@ def _sort_recent(paths):
     )
 
 
+_STATUS_VALUE_FIELDS = (
+    "usage_pct",
+    "remaining_5h_pct",
+    "remaining_week_pct",
+    "credits",
+    "reset_5h_at",
+    "reset_week_at",
+    "reset_at",
+)
+
+
+def _backfill_missing_fields(target, source):
+    for field in _STATUS_VALUE_FIELDS:
+        if target.get(field) is None and source.get(field) is not None:
+            target[field] = source[field]
+
+
 def _record_timestamp_epoch(value):
     """Best-effort epoch seconds from a record timestamp (ISO string, epoch s or ms)."""
     if value in (None, ""):
@@ -673,6 +690,7 @@ def find_latest_status_artifact(root_dir, provider=None, expected_account_email=
         priority = 2 if candidate.get("trusted") else 1
 
         if best is None or (priority, score) >= (best["priority"], best["score"]):
+            previous = best
             best = {
                 "priority": priority,
                 "score": score,
@@ -683,5 +701,12 @@ def find_latest_status_artifact(root_dir, provider=None, expected_account_email=
                 best["updated_at"] = datetime.fromtimestamp(
                     score, tz=timezone.utc
                 ).astimezone().isoformat()
+            # A fresher-but-partial winner (e.g. rate_limits with only the
+            # primary window) must not erase fields an equally trusted
+            # candidate provided.
+            if previous and previous["priority"] == priority:
+                _backfill_missing_fields(best, previous)
+        elif priority == best["priority"]:
+            _backfill_missing_fields(best, parsed)
 
     return best
