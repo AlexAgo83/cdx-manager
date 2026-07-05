@@ -695,6 +695,45 @@ def _redact_sensitive_args(spec):
     return [REDACTED_PROMPT_ARG if arg in sensitive else arg for arg in args]
 
 
+def _signal_child_group(child, sig):
+    # Providers spawn helpers of their own; signal the whole group so
+    # grandchildren die with the child. Falls back to False when the child
+    # shares our group (test doubles spawned without start_new_session).
+    pid = getattr(child, "pid", None)
+    if not pid:
+        return False
+    try:
+        pgid = os.getpgid(pid)
+        if pgid == os.getpgid(0):
+            return False
+        os.killpg(pgid, sig)
+        return True
+    except (OSError, TypeError):
+        return False
+
+
+def _terminate_child_tree(child):
+    if not _signal_child_group(child, signal.SIGTERM):
+        try:
+            child.terminate()
+        except Exception:
+            pass
+    try:
+        child.wait(timeout=5)
+        return
+    except Exception:
+        pass
+    if not _signal_child_group(child, signal.SIGKILL):
+        try:
+            child.kill()
+        except Exception:
+            pass
+    try:
+        child.wait()
+    except Exception:
+        pass
+
+
 def _run_headless_provider_command(session, cwd=None, env_override=None, initial_prompt=None,
                                    timeout_seconds=None, spawn=None, run_id=None):
     spawn = spawn or subprocess.Popen
@@ -714,12 +753,16 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
     timed_out = False
     with open(paths["stdout_path"], "w", encoding="utf-8", errors="replace") as stdout_file, \
             open(paths["stderr_path"], "w", encoding="utf-8", errors="replace") as stderr_file:
+        options = {k: v for k, v in spec.get("options", {}).items() if k not in ("stdio", "stdout", "stderr")}
+        if spawn is subprocess.Popen:
+            # Own process group so a timeout can kill grandchildren too.
+            options["start_new_session"] = True
         try:
             child = spawn(
                 [command] + spec["args"],
                 stdout=stdout_file,
                 stderr=stderr_file,
-                **{k: v for k, v in spec.get("options", {}).items() if k not in ("stdio", "stdout", "stderr")},
+                **options,
             )
         except FileNotFoundError as error:
             _combine_headless_transcript(paths)
@@ -740,18 +783,7 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
             child.wait()
         except subprocess.TimeoutExpired:
             timed_out = True
-            try:
-                child.terminate()
-                child.wait(timeout=5)
-            except Exception:
-                try:
-                    child.kill()
-                except Exception:
-                    pass
-                try:
-                    child.wait()
-                except Exception:
-                    pass
+            _terminate_child_tree(child)
 
     _combine_headless_transcript(paths)
     end_time = datetime.now(timezone.utc)

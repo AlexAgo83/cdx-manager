@@ -130,5 +130,27 @@ class RedactSensitiveArgsTests(unittest.TestCase):
         self.assertIn("--prompt", out)
 
 
+class TerminateChildTreeTests(unittest.TestCase):
+    def test_kills_grandchildren_in_the_process_group(self):
+        import os
+        import subprocess
+        import time
+
+        from src.provider_runtime import _terminate_child_tree
+
+        child = subprocess.Popen(["sh", "-c", "sleep 60 & wait"], start_new_session=True)
+        pgid = os.getpgid(child.pid)
+        _terminate_child_tree(child)
+        for _ in range(50):
+            try:
+                os.killpg(pgid, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.1)
+        else:
+            os.killpg(pgid, 9)
+            self.fail("process group still has live members after termination")
+
+
 if __name__ == "__main__":
     unittest.main()
