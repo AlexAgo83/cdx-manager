@@ -1,11 +1,37 @@
+import json
 import os
 import tempfile
 import unittest
+from datetime import datetime, timezone
 
 from src.errors import CdxError
 from src.session_service import _safe_relpath
 from src.status_source import extract_named_statuses_from_text, find_latest_status_artifact
 from src.status_view import _parse_reset_timestamp
+
+
+def _write_status_log(path, five_h_left, weekly_left, mtime=None):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(f"5h limit: [xx] {five_h_left}% left\nWeekly limit: [xx] {weekly_left}% left\n")
+    if mtime is not None:
+        os.utime(path, (mtime, mtime))
+
+
+def _write_rollout(path, timestamp, primary_used, secondary_used=None, mtime=None):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    rate_limits = {
+        "primary": {"used_percent": primary_used, "window_minutes": 300, "resets_at": 1783261513},
+    }
+    if secondary_used is not None:
+        rate_limits["secondary"] = {"used_percent": secondary_used, "window_minutes": 10080, "resets_at": 1783413034}
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(json.dumps({
+            "timestamp": timestamp,
+            "payload": {"type": "token_count", "rate_limits": rate_limits},
+        }) + "\n")
+    if mtime is not None:
+        os.utime(path, (mtime, mtime))
 
 
 class StatusSourcePythonTests(unittest.TestCase):
@@ -64,15 +90,10 @@ class StatusSourcePythonTests(unittest.TestCase):
     def test_find_latest_status_artifact_selects_most_recent_candidate(self):
         with tempfile.TemporaryDirectory(prefix="cdx-status-source-") as temp_dir:
             log_dir = os.path.join(temp_dir, "log")
-            os.makedirs(log_dir, exist_ok=True)
             old_path = os.path.join(log_dir, "cdx-session-old.log")
             new_path = os.path.join(log_dir, "cdx-session-new.log")
-            with open(old_path, "w", encoding="utf-8") as handle:
-                handle.write("5h limit: [xx] 25% left\nWeekly limit: [xx] 50% left\n")
-            with open(new_path, "w", encoding="utf-8") as handle:
-                handle.write("5h limit: [xx] 80% left\nWeekly limit: [xx] 90% left\n")
-            os.utime(old_path, (100, 100))
-            os.utime(new_path, (200, 200))
+            _write_status_log(old_path, 25, 50, mtime=100)
+            _write_status_log(new_path, 80, 90, mtime=200)
 
             result = find_latest_status_artifact(temp_dir, provider="codex")
 
@@ -81,30 +102,12 @@ class StatusSourcePythonTests(unittest.TestCase):
         self.assertEqual(result["source_ref"], new_path)
 
     def test_fresh_structured_rollout_beats_stale_log_status_screen(self):
-        import json as json_module
-
         with tempfile.TemporaryDirectory(prefix="cdx-status-source-") as temp_dir:
-            log_dir = os.path.join(temp_dir, "log")
-            os.makedirs(log_dir, exist_ok=True)
-            stale_log = os.path.join(log_dir, "cdx-session-stale.log")
-            with open(stale_log, "w", encoding="utf-8") as handle:
-                handle.write("5h limit: [xx] 44% left\nWeekly limit: [xx] 59% left\n")
-            os.utime(stale_log, (100, 100))
+            stale_log = os.path.join(temp_dir, "log", "cdx-session-stale.log")
+            _write_status_log(stale_log, 44, 59, mtime=100)
 
             rollout = os.path.join(temp_dir, "sessions", "2026", "07", "05", "rollout.jsonl")
-            os.makedirs(os.path.dirname(rollout), exist_ok=True)
-            with open(rollout, "w", encoding="utf-8") as handle:
-                handle.write(json_module.dumps({
-                    "timestamp": "2026-07-05T10:37:31.157Z",
-                    "payload": {
-                        "type": "token_count",
-                        "rate_limits": {
-                            "primary": {"used_percent": 93, "window_minutes": 300, "resets_at": 1783261513},
-                            "secondary": {"used_percent": 65, "window_minutes": 10080, "resets_at": 1783413034},
-                        },
-                    },
-                }) + "\n")
-            os.utime(rollout, (200, 200))
+            _write_rollout(rollout, "2026-07-05T10:37:31.157Z", 93, secondary_used=65, mtime=200)
 
             result = find_latest_status_artifact(temp_dir, provider="codex")
 
@@ -112,36 +115,17 @@ class StatusSourcePythonTests(unittest.TestCase):
         self.assertEqual(result["remaining_week_pct"], 35)
 
     def test_stale_structured_block_in_hot_rollout_loses_to_fresher_log(self):
-        import json as json_module
-        from datetime import datetime, timezone
-
         block_time = "2026-07-05T08:00:00Z"
         block_epoch = datetime(2026, 7, 5, 8, 0, 0, tzinfo=timezone.utc).timestamp()
 
         with tempfile.TemporaryDirectory(prefix="cdx-status-source-") as temp_dir:
-            log_dir = os.path.join(temp_dir, "log")
-            os.makedirs(log_dir, exist_ok=True)
-            fresh_log = os.path.join(log_dir, "cdx-session-fresh.log")
-            with open(fresh_log, "w", encoding="utf-8") as handle:
-                handle.write("5h limit: [xx] 44% left\nWeekly limit: [xx] 59% left\n")
-            os.utime(fresh_log, (block_epoch + 3600, block_epoch + 3600))
+            fresh_log = os.path.join(temp_dir, "log", "cdx-session-fresh.log")
+            _write_status_log(fresh_log, 44, 59, mtime=block_epoch + 3600)
 
             # Rollout appended after the log (fresh mtime) but its rate_limits
             # block itself predates the log: the log must win.
             rollout = os.path.join(temp_dir, "sessions", "2026", "07", "05", "rollout.jsonl")
-            os.makedirs(os.path.dirname(rollout), exist_ok=True)
-            with open(rollout, "w", encoding="utf-8") as handle:
-                handle.write(json_module.dumps({
-                    "timestamp": block_time,
-                    "payload": {
-                        "type": "token_count",
-                        "rate_limits": {
-                            "primary": {"used_percent": 93, "window_minutes": 300, "resets_at": 1783261513},
-                            "secondary": {"used_percent": 65, "window_minutes": 10080, "resets_at": 1783413034},
-                        },
-                    },
-                }) + "\n")
-            os.utime(rollout, (block_epoch + 7200, block_epoch + 7200))
+            _write_rollout(rollout, block_time, 93, secondary_used=65, mtime=block_epoch + 7200)
 
             result = find_latest_status_artifact(temp_dir, provider="codex")
 
@@ -150,30 +134,13 @@ class StatusSourcePythonTests(unittest.TestCase):
         self.assertEqual(result["source_ref"], fresh_log)
 
     def test_partial_structured_winner_keeps_week_value_from_trusted_log(self):
-        import json as json_module
-
         with tempfile.TemporaryDirectory(prefix="cdx-status-source-") as temp_dir:
-            log_dir = os.path.join(temp_dir, "log")
-            os.makedirs(log_dir, exist_ok=True)
-            stale_log = os.path.join(log_dir, "cdx-session-stale.log")
-            with open(stale_log, "w", encoding="utf-8") as handle:
-                handle.write("5h limit: [xx] 44% left\nWeekly limit: [xx] 59% left\n")
-            os.utime(stale_log, (100, 100))
+            stale_log = os.path.join(temp_dir, "log", "cdx-session-stale.log")
+            _write_status_log(stale_log, 44, 59, mtime=100)
 
             # Fresher structured payload carrying only the primary window.
             rollout = os.path.join(temp_dir, "sessions", "2026", "07", "05", "rollout.jsonl")
-            os.makedirs(os.path.dirname(rollout), exist_ok=True)
-            with open(rollout, "w", encoding="utf-8") as handle:
-                handle.write(json_module.dumps({
-                    "timestamp": "2026-07-05T10:37:31.157Z",
-                    "payload": {
-                        "type": "token_count",
-                        "rate_limits": {
-                            "primary": {"used_percent": 93, "window_minutes": 300, "resets_at": 1783261513},
-                        },
-                    },
-                }) + "\n")
-            os.utime(rollout, (200, 200))
+            _write_rollout(rollout, "2026-07-05T10:37:31.157Z", 93, mtime=200)
 
             result = find_latest_status_artifact(temp_dir, provider="codex")
 
@@ -182,32 +149,14 @@ class StatusSourcePythonTests(unittest.TestCase):
         self.assertIn("rollout.jsonl", result["source_ref"])
 
     def test_untrusted_root_demotes_unattributed_structured_payloads(self):
-        import json as json_module
-
         with tempfile.TemporaryDirectory(prefix="cdx-status-source-") as temp_dir:
-            log_dir = os.path.join(temp_dir, "log")
-            os.makedirs(log_dir, exist_ok=True)
-            stale_log = os.path.join(log_dir, "cdx-session-stale.log")
-            with open(stale_log, "w", encoding="utf-8") as handle:
-                handle.write("5h limit: [xx] 44% left\nWeekly limit: [xx] 59% left\n")
-            os.utime(stale_log, (100, 100))
+            stale_log = os.path.join(temp_dir, "log", "cdx-session-stale.log")
+            _write_status_log(stale_log, 44, 59, mtime=100)
 
             # Fresher structured payload, but rate_limits JSON carries no
             # account identity: in a shared root it must not outrank the log.
             rollout = os.path.join(temp_dir, "sessions", "2026", "07", "05", "rollout.jsonl")
-            os.makedirs(os.path.dirname(rollout), exist_ok=True)
-            with open(rollout, "w", encoding="utf-8") as handle:
-                handle.write(json_module.dumps({
-                    "timestamp": "2026-07-05T10:37:31.157Z",
-                    "payload": {
-                        "type": "token_count",
-                        "rate_limits": {
-                            "primary": {"used_percent": 93, "window_minutes": 300, "resets_at": 1783261513},
-                            "secondary": {"used_percent": 65, "window_minutes": 10080, "resets_at": 1783413034},
-                        },
-                    },
-                }) + "\n")
-            os.utime(rollout, (200, 200))
+            _write_rollout(rollout, "2026-07-05T10:37:31.157Z", 93, secondary_used=65, mtime=200)
 
             result = find_latest_status_artifact(
                 temp_dir,
