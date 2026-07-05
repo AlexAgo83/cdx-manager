@@ -1,6 +1,8 @@
+import fcntl
 import json
 import os
 import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 
@@ -10,6 +12,17 @@ def utc_now_iso():
 
 def registry_path(base_dir):
     return os.path.join(base_dir, "runs.json")
+
+
+@contextmanager
+def _registry_lock(path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".lock", "w") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
 
 
 def _read_registry(path):
@@ -76,7 +89,9 @@ def _base_record(run_id, *, kind, session, provider, model, cwd, artifacts=None)
         "provider": provider,
         "model": model,
         "cwd": os.path.abspath(cwd),
-        "pid": None,
+        # The manager process drives the run synchronously, so its own pid is
+        # the liveness proxy until finish() records the provider child's pid.
+        "pid": os.getpid(),
         "started_at": utc_now_iso(),
         "ended_at": None,
         "duration_seconds": None,
@@ -94,14 +109,19 @@ class RunRegistry:
         self.path = registry_path(base_dir)
 
     def start(self, run_id, *, kind, session, provider, model, cwd, artifacts=None):
-        data = _read_registry(self.path)
-        data["runs"] = [run for run in data["runs"] if run.get("run_id") != run_id]
-        record = _base_record(run_id, kind=kind, session=session, provider=provider, model=model, cwd=cwd, artifacts=artifacts)
-        data["runs"].insert(0, record)
-        _write_registry(self.path, data)
+        with _registry_lock(self.path):
+            data = _read_registry(self.path)
+            data["runs"] = [run for run in data["runs"] if run.get("run_id") != run_id]
+            record = _base_record(run_id, kind=kind, session=session, provider=provider, model=model, cwd=cwd, artifacts=artifacts)
+            data["runs"].insert(0, record)
+            _write_registry(self.path, data)
         return record
 
     def finish(self, run_id, *, status, final_payload=None, run_info=None, error=None, task_report=None):
+        with _registry_lock(self.path):
+            return self._finish_locked(run_id, status=status, final_payload=final_payload, run_info=run_info, error=error, task_report=task_report)
+
+    def _finish_locked(self, run_id, *, status, final_payload=None, run_info=None, error=None, task_report=None):
         data = _read_registry(self.path)
         now = utc_now_iso()
         for run in data["runs"]:
@@ -137,17 +157,19 @@ class RunRegistry:
         return None
 
     def list(self, limit=20):
-        data = _read_registry(self.path)
-        changed = _refresh_stale_runs(data)
-        if changed:
-            _write_registry(self.path, data)
+        with _registry_lock(self.path):
+            data = _read_registry(self.path)
+            changed = _refresh_stale_runs(data)
+            if changed:
+                _write_registry(self.path, data)
         return data["runs"][: max(0, int(limit or 20))]
 
     def get(self, run_id):
-        data = _read_registry(self.path)
-        changed = _refresh_stale_runs(data)
-        if changed:
-            _write_registry(self.path, data)
+        with _registry_lock(self.path):
+            data = _read_registry(self.path)
+            changed = _refresh_stale_runs(data)
+            if changed:
+                _write_registry(self.path, data)
         for run in data["runs"]:
             if run.get("run_id") == run_id:
                 return run
