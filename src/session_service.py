@@ -266,6 +266,7 @@ def _normalize_status_payload(payload=None):
         "updated_at": _to_local_iso(payload.get("updated_at") or payload.get("captured_at") or now),
         "raw_status_text": payload.get("raw_status_text"),
         "source_ref": payload.get("source_ref"),
+        "structured": bool(payload.get("structured")),
     }
 
 
@@ -385,6 +386,10 @@ def _compute_available_pct(status):
 
 def _is_low_confidence_status_source(status):
     if not status:
+        return False
+    if status.get("structured"):
+        # Exact rate_limits API data: trustworthy even when it comes from a
+        # sessions/rollout path, which otherwise flags scraped-text noise.
         return False
     source_ref = str(status.get("source_ref") or "").replace(os.sep, "/")
     return "/sessions/" in source_ref and "/rollout" in source_ref
@@ -991,6 +996,7 @@ def create_session_service(options=None):
             "updated_at": artifact.get("updated_at"),
             "raw_status_text": artifact.get("raw_status_text"),
             "source_ref": artifact.get("source_ref"),
+            "structured": artifact.get("structured"),
         })
         if _is_low_confidence_status_source(current_status) and not _is_low_confidence_status_source(resolved):
             record_status(session["name"], resolved)

@@ -589,6 +589,13 @@ class SessionServicePythonTests(unittest.TestCase):
             "api:codex-app-server-rate-limits",
         )
 
+    def test_structured_status_from_rollout_path_is_not_low_confidence(self):
+        from src.session_service import _is_low_confidence_status_source
+
+        ref = "/home/x/.codex/sessions/2026/04/15/rollout-abc.jsonl:3"
+        self.assertTrue(_is_low_confidence_status_source({"source_ref": ref}))
+        self.assertFalse(_is_low_confidence_status_source({"source_ref": ref, "structured": True}))
+
     def test_codex_status_can_be_derived_from_structured_rollout_rate_limits(self):
         temp_dir = self.make_temp_dir()
         global_home = os.path.join(temp_dir, "global-codex-home")

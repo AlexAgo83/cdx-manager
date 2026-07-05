@@ -706,6 +706,7 @@ def find_latest_status_artifact(
                 "priority": priority,
                 "score": score,
                 "source_ref": candidate["source_ref"],
+                "structured": bool(candidate.get("structured")),
                 **parsed,
             }
             if score:
