@@ -69,7 +69,7 @@ class ReleaseCiTests(unittest.TestCase):
         self.assertEqual(verify_ci_success(api, "v1.2.3", timeout=0, output=out), "commit-sha")
         self.assertIn("Release CI validation OK", out.getvalue())
 
-    def test_verify_ci_success_fails_when_timeout_expires_without_success(self):
+    def test_verify_ci_success_fails_fast_on_a_failed_latest_run(self):
         api = FakeApi(
             {
                 "/git/ref/tags/v1.2.3": {"object": {"type": "commit", "sha": "commit-sha"}},
@@ -82,6 +82,57 @@ class ReleaseCiTests(unittest.TestCase):
                             "head_sha": "commit-sha",
                             "status": "completed",
                             "conclusion": "failure",
+                        }
+                    ]
+                },
+            }
+        )
+
+        with self.assertRaises(RuntimeError):
+            verify_ci_success(api, "v1.2.3", timeout=0, output=io.StringIO())
+
+    def test_verify_ci_success_ignores_stale_green_run_when_rerun_failed(self):
+        api = FakeApi(
+            {
+                "/git/ref/tags/v1.2.3": {"object": {"type": "commit", "sha": "commit-sha"}},
+                (
+                    "/actions/workflows/ci.yml/runs",
+                    (("head_sha", "commit-sha"), ("per_page", 50)),
+                ): {
+                    "workflow_runs": [
+                        {
+                            "head_sha": "commit-sha",
+                            "status": "completed",
+                            "conclusion": "success",
+                            "created_at": "2026-07-01T10:00:00Z",
+                        },
+                        {
+                            "head_sha": "commit-sha",
+                            "status": "completed",
+                            "conclusion": "failure",
+                            "created_at": "2026-07-02T10:00:00Z",
+                        },
+                    ]
+                },
+            }
+        )
+
+        with self.assertRaises(RuntimeError):
+            verify_ci_success(api, "v1.2.3", timeout=0, output=io.StringIO())
+
+    def test_verify_ci_success_times_out_while_latest_run_is_pending(self):
+        api = FakeApi(
+            {
+                "/git/ref/tags/v1.2.3": {"object": {"type": "commit", "sha": "commit-sha"}},
+                (
+                    "/actions/workflows/ci.yml/runs",
+                    (("head_sha", "commit-sha"), ("per_page", 50)),
+                ): {
+                    "workflow_runs": [
+                        {
+                            "head_sha": "commit-sha",
+                            "status": "in_progress",
+                            "conclusion": None,
                         }
                     ]
                 },

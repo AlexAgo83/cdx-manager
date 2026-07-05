@@ -23,7 +23,7 @@ def main():
     missing = [
         command
         for command in REQUIRED_LOGICS_COMMANDS
-        if f"logics-manager {command}" not in text and f"`{command}`" not in text
+        if f"logics-manager {command}" not in text
     ]
     if missing:
         raise SystemExit(

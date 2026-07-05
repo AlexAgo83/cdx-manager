@@ -81,16 +81,20 @@ def verify_ci_success(api, tag, workflow=DEFAULT_WORKFLOW, timeout=600, interval
 
     while True:
         runs = _runs_for_commit(api, workflow, commit_sha)
-        successful = [
-            run for run in runs if run.get("status") == "completed" and run.get("conclusion") == "success"
-        ]
-        if successful:
-            run = sorted(successful, key=lambda item: item.get("created_at") or "", reverse=True)[0]
-            print(
-                f"Release CI validation OK for {tag} ({commit_sha}) via run {run.get('html_url') or run.get('id')}",
-                file=output,
+        # Only the most recent run counts: an old green run must not unblock
+        # publication after a re-run turned the commit red.
+        latest = sorted(runs, key=lambda item: item.get("created_at") or "", reverse=True)[0] if runs else None
+        if latest and latest.get("status") == "completed":
+            if latest.get("conclusion") == "success":
+                print(
+                    f"Release CI validation OK for {tag} ({commit_sha}) via run {latest.get('html_url') or latest.get('id')}",
+                    file=output,
+                )
+                return commit_sha
+            raise RuntimeError(
+                f"CI workflow {workflow} failed for {tag} ({commit_sha}): latest run concluded "
+                f"{latest.get('conclusion') or 'unknown'} ({latest.get('html_url') or latest.get('id')})"
             )
-            return commit_sha
 
         if runs:
             last_state = ", ".join(
@@ -98,7 +102,8 @@ def verify_ci_success(api, tag, workflow=DEFAULT_WORKFLOW, timeout=600, interval
                 for run in runs[:5]
             )
 
-        if time.monotonic() >= deadline:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
             raise TimeoutError(
                 f"CI workflow {workflow} is not successful for {tag} ({commit_sha}); latest state: {last_state}"
             )
@@ -107,7 +112,7 @@ def verify_ci_success(api, tag, workflow=DEFAULT_WORKFLOW, timeout=600, interval
             f"Waiting for CI workflow {workflow} to pass for {tag} ({commit_sha}); latest state: {last_state}",
             file=output,
         )
-        time.sleep(max(1, interval))
+        time.sleep(max(1, min(interval, remaining)))
 
 
 def main(argv=None):
