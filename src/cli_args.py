@@ -55,7 +55,7 @@ def _parse_flag_args(args, schema, usage, positionals_key=None, max_positionals=
                 parsed[spec["key"]] = True
                 index += 1
                 continue
-            value, index = _read_option_value(args, index, usage)
+            value, index = _read_option_value(args, index, usage, schema=schema)
             parsed[spec["key"]] = spec.get("transform", lambda item: item)(value)
             continue
         if arg.startswith("--") and "=" in arg:
@@ -162,6 +162,8 @@ def _parse_set_args(args):
         raise CdxError(SET_USAGE)
     if parsed["names"] and parsed["provider"]:
         raise CdxError(SET_USAGE)
+    if parsed["sessions"] and parsed["provider"]:
+        raise CdxError(SET_USAGE)
     if not parsed["names"] and not parsed["sessions"] and not parsed["provider"]:
         raise CdxError(SET_USAGE)
     settings = {
@@ -199,6 +201,8 @@ def _parse_unset_args(args):
     if parsed["names"] and parsed["sessions"]:
         raise CdxError(UNSET_USAGE)
     if parsed["names"] and parsed["provider"]:
+        raise CdxError(UNSET_USAGE)
+    if parsed["sessions"] and parsed["provider"]:
         raise CdxError(UNSET_USAGE)
     if not parsed["names"] and not parsed["sessions"] and not parsed["provider"]:
         raise CdxError(UNSET_USAGE)
@@ -501,10 +505,16 @@ def _parse_stats_args(args, now=None):
     }
 
 
-def _read_option_value(args, index, usage):
+def _read_option_value(args, index, usage, schema=None):
     if index + 1 >= len(args):
         raise CdxError(usage)
-    return args[index + 1], index + 2
+    value = args[index + 1]
+    # A known flag is never a value: '--model --json' is a missing value,
+    # not model='--json'. Literal flag-like values remain expressible as
+    # '--model=--json'.
+    if schema and value in schema:
+        raise CdxError(usage)
+    return value, index + 2
 
 
 def _parse_session_names(value):

@@ -324,14 +324,15 @@ def main(argv, options=None):
     def err(text):
         stderr.write(text)
 
-    # Flags
-    if "--help" in argv or "-h" in argv:
+    # Flags — only when leading, so 'cdx history -h' reaches the subcommand
+    # instead of being hijacked as a malformed top-level help call.
+    if argv[:1] in (["--help"], ["-h"]):
         if len(argv) != 1:
             raise CdxError("Usage: cdx --help")
         out(f"{_print_help(use_color=use_color)}\n")
         return 0
 
-    if "--version" in argv or "-v" in argv:
+    if argv[:1] in (["--version"], ["-v"]):
         if len(argv) != 1:
             raise CdxError("Usage: cdx --version")
         out(f"{_print_version()}\n")

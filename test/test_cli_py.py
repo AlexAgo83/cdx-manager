@@ -1277,6 +1277,31 @@ class CliPythonTests(unittest.TestCase):
         payload = json.loads(select_io["stdout"].getvalue())
         self.assertEqual(payload["session"], "beta")
 
+    def test_set_rejects_conflicting_target_selectors_and_flag_values(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        # --sessions and --provider are mutually exclusive target scopes.
+        with self.assertRaises(CdxError):
+            main(["set", "--sessions", "main", "--provider", "codex", "--model", "opus"],
+                 {**self.make_io(), "service": service})
+        with self.assertRaises(CdxError):
+            main(["unset", "--sessions", "main", "--provider", "codex", "--model"],
+                 {**self.make_io(), "service": service})
+
+        # A known flag can't be swallowed as another flag's value.
+        with self.assertRaises(CdxError):
+            main(["set", "main", "--model", "--json"], {**self.make_io(), "service": service})
+        launch = service["get_session"]("main").get("launch") or {}
+        self.assertIsNone(launch.get("model"))
+
+    def test_subcommand_dash_h_is_not_hijacked_by_top_level_help(self):
+        io_obj = self.make_io()
+        with self.assertRaises(CdxError) as caught:
+            main(["history", "-h"], {**io_obj, "service": create_session_service({"base_dir": self.make_temp_dir()})})
+        self.assertNotIn("Usage: cdx --help", str(caught.exception))
+
     def test_set_launch_rtk_preference_can_be_unset(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()

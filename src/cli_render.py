@@ -10,7 +10,7 @@ def _format_relative_age(iso_value):
     if not iso_value:
         return "-"
     try:
-        ts = datetime.fromisoformat(iso_value.replace("Z", "+00:00"))
+        ts = datetime.fromisoformat(str(iso_value).replace("Z", "+00:00"))
         delta_s = (datetime.now(timezone.utc) - ts).total_seconds()
     except (ValueError, TypeError):
         return "-"
