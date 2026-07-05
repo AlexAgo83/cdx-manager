@@ -367,6 +367,12 @@ def _merge_status_payload(current, candidate):
         if merged.get(field) is None and candidate.get(field) is not None:
             merged[field] = candidate[field]
 
+    # The structured marker qualifies the source_ref; keep them in sync when
+    # the merge adopts the candidate's ref, else a structured rollout ref
+    # would read as low-confidence scraped text.
+    if merged.get("source_ref") is not None and merged["source_ref"] == candidate.get("source_ref"):
+        merged["structured"] = bool(candidate.get("structured"))
+
     merged["updated_at"] = candidate.get("updated_at") or current.get("updated_at")
     return merged
 

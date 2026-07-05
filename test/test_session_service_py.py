@@ -596,6 +596,19 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertTrue(_is_low_confidence_status_source({"source_ref": ref}))
         self.assertFalse(_is_low_confidence_status_source({"source_ref": ref, "structured": True}))
 
+    def test_merged_status_keeps_structured_marker_with_adopted_source_ref(self):
+        from src.session_service import _is_low_confidence_status_source, _merge_status_payload
+
+        ref = "/home/x/.codex/sessions/2026/04/15/rollout-abc.jsonl:3"
+        merged = _merge_status_payload(
+            {"remaining_5h_pct": 44, "source_ref": None},
+            {"remaining_week_pct": 59, "source_ref": ref, "structured": True},
+        )
+
+        self.assertEqual(merged["source_ref"], ref)
+        self.assertTrue(merged["structured"])
+        self.assertFalse(_is_low_confidence_status_source(merged))
+
     def test_codex_status_can_be_derived_from_structured_rollout_rate_limits(self):
         temp_dir = self.make_temp_dir()
         global_home = os.path.join(temp_dir, "global-codex-home")
