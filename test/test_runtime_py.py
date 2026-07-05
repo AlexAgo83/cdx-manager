@@ -1101,5 +1101,31 @@ class RuntimePythonTests(unittest.TestCase):
             })
 
 
+class ClaudeRefreshTests(unittest.TestCase):
+    def test_record_failure_for_one_session_does_not_drop_the_others(self):
+        from src.claude_refresh import _refresh_claude_sessions
+
+        recorded = []
+
+        def record_status(name, _usage):
+            if name == "bad":
+                raise OSError("disk full")
+            recorded.append(name)
+
+        service = {
+            "list_sessions": lambda: [
+                {"name": "bad", "provider": "claude", "enabled": True},
+                {"name": "good", "provider": "claude", "enabled": True},
+            ],
+            "record_status": record_status,
+        }
+        outcome = _refresh_claude_sessions(service, refresh_fn=lambda s: {"remaining_5h_pct": 50})
+
+        self.assertEqual(recorded, ["good"])
+        self.assertEqual(outcome["refreshed"], ["good"])
+        self.assertEqual(len(outcome["errors"]), 1)
+        self.assertEqual(outcome["errors"][0]["session"], "bad")
+
+
 if __name__ == "__main__":
     unittest.main()

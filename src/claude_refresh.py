@@ -83,9 +83,16 @@ def _refresh_claude_sessions(service, refresh_fn=None, target_names=None, force=
         for t in threads:
             t.join(timeout=10)
 
+    # A worker that outlived its join can still insert into results/errors;
+    # snapshot both so late writes can't mutate what we iterate.
+    results = dict(results)
+    errors = list(errors)
+
+    recorded = []
     for name, usage in results.items():
         try:
             service["record_status"](name, usage)
-        except CdxError:
+            recorded.append(name)
+        except (CdxError, OSError):
             errors.append({"session": name, "error": CdxError(f"Failed to record Claude status for {name}")})
-    return {"refreshed": sorted(results), "errors": errors}
+    return {"refreshed": sorted(recorded), "errors": errors}
