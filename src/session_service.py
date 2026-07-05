@@ -972,6 +972,9 @@ def create_session_service(options=None):
                     global_root,
                     session["provider"],
                     expected_account_email=expected_account_email,
+                    # The shared codex home can hold other accounts' rollouts;
+                    # structured payloads there cannot be attributed to ours.
+                    trust_unattributed_structured=False,
                 )
         if not artifact:
             if _is_low_confidence_status_source(current_status):

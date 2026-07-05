@@ -639,7 +639,12 @@ def _record_timestamp_epoch(value):
     return number / 1000 if number > 1e11 else number
 
 
-def find_latest_status_artifact(root_dir, provider=None, expected_account_email=None):
+def find_latest_status_artifact(
+    root_dir,
+    provider=None,
+    expected_account_email=None,
+    trust_unattributed_structured=True,
+):
     priority_candidates, history_candidates = _collect_candidate_files(root_dir)
     candidates = (
         _sort_recent(priority_candidates)
@@ -687,7 +692,13 @@ def find_latest_status_artifact(root_dir, provider=None, expected_account_email=
         # Each record producer stamps "trusted" where it knows the source kind.
         # Untrusted records are text scraped from jsonl payloads: they can be
         # conversational noise quoting an old status block.
-        priority = 2 if candidate.get("trusted") else 1
+        trusted = bool(candidate.get("trusted"))
+        # Structured payloads carry no account identity, so the email guard
+        # above cannot filter them. In roots shared by several accounts the
+        # caller demotes them below account-verified /status screens.
+        if trusted and candidate.get("structured") and not trust_unattributed_structured:
+            trusted = False
+        priority = 2 if trusted else 1
 
         if best is None or (priority, score) >= (best["priority"], best["score"]):
             previous = best
