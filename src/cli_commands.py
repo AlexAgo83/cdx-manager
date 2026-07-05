@@ -823,11 +823,12 @@ def _select_headless_session(ctx, provider, min_reasoning_effort=None, require_r
         session for session in ctx["service"]["list_sessions"]()
         if session.get("provider") == provider and session.get("enabled", True) is not False
     ]
-    minimum = _reasoning_rank(min_reasoning_effort)
-    sessions = [
-        session for session in sessions
-        if _reasoning_rank(_session_reasoning_effort(session)) >= minimum
-    ]
+    if min_reasoning_effort:
+        minimum = _reasoning_rank(min_reasoning_effort)
+        sessions = [
+            session for session in sessions
+            if _reasoning_rank(_session_reasoning_effort(session)) >= minimum
+        ]
     rows = ctx["service"]["get_status_rows"](force_refresh=force_refresh)
     row_by_name = {row.get("session_name"): row for row in rows}
     candidates = []

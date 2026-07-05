@@ -4461,6 +4461,23 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["reason"], "highest availability suitable session")
         self.assertEqual(payload["selection_policy"], "ready_then_cooldown_then_health_then_priority_then_name")
 
+    def test_select_without_minimum_includes_minimal_power_sessions(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        service["create_session"]("tiny", "claude")
+        service["set_launch_settings"]("tiny", {"power": "minimal"})
+        service["update_auth_state"]("tiny", lambda auth: {**auth, "status": "authenticated"})
+        service["record_status"]("tiny", {"remaining_5h_pct": 80, "remaining_week_pct": 80})
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "select", "--provider", "claude", "--require-ready", "--json"
+        ], {**io_obj, "service": service}), 0)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["session"], "tiny")
+
     def test_select_reports_no_suitable_session(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})
