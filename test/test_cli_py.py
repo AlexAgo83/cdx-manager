@@ -2224,6 +2224,9 @@ class CliPythonTests(unittest.TestCase):
         with open(cred_path, encoding="utf-8") as handle:
             credentials = json.load(handle)
         self.assertEqual(credentials["access_token"], "sk-ant-oat-test")
+        if os.name != "nt":
+            self.assertEqual(oct(os.stat(cred_path).st_mode & 0o777), "0o600")
+            self.assertEqual(oct(os.stat(os.path.dirname(cred_path)).st_mode & 0o777), "0o700")
         self.assertFalse(os.path.exists(_script_transcript_path(script_call)))
 
     def test_login_claude_setup_token_flag_skips_login(self):

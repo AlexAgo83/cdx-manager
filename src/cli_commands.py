@@ -79,6 +79,7 @@ from .context_store import (
     write_context,
 )
 from .errors import CdxError
+from .fs_utils import atomic_write
 from .health import collect_health_report, format_health_report
 from .notify import (
     format_notify_event,
@@ -170,20 +171,19 @@ def _extract_claude_oauth_token(text):
 
 def _write_claude_oauth_token(auth_home, token):
     cred_dir = os.path.join(auth_home, "credentials")
-    os.makedirs(cred_dir, exist_ok=True)
+    os.makedirs(cred_dir, mode=0o700, exist_ok=True)
+    try:
+        os.chmod(cred_dir, 0o700)
+    except OSError:
+        pass
     cred_path = os.path.join(cred_dir, "default.json")
     payload = {
         "version": "1.0",
         "type": "oauth_token",
         "access_token": token,
     }
-    with open(cred_path, "w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2)
-        handle.write("\n")
-    try:
-        os.chmod(cred_path, 0o600)
-    except OSError:
-        pass
+    # atomic_write keeps the token 0o600 from creation — no umask window.
+    atomic_write(cred_path, json.dumps(payload, indent=2) + "\n", mode=0o600)
     return cred_path
 
 

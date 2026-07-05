@@ -1413,13 +1413,8 @@ def create_session_service(options=None):
                 if is_existing and merge and os.path.exists(dest_path):
                     continue
                 _ensure_private_dir(os.path.dirname(dest_path))
-                with open(dest_path, "wb") as handle:
-                    handle.write(content)
-                if sys.platform != "win32":
-                    try:
-                        os.chmod(dest_path, 0o600)
-                    except OSError:
-                        pass
+                # Decrypted credentials: 0o600 from creation, no umask window.
+                atomic_write(dest_path, content, mode=0o600)
 
         return {
             "path": file_path,
