@@ -204,18 +204,22 @@ def _bootstrap_claude_setup_token(session, ctx):
             "Claude setup-token completed, but cdx could not capture the token. "
             "Run claude setup-token and save the token under credentials/default.json."
         )
-    with open(transcript_path, encoding="utf-8", errors="replace") as handle:
-        transcript = handle.read()
+    try:
+        with open(transcript_path, encoding="utf-8", errors="replace") as handle:
+            transcript = handle.read()
+    finally:
+        # The transcript holds the ~1-year OAuth token in cleartext; it must
+        # not outlive the extraction, whether it succeeds or not.
+        try:
+            os.remove(transcript_path)
+        except OSError:
+            pass
     token = _extract_claude_oauth_token(transcript)
     if not token:
         raise CdxError(
             "Claude setup-token completed, but cdx could not find CLAUDE_CODE_OAUTH_TOKEN in the output. "
-            f"Transcript kept at: {transcript_path}"
+            "Run claude setup-token manually and save the token under credentials/default.json."
         )
-    try:
-        os.remove(transcript_path)
-    except OSError:
-        pass
     auth_home = session.get("authHome") or ""
     cred_path = _write_claude_oauth_token(auth_home, token)
     # ponytail: drop short-lived claude login creds so the ~1yr token wins at launch (provider_runtime _read_claude_launch_oauth_token)

@@ -2261,14 +2261,14 @@ class CliPythonTests(unittest.TestCase):
         with open(cred_path, encoding="utf-8") as handle:
             self.assertEqual(json.load(handle)["access_token"], "sk-ant-oat-test")
 
-    def test_login_claude_keeps_setup_token_transcript_when_extraction_fails(self):
+    def test_login_claude_removes_setup_token_transcript_when_extraction_fails(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness(
             claude_login_authenticates=False,
             claude_setup_token_text="Use this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=<token>\n",
         )
 
-        with self.assertRaisesRegex(CdxError, "Transcript kept at"):
+        with self.assertRaisesRegex(CdxError, "Run claude setup-token manually"):
             main(["add", "claude", "work1"], {
                 **self.make_io(),
                 "env": {"CDX_HOME": temp_dir},
@@ -2280,7 +2280,8 @@ class CliPythonTests(unittest.TestCase):
             call for call in harness.calls
             if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "claude")
         )
-        self.assertTrue(os.path.exists(_script_transcript_path(script_call)))
+        # The transcript may hold the cleartext token; it must never be kept.
+        self.assertFalse(os.path.exists(_script_transcript_path(script_call)))
 
     def test_claude_setup_token_extraction_strips_ansi_sequences(self):
         token = _extract_claude_oauth_token(
