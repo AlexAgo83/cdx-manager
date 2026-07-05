@@ -277,6 +277,8 @@ def _extract_jsonl_texts(file_path, provider=None):
                     "timestamp": record.get("timestamp"),
                     "text": structured["raw_status_text"],
                     "structured": structured,
+                    # Exact API data, as trustworthy as a /status screen.
+                    "trusted": True,
                 })
             payload_texts = _collect_text_values(record.get("payload") or {})
             for candidate in payload_texts:
@@ -296,7 +298,11 @@ def _extract_log_block(file_path, provider=None):
     text = _safe_read_text(file_path)
     if not text:
         return []
-    return _extract_status_blocks_from_text(text, provider=provider, source_ref=file_path, timestamp=None)
+    items = _extract_status_blocks_from_text(text, provider=provider, source_ref=file_path, timestamp=None)
+    for item in items:
+        # A /status screen captured in a terminal log is authoritative.
+        item["trusted"] = True
+    return items
 
 
 def _parse_month_index(name):
@@ -643,10 +649,10 @@ def find_latest_status_artifact(root_dir, provider=None, expected_account_email=
         stat = _safe_stat(src_file)
         if not score and stat:
             score = stat.st_mtime
-        # Structured rate_limits payloads are exact API data, as trustworthy as
-        # a /status screen in a terminal log. Only text scraped from jsonl is
-        # demoted: it can be conversational noise quoting an old status block.
-        priority = 2 if src_file.endswith(".log") or candidate.get("structured") else 1
+        # Each record producer stamps "trusted" where it knows the source kind.
+        # Untrusted records are text scraped from jsonl payloads: they can be
+        # conversational noise quoting an old status block.
+        priority = 2 if candidate.get("trusted") else 1
 
         if best is None or (priority, score) >= (best["priority"], best["score"]):
             best = {
