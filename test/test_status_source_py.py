@@ -80,6 +80,37 @@ class StatusSourcePythonTests(unittest.TestCase):
         self.assertEqual(result["remaining_week_pct"], 90)
         self.assertEqual(result["source_ref"], new_path)
 
+    def test_fresh_structured_rollout_beats_stale_log_status_screen(self):
+        import json as json_module
+
+        with tempfile.TemporaryDirectory(prefix="cdx-status-source-") as temp_dir:
+            log_dir = os.path.join(temp_dir, "log")
+            os.makedirs(log_dir, exist_ok=True)
+            stale_log = os.path.join(log_dir, "cdx-session-stale.log")
+            with open(stale_log, "w", encoding="utf-8") as handle:
+                handle.write("5h limit: [xx] 44% left\nWeekly limit: [xx] 59% left\n")
+            os.utime(stale_log, (100, 100))
+
+            rollout = os.path.join(temp_dir, "sessions", "2026", "07", "05", "rollout.jsonl")
+            os.makedirs(os.path.dirname(rollout), exist_ok=True)
+            with open(rollout, "w", encoding="utf-8") as handle:
+                handle.write(json_module.dumps({
+                    "timestamp": "2026-07-05T10:37:31.157Z",
+                    "payload": {
+                        "type": "token_count",
+                        "rate_limits": {
+                            "primary": {"used_percent": 93, "window_minutes": 300, "resets_at": 1783261513},
+                            "secondary": {"used_percent": 65, "window_minutes": 10080, "resets_at": 1783413034},
+                        },
+                    },
+                }) + "\n")
+            os.utime(rollout, (200, 200))
+
+            result = find_latest_status_artifact(temp_dir, provider="codex")
+
+        self.assertEqual(result["remaining_5h_pct"], 7)
+        self.assertEqual(result["remaining_week_pct"], 35)
+
     def test_safe_relpath_rejects_traversal_and_absolute_paths(self):
         self.assertEqual(_safe_relpath("profile/auth.json"), "profile/auth.json")
 

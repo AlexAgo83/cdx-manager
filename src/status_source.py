@@ -643,7 +643,10 @@ def find_latest_status_artifact(root_dir, provider=None, expected_account_email=
         stat = _safe_stat(src_file)
         if not score and stat:
             score = stat.st_mtime
-        priority = 2 if src_file.endswith(".log") else 1
+        # Structured rate_limits payloads are exact API data, as trustworthy as
+        # a /status screen in a terminal log. Only text scraped from jsonl is
+        # demoted: it can be conversational noise quoting an old status block.
+        priority = 2 if src_file.endswith(".log") or candidate.get("structured") else 1
 
         if best is None or (priority, score) >= (best["priority"], best["score"]):
             best = {
