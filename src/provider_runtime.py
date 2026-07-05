@@ -700,7 +700,7 @@ def _signal_child_group(child, sig):
     # grandchildren die with the child. Falls back to False when the child
     # shares our group (test doubles spawned without start_new_session).
     pid = getattr(child, "pid", None)
-    if not pid:
+    if not pid or not hasattr(os, "getpgid"):
         return False
     try:
         pgid = os.getpgid(pid)

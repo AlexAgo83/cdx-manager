@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from src.config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
@@ -131,8 +132,8 @@ class RedactSensitiveArgsTests(unittest.TestCase):
 
 
 class TerminateChildTreeTests(unittest.TestCase):
+    @unittest.skipUnless(hasattr(os, "getpgid"), "process groups unavailable")
     def test_kills_grandchildren_in_the_process_group(self):
-        import os
         import subprocess
         import time
 

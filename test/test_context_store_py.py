@@ -106,7 +106,8 @@ class AtomicWriteTests(unittest.TestCase):
             atomic_write(path, "second\n", mode=0o600)
             with open(path, encoding="utf-8") as handle:
                 self.assertEqual(handle.read(), "second\n")
-            self.assertEqual(oct(os.stat(path).st_mode & 0o777), "0o600")
+            if os.name != "nt":
+                self.assertEqual(oct(os.stat(path).st_mode & 0o777), "0o600")
             self.assertEqual(os.listdir(temp_dir), ["target.md"])
 
     def test_atomic_write_failure_keeps_previous_content(self):
