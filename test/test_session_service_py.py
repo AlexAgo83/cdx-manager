@@ -1361,6 +1361,25 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(imported["lastStatus"]["remaining_5h_pct"], 90)
         self.assertEqual(imported["lastStatus"]["remaining_week_pct"], 85)
 
+    def test_import_merge_preserves_local_session_state_file(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("main")
+        bundle_path = os.path.join(source_dir, "backup.cdx")
+        source["export_bundle"](bundle_path)
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        target["create_session"]("main")
+        runtime = target["start_session_runtime"]("main", {"label": "live-run"})
+
+        target["import_bundle"](bundle_path, merge=True)
+
+        state = target["ensure_session_state"]("main")
+        self.assertEqual(state["status"], "running")
+        self.assertEqual(state["runtime"]["runId"], runtime["runId"])
+        self.assertEqual(state["runtime"]["label"], "live-run")
+
     def test_import_merge_fills_gaps_from_bundle(self):
         source_dir = self.make_temp_dir()
         source = create_session_service({"base_dir": source_dir})

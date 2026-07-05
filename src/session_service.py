@@ -1342,8 +1342,12 @@ def create_session_service(options=None):
             _ensure_private_dir(session_root)
             _ensure_private_dir(auth_home)
 
+            existing_state_before = None
             if is_existing and merge:
                 existing_record = store["get_session"](name) or {}
+                # replace_session resets the state file to defaults, so the
+                # local state must be captured before it runs.
+                existing_state_before = store["read_session_state"](name) or {}
                 bundle_record = {
                     **session_payload,
                     "provider": provider,
@@ -1367,13 +1371,12 @@ def create_session_service(options=None):
                 store["replace_session"](name, session_record)
 
             state = (payload.get("states") or {}).get(name)
-            if state is not None:
-                if is_existing and merge:
-                    existing_state = store["read_session_state"](name) or {}
-                    merged_state = {**state, **{k: v for k, v in existing_state.items() if v is not None}}
+            if is_existing and merge:
+                merged_state = {**(state or {}), **{k: v for k, v in (existing_state_before or {}).items() if v is not None}}
+                if merged_state:
                     store["write_session_state"](name, merged_state)
-                else:
-                    store["write_session_state"](name, state)
+            elif state is not None:
+                store["write_session_state"](name, state)
 
             for item in (payload.get("profiles") or {}).get(name, []):
                 rel_path = _safe_relpath(item.get("path"))
