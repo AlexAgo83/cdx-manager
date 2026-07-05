@@ -7,12 +7,6 @@ const { spawnSync } = require("node:child_process");
 
 const PYTHON_VERSION_CHECK = "import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)";
 const PYTHON_CACHE_PREFIX = path.join(os.tmpdir(), "cdx-manager-pycache");
-const SIGNAL_EXIT_CODES = {
-  SIGHUP: 129,
-  SIGINT: 130,
-  SIGTERM: 143,
-};
-
 const WINDOWS_CANDIDATES = [
   { command: "py", args: ["-3"], label: "py -3" },
   { command: "python", args: [], label: "python" },
@@ -148,7 +142,10 @@ function runPython(args, options = {}) {
   }
 
   if (result.signal) {
-    return SIGNAL_EXIT_CODES[result.signal] || 128;
+    // Conventional 128+signum so supervisors can tell SIGKILL (137) from
+    // SIGSEGV (139) instead of a flat 128.
+    const signum = os.constants.signals[result.signal];
+    return signum ? 128 + signum : 128;
   }
 
   return typeof result.status === "number" ? result.status : 1;
