@@ -2,6 +2,38 @@ import inspect
 import os
 import shutil
 import stat
+import tempfile
+
+
+def atomic_write(path, data, mode=None):
+    """Write str/bytes via temp file + rename so a crash can't leave a torn file.
+
+    mkstemp creates the temp file 0o600, so the content is never readable by
+    other users mid-write; pass mode to set the final permissions before the
+    rename makes the file visible.
+    """
+    directory = os.path.dirname(os.path.abspath(path))
+    os.makedirs(directory, exist_ok=True)
+    binary = isinstance(data, (bytes, bytearray))
+    fd, temp_path = tempfile.mkstemp(prefix=f".{os.path.basename(path)}.", suffix=".tmp", dir=directory)
+    try:
+        if binary:
+            handle = os.fdopen(fd, "wb")
+        else:
+            handle = os.fdopen(fd, "w", encoding="utf-8")
+        with handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if mode is not None and os.name != "nt":
+            os.chmod(temp_path, mode)
+        os.replace(temp_path, path)
+    except Exception:
+        try:
+            os.unlink(temp_path)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def _make_user_writable(path):

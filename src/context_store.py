@@ -5,6 +5,7 @@ import subprocess
 from datetime import datetime
 
 from .errors import CdxError
+from .fs_utils import atomic_write
 from .session_store import _ensure_dir
 
 DEFAULT_CONTEXT_TEMPLATE = """# Shared Context
@@ -57,8 +58,7 @@ def read_context(base_dir, cwd=None):
 def write_context(base_dir, content, cwd=None):
     path = get_context_path(base_dir, cwd)
     _ensure_dir(os.path.dirname(path))
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write(content.rstrip() + "\n")
+    atomic_write(path, content.rstrip() + "\n", mode=0o644)
     return {
         "path": path,
         "updated_at": _local_now_iso(),
@@ -117,8 +117,7 @@ def install_context_for_session(base_dir, session, cwd=None):
         raise CdxError(f"Session auth home missing for {session['name']}")
     target_path = os.path.join(auth_home, "shared-context.md")
     _ensure_dir(os.path.dirname(target_path))
-    with open(target_path, "w", encoding="utf-8") as handle:
-        handle.write(content.rstrip() + "\n")
+    atomic_write(target_path, content.rstrip() + "\n", mode=0o644)
     return {
         "source_path": get_context_path(base_dir, cwd),
         "target_path": target_path,

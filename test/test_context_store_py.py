@@ -94,3 +94,29 @@ class ContextStorePythonTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AtomicWriteTests(unittest.TestCase):
+    def test_atomic_write_replaces_content_and_leaves_no_temp_files(self):
+        from src.fs_utils import atomic_write
+
+        with tempfile.TemporaryDirectory(prefix="cdx-atomic-") as temp_dir:
+            path = os.path.join(temp_dir, "target.md")
+            atomic_write(path, "first\n")
+            atomic_write(path, "second\n", mode=0o600)
+            with open(path, encoding="utf-8") as handle:
+                self.assertEqual(handle.read(), "second\n")
+            self.assertEqual(oct(os.stat(path).st_mode & 0o777), "0o600")
+            self.assertEqual(os.listdir(temp_dir), ["target.md"])
+
+    def test_atomic_write_failure_keeps_previous_content(self):
+        from src.fs_utils import atomic_write
+
+        with tempfile.TemporaryDirectory(prefix="cdx-atomic-") as temp_dir:
+            path = os.path.join(temp_dir, "target.md")
+            atomic_write(path, "kept\n")
+            with self.assertRaises(TypeError):
+                atomic_write(path, 12345)  # not str/bytes: the write fails mid-flight
+            with open(path, encoding="utf-8") as handle:
+                self.assertEqual(handle.read(), "kept\n")
+            self.assertEqual(os.listdir(temp_dir), ["target.md"])

@@ -14,7 +14,7 @@ from .claude_usage import _decode_jwt_claims
 from .codex_usage import fetch_codex_rate_limits
 from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDERS, get_cdx_home
 from .errors import CdxError
-from .fs_utils import remove_tree
+from .fs_utils import atomic_write, remove_tree
 from .session_store import create_session_store
 from .status_source import find_latest_status_artifact
 
@@ -436,9 +436,7 @@ def _ensure_claude_attribution_disabled(auth_home):
         settings = {}
     settings["includeCoAuthoredBy"] = False
     try:
-        with open(settings_path, "w", encoding="utf-8") as handle:
-            json.dump(settings, handle, indent=2, sort_keys=True)
-            handle.write("\n")
+        atomic_write(settings_path, json.dumps(settings, indent=2, sort_keys=True) + "\n", mode=0o644)
     except OSError:
         return False
     return True
@@ -1314,14 +1312,10 @@ def create_session_service(options=None):
         bundle_bytes = encode_bundle(payload, include_auth=include_auth, passphrase=passphrase)
         if progress_callback:
             progress_callback({"event": "writing_started", "path": file_path, "bundle_size_bytes": len(bundle_bytes)})
-        os.makedirs(os.path.dirname(os.path.abspath(file_path)) or ".", exist_ok=True)
-        with open(file_path, "wb") as handle:
-            handle.write(bundle_bytes)
-        if sys.platform != "win32":
-            try:
-                os.chmod(file_path, 0o600)
-            except OSError:
-                pass
+        # Atomic + 0o600 from the start: the export path may live in a
+        # world-traversable directory, and a crash must not clobber a
+        # previous good bundle with a truncated one.
+        atomic_write(os.path.abspath(file_path), bundle_bytes, mode=0o600)
         return {
             "path": file_path,
             "include_auth": include_auth,
