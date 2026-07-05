@@ -95,3 +95,17 @@ class UpdateManagerPythonTests(unittest.TestCase):
         self.assertEqual(warning["resolved_version"], "1.2.2")
         self.assertEqual(os.path.normcase(warning["path"]), os.path.normcase(cdx_path))
         self.assertEqual(captured["env"], {"PATH": bin_dir})
+
+
+class RunUpdatePlanTests(unittest.TestCase):
+    def test_step_without_return_code_stops_the_plan(self):
+        from src.update_manager import run_update_plan
+
+        plan = {"steps": [
+            {"label": "first", "command": ["noop"], "env": {}},
+            {"label": "second", "command": ["noop"], "env": {}},
+        ]}
+        results = run_update_plan(plan, runner=lambda command, **kwargs: {"stdout": "", "stderr": "boom"}, env={})
+
+        self.assertEqual(len(results), 1)
+        self.assertIsNone(results[0]["returncode"])

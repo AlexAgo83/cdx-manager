@@ -204,7 +204,9 @@ def run_update_plan(plan, runner=None, env=None):
             "stdout": _result_text(result, "stdout"),
             "stderr": _result_text(result, "stderr"),
         })
-        if code not in (0, None):
+        # A runner that reports no return code is a failure, not a success:
+        # treating None as ok would let a failed step continue the plan.
+        if code != 0:
             break
     return results
 

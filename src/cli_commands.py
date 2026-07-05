@@ -1971,7 +1971,7 @@ def handle_update(rest, ctx):
         base_prefix=ctx["options"].get("basePrefix"),
     )
     results = run_update_plan(plan, runner=ctx["options"].get("runUpdate"), env=ctx.get("env"))
-    failed = any((result.get("returncode") not in (0, None)) for result in results)
+    failed = any((result.get("returncode") != 0) for result in results)
     if failed:
         raise CdxError(format_update_failure(results))
 
