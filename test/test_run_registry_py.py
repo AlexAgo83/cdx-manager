@@ -3,6 +3,8 @@ import shutil
 import tempfile
 import threading
 import unittest
+from types import SimpleNamespace
+from unittest import mock
 
 from src.run_registry import RunRegistry
 
@@ -60,6 +62,18 @@ class RunRegistryTests(unittest.TestCase):
         self.assertEqual(errors, [])
         listed = self.registry.list(limit=50)
         self.assertEqual(len(listed), 20)
+
+    def test_windows_uses_native_file_locking(self):
+        calls = []
+        fake_msvcrt = SimpleNamespace(
+            LK_LOCK=1,
+            LK_UNLCK=2,
+            locking=lambda fd, mode, length: calls.append((mode, length)),
+        )
+        with mock.patch("src.run_registry.sys.platform", "win32"):
+            with mock.patch.dict("sys.modules", {"msvcrt": fake_msvcrt}):
+                self._start("run-1")
+        self.assertEqual(calls, [(1, 1), (2, 1)])
 
 
 if __name__ == "__main__":

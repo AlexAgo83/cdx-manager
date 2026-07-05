@@ -1,6 +1,6 @@
-import fcntl
 import json
 import os
+import sys
 import tempfile
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -17,12 +17,23 @@ def registry_path(base_dir):
 @contextmanager
 def _registry_lock(path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path + ".lock", "w") as handle:
-        fcntl.flock(handle, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+    with open(path + ".lock", "a") as handle:
+        if sys.platform == "win32":
+            import msvcrt
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle, fcntl.LOCK_UN)
 
 
 def _read_registry(path):
