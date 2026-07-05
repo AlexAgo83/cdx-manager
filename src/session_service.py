@@ -489,23 +489,29 @@ def create_session_service(options=None):
         )
 
     def _session_runtime(name):
-        state = store["read_session_state"](name)
-        if not state:
+        found = {}
+
+        def updater(state):
+            if not state:
+                return None
+            runtime = state.get("runtime")
+            if _runtime_is_active(runtime):
+                found["runtime"] = runtime
+                return None
+            if isinstance(runtime, dict) and runtime.get("status") == "running":
+                return {
+                    **state,
+                    "status": "ready",
+                    "runtime": {
+                        **runtime,
+                        "status": "stale",
+                        "endedAt": _local_now_iso(),
+                    },
+                }
             return None
-        runtime = state.get("runtime")
-        if _runtime_is_active(runtime):
-            return runtime
-        if isinstance(runtime, dict) and runtime.get("status") == "running":
-            store["write_session_state"](name, {
-                **state,
-                "status": "ready",
-                "runtime": {
-                    **runtime,
-                    "status": "stale",
-                    "endedAt": _local_now_iso(),
-                },
-            })
-        return None
+
+        store["update_session_state"](name, updater)
+        return found.get("runtime")
 
     def _validate_new_session_name(name):
         if not name:
@@ -766,11 +772,14 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         if session.get("enabled", True) is False:
             raise CdxError(f"Session is disabled: {name}")
-        state = store["read_session_state"](name)
-        if not state:
-            raise CdxError(f"Session state missing for {name}. Reconnect required.")
         now = _local_now_iso()
-        store["write_session_state"](name, {**state, "rehydratedAt": now})
+
+        def state_updater(state):
+            if not state:
+                raise CdxError(f"Session state missing for {name}. Reconnect required.")
+            return {**state, "rehydratedAt": now}
+
+        store["update_session_state"](name, state_updater)
         return store["update_session"](name, lambda s: {
             **s, "updatedAt": now, "lastLaunchedAt": now
         })
@@ -779,9 +788,6 @@ def create_session_service(options=None):
         session = store["get_session"](name)
         if not session:
             raise CdxError(f"Unknown session: {name}")
-        state = store["read_session_state"](name)
-        if not state:
-            raise CdxError(f"Session state missing for {name}. Reconnect required.")
         payload = dict(payload or {})
         now = _local_now_iso()
         runtime = {
@@ -793,52 +799,70 @@ def create_session_service(options=None):
             "label": payload.get("label"),
             "transcriptPath": payload.get("transcript_path") or payload.get("transcriptPath"),
         }
-        store["write_session_state"](name, {
-            **state,
-            "status": "running",
-            "runtime": runtime,
-        })
+
+        def updater(state):
+            if not state:
+                raise CdxError(f"Session state missing for {name}. Reconnect required.")
+            return {
+                **state,
+                "status": "running",
+                "runtime": runtime,
+            }
+
+        store["update_session_state"](name, updater)
         return runtime
 
     def finish_session_runtime(name, run_id=None, payload=None):
         session = store["get_session"](name)
         if not session:
             raise CdxError(f"Unknown session: {name}")
-        state = store["read_session_state"](name)
-        if not state:
-            return None
-        runtime = state.get("runtime") or {}
-        if run_id and runtime.get("runId") != run_id:
-            return runtime
         payload = dict(payload or {})
-        updated_runtime = {
-            **runtime,
-            "status": payload.get("status") or "stopped",
-            "endedAt": payload.get("endedAt") or _local_now_iso(),
-        }
-        if "returncode" in payload:
-            updated_runtime["returncode"] = payload["returncode"]
-        store["write_session_state"](name, {
-            **state,
-            "status": "ready",
-            "runtime": updated_runtime,
-        })
-        return updated_runtime
+        outcome = {}
+
+        def updater(state):
+            if not state:
+                return None
+            runtime = state.get("runtime") or {}
+            if run_id and runtime.get("runId") != run_id:
+                outcome["runtime"] = runtime
+                return None
+            updated_runtime = {
+                **runtime,
+                "status": payload.get("status") or "stopped",
+                "endedAt": payload.get("endedAt") or _local_now_iso(),
+            }
+            if "returncode" in payload:
+                updated_runtime["returncode"] = payload["returncode"]
+            outcome["runtime"] = updated_runtime
+            return {
+                **state,
+                "status": "ready",
+                "runtime": updated_runtime,
+            }
+
+        store["update_session_state"](name, updater)
+        return outcome.get("runtime")
 
     def ensure_session_state(name):
         session = store["get_session"](name)
         if not session:
             raise CdxError(f"Unknown session: {name}")
-        state = store["read_session_state"](name)
-        if state:
-            return state
-        repaired = {
-            "provider": session["provider"],
-            "status": "ready",
-            "rehydratedAt": None,
-        }
-        store["write_session_state"](name, repaired)
-        return repaired
+        result = {}
+
+        def updater(state):
+            if state:
+                result["state"] = state
+                return None
+            repaired = {
+                "provider": session["provider"],
+                "status": "ready",
+                "rehydratedAt": None,
+            }
+            result["state"] = repaired
+            return repaired
+
+        store["update_session_state"](name, updater)
+        return result["state"]
 
     def list_sessions():
         return store["list_sessions"]()
@@ -864,22 +888,28 @@ def create_session_service(options=None):
         updates = _normalize_launch_settings(settings)
         if not updates:
             raise CdxError("At least one launch setting is required.")
-        current = _normalize_launch_settings(session.get("launch") or {}, mark_fast_service_tier=False)
-        launch = {**current, **updates}
-        explicit_power = "power" in updates or "reasoning_effort" in updates
-        if explicit_power and "fast" not in updates and launch.get("fastMode") != "service_tier":
-            launch["fast"] = False
-            launch.pop("fastMode", None)
-        if updates.get("fast") is False:
-            launch.pop("fastMode", None)
-            if not any(key in launch for key in ("power", "reasoning_effort", "reasoningEffort")):
-                launch["power"] = DEFAULT_LAUNCH_SETTINGS["power"]
         now = _local_now_iso()
-        return store["update_session"](name, lambda s: {
-            **s,
-            "launch": launch,
-            "updatedAt": now,
-        })
+
+        def updater(s):
+            # Build the new launch dict from the fresh record inside the store
+            # lock; a pre-lock snapshot loses a concurrent setting change.
+            current = _normalize_launch_settings(s.get("launch") or {}, mark_fast_service_tier=False)
+            launch = {**current, **updates}
+            explicit_power = "power" in updates or "reasoning_effort" in updates
+            if explicit_power and "fast" not in updates and launch.get("fastMode") != "service_tier":
+                launch["fast"] = False
+                launch.pop("fastMode", None)
+            if updates.get("fast") is False:
+                launch.pop("fastMode", None)
+                if not any(key in launch for key in ("power", "reasoning_effort", "reasoningEffort")):
+                    launch["power"] = DEFAULT_LAUNCH_SETTINGS["power"]
+            return {
+                **s,
+                "launch": launch,
+                "updatedAt": now,
+            }
+
+        return store["update_session"](name, updater)
 
     def unset_launch_settings(name, keys):
         session = store["get_session"](name)
@@ -891,12 +921,12 @@ def create_session_service(options=None):
         unknown = [key for key in keys if key not in allowed]
         if unknown:
             raise CdxError(f"Unsupported launch setting: {', '.join(unknown)}")
-        current = dict(session.get("launch") or {})
-        for key in keys:
-            current.pop(key, None)
         now = _local_now_iso()
 
         def updater(s):
+            current = dict(s.get("launch") or {})
+            for key in keys:
+                current.pop(key, None)
             updated = {**s, "updatedAt": now}
             if current:
                 updated["launch"] = current

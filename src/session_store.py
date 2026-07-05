@@ -260,6 +260,16 @@ def create_session_store(base_dir):
         with _file_lock(lock_file):
             _write_session_state_unlocked(name, state)
 
+    def update_session_state(name, updater):
+        # Read-modify-write under one lock; separate read/write calls let a
+        # concurrent writer's update be clobbered between the two.
+        with _file_lock(lock_file):
+            state = _read_session_state_unlocked(name)
+            updated = updater(state)
+            if updated is not None:
+                _write_session_state_unlocked(name, updated)
+            return updated
+
     def append_launch_history(entry):
         with _file_lock(lock_file):
             _ensure_dir(state_dir)
@@ -303,6 +313,7 @@ def create_session_store(base_dir):
         "replace_session": replace_session,
         "read_session_state": read_session_state,
         "write_session_state": write_session_state,
+        "update_session_state": update_session_state,
         "append_launch_history": append_launch_history,
         "list_launch_history": list_launch_history,
     }

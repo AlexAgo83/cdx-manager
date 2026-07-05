@@ -1627,6 +1627,40 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(rows[0]["reset_5h_at"], "Apr 16 03:48")
         self.assertEqual(rows[0]["reset_week_at"], "Apr 22 16:51")
 
+    def test_update_session_state_does_a_locked_read_modify_write(self):
+        temp_dir = self.make_temp_dir()
+        store = create_session_store(temp_dir)
+        store["add_session"]({"name": "main", "provider": "codex"})
+        store["write_session_state"]("main", {"provider": "codex", "status": "ready", "runtime": {"status": "running"}})
+
+        updated = store["update_session_state"]("main", lambda state: {**state, "rehydratedAt": "now"})
+        self.assertEqual(updated["rehydratedAt"], "now")
+        self.assertEqual(updated["runtime"], {"status": "running"})
+
+        # Returning None means "no write": the state on disk is untouched.
+        store["update_session_state"]("main", lambda state: None)
+        self.assertEqual(store["read_session_state"]("main")["rehydratedAt"], "now")
+
+    def test_concurrent_launch_setting_writes_keep_both_settings(self):
+        import threading
+
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        threads = [
+            threading.Thread(target=service["set_launch_settings"], args=("main", {"model": "opus"})),
+            threading.Thread(target=service["set_launch_settings"], args=("main", {"permission": "review"})),
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        launch = service["get_session"]("main").get("launch") or {}
+        self.assertEqual(launch.get("model"), "opus")
+        self.assertEqual(launch.get("permission"), "review")
+
     def test_corrupted_sessions_json_raises(self):
         temp_dir = self.make_temp_dir()
         store_file = os.path.join(temp_dir, "sessions.json")
