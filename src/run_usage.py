@@ -46,7 +46,9 @@ def _parse_json_records(text):
         try:
             records.append(json.loads(line))
         except json.JSONDecodeError:
-            return []
+            # A single truncated/noisy line must not discard the usage
+            # carried by every other valid JSONL record in the stream.
+            continue
     return records
 
 

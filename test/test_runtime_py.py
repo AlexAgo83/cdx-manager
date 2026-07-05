@@ -1048,6 +1048,28 @@ class RuntimePythonTests(unittest.TestCase):
                 "total_tokens": 14,
             })
 
+    def test_run_usage_survives_a_malformed_jsonl_line(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-usage-") as temp_dir:
+            path = os.path.join(temp_dir, "stdout.log")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write('{"type": "usage", "usage": {"input_tokens": 10, "out\n')
+                handle.write(json.dumps({
+                    "type": "usage",
+                    "usage": {
+                        "input_tokens": 10,
+                        "output_tokens": 4,
+                        "output_tokens_details": {"reasoning_tokens": 2},
+                        "total_tokens": 14,
+                    },
+                }) + "\n")
+
+            self.assertEqual(run_usage.extract_run_usage("codex", path), {
+                "input_tokens": 10,
+                "output_tokens": 4,
+                "reasoning_tokens": 2,
+                "total_tokens": 14,
+            })
+
     def test_run_usage_extracts_codex_turn_completed_usage(self):
         with tempfile.TemporaryDirectory(prefix="cdx-usage-") as temp_dir:
             path = os.path.join(temp_dir, "stdout.log")
