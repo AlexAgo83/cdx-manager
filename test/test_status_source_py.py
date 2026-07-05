@@ -182,6 +182,29 @@ class StatusSourcePythonTests(unittest.TestCase):
         self.assertIsNotNone(_parse_reset_timestamp("2026-04-17T05:00:00+00:00"))
         self.assertIsNone(_parse_reset_timestamp("not a timestamp"))
 
+    def test_parse_reset_timestamp_rolls_year_wraps_to_the_future(self):
+        from datetime import datetime, timedelta
+
+        now = datetime.now().astimezone()
+
+        upcoming = (now + timedelta(days=2)).strftime("%b %d %H:%M")
+        parsed = _parse_reset_timestamp(upcoming)
+        self.assertIsNotNone(parsed)
+        self.assertGreater(parsed, now.timestamp())
+
+        # A date ~300 days back can only be last year's rendering of a
+        # near-future reset (the "Jan 2 seen on Dec 31" wrap).
+        wrapped = (now - timedelta(days=300)).strftime("%b %d %H:%M")
+        parsed = _parse_reset_timestamp(wrapped)
+        self.assertIsNotNone(parsed)
+        self.assertGreater(parsed, now.timestamp())
+
+        # A reset a few days back genuinely passed and must stay in the past.
+        passed = (now - timedelta(days=3)).strftime("%b %d %H:%M")
+        parsed = _parse_reset_timestamp(passed)
+        self.assertIsNotNone(parsed)
+        self.assertLess(parsed, now.timestamp())
+
 
 if __name__ == "__main__":
     unittest.main()

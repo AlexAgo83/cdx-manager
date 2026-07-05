@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from .cli_render import (
@@ -328,12 +328,25 @@ def _parse_reset_timestamp(value):
         return parsed.timestamp()
     except (TypeError, ValueError):
         pass
-    try:
-        parsed = datetime.strptime(text, "%b %d %H:%M")
-    except (TypeError, ValueError):
-        return None
     now = datetime.now().astimezone()
-    parsed = parsed.replace(year=now.year, tzinfo=now.tzinfo)
+    parsed = None
+    # Parse with an explicit year: strptime's implicit 1900 rejects "Feb 29",
+    # and the current year may not hold the date at all around new year.
+    for year in (now.year, now.year + 1):
+        try:
+            parsed = datetime.strptime(f"{year} {text}", "%Y %b %d %H:%M").replace(tzinfo=now.tzinfo)
+            break
+        except (TypeError, ValueError):
+            continue
+    if parsed is None:
+        return None
+    # A year-less date nearly a year in the past is a year wrap ("Jan 2"
+    # rendered on Dec 31), not a reset that passed months ago.
+    if parsed < now - timedelta(days=182):
+        try:
+            parsed = parsed.replace(year=parsed.year + 1)
+        except ValueError:
+            pass
     return parsed.timestamp()
 
 
