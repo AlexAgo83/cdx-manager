@@ -128,6 +128,10 @@
     "v0.9.15": {
       "github_tarball_sha256": "08e6c5a3459fdd65d1f6085ca03a3614f07b4bf44c57a995a3ef47446aa70482",
       "github_zip_sha256": "c8ac01f4a65e85b417f5eba5139868ab17b8f0952bf99f17f0a79f73ef0f36d6"
+    },
+    "v0.9.16": {
+      "github_tarball_sha256": "0876509c201485824f6e5fe7b4a96ceb41cc68279fbe6dda4891864cf5be93ec",
+      "github_zip_sha256": "08072957a0421d257cecfa8bed73cceee80d1c8857c59ac45378ac8ce3e0362d"
     }
   }
 }
