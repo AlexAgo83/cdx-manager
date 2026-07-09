@@ -1,3 +1,4 @@
+import errno
 import json
 import os
 import re
@@ -881,6 +882,14 @@ def _format_probe_failure(session, spec, error):
             f"Install {command} and retry cdx add {session['name']}.",
             127,
         )
+    if isinstance(error, OSError) and error.errno == errno.ENOEXEC:
+        target = getattr(error, "filename", None) or command
+        return CdxError(
+            f"Failed to check login status for {session['name']}: {target} is not a valid executable "
+            f"(corrupted install, wrong architecture, or a script missing its shebang). "
+            f"Reinstall {command} and retry.",
+            126,
+        )
     message = getattr(error, "message", None) or str(error)
     return CdxError(f"Failed to check login status for {session['name']}: {message}")
 
@@ -915,7 +924,7 @@ def _probe_provider_auth(session, spawn_sync=None, env_override=None, trust_loca
             stdout = result.get("stdout") if isinstance(result, dict) else getattr(result, "stdout", "")
             stderr = result.get("stderr") if isinstance(result, dict) else getattr(result, "stderr", "")
             output = (stdout or "") + (stderr or "")
-    except FileNotFoundError as error:
+    except OSError as error:
         raise _format_probe_failure(session, spec, error) from error
     return spec["parser"](output)
 
