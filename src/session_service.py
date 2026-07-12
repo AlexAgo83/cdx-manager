@@ -49,6 +49,7 @@ RESERVED_SESSION_NAMES = {
     "power",
     "ready",
     "repair",
+    "reset",
     "resume",
     "ren",
     "rename",

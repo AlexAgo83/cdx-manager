@@ -24,6 +24,8 @@ The new `disk` command is reserved as a session name. Existing sessions named `p
 
 For eligible Codex accounts, `cdx status` now displays the number of banked rate-limit resets returned by the Codex app-server. Detailed status JSON includes available reset identifiers, labels, grant timestamps, and expiration timestamps when the backend provides them.
 
+`cdx reset <name>` consumes one available reset through Codex's idempotent reset-credit endpoint. The command is Codex-only, requires interactive confirmation unless `--yes` is supplied, handles backend eligibility outcomes explicitly, and refreshes status after activation. Status checks never consume resets automatically.
+
 ## Validation
 
 - `npm run release:validate`

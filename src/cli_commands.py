@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from datetime import datetime
 
 from .backup_bundle import read_bundle_meta
@@ -71,7 +72,8 @@ from .cli_helpers import (
 )
 from .cli_render import _dim, _info, _style, _success, _warn
 from .cli_view import handle_view as handle_view  # re-export for cli.py / tests
-from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_OLLAMA
+from .codex_usage import consume_codex_rate_limit_reset_credit
+from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
 from .context_store import (
     clear_context,
     edit_context,
@@ -140,6 +142,11 @@ def _resolve_bundle_passphrase(ctx, env_var, prompt, confirm=False, use_stdin=Fa
 
 def _confirm_removal(name):
     answer = input(f"Remove session {name}? [y/N] ")
+    return answer.strip().lower() in ("y", "yes")
+
+
+def _confirm_reset(name):
+    answer = input(f"Consume one banked Codex reset for {name}? [y/N] ")
     return answer.strip().lower() in ("y", "yes")
 
 
@@ -1993,6 +2000,69 @@ def handle_status(rest, ctx):
     ctx["out"](f"{_format_status_rows(rows, use_color=ctx['use_color'], small=parsed['small'])}\n")
     _write_refresh_warnings(refresh_errors, ctx, rows=rows)
     _write_update_notice(ctx)
+    return 0
+
+
+def handle_reset(rest, ctx):
+    parsed = _parse_flag_args(rest, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+        "--yes": {"key": "yes", "type": "bool", "default": False},
+    }, "Usage: cdx reset <name> [--yes] [--json]", positionals_key="args", max_positionals=1)
+    if len(parsed["args"]) != 1:
+        raise CdxError("Usage: cdx reset <name> [--yes] [--json]")
+    name = parsed["args"][0]
+    session = ctx["service"]["get_session"](name)
+    if not session:
+        raise CdxError(f"Unknown session: {name}")
+    if session["provider"] != PROVIDER_CODEX:
+        raise CdxError("Banked rate-limit resets are only available for Codex sessions.")
+
+    status = ctx["service"]["get_status_row"](name, force_refresh=True)
+    if status.get("reset_credits_available") == 0:
+        raise CdxError(f"No banked Codex reset is available for {name}.")
+    if not parsed["yes"]:
+        confirm_fn = ctx["options"].get("confirmReset")
+        if confirm_fn:
+            confirmed = _resolve_confirmation(confirm_fn, name)
+        elif not ctx["stdin_is_tty"]:
+            raise CdxError("Reset activation requires an interactive terminal or --yes in non-interactive mode.")
+        else:
+            confirmed = _confirm_reset(name)
+        if not confirmed:
+            if parsed["json"]:
+                _write_json(ctx, _json_success("reset", "Cancelled.", cancelled=True, session=name))
+                return 0
+            ctx["out"](f"{_warn('Cancelled.', ctx['use_color'])}\n")
+            return 0
+
+    credit_rows = status.get("reset_credits") or []
+    credit_id = credit_rows[0].get("id") if credit_rows else None
+    consumer = ctx["options"].get("consumeCodexReset") or consume_codex_rate_limit_reset_credit
+    result = consumer(
+        session,
+        ctx["options"].get("resetIdempotencyKey") or str(uuid.uuid4()),
+        credit_id=credit_id,
+    )
+    if not result.get("ok"):
+        if result.get("reason") == "reset_consume_failed":
+            raise CdxError(
+                f"Unable to activate Codex reset for {name}. "
+                "The installed Codex version or account may not support reset activation."
+            )
+        raise CdxError(f"Unable to activate Codex reset for {name}: {result.get('reason') or 'unknown error'}")
+    outcome = result.get("outcome")
+    if outcome == "noCredit":
+        raise CdxError(f"No banked Codex reset is available for {name}.")
+    if outcome == "nothingToReset":
+        raise CdxError(f"No current Codex rate-limit window is eligible for reset on {name}.")
+    if outcome not in ("reset", "alreadyRedeemed"):
+        raise CdxError(f"Unexpected Codex reset outcome for {name}: {outcome or 'missing'}")
+    refreshed = ctx["service"]["get_status_row"](name, force_refresh=True)
+    message = f"Activated banked Codex reset for {name}"
+    if parsed["json"]:
+        _write_json(ctx, _json_success("reset", message, cancelled=False, outcome=outcome, session=refreshed))
+        return 0
+    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
     return 0
 
 

@@ -367,6 +367,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx clean [name] [--json]` | Clear launch transcript logs for one session or all sessions |
 | `cdx clean profiles (--tmp\|--old-logs DAYS) [--json]` | Remove explicit profile cleanup candidates: temporary marketplace/plugin staging caches or old `.log` files |
 | `cdx disk [profiles] [--candidates] [--json]` | Measure `CDX_HOME`; `profiles` includes per-profile breakdown, and `--candidates` reports reclaimable temporary caches and old logs with evidence |
+| `cdx reset <name> [--yes] [--json]` | Explicitly consume one available banked Codex rate-limit reset; confirmation is required unless `--yes` is supplied |
 | `cdx export <file> [--include-auth] [--sessions a,b] [--passphrase-env VAR\|--passphrase-stdin] [--force] [--json]` | Export sessions to a portable bundle; `--include-auth` encrypts auth data with a passphrase |
 | `cdx import <file> [--sessions a,b] [--passphrase-env VAR\|--passphrase-stdin] [--force] [--json]` | Import sessions from a bundle into the current `CDX_HOME` |
 | `cdx doctor [--json]` | Inspect CLI dependencies, CDX_HOME permissions, missing state, orphan profiles, and pending quarantines |
@@ -403,6 +404,7 @@ Commands with machine-readable output:
 - `cdx rmv ... --json`
 - `cdx clean ... --json`
 - `cdx disk ... --json`
+- `cdx reset ... --json`
 - `cdx export ... --json`
 - `cdx import ... --json`
 - `cdx login ... --json`
@@ -654,6 +656,19 @@ cdx clean profiles --old-logs 30d
 `--tmp` removes temporary marketplace/plugin clone/backup staging directories. `--old-logs 30d` removes only `.log` files older than 30 days. The commands do not remove `auth.json`, `config.toml`, `sessions/`, SQLite state, installed `plugins/`, `skills/`, or credentials.
 
 The cleanup action is selected only when `--tmp` or `--old-logs` is present. This keeps `cdx clean profiles` available for an existing session named `profiles`. If any candidate or old log cannot be removed, cleanup stops with a non-zero error that identifies the affected path; it does not report the operation as successful.
+
+### Banked Codex resets
+
+Eligible Codex accounts expose manually redeemable rate-limit resets through the Codex app-server. `cdx status` shows their available count in the `RESETS` column; `cdx status <name>` also shows the nearest known expiration, and JSON status includes the available reset details supplied by Codex.
+
+Activation is always explicit:
+
+```bash
+cdx reset <name>
+cdx reset <name> --yes --json
+```
+
+Without `--yes`, an interactive confirmation is required. `cdx` sends an idempotency key, consumes at most one available reset, and refreshes the session status after a successful activation. It never activates a reset from `cdx status` or any background check.
 
 ---
 

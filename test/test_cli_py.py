@@ -13,6 +13,7 @@ from unittest import mock
 from src.cli import (
     _format_blocking_quota,
     _format_reset_time,
+    _format_status_detail,
     _format_status_rows,
     _get_disk_cleanup_notice,
     _pad_table,
@@ -441,6 +442,17 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Current:", output)
         self.assertNotIn("Tip:", output)
 
+    def test_status_detail_shows_banked_reset_expiry(self):
+        output = _format_status_detail({
+            "session_name": "main",
+            "provider": "codex",
+            "reset_credits_available": 1,
+            "reset_credits": [{"expires_at": "2099-07-20T10:00:00+00:00"}],
+        })
+
+        self.assertIn("Bonus resets: 1", output)
+        self.assertIn("Reset expiry:", output)
+
     def test_blocking_quota_formatting_identifies_lowest_limit(self):
         self.assertEqual(_format_blocking_quota({
             "remaining_5h_pct": 80,
@@ -482,6 +494,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("cdx stats [name]", help_io["stdout"].getvalue())
         self.assertIn("cdx disk [profiles] [--candidates] [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx clean profiles (--tmp|--old-logs DAYS) [--json]", help_io["stdout"].getvalue())
+        self.assertIn("cdx reset <name> [--yes] [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx resume <name> [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx can-resume <name> [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx add [provider] <name> [--model MODEL] [--json]", help_io["stdout"].getvalue())
@@ -991,6 +1004,65 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(first["code"], "disk_cleanup_available")
         self.assertIn("cdx clean profiles --tmp", first["message"])
         self.assertIsNone(second)
+
+    def test_reset_consumes_banked_codex_reset_and_refreshes_status(self):
+        temp_dir = self.make_temp_dir()
+        status = {
+            "remaining_5h_pct": 0,
+            "remaining_week_pct": 40,
+            "reset_credits_available": 1,
+            "reset_credits": [{"id": "reset-1"}],
+            "updated_at": "2026-07-12T10:00:00+02:00",
+            "source_ref": "api:codex-app-server-rate-limits",
+        }
+        service = create_session_service({"base_dir": temp_dir, "fetchCodexRateLimits": lambda _session: status})
+        service["create_session"]("main")
+        calls = []
+
+        def consume(session, key, credit_id=None):
+            calls.append((session["name"], key, credit_id))
+            return {"ok": True, "outcome": "reset"}
+
+        reset_io = self.make_io()
+        self.assertEqual(main(["reset", "main", "--yes", "--json"], {
+            **reset_io,
+            "env": {"CDX_HOME": temp_dir},
+            "service": service,
+            "consumeCodexReset": consume,
+            "resetIdempotencyKey": "attempt-1",
+        }), 0)
+
+        payload = json.loads(reset_io["stdout"].getvalue())
+        self.assertEqual(payload["action"], "reset")
+        self.assertEqual(payload["outcome"], "reset")
+        self.assertEqual(calls, [("main", "attempt-1", "reset-1")])
+
+    def test_reset_requires_confirmation_in_non_interactive_mode(self):
+        temp_dir = self.make_temp_dir()
+        status = {"reset_credits_available": 1, "updated_at": "2026-07-12T10:00:00+02:00"}
+        service = create_session_service({"base_dir": temp_dir, "fetchCodexRateLimits": lambda _session: status})
+        service["create_session"]("main")
+
+        with self.assertRaisesRegex(CdxError, "requires an interactive terminal or --yes"):
+            main(["reset", "main"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "service": service,
+                "stdin": {"isTTY": False},
+            })
+
+    def test_reset_rejects_when_no_banked_reset_is_available(self):
+        temp_dir = self.make_temp_dir()
+        status = {"reset_credits_available": 0, "updated_at": "2026-07-12T10:00:00+02:00"}
+        service = create_session_service({"base_dir": temp_dir, "fetchCodexRateLimits": lambda _session: status})
+        service["create_session"]("main")
+
+        with self.assertRaisesRegex(CdxError, "No banked Codex reset"):
+            main(["reset", "main", "--yes"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "service": service,
+            })
 
     def test_root_list_supports_json_contract(self):
         temp_dir = self.make_temp_dir()

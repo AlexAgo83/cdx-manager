@@ -381,6 +381,25 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertFalse(diagnostic["ok"])
         self.assertEqual(diagnostic["reason"], "missing_rate_limits")
 
+    def test_consume_codex_rate_limit_reset_credit_uses_app_server_jsonrpc(self):
+        process = _FakeProcess([
+            json.dumps({"id": 1, "result": {}}) + "\n",
+            json.dumps({"id": 2, "result": {"outcome": "reset"}}) + "\n",
+        ])
+
+        result = codex_usage.consume_codex_rate_limit_reset_credit(
+            {"authHome": "/tmp/codex-home"},
+            "attempt-1",
+            credit_id="reset-1",
+            popen_factory=lambda _argv, **_kwargs: process,
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["outcome"], "reset")
+        request = json.loads(process.stdin.writes[1])
+        self.assertEqual(request["method"], "account/rateLimitResetCredit/consume")
+        self.assertEqual(request["params"], {"idempotencyKey": "attempt-1", "creditId": "reset-1"})
+
     @unittest.skipIf(codex_usage.fcntl is None, "flock unavailable on this platform")
     def test_codex_probe_backs_off_when_auth_locked(self):
         with tempfile.TemporaryDirectory(prefix="cdx-lock-") as auth_home:

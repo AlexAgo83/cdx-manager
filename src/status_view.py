@@ -369,8 +369,14 @@ def _format_status_detail(row, use_color=False):
         f"{_style('Block:', '1', use_color)} {_style(_format_blocking_quota(row), '33', use_color)}",
         f"{_style('Credits:', '1', use_color)} {_style(_format_credits(row.get('credits')), '33' if row.get('credits') is not None else '2', use_color)}",
         f"{_style('Bonus resets:', '1', use_color)} {_style(str(row['reset_credits_available']), '33', use_color) if row.get('reset_credits_available') is not None else _style('-', '2', use_color)}",
+        f"{_style('Reset expiry:', '1', use_color)} {_style_reset_time(_nearest_reset_expiry(row), use_color)}",
         f"{_style('5h reset:', '1', use_color)} {_style_reset_time(row.get('reset_5h_at'), use_color)}",
         f"{_style('Week reset:', '1', use_color)} {_style_reset_time(row.get('reset_week_at'), use_color)}",
         f"{_style('Updated:', '1', use_color)} {_dim(_format_relative_age(row.get('updated_at')), use_color)}",
     ]
     return "\n".join(lines)
+
+
+def _nearest_reset_expiry(row):
+    values = [credit.get("expires_at") for credit in row.get("reset_credits") or [] if credit.get("expires_at")]
+    return min(values, key=lambda value: _parse_reset_timestamp(value) or float("inf")) if values else None

@@ -194,6 +194,32 @@ def fetch_codex_rate_limit_diagnostic(session, timeout=5, popen_factory=None):
 
 
 def _probe_codex_rate_limit_diagnostic(session, auth_home, timeout=5, popen_factory=None):
+    diagnostic = _request_codex_app_server(
+        auth_home,
+        "account/rateLimits/read",
+        None,
+        "rate_limits_read_failed",
+        timeout=timeout,
+        popen_factory=popen_factory,
+    )
+    if not diagnostic["ok"]:
+        return diagnostic
+    response = diagnostic["response"]
+    result = response.get("result") or {}
+    by_limit = result.get("rateLimitsByLimitId") or {}
+    snapshot = by_limit.get("codex") or result.get("rateLimits")
+    status = normalize_codex_rate_limit_snapshot(snapshot, result.get("rateLimitResetCredits"))
+    if not status:
+        return {
+            "ok": False,
+            "reason": "missing_rate_limits",
+            "status": None,
+            "response": response,
+        }
+    return {"ok": True, "reason": None, "status": status, "response": response}
+
+
+def _request_codex_app_server(auth_home, method, params, failure_reason, timeout=5, popen_factory=None):
     env = os.environ.copy()
     env["CODEX_HOME"] = auth_home
     popen_factory = popen_factory or subprocess.Popen
@@ -232,29 +258,18 @@ def _probe_codex_rate_limit_diagnostic(session, auth_home, timeout=5, popen_fact
         _write_json_line(process, {
             "jsonrpc": "2.0",
             "id": 2,
-            "method": "account/rateLimits/read",
-            "params": None,
+            "method": method,
+            "params": params,
         })
         response = _read_response(output, 2, timeout)
         if not response or response.get("error"):
             return {
                 "ok": False,
-                "reason": "rate_limits_read_failed",
+                "reason": failure_reason,
                 "status": None,
                 "response": response,
             }
-        result = response.get("result") or {}
-        by_limit = result.get("rateLimitsByLimitId") or {}
-        snapshot = by_limit.get("codex") or result.get("rateLimits")
-        status = normalize_codex_rate_limit_snapshot(snapshot, result.get("rateLimitResetCredits"))
-        if not status:
-            return {
-                "ok": False,
-                "reason": "missing_rate_limits",
-                "status": None,
-                "response": response,
-            }
-        return {"ok": True, "reason": None, "status": status, "response": response}
+        return {"ok": True, "reason": None, "status": None, "response": response}
     except FileNotFoundError as error:
         return {"ok": False, "reason": "codex_cli_not_found", "status": None, "error": str(error)}
     except (OSError, ValueError, BrokenPipeError) as error:
@@ -278,3 +293,25 @@ def fetch_codex_rate_limits(session, timeout=5, popen_factory=None):
         popen_factory=popen_factory,
     )
     return diagnostic.get("status") if diagnostic.get("ok") else None
+
+
+def consume_codex_rate_limit_reset_credit(session, idempotency_key, credit_id=None, timeout=5, popen_factory=None):
+    auth_home = session.get("authHome")
+    if not auth_home:
+        return {"ok": False, "reason": "missing_auth_home", "outcome": None}
+    with codex_auth_lock(auth_home) as acquired:
+        if not acquired:
+            return {"ok": False, "reason": "auth_locked", "outcome": None}
+        params = {"idempotencyKey": idempotency_key}
+        if credit_id:
+            params["creditId"] = credit_id
+        diagnostic = _request_codex_app_server(
+            auth_home,
+            "account/rateLimitResetCredit/consume",
+            params,
+            "reset_consume_failed",
+            timeout=timeout,
+            popen_factory=popen_factory,
+        )
+        result = (diagnostic.get("response") or {}).get("result") or {}
+        return {**diagnostic, "outcome": result.get("outcome")}
