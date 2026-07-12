@@ -65,6 +65,15 @@ def _format_reset_date(unix_seconds):
     return f"{MONTH_ABBR[dt.month - 1]} {dt.day} {str(dt.hour).zfill(2)}:{str(dt.minute).zfill(2)}"
 
 
+def _format_timestamp(unix_seconds):
+    if unix_seconds is None:
+        return None
+    try:
+        return datetime.fromtimestamp(int(unix_seconds), tz=timezone.utc).astimezone().isoformat()
+    except (TypeError, ValueError, OSError):
+        return None
+
+
 def _remaining_from_used_percent(value):
     if value is None:
         return None
@@ -84,7 +93,7 @@ def _get_window(snapshot, duration_mins):
     return {}
 
 
-def normalize_codex_rate_limit_snapshot(snapshot):
+def normalize_codex_rate_limit_snapshot(snapshot, reset_credits=None):
     if not snapshot:
         return None
 
@@ -101,6 +110,23 @@ def normalize_codex_rate_limit_snapshot(snapshot):
 
     reset_5h_at = _format_reset_date(five_hour.get("resetsAt") or five_hour.get("resets_at"))
     reset_week_at = _format_reset_date(weekly.get("resetsAt") or weekly.get("resets_at"))
+    reset_credits = reset_credits or {}
+    available_count = reset_credits.get("availableCount", reset_credits.get("available_count"))
+    try:
+        available_count = max(0, int(available_count)) if available_count is not None else None
+    except (TypeError, ValueError):
+        available_count = None
+    credit_rows = []
+    for credit in reset_credits.get("credits") or []:
+        if not isinstance(credit, dict) or credit.get("status") not in (None, "available"):
+            continue
+        credit_rows.append({
+            "id": credit.get("id"),
+            "title": credit.get("title"),
+            "description": credit.get("description"),
+            "granted_at": _format_timestamp(credit.get("grantedAt", credit.get("granted_at"))),
+            "expires_at": _format_timestamp(credit.get("expiresAt", credit.get("expires_at"))),
+        })
 
     raw_status_text = json.dumps(snapshot, sort_keys=True)
     return {
@@ -111,6 +137,8 @@ def normalize_codex_rate_limit_snapshot(snapshot):
             weekly.get("usedPercent", weekly.get("used_percent"))
         ),
         "credits": credit_balance,
+        "reset_credits_available": available_count,
+        "reset_credits": credit_rows,
         "reset_5h_at": reset_5h_at,
         "reset_week_at": reset_week_at,
         "reset_at": reset_week_at or reset_5h_at,
@@ -218,7 +246,7 @@ def _probe_codex_rate_limit_diagnostic(session, auth_home, timeout=5, popen_fact
         result = response.get("result") or {}
         by_limit = result.get("rateLimitsByLimitId") or {}
         snapshot = by_limit.get("codex") or result.get("rateLimits")
-        status = normalize_codex_rate_limit_snapshot(snapshot)
+        status = normalize_codex_rate_limit_snapshot(snapshot, result.get("rateLimitResetCredits"))
         if not status:
             return {
                 "ok": False,

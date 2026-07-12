@@ -281,6 +281,15 @@ class RuntimePythonTests(unittest.TestCase):
             "secondary": {"usedPercent": 34, "windowDurationMins": 10080, "resetsAt": 1779889892},
             "credits": {"hasCredits": False, "unlimited": False, "balance": "0"},
             "planType": "plus",
+        }, {
+            "availableCount": 1,
+            "credits": [{
+                "id": "reset-1",
+                "status": "available",
+                "title": "Free reset",
+                "grantedAt": 1779470000,
+                "expiresAt": 1779889892,
+            }],
         })
 
         self.assertEqual(result["remaining_5h_pct"], 93)
@@ -288,6 +297,9 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertIsNone(result["credits"])
         self.assertEqual(result["reset_5h_at"], self.format_local_reset(1779476398))
         self.assertEqual(result["reset_week_at"], self.format_local_reset(1779889892))
+        self.assertEqual(result["reset_credits_available"], 1)
+        self.assertEqual(result["reset_credits"][0]["id"], "reset-1")
+        self.assertIsNotNone(result["reset_credits"][0]["expires_at"])
         self.assertEqual(result["source_ref"], "api:codex-app-server-rate-limits")
 
     def test_fetch_codex_rate_limits_reads_app_server_jsonrpc(self):
@@ -297,6 +309,7 @@ class RuntimePythonTests(unittest.TestCase):
             json.dumps({
                 "id": 2,
                 "result": {
+                    "rateLimitResetCredits": {"availableCount": 2, "credits": None},
                     "rateLimitsByLimitId": {
                         "codex": {
                             "limitId": "codex",
@@ -323,6 +336,7 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertEqual(captured["env"]["CODEX_HOME"], "/tmp/codex-home")
         self.assertEqual(result["remaining_5h_pct"], 88)
         self.assertEqual(result["remaining_week_pct"], 60)
+        self.assertEqual(result["reset_credits_available"], 2)
         self.assertTrue(process.terminated)
         self.assertIn('"method":"initialize"', process.stdin.writes[0])
         self.assertIn('"method":"account/rateLimits/read"', process.stdin.writes[1])

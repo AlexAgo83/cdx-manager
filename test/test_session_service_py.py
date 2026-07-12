@@ -557,6 +557,8 @@ class SessionServicePythonTests(unittest.TestCase):
             "remaining_5h_pct": 93,
             "remaining_week_pct": 66,
             "credits": None,
+            "reset_credits_available": 1,
+            "reset_credits": [{"id": "reset-1", "expires_at": "2026-06-20T10:00:00+02:00"}],
             "reset_5h_at": "May 22 20:59",
             "reset_week_at": "May 27 15:51",
             "reset_at": "May 27 15:51",
@@ -584,6 +586,8 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(rows[0]["remaining_5h_pct"], 93)
         self.assertEqual(rows[0]["remaining_week_pct"], 66)
         self.assertIsNone(rows[0]["credits"])
+        self.assertEqual(rows[0]["reset_credits_available"], 1)
+        self.assertEqual(rows[0]["reset_credits"][0]["id"], "reset-1")
         self.assertEqual(
             service["get_session"]("main")["lastStatus"]["source_ref"],
             "api:codex-app-server-rate-limits",

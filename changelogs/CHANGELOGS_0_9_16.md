@@ -4,6 +4,7 @@
 
 - Clear error message when a provider CLI binary is broken instead of a raw Python traceback.
 - Profile disk usage, cleanup candidates, explicit cleanup actions, and daily space-recovery notices.
+- Visibility into banked Codex rate-limit resets in text and JSON status output.
 
 ## Changes
 
@@ -18,6 +19,10 @@ Launching a session whose provider CLI exists but cannot be executed (corrupted 
 Advisory commands perform a read-only cleanup check at most once per day and warn only when documented disk or reclaimable-space thresholds are reached. Cleanup failures now stop with a non-zero error naming the affected path instead of silently reporting zero bytes removed.
 
 The new `disk` command is reserved as a session name. Existing sessions named `profiles` remain compatible: `cdx clean profiles` still clears that session's transcripts, and profile-wide cleanup is selected only when `--tmp` or `--old-logs` is supplied.
+
+### Banked Codex resets
+
+For eligible Codex accounts, `cdx status` now displays the number of banked rate-limit resets returned by the Codex app-server. Detailed status JSON includes available reset identifiers, labels, grant timestamps, and expiration timestamps when the backend provides them.
 
 ## Validation
 

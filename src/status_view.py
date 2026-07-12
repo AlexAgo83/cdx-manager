@@ -76,15 +76,15 @@ def _format_credits(value, empty="n/a"):
 def _format_status_rows(rows, use_color=False, small=False):
     has_provider = len({r["provider"] for r in rows}) > 1 and not small
     if small:
-        headers = ["SESSION", "STATUS", "OK", "5H", "WEEK", "RESET 5H", "RESET WEEK"]
+        headers = ["SESSION", "STATUS", "OK", "5H", "WEEK", "RESETS", "RESET 5H", "RESET WEEK"]
     elif has_provider:
-        headers = ["SESSION", "PROV.", "STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR", "RESET 5H", "RESET WEEK", "UPDATED"]
+        headers = ["SESSION", "PROV.", "STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR", "RESETS", "RESET 5H", "RESET WEEK", "UPDATED"]
     else:
-        headers = ["SESSION", "STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR", "RESET 5H", "RESET WEEK", "UPDATED"]
+        headers = ["SESSION", "STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR", "RESETS", "RESET 5H", "RESET WEEK", "UPDATED"]
     if not rows:
         if small:
-            return "SESSION  STATUS  OK  5H  WEEK  RESET 5H  RESET WEEK\nNo saved sessions yet."
-        return "SESSION  STATUS  OK  5H  WEEK  BLOCK  CR  RESET 5H  RESET WEEK  UPDATED\nNo saved sessions yet."
+            return "SESSION  STATUS  OK  5H  WEEK  RESETS  RESET 5H  RESET WEEK\nNo saved sessions yet."
+        return "SESSION  STATUS  OK  5H  WEEK  BLOCK  CR  RESETS  RESET 5H  RESET WEEK  UPDATED\nNo saved sessions yet."
     headers = [_style(header, "1", use_color) for header in headers]
     active_rows = [r for r in rows if r.get("enabled", True) is not False]
     priority = recommend_priority_rows(rows)
@@ -109,12 +109,13 @@ def _format_status_rows(rows, use_color=False, small=False):
             auth_color = "32" if auth == "logged" else "31" if auth == "logged out" else "2"
             base.append(_style(auth, auth_color, use_color))
         if r.get("enabled", True) is False:
-            usage_columns = [_style("-", "2", use_color)] * 5
+            usage_columns = [_style("-", "2", use_color)] * 6
         else:
             usage_columns = [
                 _style_pct(r.get("available_pct"), use_color),
                 _style_pct(r.get("remaining_5h_pct"), use_color),
                 _style_pct(r.get("remaining_week_pct"), use_color),
+                _style(str(r["reset_credits_available"]), "33", use_color) if r.get("reset_credits_available") is not None else _style("-", "2", use_color),
                 _style_reset_time(r.get("reset_5h_at"), use_color),
                 _style_reset_time(r.get("reset_week_at"), use_color),
             ]
@@ -367,6 +368,7 @@ def _format_status_detail(row, use_color=False):
         f"{_style('Week left:', '1', use_color)} {_style_pct(row.get('remaining_week_pct'), use_color)}",
         f"{_style('Block:', '1', use_color)} {_style(_format_blocking_quota(row), '33', use_color)}",
         f"{_style('Credits:', '1', use_color)} {_style(_format_credits(row.get('credits')), '33' if row.get('credits') is not None else '2', use_color)}",
+        f"{_style('Bonus resets:', '1', use_color)} {_style(str(row['reset_credits_available']), '33', use_color) if row.get('reset_credits_available') is not None else _style('-', '2', use_color)}",
         f"{_style('5h reset:', '1', use_color)} {_style_reset_time(row.get('reset_5h_at'), use_color)}",
         f"{_style('Week reset:', '1', use_color)} {_style_reset_time(row.get('reset_week_at'), use_color)}",
         f"{_style('Updated:', '1', use_color)} {_dim(_format_relative_age(row.get('updated_at')), use_color)}",

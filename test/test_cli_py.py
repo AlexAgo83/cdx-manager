@@ -302,6 +302,7 @@ class CliPythonTests(unittest.TestCase):
                 "remaining_5h_pct": 95,
                 "remaining_week_pct": 95,
                 "credits": 453,
+                "reset_credits_available": 1,
                 "reset_5h_at": None,
                 "reset_week_at": None,
                 "updated_at": None,
@@ -431,6 +432,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("WEEK", header)
         self.assertIn("RESET 5H", header)
         self.assertIn("RESET WEEK", header)
+        self.assertIn("RESETS", header)
         self.assertNotIn("PROV.", header)
         self.assertNotIn("BLOCK", header)
         self.assertNotIn("CR", header)
