@@ -905,7 +905,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["warnings"][0]["code"], "disk_cleanup_available")
         self.assertEqual(payload["warnings"][0]["reclaimable_bytes"], 2 * 1024 * 1024 * 1024)
 
-    def test_disk_cleanup_notice_checks_weekly(self):
+    def test_disk_cleanup_notice_checks_daily(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
         profile_dir = os.path.join(temp_dir, "profiles", "main")
