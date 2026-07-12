@@ -41,6 +41,7 @@ One command to launch any session. Zero auth juggling.
 - **Session control.** Disable a session without deleting it when an account is temporarily out of credits; disabled sessions remain visible and sort last.
 - **Persistent launch settings.** Pin per-session power, permission, and fast-mode preferences once; `cdx` reapplies them on every launch until you unset them.
 - **Launch history.** Inspect recent launches with provider, result, duration, working directory, launch settings, and transcript path.
+- **Disk usage and cleanup.** `cdx disk` reports `CDX_HOME` usage, `cdx disk profiles --candidates` identifies reclaimable profile caches/logs with evidence, and `cdx clean profiles ...` applies explicit cleanup actions.
 - **Update prompts.** Periodic update checks surface `cdx update` directly in the `cdx`, `cdx status`, and launch output when a newer release is available. When `logics-manager` is installed, `cdx` can also suggest `logics-manager self-update`.
 - **Logics viewer shortcut.** `cdx view` opens the Logics browser/focus viewer through `logics-manager view` when the companion CLI is installed. All viewer flags are forwarded: `--lan`, `--lan-rw`, `--focus <ref>`, `--read`, `--port`, `--host`, `--refresh-interval`, `--tls`, `--tls-cert`, `--tls-key`, `--open`, `--no-open`. `cdx view --json` reports availability and update diagnostics without opening the viewer.
 - **Shared handoff context.** Keep a per-workspace Markdown context, or build one from a source session transcript, and install it into another assistant session before switching providers or accounts.
@@ -265,6 +266,10 @@ cdx next
 
 # Notify when the next cooling-down assistant is ready
 cdx ready
+
+# Inspect CDX_HOME and profile disk usage
+cdx disk
+cdx disk profiles --candidates
 ```
 
 ### Next-Ready Notifications
@@ -359,6 +364,8 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx handoff <source> <target> [--json]` | Build shared context from the source session's latest launch transcript, install it into the target session, and launch the target unless `--json` is used; supports cross-provider handoff |
 | `cdx rmv <name> [--force] [--json]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
 | `cdx clean [name] [--json]` | Clear launch transcript logs for one session or all sessions |
+| `cdx clean profiles (--tmp\|--old-logs DAYS) [--json]` | Remove explicit profile cleanup candidates: temporary marketplace/plugin staging caches or old `.log` files |
+| `cdx disk [profiles] [--candidates] [--json]` | Measure `CDX_HOME`; `profiles` includes per-profile breakdown, and `--candidates` reports reclaimable temporary caches and old logs with evidence |
 | `cdx export <file> [--include-auth] [--sessions a,b] [--passphrase-env VAR\|--passphrase-stdin] [--force] [--json]` | Export sessions to a portable bundle; `--include-auth` encrypts auth data with a passphrase |
 | `cdx import <file> [--sessions a,b] [--passphrase-env VAR\|--passphrase-stdin] [--force] [--json]` | Import sessions from a bundle into the current `CDX_HOME` |
 | `cdx doctor [--json]` | Inspect CLI dependencies, CDX_HOME permissions, missing state, orphan profiles, and pending quarantines |
@@ -394,6 +401,7 @@ Commands with machine-readable output:
 - `cdx ren ... --json`
 - `cdx rmv ... --json`
 - `cdx clean ... --json`
+- `cdx disk ... --json`
 - `cdx export ... --json`
 - `cdx import ... --json`
 - `cdx login ... --json`
@@ -603,6 +611,36 @@ All session data lives under `CDX_HOME` (default: `~/.cdx/`):
 ```
 
 Session names are URL-encoded when used as directory or file names. CLI command names such as `add`, `status`, and `login` are reserved and cannot be used as session names.
+
+### Disk maintenance
+
+Use `cdx disk` for a total `CDX_HOME` measurement, and `cdx disk profiles` for the `profiles/` total plus a per-profile breakdown.
+
+```bash
+cdx disk
+cdx disk profiles
+```
+
+To find cleanup candidates without deleting anything:
+
+```bash
+cdx disk profiles --candidates
+cdx disk profiles --candidates --json
+```
+
+Candidate evidence includes profile name, path, size, risk, reason, and metadata such as modified time or old-log file counts. The current cleanup candidates are intentionally limited to:
+
+- temporary marketplace/plugin staging caches under `profiles/*/.tmp/`
+- `.log` files older than the requested age inside profile `log/` directories
+
+Apply cleanup only with explicit actions:
+
+```bash
+cdx clean profiles --tmp
+cdx clean profiles --old-logs 30d
+```
+
+`--tmp` removes temporary marketplace/plugin clone/backup staging directories. `--old-logs 30d` removes only `.log` files older than 30 days. The commands do not remove `auth.json`, `config.toml`, `sessions/`, SQLite state, installed `plugins/`, `skills/`, or credentials.
 
 ---
 
