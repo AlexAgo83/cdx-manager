@@ -8,6 +8,9 @@ from datetime import datetime, timezone
 from .cli_commands import (
     API_SCHEMA_VERSION,
     STATUS_USAGE,
+    _collect_profile_cleanup_candidates,
+    _directory_child_sizes,
+    _directory_size_bytes,
     handle_add,
     handle_can_resume,
     handle_clean,
@@ -15,8 +18,8 @@ from .cli_commands import (
     handle_configs,
     handle_context,
     handle_copy,
-    handle_disk,
     handle_disable,
+    handle_disk,
     handle_doctor,
     handle_enable,
     handle_export,
@@ -45,9 +48,8 @@ from .cli_commands import (
     handle_unset,
     handle_update,
     handle_view,
-    _collect_profile_cleanup_candidates,
-    _directory_child_sizes,
-    _directory_size_bytes,
+)
+from .cli_commands import (
     _format_bytes as _format_disk_bytes,
 )
 from .cli_render import (
