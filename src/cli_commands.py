@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shlex
+import subprocess
 import sys
 import time
 from datetime import datetime
@@ -13,6 +14,7 @@ from .claude_refresh import _refresh_claude_sessions
 from .cli_args import (
     CAN_RESUME_USAGE,
     CONTEXT_USAGE,
+    DISK_USAGE,
     DOCTOR_USAGE,
     HANDOFF_USAGE,
     LAST_USAGE,
@@ -149,6 +151,83 @@ def _resolve_confirmation(confirm_fn, name):
     if hasattr(confirmed, "__await__"):
         confirmed = asyncio.get_event_loop().run_until_complete(confirmed)
     return confirmed
+
+
+def _format_bytes(value):
+    size = float(value)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024 or unit == "TB":
+            return f"{int(size)} {unit}" if unit == "B" or size.is_integer() else f"{size:.1f} {unit}"
+        size /= 1024
+
+
+def _directory_size_bytes(path, runner=None):
+    if not os.path.exists(path):
+        raise CdxError(f"CDX home does not exist: {path}")
+    runner = runner or subprocess.check_output
+    try:
+        output = runner(["du", "-sk", path], text=True, stderr=subprocess.DEVNULL)
+        return int(str(output).split()[0]) * 1024
+    except (OSError, subprocess.CalledProcessError, ValueError, IndexError):
+        total = 0
+        for root, _, files in os.walk(path):
+            for name in files:
+                try:
+                    total += os.path.getsize(os.path.join(root, name))
+                except OSError:
+                    pass
+        return total
+
+
+def _directory_child_sizes(path, runner=None):
+    rows = []
+    try:
+        names = os.listdir(path)
+    except OSError:
+        return rows
+    for name in names:
+        child_path = os.path.join(path, name)
+        if not os.path.isdir(child_path):
+            continue
+        rows.append({
+            "name": name,
+            "path": child_path,
+            "bytes": _directory_size_bytes(child_path, runner=runner),
+        })
+    rows.sort(key=lambda row: row["bytes"], reverse=True)
+    for row in rows:
+        row["size"] = _format_bytes(row["bytes"])
+    return rows
+
+
+def handle_disk(rest, ctx):
+    parsed = _parse_flag_args(rest, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, DISK_USAGE, positionals_key="targets", max_positionals=1)
+    target = parsed["targets"][0] if parsed["targets"] else "home"
+    if target == "home":
+        path = ctx["service"]["base_dir"]
+    elif target == "profiles":
+        path = os.path.join(ctx["service"]["base_dir"], "profiles")
+    else:
+        raise CdxError(DISK_USAGE)
+    bytes_used = _directory_size_bytes(path, runner=ctx["options"].get("diskUsageRunner"))
+    payload = {
+        "target": target,
+        "path": path,
+        "bytes": bytes_used,
+        "size": _format_bytes(bytes_used),
+    }
+    if target == "profiles":
+        payload["children"] = _directory_child_sizes(path, runner=ctx["options"].get("diskUsageRunner"))
+    if parsed["json"]:
+        label = "CDX profiles" if target == "profiles" else "CDX home"
+        _write_json(ctx, _json_success("disk", f"Measured {label} disk usage: {payload['size']}", disk=payload))
+        return 0
+    ctx["out"](f"{payload['size']}\t{path}\n")
+    for child in payload.get("children", []):
+        ctx["out"](f"{child['size']}\t{child['name']}\n")
+    return 0
 
 
 def _extract_claude_oauth_token(text):

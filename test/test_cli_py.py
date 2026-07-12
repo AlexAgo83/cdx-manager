@@ -477,6 +477,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("cdx next [--json] [--refresh]", help_io["stdout"].getvalue())
         self.assertIn("cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b>", help_io["stdout"].getvalue())
         self.assertIn("cdx stats [name]", help_io["stdout"].getvalue())
+        self.assertIn("cdx disk [profiles] [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx resume <name> [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx can-resume <name> [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx add [provider] <name> [--model MODEL] [--json]", help_io["stdout"].getvalue())
@@ -490,6 +491,80 @@ class CliPythonTests(unittest.TestCase):
 
         self.assertEqual(main(["-v"], version_io), 0)
         self.assertRegex(version_io["stdout"].getvalue().strip(), r"^\d+\.\d+\.\d+$")
+
+    def test_disk_reports_cdx_home_size(self):
+        temp_dir = self.make_temp_dir()
+        disk_io = self.make_io()
+
+        self.assertEqual(main(["disk"], {
+            **disk_io,
+            "env": {"CDX_HOME": temp_dir},
+            "diskUsageRunner": lambda argv, **kwargs: f"1536\t{temp_dir}\n",
+        }), 0)
+
+        self.assertEqual(disk_io["stdout"].getvalue(), f"1.5 MB\t{temp_dir}\n")
+
+    def test_disk_json_reports_cdx_home_size(self):
+        temp_dir = self.make_temp_dir()
+        disk_io = self.make_io()
+
+        self.assertEqual(main(["disk", "--json"], {
+            **disk_io,
+            "env": {"CDX_HOME": temp_dir},
+            "diskUsageRunner": lambda argv, **kwargs: f"2048\t{temp_dir}\n",
+        }), 0)
+
+        payload = json.loads(disk_io["stdout"].getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["action"], "disk")
+        self.assertEqual(payload["disk"]["target"], "home")
+        self.assertEqual(payload["disk"]["path"], temp_dir)
+        self.assertEqual(payload["disk"]["bytes"], 2097152)
+        self.assertEqual(payload["disk"]["size"], "2 MB")
+
+    def test_disk_profiles_reports_profiles_size(self):
+        temp_dir = self.make_temp_dir()
+        profiles_dir = os.path.join(temp_dir, "profiles")
+        os.makedirs(profiles_dir)
+        disk_io = self.make_io()
+
+        self.assertEqual(main(["disk", "profiles", "--json"], {
+            **disk_io,
+            "env": {"CDX_HOME": temp_dir},
+            "diskUsageRunner": lambda argv, **kwargs: f"4096\t{profiles_dir}\n",
+        }), 0)
+
+        payload = json.loads(disk_io["stdout"].getvalue())
+        self.assertEqual(payload["disk"]["target"], "profiles")
+        self.assertEqual(payload["disk"]["path"], profiles_dir)
+        self.assertEqual(payload["disk"]["bytes"], 4194304)
+        self.assertEqual(payload["disk"]["size"], "4 MB")
+
+    def test_disk_profiles_prints_profile_breakdown(self):
+        temp_dir = self.make_temp_dir()
+        profiles_dir = os.path.join(temp_dir, "profiles")
+        main_dir = os.path.join(profiles_dir, "main")
+        work_dir = os.path.join(profiles_dir, "work")
+        os.makedirs(main_dir)
+        os.makedirs(work_dir)
+        sizes = {
+            profiles_dir: "4096",
+            main_dir: "3072",
+            work_dir: "1024",
+        }
+        disk_io = self.make_io()
+
+        self.assertEqual(main(["disk", "profiles"], {
+            **disk_io,
+            "env": {"CDX_HOME": temp_dir},
+            "diskUsageRunner": lambda argv, **kwargs: f"{sizes[argv[2]]}\t{argv[2]}\n",
+        }), 0)
+
+        self.assertEqual(disk_io["stdout"].getvalue().splitlines(), [
+            f"4 MB\t{profiles_dir}",
+            "3 MB\tmain",
+            "1 MB\twork",
+        ])
 
     def test_update_check_json_reports_available_update(self):
         temp_dir = self.make_temp_dir()
