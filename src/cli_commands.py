@@ -150,6 +150,16 @@ def _confirm_reset(name):
     return answer.strip().lower() in ("y", "yes")
 
 
+def _confirm_profile_cleanup(action):
+    answer = input(f"Delete matching profile {action} candidates? [y/N] ")
+    return answer.strip().lower() in ("y", "yes")
+
+
+def _confirm_log_cleanup(target):
+    answer = input(f"Clear launch transcript logs for {target}? [y/N] ")
+    return answer.strip().lower() in ("y", "yes")
+
+
 def _resolve_confirmation(confirm_fn, name):
     confirmed = (
         asyncio.get_event_loop().run_until_complete(confirm_fn(name))
@@ -447,7 +457,9 @@ def _clean_profile_old_logs(profile_path, days, now=None):
 
 
 def _handle_clean_profiles(args, ctx, json_flag):
-    usage = "Usage: cdx clean profiles (--tmp|--old-logs DAYS) [--json]"
+    usage = "Usage: cdx clean profiles (--tmp|--old-logs DAYS) [--yes] [--json]"
+    yes = "--yes" in args
+    args = [arg for arg in args if arg != "--yes"]
     clean_tmp = "--tmp" in args
     old_logs = None
     if "--old-logs" in args:
@@ -460,20 +472,36 @@ def _handle_clean_profiles(args, ctx, json_flag):
     if args or clean_tmp == (old_logs is not None):
         raise CdxError(usage)
 
+    action = "temporary cache" if clean_tmp else f"logs older than {old_logs}d"
+    if not yes:
+        confirm_fn = ctx["options"].get("confirmProfileCleanup")
+        if confirm_fn:
+            confirmed = _resolve_confirmation(confirm_fn, action)
+        elif not ctx["stdin_is_tty"]:
+            raise CdxError("Profile cleanup requires an interactive terminal or --yes in non-interactive mode.")
+        else:
+            confirmed = _confirm_profile_cleanup(action)
+        if not confirmed:
+            if json_flag:
+                _write_json(ctx, _json_success("clean.profiles", "Cancelled.", cancelled=True, freed_bytes=0, freed_size="0 B", profiles=[]))
+                return 0
+            ctx["out"](f"{_warn('Cancelled.', ctx['use_color'])}\n")
+            return 0
+
     results = []
     now = ctx["options"].get("now")() if callable(ctx["options"].get("now")) else None
     for profile_name, profile_path in _iter_profile_dirs(ctx["service"]["base_dir"]):
         if clean_tmp:
             freed, removed = _clean_profile_tmp(profile_path)
-            action = "tmp"
+            result_action = "tmp"
         else:
             freed, removed = _clean_profile_old_logs(profile_path, old_logs, now=now)
-            action = f"old-logs-{old_logs}d"
+            result_action = f"old-logs-{old_logs}d"
         if not freed and not removed:
             continue
         results.append({
             "profile": profile_name,
-            "action": action,
+            "action": result_action,
             "freed_bytes": freed,
             "freed_size": _format_bytes(freed),
             "removed_count": len(removed),
@@ -481,7 +509,7 @@ def _handle_clean_profiles(args, ctx, json_flag):
         })
     total = sum(item["freed_bytes"] for item in results)
     if json_flag:
-        _write_json(ctx, _json_success("clean.profiles", f"Cleaned profiles ({_format_bytes(total)} freed)", freed_bytes=total, freed_size=_format_bytes(total), profiles=results))
+        _write_json(ctx, _json_success("clean.profiles", f"Cleaned profiles ({_format_bytes(total)} freed)", cancelled=False, freed_bytes=total, freed_size=_format_bytes(total), profiles=results))
         return 0
     if not results:
         ctx["out"](f"{_dim('No matching profile cleanup candidates found.', ctx['use_color'])}\n")
@@ -1709,6 +1737,8 @@ def handle_clean(rest, ctx):
     json_flag, args = _parse_json_flag(rest)
     if args[:1] == ["profiles"] and any(arg in ("--tmp", "--old-logs") for arg in args[1:]):
         return _handle_clean_profiles(args[1:], ctx, json_flag)
+    yes = "--yes" in args
+    args = [arg for arg in args if arg != "--yes"]
     service = ctx["service"]
     if len(args) == 0:
         targets = service["list_sessions"]()
@@ -1718,7 +1748,23 @@ def handle_clean(rest, ctx):
             raise CdxError(f"Unknown session: {args[0]}")
         targets = [session]
     else:
-        raise CdxError("Usage: cdx clean [name] [--json]")
+        raise CdxError("Usage: cdx clean [name] [--yes] [--json]")
+
+    if not yes:
+        target = targets[0]["name"] if len(targets) == 1 else f"all {len(targets)} sessions"
+        confirm_fn = ctx["options"].get("confirmClean")
+        if confirm_fn:
+            confirmed = _resolve_confirmation(confirm_fn, target)
+        elif not ctx["stdin_is_tty"]:
+            raise CdxError("Log cleanup requires an interactive terminal or --yes in non-interactive mode.")
+        else:
+            confirmed = _confirm_log_cleanup(target)
+        if not confirmed:
+            if json_flag:
+                _write_json(ctx, _json_success("clean", "Cancelled.", cancelled=True, sessions=[]))
+                return 0
+            ctx["out"](f"{_warn('Cancelled.', ctx['use_color'])}\n")
+            return 0
 
     cleaned_sessions = []
     for session in targets:
@@ -1773,7 +1819,7 @@ def handle_clean(rest, ctx):
                 continue
             ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
     if json_flag:
-        _write_json(ctx, _json_success("clean", "Cleaned session logs", sessions=cleaned_sessions))
+        _write_json(ctx, _json_success("clean", "Cleaned session logs", cancelled=False, sessions=cleaned_sessions))
     return 0
 
 

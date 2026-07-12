@@ -493,7 +493,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b>", help_io["stdout"].getvalue())
         self.assertIn("cdx stats [name]", help_io["stdout"].getvalue())
         self.assertIn("cdx disk [profiles] [--candidates] [--json]", help_io["stdout"].getvalue())
-        self.assertIn("cdx clean profiles (--tmp|--old-logs DAYS) [--json]", help_io["stdout"].getvalue())
+        self.assertIn("cdx clean profiles (--tmp|--old-logs DAYS) [--yes] [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx reset <name> [--yes] [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx resume <name> [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx can-resume <name> [--json]", help_io["stdout"].getvalue())
@@ -686,7 +686,7 @@ class CliPythonTests(unittest.TestCase):
                 handle.write(b"x" * 1024)
 
         clean_io = self.make_io()
-        self.assertEqual(main(["clean", "profiles", "--tmp", "--json"], {
+        self.assertEqual(main(["clean", "profiles", "--tmp", "--yes", "--json"], {
             **clean_io,
             "env": {"CDX_HOME": temp_dir},
         }), 0)
@@ -706,7 +706,7 @@ class CliPythonTests(unittest.TestCase):
 
         with mock.patch("src.cli_commands.shutil.rmtree", side_effect=OSError("permission denied")):
             with self.assertRaisesRegex(CdxError, "Failed to remove cleanup candidate"):
-                main(["clean", "profiles", "--tmp"], {
+                main(["clean", "profiles", "--tmp", "--yes"], {
                     **self.make_io(),
                     "env": {"CDX_HOME": temp_dir},
                 })
@@ -724,7 +724,7 @@ class CliPythonTests(unittest.TestCase):
         os.utime(new_log, (1000 + 29 * 86400, 1000 + 29 * 86400))
 
         clean_io = self.make_io()
-        self.assertEqual(main(["clean", "profiles", "--old-logs", "30d", "--json"], {
+        self.assertEqual(main(["clean", "profiles", "--old-logs", "30d", "--yes", "--json"], {
             **clean_io,
             "env": {"CDX_HOME": temp_dir},
             "now": lambda: 1000 + 31 * 86400,
@@ -752,7 +752,7 @@ class CliPythonTests(unittest.TestCase):
 
         with mock.patch("src.cli_commands.os.remove", side_effect=remove):
             with self.assertRaisesRegex(CdxError, "Failed to remove old log"):
-                main(["clean", "profiles", "--old-logs", "30d"], {
+                main(["clean", "profiles", "--old-logs", "30d", "--yes"], {
                     **self.make_io(),
                     "env": {"CDX_HOME": temp_dir},
                     "now": lambda: 1000 + 31 * 86400,
@@ -768,7 +768,7 @@ class CliPythonTests(unittest.TestCase):
             handle.write("session transcript")
 
         clean_io = self.make_io()
-        self.assertEqual(main(["clean", "profiles", "--json"], {
+        self.assertEqual(main(["clean", "profiles", "--yes", "--json"], {
             **clean_io,
             "env": {"CDX_HOME": temp_dir},
             "service": service,
@@ -778,6 +778,36 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["action"], "clean")
         self.assertEqual(payload["sessions"][0]["session_name"], "profiles")
         self.assertEqual(os.path.getsize(log_path), 0)
+
+    def test_clean_profiles_requires_confirmation_before_deleting(self):
+        temp_dir = self.make_temp_dir()
+        marketplace_dir = os.path.join(temp_dir, "profiles", "main", ".tmp", "marketplaces")
+        os.makedirs(marketplace_dir)
+        cache_path = os.path.join(marketplace_dir, "cache.bin")
+        with open(cache_path, "wb") as handle:
+            handle.write(b"x")
+
+        clean_io = self.make_io()
+        self.assertEqual(main(["clean", "profiles", "--tmp", "--json"], {
+            **clean_io,
+            "env": {"CDX_HOME": temp_dir},
+            "confirmProfileCleanup": lambda _action: False,
+        }), 0)
+
+        payload = json.loads(clean_io["stdout"].getvalue())
+        self.assertTrue(payload["cancelled"])
+        self.assertTrue(os.path.exists(cache_path))
+
+    def test_clean_profiles_requires_yes_in_non_interactive_mode(self):
+        temp_dir = self.make_temp_dir()
+        os.makedirs(os.path.join(temp_dir, "profiles", "main", ".tmp", "marketplaces"))
+
+        with self.assertRaisesRegex(CdxError, "requires an interactive terminal or --yes"):
+            main(["clean", "profiles", "--tmp"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "stdin": {"isTTY": False},
+            })
 
     def test_update_check_json_reports_available_update(self):
         temp_dir = self.make_temp_dir()
@@ -3182,7 +3212,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(rename_payload["session"]["name"], "renamed")
 
         clean_io = self.make_io()
-        self.assertEqual(main(["clean", "main", "--json"], {
+        self.assertEqual(main(["clean", "main", "--yes", "--json"], {
             **clean_io,
             "env": {"CDX_HOME": temp_dir},
         }), 0)
@@ -3420,7 +3450,7 @@ class CliPythonTests(unittest.TestCase):
             handle.write("status transcript")
 
         clean_io = self.make_io()
-        self.assertEqual(main(["clean", "--json"], {
+        self.assertEqual(main(["clean", "--yes", "--json"], {
             **clean_io,
             "service": service,
             "env": {"CDX_HOME": temp_dir},
@@ -3432,6 +3462,26 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(by_name["withlog"]["files_cleared"], 1)
         self.assertFalse(by_name["nolog"]["cleared"])
         self.assertEqual(os.path.getsize(log_path), 0)
+
+    def test_clean_logs_requires_confirmation_before_truncating(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        log_path = os.path.join(temp_dir, "profiles", "main", "log", "cdx-session.log")
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "w", encoding="utf-8") as handle:
+            handle.write("transcript")
+
+        clean_io = self.make_io()
+        self.assertEqual(main(["clean", "main", "--json"], {
+            **clean_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "confirmClean": lambda _target: False,
+        }), 0)
+
+        self.assertTrue(json.loads(clean_io["stdout"].getvalue())["cancelled"])
+        self.assertGreater(os.path.getsize(log_path), 0)
 
     def test_export_with_auth_rejects_non_interactive_without_passphrase_env(self):
         temp_dir = self.make_temp_dir()

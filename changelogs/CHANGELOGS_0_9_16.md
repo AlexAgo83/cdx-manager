@@ -16,6 +16,8 @@ Launching a session whose provider CLI exists but cannot be executed (corrupted 
 
 `cdx disk` measures `CDX_HOME`, while `cdx disk profiles` adds a per-profile breakdown. `cdx disk profiles --candidates` identifies temporary marketplace/plugin staging directories and old logs with size, risk, reason, and evidence. Cleanup remains explicit through `cdx clean profiles --tmp` or `cdx clean profiles --old-logs DAYS`.
 
+All `cdx clean` operations now require confirmation before any deletion or log truncation starts. Non-interactive use must opt in explicitly with `--yes`.
+
 Interactive disk scans now report the current stage and profile count on stderr so long-running measurements no longer appear stalled. JSON and redirected output remain unchanged.
 
 Human-readable disk reports now use aligned summary and candidate tables, including each profile's share of total space and reclaimable amount. JSON output remains unchanged.
