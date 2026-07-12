@@ -29,6 +29,7 @@ RESERVED_SESSION_NAMES = {
     "configs",
     "cp",
     "disable",
+    "disk",
     "doctor",
     "enable",
     "export",

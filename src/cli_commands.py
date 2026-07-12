@@ -1636,7 +1636,7 @@ def handle_last(rest, ctx):
 
 def handle_clean(rest, ctx):
     json_flag, args = _parse_json_flag(rest)
-    if args[:1] == ["profiles"]:
+    if args[:1] == ["profiles"] and any(arg in ("--tmp", "--old-logs") for arg in args[1:]):
         return _handle_clean_profiles(args[1:], ctx, json_flag)
     service = ctx["service"]
     if len(args) == 0:

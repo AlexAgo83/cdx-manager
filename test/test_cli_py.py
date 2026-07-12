@@ -650,6 +650,27 @@ class CliPythonTests(unittest.TestCase):
         self.assertFalse(os.path.exists(old_log))
         self.assertTrue(os.path.exists(new_log))
 
+    def test_clean_profiles_without_cleanup_flags_targets_named_session(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("profiles")
+        log_path = os.path.join(temp_dir, "profiles", "profiles", "log", "cdx-session.log")
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "w", encoding="utf-8") as handle:
+            handle.write("session transcript")
+
+        clean_io = self.make_io()
+        self.assertEqual(main(["clean", "profiles", "--json"], {
+            **clean_io,
+            "env": {"CDX_HOME": temp_dir},
+            "service": service,
+        }), 0)
+
+        payload = json.loads(clean_io["stdout"].getvalue())
+        self.assertEqual(payload["action"], "clean")
+        self.assertEqual(payload["sessions"][0]["session_name"], "profiles")
+        self.assertEqual(os.path.getsize(log_path), 0)
+
     def test_update_check_json_reports_available_update(self):
         temp_dir = self.make_temp_dir()
         os.makedirs(temp_dir, exist_ok=True)
