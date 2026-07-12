@@ -337,8 +337,8 @@ def _remove_path(path):
             size = os.path.getsize(path)
             os.remove(path)
         return size
-    except OSError:
-        return 0
+    except OSError as error:
+        raise CdxError(f"Failed to remove cleanup candidate {path}: {error}") from error
 
 
 def _clean_profile_tmp(profile_path):
@@ -379,8 +379,8 @@ def _clean_profile_old_logs(profile_path, days, now=None):
                 continue
             try:
                 os.remove(path)
-            except OSError:
-                continue
+            except OSError as error:
+                raise CdxError(f"Failed to remove old log {path}: {error}") from error
             freed += stat.st_size
             removed.append(path)
     return freed, removed

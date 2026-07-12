@@ -626,6 +626,20 @@ class CliPythonTests(unittest.TestCase):
         self.assertFalse(os.path.exists(backup_dir))
         self.assertEqual(payload["profiles"][0]["profile"], "main")
 
+    def test_clean_profiles_tmp_reports_removal_failure(self):
+        temp_dir = self.make_temp_dir()
+        marketplace_dir = os.path.join(temp_dir, "profiles", "main", ".tmp", "marketplaces")
+        os.makedirs(marketplace_dir)
+        with open(os.path.join(marketplace_dir, "cache.bin"), "wb") as handle:
+            handle.write(b"x")
+
+        with mock.patch("src.cli_commands.shutil.rmtree", side_effect=OSError("permission denied")):
+            with self.assertRaisesRegex(CdxError, "Failed to remove cleanup candidate"):
+                main(["clean", "profiles", "--tmp"], {
+                    **self.make_io(),
+                    "env": {"CDX_HOME": temp_dir},
+                })
+
     def test_clean_profiles_old_logs_removes_only_old_log_files(self):
         temp_dir = self.make_temp_dir()
         log_dir = os.path.join(temp_dir, "profiles", "main", "log")
@@ -649,6 +663,29 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["profiles"][0]["removed_count"], 1)
         self.assertFalse(os.path.exists(old_log))
         self.assertTrue(os.path.exists(new_log))
+
+    def test_clean_profiles_old_logs_reports_removal_failure(self):
+        temp_dir = self.make_temp_dir()
+        old_log = os.path.join(temp_dir, "profiles", "main", "log", "old.log")
+        os.makedirs(os.path.dirname(old_log))
+        with open(old_log, "wb") as handle:
+            handle.write(b"x")
+        os.utime(old_log, (1000, 1000))
+
+        real_remove = os.remove
+
+        def remove(path):
+            if path == old_log:
+                raise OSError("permission denied")
+            return real_remove(path)
+
+        with mock.patch("src.cli_commands.os.remove", side_effect=remove):
+            with self.assertRaisesRegex(CdxError, "Failed to remove old log"):
+                main(["clean", "profiles", "--old-logs", "30d"], {
+                    **self.make_io(),
+                    "env": {"CDX_HOME": temp_dir},
+                    "now": lambda: 1000 + 31 * 86400,
+                })
 
     def test_clean_profiles_without_cleanup_flags_targets_named_session(self):
         temp_dir = self.make_temp_dir()
