@@ -610,7 +610,7 @@ All session data lives under `CDX_HOME` (default: `~/.cdx/`):
           cdx-session.log
 ```
 
-Session names are URL-encoded when used as directory or file names. CLI command names such as `add`, `status`, and `login` are reserved and cannot be used as session names.
+Session names are URL-encoded when used as directory or file names. CLI command names such as `add`, `disk`, `status`, and `login` are reserved and cannot be used as new session names.
 
 ### Disk maintenance
 
@@ -651,6 +651,8 @@ cdx clean profiles --old-logs 30d
 ```
 
 `--tmp` removes temporary marketplace/plugin clone/backup staging directories. `--old-logs 30d` removes only `.log` files older than 30 days. The commands do not remove `auth.json`, `config.toml`, `sessions/`, SQLite state, installed `plugins/`, `skills/`, or credentials.
+
+The cleanup action is selected only when `--tmp` or `--old-logs` is present. This keeps `cdx clean profiles` available for an existing session named `profiles`. If any candidate or old log cannot be removed, cleanup stops with a non-zero error that identifies the affected path; it does not report the operation as successful.
 
 ---
 
