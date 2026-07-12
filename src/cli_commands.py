@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -200,8 +201,241 @@ def _directory_child_sizes(path, runner=None):
     return rows
 
 
+def _parse_days(value, usage):
+    match = re.fullmatch(r"(\d+)(?:d)?", str(value or "").strip())
+    if not match or int(match.group(1)) <= 0:
+        raise CdxError(usage)
+    return int(match.group(1))
+
+
+def _candidate(profile, kind, path, bytes_used, reason, risk="safe", evidence=None):
+    return {
+        "profile": profile,
+        "kind": kind,
+        "path": path,
+        "bytes": bytes_used,
+        "size": _format_bytes(bytes_used),
+        "reason": reason,
+        "risk": risk,
+        "evidence": evidence or {},
+    }
+
+
+def _iter_profile_dirs(base_dir):
+    profiles_dir = os.path.join(base_dir, "profiles")
+    try:
+        names = sorted(os.listdir(profiles_dir))
+    except OSError:
+        return
+    for name in names:
+        path = os.path.join(profiles_dir, name)
+        if os.path.isdir(path):
+            yield name, path
+
+
+def _collect_old_logs(profile_name, profile_path, days, now=None):
+    cutoff = (time.time() if now is None else now) - (days * 86400)
+    paths = []
+    bytes_used = 0
+    latest_mtime = 0
+    for root, _, files in os.walk(profile_path):
+        if os.path.basename(root) != "log":
+            continue
+        for filename in files:
+            if not filename.endswith(".log"):
+                continue
+            path = os.path.join(root, filename)
+            try:
+                stat = os.stat(path)
+            except OSError:
+                continue
+            if stat.st_mtime >= cutoff:
+                continue
+            paths.append(path)
+            bytes_used += stat.st_size
+            latest_mtime = max(latest_mtime, stat.st_mtime)
+    if not paths:
+        return None
+    return _candidate(
+        profile_name,
+        f"old-logs-{days}d",
+        profile_path,
+        bytes_used,
+        f"{len(paths)} .log files older than {days}d",
+        risk="review",
+        evidence={
+            "days": days,
+            "file_count": len(paths),
+            "newest_old_log_mtime": datetime.fromtimestamp(latest_mtime).isoformat() if latest_mtime else None,
+            "sample_paths": paths[:5],
+        },
+    )
+
+
+def _collect_profile_cleanup_candidates(base_dir, *, old_log_days=30, runner=None, now=None):
+    candidates = []
+    for profile_name, profile_path in _iter_profile_dirs(base_dir):
+        tmp_dir = os.path.join(profile_path, ".tmp")
+        tmp_targets = [
+            ("tmp-marketplaces", os.path.join(tmp_dir, "marketplaces"), "temporary marketplace cache/staging"),
+        ]
+        try:
+            tmp_names = os.listdir(tmp_dir)
+        except OSError:
+            tmp_names = []
+        for name in tmp_names:
+            if name.startswith("plugins-clone-"):
+                tmp_targets.append(("tmp-plugin-clone", os.path.join(tmp_dir, name), "temporary plugin clone"))
+            elif name.startswith("plugins-backup-"):
+                tmp_targets.append(("tmp-plugin-backup", os.path.join(tmp_dir, name), "temporary plugin backup"))
+        for kind, path, reason in tmp_targets:
+            if not os.path.exists(path):
+                continue
+            bytes_used = _directory_size_bytes(path, runner=runner)
+            if bytes_used <= 0:
+                continue
+            try:
+                mtime = datetime.fromtimestamp(os.path.getmtime(path)).isoformat()
+            except OSError:
+                mtime = None
+            candidates.append(_candidate(
+                profile_name,
+                kind,
+                path,
+                bytes_used,
+                reason,
+                evidence={"modified_at": mtime},
+            ))
+        old_logs = _collect_old_logs(profile_name, profile_path, old_log_days, now=now)
+        if old_logs and old_logs["bytes"] > 0:
+            candidates.append(old_logs)
+    candidates.sort(key=lambda item: item["bytes"], reverse=True)
+    return candidates
+
+
+def _format_cleanup_candidates(candidates):
+    if not candidates:
+        return "No cleanup candidates found."
+    lines = []
+    by_profile = {}
+    for item in candidates:
+        by_profile.setdefault(item["profile"], []).append(item)
+    for profile, items in sorted(by_profile.items(), key=lambda row: sum(i["bytes"] for i in row[1]), reverse=True):
+        total = sum(item["bytes"] for item in items)
+        lines.append(f"{_format_bytes(total)}\t{profile}")
+        for item in items:
+            lines.append(f"  {item['size']}\t{item['kind']}\t{item['risk']}\t{item['reason']}")
+    return "\n".join(lines)
+
+
+def _remove_path(path):
+    try:
+        if os.path.isdir(path):
+            size = _directory_size_bytes(path)
+            shutil.rmtree(path)
+        else:
+            size = os.path.getsize(path)
+            os.remove(path)
+        return size
+    except OSError:
+        return 0
+
+
+def _clean_profile_tmp(profile_path):
+    tmp_dir = os.path.join(profile_path, ".tmp")
+    targets = [os.path.join(tmp_dir, "marketplaces")]
+    try:
+        names = os.listdir(tmp_dir)
+    except OSError:
+        names = []
+    targets.extend(os.path.join(tmp_dir, name) for name in names if name.startswith(("plugins-clone-", "plugins-backup-")))
+    freed = 0
+    removed = []
+    for path in targets:
+        if os.path.exists(path):
+            size = _remove_path(path)
+            if size:
+                freed += size
+                removed.append(path)
+    return freed, removed
+
+
+def _clean_profile_old_logs(profile_path, days, now=None):
+    cutoff = (time.time() if now is None else now) - (days * 86400)
+    freed = 0
+    removed = []
+    for root, _, files in os.walk(profile_path):
+        if os.path.basename(root) != "log":
+            continue
+        for filename in files:
+            if not filename.endswith(".log"):
+                continue
+            path = os.path.join(root, filename)
+            try:
+                stat = os.stat(path)
+            except OSError:
+                continue
+            if stat.st_mtime >= cutoff:
+                continue
+            try:
+                os.remove(path)
+            except OSError:
+                continue
+            freed += stat.st_size
+            removed.append(path)
+    return freed, removed
+
+
+def _handle_clean_profiles(args, ctx, json_flag):
+    usage = "Usage: cdx clean profiles (--tmp|--old-logs DAYS) [--json]"
+    clean_tmp = "--tmp" in args
+    old_logs = None
+    if "--old-logs" in args:
+        index = args.index("--old-logs")
+        if index + 1 >= len(args):
+            raise CdxError(usage)
+        old_logs = _parse_days(args[index + 1], usage)
+        args = [arg for i, arg in enumerate(args) if i not in (index, index + 1)]
+    args = [arg for arg in args if arg != "--tmp"]
+    if args or clean_tmp == (old_logs is not None):
+        raise CdxError(usage)
+
+    results = []
+    now = ctx["options"].get("now")() if callable(ctx["options"].get("now")) else None
+    for profile_name, profile_path in _iter_profile_dirs(ctx["service"]["base_dir"]):
+        if clean_tmp:
+            freed, removed = _clean_profile_tmp(profile_path)
+            action = "tmp"
+        else:
+            freed, removed = _clean_profile_old_logs(profile_path, old_logs, now=now)
+            action = f"old-logs-{old_logs}d"
+        if not freed and not removed:
+            continue
+        results.append({
+            "profile": profile_name,
+            "action": action,
+            "freed_bytes": freed,
+            "freed_size": _format_bytes(freed),
+            "removed_count": len(removed),
+            "removed_paths": removed,
+        })
+    total = sum(item["freed_bytes"] for item in results)
+    if json_flag:
+        _write_json(ctx, _json_success("clean.profiles", f"Cleaned profiles ({_format_bytes(total)} freed)", freed_bytes=total, freed_size=_format_bytes(total), profiles=results))
+        return 0
+    if not results:
+        ctx["out"](f"{_dim('No matching profile cleanup candidates found.', ctx['use_color'])}\n")
+        return 0
+    for item in results:
+        message = f"Cleaned {item['profile']} {item['action']} ({item['freed_size']} freed)"
+        ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    ctx["out"](f"{_success(f'Total freed: {_format_bytes(total)}', ctx['use_color'])}\n")
+    return 0
+
+
 def handle_disk(rest, ctx):
     parsed = _parse_flag_args(rest, {
+        "--candidates": {"key": "candidates", "type": "bool", "default": False},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, DISK_USAGE, positionals_key="targets", max_positionals=1)
     target = parsed["targets"][0] if parsed["targets"] else "home"
@@ -220,6 +454,17 @@ def handle_disk(rest, ctx):
     }
     if target == "profiles":
         payload["children"] = _directory_child_sizes(path, runner=ctx["options"].get("diskUsageRunner"))
+    if parsed["candidates"]:
+        if target != "profiles":
+            raise CdxError(DISK_USAGE)
+        candidates = _collect_profile_cleanup_candidates(
+            ctx["service"]["base_dir"],
+            runner=ctx["options"].get("diskUsageRunner"),
+            now=ctx["options"].get("now")() if callable(ctx["options"].get("now")) else None,
+        )
+        payload["candidates"] = candidates
+        payload["reclaimable_bytes"] = sum(item["bytes"] for item in candidates)
+        payload["reclaimable_size"] = _format_bytes(payload["reclaimable_bytes"])
     if parsed["json"]:
         label = "CDX profiles" if target == "profiles" else "CDX home"
         _write_json(ctx, _json_success("disk", f"Measured {label} disk usage: {payload['size']}", disk=payload))
@@ -227,6 +472,9 @@ def handle_disk(rest, ctx):
     ctx["out"](f"{payload['size']}\t{path}\n")
     for child in payload.get("children", []):
         ctx["out"](f"{child['size']}\t{child['name']}\n")
+    if parsed["candidates"]:
+        ctx["out"]("\nCleanup candidates:\n")
+        ctx["out"](f"{_format_cleanup_candidates(payload['candidates'])}\n")
     return 0
 
 
@@ -1388,6 +1636,8 @@ def handle_last(rest, ctx):
 
 def handle_clean(rest, ctx):
     json_flag, args = _parse_json_flag(rest)
+    if args[:1] == ["profiles"]:
+        return _handle_clean_profiles(args[1:], ctx, json_flag)
     service = ctx["service"]
     if len(args) == 0:
         targets = service["list_sessions"]()

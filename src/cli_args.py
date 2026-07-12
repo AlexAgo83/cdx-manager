@@ -13,7 +13,7 @@ from .provider_runtime import _normalize_reasoning_effort
 
 STATUS_USAGE = "Usage: cdx status [--json] [--refresh|--cached] [--timeout SECONDS] | cdx status --small|-s [--refresh|--cached] [--timeout SECONDS] | cdx status <name> [--json] [--refresh|--cached] [--timeout SECONDS]"
 DOCTOR_USAGE = "Usage: cdx doctor [--json]"
-DISK_USAGE = "Usage: cdx disk [profiles] [--json]"
+DISK_USAGE = "Usage: cdx disk [profiles] [--candidates] [--json]"
 REPAIR_USAGE = "Usage: cdx repair [--dry-run] [--force] [--json]"
 UPDATE_USAGE = "Usage: cdx update [--check] [--yes] [--json] [--version TAG]"
 EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR|--passphrase-stdin]"

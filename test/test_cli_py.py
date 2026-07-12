@@ -477,7 +477,8 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("cdx next [--json] [--refresh]", help_io["stdout"].getvalue())
         self.assertIn("cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b>", help_io["stdout"].getvalue())
         self.assertIn("cdx stats [name]", help_io["stdout"].getvalue())
-        self.assertIn("cdx disk [profiles] [--json]", help_io["stdout"].getvalue())
+        self.assertIn("cdx disk [profiles] [--candidates] [--json]", help_io["stdout"].getvalue())
+        self.assertIn("cdx clean profiles (--tmp|--old-logs DAYS) [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx resume <name> [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx can-resume <name> [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx add [provider] <name> [--model MODEL] [--json]", help_io["stdout"].getvalue())
@@ -565,6 +566,88 @@ class CliPythonTests(unittest.TestCase):
             "3 MB\tmain",
             "1 MB\twork",
         ])
+
+    def test_disk_profiles_candidates_report_cleanup_evidence(self):
+        temp_dir = self.make_temp_dir()
+        profile_dir = os.path.join(temp_dir, "profiles", "main")
+        marketplace_dir = os.path.join(profile_dir, ".tmp", "marketplaces")
+        clone_dir = os.path.join(profile_dir, ".tmp", "plugins-clone-test")
+        log_dir = os.path.join(profile_dir, "log")
+        os.makedirs(marketplace_dir)
+        os.makedirs(clone_dir)
+        os.makedirs(log_dir)
+        for path in (
+            os.path.join(marketplace_dir, "cache.bin"),
+            os.path.join(clone_dir, "clone.bin"),
+            os.path.join(log_dir, "old.log"),
+        ):
+            with open(path, "wb") as handle:
+                handle.write(b"x" * 1024)
+        os.utime(os.path.join(log_dir, "old.log"), (1000, 1000))
+
+        disk_io = self.make_io()
+        self.assertEqual(main(["disk", "profiles", "--candidates", "--json"], {
+            **disk_io,
+            "env": {"CDX_HOME": temp_dir},
+            "now": lambda: 1000 + 31 * 86400,
+        }), 0)
+
+        payload = json.loads(disk_io["stdout"].getvalue())
+        candidates = payload["disk"]["candidates"]
+        self.assertEqual({item["kind"] for item in candidates}, {"tmp-marketplaces", "tmp-plugin-clone", "old-logs-30d"})
+        old_logs = next(item for item in candidates if item["kind"] == "old-logs-30d")
+        self.assertEqual(old_logs["risk"], "review")
+        self.assertEqual(old_logs["evidence"]["file_count"], 1)
+
+    def test_clean_profiles_tmp_removes_temporary_candidates(self):
+        temp_dir = self.make_temp_dir()
+        profile_dir = os.path.join(temp_dir, "profiles", "main")
+        marketplace_dir = os.path.join(profile_dir, ".tmp", "marketplaces")
+        backup_dir = os.path.join(profile_dir, ".tmp", "plugins-backup-test")
+        os.makedirs(marketplace_dir)
+        os.makedirs(backup_dir)
+        for path in (
+            os.path.join(marketplace_dir, "cache.bin"),
+            os.path.join(backup_dir, "backup.bin"),
+        ):
+            with open(path, "wb") as handle:
+                handle.write(b"x" * 1024)
+
+        clean_io = self.make_io()
+        self.assertEqual(main(["clean", "profiles", "--tmp", "--json"], {
+            **clean_io,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        payload = json.loads(clean_io["stdout"].getvalue())
+        self.assertEqual(payload["action"], "clean.profiles")
+        self.assertFalse(os.path.exists(marketplace_dir))
+        self.assertFalse(os.path.exists(backup_dir))
+        self.assertEqual(payload["profiles"][0]["profile"], "main")
+
+    def test_clean_profiles_old_logs_removes_only_old_log_files(self):
+        temp_dir = self.make_temp_dir()
+        log_dir = os.path.join(temp_dir, "profiles", "main", "log")
+        os.makedirs(log_dir)
+        old_log = os.path.join(log_dir, "old.log")
+        new_log = os.path.join(log_dir, "new.log")
+        for path in (old_log, new_log):
+            with open(path, "wb") as handle:
+                handle.write(b"x" * 1024)
+        os.utime(old_log, (1000, 1000))
+        os.utime(new_log, (1000 + 29 * 86400, 1000 + 29 * 86400))
+
+        clean_io = self.make_io()
+        self.assertEqual(main(["clean", "profiles", "--old-logs", "30d", "--json"], {
+            **clean_io,
+            "env": {"CDX_HOME": temp_dir},
+            "now": lambda: 1000 + 31 * 86400,
+        }), 0)
+
+        payload = json.loads(clean_io["stdout"].getvalue())
+        self.assertEqual(payload["profiles"][0]["removed_count"], 1)
+        self.assertFalse(os.path.exists(old_log))
+        self.assertTrue(os.path.exists(new_log))
 
     def test_update_check_json_reports_available_update(self):
         temp_dir = self.make_temp_dir()
