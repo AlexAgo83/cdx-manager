@@ -187,16 +187,16 @@ def _directory_size_bytes(path, runner=None):
         return total
 
 
-def _directory_child_sizes(path, runner=None):
+def _directory_child_sizes(path, runner=None, progress=None):
     rows = []
     try:
         names = os.listdir(path)
     except OSError:
         return rows
-    for name in names:
-        child_path = os.path.join(path, name)
-        if not os.path.isdir(child_path):
-            continue
+    children = [(name, os.path.join(path, name)) for name in names if os.path.isdir(os.path.join(path, name))]
+    for index, (name, child_path) in enumerate(children, start=1):
+        if progress:
+            progress("profile", name, index, len(children))
         rows.append({
             "name": name,
             "path": child_path,
@@ -279,9 +279,12 @@ def _collect_old_logs(profile_name, profile_path, days, now=None):
     )
 
 
-def _collect_profile_cleanup_candidates(base_dir, *, old_log_days=30, runner=None, now=None):
+def _collect_profile_cleanup_candidates(base_dir, *, old_log_days=30, runner=None, now=None, progress=None):
     candidates = []
-    for profile_name, profile_path in _iter_profile_dirs(base_dir):
+    profiles = list(_iter_profile_dirs(base_dir))
+    for index, (profile_name, profile_path) in enumerate(profiles, start=1):
+        if progress:
+            progress("candidates", profile_name, index, len(profiles))
         tmp_dir = os.path.join(profile_path, ".tmp")
         tmp_targets = [
             ("tmp-marketplaces", os.path.join(tmp_dir, "marketplaces"), "temporary marketplace cache/staging"),
@@ -452,6 +455,21 @@ def handle_disk(rest, ctx):
         path = os.path.join(ctx["service"]["base_dir"], "profiles")
     else:
         raise CdxError(DISK_USAGE)
+    stderr = ctx["options"].get("stderr", sys.stderr)
+    show_progress = not parsed["json"] and hasattr(stderr, "isatty") and stderr.isatty()
+
+    def progress(stage, name=None, index=None, total=None):
+        if not show_progress:
+            return
+        if stage == "total":
+            label = "CDX profiles" if target == "profiles" else "CDX home"
+            ctx["err"](f"Measuring {label} disk usage...\n")
+        elif stage == "profile":
+            ctx["err"](f"Measuring profile {name} ({index}/{total})...\n")
+        elif stage == "candidates":
+            ctx["err"](f"Scanning cleanup candidates in {name} ({index}/{total})...\n")
+
+    progress("total")
     bytes_used = _directory_size_bytes(path, runner=ctx["options"].get("diskUsageRunner"))
     payload = {
         "target": target,
@@ -460,7 +478,7 @@ def handle_disk(rest, ctx):
         "size": _format_bytes(bytes_used),
     }
     if target == "profiles":
-        payload["children"] = _directory_child_sizes(path, runner=ctx["options"].get("diskUsageRunner"))
+        payload["children"] = _directory_child_sizes(path, runner=ctx["options"].get("diskUsageRunner"), progress=progress)
     if parsed["candidates"]:
         if target != "profiles":
             raise CdxError(DISK_USAGE)
@@ -468,6 +486,7 @@ def handle_disk(rest, ctx):
             ctx["service"]["base_dir"],
             runner=ctx["options"].get("diskUsageRunner"),
             now=ctx["options"].get("now")() if callable(ctx["options"].get("now")) else None,
+            progress=progress,
         )
         payload["candidates"] = candidates
         payload["reclaimable_bytes"] = sum(item["bytes"] for item in candidates)

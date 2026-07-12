@@ -583,6 +583,35 @@ class CliPythonTests(unittest.TestCase):
             "1 MB\twork",
         ])
 
+    def test_disk_profiles_reports_progress_on_interactive_stderr(self):
+        temp_dir = self.make_temp_dir()
+        profiles_dir = os.path.join(temp_dir, "profiles")
+        profile_dir = os.path.join(profiles_dir, "main")
+        os.makedirs(profile_dir)
+        disk_io = {**self.make_io(), "stderr": _TtyStream()}
+
+        self.assertEqual(main(["disk", "profiles"], {
+            **disk_io,
+            "env": {"CDX_HOME": temp_dir},
+            "diskUsageRunner": lambda argv, **kwargs: f"1\t{argv[2]}\n",
+        }), 0)
+
+        progress = disk_io["stderr"].getvalue()
+        self.assertIn("Measuring CDX profiles disk usage", progress)
+        self.assertIn("Measuring profile main (1/1)", progress)
+
+    def test_disk_json_keeps_interactive_stderr_empty(self):
+        temp_dir = self.make_temp_dir()
+        disk_io = {**self.make_io(), "stderr": _TtyStream()}
+
+        self.assertEqual(main(["disk", "--json"], {
+            **disk_io,
+            "env": {"CDX_HOME": temp_dir},
+            "diskUsageRunner": lambda argv, **kwargs: f"1\t{argv[2]}\n",
+        }), 0)
+
+        self.assertEqual(disk_io["stderr"].getvalue(), "")
+
     def test_disk_profiles_candidates_report_cleanup_evidence(self):
         temp_dir = self.make_temp_dir()
         profile_dir = os.path.join(temp_dir, "profiles", "main")

@@ -619,6 +619,8 @@ Session names are URL-encoded when used as directory or file names. CLI command 
 
 Use `cdx disk` for a total `CDX_HOME` measurement, and `cdx disk profiles` for the `profiles/` total plus a per-profile breakdown.
 
+In an interactive terminal, long scans report their current stage and per-profile progress on stderr. JSON and redirected output remain free of progress messages.
+
 ```bash
 cdx disk
 cdx disk profiles
