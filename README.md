@@ -633,6 +633,16 @@ Candidate evidence includes profile name, path, size, risk, reason, and metadata
 - temporary marketplace/plugin staging caches under `profiles/*/.tmp/`
 - `.log` files older than the requested age inside profile `log/` directories
 
+`cdx` also runs a passive disk cleanup check at most once per week on advisory commands such as `cdx` and `cdx status`. It writes the check timestamp and latest measurements to `~/.cdx/state/disk-cleanup-check.json`. A warning is shown only when at least one threshold is met:
+
+- `CDX_HOME` uses 10 GB or more
+- cleanup candidates can reclaim 1 GB or more
+- temporary cache candidates can reclaim 500 MB or more
+- old log candidates can reclaim 500 MB or more
+- one profile is 2 GB or more, or one profile is at least 25% of `profiles/` when `profiles/` is already 1 GB or more
+
+The passive warning is read-only and points to `cdx disk profiles --candidates`; it never deletes files.
+
 Apply cleanup only with explicit actions:
 
 ```bash
