@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+from datetime import datetime, timezone
 
 from .cli_commands import (
     API_SCHEMA_VERSION,
@@ -44,6 +45,10 @@ from .cli_commands import (
     handle_unset,
     handle_update,
     handle_view,
+    _collect_profile_cleanup_candidates,
+    _directory_child_sizes,
+    _directory_size_bytes,
+    _format_bytes as _format_disk_bytes,
 )
 from .cli_render import (
     _format_sessions,
@@ -268,7 +273,152 @@ def _get_update_notices(service, env, options):
     )
     if logics_notice:
         notices.append(logics_notice)
+    disk_notice = _get_disk_cleanup_notice(service, options)
+    if disk_notice:
+        notices.append(disk_notice)
     return notices
+
+
+_DISK_CHECK_INTERVAL_SECONDS = 7 * 24 * 60 * 60
+_DISK_HOME_THRESHOLD_BYTES = 10 * 1024 * 1024 * 1024
+_DISK_RECLAIMABLE_THRESHOLD_BYTES = 1 * 1024 * 1024 * 1024
+_DISK_CATEGORY_THRESHOLD_BYTES = 500 * 1024 * 1024
+_DISK_PROFILE_THRESHOLD_BYTES = 2 * 1024 * 1024 * 1024
+
+
+def _now_utc(options):
+    now_fn = options.get("now")
+    value = now_fn() if callable(now_fn) else None
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc)
+    return datetime.now(timezone.utc)
+
+
+def _read_json_file(path):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        return {}
+
+
+def _write_json_file(path, payload):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp_path = f"{path}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+    os.replace(tmp_path, path)
+
+
+def _parse_iso_datetime(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def _get_disk_cleanup_notice(service, options):
+    checker = options.get("checkDiskCleanup")
+    if callable(checker):
+        return checker(service, options)
+
+    base_dir = service["base_dir"]
+    state_path = os.path.join(base_dir, "state", "disk-cleanup-check.json")
+    now = _now_utc(options)
+    state = _read_json_file(state_path)
+    last_checked = _parse_iso_datetime(state.get("last_checked_at"))
+    if last_checked and (now - last_checked).total_seconds() < _DISK_CHECK_INTERVAL_SECONDS:
+        return None
+
+    runner = options.get("diskUsageRunner")
+    try:
+        home_bytes = _directory_size_bytes(base_dir, runner=runner)
+        profiles_dir = os.path.join(base_dir, "profiles")
+        profile_rows = _directory_child_sizes(profiles_dir, runner=runner)
+        profile_total = sum(row["bytes"] for row in profile_rows)
+        candidates = _collect_profile_cleanup_candidates(base_dir, runner=runner, now=now.timestamp())
+    except Exception:
+        return None
+
+    reclaimable_bytes = sum(item["bytes"] for item in candidates)
+    tmp_bytes = sum(item["bytes"] for item in candidates if item["kind"].startswith("tmp-"))
+    old_log_bytes = sum(item["bytes"] for item in candidates if item["kind"].startswith("old-logs-"))
+    large_profiles = [
+        {
+            "name": row["name"],
+            "bytes": row["bytes"],
+            "size": _format_disk_bytes(row["bytes"]),
+            "share_pct": round((row["bytes"] / profile_total) * 100, 1) if profile_total else 0,
+        }
+        for row in profile_rows
+        if row["bytes"] >= _DISK_PROFILE_THRESHOLD_BYTES
+        or (
+            profile_total >= _DISK_RECLAIMABLE_THRESHOLD_BYTES
+            and row["bytes"] / profile_total >= 0.25
+        )
+    ]
+    triggered = (
+        home_bytes >= _DISK_HOME_THRESHOLD_BYTES
+        or reclaimable_bytes >= _DISK_RECLAIMABLE_THRESHOLD_BYTES
+        or tmp_bytes >= _DISK_CATEGORY_THRESHOLD_BYTES
+        or old_log_bytes >= _DISK_CATEGORY_THRESHOLD_BYTES
+        or bool(large_profiles)
+    )
+    state_payload = {
+        "last_checked_at": now.isoformat(),
+        "home_bytes": home_bytes,
+        "reclaimable_bytes": reclaimable_bytes,
+        "tmp_bytes": tmp_bytes,
+        "old_log_bytes": old_log_bytes,
+        "large_profiles": large_profiles,
+    }
+    try:
+        _write_json_file(state_path, state_payload)
+    except OSError:
+        pass
+    if not triggered:
+        return None
+
+    if reclaimable_bytes > 0:
+        message = (
+            f"Disk cleanup available: {_format_disk_bytes(reclaimable_bytes)} reclaimable "
+            f"in CDX profiles. Inspect: cdx disk profiles --candidates"
+        )
+    else:
+        message = (
+            f"CDX_HOME uses {_format_disk_bytes(home_bytes)}. "
+            "Inspect: cdx disk profiles --candidates"
+        )
+    if tmp_bytes >= _DISK_CATEGORY_THRESHOLD_BYTES:
+        message = (
+            f"{message}. Safe temp cleanup: {_format_disk_bytes(tmp_bytes)} "
+            "with cdx clean profiles --tmp"
+        )
+    if old_log_bytes >= _DISK_CATEGORY_THRESHOLD_BYTES:
+        message = (
+            f"{message}. Old logs: {_format_disk_bytes(old_log_bytes)} "
+            "with cdx clean profiles --old-logs 30d"
+        )
+    return {
+        "tool": "cdx-disk",
+        "code": "disk_cleanup_available",
+        "message": message,
+        "reclaimable_bytes": reclaimable_bytes,
+        "reclaimable_size": _format_disk_bytes(reclaimable_bytes),
+        "home_bytes": home_bytes,
+        "home_size": _format_disk_bytes(home_bytes),
+        "tmp_bytes": tmp_bytes,
+        "tmp_size": _format_disk_bytes(tmp_bytes),
+        "old_log_bytes": old_log_bytes,
+        "old_log_size": _format_disk_bytes(old_log_bytes),
+        "large_profiles": large_profiles,
+        "inspect_command": "cdx disk profiles --candidates",
+        "cleanup_tmp_command": "cdx clean profiles --tmp" if tmp_bytes >= _DISK_CATEGORY_THRESHOLD_BYTES else None,
+        "cleanup_old_logs_command": "cdx clean profiles --old-logs 30d" if old_log_bytes >= _DISK_CATEGORY_THRESHOLD_BYTES else None,
+    }
 
 
 def _update_warning_payload(notices):
@@ -278,6 +428,13 @@ def _update_warning_payload(notices):
         return []
     warnings = []
     for notice in notices:
+        if notice.get("code") == "disk_cleanup_available":
+            warnings.append({
+                "code": "disk_cleanup_available",
+                "message": notice["message"],
+                **{key: value for key, value in notice.items() if key not in ("code", "message")},
+            })
+            continue
         tool = notice.get("tool") or "cdx-manager"
         current = notice.get("current_version") or VERSION
         command = notice.get("update_command") or ("cdx update" if tool == "cdx-manager" else None)

@@ -7,13 +7,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 from src.cli import (
     _format_blocking_quota,
     _format_reset_time,
     _format_status_rows,
+    _get_disk_cleanup_notice,
     _pad_table,
     _visible_len,
     format_json_error,
@@ -862,6 +863,74 @@ class CliPythonTests(unittest.TestCase):
         payload = json.loads(list_io["stdout"].getvalue())
         self.assertEqual(payload["warnings"][0]["code"], "update_available")
         self.assertEqual(payload["warnings"][0]["latest_version"], "9.9.9")
+
+    def test_main_screen_surfaces_disk_cleanup_notice(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        list_io = self.make_io()
+        self.assertEqual(main([], {
+            **list_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "checkDiskCleanup": lambda _service, _options: {
+                "tool": "cdx-disk",
+                "code": "disk_cleanup_available",
+                "message": "Disk cleanup available: 2 GB reclaimable. Inspect: cdx disk profiles --candidates",
+                "reclaimable_bytes": 2 * 1024 * 1024 * 1024,
+            },
+        }), 0)
+
+        self.assertIn("Disk cleanup available: 2 GB reclaimable", list_io["stdout"].getvalue())
+
+    def test_main_screen_json_includes_disk_cleanup_warning(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+
+        list_io = self.make_io()
+        self.assertEqual(main(["--json"], {
+            **list_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "checkDiskCleanup": lambda _service, _options: {
+                "tool": "cdx-disk",
+                "code": "disk_cleanup_available",
+                "message": "Disk cleanup available: 2 GB reclaimable. Inspect: cdx disk profiles --candidates",
+                "reclaimable_bytes": 2 * 1024 * 1024 * 1024,
+            },
+        }), 0)
+
+        payload = json.loads(list_io["stdout"].getvalue())
+        self.assertEqual(payload["warnings"][0]["code"], "disk_cleanup_available")
+        self.assertEqual(payload["warnings"][0]["reclaimable_bytes"], 2 * 1024 * 1024 * 1024)
+
+    def test_disk_cleanup_notice_checks_weekly(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        profile_dir = os.path.join(temp_dir, "profiles", "main")
+        marketplace_dir = os.path.join(profile_dir, ".tmp", "marketplaces")
+        os.makedirs(marketplace_dir)
+        sizes = {
+            temp_dir: str(11 * 1024 * 1024),
+            profile_dir: str(3 * 1024 * 1024),
+            marketplace_dir: str(2 * 1024 * 1024),
+        }
+
+        def runner(argv, **kwargs):
+            return f"{sizes.get(argv[2], '1')}\t{argv[2]}\n"
+
+        options = {
+            "diskUsageRunner": runner,
+            "now": lambda: datetime(2026, 7, 1, tzinfo=timezone.utc),
+        }
+        first = _get_disk_cleanup_notice(service, options)
+        second = _get_disk_cleanup_notice(service, options)
+
+        self.assertIsNotNone(first)
+        self.assertEqual(first["code"], "disk_cleanup_available")
+        self.assertIn("cdx clean profiles --tmp", first["message"])
+        self.assertIsNone(second)
 
     def test_root_list_supports_json_contract(self):
         temp_dir = self.make_temp_dir()

@@ -68,6 +68,13 @@ def _update_notice_warning(ctx):
 def _update_notice_warnings(ctx):
     warnings = []
     for notice in ctx.get("update_notices") or []:
+        if notice.get("code") == "disk_cleanup_available":
+            warnings.append({
+                "code": "disk_cleanup_available",
+                "message": notice["message"],
+                **{key: value for key, value in notice.items() if key not in ("code", "message")},
+            })
+            continue
         tool = notice.get("tool") or "cdx-manager"
         current = notice.get("current_version") or ctx.get("version")
         command = notice.get("update_command") or ("cdx update" if tool == "cdx-manager" else None)
