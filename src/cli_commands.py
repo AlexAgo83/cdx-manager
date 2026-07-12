@@ -70,7 +70,7 @@ from .cli_helpers import (
     _write_json,
     _write_update_notice,
 )
-from .cli_render import _dim, _info, _style, _success, _warn
+from .cli_render import _dim, _info, _pad_table, _style, _success, _warn
 from .cli_view import handle_view as handle_view  # re-export for cli.py / tests
 from .codex_usage import consume_codex_rate_limit_reset_credit
 from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
@@ -323,18 +323,68 @@ def _collect_profile_cleanup_candidates(base_dir, *, old_log_days=30, runner=Non
     return candidates
 
 
-def _format_cleanup_candidates(candidates):
+def _format_cleanup_candidates(candidates, use_color=False):
     if not candidates:
-        return "No cleanup candidates found."
-    lines = []
+        return _dim("No cleanup candidates found.", use_color)
+    reclaimable = sum(item["bytes"] for item in candidates)
+    lines = [
+        _style("Cleanup candidates", "1", use_color),
+        f"{_style(_format_bytes(reclaimable), '33', use_color)} reclaimable across {len({item['profile'] for item in candidates})} profile(s)",
+    ]
     by_profile = {}
     for item in candidates:
         by_profile.setdefault(item["profile"], []).append(item)
     for profile, items in sorted(by_profile.items(), key=lambda row: sum(i["bytes"] for i in row[1]), reverse=True):
         total = sum(item["bytes"] for item in items)
-        lines.append(f"{_format_bytes(total)}\t{profile}")
+        lines.extend(["", f"{_style(profile, '1', use_color)}  {_style(_format_bytes(total), '33', use_color)}"])
+        rows = [[
+            _style("SIZE", "1", use_color),
+            _style("TYPE", "1", use_color),
+            _style("RISK", "1", use_color),
+            _style("EVIDENCE", "1", use_color),
+        ]]
         for item in items:
-            lines.append(f"  {item['size']}\t{item['kind']}\t{item['risk']}\t{item['reason']}")
+            risk_color = "32" if item["risk"] == "safe" else "33"
+            rows.append([
+                _style(item["size"], "36", use_color),
+                item["kind"],
+                _style(item["risk"], risk_color, use_color),
+                item["reason"],
+            ])
+        lines.append(_pad_table(rows))
+    return "\n".join(lines)
+
+
+def _format_disk_report(payload, use_color=False):
+    title = "CDX profiles" if payload["target"] == "profiles" else "CDX home"
+    lines = [
+        _style(title, "1", use_color),
+        f"Path:  {_dim(payload['path'], use_color)}",
+        f"Total: {_style(payload['size'], '36', use_color)}",
+    ]
+    children = payload.get("children") or []
+    if children:
+        reclaimable_by_profile = {}
+        for item in payload.get("candidates") or []:
+            reclaimable_by_profile[item["profile"]] = reclaimable_by_profile.get(item["profile"], 0) + item["bytes"]
+        headers = ["PROFILE", "SIZE", "SHARE"]
+        if "candidates" in payload:
+            headers.append("RECLAIMABLE")
+        rows = [[_style(header, "1", use_color) for header in headers]]
+        for child in children:
+            share = (child["bytes"] / payload["bytes"] * 100) if payload["bytes"] else 0
+            row = [
+                _style(child["name"], "1", use_color),
+                _style(child["size"], "36", use_color),
+                f"{share:.1f}%",
+            ]
+            if "candidates" in payload:
+                reclaimable = reclaimable_by_profile.get(child["name"], 0)
+                row.append(_style(_format_bytes(reclaimable), "33", use_color) if reclaimable else _dim("-", use_color))
+            rows.append(row)
+        lines.extend(["", _style(f"Profiles ({len(children)})", "1", use_color), _pad_table(rows)])
+    if "candidates" in payload:
+        lines.extend(["", _format_cleanup_candidates(payload["candidates"], use_color=use_color)])
     return "\n".join(lines)
 
 
@@ -495,12 +545,7 @@ def handle_disk(rest, ctx):
         label = "CDX profiles" if target == "profiles" else "CDX home"
         _write_json(ctx, _json_success("disk", f"Measured {label} disk usage: {payload['size']}", disk=payload))
         return 0
-    ctx["out"](f"{payload['size']}\t{path}\n")
-    for child in payload.get("children", []):
-        ctx["out"](f"{child['size']}\t{child['name']}\n")
-    if parsed["candidates"]:
-        ctx["out"]("\nCleanup candidates:\n")
-        ctx["out"](f"{_format_cleanup_candidates(payload['candidates'])}\n")
+    ctx["out"](f"{_format_disk_report(payload, use_color=ctx['use_color'])}\n")
     return 0
 
 

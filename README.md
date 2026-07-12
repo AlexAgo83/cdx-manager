@@ -621,6 +621,8 @@ Use `cdx disk` for a total `CDX_HOME` measurement, and `cdx disk profiles` for t
 
 In an interactive terminal, long scans report their current stage and per-profile progress on stderr. JSON and redirected output remain free of progress messages.
 
+Text output uses aligned summary tables with profile size, share of total space, and reclaimable space. Candidate details are grouped by profile with separate size, type, risk, and evidence columns.
+
 ```bash
 cdx disk
 cdx disk profiles

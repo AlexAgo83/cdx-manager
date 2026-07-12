@@ -18,6 +18,8 @@ Launching a session whose provider CLI exists but cannot be executed (corrupted 
 
 Interactive disk scans now report the current stage and profile count on stderr so long-running measurements no longer appear stalled. JSON and redirected output remain unchanged.
 
+Human-readable disk reports now use aligned summary and candidate tables, including each profile's share of total space and reclaimable amount. JSON output remains unchanged.
+
 Advisory commands perform a read-only cleanup check at most once per day and warn only when documented disk or reclaimable-space thresholds are reached. Cleanup failures now stop with a non-zero error naming the affected path instead of silently reporting zero bytes removed.
 
 The new `disk` command is reserved as a session name. Existing sessions named `profiles` remain compatible: `cdx clean profiles` still clears that session's transcripts, and profile-wide cleanup is selected only when `--tmp` or `--old-logs` is supplied.

@@ -519,7 +519,11 @@ class CliPythonTests(unittest.TestCase):
             "diskUsageRunner": lambda argv, **kwargs: f"1536\t{temp_dir}\n",
         }), 0)
 
-        self.assertEqual(disk_io["stdout"].getvalue(), f"1.5 MB\t{temp_dir}\n")
+        self.assertEqual(disk_io["stdout"].getvalue().splitlines(), [
+            "CDX home",
+            f"Path:  {temp_dir}",
+            "Total: 1.5 MB",
+        ])
 
     def test_disk_json_reports_cdx_home_size(self):
         temp_dir = self.make_temp_dir()
@@ -577,11 +581,13 @@ class CliPythonTests(unittest.TestCase):
             "diskUsageRunner": lambda argv, **kwargs: f"{sizes[argv[2]]}\t{argv[2]}\n",
         }), 0)
 
-        self.assertEqual(disk_io["stdout"].getvalue().splitlines(), [
-            f"4 MB\t{profiles_dir}",
-            "3 MB\tmain",
-            "1 MB\twork",
-        ])
+        output = disk_io["stdout"].getvalue()
+        self.assertIn("CDX profiles", output)
+        self.assertIn(f"Path:  {profiles_dir}", output)
+        self.assertIn("Total: 4 MB", output)
+        self.assertIn("PROFILE  SIZE  SHARE", output)
+        self.assertRegex(output, r"main\s+3 MB\s+75\.0%")
+        self.assertRegex(output, r"work\s+1 MB\s+25\.0%")
 
     def test_disk_profiles_reports_progress_on_interactive_stderr(self):
         temp_dir = self.make_temp_dir()
@@ -643,6 +649,27 @@ class CliPythonTests(unittest.TestCase):
         old_logs = next(item for item in candidates if item["kind"] == "old-logs-30d")
         self.assertEqual(old_logs["risk"], "review")
         self.assertEqual(old_logs["evidence"]["file_count"], 1)
+
+    def test_disk_profiles_candidates_prints_aligned_report(self):
+        temp_dir = self.make_temp_dir()
+        marketplace_dir = os.path.join(temp_dir, "profiles", "main", ".tmp", "marketplaces")
+        os.makedirs(marketplace_dir)
+        with open(os.path.join(marketplace_dir, "cache.bin"), "wb") as handle:
+            handle.write(b"x")
+        disk_io = self.make_io()
+
+        self.assertEqual(main(["disk", "profiles", "--candidates"], {
+            **disk_io,
+            "env": {"CDX_HOME": temp_dir},
+            "diskUsageRunner": lambda argv, **kwargs: f"1024\t{argv[2]}\n",
+        }), 0)
+
+        output = disk_io["stdout"].getvalue()
+        self.assertRegex(output, r"PROFILE\s+SIZE\s+SHARE\s+RECLAIMABLE")
+        self.assertIn("Cleanup candidates", output)
+        self.assertIn("SIZE  TYPE", output)
+        self.assertIn("RISK  EVIDENCE", output)
+        self.assertRegex(output, r"1 MB\s+tmp-marketplaces\s+safe\s+temporary marketplace cache/staging")
 
     def test_clean_profiles_tmp_removes_temporary_candidates(self):
         temp_dir = self.make_temp_dir()
