@@ -35,6 +35,12 @@ Release workflow:
 - Record release proof with `logics-manager release evidence add ...`.
 - Do not treat conversation memory or a successful command without matching evidence as release-ready proof.
 
+Internationalization readiness:
+- Use `logics-manager i18n status` before adding or restructuring user-facing copy.
+- For a new UI project, use `logics-manager i18n init --source-locale <locale>`; one source locale is sufficient initially.
+- Use `logics-manager i18n validate` after adopting the optional project-owned contract.
+- Projects that own no user-facing copy may explicitly initialize the contract as not applicable.
+
 Viewer and MCP:
 - Use `logics-manager view` for the browser viewer and focus workflows.
 - Use `logics-manager mcp ...` only when an MCP client surface is the right fit.
