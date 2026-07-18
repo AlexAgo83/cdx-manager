@@ -1,9 +1,9 @@
 ## req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup - Address July 2026 code review findings: data-safety, reliability, and cleanup
 > From version: 0.10.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
-> Confidence: 85%
+> Confidence: 95
 > Complexity: Medium
 > Theme: Operator workflow
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
@@ -35,6 +35,15 @@
 - AC12: Duplicated helpers are unified (single update-warning builder, single _format_bytes, single progress factory, single set of status_source limit regexes) and dead code is removed (_update_notice_warning, claude_refresh asyncio branch, shutil_which), with all call sites migrated.
 - AC13: Docs/config hygiene is fixed: .gitignore no longer lists tracked files, README Python-support note matches 0.10.x reality, `cdx run --help` documents --kind, and `cdx stats` argument errors print the stats usage.
 - AC14: Non-regression tests cover the JSONL tolerance, clean-profiles routing, view --json failure contract, and npm entrypoint wiring; the full suite stays green.
+
+# Report
+- AC1 delivered by `item_022`: auth-less force imports are refused unless `--allow-authless-force` is explicit; selected bundle profile paths/base64 are prevalidated; existing profiles are restored on per-session import failure.
+- AC2-AC4 delivered by `item_023`: auth probes use a 15s timeout, Codex interactive auth locking waits with a bounded timeout, and `power` no longer conflicts with stored `reasoning_effort`.
+- AC5-AC9 and AC14 robustness coverage delivered by `item_024`: tolerant history parsing, concurrent-removal-safe status, clean/disk/view fixes, and regression tests.
+- AC10 delivered by `item_025`: `bin/cdx` delegates to `cli_entry()`.
+- AC11 delivered by `item_026`: standalone installers read checksum metadata from tagged release assets and warn loudly for unverified installs.
+- AC12-AC13 delivered by `item_027`: duplicate helpers and dead code removed; docs/help/config hygiene fixed.
+- Final validation: `npm test` passed 468 tests; `npm run release:validate` passed; `npm run lint` passed; `logics-manager lint --require-status` passed; `logics-manager audit` passed.
 
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.

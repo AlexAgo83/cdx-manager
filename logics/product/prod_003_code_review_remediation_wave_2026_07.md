@@ -6,9 +6,27 @@
 > Related task: `task_021_orchestrate_july_2026_code_review_remediation`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Confidence: 95
+> Non-semantic edit: Added overview Mermaid diagram after implementation closeout.
 
 # Overview
 Fix every finding from the July 2026 three-track code review of the session manager CLI: eliminate the bundle-import data-loss path, make provider auth probing and locking reliable under contention, repair five robustness/UX defects in history/status/clean/disk/view, unify the npm and pip entrypoints, harden the release verification trust root, and clear the accumulated duplication and dead code.
+
+```mermaid
+flowchart LR
+  review[July 2026 code review] --> import[item_022 safe import]
+  review --> auth[item_023 auth reliability]
+  review --> cli[item_024 CLI robustness]
+  review --> entry[item_025 entrypoint]
+  review --> release[item_026 release verification]
+  review --> cleanup[item_027 cleanup]
+  import --> done[validated remediation wave]
+  auth --> done
+  cli --> done
+  entry --> done
+  release --> done
+  cleanup --> done
+```
 
 # Goals
 - No CLI operation can destroy credentials it cannot restore.

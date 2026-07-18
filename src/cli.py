@@ -50,10 +50,10 @@ from .cli_commands import (
     handle_update,
     handle_view,
 )
-from .cli_helpers import _update_notice_warnings
 from .cli_commands import (
     _format_bytes as _format_disk_bytes,
 )
+from .cli_helpers import _update_notice_warnings
 from .cli_render import (
     _format_sessions,
     _pad_table,
