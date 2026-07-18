@@ -1,0 +1,476 @@
+{
+  "budgets": {
+    "max_docs": 24,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_028_use_tagged_release_checksum_assets_in_package_publication_workflows.md",
+    "logics/backlog/item_029_fix_standalone_windows_installer_launcher_generation.md",
+    "logics/backlog/item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout.md",
+    "logics/backlog/item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors.md",
+    "logics/product/prod_004_post_remediation_hardening_follow_up_2026_07.md",
+    "logics/request/req_011_address_july_2026_post_remediation_review_follow_up_findings.md",
+    "logics/scaffold/post_review_follow_up_hardening_2026_07.json",
+    "logics/tasks/task_022_orchestrate_post_remediation_hardening_follow_up.md"
+  ],
+  "command": "logics-manager sync context-pack req_011_address_july_2026_post_remediation_review_follow_up_findings item_028_use_tagged_release_checksum_assets_in_package_publication_workflows item_029_fix_standalone_windows_installer_launcher_generation item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors task_022_orchestrate_post_remediation_hardening_follow_up --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_028_use_tagged_release_checksum_assets_in_package_publication_workflows",
+          "item_029_fix_standalone_windows_installer_launcher_generation",
+          "item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout",
+          "item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors"
+        ],
+        "prod": [
+          "prod_004_post_remediation_hardening_follow_up_2026_07"
+        ],
+        "req": [
+          "req_011_address_july_2026_post_remediation_review_follow_up_findings"
+        ],
+        "task": [
+          "task_022_orchestrate_post_remediation_hardening_follow_up"
+        ]
+      },
+      "path": "logics/product/prod_004_post_remediation_hardening_follow_up_2026_07.md",
+      "ref": "prod_004_post_remediation_hardening_follow_up_2026_07",
+      "sections": {
+        "Goals": [
+          "- Release publication and standalone installation verify against the same tagged release trust root.",
+          "- Windows standalone installs produce a usable launcher without manual repair.",
+          "- Transient provider CLI hangs do not mark sessions as logged out.",
+          "- Malformed bundle payloads fail with controlled user-facing errors before touching session profiles."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Close the remaining defects found by the post-remediation review: finish the checksum trust-root migration for package publication, repair the standalone Windows installer launcher, preserve degraded auth semantics on probe timeouts, and make bundle import validation reject malformed profile entries cleanly."
+        ],
+        "References": [
+          "- Product back-reference: `req_011_address_july_2026_post_remediation_review_follow_up_findings`",
+          "- Task back-reference: `task_022_orchestrate_post_remediation_hardening_follow_up`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Post-remediation hardening follow-up 2026-07"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, address july 2026 post-remediation review follow-up findings, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Address July 2026 post-remediation review follow-up findings",
+        "use when": "You need to implement or review the scaffolded workflow for Address July 2026 post-remediation review follow-up findings."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_028_use_tagged_release_checksum_assets_in_package_publication_workflows",
+          "item_029_fix_standalone_windows_installer_launcher_generation",
+          "item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout",
+          "item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors"
+        ],
+        "prod": [
+          "prod_004_post_remediation_hardening_follow_up_2026_07"
+        ],
+        "req": [
+          "req_011_address_july_2026_post_remediation_review_follow_up_findings"
+        ]
+      },
+      "path": "logics/request/req_011_address_july_2026_post_remediation_review_follow_up_findings.md",
+      "ref": "req_011_address_july_2026_post_remediation_review_follow_up_findings",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: npm and PyPI publish workflows validate release checksums against the tagged GitHub Release asset for the release tag, not against a main-branch checksum file.",
+          "- AC2: The standalone Windows installer generates a valid `cdx.cmd` launcher path containing the installed version directory, and a regression test covers the generated script content.",
+          "- AC3: Provider auth probe timeouts surface as unknown/degraded probe results, not logged-out results; launch/run/status/doctor callers handle that state explicitly without persisting a false logout.",
+          "- AC4: Import bundle profile validation rejects non-object profile entries with `CdxError` before any filesystem mutation, and tests cover the malformed-entry case.",
+          "- AC5: Documentation and Logics context describe the remaining release/auth/import contracts accurately, and `npm test`, `npm run release:validate`, `npm run lint`, `logics-manager lint --require-status`, and `logics-manager audit` pass."
+        ],
+        "Needs": [
+          "- A post-remediation code review found four remaining issues after the July 2026 review corpus was closed: release publication still reads checksum metadata from main, the standalone Windows installer generates a broken launcher, auth probe timeouts are treated as logged-out states, and malformed profile entries in import bundles can raise raw exceptions.",
+          "- The follow-up work must close these gaps without reopening the already-completed remediation request, and it must keep the full CLI, release-validation, and Logics validation suites green."
+        ]
+      },
+      "status": "Draft",
+      "title": "Address July 2026 post-remediation review follow-up findings"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, use tagged release checksum assets in package publication workflows, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Use tagged release checksum assets in package publication workflows",
+        "use when": "Implementing the scaffolded slice for Use tagged release checksum assets in package publication workflows."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_028_use_tagged_release_checksum_assets_in_package_publication_workflows"
+        ],
+        "prod": [
+          "prod_004_post_remediation_hardening_follow_up_2026_07"
+        ],
+        "req": [
+          "req_011_address_july_2026_post_remediation_review_follow_up_findings"
+        ],
+        "task": [
+          "task_022_orchestrate_post_remediation_hardening_follow_up"
+        ]
+      },
+      "path": "logics/backlog/item_028_use_tagged_release_checksum_assets_in_package_publication_workflows.md",
+      "ref": "item_028_use_tagged_release_checksum_assets_in_package_publication_workflows",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- The publish workflows contain no raw.githubusercontent.com main-branch checksum URL.",
+          "- The publish workflows validate checksums from `releases/download/$RELEASE_TAG/release-archives.json` or an equivalent tagged-release asset URL.",
+          "- Release checksum tests fail if package publication reintroduces a main-branch checksum trust root."
+        ],
+        "Problem": [
+          "- The npm and PyPI publish workflows still download checksum metadata from the repository main branch.",
+          "- This leaves package publication with the mutable-main trust root that the installer hardening was meant to remove."
+        ]
+      },
+      "status": "Ready",
+      "title": "Use tagged release checksum assets in package publication workflows"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, fix standalone windows installer launcher generation, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Fix standalone Windows installer launcher generation",
+        "use when": "Implementing the scaffolded slice for Fix standalone Windows installer launcher generation."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_029_fix_standalone_windows_installer_launcher_generation"
+        ],
+        "prod": [
+          "prod_004_post_remediation_hardening_follow_up_2026_07"
+        ],
+        "req": [
+          "req_011_address_july_2026_post_remediation_review_follow_up_findings"
+        ],
+        "task": [
+          "task_022_orchestrate_post_remediation_hardening_follow_up"
+        ]
+      },
+      "path": "logics/backlog/item_029_fix_standalone_windows_installer_launcher_generation.md",
+      "ref": "item_029_fix_standalone_windows_installer_launcher_generation",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- For tag `v1.2.3`, the generated launcher path includes `versions\\1.2.3\\bin\\cdx`.",
+          "- The installer no longer contains `${($tag.TrimStart(\"v\"))}` inside the generated batch script.",
+          "- The regression test fails on the previous empty-version launcher output."
+        ],
+        "Problem": [
+          "- install.ps1 writes a here-string containing `${($tag.TrimStart(\"v\"))}`, which PowerShell does not evaluate as intended.",
+          "- The generated cdx.cmd launcher omits the version directory and points at a non-existent script path."
+        ]
+      },
+      "status": "Ready",
+      "title": "Fix standalone Windows installer launcher generation"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, preserve degraded auth semantics on provider probe timeout, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Preserve degraded auth semantics on provider probe timeout",
+        "use when": "Implementing the scaffolded slice for Preserve degraded auth semantics on provider probe timeout."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout"
+        ],
+        "prod": [
+          "prod_004_post_remediation_hardening_follow_up_2026_07"
+        ],
+        "req": [
+          "req_011_address_july_2026_post_remediation_review_follow_up_findings"
+        ],
+        "task": [
+          "task_022_orchestrate_post_remediation_hardening_follow_up"
+        ]
+      },
+      "path": "logics/backlog/item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout.md",
+      "ref": "item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- A `subprocess.TimeoutExpired` probe outcome is visible as unknown/degraded in JSON diagnostics.",
+          "- Claude auth refresh does not write `logged_out` when the probe timed out.",
+          "- Launch/run errors caused by timeout mention the probe timeout or degraded state rather than claiming the session is logged out."
+        ],
+        "Problem": [
+          "- A bounded auth probe timeout currently returns False, which callers interpret as logged out.",
+          "- Transient provider CLI hangs can therefore persist a false logout or block commands with a misleading authentication error."
+        ]
+      },
+      "status": "Ready",
+      "title": "Preserve degraded auth semantics on provider probe timeout"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate post-remediation hardening follow-up",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_028_use_tagged_release_checksum_assets_in_package_publication_workflows",
+          "item_029_fix_standalone_windows_installer_launcher_generation",
+          "item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout",
+          "item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors"
+        ],
+        "prod": [
+          "prod_004_post_remediation_hardening_follow_up_2026_07"
+        ],
+        "req": [
+          "req_011_address_july_2026_post_remediation_review_follow_up_findings"
+        ],
+        "task": [
+          "task_022_orchestrate_post_remediation_hardening_follow_up"
+        ]
+      },
+      "path": "logics/tasks/task_022_orchestrate_post_remediation_hardening_follow_up.md",
+      "ref": "task_022_orchestrate_post_remediation_hardening_follow_up",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- Run `python3 -m logics_manager lint --require-status`.",
+          "- Run scaffold command tests."
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate post-remediation hardening follow-up"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_028_use_tagged_release_checksum_assets_in_package_publication_workflows",
+          "item_029_fix_standalone_windows_installer_launcher_generation",
+          "item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout",
+          "item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors"
+        ],
+        "prod": [
+          "prod_004_post_remediation_hardening_follow_up_2026_07"
+        ],
+        "req": [
+          "req_011_address_july_2026_post_remediation_review_follow_up_findings"
+        ],
+        "task": [
+          "task_022_orchestrate_post_remediation_hardening_follow_up"
+        ]
+      },
+      "path": "logics/product/prod_004_post_remediation_hardening_follow_up_2026_07.md",
+      "ref": "prod_004_post_remediation_hardening_follow_up_2026_07",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Post-remediation hardening follow-up 2026-07"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, reject malformed import bundle profile entries with controlled errors, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Reject malformed import bundle profile entries with controlled errors",
+        "use when": "Implementing the scaffolded slice for Reject malformed import bundle profile entries with controlled errors."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors"
+        ],
+        "prod": [
+          "prod_004_post_remediation_hardening_follow_up_2026_07"
+        ],
+        "req": [
+          "req_011_address_july_2026_post_remediation_review_follow_up_findings"
+        ],
+        "task": [
+          "task_022_orchestrate_post_remediation_hardening_follow_up"
+        ]
+      },
+      "path": "logics/backlog/item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors.md",
+      "ref": "item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- A bundle with `profiles: {\"main\": [null]}` raises `CdxError` with a bundle-validation message.",
+          "- Existing credentials and session records remain intact after that failure.",
+          "- Existing import/export round-trip tests remain green."
+        ],
+        "Problem": [
+          "- Bundle profile validation calls `.get()` on profile entries before checking their type.",
+          "- A malformed profile entry raises a raw `AttributeError` instead of a controlled `CdxError`."
+        ]
+      },
+      "status": "Ready",
+      "title": "Reject malformed import bundle profile entries with controlled errors"
+    }
+  ],
+  "estimates": {
+    "char_count": 13179,
+    "companion_doc_count": 1,
+    "doc_count": 7
+  },
+  "generated_at": "2026-07-18T11:08:12Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_011_address_july_2026_post_remediation_review_follow_up_findings",
+      "item_028_use_tagged_release_checksum_assets_in_package_publication_workflows",
+      "item_029_fix_standalone_windows_installer_launcher_generation",
+      "item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout",
+      "item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors",
+      "task_022_orchestrate_post_remediation_hardening_follow_up"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_011_address_july_2026_post_remediation_review_follow_up_findings,item_028_use_tagged_release_checksum_assets_in_package_publication_workflows,item_029_fix_standalone_windows_installer_launcher_generation,item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout,item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors,task_022_orchestrate_post_remediation_hardening_follow_up",
+  "refs": [
+    "req_011_address_july_2026_post_remediation_review_follow_up_findings",
+    "item_028_use_tagged_release_checksum_assets_in_package_publication_workflows",
+    "item_029_fix_standalone_windows_installer_launcher_generation",
+    "item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout",
+    "item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors",
+    "task_022_orchestrate_post_remediation_hardening_follow_up"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different commit",
+      "changelog: evidence targets a different commit",
+      "release_checksums: evidence targets a different commit",
+      "local_validation: evidence targets a different commit",
+      "git_push: evidence targets a different commit",
+      "ci: evidence targets a different commit"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different commit",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.10.0"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- Run `python3 -m logics_manager lint --require-status`.",
+        "- Run scaffold command tests."
+      ],
+      "path": "logics/tasks/task_022_orchestrate_post_remediation_hardening_follow_up.md",
+      "ref": "task_022_orchestrate_post_remediation_hardening_follow_up"
+    }
+  ]
+}

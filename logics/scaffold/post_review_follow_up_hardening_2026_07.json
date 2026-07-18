@@ -1,0 +1,168 @@
+{
+  "title": "Address July 2026 post-remediation review follow-up findings",
+  "references": [
+    ".github/workflows/publish-npm.yml",
+    ".github/workflows/publish-pypi.yml",
+    "install.ps1",
+    "src/provider_runtime.py",
+    "src/cli_commands.py",
+    "src/session_service.py",
+    "test/test_release_checksums_py.py",
+    "test/test_runtime_py.py",
+    "test/test_session_service_py.py"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Operator workflow",
+    "needs": [
+      "A post-remediation code review found four remaining issues after the July 2026 review corpus was closed: release publication still reads checksum metadata from main, the standalone Windows installer generates a broken launcher, auth probe timeouts are treated as logged-out states, and malformed profile entries in import bundles can raise raw exceptions.",
+      "The follow-up work must close these gaps without reopening the already-completed remediation request, and it must keep the full CLI, release-validation, and Logics validation suites green."
+    ],
+    "context": [
+      "Release installers were moved to tagged GitHub Release checksum assets, but package publication workflows still download `checksums/release-archives.json` from the mutable main branch before publishing npm and PyPI artifacts.",
+      "The Windows standalone installer writes `set SCRIPT=%~dp0..\\versions\\${($tag.TrimStart(\"v\"))}\\bin\\cdx`; PowerShell does not interpolate that expression in a here-string, so the generated launcher points to `versions\\bin\\cdx` instead of the installed version directory.",
+      "`_probe_provider_auth` catches `subprocess.TimeoutExpired` and returns False. Callers interpret False as logged out or unauthenticated, which can persist `logged_out` for Claude sessions or block launch/run after a transient hung provider CLI.",
+      "`_validate_import_profile_files` assumes every profile entry is a dictionary before validation. A malformed bundle such as `profiles: {\"main\": [null]}` raises `AttributeError` instead of a clean `CdxError`, although it happens before disk mutation."
+    ],
+    "acceptance_criteria": [
+      "AC1: npm and PyPI publish workflows validate release checksums against the tagged GitHub Release asset for the release tag, not against a main-branch checksum file.",
+      "AC2: The standalone Windows installer generates a valid `cdx.cmd` launcher path containing the installed version directory, and a regression test covers the generated script content.",
+      "AC3: Provider auth probe timeouts surface as unknown/degraded probe results, not logged-out results; launch/run/status/doctor callers handle that state explicitly without persisting a false logout.",
+      "AC4: Import bundle profile validation rejects non-object profile entries with `CdxError` before any filesystem mutation, and tests cover the malformed-entry case.",
+      "AC5: Documentation and Logics context describe the remaining release/auth/import contracts accurately, and `npm test`, `npm run release:validate`, `npm run lint`, `logics-manager lint --require-status`, and `logics-manager audit` pass."
+    ]
+  },
+  "product": {
+    "title": "Post-remediation hardening follow-up 2026-07",
+    "overview": "Close the remaining defects found by the post-remediation review: finish the checksum trust-root migration for package publication, repair the standalone Windows installer launcher, preserve degraded auth semantics on probe timeouts, and make bundle import validation reject malformed profile entries cleanly.",
+    "goals": [
+      "Release publication and standalone installation verify against the same tagged release trust root.",
+      "Windows standalone installs produce a usable launcher without manual repair.",
+      "Transient provider CLI hangs do not mark sessions as logged out.",
+      "Malformed bundle payloads fail with controlled user-facing errors before touching session profiles."
+    ],
+    "non_goals": [
+      "Introduce artifact signing such as GPG or Sigstore.",
+      "Redesign provider authentication flows or token storage.",
+      "Change the encrypted bundle format."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Use tagged release checksum assets in package publication workflows",
+      "priority": "High",
+      "complexity": "Low",
+      "theme": "Operator workflow",
+      "request_acs": ["AC1", "AC5"],
+      "problem": [
+        "The npm and PyPI publish workflows still download checksum metadata from the repository main branch.",
+        "This leaves package publication with the mutable-main trust root that the installer hardening was meant to remove."
+      ],
+      "scope_in": [
+        "Change both publish workflows to download `release-archives.json` from the tagged GitHub Release asset for `RELEASE_TAG`.",
+        "Keep the existing release checksum validator as the package-publish gate.",
+        "Add or update tests that detect any workflow fallback to main-branch checksum metadata."
+      ],
+      "scope_out": [
+        "Signing release archives or package artifacts.",
+        "Changing how checksum files are generated."
+      ],
+      "acceptance_criteria": [
+        "The publish workflows contain no raw.githubusercontent.com main-branch checksum URL.",
+        "The publish workflows validate checksums from `releases/download/$RELEASE_TAG/release-archives.json` or an equivalent tagged-release asset URL.",
+        "Release checksum tests fail if package publication reintroduces a main-branch checksum trust root."
+      ]
+    },
+    {
+      "title": "Fix standalone Windows installer launcher generation",
+      "priority": "High",
+      "complexity": "Low",
+      "theme": "Operator workflow",
+      "request_acs": ["AC2", "AC5"],
+      "problem": [
+        "install.ps1 writes a here-string containing `${($tag.TrimStart(\"v\"))}`, which PowerShell does not evaluate as intended.",
+        "The generated cdx.cmd launcher omits the version directory and points at a non-existent script path."
+      ],
+      "scope_in": [
+        "Compute the version directory in a normal PowerShell variable before building the here-string.",
+        "Use that variable in the generated `SCRIPT` path so the launcher points at the installed version.",
+        "Add a regression test that evaluates or statically verifies the generated launcher content for a sample tag."
+      ],
+      "scope_out": [
+        "Changing the Windows installer destination layout.",
+        "Changing npm launcher behavior."
+      ],
+      "acceptance_criteria": [
+        "For tag `v1.2.3`, the generated launcher path includes `versions\\1.2.3\\bin\\cdx`.",
+        "The installer no longer contains `${($tag.TrimStart(\"v\"))}` inside the generated batch script.",
+        "The regression test fails on the previous empty-version launcher output."
+      ]
+    },
+    {
+      "title": "Preserve degraded auth semantics on provider probe timeout",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Operator workflow",
+      "request_acs": ["AC3", "AC5"],
+      "problem": [
+        "A bounded auth probe timeout currently returns False, which callers interpret as logged out.",
+        "Transient provider CLI hangs can therefore persist a false logout or block commands with a misleading authentication error."
+      ],
+      "scope_in": [
+        "Represent auth probe outcomes distinctly enough to separate authenticated, logged-out, timed-out/degraded, and probe-error states.",
+        "Update launch/run/status/doctor paths so timeout is explicit and never persisted as logged_out.",
+        "Keep existing successful-auth and real logged-out behavior unchanged.",
+        "Add tests for doctor diagnostics, Claude auth refresh state updates, and launch/run handling when the probe times out."
+      ],
+      "scope_out": [
+        "Changing provider CLI commands.",
+        "Adding background retry services."
+      ],
+      "acceptance_criteria": [
+        "A `subprocess.TimeoutExpired` probe outcome is visible as unknown/degraded in JSON diagnostics.",
+        "Claude auth refresh does not write `logged_out` when the probe timed out.",
+        "Launch/run errors caused by timeout mention the probe timeout or degraded state rather than claiming the session is logged out."
+      ]
+    },
+    {
+      "title": "Reject malformed import bundle profile entries with controlled errors",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Operator workflow",
+      "request_acs": ["AC4", "AC5"],
+      "problem": [
+        "Bundle profile validation calls `.get()` on profile entries before checking their type.",
+        "A malformed profile entry raises a raw `AttributeError` instead of a controlled `CdxError`."
+      ],
+      "scope_in": [
+        "Validate that each profile entry is an object before reading `path` or `data_b64`.",
+        "Raise a clear `CdxError` for non-object entries, missing paths, unsafe paths, or invalid base64.",
+        "Add regression tests proving malformed entries fail before session profile mutation."
+      ],
+      "scope_out": [
+        "Changing the bundle schema version.",
+        "Changing encrypted bundle serialization."
+      ],
+      "acceptance_criteria": [
+        "A bundle with `profiles: {\"main\": [null]}` raises `CdxError` with a bundle-validation message.",
+        "Existing credentials and session records remain intact after that failure.",
+        "Existing import/export round-trip tests remain green."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate post-remediation hardening follow-up",
+    "plan": [
+      "Fix the release publication trust root first because it affects package integrity.",
+      "Fix and test the Windows installer launcher generation.",
+      "Introduce explicit auth probe timeout/degraded semantics and migrate callers.",
+      "Harden bundle profile entry validation and add the malformed-entry regression.",
+      "Update docs and Logics reports during closeout, then run the full validation suite."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/post_review_follow_up_hardening_2026_07.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}
