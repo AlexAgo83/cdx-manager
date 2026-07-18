@@ -2,7 +2,6 @@
 AGENTS.md
 .env.local
 .claude/
-logics.yaml
 logics/.cache/
 logics/.cache/hybrid_assist_audit.jsonl
 logics/.cache/hybrid_assist_measurements.jsonl
@@ -38,4 +37,3 @@ htmlcov/
 Thumbs.db
 ehthumbs.db
 desktop.ini
-LOGICS.md

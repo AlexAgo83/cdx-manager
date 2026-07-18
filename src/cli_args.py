@@ -406,18 +406,18 @@ def _format_period_datetime(value):
     return value.isoformat(timespec="seconds")
 
 
-def _parse_history_period(parsed, now):
+def _parse_history_period(parsed, now, usage=HISTORY_USAGE):
     since = parsed.get("since")
     from_value = parsed.get("from")
     to_value = parsed.get("to")
     if since and from_value:
-        raise CdxError("Usage: cdx history cannot combine --since and --from.")
-    start = _parse_since_value(since, now, HISTORY_USAGE) if since else None
+        raise CdxError(f"{usage} cannot combine --since and --from.")
+    start = _parse_since_value(since, now, usage) if since else None
     if from_value:
-        start = _parse_datetime_value(from_value, HISTORY_USAGE, end_of_day=False)
-    end = _parse_datetime_value(to_value, HISTORY_USAGE, end_of_day=True) if to_value else None
+        start = _parse_datetime_value(from_value, usage, end_of_day=False)
+    end = _parse_datetime_value(to_value, usage, end_of_day=True) if to_value else None
     if start and end and start.timestamp() > end.timestamp():
-        raise CdxError("Usage: cdx history period start must be before period end.")
+        raise CdxError(f"{usage} period start must be before period end.")
     return {
         "from": _format_period_datetime(start),
         "to": _format_period_datetime(end),
@@ -481,7 +481,7 @@ def _parse_history_args(args, now=None):
         "--to": {"key": "to", "type": "str", "default": None},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, HISTORY_USAGE, positionals_key="names", max_positionals=1)
-    period = _parse_history_period(parsed, now)
+    period = _parse_history_period(parsed, now, HISTORY_USAGE)
     return {
         "name": parsed["names"][0] if parsed["names"] else None,
         "limit": parsed["limit"],
@@ -499,7 +499,7 @@ def _parse_stats_args(args, now=None):
         "--to": {"key": "to", "type": "str", "default": None},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, STATS_USAGE, positionals_key="names", max_positionals=1)
-    period = _parse_history_period(parsed, now)
+    period = _parse_history_period(parsed, now, STATS_USAGE)
     return {
         "name": parsed["names"][0] if parsed["names"] else None,
         "period": period,

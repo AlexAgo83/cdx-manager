@@ -79,8 +79,6 @@ One command to launch any session. Zero auth juggling.
 - Auth probe: synchronous subprocess call to `codex login status` or `claude auth status` before any interactive launch.
 - Signal forwarding: `SIGINT`, `SIGTERM`, and `SIGHUP` are forwarded to the child process and produce clean exit codes.
 - Test stack: `pytest`, `pytest-cov`, and `ruff` via the documented `dev` dependency extra.
-- Python floor decision: `cdx-manager` keeps Python 3.9 support for the 0.9.x line to avoid dropping existing users before a planned compatibility break; classifiers remain aligned with `requires-python = ">=3.9"`.
-
 ---
 
 ## Getting Started

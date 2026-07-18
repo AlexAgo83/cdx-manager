@@ -505,6 +505,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("--min-power minimal|low|medium|high|xhigh", help_io["stdout"].getvalue())
         self.assertIn("--power minimal|low|medium|high|xhigh", help_io["stdout"].getvalue())
         self.assertIn("workspace-write|read-only|danger-full-access", help_io["stdout"].getvalue())
+        self.assertIn("--kind assistant|code-review", help_io["stdout"].getvalue())
 
         self.assertEqual(main(["-v"], version_io), 0)
         self.assertRegex(version_io["stdout"].getvalue().strip(), r"^\d+\.\d+\.\d+$")
@@ -2431,6 +2432,13 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
         self.assertIn("\033[", color_io["stdout"].getvalue())
 
+        with self.assertRaisesRegex(CdxError, "Usage: cdx stats"):
+            main(["stats", "--since", "7d", "--from", "2026-05-28"], {
+                **self.make_io(),
+                "service": service,
+                "now": lambda: now.timestamp(),
+            })
+
     def test_disable_command_marks_session_and_blocks_launch(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
@@ -3629,12 +3637,12 @@ class CliPythonTests(unittest.TestCase):
                 "env": {"CDX_HOME": temp_dir},
             })
 
-    def test_status_uses_async_refresh_function(self):
+    def test_status_uses_sync_refresh_function(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
         service["create_session"]("work1", "claude")
 
-        async def refresh(_session):
+        def refresh(_session):
             return {
                 "remaining_5h_pct": 80,
                 "remaining_week_pct": 60,
@@ -4915,7 +4923,7 @@ class CliPythonTests(unittest.TestCase):
             return subprocess.CompletedProcess(argv, 0, "", "")
 
         with mock.patch("sys.platform", "linux"):
-            with mock.patch("src.notify.shutil_which", side_effect=lambda command, _env: command == "systemd-run"):
+            with mock.patch("src.notify.shutil.which", side_effect=lambda command, path=None: command == "systemd-run"):
                 notify_io = self.make_io()
                 self.assertEqual(main(["notify", "--next-ready", "--schedule", "--json"], {
                     **notify_io,
@@ -4954,7 +4962,7 @@ class CliPythonTests(unittest.TestCase):
             return subprocess.CompletedProcess(argv, 0, "", "")
 
         with mock.patch("sys.platform", "linux"):
-            with mock.patch("src.notify.shutil_which", side_effect=lambda command, _env: command == "systemd-run"):
+            with mock.patch("src.notify.shutil.which", side_effect=lambda command, path=None: command == "systemd-run"):
                 ready_io = self.make_io()
                 self.assertEqual(main(["ready", "--json"], {
                     **ready_io,

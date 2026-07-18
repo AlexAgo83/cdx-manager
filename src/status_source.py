@@ -20,10 +20,6 @@ _KEY_VALUE_PATTERNS = [
     ("remaining_5h_pct", re.compile(r"remaining_?5h_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
     ("remaining_week_pct", re.compile(r"remaining_?week_pct\s*[:=]\s*(\d{1,3})%?", re.I)),
     ("credits", re.compile(r"credits?\s*[:=]\s*(\d[\d, ]*(?:\.\d+)?)\s*(?:credits?)?", re.I)),
-    ("remaining_5h_pct", re.compile(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
-    ("remaining_week_pct", re.compile(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
-    ("remaining_5h_pct", re.compile(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", re.I)),
-    ("remaining_week_pct", re.compile(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", re.I)),
     ("usage_pct", re.compile(r"usage\s*[:=]\s*(\d{1,3})%", re.I)),
     ("usage_pct", re.compile(r"current\s*[:=]\s*(\d{1,3})%", re.I)),
     ("remaining_5h_pct", re.compile(r"5h(?:\s+remaining)?\s*[:=]\s*(\d{1,3})%", re.I)),
@@ -31,6 +27,14 @@ _KEY_VALUE_PATTERNS = [
     ("remaining_week_pct", re.compile(r"week(?:\s+remaining)?\s*[:=]\s*(\d{1,3})%", re.I)),
     ("remaining_week_pct", re.compile(r"remaining\s+week\s*[:=]\s*(\d{1,3})%", re.I)),
 ]
+
+_CODEX_LIMIT_PERCENT_PATTERNS = [
+    ("remaining_5h_pct", re.compile(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
+    ("remaining_5h_pct", re.compile(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", re.I)),
+    ("remaining_week_pct", re.compile(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", re.I)),
+    ("remaining_week_pct", re.compile(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", re.I)),
+]
+_KEY_VALUE_PATTERNS.extend(_CODEX_LIMIT_PERCENT_PATTERNS)
 
 
 def _strip_ansi(text):
@@ -519,18 +523,10 @@ def extract_named_statuses_from_text(text):
                 break
 
     for line in lines:
-        m = re.search(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", line, re.I)
-        if m and "remaining_5h_pct" not in result:
-            result["remaining_5h_pct"] = int(m[1])
-        m = re.search(r"5h\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", line, re.I)
-        if m and "remaining_5h_pct" not in result:
-            result["remaining_5h_pct"] = int(m[1])
-        m = re.search(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})%\s*left", line, re.I)
-        if m and "remaining_week_pct" not in result:
-            result["remaining_week_pct"] = int(m[1])
-        m = re.search(r"weekly\s+limit\s*:\s*\[[^\]]*\]\s*(\d{1,3})(?:%|\b)", line, re.I)
-        if m and "remaining_week_pct" not in result:
-            result["remaining_week_pct"] = int(m[1])
+        for field, pattern in _CODEX_LIMIT_PERCENT_PATTERNS:
+            m = pattern.search(line)
+            if m and field not in result:
+                result[field] = int(m[1])
 
     if "remaining_5h_pct" in result and "usage_pct" not in result:
         result["usage_pct"] = max(0, 100 - result["remaining_5h_pct"])

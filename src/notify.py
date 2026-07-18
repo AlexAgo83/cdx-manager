@@ -1,6 +1,7 @@
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import time
 from datetime import datetime, timedelta
@@ -165,14 +166,14 @@ def send_desktop_notification(title, message, spawn_sync=None, env=None):
     env = env or os.environ
     if sys.platform == "win32":
         _send_windows_notification(title, message, spawn_sync, env)
-    elif shutil_which("osascript", env):
+    elif shutil.which("osascript", path=env.get("PATH")):
         script = f'display notification "{_escape_applescript(message)}" with title "{_escape_applescript(title)}"'
         _run_notification_command(
             ["osascript", "-e", script],
             spawn_sync,
             env,
         )
-    elif shutil_which("notify-send", env):
+    elif shutil.which("notify-send", path=env.get("PATH")):
         _run_notification_command(
             ["notify-send", str(title), str(message)],
             spawn_sync,
@@ -209,11 +210,6 @@ def _escape_powershell(value):
     return str(value).replace("'", "''")
 
 
-def shutil_which(command, env):
-    import shutil
-    return shutil.which(command, path=env.get("PATH"))
-
-
 def _escape_applescript(value):
     return str(value).replace("\\", "\\\\").replace('"', '\\"')
 
@@ -247,7 +243,7 @@ def schedule_notification_event(base_dir, parsed, event, spawn_sync=None, env=No
 
 
 def _scheduled_notify_argv(parsed, env):
-    executable = env.get("CDX_BIN") or shutil_which("cdx", env) or "cdx"
+    executable = env.get("CDX_BIN") or shutil.which("cdx", path=env.get("PATH")) or "cdx"
     argv = [executable, "notify"]
     if parsed["mode"] == "at-reset":
         argv.append(parsed["name"])
@@ -331,7 +327,7 @@ def _launchd_plist(label, script_path, target):
 def _schedule_linux(parsed, event, argv, spawn_sync, env):
     unit = _schedule_id("cdx-manager-notify", parsed, event)
     target = _round_up_to_next_minute(datetime.fromtimestamp(event["target_timestamp"]).astimezone())
-    if shutil_which("systemd-run", env):
+    if shutil.which("systemd-run", path=env.get("PATH")):
         calendar = target.strftime("%Y-%m-%d %H:%M:%S")
         result = _run_scheduler_command(
             ["systemd-run", "--user", f"--unit={unit}", f"--on-calendar={calendar}", *argv],
@@ -343,7 +339,7 @@ def _schedule_linux(parsed, event, argv, spawn_sync, env):
         if _scheduler_error_means_exists(result["error"]):
             return {"scheduled": True, "existing": True, "backend": "systemd", "id": unit}
         raise CdxError(f"Failed to schedule notification with systemd-run: {result['error']}")
-    if shutil_which("at", env):
+    if shutil.which("at", path=env.get("PATH")):
         at_time = target.strftime("%Y%m%d%H%M.%S")
         command = " ".join(shlex.quote(str(part)) for part in argv)
         result = _run_scheduler_command(["at", "-t", at_time], spawn_sync, env, input_text=f"{command}\n")

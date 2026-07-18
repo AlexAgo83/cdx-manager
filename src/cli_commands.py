@@ -55,6 +55,7 @@ from .cli_args import (
 )
 from .cli_helpers import (
     API_SCHEMA_VERSION,
+    _format_bytes,
     _build_handoff_context,
     _format_export_report,
     _handoff_launch_prompt,
@@ -169,14 +170,6 @@ def _resolve_confirmation(confirm_fn, name):
     if hasattr(confirmed, "__await__"):
         confirmed = asyncio.get_event_loop().run_until_complete(confirmed)
     return confirmed
-
-
-def _format_bytes(value):
-    size = float(value)
-    for unit in ("B", "KB", "MB", "GB", "TB"):
-        if size < 1024 or unit == "TB":
-            return f"{int(size)} {unit}" if unit == "B" or size.is_integer() else f"{size:.1f} {unit}"
-        size /= 1024
 
 
 def _directory_size_bytes(path, runner=None):

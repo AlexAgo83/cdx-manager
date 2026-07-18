@@ -48,40 +48,24 @@ def _refresh_claude_sessions(service, refresh_fn=None, target_names=None, force=
     errors = []
     results = {}
 
-    if inspect.iscoroutinefunction(refresh_fn):
-        import asyncio
+    threads = []
 
-        async def fetch_all():
-            async def fetch_async(s):
-                try:
-                    usage = await refresh_fn(s)
-                    if usage:
-                        results[s["name"]] = usage
-                except Exception as e:
-                    errors.append({"session": s["name"], "error": e})
+    def fetch(s):
+        try:
+            usage = refresh_fn(s)
+            if inspect.isawaitable(usage):
+                raise CdxError("Claude refresh function returned an awaitable from a sync callable.")
+            if usage:
+                results[s["name"]] = usage
+        except Exception as e:
+            errors.append({"session": s["name"], "error": e})
 
-            await asyncio.gather(*(fetch_async(s) for s in claude_sessions))
-
-        asyncio.run(fetch_all())
-    else:
-        threads = []
-
-        def fetch(s):
-            try:
-                usage = refresh_fn(s)
-                if inspect.isawaitable(usage):
-                    raise CdxError("Claude refresh function returned an awaitable from a sync callable.")
-                if usage:
-                    results[s["name"]] = usage
-            except Exception as e:
-                errors.append({"session": s["name"], "error": e})
-
-        for s in claude_sessions:
-            t = threading.Thread(target=fetch, args=(s,), daemon=True)
-            threads.append(t)
-            t.start()
-        for t in threads:
-            t.join(timeout=10)
+    for s in claude_sessions:
+        t = threading.Thread(target=fetch, args=(s,), daemon=True)
+        threads.append(t)
+        t.start()
+    for t in threads:
+        t.join(timeout=10)
 
     # A worker that outlived its join can still insert into results/errors;
     # snapshot both so late writes can't mutate what we iterate.

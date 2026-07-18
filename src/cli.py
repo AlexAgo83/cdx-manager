@@ -50,6 +50,7 @@ from .cli_commands import (
     handle_update,
     handle_view,
 )
+from .cli_helpers import _update_notice_warnings
 from .cli_commands import (
     _format_bytes as _format_disk_bytes,
 )
@@ -178,7 +179,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx next [--json] [--refresh]', '36', use_color)}",
         f"  {_style('cdx reset <name> [--yes] [--json]', '36', use_color)}",
         f"  {_style('cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json', '36', use_color)}",
-        f"  {_style('cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] --json', '36', use_color)}",
+        f"  {_style('cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] --json', '36', use_color)}",
         f"  {_style('cdx runs [--limit N] --json', '36', use_color)}",
         f"  {_style('cdx run-status <run_id> --json', '36', use_color)}",
         f"  {_style('cdx run-report <run_id> --json', '36', use_color)}",
@@ -426,40 +427,8 @@ def _get_disk_cleanup_notice(service, options):
     }
 
 
-def _update_warning_payload(notices):
-    if isinstance(notices, dict):
-        notices = [notices]
-    if not notices:
-        return []
-    warnings = []
-    for notice in notices:
-        if notice.get("code") == "disk_cleanup_available":
-            warnings.append({
-                "code": "disk_cleanup_available",
-                "message": notice["message"],
-                **{key: value for key, value in notice.items() if key not in ("code", "message")},
-            })
-            continue
-        tool = notice.get("tool") or "cdx-manager"
-        current = notice.get("current_version") or VERSION
-        command = notice.get("update_command") or ("cdx update" if tool == "cdx-manager" else None)
-        message = f"Update available: {tool} {notice['latest_version']} (current {current})"
-        if command:
-            message = f"{message}. Run: {command}"
-        warnings.append({
-            "code": "update_available" if tool == "cdx-manager" else f"{tool.replace('-', '_')}_update_available",
-            "message": message,
-            "tool": tool,
-            "latest_version": notice["latest_version"],
-            "current_version": current,
-            "update_command": command,
-            "url": notice.get("url"),
-        })
-    return warnings
-
-
 def _update_warning_text(notices):
-    payloads = _update_warning_payload(notices)
+    payloads = _update_notice_warnings({"update_notices": notices or [], "version": VERSION})
     if not payloads:
         return None
     return "\n".join(payload["message"] for payload in payloads)
@@ -571,7 +540,7 @@ def _list_json_payload(rows, notices=None):
         "ok": True,
         "action": "list",
         "message": "Listed known sessions",
-        "warnings": _update_warning_payload(notices),
+        "warnings": _update_notice_warnings({"update_notices": notices or [], "version": VERSION}),
         "sessions": rows,
     }
 

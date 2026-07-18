@@ -17,7 +17,7 @@ class NotifyPythonTests(unittest.TestCase):
             calls.append((argv, kwargs))
 
         with mock.patch("sys.platform", "darwin"):
-            with mock.patch("src.notify.shutil_which", return_value="/usr/bin/osascript"):
+            with mock.patch("src.notify.shutil.which", return_value="/usr/bin/osascript"):
                 send_desktop_notification("Title", 'Hello "World"', spawn_sync=spawn_sync, env={"PATH": "/usr/bin"})
 
         self.assertEqual(calls[0][0][0], "osascript")
@@ -32,7 +32,7 @@ class NotifyPythonTests(unittest.TestCase):
             calls.append((argv, kwargs))
 
         with mock.patch("sys.platform", "linux"):
-            with mock.patch("src.notify.shutil_which", return_value=None):
+            with mock.patch("src.notify.shutil.which", return_value=None):
                 send_desktop_notification("Title", "Body", spawn_sync=spawn_sync, env={"PATH": ""})
 
         self.assertEqual(calls, [])
@@ -44,7 +44,7 @@ class NotifyPythonTests(unittest.TestCase):
             calls.append((argv, kwargs))
 
         with mock.patch("sys.platform", "linux"):
-            with mock.patch("src.notify.shutil_which", side_effect=lambda command, _env: command == "notify-send"):
+            with mock.patch("src.notify.shutil.which", side_effect=lambda command, path=None: command == "notify-send"):
                 send_desktop_notification("Title; rm -rf /", "Body $(bad)", spawn_sync=spawn_sync, env={"PATH": "/usr/bin"})
 
         self.assertEqual(calls[0][0], ["notify-send", "Title; rm -rf /", "Body $(bad)"])
@@ -89,7 +89,7 @@ class NotifyPythonTests(unittest.TestCase):
         }
 
         with mock.patch("sys.platform", "linux"):
-            with mock.patch("src.notify.shutil_which", side_effect=lambda command, _env: command == "systemd-run"):
+            with mock.patch("src.notify.shutil.which", side_effect=lambda command, path=None: command == "systemd-run"):
                 schedule = schedule_notification_event(
                     "/tmp/cdx",
                     parsed,
@@ -121,7 +121,7 @@ class NotifyPythonTests(unittest.TestCase):
         }
 
         with mock.patch("sys.platform", "linux"):
-            with mock.patch("src.notify.shutil_which", side_effect=lambda command, _env: command == "systemd-run"):
+            with mock.patch("src.notify.shutil.which", side_effect=lambda command, path=None: command == "systemd-run"):
                 schedule = schedule_notification_event(
                     "/tmp/cdx",
                     parsed,
@@ -206,7 +206,7 @@ class NotifyPythonTests(unittest.TestCase):
             raise FileNotFoundError("osascript")
 
         with mock.patch("sys.platform", "darwin"):
-            with mock.patch("src.notify.shutil_which", return_value="/usr/bin/osascript"):
+            with mock.patch("src.notify.shutil.which", return_value="/usr/bin/osascript"):
                 send_desktop_notification("Title", "Body", spawn_sync=spawn_sync, env={"PATH": "/usr/bin"})
 
     def test_send_desktop_notification_swallows_windows_backend_errors(self):

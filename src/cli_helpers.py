@@ -57,14 +57,6 @@ def _write_json(ctx, payload):
     ctx["out"](f"{json.dumps(payload, indent=2)}\n")
 
 
-def _update_notice_warning(ctx):
-    notices = ctx.get("update_notices") or []
-    if not notices:
-        return None
-    warnings = _update_notice_warnings(ctx)
-    return warnings[0] if warnings else None
-
-
 def _update_notice_warnings(ctx):
     warnings = []
     for notice in ctx.get("update_notices") or []:
@@ -118,7 +110,7 @@ def _format_bytes(value):
         amount /= 1024
     if unit == "B":
         return f"{int(amount)} B"
-    return f"{amount:.1f} {unit}"
+    return f"{int(amount)} {unit}" if amount.is_integer() else f"{amount:.1f} {unit}"
 
 
 def _format_export_report(result):
@@ -157,39 +149,16 @@ def _make_export_progress(ctx):
     return progress
 
 
-def _make_status_progress(ctx):
+def _make_session_progress(ctx, start_event, start_message):
     progress_state = {"checked": 0, "total": 0}
 
     def progress(event):
         kind = event.get("event")
-        if kind == "status_started":
-            progress_state["checked"] = 0
-            progress_state["total"] = event.get("check_count", event.get("session_count", 0)) or 0
-            message = f"Resolving status for {event.get('session_count', 0)} session(s)..."
-            ctx["out"](f"{_info(message, ctx['use_color'])}\n")
-        elif kind == "session_started":
-            provider = event.get("provider") or "session"
-            message = f"Checking {event.get('session_name')} ({provider})..."
-            ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
-        elif kind == "session_finished" and not event.get("cache_hit"):
-            progress_state["checked"] += 1
-            total = progress_state["total"] or progress_state["checked"]
-            message = f"Checked {event.get('session_name')} ({progress_state['checked']}/{total})."
-            ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
-        elif kind == "status_finished":
-            message = f"Resolved {event.get('row_count', 0)} status row(s)."
-            ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
-    return progress
-
-
-def _make_notify_progress(ctx):
-    progress_state = {"checked": 0, "total": 0}
-
-    def progress(event):
-        kind = event.get("event")
-        if kind == "notify_check_started":
-            target = event.get("session_name") or "next ready session"
-            ctx["out"](f"{_info(f'Checking notification target: {target}...', ctx['use_color'])}\n")
+        if kind == start_event:
+            if kind == "status_started":
+                progress_state["checked"] = 0
+                progress_state["total"] = event.get("check_count", event.get("session_count", 0)) or 0
+            ctx["out"](f"{_info(start_message(event), ctx['use_color'])}\n")
         elif kind == "status_started":
             progress_state["checked"] = 0
             progress_state["total"] = event.get("check_count", event.get("session_count", 0)) or 0
@@ -204,10 +173,29 @@ def _make_notify_progress(ctx):
             total = progress_state["total"] or progress_state["checked"]
             message = f"Checked {event.get('session_name')} ({progress_state['checked']}/{total})."
             ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
+        elif kind == "status_finished":
+            message = f"Resolved {event.get('row_count', 0)} status row(s)."
+            ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
         elif kind == "notify_waiting":
             message = f"{event.get('message')}; checking again in {event.get('poll')}s..."
             ctx["out"](f"{_dim(message, ctx['use_color'])}\n")
     return progress
+
+
+def _make_status_progress(ctx):
+    return _make_session_progress(
+        ctx,
+        "status_started",
+        lambda event: f"Resolving status for {event.get('session_count', 0)} session(s)...",
+    )
+
+
+def _make_notify_progress(ctx):
+    return _make_session_progress(
+        ctx,
+        "notify_check_started",
+        lambda event: f"Checking notification target: {event.get('session_name') or 'next ready session'}...",
+    )
 
 
 def _latest_launch_transcript_path(session):

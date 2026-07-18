@@ -1,4 +1,4 @@
-from .cli_helpers import _json_failure, _json_success, _write_json
+from .cli_helpers import _json_failure, _json_success, _update_notice_warnings, _write_json
 from .cli_render import _warn
 from .errors import CdxError
 from .logics_view import (
@@ -11,31 +11,6 @@ from .logics_view import (
 from .update_check import check_logics_manager_for_update
 
 VIEW_USAGE = "Usage: cdx view [--json] [--lan] [--lan-rw] [--focus <ref>] [--read] [--port <port>] [--host <host>] [--refresh-interval <s>] [--tls] [--open] [--no-open]"
-
-
-def _update_notice_warnings(notices):
-    warnings = []
-    for notice in notices or []:
-        if not notice:
-            continue
-        tool = notice.get("tool") or "logics-manager"
-        current = notice.get("current_version")
-        command = notice.get("update_command")
-        message = f"Update available: {tool} {notice['latest_version']}"
-        if current:
-            message = f"{message} (current {current})"
-        if command:
-            message = f"{message}. Run: {command}"
-        warnings.append({
-            "code": f"{tool.replace('-', '_')}_update_available",
-            "message": message,
-            "tool": tool,
-            "latest_version": notice["latest_version"],
-            "current_version": current,
-            "update_command": command,
-            "url": notice.get("url"),
-        })
-    return warnings
 
 
 def _logics_manager_update_notice(ctx, env):
@@ -86,7 +61,7 @@ def handle_view(rest, ctx):
     update_notice = _logics_manager_update_notice(ctx, env) if executable else None
     failure = None if executable else missing_logics_manager_failure()
     diagnostics = build_viewer_diagnostics(executable, cwd, update_notice=update_notice, failure=failure, extra_args=viewer_args)
-    warnings = _update_notice_warnings([update_notice])
+    warnings = _update_notice_warnings({"update_notices": [update_notice] if update_notice else []})
 
     if json_flag:
         if failure:

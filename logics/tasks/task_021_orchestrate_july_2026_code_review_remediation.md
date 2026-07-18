@@ -4,7 +4,7 @@
 > Status: Ready
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 75%
+> Progress: 90%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -18,7 +18,7 @@
 - [x] 3. Land the CLI robustness fixes with one regression test per fix.
 - [x] 4. Unify the npm entrypoint through cli_entry.
 - [x] 5. Move release checksum verification to tagged release assets and add the unverified-install warning.
-- [ ] 6. Finish with the dedup/dead-code/docs chore commit.
+- [x] 6. Finish with the dedup/dead-code/docs chore commit.
 - [ ] 7. Run the full test suite and release verification scripts after each step; keep 454+ tests green.
 - [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
 - [ ] Keep commit creation under operator control; do not force one commit per micro-step.
