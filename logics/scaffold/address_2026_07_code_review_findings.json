@@ -1,0 +1,232 @@
+{
+  "title": "Address July 2026 code review findings: data-safety, reliability, and cleanup",
+  "references": [
+    "src/session_service.py",
+    "src/provider_runtime.py",
+    "src/session_store.py",
+    "src/cli_commands.py",
+    "src/cli_view.py",
+    "src/cli_helpers.py",
+    "src/cli.py",
+    "bin/cdx",
+    "install.sh",
+    "install.ps1"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Operator workflow",
+    "needs": [
+      "A full code review (2026-07-18, three parallel reviewers over src/, CLI layer, and packaging) found one data-loss risk, three auth-reliability defects, five robustness/UX bugs, one Windows npm-entrypoint gap, one supply-chain weakness, and a set of duplication/dead-code/docs issues.",
+      "All findings must be fixed without regressing current behavior: 454 tests green, atomic-write and quarantine-before-delete discipline preserved, AES-256-GCM bundle handling unchanged."
+    ],
+    "context": [
+      "Highest severity: `cdx import --force` deletes each existing session profile (auth.json, claude-home credentials) before re-import with no per-session rollback; a bundle exported without --include-auth restores nothing, permanently logging out every overwritten session (src/session_service.py:1368-1427).",
+      "Auth reliability: provider auth probes (`codex login status` / `claude auth status`) run with no subprocess timeout on every launch/run/doctor (src/provider_runtime.py:913-917) while the equivalent probe in claude_usage.py:98 uses 15s; the codex auth lock is non-blocking but the body executes anyway when contended, allowing the concurrent auth.json refresh it exists to prevent (src/provider_runtime.py:959, src/codex_usage.py:39-44); a stored `reasoning_effort` launch key permanently shadows `--power` because set does not clear it and unset does not allow it (src/session_service.py:899-926).",
+      "Robustness/UX: one truncated JSONL line makes `cdx history` fail forever (src/session_store.py:296-298) while run_usage._parse_json_records skips bad lines; `cdx status` crashes entirely if a session is removed concurrently (src/session_service.py:1217-1219); bare `cdx clean profiles` and the `--old-logs=N` equals-form are misrouted as a session name (src/cli_commands.py:1738); `cdx disk --candidates` validates argument combinations only after the full du scan (src/cli_commands.py:551 vs 562); `cdx view --json` returns ok:true and exit 0 when logics-manager is missing (src/cli_view.py:91-93).",
+      "Entrypoint: the npm launcher bin/cdx calls main() directly, duplicating cli_entry error handling and skipping _enable_windows_ansi()/_configure_windows_encoding() (src/cli.py:605-607), so npm-installed Windows users get raw ANSI escapes and potential UnicodeEncodeError.",
+      "Supply chain: install.sh/install.ps1 verify release archives against checksums fetched from the same repository main branch as the artifact (shared trust root), and the CDX_ALLOW_UNVERIFIED=1 escape hatch skips verification with only a quiet notice.",
+      "Cleanup: three drifting copies of the update-warning payload builder (cli.py:429, cli_helpers.py:68, cli_view.py:16); two independent _format_bytes implementations (cli_commands.py:174, cli_helpers.py:106); two ~90%-identical progress factories (cli_helpers.py:160-210); duplicated limit-parsing regexes (status_source.py:23-26 vs 521-533); dead code (_update_notice_warning, speculative asyncio branch in claude_refresh.py:51-65, shutil_which stdlib re-wrap); hygiene drift (.gitignore lists tracked logics.yaml/LOGICS.md, README stale Python 3.9 note, cdx run --help omits --kind, cdx stats errors print the history command usage)."
+    ],
+    "acceptance_criteria": [
+      "AC1: `cdx import --force` never destroys credentials it cannot restore: importing a bundle without auth payloads over existing sessions is refused with an explicit message unless an explicit override flag is passed, and each session import validates all bundle content (base64, safe paths) before touching disk, renames the old profile aside, restores it on failure, and purges the backup on success.",
+      "AC2: Provider auth probes run with a bounded timeout (15s, aligned with claude_usage) and a timeout yields an unknown/degraded status instead of hanging launch/run/doctor.",
+      "AC3: The codex auth lock waits with a bounded retry when contended instead of executing unlocked; if the lock cannot be acquired within the bound, the operation fails or degrades explicitly rather than racing the auth refresh.",
+      "AC4: `cdx set <name> --power X` clears any stored reasoning_effort so the new power takes effect, and `cdx unset` accepts reasoning_effort; a session can no longer report one power and launch with another.",
+      "AC5: `cdx history` tolerates corrupt/truncated JSONL lines by skipping them (optionally reporting a skipped count) instead of raising, matching run_usage parsing behavior.",
+      "AC6: `cdx status` skips or marks a session removed concurrently during the scan instead of crashing the whole table.",
+      "AC7: `cdx clean profiles` (bare) prints the profiles-clean usage, and both `--old-logs N` and `--old-logs=N` forms route to the profiles branch; no clean invocation is misrouted as a session name.",
+      "AC8: `cdx disk` validates argument combinations before starting any directory scan.",
+      "AC9: `cdx view --json` reports ok:false and a non-zero exit code when the viewer cannot run (logics-manager missing), consistent with the non-JSON path.",
+      "AC10: The npm launcher routes through cli_entry() so Windows ANSI/encoding setup and error handling are applied identically for npm and pip installs, removing the duplicated error handling in bin/cdx.",
+      "AC11: Release checksums are verified against a source independent of the main branch (e.g. tagged GitHub Release assets), and enabling CDX_ALLOW_UNVERIFIED prints a prominent multi-line warning.",
+      "AC12: Duplicated helpers are unified (single update-warning builder, single _format_bytes, single progress factory, single set of status_source limit regexes) and dead code is removed (_update_notice_warning, claude_refresh asyncio branch, shutil_which), with all call sites migrated.",
+      "AC13: Docs/config hygiene is fixed: .gitignore no longer lists tracked files, README Python-support note matches 0.10.x reality, `cdx run --help` documents --kind, and `cdx stats` argument errors print the stats usage.",
+      "AC14: Non-regression tests cover the JSONL tolerance, clean-profiles routing, view --json failure contract, and npm entrypoint wiring; the full suite stays green."
+    ]
+  },
+  "product": {
+    "title": "Code review remediation wave 2026-07",
+    "overview": "Fix every finding from the July 2026 three-track code review of the session manager CLI: eliminate the bundle-import data-loss path, make provider auth probing and locking reliable under contention, repair five robustness/UX defects in history/status/clean/disk/view, unify the npm and pip entrypoints, harden the release verification trust root, and clear the accumulated duplication and dead code.",
+    "goals": [
+      "No CLI operation can destroy credentials it cannot restore.",
+      "Launch, run, doctor, status, and history never hang or hard-fail on recoverable conditions (slow provider CLI, torn log line, concurrent session removal).",
+      "npm and pip installs behave identically on every platform.",
+      "Release artifacts are verifiable against a trust root independent of the repository main branch.",
+      "One implementation per helper: no drifting duplicate builders, formatters, or regexes."
+    ],
+    "non_goals": [
+      "Per-session provider login flows (the global-auth token-rotation clash between homes is documented, not redesigned).",
+      "Full artifact signing (Sigstore/GPG) — out of scope beyond moving checksums off the main branch.",
+      "New test coverage for presentation modules beyond the regression tests tied to these fixes."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Safe bundle import: pre-validation, credential guard, per-session rollback",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Operator workflow",
+      "request_acs": ["AC1"],
+      "problem": [
+        "import --force removes each existing session profile before re-import; a bundle exported without --include-auth restores no credentials, so every overwritten session is permanently logged out.",
+        "Bundle content is validated mid-loop after destructive writes have begun, so a corrupt entry leaves earlier sessions committed, the failing session half-deleted, and later sessions untouched."
+      ],
+      "scope_in": [
+        "Refuse --force import over existing sessions when the bundle carries no auth payloads, unless an explicit override flag is passed.",
+        "Validate all base64 payloads and target paths for a session before any filesystem mutation.",
+        "Rename the existing profile aside during import, restore it if the import of that session fails, delete the backup on success (reuse the existing quarantine pattern from remove_session).",
+        "Round-trip tests: force-import without auth is refused; corrupt mid-bundle entry leaves the pre-import profile intact."
+      ],
+      "scope_out": [
+        "Bundle format changes or new export options."
+      ],
+      "acceptance_criteria": [
+        "Force-importing an auth-less bundle over existing sessions exits with an explicit refusal message and touches nothing.",
+        "A corrupt payload in session N leaves session N's original profile and store record intact.",
+        "Existing export/import round-trip tests remain green."
+      ]
+    },
+    {
+      "title": "Provider auth reliability: probe timeout, bounded auth lock, power/effort precedence",
+      "priority": "High",
+      "complexity": "Low",
+      "theme": "Operator workflow",
+      "request_acs": ["AC2", "AC3", "AC4"],
+      "problem": [
+        "Auth status probes run without a subprocess timeout on every launch/run/doctor; a hung provider CLI blocks the command forever.",
+        "The codex auth lock yields False under contention but the protected body runs anyway, permitting the concurrent auth.json refresh the lock exists to prevent.",
+        "A stored reasoning_effort launch key silently overrides --power forever: set does not clear it and unset does not accept it."
+      ],
+      "scope_in": [
+        "Add timeout=15 to the auth probe subprocess calls; map TimeoutExpired to an unknown/degraded probe result.",
+        "Replace the run-anyway contention path with a bounded blocking acquire (retry up to ~10s), then explicit failure or degradation.",
+        "set_launch_settings with power removes reasoning_effort from the merged dict; unset_launch_settings allows reasoning_effort."
+      ],
+      "scope_out": [
+        "Per-session provider login; cross-home token-rotation redesign (document the limitation only)."
+      ],
+      "acceptance_criteria": [
+        "A probe subprocess that never returns causes a degraded status within 15s, not a hang.",
+        "Under lock contention the second writer waits or fails explicitly; it never refreshes auth.json unlocked.",
+        "After set --power on a session with stored reasoning_effort, the launch uses the new power; unset reasoning_effort succeeds."
+      ]
+    },
+    {
+      "title": "CLI robustness: tolerant history parsing, concurrent-removal-safe status, clean/disk/view fixes",
+      "priority": "High",
+      "complexity": "Low",
+      "theme": "Operator workflow",
+      "request_acs": ["AC5", "AC6", "AC7", "AC8", "AC9", "AC14"],
+      "problem": [
+        "One truncated JSONL line (crash mid-append) makes cdx history raise forever.",
+        "cdx status crashes the whole table when a session is removed concurrently.",
+        "Bare `cdx clean profiles` and `--old-logs=N` are misrouted as a session name; disk validates args after the expensive scan; view --json reports ok:true when the viewer cannot run."
+      ],
+      "scope_in": [
+        "list_launch_history skips unparseable lines (matching run_usage._parse_json_records), optionally surfacing a skipped-lines count; consider extracting the tolerant parser into a shared fs_utils helper.",
+        "Wrap the per-session future.result() in status collection to skip or mark rows for sessions that vanished mid-scan.",
+        "Fix clean dispatch: leading `profiles` arg or any --tmp/--old-logs flag (including = form, via prefix split) routes to the profiles branch; bare `profiles` prints usage.",
+        "Hoist disk argument-combination validation above the first directory scan.",
+        "view --json sets ok:false and non-zero exit when viewer.failure is present.",
+        "Regression tests for each fix."
+      ],
+      "scope_out": [
+        "New history/status features or output format changes beyond the failure contracts."
+      ],
+      "acceptance_criteria": [
+        "A history file with a torn final line renders the remaining entries.",
+        "Removing a session while status runs yields a table without that row, exit 0.",
+        "`cdx clean profiles` prints usage; `cdx clean --old-logs=30` runs the profiles clean.",
+        "`cdx disk --candidates <bad combo>` errors immediately without scanning.",
+        "`cdx view --json` with logics-manager absent returns ok:false and non-zero exit."
+      ]
+    },
+    {
+      "title": "Unify npm entrypoint through cli_entry",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Operator workflow",
+      "request_acs": ["AC10", "AC14"],
+      "problem": [
+        "bin/cdx calls main() directly, duplicating cli_entry error handling and skipping Windows ANSI/encoding setup, so npm-installed Windows users get garbled output while pip users do not."
+      ],
+      "scope_in": [
+        "bin/cdx invokes cli_entry(); delete the duplicated error handling in the launcher.",
+        "Regression test asserting the npm launcher path routes through cli_entry."
+      ],
+      "scope_out": [
+        "Changes to the pip console-script wiring."
+      ],
+      "acceptance_criteria": [
+        "npm and pip entrypoints execute the same setup and error-handling path.",
+        "bin/cdx contains no duplicated error-handling logic."
+      ]
+    },
+    {
+      "title": "Release verification trust root and unverified-install warning",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Operator workflow",
+      "request_acs": ["AC11"],
+      "problem": [
+        "install.sh/install.ps1 fetch release checksums from the same main branch as the artifact, so one repository compromise updates both; CDX_ALLOW_UNVERIFIED=1 silently disables verification."
+      ],
+      "scope_in": [
+        "Publish per-release checksums as tagged GitHub Release assets and point both installers at the release asset for verification.",
+        "Print a prominent multi-line warning when CDX_ALLOW_UNVERIFIED is set.",
+        "Update the release checklist/scripts so publishing the checksum asset is part of the release flow."
+      ],
+      "scope_out": [
+        "Sigstore/GPG signing."
+      ],
+      "acceptance_criteria": [
+        "Installers verify archives against the tagged release asset, not main-branch files.",
+        "Setting CDX_ALLOW_UNVERIFIED produces an unmissable warning before proceeding.",
+        "Release verification scripts and their tests stay green."
+      ]
+    },
+    {
+      "title": "Deduplication, dead-code removal, and docs hygiene",
+      "priority": "Low",
+      "complexity": "Low",
+      "theme": "Operator workflow",
+      "request_acs": ["AC12", "AC13"],
+      "problem": [
+        "Three drifting update-warning builders, two _format_bytes, two near-identical progress factories, duplicated status_source regexes; dead code (_update_notice_warning, claude_refresh asyncio branch, shutil_which); .gitignore/README/help/usage drift."
+      ],
+      "scope_in": [
+        "Keep one update-warning builder in cli_helpers and import it from cli.py and cli_view.py.",
+        "Keep the None-safe _format_bytes; migrate the other call sites.",
+        "Merge the two progress factories into one with an optional prefix handler.",
+        "Extract the status_source limit regexes into one module constant used by both parse paths.",
+        "Delete _update_notice_warning, the claude_refresh asyncio branch (and its only-async test), and shutil_which (call shutil.which directly).",
+        "Remove dead .gitignore entries for tracked logics.yaml/LOGICS.md; fix the README Python 3.9 note; add --kind to cdx run --help; parameterize _parse_history_period so cdx stats prints its own usage."
+      ],
+      "scope_out": [
+        "Any behavior change beyond the unified helpers' existing semantics."
+      ],
+      "acceptance_criteria": [
+        "One implementation each for the update-warning builder, byte formatter, progress factory, and limit regexes; grep finds no duplicate.",
+        "Deleted symbols have no remaining references; full suite green.",
+        "cdx stats argument errors print stats usage; cdx run --help lists --kind."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate July 2026 code review remediation",
+    "plan": [
+      "Land the safe-bundle-import backlog item first (only data-loss risk), with its refusal-and-rollback tests.",
+      "Land provider auth reliability (probe timeout, bounded lock, power/effort precedence) as one change set.",
+      "Land the CLI robustness fixes with one regression test per fix.",
+      "Unify the npm entrypoint through cli_entry.",
+      "Move release checksum verification to tagged release assets and add the unverified-install warning.",
+      "Finish with the dedup/dead-code/docs chore commit.",
+      "Run the full test suite and release verification scripts after each step; keep 454+ tests green."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/address_2026_07_code_review_findings.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}

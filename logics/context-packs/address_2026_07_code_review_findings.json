@@ -1,0 +1,570 @@
+{
+  "budgets": {
+    "max_docs": 32,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback.md",
+    "logics/backlog/item_023_provider_auth_reliability_probe_timeout_bounded_auth_lock_power_effort_precedence.md",
+    "logics/backlog/item_024_cli_robustness_tolerant_history_parsing_concurrent_removal_safe_status_clean_disk_view_fixes.md",
+    "logics/backlog/item_025_unify_npm_entrypoint_through_cli_entry.md",
+    "logics/backlog/item_026_release_verification_trust_root_and_unverified_install_warning.md",
+    "logics/backlog/item_027_deduplication_dead_code_removal_and_docs_hygiene.md",
+    "logics/product/prod_003_code_review_remediation_wave_2026_07.md",
+    "logics/request/req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup.md",
+    "logics/scaffold/address_2026_07_code_review_findings.json",
+    "logics/tasks/task_021_orchestrate_july_2026_code_review_remediation.md"
+  ],
+  "command": "logics-manager sync context-pack req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback item_023_provider_auth_reliability_probe_timeout_bounded_auth_lock_power_effort_precedence item_024_cli_robustness_tolerant_history_parsing_concurrent_removal_safe_status_clean_disk_view_fixes item_025_unify_npm_entrypoint_through_cli_entry item_026_release_verification_trust_root_and_unverified_install_warning item_027_deduplication_dead_code_removal_and_docs_hygiene task_021_orchestrate_july_2026_code_review_remediation --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback",
+          "item_023_provider_auth_reliability_probe_timeout_bounded_auth_lock_power_effort_precedence",
+          "item_024_cli_robustness_tolerant_history_parsing_concurrent_removal_safe_status_clean_disk_view_fixes",
+          "item_025_unify_npm_entrypoint_through_cli_entry",
+          "item_026_release_verification_trust_root_and_unverified_install_warning",
+          "item_027_deduplication_dead_code_removal_and_docs_hygiene"
+        ],
+        "prod": [
+          "prod_003_code_review_remediation_wave_2026_07"
+        ],
+        "req": [
+          "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup"
+        ],
+        "task": [
+          "task_021_orchestrate_july_2026_code_review_remediation"
+        ]
+      },
+      "path": "logics/product/prod_003_code_review_remediation_wave_2026_07.md",
+      "ref": "prod_003_code_review_remediation_wave_2026_07",
+      "sections": {
+        "Goals": [
+          "- No CLI operation can destroy credentials it cannot restore.",
+          "- Launch, run, doctor, status, and history never hang or hard-fail on recoverable conditions (slow provider CLI, torn log line, concurrent session removal).",
+          "- npm and pip installs behave identically on every platform.",
+          "- Release artifacts are verifiable against a trust root independent of the repository main branch.",
+          "- One implementation per helper: no drifting duplicate builders, formatters, or regexes."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Fix every finding from the July 2026 three-track code review of the session manager CLI: eliminate the bundle-import data-loss path, make provider auth probing and locking reliable under contention, repair five robustness/UX defects in history/status/clean/disk/view, unify the npm and pip entrypoints, harden the release verification trust root, and clear the accumulated duplication and dead code."
+        ],
+        "References": [
+          "- Product back-reference: `req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup`",
+          "- Task back-reference: `task_021_orchestrate_july_2026_code_review_remediation`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Code review remediation wave 2026-07"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, address july 2026 code review findings: data-safety, reliability, and cleanup, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Address July 2026 code review findings: data-safety, reliability, and cleanup",
+        "use when": "You need to implement or review the scaffolded workflow for Address July 2026 code review findings: data-safety, reliability, and cleanup."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback",
+          "item_023_provider_auth_reliability_probe_timeout_bounded_auth_lock_power_effort_precedence",
+          "item_024_cli_robustness_tolerant_history_parsing_concurrent_removal_safe_status_clean_disk_view_fixes",
+          "item_025_unify_npm_entrypoint_through_cli_entry",
+          "item_026_release_verification_trust_root_and_unverified_install_warning",
+          "item_027_deduplication_dead_code_removal_and_docs_hygiene"
+        ],
+        "prod": [
+          "prod_003_code_review_remediation_wave_2026_07"
+        ],
+        "req": [
+          "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup"
+        ]
+      },
+      "path": "logics/request/req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup.md",
+      "ref": "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: `cdx import --force` never destroys credentials it cannot restore: importing a bundle without auth payloads over existing sessions is refused with an explicit message unless an explicit override flag is passed, and each session import validates all bundle content (base64, safe paths) before touching disk, renames the old profile aside, restores it on failure, and purges the backup on success.",
+          "- AC2: Provider auth probes run with a bounded timeout (15s, aligned with claude_usage) and a timeout yields an unknown/degraded status instead of hanging launch/run/doctor.",
+          "- AC3: The codex auth lock waits with a bounded retry when contended instead of executing unlocked; if the lock cannot be acquired within the bound, the operation fails or degrades explicitly rather than racing the auth refresh.",
+          "- AC4: `cdx set <name> --power X` clears any stored reasoning_effort so the new power takes effect, and `cdx unset` accepts reasoning_effort; a session can no longer report one power and launch with another.",
+          "- AC5: `cdx history` tolerates corrupt/truncated JSONL lines by skipping them (optionally reporting a skipped count) instead of raising, matching run_usage parsing behavior.",
+          "- AC6: `cdx status` skips or marks a session removed concurrently during the scan instead of crashing the whole table."
+        ],
+        "Needs": [
+          "- A full code review (2026-07-18, three parallel reviewers over src/, CLI layer, and packaging) found one data-loss risk, three auth-reliability defects, five robustness/UX bugs, one Windows npm-entrypoint gap, one supply-chain weakness, and a set of duplication/dead-code/docs issues.",
+          "- All findings must be fixed without regressing current behavior: 454 tests green, atomic-write and quarantine-before-delete discipline preserved, AES-256-GCM bundle handling unchanged."
+        ]
+      },
+      "status": "Draft",
+      "title": "Address July 2026 code review findings: data-safety, reliability, and cleanup"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, safe bundle import: pre-validation, credential guard, per-session rollback, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Safe bundle import: pre-validation, credential guard, per-session rollback",
+        "use when": "Implementing the scaffolded slice for Safe bundle import: pre-validation, credential guard, per-session rollback."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback"
+        ],
+        "prod": [
+          "prod_003_code_review_remediation_wave_2026_07"
+        ],
+        "req": [
+          "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup"
+        ],
+        "task": [
+          "task_021_orchestrate_july_2026_code_review_remediation"
+        ]
+      },
+      "path": "logics/backlog/item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback.md",
+      "ref": "item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Force-importing an auth-less bundle over existing sessions exits with an explicit refusal message and touches nothing.",
+          "- A corrupt payload in session N leaves session N's original profile and store record intact.",
+          "- Existing export/import round-trip tests remain green."
+        ],
+        "Problem": [
+          "- import --force removes each existing session profile before re-import; a bundle exported without --include-auth restores no credentials, so every overwritten session is permanently logged out.",
+          "- Bundle content is validated mid-loop after destructive writes have begun, so a corrupt entry leaves earlier sessions committed, the failing session half-deleted, and later sessions untouched."
+        ]
+      },
+      "status": "Ready",
+      "title": "Safe bundle import: pre-validation, credential guard, per-session rollback"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, provider auth reliability: probe timeout, bounded auth lock, power/effort precedence, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Provider auth reliability: probe timeout, bounded auth lock, power/effort precedence",
+        "use when": "Implementing the scaffolded slice for Provider auth reliability: probe timeout, bounded auth lock, power/effort precedence."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_023_provider_auth_reliability_probe_timeout_bounded_auth_lock_power_effort_precedence"
+        ],
+        "prod": [
+          "prod_003_code_review_remediation_wave_2026_07"
+        ],
+        "req": [
+          "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup"
+        ],
+        "task": [
+          "task_021_orchestrate_july_2026_code_review_remediation"
+        ]
+      },
+      "path": "logics/backlog/item_023_provider_auth_reliability_probe_timeout_bounded_auth_lock_power_effort_precedence.md",
+      "ref": "item_023_provider_auth_reliability_probe_timeout_bounded_auth_lock_power_effort_precedence",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- A probe subprocess that never returns causes a degraded status within 15s, not a hang.",
+          "- Under lock contention the second writer waits or fails explicitly; it never refreshes auth.json unlocked.",
+          "- After set --power on a session with stored reasoning_effort, the launch uses the new power; unset reasoning_effort succeeds."
+        ],
+        "Problem": [
+          "- Auth status probes run without a subprocess timeout on every launch/run/doctor; a hung provider CLI blocks the command forever.",
+          "- The codex auth lock yields False under contention but the protected body runs anyway, permitting the concurrent auth.json refresh the lock exists to prevent.",
+          "- A stored reasoning_effort launch key silently overrides --power forever: set does not clear it and unset does not accept it."
+        ]
+      },
+      "status": "Ready",
+      "title": "Provider auth reliability: probe timeout, bounded auth lock, power/effort precedence"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, cli robustness: tolerant history parsing, concurrent-removal-safe status, clean/disk/view fixes, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "CLI robustness: tolerant history parsing, concurrent-removal-safe status, clean/disk/view fixes",
+        "use when": "Implementing the scaffolded slice for CLI robustness: tolerant history parsing, concurrent-removal-safe status, clean/disk/view fixes."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_024_cli_robustness_tolerant_history_parsing_concurrent_removal_safe_status_clean_disk_view_fixes"
+        ],
+        "prod": [
+          "prod_003_code_review_remediation_wave_2026_07"
+        ],
+        "req": [
+          "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup"
+        ],
+        "task": [
+          "task_021_orchestrate_july_2026_code_review_remediation"
+        ]
+      },
+      "path": "logics/backlog/item_024_cli_robustness_tolerant_history_parsing_concurrent_removal_safe_status_clean_disk_view_fixes.md",
+      "ref": "item_024_cli_robustness_tolerant_history_parsing_concurrent_removal_safe_status_clean_disk_view_fixes",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- A history file with a torn final line renders the remaining entries.",
+          "- Removing a session while status runs yields a table without that row, exit 0.",
+          "- `cdx clean profiles` prints usage; `cdx clean --old-logs=30` runs the profiles clean.",
+          "- `cdx disk --candidates <bad combo>` errors immediately without scanning.",
+          "- `cdx view --json` with logics-manager absent returns ok:false and non-zero exit."
+        ],
+        "Problem": [
+          "- One truncated JSONL line (crash mid-append) makes cdx history raise forever.",
+          "- cdx status crashes the whole table when a session is removed concurrently.",
+          "- Bare `cdx clean profiles` and `--old-logs=N` are misrouted as a session name; disk validates args after the expensive scan; view --json reports ok:true when the viewer cannot run."
+        ]
+      },
+      "status": "Ready",
+      "title": "CLI robustness: tolerant history parsing, concurrent-removal-safe status, clean/disk/view fixes"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate July 2026 code review remediation",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback",
+          "item_023_provider_auth_reliability_probe_timeout_bounded_auth_lock_power_effort_precedence",
+          "item_024_cli_robustness_tolerant_history_parsing_concurrent_removal_safe_status_clean_disk_view_fixes",
+          "item_025_unify_npm_entrypoint_through_cli_entry",
+          "item_026_release_verification_trust_root_and_unverified_install_warning",
+          "item_027_deduplication_dead_code_removal_and_docs_hygiene"
+        ],
+        "prod": [
+          "prod_003_code_review_remediation_wave_2026_07"
+        ],
+        "req": [
+          "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup"
+        ],
+        "task": [
+          "task_021_orchestrate_july_2026_code_review_remediation"
+        ]
+      },
+      "path": "logics/tasks/task_021_orchestrate_july_2026_code_review_remediation.md",
+      "ref": "task_021_orchestrate_july_2026_code_review_remediation",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- Run `python3 -m logics_manager lint --require-status`.",
+          "- Run scaffold command tests."
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate July 2026 code review remediation"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback",
+          "item_023_provider_auth_reliability_probe_timeout_bounded_auth_lock_power_effort_precedence",
+          "item_024_cli_robustness_tolerant_history_parsing_concurrent_removal_safe_status_clean_disk_view_fixes",
+          "item_025_unify_npm_entrypoint_through_cli_entry",
+          "item_026_release_verification_trust_root_and_unverified_install_warning",
+          "item_027_deduplication_dead_code_removal_and_docs_hygiene"
+        ],
+        "prod": [
+          "prod_003_code_review_remediation_wave_2026_07"
+        ],
+        "req": [
+          "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup"
+        ],
+        "task": [
+          "task_021_orchestrate_july_2026_code_review_remediation"
+        ]
+      },
+      "path": "logics/product/prod_003_code_review_remediation_wave_2026_07.md",
+      "ref": "prod_003_code_review_remediation_wave_2026_07",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Code review remediation wave 2026-07"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, unify npm entrypoint through cli_entry, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Unify npm entrypoint through cli_entry",
+        "use when": "Implementing the scaffolded slice for Unify npm entrypoint through cli_entry."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_025_unify_npm_entrypoint_through_cli_entry"
+        ],
+        "prod": [
+          "prod_003_code_review_remediation_wave_2026_07"
+        ],
+        "req": [
+          "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup"
+        ],
+        "task": [
+          "task_021_orchestrate_july_2026_code_review_remediation"
+        ]
+      },
+      "path": "logics/backlog/item_025_unify_npm_entrypoint_through_cli_entry.md",
+      "ref": "item_025_unify_npm_entrypoint_through_cli_entry",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- npm and pip entrypoints execute the same setup and error-handling path.",
+          "- bin/cdx contains no duplicated error-handling logic."
+        ],
+        "Problem": [
+          "- bin/cdx calls main() directly, duplicating cli_entry error handling and skipping Windows ANSI/encoding setup, so npm-installed Windows users get garbled output while pip users do not."
+        ]
+      },
+      "status": "Ready",
+      "title": "Unify npm entrypoint through cli_entry"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, release verification trust root and unverified-install warning, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Release verification trust root and unverified-install warning",
+        "use when": "Implementing the scaffolded slice for Release verification trust root and unverified-install warning."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_026_release_verification_trust_root_and_unverified_install_warning"
+        ],
+        "prod": [
+          "prod_003_code_review_remediation_wave_2026_07"
+        ],
+        "req": [
+          "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup"
+        ],
+        "task": [
+          "task_021_orchestrate_july_2026_code_review_remediation"
+        ]
+      },
+      "path": "logics/backlog/item_026_release_verification_trust_root_and_unverified_install_warning.md",
+      "ref": "item_026_release_verification_trust_root_and_unverified_install_warning",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Installers verify archives against the tagged release asset, not main-branch files.",
+          "- Setting CDX_ALLOW_UNVERIFIED produces an unmissable warning before proceeding.",
+          "- Release verification scripts and their tests stay green."
+        ],
+        "Problem": [
+          "- install.sh/install.ps1 fetch release checksums from the same main branch as the artifact, so one repository compromise updates both; CDX_ALLOW_UNVERIFIED=1 silently disables verification."
+        ]
+      },
+      "status": "Ready",
+      "title": "Release verification trust root and unverified-install warning"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, deduplication, dead-code removal, and docs hygiene, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Deduplication, dead-code removal, and docs hygiene",
+        "use when": "Implementing the scaffolded slice for Deduplication, dead-code removal, and docs hygiene."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_027_deduplication_dead_code_removal_and_docs_hygiene"
+        ],
+        "prod": [
+          "prod_003_code_review_remediation_wave_2026_07"
+        ],
+        "req": [
+          "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup"
+        ],
+        "task": [
+          "task_021_orchestrate_july_2026_code_review_remediation"
+        ]
+      },
+      "path": "logics/backlog/item_027_deduplication_dead_code_removal_and_docs_hygiene.md",
+      "ref": "item_027_deduplication_dead_code_removal_and_docs_hygiene",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- One implementation each for the update-warning builder, byte formatter, progress factory, and limit regexes; grep finds no duplicate.",
+          "- Deleted symbols have no remaining references; full suite green.",
+          "- cdx stats argument errors print stats usage; cdx run --help lists --kind."
+        ],
+        "Problem": [
+          "- Three drifting update-warning builders, two _format_bytes, two near-identical progress factories, duplicated status_source regexes; dead code (_update_notice_warning, claude_refresh asyncio branch, shutil_which); .gitignore/README/help/usage drift."
+        ]
+      },
+      "status": "Ready",
+      "title": "Deduplication, dead-code removal, and docs hygiene"
+    }
+  ],
+  "estimates": {
+    "char_count": 18249,
+    "companion_doc_count": 1,
+    "doc_count": 9
+  },
+  "generated_at": "2026-07-18T10:31:56Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup",
+      "item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback",
+      "item_023_provider_auth_reliability_probe_timeout_bounded_auth_lock_power_effort_precedence",
+      "item_024_cli_robustness_tolerant_history_parsing_concurrent_removal_safe_status_clean_disk_view_fixes",
+      "item_025_unify_npm_entrypoint_through_cli_entry",
+      "item_026_release_verification_trust_root_and_unverified_install_warning",
+      "item_027_deduplication_dead_code_removal_and_docs_hygiene",
+      "task_021_orchestrate_july_2026_code_review_remediation"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup,item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback,item_023_provider_auth_reliability_probe_timeout_bounded_auth_lock_power_effort_precedence,item_024_cli_robustness_tolerant_history_parsing_concurrent_removal_safe_status_clean_disk_view_fixes,item_025_unify_npm_entrypoint_through_cli_entry,item_026_release_verification_trust_root_and_unverified_install_warning,item_027_deduplication_dead_code_removal_and_docs_hygiene,task_021_orchestrate_july_2026_code_review_remediation",
+  "refs": [
+    "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup",
+    "item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback",
+    "item_023_provider_auth_reliability_probe_timeout_bounded_auth_lock_power_effort_precedence",
+    "item_024_cli_robustness_tolerant_history_parsing_concurrent_removal_safe_status_clean_disk_view_fixes",
+    "item_025_unify_npm_entrypoint_through_cli_entry",
+    "item_026_release_verification_trust_root_and_unverified_install_warning",
+    "item_027_deduplication_dead_code_removal_and_docs_hygiene",
+    "task_021_orchestrate_july_2026_code_review_remediation"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different commit",
+      "changelog: evidence targets a different commit",
+      "release_checksums: evidence targets a different commit",
+      "local_validation: evidence targets a different commit",
+      "git_push: evidence targets a different commit",
+      "ci: evidence targets a different commit"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different commit",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.10.0"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- Run `python3 -m logics_manager lint --require-status`.",
+        "- Run scaffold command tests."
+      ],
+      "path": "logics/tasks/task_021_orchestrate_july_2026_code_review_remediation.md",
+      "ref": "task_021_orchestrate_july_2026_code_review_remediation"
+    }
+  ]
+}
