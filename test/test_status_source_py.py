@@ -6,7 +6,11 @@ from datetime import datetime, timezone
 
 from src.errors import CdxError
 from src.session_service import _safe_relpath
-from src.status_source import extract_named_statuses_from_text, find_latest_status_artifact
+from src.status_source import (
+    _format_local_reset_timestamp,
+    extract_named_statuses_from_text,
+    find_latest_status_artifact,
+)
 from src.status_view import _parse_reset_timestamp
 
 
@@ -120,6 +124,78 @@ class StatusSourcePythonTests(unittest.TestCase):
 
         self.assertEqual(result["remaining_5h_pct"], 7)
         self.assertEqual(result["remaining_week_pct"], 35)
+
+    def test_structured_rollout_uses_window_duration_when_primary_is_weekly(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-status-source-") as temp_dir:
+            rollout = os.path.join(temp_dir, "sessions", "2026", "07", "05", "rollout.jsonl")
+            os.makedirs(os.path.dirname(rollout), exist_ok=True)
+            with open(rollout, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps({
+                    "timestamp": "2026-07-05T10:37:31.157Z",
+                    "payload": {
+                        "type": "token_count",
+                        "rate_limits": {
+                            "primary": {"used_percent": 20, "window_minutes": 10080, "resets_at": 1783413034},
+                            "secondary": {"used_percent": 90, "window_minutes": 300, "resets_at": 1783261513},
+                        },
+                    },
+                }) + "\n")
+
+            result = find_latest_status_artifact(temp_dir, provider="codex")
+
+        self.assertEqual(result["remaining_5h_pct"], 10)
+        self.assertEqual(result["remaining_week_pct"], 80)
+        self.assertEqual(result["reset_5h_at"], _format_local_reset_timestamp(1783261513))
+        self.assertEqual(result["reset_week_at"], _format_local_reset_timestamp(1783413034))
+
+    def test_structured_rollout_does_not_duplicate_weekly_window_as_5h(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-status-source-") as temp_dir:
+            rollout = os.path.join(temp_dir, "sessions", "2026", "07", "05", "rollout.jsonl")
+            os.makedirs(os.path.dirname(rollout), exist_ok=True)
+            with open(rollout, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps({
+                    "timestamp": "2026-07-05T10:37:31.157Z",
+                    "payload": {
+                        "type": "token_count",
+                        "rate_limits": {
+                            "primary": {"used_percent": 20, "window_minutes": 10080, "resets_at": 1783413034},
+                            "secondary": None,
+                        },
+                    },
+                }) + "\n")
+
+            result = find_latest_status_artifact(temp_dir, provider="codex")
+
+        self.assertIsNone(result["remaining_5h_pct"])
+        self.assertEqual(result["remaining_week_pct"], 80)
+        self.assertIsNone(result["reset_5h_at"])
+        self.assertEqual(result["reset_week_at"], _format_local_reset_timestamp(1783413034))
+
+    def test_weekly_only_structured_rollout_does_not_backfill_stale_5h(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-status-source-") as temp_dir:
+            stale_log = os.path.join(temp_dir, "log", "cdx-session-stale.log")
+            _write_status_log(stale_log, 99, 99, mtime=100)
+
+            rollout = os.path.join(temp_dir, "sessions", "2026", "07", "05", "rollout.jsonl")
+            os.makedirs(os.path.dirname(rollout), exist_ok=True)
+            with open(rollout, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps({
+                    "timestamp": "2026-07-05T10:37:31.157Z",
+                    "payload": {
+                        "type": "token_count",
+                        "rate_limits": {
+                            "primary": {"used_percent": 20, "window_minutes": 10080, "resets_at": 1783413034},
+                            "secondary": None,
+                        },
+                    },
+                }) + "\n")
+
+            result = find_latest_status_artifact(temp_dir, provider="codex")
+
+        self.assertIsNone(result["remaining_5h_pct"])
+        self.assertEqual(result["remaining_week_pct"], 80)
+        self.assertIsNone(result["reset_5h_at"])
+        self.assertEqual(result["reset_week_at"], _format_local_reset_timestamp(1783413034))
 
     def test_stale_structured_block_in_hot_rollout_loses_to_fresher_log(self):
         block_time = "2026-07-05T08:00:00Z"

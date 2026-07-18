@@ -103,6 +103,27 @@ def _is_zero_credit_balance(value):
         return False
 
 
+def _get_structured_rate_limit_window(rate_limits, duration_mins, fallback_key):
+    for key in ("primary", "secondary"):
+        window = rate_limits.get(key) or {}
+        if window.get("windowDurationMins") == duration_mins:
+            return window
+        if window.get("window_minutes") == duration_mins:
+            return window
+    fallback = rate_limits.get(fallback_key) or {}
+    if "windowDurationMins" in fallback or "window_minutes" in fallback:
+        return {}
+    return fallback
+
+
+def _get_rate_limit_used_percent(window):
+    return window.get("used_percent", window.get("usedPercent"))
+
+
+def _get_rate_limit_reset_at(window):
+    return window.get("resets_at", window.get("resetsAt"))
+
+
 def _extract_structured_rate_limits(record):
     if not isinstance(record, dict):
         return None
@@ -111,25 +132,27 @@ def _extract_structured_rate_limits(record):
     if not isinstance(rate_limits, dict):
         return None
 
-    primary = rate_limits.get("primary") or {}
-    secondary = rate_limits.get("secondary") or {}
+    five_hour = _get_structured_rate_limit_window(rate_limits, 300, "primary")
+    weekly = _get_structured_rate_limit_window(rate_limits, 10080, "secondary")
     credits = rate_limits.get("credits") or {}
 
-    primary_used = _coerce_percentage(primary.get("used_percent"))
-    secondary_used = _coerce_percentage(secondary.get("used_percent"))
-    remaining_5h_pct = None if primary_used is None else max(0, 100 - primary_used)
-    remaining_week_pct = None if secondary_used is None else max(0, 100 - secondary_used)
+    five_hour_used = _coerce_percentage(_get_rate_limit_used_percent(five_hour))
+    weekly_used = _coerce_percentage(_get_rate_limit_used_percent(weekly))
+    remaining_5h_pct = None if five_hour_used is None else max(0, 100 - five_hour_used)
+    remaining_week_pct = None if weekly_used is None else max(0, 100 - weekly_used)
 
     result = {
-        "usage_pct": primary_used if primary_used is not None else secondary_used,
+        "usage_pct": five_hour_used if five_hour_used is not None else weekly_used,
         "remaining_5h_pct": remaining_5h_pct,
         "remaining_week_pct": remaining_week_pct,
         "credits": None,
-        "reset_5h_at": _normalize_timestamp_value(primary.get("resets_at")),
-        "reset_week_at": _normalize_timestamp_value(secondary.get("resets_at")),
+        "reset_5h_at": _normalize_timestamp_value(_get_rate_limit_reset_at(five_hour)),
+        "reset_week_at": _normalize_timestamp_value(_get_rate_limit_reset_at(weekly)),
         "reset_at": None,
         "raw_status_text": json.dumps(rate_limits, sort_keys=True),
     }
+    if not five_hour and weekly:
+        result["_skip_5h_backfill"] = True
 
     balance = credits.get("balance")
     if balance not in (None, "") and not (
@@ -640,6 +663,8 @@ _STATUS_VALUE_FIELDS = (
 
 def _backfill_missing_fields(target, source):
     for field in _STATUS_VALUE_FIELDS:
+        if target.get("_skip_5h_backfill") and field in ("remaining_5h_pct", "reset_5h_at"):
+            continue
         if target.get(field) is None and source.get(field) is not None:
             target[field] = source[field]
 
@@ -694,6 +719,7 @@ def find_latest_status_artifact(
                 "reset_week_at": candidate["structured"].get("reset_week_at"),
                 "reset_at": candidate["structured"].get("reset_at"),
                 "raw_status_text": candidate["structured"].get("raw_status_text"),
+                "_skip_5h_backfill": candidate["structured"].get("_skip_5h_backfill"),
             }
         if not parsed:
             continue
