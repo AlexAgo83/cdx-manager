@@ -36,6 +36,18 @@ class ReleaseChecksumsTests(unittest.TestCase):
                 self.assertRegex(entry.get("github_tarball_sha256", ""), checksum_re)
                 self.assertRegex(entry.get("github_zip_sha256", ""), checksum_re)
 
+    def test_standalone_installers_use_tagged_release_checksum_asset(self):
+        root = Path(__file__).resolve().parents[1]
+        shell = (root / "install.sh").read_text(encoding="utf-8")
+        powershell = (root / "install.ps1").read_text(encoding="utf-8")
+
+        for text in (shell, powershell):
+            self.assertIn("releases/download/", text)
+            self.assertIn("release-archives.json", text)
+            self.assertNotIn("contents/checksums/release-archives.json?ref=main", text)
+            self.assertNotIn("raw.githubusercontent.com/$REPO/main/checksums/release-archives.json", text)
+            self.assertIn("CDX_ALLOW_UNVERIFIED=1 disables archive integrity checks", text)
+
     def test_release_validator_accepts_project_when_checksum_metadata_exists(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = self._write_release_root(

@@ -1,10 +1,10 @@
 ## item_026_release_verification_trust_root_and_unverified_install_warning - Release verification trust root and unverified-install warning
 > From version: 0.10.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Operator workflow
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -24,6 +24,13 @@
 - Installers verify archives against the tagged release asset, not main-branch files.
 - Setting CDX_ALLOW_UNVERIFIED produces an unmissable warning before proceeding.
 - Release verification scripts and their tests stay green.
+
+# Report
+- `install.sh` and `install.ps1` now default checksum lookup to the tagged GitHub Release asset `release-archives.json`.
+- The old main-branch checksum API fallback was removed.
+- `CDX_ALLOW_UNVERIFIED=1` now prints a prominent multi-line integrity warning.
+- README release notes now require attaching `release-archives.json` to the tagged release before package publication.
+- Validation: `python3 -m unittest discover -s test -p 'test_release_checksums_py.py'`; `python3 -m unittest discover -s test -p 'test_release_ci_py.py'`; `python3 scripts/verify_release_checksums.py`.
 
 # AC Traceability
 - request-AC11 -> This backlog slice. Proof: Installers verify archives against the tagged release asset, not main-branch files.

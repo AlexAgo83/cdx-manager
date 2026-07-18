@@ -9,13 +9,7 @@ $ErrorActionPreference = "Stop"
 
 $repo = "AlexAgo83/cdx-manager"
 if (-not $ChecksumsUrl) {
-    $ChecksumsUrl = "https://raw.githubusercontent.com/$repo/main/checksums/release-archives.json"
-}
-$defaultChecksumsUrl = "https://raw.githubusercontent.com/$repo/main/checksums/release-archives.json"
-$checksumsApiUrl = if ($env:CDX_CHECKSUMS_API_URL) {
-    $env:CDX_CHECKSUMS_API_URL
-} else {
-    "https://api.github.com/repos/$repo/contents/checksums/release-archives.json?ref=main"
+    $ChecksumsUrl = $null
 }
 
 function Has-Command {
@@ -45,6 +39,11 @@ if ($Version.StartsWith("v")) {
     $tag = "v$Version"
 }
 
+$defaultChecksumsUrl = "https://github.com/$repo/releases/download/$tag/release-archives.json"
+if (-not $ChecksumsUrl) {
+    $ChecksumsUrl = $defaultChecksumsUrl
+}
+
 $tmpRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("cdx-install-" + [guid]::NewGuid().ToString("N"))
 $archivePath = Join-Path $tmpRoot "cdx-manager.zip"
 $extractRoot = Join-Path $tmpRoot "extract"
@@ -62,15 +61,6 @@ try {
         } catch {
         }
     }
-    if ((-not $Sha256) -and ($ChecksumsUrl -eq $defaultChecksumsUrl)) {
-        try {
-            $checksumsResponse = Invoke-RestMethod -Uri $checksumsApiUrl
-            $checksumsJson = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($checksumsResponse.content))
-            $checksums = $checksumsJson | ConvertFrom-Json
-            $Sha256 = $checksums.releases.$tag.github_zip_sha256
-        } catch {
-        }
-    }
     if ($Sha256) {
         $actualSha256 = (Get-FileHash -Algorithm SHA256 -Path $archivePath).Hash.ToLowerInvariant()
         if ($actualSha256 -ne $Sha256.ToLowerInvariant()) {
@@ -78,7 +68,9 @@ try {
         }
     } else {
         if ($env:CDX_ALLOW_UNVERIFIED -eq "1") {
-            Write-Warning "No official checksum available for $tag; continuing because CDX_ALLOW_UNVERIFIED=1."
+            Write-Warning "Installing $tag without checksum verification."
+            Write-Warning "CDX_ALLOW_UNVERIFIED=1 disables archive integrity checks."
+            Write-Warning "Continue only if you trust the download source."
         } else {
             throw "cdx install: no official checksum available for $tag. Set CDX_ALLOW_UNVERIFIED=1 to install without checksum verification."
         }

@@ -194,18 +194,18 @@ npm install -g .
 
 Security note:
 
-- The standalone installers try to resolve official release checksums from `checksums/release-archives.json`.
+- The standalone installers resolve official release checksums from the tagged GitHub Release asset `release-archives.json`.
 - You can still override verification explicitly through `CDX_SHA256`.
-- If no checksum is available, standalone installers fail closed unless `CDX_ALLOW_UNVERIFIED=1` is set.
+- If no checksum is available, standalone installers fail closed unless `CDX_ALLOW_UNVERIFIED=1` is set; that override prints a prominent warning before continuing.
 - Prefer `npm`, `pipx`, or `uv` when you want registry-backed install flows.
-- If you use the standalone script, download it first, inspect it, and prefer a release with an official checksum entry.
+- If you use the standalone script, download it first, inspect it, and prefer a release with the official checksum asset attached.
 
 Release maintainer note:
 
 - Before publishing npm or PyPI packages, run `npm run release:validate`.
 - The release tag must match `package.json`, `pyproject.toml`, `src/cli.py`, and `VERSION`.
 - `checksums/release-archives.json` must include the matching `vX.Y.Z` entry with both `github_tarball_sha256` and `github_zip_sha256`.
-- Use `python3 scripts/update_release_checksums.py --tag vX.Y.Z` after the GitHub tag archives exist, commit the checksum update to `main`, then publish the GitHub release only after `npm run release:validate`, `npm run lint`, and `npm test` pass.
+- Use `python3 scripts/update_release_checksums.py --tag vX.Y.Z` after the GitHub tag archives exist, commit the checksum update, attach that file to the tagged GitHub Release as `release-archives.json`, then publish packages only after `npm run release:validate`, `npm run lint`, and `npm test` pass.
 
 ### Environment
 
