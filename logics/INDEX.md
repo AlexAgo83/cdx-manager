@@ -18,7 +18,7 @@
 | [prod_001_per_session_codex_status_recall](product/prod_001_per_session_codex_status_recall.md) | Per-session Codex status usage recall | Settled |  |  | product/prod_001_per_session_codex_status_recall.md |
 | [prod_002_headless_automation_contract_for_orchestia](product/prod_002_headless_automation_contract_for_orchestia.md) | Headless automation contract for Orchestia | Settled |  |  | product/prod_002_headless_automation_contract_for_orchestia.md |
 | [prod_003_code_review_remediation_wave_2026_07](product/prod_003_code_review_remediation_wave_2026_07.md) | Code review remediation wave 2026-07 | Proposed |  |  | product/prod_003_code_review_remediation_wave_2026_07.md |
-| [prod_004_post_remediation_hardening_follow_up_2026_07](product/prod_004_post_remediation_hardening_follow_up_2026_07.md) | Post-remediation hardening follow-up 2026-07 | Proposed |  |  | product/prod_004_post_remediation_hardening_follow_up_2026_07.md |
+| [prod_004_post_remediation_hardening_follow_up_2026_07](product/prod_004_post_remediation_hardening_follow_up_2026_07.md) | Post-remediation hardening follow-up 2026-07 | Settled |  |  | product/prod_004_post_remediation_hardening_follow_up_2026_07.md |
 
 ## Roadmaps
 
@@ -39,7 +39,7 @@ _None_
 | [req_008_add_provider_native_session_resume_commands](request/req_008_add_provider_native_session_resume_commands.md) | Add provider-native session resume commands | Done |  |  | request/req_008_add_provider_native_session_resume_commands.md |
 | [req_009_address_codebase_audit_findings](request/req_009_address_codebase_audit_findings.md) | Address codebase audit findings: hardening, deprecations, and maintainability | Done |  |  | request/req_009_address_codebase_audit_findings.md |
 | [req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup](request/req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup.md) | Address July 2026 code review findings: data-safety, reliability, and cleanup | Done |  |  | request/req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup.md |
-| [req_011_address_july_2026_post_remediation_review_follow_up_findings](request/req_011_address_july_2026_post_remediation_review_follow_up_findings.md) | Address July 2026 post-remediation review follow-up findings | Draft |  |  | request/req_011_address_july_2026_post_remediation_review_follow_up_findings.md |
+| [req_011_address_july_2026_post_remediation_review_follow_up_findings](request/req_011_address_july_2026_post_remediation_review_follow_up_findings.md) | Address July 2026 post-remediation review follow-up findings | Done |  |  | request/req_011_address_july_2026_post_remediation_review_follow_up_findings.md |
 
 ## Backlog
 
@@ -73,10 +73,10 @@ _None_
 | [item_025_unify_npm_entrypoint_through_cli_entry](backlog/item_025_unify_npm_entrypoint_through_cli_entry.md) | Unify npm entrypoint through cli_entry | Done |  | 100% | backlog/item_025_unify_npm_entrypoint_through_cli_entry.md |
 | [item_026_release_verification_trust_root_and_unverified_install_warning](backlog/item_026_release_verification_trust_root_and_unverified_install_warning.md) | Release verification trust root and unverified-install warning | Done |  | 100% | backlog/item_026_release_verification_trust_root_and_unverified_install_warning.md |
 | [item_027_deduplication_dead_code_removal_and_docs_hygiene](backlog/item_027_deduplication_dead_code_removal_and_docs_hygiene.md) | Deduplication, dead-code removal, and docs hygiene | Done |  | 100% | backlog/item_027_deduplication_dead_code_removal_and_docs_hygiene.md |
-| [item_028_use_tagged_release_checksum_assets_in_package_publication_workflows](backlog/item_028_use_tagged_release_checksum_assets_in_package_publication_workflows.md) | Use tagged release checksum assets in package publication workflows | Ready |  | 0% | backlog/item_028_use_tagged_release_checksum_assets_in_package_publication_workflows.md |
-| [item_029_fix_standalone_windows_installer_launcher_generation](backlog/item_029_fix_standalone_windows_installer_launcher_generation.md) | Fix standalone Windows installer launcher generation | Ready |  | 0% | backlog/item_029_fix_standalone_windows_installer_launcher_generation.md |
-| [item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout](backlog/item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout.md) | Preserve degraded auth semantics on provider probe timeout | Ready |  | 0% | backlog/item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout.md |
-| [item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors](backlog/item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors.md) | Reject malformed import bundle profile entries with controlled errors | Ready |  | 0% | backlog/item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors.md |
+| [item_028_use_tagged_release_checksum_assets_in_package_publication_workflows](backlog/item_028_use_tagged_release_checksum_assets_in_package_publication_workflows.md) | Use tagged release checksum assets in package publication workflows | Done |  | 100% | backlog/item_028_use_tagged_release_checksum_assets_in_package_publication_workflows.md |
+| [item_029_fix_standalone_windows_installer_launcher_generation](backlog/item_029_fix_standalone_windows_installer_launcher_generation.md) | Fix standalone Windows installer launcher generation | Done |  | 100% | backlog/item_029_fix_standalone_windows_installer_launcher_generation.md |
+| [item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout](backlog/item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout.md) | Preserve degraded auth semantics on provider probe timeout | Done |  | 100% | backlog/item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout.md |
+| [item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors](backlog/item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors.md) | Reject malformed import bundle profile entries with controlled errors | Done |  | 100% | backlog/item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors.md |
 
 ## Tasks
 
@@ -106,4 +106,4 @@ _None_
 | [task_019_add_provider_native_session_resume_commands](tasks/task_019_add_provider_native_session_resume_commands.md) | Add provider-native session resume commands | Done |  | 100% | tasks/task_019_add_provider_native_session_resume_commands.md |
 | [task_020_address_codebase_audit_findings_hardening_deprecations_and_maintainability](tasks/task_020_address_codebase_audit_findings_hardening_deprecations_and_maintainability.md) | Address codebase audit findings: hardening, deprecations, and maintainability | Done |  | 100% | tasks/task_020_address_codebase_audit_findings_hardening_deprecations_and_maintainability.md |
 | [task_021_orchestrate_july_2026_code_review_remediation](tasks/task_021_orchestrate_july_2026_code_review_remediation.md) | Orchestrate July 2026 code review remediation | Done |  | 100% | tasks/task_021_orchestrate_july_2026_code_review_remediation.md |
-| [task_022_orchestrate_post_remediation_hardening_follow_up](tasks/task_022_orchestrate_post_remediation_hardening_follow_up.md) | Orchestrate post-remediation hardening follow-up | Ready |  | 0% | tasks/task_022_orchestrate_post_remediation_hardening_follow_up.md |
+| [task_022_orchestrate_post_remediation_hardening_follow_up](tasks/task_022_orchestrate_post_remediation_hardening_follow_up.md) | Orchestrate post-remediation hardening follow-up | Done | codex | 100% | tasks/task_022_orchestrate_post_remediation_hardening_follow_up.md |

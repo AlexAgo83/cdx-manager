@@ -1,10 +1,10 @@
 ## item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout - Preserve degraded auth semantics on provider probe timeout
 > From version: 0.10.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Operator workflow
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -31,6 +31,9 @@
 # AC Traceability
 - request-AC3 -> This backlog slice. Proof: A `subprocess.TimeoutExpired` probe outcome is visible as unknown/degraded in JSON diagnostics.
 - request-AC5 -> This backlog slice. Proof: Claude auth refresh does not write `logged_out` when the probe timed out.
+- request-AC1 -> This backlog slice. Evidence needed: npm and PyPI publish workflows validate release checksums against the tagged GitHub Release asset for the release tag, not against a main-branch checksum file.
+- request-AC2 -> This backlog slice. Evidence needed: The standalone Windows installer generates a valid `cdx.cmd` launcher path containing the installed version directory, and a regression test covers the generated script content.
+- request-AC4 -> This backlog slice. Evidence needed: Import bundle profile validation rejects non-object profile entries with `CdxError` before any filesystem mutation, and tests cover the malformed-entry case.
 
 # Decision framing
 - Product framing: Not needed
@@ -51,3 +54,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_022_orchestrate_post_remediation_hardening_follow_up`
+
+# Notes
+- Task `task_022_orchestrate_post_remediation_hardening_follow_up` was finished via `logics-manager flow finish task` on 2026-07-18.

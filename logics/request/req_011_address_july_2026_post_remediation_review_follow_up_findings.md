@@ -1,7 +1,7 @@
 ## req_011_address_july_2026_post_remediation_review_follow_up_findings - Address July 2026 post-remediation review follow-up findings
 > From version: 0.10.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium

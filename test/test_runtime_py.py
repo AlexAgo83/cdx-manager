@@ -583,7 +583,7 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertEqual(calls[0][0][0], "C:/nvm4w/nodejs/codex.cmd")
         self.assertEqual(calls[0][1]["timeout"], provider_runtime.AUTH_PROBE_TIMEOUT_SECONDS)
 
-    def test_probe_provider_auth_timeout_degrades_to_false(self):
+    def test_probe_provider_auth_timeout_degrades_without_logging_out(self):
         session = {
             "name": "main",
             "provider": "codex",
@@ -594,6 +594,13 @@ class RuntimePythonTests(unittest.TestCase):
             raise subprocess.TimeoutExpired("codex", 15)
 
         with mock.patch("src.provider_runtime.subprocess.run", side_effect=fake_run):
+            self.assertEqual(
+                provider_runtime._probe_provider_auth_status(
+                    session,
+                    trust_local_credentials=False,
+                ),
+                provider_runtime.AUTH_PROBE_DEGRADED,
+            )
             self.assertFalse(provider_runtime._probe_provider_auth(
                 session,
                 trust_local_credentials=False,

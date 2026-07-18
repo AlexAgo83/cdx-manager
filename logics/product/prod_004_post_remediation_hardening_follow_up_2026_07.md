@@ -1,8 +1,8 @@
 ## prod_004_post_remediation_hardening_follow_up_2026_07 - Post-remediation hardening follow-up 2026-07
 > Date: 2026-07-18
-> Status: Proposed
+> Status: Settled
 > Related request: `req_011_address_july_2026_post_remediation_review_follow_up_findings`
-> Related backlog: `item_028_use_tagged_release_checksum_assets_in_package_publication_workflows`, `item_029_fix_standalone_windows_installer_launcher_generation`, `item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout`, `item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors`
+> Related backlog: `item_028_use_tagged_release_checksum_assets_in_package_publication_workflows`
 > Related task: `task_022_orchestrate_post_remediation_hardening_follow_up`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
@@ -46,5 +46,5 @@ flowchart LR
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_011_address_july_2026_post_remediation_review_follow_up_findings`
+- Product back-reference: `item_028_use_tagged_release_checksum_assets_in_package_publication_workflows`
 - Task back-reference: `task_022_orchestrate_post_remediation_hardening_follow_up`

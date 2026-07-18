@@ -48,6 +48,28 @@ class ReleaseChecksumsTests(unittest.TestCase):
             self.assertNotIn("raw.githubusercontent.com/$REPO/main/checksums/release-archives.json", text)
             self.assertIn("CDX_ALLOW_UNVERIFIED=1 disables archive integrity checks", text)
 
+    def test_publish_workflows_use_tagged_release_checksum_asset(self):
+        root = Path(__file__).resolve().parents[1]
+        workflows = [
+            root / ".github" / "workflows" / "publish-npm.yml",
+            root / ".github" / "workflows" / "publish-pypi.yml",
+        ]
+
+        for path in workflows:
+            with self.subTest(path=path.name):
+                text = path.read_text(encoding="utf-8")
+                self.assertIn("releases/download/${RELEASE_TAG}/release-archives.json", text)
+                self.assertNotIn("raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/checksums", text)
+                self.assertNotIn("contents/checksums/release-archives.json?ref=main", text)
+
+    def test_windows_installer_launcher_uses_version_directory(self):
+        root = Path(__file__).resolve().parents[1]
+        powershell = (root / "install.ps1").read_text(encoding="utf-8")
+
+        self.assertIn('$versionDir = $tag.TrimStart("v")', powershell)
+        self.assertIn(r"set SCRIPT=%~dp0..\versions\$versionDir\bin\cdx", powershell)
+        self.assertNotIn('${($tag.TrimStart("v"))}', powershell)
+
     def test_release_validator_accepts_project_when_checksum_metadata_exists(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = self._write_release_root(

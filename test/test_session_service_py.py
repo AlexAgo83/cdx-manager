@@ -1233,6 +1233,31 @@ class SessionServicePythonTests(unittest.TestCase):
             self.assertEqual(handle.read(), '{"token":"local"}')
         self.assertEqual(target["get_session"]("main")["name"], "main")
 
+    def test_force_import_rejects_malformed_profile_entries_before_touching_existing_session(self):
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        target["create_session"]("main")
+        auth_path = os.path.join(target_dir, "profiles", "main", "auth.json")
+        with open(auth_path, "w", encoding="utf-8") as handle:
+            handle.write('{"token":"local"}')
+
+        bundle_path = os.path.join(target_dir, "malformed-profile.cdx")
+        payload = {
+            "schema_version": 1,
+            "sessions": [{"name": "main", "provider": "codex"}],
+            "states": {},
+            "profiles": {"main": [None]},
+        }
+        with open(bundle_path, "wb") as handle:
+            handle.write(encode_bundle(payload, include_auth=False))
+
+        with self.assertRaisesRegex(CdxError, "invalid profile entry"):
+            target["import_bundle"](bundle_path, force=True, allow_authless_force=True)
+
+        with open(auth_path, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), '{"token":"local"}')
+        self.assertEqual(target["get_session"]("main")["name"], "main")
+
     def test_export_bundle_does_not_restrict_existing_parent_directory(self):
         if os.name == "nt":
             self.skipTest("permission bits are not portable on Windows")

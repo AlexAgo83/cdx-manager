@@ -97,10 +97,12 @@ from .notify import (
     wait_for_notification_event,
 )
 from .provider_runtime import (
+    AUTH_PROBE_AUTHENTICATED,
+    AUTH_PROBE_DEGRADED,
     _ensure_session_authentication,
     _headless_artifact_paths,
     _list_launch_transcript_paths,
-    _probe_provider_auth,
+    _probe_provider_auth_status,
     _run_headless_provider_command,
     _run_interactive_provider_command,
     get_resume_capability,
@@ -2194,17 +2196,23 @@ def _refresh_claude_auth_states(service, target_names=None, spawn_sync=None, env
         if (session.get("auth") or {}).get("status") not in ("authenticated", "logged_out"):
             continue
         try:
-            authenticated = _probe_provider_auth(
+            auth_status = _probe_provider_auth_status(
                 session,
                 spawn_sync=spawn_sync,
                 env_override=env_override,
             )
+            if auth_status == AUTH_PROBE_DEGRADED:
+                errors.append({
+                    "session": session["name"],
+                    "error": "Auth probe timed out; authentication status is degraded.",
+                })
+                continue
             now = _local_now_iso()
-            service["update_auth_state"](session["name"], lambda auth, authenticated=authenticated, now=now: {
+            service["update_auth_state"](session["name"], lambda auth, auth_status=auth_status, now=now: {
                 **auth,
-                "status": "authenticated" if authenticated else "logged_out",
+                "status": "authenticated" if auth_status == AUTH_PROBE_AUTHENTICATED else "logged_out",
                 "lastCheckedAt": now,
-                **({"lastAuthenticatedAt": now} if authenticated else {}),
+                **({"lastAuthenticatedAt": now} if auth_status == AUTH_PROBE_AUTHENTICATED else {}),
             })
             updated.append(session["name"])
         except Exception as error:

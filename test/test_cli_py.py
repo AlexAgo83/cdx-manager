@@ -4057,6 +4057,33 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(rows[0]["auth_status"], "logged_out")
         self.assertIn("logged out", status_io["stdout"].getvalue())
 
+    def test_status_keeps_claude_auth_when_probe_times_out(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("claude", "claude")
+        service["update_auth_state"]("claude", lambda auth: {
+            **auth,
+            "status": "authenticated",
+        })
+
+        def timeout_probe(_command, _args, _spec):
+            raise subprocess.TimeoutExpired("claude", 15)
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status", "claude", "--json", "--refresh"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn_sync": timeout_probe,
+            "refreshClaudeSessionStatus": lambda _session: None,
+        }), 0)
+
+        self.assertEqual(service["get_session"]("claude")["auth"]["status"], "authenticated")
+        payload = json.loads(status_io["stdout"].getvalue())
+        self.assertEqual(payload["session"]["auth_status"], "authenticated")
+        self.assertEqual(payload["warnings"][0]["code"], "claude_auth_probe_failed")
+        self.assertIn("timed out", payload["warnings"][0]["message"])
+
     def test_status_small_flag_renders_compact_table(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -4582,6 +4609,28 @@ class CliPythonTests(unittest.TestCase):
                 })
         self.assertIn("Failed to check login status", str(ctx.exception))
 
+    def test_launch_auth_probe_timeout_reports_degraded_status(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        def timeout_probe(_command, _args, _spec):
+            raise subprocess.TimeoutExpired("codex", 15)
+
+        with self.assertRaises(CdxError) as ctx:
+            main(["main"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "service": service,
+                "spawn_sync": timeout_probe,
+                "spawn": lambda argv, **kwargs: _Child(),
+            })
+
+        message = str(ctx.exception)
+        self.assertIn("Auth probe timed out", message)
+        self.assertIn("degraded", message)
+        self.assertNotIn("not authenticated", message)
+
     def test_add_reports_missing_provider_cli_without_traceback(self):
         temp_dir = self.make_temp_dir()
 
@@ -4645,6 +4694,27 @@ class CliPythonTests(unittest.TestCase):
         self.assertTrue(auth_file["detail"]["local_tokens_present"])
         self.assertEqual(live_auth["detail"]["live_status"], "authenticated")
         self.assertNotIn("secret-token", json.dumps(payload))
+
+    def test_doctor_reports_codex_auth_probe_timeout_as_degraded(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        def timeout_probe(_command, _args, _spec):
+            raise subprocess.TimeoutExpired("codex", 15)
+
+        doctor_io = self.make_io()
+        self.assertEqual(main(["doctor", "--json"], {
+            **doctor_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn_sync": timeout_probe,
+        }), 0)
+
+        payload = json.loads(doctor_io["stdout"].getvalue())
+        live_auth = next(issue for issue in payload["report"]["issues"] if issue["code"] == "codex_live_auth")
+        self.assertEqual(live_auth["detail"]["live_status"], "degraded")
+        self.assertIn("Auth probe timed out", live_auth["detail"]["live_error"])
 
     def test_doctor_windows_script_warning_mentions_expected_fallback(self):
         temp_dir = self.make_temp_dir()

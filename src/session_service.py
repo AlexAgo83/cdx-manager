@@ -1349,15 +1349,25 @@ def create_session_service(options=None):
 
     def _validate_import_profile_files(payload, imported_sessions):
         profiles = payload.get("profiles") or {}
+        if not isinstance(profiles, dict):
+            raise CdxError("Bundle contains invalid profile data.")
         decoded_profiles = {}
         for session_payload in imported_sessions:
             name = session_payload["name"]
             files = []
-            for item in profiles.get(name, []):
+            profile_items = profiles.get(name, [])
+            if not isinstance(profile_items, list):
+                raise CdxError(f"Bundle contains invalid profile data for session {name}.")
+            for item in profile_items:
+                if not isinstance(item, dict):
+                    raise CdxError(f"Bundle contains invalid profile entry for session {name}.")
                 rel_path = _safe_relpath(item.get("path"))
+                data_b64 = item.get("data_b64")
+                if not isinstance(data_b64, str):
+                    raise CdxError(f"Bundle contains invalid file data for session {name}: {rel_path}")
                 try:
-                    content = base64.b64decode(item.get("data_b64", "").encode("ascii"), validate=True)
-                except (AttributeError, binascii.Error, UnicodeEncodeError) as error:
+                    content = base64.b64decode(data_b64.encode("ascii"), validate=True)
+                except (binascii.Error, UnicodeEncodeError) as error:
                     raise CdxError(f"Bundle contains invalid file data for session {name}: {rel_path}") from error
                 files.append({"path": rel_path, "content": content})
             decoded_profiles[name] = files

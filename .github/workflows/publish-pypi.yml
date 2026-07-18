@@ -45,7 +45,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
         run: |
-          curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/checksums/release-archives.json" -o /tmp/release-archives.json
+          curl -fsSL "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/release-archives.json" -o /tmp/release-archives.json
           node bin/python-runner.js scripts/verify_release_checksums.py --tag "$RELEASE_TAG" --checksums-file /tmp/release-archives.json
 
       - name: Lint

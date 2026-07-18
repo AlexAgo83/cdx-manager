@@ -1,10 +1,10 @@
 ## item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors - Reject malformed import bundle profile entries with controlled errors
 > From version: 0.10.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Low
 > Theme: Operator workflow
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -30,6 +30,9 @@
 # AC Traceability
 - request-AC4 -> This backlog slice. Proof: A bundle with `profiles: {"main": [null]}` raises `CdxError` with a bundle-validation message.
 - request-AC5 -> This backlog slice. Proof: Existing credentials and session records remain intact after that failure.
+- request-AC1 -> This backlog slice. Evidence needed: npm and PyPI publish workflows validate release checksums against the tagged GitHub Release asset for the release tag, not against a main-branch checksum file.
+- request-AC2 -> This backlog slice. Evidence needed: The standalone Windows installer generates a valid `cdx.cmd` launcher path containing the installed version directory, and a regression test covers the generated script content.
+- request-AC3 -> This backlog slice. Evidence needed: Provider auth probe timeouts surface as unknown/degraded probe results, not logged-out results; launch/run/status/doctor callers handle that state explicitly without persisting a false logout.
 
 # Decision framing
 - Product framing: Not needed
@@ -50,3 +53,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_022_orchestrate_post_remediation_hardening_follow_up`
+
+# Notes
+- Task `task_022_orchestrate_post_remediation_hardening_follow_up` was finished via `logics-manager flow finish task` on 2026-07-18.

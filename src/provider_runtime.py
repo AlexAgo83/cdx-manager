@@ -18,6 +18,9 @@ from .errors import CdxError
 LOG_ROTATE_BYTES = 10 * 1024 * 1024  # 10 MB
 AUTH_PROBE_TIMEOUT_SECONDS = 15
 CODEX_INTERACTIVE_AUTH_LOCK_TIMEOUT_SECONDS = 10
+AUTH_PROBE_AUTHENTICATED = "authenticated"
+AUTH_PROBE_LOGGED_OUT = "logged_out"
+AUTH_PROBE_DEGRADED = "degraded"
 REASONING_EFFORT_VALUES = {"minimal", "low", "medium", "high", "xhigh"}
 RTK_PROMPT = (
     "When running noisy shell commands, prefer RTK wrappers (`rtk <command>`) if `rtk` is available. "
@@ -175,12 +178,15 @@ def codex_auth_diagnostic(session, spawn_sync=None, env_override=None):
         "live_error": None,
     }
     try:
-        result["live_status"] = "authenticated" if _probe_provider_auth(
+        status = _probe_provider_auth_status(
             session,
             spawn_sync=spawn_sync,
             env_override=env_override,
             trust_local_credentials=False,
-        ) else "logged_out"
+        )
+        result["live_status"] = status
+        if status == AUTH_PROBE_DEGRADED:
+            result["live_error"] = _auth_probe_degraded_message(session)
     except CdxError as error:
         result["live_status"] = "error"
         result["live_error"] = str(error)
@@ -901,14 +907,21 @@ def _resolve_command(command, env=None):
     return shutil.which(command, path=env.get("PATH")) or command
 
 
-def _probe_provider_auth(session, spawn_sync=None, env_override=None, trust_local_credentials=True):
+def _auth_probe_degraded_message(session):
+    return (
+        f"Auth probe timed out after {AUTH_PROBE_TIMEOUT_SECONDS}s for session {session.get('name') or 'unknown'}; "
+        "authentication status is degraded."
+    )
+
+
+def _probe_provider_auth_status(session, spawn_sync=None, env_override=None, trust_local_credentials=True):
     spawn_sync = spawn_sync or subprocess.run
     spec = _build_login_status_spec(session, env_override)
     if trust_local_credentials:
         if session.get("provider") == PROVIDER_CLAUDE and _has_local_claude_auth(_get_auth_home(session)):
-            return True
+            return AUTH_PROBE_AUTHENTICATED
         if session.get("provider") == PROVIDER_CODEX and _has_local_codex_auth(_get_auth_home(session)):
-            return True
+            return AUTH_PROBE_AUTHENTICATED
     try:
         if spawn_sync is subprocess.run:
             command = _resolve_command(spec["command"], spec["env"])
@@ -923,15 +936,26 @@ def _probe_provider_auth(session, spawn_sync=None, env_override=None, trust_loca
             result = spawn_sync(spec["command"], spec["args"], spec)
             error = result.get("error") if isinstance(result, dict) else getattr(result, "error", None)
             if error:
+                if isinstance(error, subprocess.TimeoutExpired):
+                    raise error
                 raise _format_probe_failure(session, spec, error)
             stdout = result.get("stdout") if isinstance(result, dict) else getattr(result, "stdout", "")
             stderr = result.get("stderr") if isinstance(result, dict) else getattr(result, "stderr", "")
             output = (stdout or "") + (stderr or "")
     except subprocess.TimeoutExpired:
-        return False
+        return AUTH_PROBE_DEGRADED
     except OSError as error:
         raise _format_probe_failure(session, spec, error) from error
-    return spec["parser"](output)
+    return AUTH_PROBE_AUTHENTICATED if spec["parser"](output) else AUTH_PROBE_LOGGED_OUT
+
+
+def _probe_provider_auth(session, spawn_sync=None, env_override=None, trust_local_credentials=True):
+    return _probe_provider_auth_status(
+        session,
+        spawn_sync=spawn_sync,
+        env_override=env_override,
+        trust_local_credentials=trust_local_credentials,
+    ) == AUTH_PROBE_AUTHENTICATED
 
 
 def _signal_exit_code(sig):
@@ -1124,16 +1148,26 @@ def _ensure_session_authentication(session, service, spawn=None, spawn_sync=None
         raise CdxError(
             f"Session {session['name']} is not authenticated. Run: cdx login {session['name']}"
         )
-    is_authenticated = _probe_provider_auth(
+    auth_status = _probe_provider_auth_status(
         session,
         spawn_sync=spawn_sync,
         env_override=env_override,
         trust_local_credentials=trust_local_credentials,
     )
-    if is_authenticated:
-        return {"authenticated": True, "checked": True}
+    if auth_status == AUTH_PROBE_AUTHENTICATED:
+        return {"authenticated": True, "checked": True, "status": auth_status}
+    if auth_status == AUTH_PROBE_DEGRADED:
+        result = {
+            "authenticated": False,
+            "checked": True,
+            "status": auth_status,
+            "error": _auth_probe_degraded_message(session),
+        }
+        if behavior == "probe-only":
+            return result
+        raise CdxError(f"{result['error']} Retry, or run: cdx login {session['name']}")
     if behavior == "probe-only":
-        return {"authenticated": False, "checked": True}
+        return {"authenticated": False, "checked": True, "status": auth_status}
     if behavior == "launch":
         raise CdxError(
             f"Session {session['name']} is not authenticated. Run: cdx login {session['name']}"

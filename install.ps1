@@ -47,7 +47,8 @@ if (-not $ChecksumsUrl) {
 $tmpRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("cdx-install-" + [guid]::NewGuid().ToString("N"))
 $archivePath = Join-Path $tmpRoot "cdx-manager.zip"
 $extractRoot = Join-Path $tmpRoot "extract"
-$targetDir = Join-Path $installRoot $tag.TrimStart("v")
+$versionDir = $tag.TrimStart("v")
+$targetDir = Join-Path $installRoot $versionDir
 $archiveUrl = "https://github.com/$repo/archive/refs/tags/$tag.zip"
 
 New-Item -ItemType Directory -Force -Path $tmpRoot, $extractRoot, $binDir, $installRoot | Out-Null
@@ -91,7 +92,7 @@ try {
     $launcherPath = Join-Path $binDir "cdx.cmd"
     $launcher = @"
 @echo off
-set SCRIPT=%~dp0..\versions\${($tag.TrimStart("v"))}\bin\cdx
+set SCRIPT=%~dp0..\versions\$versionDir\bin\cdx
 where py >nul 2>nul
 if %ERRORLEVEL%==0 (
   py -3 "%SCRIPT%" %*
