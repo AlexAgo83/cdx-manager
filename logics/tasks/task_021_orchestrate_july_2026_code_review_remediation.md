@@ -4,7 +4,7 @@
 > Status: Ready
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 15%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -13,7 +13,7 @@
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
 
 # Plan
-- [ ] 1. Land the safe-bundle-import backlog item first (only data-loss risk), with its refusal-and-rollback tests.
+- [x] 1. Land the safe-bundle-import backlog item first (only data-loss risk), with its refusal-and-rollback tests.
 - [ ] 2. Land provider auth reliability (probe timeout, bounded lock, power/effort precedence) as one change set.
 - [ ] 3. Land the CLI robustness fixes with one regression test per fix.
 - [ ] 4. Unify the npm entrypoint through cli_entry.

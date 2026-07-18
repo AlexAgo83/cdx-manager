@@ -523,7 +523,7 @@ Notes:
 - `--include-auth` is encrypted, requires a passphrase, and exports only provider credential files rather than full profile caches or logs.
 - Without `--passphrase-env`, `cdx` prompts in an interactive terminal. Non-interactive callers can pass `--passphrase-stdin` to read the passphrase from stdin (one line) instead of exposing it in the child environment.
 - `--sessions work,perso` exports or imports only a subset.
-- `--force` allows overwriting existing destination sessions during import or replacing an existing bundle file during export.
+- `--force` allows overwriting existing destination sessions during import or replacing an existing bundle file during export. Import refuses to overwrite existing sessions from a bundle without auth payloads unless `--allow-authless-force` is also passed.
 - Auth bundles contain credentials. Treat them like secrets and delete them after transfer.
 
 ---

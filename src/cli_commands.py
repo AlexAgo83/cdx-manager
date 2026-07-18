@@ -2326,6 +2326,7 @@ def handle_import(rest, ctx):
         session_names=parsed["session_names"],
         force=parsed["force"],
         merge=parsed["merge"],
+        allow_authless_force=parsed["allow_authless_force"],
     )
     session_count = len(result["session_names"])
     auth_suffix = " with auth" if result["include_auth"] else ""

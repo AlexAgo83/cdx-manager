@@ -1,4 +1,5 @@
 import base64
+import binascii
 import json
 import os
 import shutil
@@ -1336,7 +1337,42 @@ def create_session_service(options=None):
             "bundle_size_bytes": len(bundle_bytes),
         }
 
-    def import_bundle(file_path, passphrase=None, session_names=None, force=False, merge=False):
+    def _validate_import_profile_files(payload, imported_sessions):
+        profiles = payload.get("profiles") or {}
+        decoded_profiles = {}
+        for session_payload in imported_sessions:
+            name = session_payload["name"]
+            files = []
+            for item in profiles.get(name, []):
+                rel_path = _safe_relpath(item.get("path"))
+                try:
+                    content = base64.b64decode(item.get("data_b64", "").encode("ascii"), validate=True)
+                except (AttributeError, binascii.Error, UnicodeEncodeError) as error:
+                    raise CdxError(f"Bundle contains invalid file data for session {name}: {rel_path}") from error
+                files.append({"path": rel_path, "content": content})
+            decoded_profiles[name] = files
+        return decoded_profiles
+
+    def _restore_import_backup(name, backup_root, session_root, old_record, old_state):
+        if os.path.exists(session_root):
+            remove_tree(session_root, ignore_errors=True)
+        if backup_root and os.path.exists(backup_root):
+            os.rename(backup_root, session_root)
+        if old_record:
+            store["replace_session"](name, old_record)
+            if old_state is not None:
+                store["write_session_state"](name, old_state)
+        else:
+            store["remove_session"](name)
+
+    def import_bundle(
+        file_path,
+        passphrase=None,
+        session_names=None,
+        force=False,
+        merge=False,
+        allow_authless_force=False,
+    ):
         if not file_path or not os.path.isfile(file_path):
             raise CdxError(f"Bundle file not found: {file_path}")
         with open(file_path, "rb") as handle:
@@ -1358,73 +1394,91 @@ def create_session_service(options=None):
         conflicts = [name for name in names if name in existing]
         if conflicts and not force and not merge:
             raise CdxError(f"Import would overwrite existing sessions: {', '.join(conflicts)}")
+        if conflicts and force and not decoded["meta"].get("include_auth") and not allow_authless_force:
+            raise CdxError(
+                "Import --force would overwrite existing session credentials, but this bundle has no auth payloads. "
+                "Re-export with --include-auth, use --merge, or pass --allow-authless-force to discard local credentials."
+            )
+
+        for session_payload in imported_sessions:
+            _validate_new_session_name(session_payload["name"])
+            _normalize_provider(session_payload["provider"])
+        decoded_profiles = _validate_import_profile_files(payload, imported_sessions)
 
         for session_payload in imported_sessions:
             name = session_payload["name"]
-            _validate_new_session_name(name)
             provider = _normalize_provider(session_payload["provider"])
             is_existing = name in existing
-
-            if is_existing and force:
-                remove_session(name)
-                is_existing = False
 
             session_root = _get_session_root(name)
             auth_home = _get_session_auth_home(name, provider)
             _ensure_private_dir(base_dir)
             _ensure_private_dir(os.path.join(base_dir, "profiles"))
+            backup_root = None
+            old_record = None
+            old_state = None
+            if is_existing and force:
+                old_record = store["get_session"](name)
+                old_state = store["read_session_state"](name)
+                if os.path.exists(session_root):
+                    backup_root = tempfile.mkdtemp(prefix=f".{_encode(name)}.import.", dir=os.path.dirname(session_root))
+                    os.rmdir(backup_root)
+                    os.rename(session_root, backup_root)
+                is_existing = False
             _ensure_private_dir(session_root)
             _ensure_private_dir(auth_home)
 
             existing_state_before = None
-            if is_existing and merge:
-                existing_record = store["get_session"](name) or {}
-                # replace_session resets the state file to defaults, so the
-                # local state must be captured before it runs.
-                existing_state_before = store["read_session_state"](name) or {}
-                bundle_record = {
-                    **session_payload,
-                    "provider": provider,
-                    "enabled": session_payload.get("enabled", True) is not False,
-                    "sessionRoot": session_root,
-                    "authHome": auth_home,
-                }
-                # Existing values take precedence; bundle fills in missing keys only.
-                merged_record = {**bundle_record, **{k: v for k, v in existing_record.items() if v is not None}}
-                merged_record["sessionRoot"] = session_root
-                merged_record["authHome"] = auth_home
-                store["replace_session"](name, merged_record)
-            else:
-                session_record = {
-                    **session_payload,
-                    "provider": provider,
-                    "enabled": session_payload.get("enabled", True) is not False,
-                    "sessionRoot": session_root,
-                    "authHome": auth_home,
-                }
-                store["replace_session"](name, session_record)
+            try:
+                if is_existing and merge:
+                    existing_record = store["get_session"](name) or {}
+                    # replace_session resets the state file to defaults, so the
+                    # local state must be captured before it runs.
+                    existing_state_before = store["read_session_state"](name) or {}
+                    bundle_record = {
+                        **session_payload,
+                        "provider": provider,
+                        "enabled": session_payload.get("enabled", True) is not False,
+                        "sessionRoot": session_root,
+                        "authHome": auth_home,
+                    }
+                    # Existing values take precedence; bundle fills in missing keys only.
+                    merged_record = {**bundle_record, **{k: v for k, v in existing_record.items() if v is not None}}
+                    merged_record["sessionRoot"] = session_root
+                    merged_record["authHome"] = auth_home
+                    store["replace_session"](name, merged_record)
+                else:
+                    session_record = {
+                        **session_payload,
+                        "provider": provider,
+                        "enabled": session_payload.get("enabled", True) is not False,
+                        "sessionRoot": session_root,
+                        "authHome": auth_home,
+                    }
+                    store["replace_session"](name, session_record)
 
-            state = (payload.get("states") or {}).get(name)
-            if is_existing and merge:
-                merged_state = {**(state or {}), **{k: v for k, v in (existing_state_before or {}).items() if v is not None}}
-                if merged_state:
-                    store["write_session_state"](name, merged_state)
-            elif state is not None:
-                store["write_session_state"](name, state)
+                state = (payload.get("states") or {}).get(name)
+                if is_existing and merge:
+                    merged_state = {**(state or {}), **{k: v for k, v in (existing_state_before or {}).items() if v is not None}}
+                    if merged_state:
+                        store["write_session_state"](name, merged_state)
+                elif state is not None:
+                    store["write_session_state"](name, state)
 
-            for item in (payload.get("profiles") or {}).get(name, []):
-                rel_path = _safe_relpath(item.get("path"))
-                try:
-                    content = base64.b64decode(item.get("data_b64", "").encode("ascii"))
-                except (AttributeError, ValueError, UnicodeEncodeError) as error:
-                    raise CdxError(f"Bundle contains invalid file data for session {name}: {rel_path}") from error
-                dest_path = os.path.join(session_root, rel_path)
-                # In merge mode, skip files that already exist locally.
-                if is_existing and merge and os.path.exists(dest_path):
-                    continue
-                _ensure_private_dir(os.path.dirname(dest_path))
-                # Decrypted credentials: 0o600 from creation, no umask window.
-                atomic_write(dest_path, content, mode=0o600)
+                for item in decoded_profiles.get(name, []):
+                    dest_path = os.path.join(session_root, item["path"])
+                    # In merge mode, skip files that already exist locally.
+                    if is_existing and merge and os.path.exists(dest_path):
+                        continue
+                    _ensure_private_dir(os.path.dirname(dest_path))
+                    # Decrypted credentials: 0o600 from creation, no umask window.
+                    atomic_write(dest_path, item["content"], mode=0o600)
+            except Exception:
+                _restore_import_backup(name, backup_root, session_root, old_record, old_state)
+                raise
+            finally:
+                if backup_root and os.path.exists(backup_root):
+                    remove_tree(backup_root, ignore_errors=True)
 
         return {
             "path": file_path,

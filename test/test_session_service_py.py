@@ -10,7 +10,7 @@ from datetime import datetime
 from types import SimpleNamespace
 from unittest import mock
 
-from src.backup_bundle import read_bundle_meta
+from src.backup_bundle import encode_bundle, read_bundle_meta
 from src.errors import CdxError
 from src.session_service import create_session_service
 from src.session_store import create_session_store
@@ -1165,6 +1165,52 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(imported["provider"], "codex")
         self.assertEqual(imported["lastStatus"]["remaining_5h_pct"], 81)
         self.assertTrue(os.path.exists(os.path.join(target_dir, "state", "main.json")))
+
+    def test_force_import_without_auth_refuses_to_overwrite_existing_credentials(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("main")
+        bundle_path = os.path.join(source_dir, "backup.cdx")
+        source["export_bundle"](bundle_path)
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        target["create_session"]("main")
+        auth_path = os.path.join(target_dir, "profiles", "main", "auth.json")
+        with open(auth_path, "w", encoding="utf-8") as handle:
+            handle.write('{"token":"local"}')
+
+        with self.assertRaisesRegex(CdxError, "bundle has no auth payloads"):
+            target["import_bundle"](bundle_path, force=True)
+
+        with open(auth_path, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), '{"token":"local"}')
+        self.assertEqual(target["get_session"]("main")["name"], "main")
+
+    def test_force_import_prevalidates_profile_files_before_touching_existing_session(self):
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        target["create_session"]("main")
+        auth_path = os.path.join(target_dir, "profiles", "main", "auth.json")
+        with open(auth_path, "w", encoding="utf-8") as handle:
+            handle.write('{"token":"local"}')
+
+        bundle_path = os.path.join(target_dir, "corrupt-profile.cdx")
+        payload = {
+            "schema_version": 1,
+            "sessions": [{"name": "main", "provider": "codex"}],
+            "states": {},
+            "profiles": {"main": [{"path": "auth.json", "data_b64": "not valid base64!"}]},
+        }
+        with open(bundle_path, "wb") as handle:
+            handle.write(encode_bundle(payload, include_auth=False))
+
+        with self.assertRaisesRegex(CdxError, "invalid file data"):
+            target["import_bundle"](bundle_path, force=True, allow_authless_force=True)
+
+        with open(auth_path, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), '{"token":"local"}')
+        self.assertEqual(target["get_session"]("main")["name"], "main")
 
     def test_export_bundle_does_not_restrict_existing_parent_directory(self):
         if os.name == "nt":

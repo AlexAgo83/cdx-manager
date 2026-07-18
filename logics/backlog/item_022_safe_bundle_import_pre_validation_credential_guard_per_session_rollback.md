@@ -1,10 +1,10 @@
 ## item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback - Safe bundle import: pre-validation, credential guard, per-session rollback
 > From version: 0.10.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Operator workflow
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -26,6 +26,12 @@
 - Force-importing an auth-less bundle over existing sessions exits with an explicit refusal message and touches nothing.
 - A corrupt payload in session N leaves session N's original profile and store record intact.
 - Existing export/import round-trip tests remain green.
+
+# Report
+- Implemented `--allow-authless-force` as the explicit override for destructive auth-less force imports.
+- Import now validates selected session names, providers, safe profile paths, and base64 payloads before touching the store or profile directories.
+- Existing profiles are renamed aside during force import and restored if the session import fails.
+- Validation: `python3 -m unittest discover -s test -p 'test_session_service_py.py' -k import`; `python3 -m unittest discover -s test -p 'test_cli_py.py' -k import`.
 
 # AC Traceability
 - request-AC1 -> This backlog slice. Proof: Force-importing an auth-less bundle over existing sessions exits with an explicit refusal message and touches nothing.

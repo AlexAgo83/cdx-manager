@@ -17,7 +17,7 @@ DISK_USAGE = "Usage: cdx disk [profiles] [--candidates] [--json]"
 REPAIR_USAGE = "Usage: cdx repair [--dry-run] [--force] [--json]"
 UPDATE_USAGE = "Usage: cdx update [--check] [--yes] [--json] [--version TAG]"
 EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR|--passphrase-stdin]"
-IMPORT_USAGE = "Usage: cdx import <file> [--force|--merge] [--json] [--sessions name1,name2] [--passphrase-env VAR|--passphrase-stdin]"
+IMPORT_USAGE = "Usage: cdx import <file> [--force|--merge] [--allow-authless-force] [--json] [--sessions name1,name2] [--passphrase-env VAR|--passphrase-stdin]"
 CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--json]"
 SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--model MODEL] [--priority 0..100] [--json]"
@@ -612,6 +612,7 @@ def _parse_import_args(args):
     parsed = _parse_flag_args(args, {
         "--force": {"key": "force", "type": "bool", "default": False},
         "--merge": {"key": "merge", "type": "bool", "default": False},
+        "--allow-authless-force": {"key": "allow_authless_force", "type": "bool", "default": False},
         "--json": {"key": "json", "type": "bool", "default": False},
         "--sessions": {
             "key": "session_names",
