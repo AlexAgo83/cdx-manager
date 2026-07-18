@@ -294,8 +294,8 @@ def create_session_store(base_dir):
                     continue
                 try:
                     entry = json.loads(line)
-                except json.JSONDecodeError as error:
-                    raise CdxError(f"Corrupt JSONL file: {launch_history_file}") from error
+                except json.JSONDecodeError:
+                    continue
                 if session_name and entry.get("session_name") != session_name:
                     continue
                 entries.append(entry)

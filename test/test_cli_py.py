@@ -618,6 +618,14 @@ class CliPythonTests(unittest.TestCase):
 
         self.assertEqual(disk_io["stderr"].getvalue(), "")
 
+    def test_disk_candidates_rejects_home_before_scanning(self):
+        with self.assertRaisesRegex(CdxError, "Usage: cdx disk"):
+            main(["disk", "--candidates"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": self.make_temp_dir()},
+                "diskUsageRunner": lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not scan")),
+            })
+
     def test_disk_profiles_candidates_report_cleanup_evidence(self):
         temp_dir = self.make_temp_dir()
         profile_dir = os.path.join(temp_dir, "profiles", "main")
@@ -735,6 +743,32 @@ class CliPythonTests(unittest.TestCase):
         self.assertFalse(os.path.exists(old_log))
         self.assertTrue(os.path.exists(new_log))
 
+    def test_clean_profiles_bare_prints_usage(self):
+        with self.assertRaisesRegex(CdxError, "Usage: cdx clean profiles"):
+            main(["clean", "profiles"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": self.make_temp_dir()},
+            })
+
+    def test_clean_old_logs_equals_routes_to_profiles_cleanup(self):
+        temp_dir = self.make_temp_dir()
+        old_log = os.path.join(temp_dir, "profiles", "main", "log", "old.log")
+        os.makedirs(os.path.dirname(old_log))
+        with open(old_log, "wb") as handle:
+            handle.write(b"x")
+        os.utime(old_log, (1000, 1000))
+
+        clean_io = self.make_io()
+        self.assertEqual(main(["clean", "--old-logs=30", "--yes", "--json"], {
+            **clean_io,
+            "env": {"CDX_HOME": temp_dir},
+            "now": lambda: 1000 + 31 * 86400,
+        }), 0)
+
+        payload = json.loads(clean_io["stdout"].getvalue())
+        self.assertEqual(payload["action"], "clean.profiles")
+        self.assertFalse(os.path.exists(old_log))
+
     def test_clean_profiles_old_logs_reports_removal_failure(self):
         temp_dir = self.make_temp_dir()
         old_log = os.path.join(temp_dir, "profiles", "main", "log", "old.log")
@@ -758,7 +792,7 @@ class CliPythonTests(unittest.TestCase):
                     "now": lambda: 1000 + 31 * 86400,
                 })
 
-    def test_clean_profiles_without_cleanup_flags_targets_named_session(self):
+    def test_clean_profiles_without_cleanup_flags_is_profiles_usage(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
         service["create_session"]("profiles")
@@ -767,17 +801,13 @@ class CliPythonTests(unittest.TestCase):
         with open(log_path, "w", encoding="utf-8") as handle:
             handle.write("session transcript")
 
-        clean_io = self.make_io()
-        self.assertEqual(main(["clean", "profiles", "--yes", "--json"], {
-            **clean_io,
-            "env": {"CDX_HOME": temp_dir},
-            "service": service,
-        }), 0)
-
-        payload = json.loads(clean_io["stdout"].getvalue())
-        self.assertEqual(payload["action"], "clean")
-        self.assertEqual(payload["sessions"][0]["session_name"], "profiles")
-        self.assertEqual(os.path.getsize(log_path), 0)
+        with self.assertRaisesRegex(CdxError, "Usage: cdx clean profiles"):
+            main(["clean", "profiles", "--yes", "--json"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "service": service,
+            })
+        self.assertGreater(os.path.getsize(log_path), 0)
 
     def test_clean_profiles_requires_confirmation_before_deleting(self):
         temp_dir = self.make_temp_dir()
@@ -4713,10 +4743,10 @@ class CliPythonTests(unittest.TestCase):
                 **io_obj,
                 "env": {"CDX_HOME": temp_dir, "PATH": ""},
                 "spawn_sync": lambda *args, **kwargs: calls.append((args, kwargs)),
-            }), 0)
+            }), 1)
 
         payload = json.loads(io_obj["stdout"].getvalue())
-        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["ok"])
         self.assertEqual(payload["action"], "view")
         self.assertFalse(payload["viewer"]["available"])
         self.assertEqual(payload["viewer"]["command"], ["logics-manager", "view"])

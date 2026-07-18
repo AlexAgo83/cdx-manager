@@ -1222,7 +1222,12 @@ def create_session_service(options=None):
                     )] = s
                 for future in as_completed(futures):
                     s = futures[future]
-                    resolved = future.result()
+                    try:
+                        resolved = future.result()
+                    except CdxError as error:
+                        if not str(error).startswith("Unknown session:"):
+                            raise
+                        continue
                     resolved_by_name[s["name"]] = resolved
                     if progress_callback:
                         progress_callback({
@@ -1231,7 +1236,7 @@ def create_session_service(options=None):
                             "has_status": bool(resolved.get("lastStatus")),
                             "cache_hit": cache_hits[s["name"]],
                         })
-        resolved = [resolved_by_name[s["name"]] for s in sessions]
+        resolved = [resolved_by_name[s["name"]] for s in sessions if s["name"] in resolved_by_name]
 
         def sort_key(s):
             at = s.get("lastStatusAt") or ""

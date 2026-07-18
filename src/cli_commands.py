@@ -468,6 +468,13 @@ def _handle_clean_profiles(args, ctx, json_flag):
             raise CdxError(usage)
         old_logs = _parse_days(args[index + 1], usage)
         args = [arg for i, arg in enumerate(args) if i not in (index, index + 1)]
+    else:
+        old_log_equals = [arg for arg in args if arg.startswith("--old-logs=")]
+        if old_log_equals:
+            if len(old_log_equals) > 1:
+                raise CdxError(usage)
+            old_logs = _parse_days(old_log_equals[0].split("=", 1)[1], usage)
+            args = [arg for arg in args if arg != old_log_equals[0]]
     args = [arg for arg in args if arg != "--tmp"]
     if args or clean_tmp == (old_logs is not None):
         raise CdxError(usage)
@@ -527,6 +534,8 @@ def handle_disk(rest, ctx):
         "--json": {"key": "json", "type": "bool", "default": False},
     }, DISK_USAGE, positionals_key="targets", max_positionals=1)
     target = parsed["targets"][0] if parsed["targets"] else "home"
+    if parsed["candidates"] and target != "profiles":
+        raise CdxError(DISK_USAGE)
     if target == "home":
         path = ctx["service"]["base_dir"]
     elif target == "profiles":
@@ -558,8 +567,6 @@ def handle_disk(rest, ctx):
     if target == "profiles":
         payload["children"] = _directory_child_sizes(path, runner=ctx["options"].get("diskUsageRunner"), progress=progress)
     if parsed["candidates"]:
-        if target != "profiles":
-            raise CdxError(DISK_USAGE)
         candidates = _collect_profile_cleanup_candidates(
             ctx["service"]["base_dir"],
             runner=ctx["options"].get("diskUsageRunner"),
@@ -1735,8 +1742,12 @@ def handle_last(rest, ctx):
 
 def handle_clean(rest, ctx):
     json_flag, args = _parse_json_flag(rest)
-    if args[:1] == ["profiles"] and any(arg in ("--tmp", "--old-logs") for arg in args[1:]):
-        return _handle_clean_profiles(args[1:], ctx, json_flag)
+    profile_flags = ("--tmp", "--old-logs")
+    has_profile_flag = any(arg in profile_flags or arg.startswith("--old-logs=") for arg in args)
+    if args[:1] == ["profiles"] or has_profile_flag:
+        if args[:1] == ["profiles"]:
+            return _handle_clean_profiles(args[1:], ctx, json_flag)
+        return _handle_clean_profiles(args, ctx, json_flag)
     yes = "--yes" in args
     args = [arg for arg in args if arg != "--yes"]
     service = ctx["service"]

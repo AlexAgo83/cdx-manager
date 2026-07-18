@@ -1,10 +1,10 @@
 ## item_024_cli_robustness_tolerant_history_parsing_concurrent_removal_safe_status_clean_disk_view_fixes - CLI robustness: tolerant history parsing, concurrent-removal-safe status, clean/disk/view fixes
 > From version: 0.10.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Low
 > Theme: Operator workflow
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -31,6 +31,14 @@
 - `cdx clean profiles` prints usage; `cdx clean --old-logs=30` runs the profiles clean.
 - `cdx disk --candidates <bad combo>` errors immediately without scanning.
 - `cdx view --json` with logics-manager absent returns ok:false and non-zero exit.
+
+# Report
+- Launch history now skips unparseable JSONL lines and still returns valid entries.
+- Status collection skips sessions that disappear during refresh instead of failing the whole table.
+- `cdx clean profiles` without cleanup flags prints profile-clean usage, and `--old-logs=N` routes to profile cleanup.
+- `cdx disk --candidates` validates the target before measuring disk usage.
+- `cdx view --json` returns `ok:false` and exit 1 when `logics-manager` is unavailable.
+- Validation: `python3 -m unittest discover -s test -p 'test_session_service_py.py'`; `python3 -m unittest discover -s test -p 'test_cli_py.py'`.
 
 # AC Traceability
 - request-AC5 -> This backlog slice. Proof: A history file with a torn final line renders the remaining entries.

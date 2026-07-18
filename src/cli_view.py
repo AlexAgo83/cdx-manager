@@ -1,4 +1,4 @@
-from .cli_helpers import _json_success, _write_json
+from .cli_helpers import _json_failure, _json_success, _write_json
 from .cli_render import _warn
 from .errors import CdxError
 from .logics_view import (
@@ -89,6 +89,9 @@ def handle_view(rest, ctx):
     warnings = _update_notice_warnings([update_notice])
 
     if json_flag:
+        if failure:
+            _write_json(ctx, _json_failure("view", "viewer_unavailable", failure["message"], warnings=warnings, viewer=diagnostics))
+            return 1
         _write_json(ctx, _json_success("view", "Collected Logics viewer diagnostics", warnings=warnings, viewer=diagnostics))
         return 0
 

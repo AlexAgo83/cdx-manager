@@ -1712,6 +1712,40 @@ class SessionServicePythonTests(unittest.TestCase):
         store["update_session_state"]("main", lambda state: None)
         self.assertEqual(store["read_session_state"]("main")["rehydratedAt"], "now")
 
+    def test_launch_history_skips_torn_jsonl_lines(self):
+        temp_dir = self.make_temp_dir()
+        store = create_session_store(temp_dir)
+        store["append_launch_history"]({"session_name": "main", "started_at": "one"})
+        history_path = os.path.join(temp_dir, "state", "launch_history.jsonl")
+        with open(history_path, "a", encoding="utf-8") as handle:
+            handle.write('{"session_name": "broken"\n')
+        store["append_launch_history"]({"session_name": "side", "started_at": "two"})
+
+        entries = store["list_launch_history"](limit=0)
+
+        self.assertEqual([entry["session_name"] for entry in entries], ["side", "main"])
+
+    def test_status_rows_skip_session_removed_during_refresh(self):
+        temp_dir = self.make_temp_dir()
+        removed = {"done": False}
+
+        def fetch_status(session, **_kwargs):
+            if session["name"] == "main" and not removed["done"]:
+                removed["done"] = True
+                service["remove_session"]("main")
+                return {"remaining_5h_pct": 80, "remaining_week_pct": 80}
+            return None
+
+        service = create_session_service({
+            "base_dir": temp_dir,
+            "fetchCodexRateLimits": fetch_status,
+        })
+        service["create_session"]("main")
+
+        rows = service["get_status_rows"](force_refresh=True)
+
+        self.assertEqual(rows, [])
+
     def test_concurrent_launch_setting_writes_keep_both_settings(self):
         import threading
 
