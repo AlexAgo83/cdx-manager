@@ -5517,6 +5517,15 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("Usage:", result.stdout)
 
+    def test_bin_cdx_delegates_to_cli_entry(self):
+        with open("bin/cdx", encoding="utf-8") as handle:
+            text = handle.read()
+
+        self.assertIn("from src.cli import cli_entry", text)
+        self.assertIn("cli_entry()", text)
+        self.assertNotIn("format_json_error", text)
+        self.assertNotIn("except CdxError", text)
+
     def test_bin_cdx_colors_errors_when_enabled(self):
         temp_dir = self.make_temp_dir()
         env = {**os.environ, "CDX_HOME": temp_dir, "CLICOLOR_FORCE": "1"}

@@ -1,10 +1,10 @@
 ## item_025_unify_npm_entrypoint_through_cli_entry - Unify npm entrypoint through cli_entry
 > From version: 0.10.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Low
 > Theme: Operator workflow
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -22,6 +22,11 @@
 # Acceptance criteria
 - npm and pip entrypoints execute the same setup and error-handling path.
 - bin/cdx contains no duplicated error-handling logic.
+
+# Report
+- `bin/cdx` now delegates directly to `src.cli.cli_entry()`, reusing Windows ANSI/encoding setup and centralized error handling.
+- Regression coverage asserts the launcher imports `cli_entry` and no longer carries duplicated error handling.
+- Validation: `python3 -m unittest discover -s test -p 'test_cli_py.py' -k bin_cdx`.
 
 # AC Traceability
 - request-AC10 -> This backlog slice. Proof: npm and pip entrypoints execute the same setup and error-handling path.
