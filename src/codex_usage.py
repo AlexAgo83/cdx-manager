@@ -4,6 +4,7 @@ import os
 import queue
 import subprocess
 import threading
+import time
 from datetime import datetime, timezone
 
 from .status_source import _is_zero_credit_balance
@@ -17,7 +18,7 @@ CODEX_AUTH_LOCK_NAME = ".cdx-auth.lock"
 
 
 @contextlib.contextmanager
-def codex_auth_lock(auth_home, blocking=False):
+def codex_auth_lock(auth_home, blocking=False, timeout_seconds=None, retry_interval_seconds=0.05):
     """Serialize codex token refreshes per CODEX_HOME.
 
     Codex rotates its OAuth refresh_token on refresh and invalidates the old
@@ -36,13 +37,18 @@ def codex_auth_lock(auth_home, blocking=False):
     except OSError:
         yield True
         return
-    flags = fcntl.LOCK_EX if blocking else fcntl.LOCK_EX | fcntl.LOCK_NB
-    try:
-        fcntl.flock(handle, flags)
-    except OSError:
-        handle.close()
-        yield False
-        return
+    deadline = None if timeout_seconds is None else time.monotonic() + timeout_seconds
+    while True:
+        flags = fcntl.LOCK_EX if blocking and timeout_seconds is None else fcntl.LOCK_EX | fcntl.LOCK_NB
+        try:
+            fcntl.flock(handle, flags)
+            break
+        except OSError:
+            if not blocking or (deadline is not None and time.monotonic() >= deadline):
+                handle.close()
+                yield False
+                return
+            time.sleep(retry_interval_seconds)
     try:
         yield True
     finally:

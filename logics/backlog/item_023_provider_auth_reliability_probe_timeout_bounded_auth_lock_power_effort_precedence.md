@@ -1,10 +1,10 @@
 ## item_023_provider_auth_reliability_probe_timeout_bounded_auth_lock_power_effort_precedence - Provider auth reliability: probe timeout, bounded auth lock, power/effort precedence
 > From version: 0.10.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Low
 > Theme: Operator workflow
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -26,6 +26,12 @@
 - A probe subprocess that never returns causes a degraded status within 15s, not a hang.
 - Under lock contention the second writer waits or fails explicitly; it never refreshes auth.json unlocked.
 - After set --power on a session with stored reasoning_effort, the launch uses the new power; unset reasoning_effort succeeds.
+
+# Report
+- Provider auth probes now pass a 15s subprocess timeout and degrade to unauthenticated on timeout instead of hanging.
+- Interactive Codex launches acquire the auth lock with a bounded 10s wait and fail explicitly if it cannot be acquired.
+- Setting `power` clears stored `reasoning_effort` fields, and `cdx unset --reasoning-effort` is supported.
+- Validation: `python3 -m unittest discover -s test -p 'test_runtime_py.py'`; `python3 -m unittest discover -s test -p 'test_session_service_py.py'`; `python3 -m unittest discover -s test -p 'test_cli_py.py' -k reasoning`.
 
 # AC Traceability
 - request-AC2 -> This backlog slice. Proof: A probe subprocess that never returns causes a degraded status within 15s, not a hang.

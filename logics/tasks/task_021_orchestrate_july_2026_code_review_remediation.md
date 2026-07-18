@@ -4,7 +4,7 @@
 > Status: Ready
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 15%
+> Progress: 30%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -14,7 +14,7 @@
 
 # Plan
 - [x] 1. Land the safe-bundle-import backlog item first (only data-loss risk), with its refusal-and-rollback tests.
-- [ ] 2. Land provider auth reliability (probe timeout, bounded lock, power/effort precedence) as one change set.
+- [x] 2. Land provider auth reliability (probe timeout, bounded lock, power/effort precedence) as one change set.
 - [ ] 3. Land the CLI robustness fixes with one regression test per fix.
 - [ ] 4. Unify the npm entrypoint through cli_entry.
 - [ ] 5. Move release checksum verification to tagged release assets and add the unverified-install warning.

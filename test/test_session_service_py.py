@@ -1141,6 +1141,27 @@ class SessionServicePythonTests(unittest.TestCase):
         with self.assertRaisesRegex(CdxError, "Session name is reserved: add"):
             service["rename_session"]("source", "add")
 
+    def test_set_power_clears_stored_reasoning_effort(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["set_launch_settings"]("main", {"reasoning_effort": "high"})
+
+        updated = service["set_launch_settings"]("main", {"power": "low"})
+
+        self.assertEqual(updated["launch"]["power"], "low")
+        self.assertNotIn("reasoning_effort", updated["launch"])
+
+    def test_unset_launch_settings_allows_reasoning_effort(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["set_launch_settings"]("main", {"reasoning_effort": "high"})
+
+        updated = service["unset_launch_settings"]("main", ["reasoning_effort"])
+
+        self.assertNotIn("reasoning_effort", updated.get("launch") or {})
+
     def test_export_import_round_trip_without_auth(self):
         source_dir = self.make_temp_dir()
         source = create_session_service({"base_dir": source_dir})

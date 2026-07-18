@@ -1641,6 +1641,20 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(_script_launch_args(launch_call)[:3], ["--no-alt-screen", "--cd", os.getcwd()])
         self.assertNotIn('model_reasoning_effort="medium"', _script_launch_text(launch_call))
 
+    def test_unset_reasoning_effort_is_supported(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["set_launch_settings"]("main", {"reasoning_effort": "high"})
+
+        unset_io = self.make_io()
+        self.assertEqual(main(["unset", "main", "--reasoning-effort", "--json"], {
+            **unset_io,
+            "service": service,
+        }), 0)
+
+        self.assertNotIn("reasoning_effort", json.loads(unset_io["stdout"].getvalue())["launch"])
+
     def test_set_launch_settings_can_target_all_sessions(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()

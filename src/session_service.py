@@ -902,6 +902,11 @@ def create_session_service(options=None):
             # lock; a pre-lock snapshot loses a concurrent setting change.
             current = _normalize_launch_settings(s.get("launch") or {}, mark_fast_service_tier=False)
             launch = {**current, **updates}
+            if "power" in updates:
+                launch.pop("reasoning_effort", None)
+                launch.pop("reasoningEffort", None)
+            if "reasoning_effort" in updates:
+                launch.pop("power", None)
             explicit_power = "power" in updates or "reasoning_effort" in updates
             if explicit_power and "fast" not in updates and launch.get("fastMode") != "service_tier":
                 launch["fast"] = False
@@ -924,7 +929,7 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         if not keys:
             raise CdxError("At least one launch setting is required.")
-        allowed = {"power", "permission", "fast", "rtk", "logics", "model", "priority"}
+        allowed = {"power", "reasoning_effort", "reasoningEffort", "permission", "fast", "rtk", "logics", "model", "priority"}
         unknown = [key for key in keys if key not in allowed]
         if unknown:
             raise CdxError(f"Unsupported launch setting: {', '.join(unknown)}")

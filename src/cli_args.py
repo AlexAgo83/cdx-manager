@@ -21,7 +21,7 @@ IMPORT_USAGE = "Usage: cdx import <file> [--force|--merge] [--allow-authless-for
 CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--json]"
 SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--model MODEL] [--priority 0..100] [--json]"
-UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--logics|--model|--priority|--all) [--json]"
+UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--reasoning-effort|--permission|--fast|--rtk|--logics|--model|--priority|--all) [--json]"
 SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 CONFIGS_USAGE = "Usage: cdx configs [--json]"
@@ -186,6 +186,7 @@ def _parse_set_args(args):
 def _parse_unset_args(args):
     parsed = _parse_flag_args(args, {
         "--power": {"key": "power", "type": "bool", "default": False},
+        "--reasoning-effort": {"key": "reasoning_effort", "type": "bool", "default": False},
         "--permission": {"key": "permission", "type": "bool", "default": False},
         "--fast": {"key": "fast", "type": "bool", "default": False},
         "--rtk": {"key": "rtk", "type": "bool", "default": False},
@@ -207,8 +208,8 @@ def _parse_unset_args(args):
         raise CdxError(UNSET_USAGE)
     if not parsed["names"] and not parsed["sessions"] and not parsed["provider"]:
         raise CdxError(UNSET_USAGE)
-    keys = ["power", "permission", "fast", "rtk", "logics", "model", "priority"] if parsed["all"] else [
-        key for key in ("power", "permission", "fast", "rtk", "logics", "model", "priority") if parsed[key]
+    keys = ["power", "reasoning_effort", "permission", "fast", "rtk", "logics", "model", "priority"] if parsed["all"] else [
+        key for key in ("power", "reasoning_effort", "permission", "fast", "rtk", "logics", "model", "priority") if parsed[key]
     ]
     if not keys:
         raise CdxError(UNSET_USAGE)

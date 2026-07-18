@@ -581,6 +581,23 @@ class RuntimePythonTests(unittest.TestCase):
                 self.assertTrue(provider_runtime._probe_provider_auth(session, env_override={"PATH": "C:/nvm4w/nodejs"}))
 
         self.assertEqual(calls[0][0][0], "C:/nvm4w/nodejs/codex.cmd")
+        self.assertEqual(calls[0][1]["timeout"], provider_runtime.AUTH_PROBE_TIMEOUT_SECONDS)
+
+    def test_probe_provider_auth_timeout_degrades_to_false(self):
+        session = {
+            "name": "main",
+            "provider": "codex",
+            "authHome": "/tmp/codex-home",
+        }
+
+        def fake_run(*_args, **_kwargs):
+            raise subprocess.TimeoutExpired("codex", 15)
+
+        with mock.patch("src.provider_runtime.subprocess.run", side_effect=fake_run):
+            self.assertFalse(provider_runtime._probe_provider_auth(
+                session,
+                trust_local_credentials=False,
+            ))
 
     def test_probe_provider_auth_short_circuits_when_codex_auth_file_has_tokens(self):
         with tempfile.TemporaryDirectory(prefix="cdx-codex-") as temp_dir:
@@ -595,6 +612,24 @@ class RuntimePythonTests(unittest.TestCase):
 
             with mock.patch("src.provider_runtime.subprocess.run", side_effect=AssertionError("should not probe")):
                 self.assertTrue(provider_runtime._probe_provider_auth(session))
+
+    def test_interactive_codex_command_fails_when_auth_lock_times_out(self):
+        session = {
+            "name": "main",
+            "provider": "codex",
+            "authHome": "/tmp/codex-home",
+        }
+
+        class Locked:
+            def __enter__(self):
+                return False
+
+            def __exit__(self, *_args):
+                return False
+
+        with mock.patch("src.provider_runtime.codex_auth_lock", return_value=Locked()):
+            with self.assertRaisesRegex(CdxError, "Timed out waiting for Codex auth lock"):
+                _run_interactive_provider_command(session, "launch", spawn=AssertionError)
 
     def test_probe_provider_auth_can_force_live_codex_probe(self):
         with tempfile.TemporaryDirectory(prefix="cdx-codex-") as temp_dir:

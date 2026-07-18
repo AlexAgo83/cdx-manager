@@ -16,6 +16,8 @@ from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVI
 from .errors import CdxError
 
 LOG_ROTATE_BYTES = 10 * 1024 * 1024  # 10 MB
+AUTH_PROBE_TIMEOUT_SECONDS = 15
+CODEX_INTERACTIVE_AUTH_LOCK_TIMEOUT_SECONDS = 10
 REASONING_EFFORT_VALUES = {"minimal", "low", "medium", "high", "xhigh"}
 RTK_PROMPT = (
     "When running noisy shell commands, prefer RTK wrappers (`rtk <command>`) if `rtk` is available. "
@@ -914,6 +916,7 @@ def _probe_provider_auth(session, spawn_sync=None, env_override=None, trust_loca
                 [command] + spec["args"],
                 env=spec["env"],
                 capture_output=True, text=True,
+                timeout=AUTH_PROBE_TIMEOUT_SECONDS,
             )
             output = (result.stdout or "") + (result.stderr or "")
         else:
@@ -924,6 +927,8 @@ def _probe_provider_auth(session, spawn_sync=None, env_override=None, trust_loca
             stdout = result.get("stdout") if isinstance(result, dict) else getattr(result, "stdout", "")
             stderr = result.get("stderr") if isinstance(result, dict) else getattr(result, "stderr", "")
             output = (stdout or "") + (stderr or "")
+    except subprocess.TimeoutExpired:
+        return False
     except OSError as error:
         raise _format_probe_failure(session, spec, error) from error
     return spec["parser"](output)
@@ -953,10 +958,15 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
                   lifecycle_callback=lifecycle_callback)
     if session.get("provider") != PROVIDER_CODEX:
         return _run_interactive_provider_command_impl(session, action, **kwargs)
-    # Hold the per-CODEX_HOME lock for the whole session so a concurrent status
-    # probe backs off instead of rotating the refresh_token mid-run (which logs
-    # the session out). ponytail: non-blocking, so launch never waits on a probe.
-    with codex_auth_lock(_get_auth_home(session)):
+    # Hold the per-CODEX_HOME lock for the whole session so concurrent Codex
+    # processes cannot rotate the refresh_token under each other.
+    with codex_auth_lock(
+        _get_auth_home(session),
+        blocking=True,
+        timeout_seconds=CODEX_INTERACTIVE_AUTH_LOCK_TIMEOUT_SECONDS,
+    ) as acquired:
+        if not acquired:
+            raise CdxError(f"Timed out waiting for Codex auth lock for session {session['name']}.")
         return _run_interactive_provider_command_impl(session, action, **kwargs)
 
 
