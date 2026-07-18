@@ -26,6 +26,7 @@ Workflow lifecycle:
 - Use `logics-manager flow start <ref>` before active implementation to mark `Status: In progress` and record `Owner`.
 - Use `logics-manager flow progress task <ref> --progress <n>%` during multi-wave task work instead of editing `Progress` by hand.
 - Use `logics-manager flow finish task <path>` instead of setting `Status: Done` manually.
+- When delivery consumes a linked product brief, `flow closeout` should settle it; otherwise set the brief to `Settled` or `Superseded` through the CLI instead of leaving it `Proposed`.
 - Treat task waves as ADR 009 checkpoints: update affected Logics docs in the wave and leave the repo commit-ready without forcing one commit per micro-step.
 - Use `logics-manager sync refresh-mermaid-signatures` after editing Mermaid diagrams.
 
