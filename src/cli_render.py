@@ -123,10 +123,13 @@ def format_error(error, env=None, stderr=None):
 def _format_sessions(service, use_color=False):
     rows = service["format_list_rows"]()
     has_provider = any(r.get("provider") for r in rows)
+    has_label = any(r.get("label") for r in rows)
     has_launch = any(r.get("launch") for r in rows)
     headers = ["SESSION"]
     if has_provider:
         headers.append("PROVIDER")
+    if has_label:
+        headers.append("LABEL")
     headers.append("STATUS")
     if has_launch:
         headers.append("LAUNCH")
@@ -138,6 +141,8 @@ def _format_sessions(service, use_color=False):
         parts = [name]
         if has_provider:
             parts.append(r.get("provider") or "n/a")
+        if has_label:
+            parts.append(r.get("label") or "-")
         status = r.get("enabled_status") or ("enabled" if r.get("enabled", True) else "disabled")
         parts.append(_style(status, "2" if status == "disabled" else "32", use_color))
         if has_launch:

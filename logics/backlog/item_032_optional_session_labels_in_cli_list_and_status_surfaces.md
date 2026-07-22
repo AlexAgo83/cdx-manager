@@ -1,10 +1,10 @@
 ## item_032_optional_session_labels_in_cli_list_and_status_surfaces - Optional session labels in CLI list and status surfaces
 > From version: 0.11.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Low
 > Theme: Operator workflow
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -71,3 +71,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_023_orchestrate_optional_session_labels`
+
+# Notes
+- Task `task_023_orchestrate_optional_session_labels` was finished via `logics-manager flow finish task` on 2026-07-23.

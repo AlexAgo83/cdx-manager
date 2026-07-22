@@ -22,6 +22,7 @@ from .status_source import find_latest_status_artifact
 DEFAULT_PROVIDER = PROVIDER_CODEX
 ALLOWED_PROVIDERS = set(PROVIDERS)
 MAX_SESSION_NAME_LENGTH = 64
+MAX_SESSION_LABEL_LENGTH = 64
 RESERVED_SESSION_NAMES = {
     "add",
     "can-resume",
@@ -40,6 +41,7 @@ RESERVED_SESSION_NAMES = {
     "history",
     "import",
     "last",
+    "label",
     "login",
     "logout",
     "model",
@@ -534,10 +536,21 @@ def create_session_service(options=None):
         if name in RESERVED_SESSION_NAMES:
             raise CdxError(f"Session name is reserved: {name}")
 
+    def _normalize_session_label(label):
+        text = str(label or "").strip()
+        if not text:
+            raise CdxError("Session label is required")
+        if len(text) > MAX_SESSION_LABEL_LENGTH:
+            raise CdxError(f"Session label is too long (max {MAX_SESSION_LABEL_LENGTH} characters)")
+        if any(ord(ch) < 32 or ord(ch) == 127 for ch in text):
+            raise CdxError("Session label cannot contain control characters")
+        return text
+
     def _build_export_session_record(session):
         return {
             "name": session["name"],
             "provider": session["provider"],
+            "label": session.get("label"),
             "enabled": session.get("enabled", True) is not False,
             "createdAt": session.get("createdAt"),
             "updatedAt": session.get("updatedAt"),
@@ -698,6 +711,7 @@ def create_session_service(options=None):
             "lastStatusAt": None,
             "lastStatus": None,
             **({"launch": source.get("launch")} if source.get("launch") else {}),
+            **({"label": source.get("label")} if source.get("label") else {}),
             "auth": {
                 "status": "unknown",
                 "lastCheckedAt": None,
@@ -887,6 +901,31 @@ def create_session_service(options=None):
             "enabled": bool(enabled),
             "updatedAt": now,
         })
+
+    def set_session_label(name, label):
+        session = store["get_session"](name)
+        if not session:
+            raise CdxError(f"Unknown session: {name}")
+        normalized = _normalize_session_label(label)
+        now = _local_now_iso()
+        return store["update_session"](name, lambda s: {
+            **s,
+            "label": normalized,
+            "updatedAt": now,
+        })
+
+    def clear_session_label(name):
+        session = store["get_session"](name)
+        if not session:
+            raise CdxError(f"Unknown session: {name}")
+        now = _local_now_iso()
+
+        def updater(s):
+            updated = {**s, "updatedAt": now}
+            updated.pop("label", None)
+            return updated
+
+        return store["update_session"](name, updater)
 
     def set_launch_settings(name, settings):
         session = store["get_session"](name)
@@ -1106,6 +1145,7 @@ def create_session_service(options=None):
         row_status = status if enabled else None
         return {
             "session_name": s["name"],
+            "label": s.get("label"),
             "provider": s["provider"],
             "enabled": enabled,
             "active": bool(_session_runtime(s["name"])) if enabled else False,
@@ -1273,6 +1313,7 @@ def create_session_service(options=None):
         )
         return [{
             "name": s["name"],
+            "label": s.get("label"),
             "provider": s["provider"] if has_multiple else None,
             "enabled": s.get("enabled", True) is not False,
             "active": bool(_session_runtime(s["name"])) if s.get("enabled", True) is not False else False,
@@ -1519,6 +1560,8 @@ def create_session_service(options=None):
         "list_sessions": list_sessions,
         "get_session": get_session,
         "set_session_enabled": set_session_enabled,
+        "set_session_label": set_session_label,
+        "clear_session_label": clear_session_label,
         "set_launch_settings": set_launch_settings,
         "unset_launch_settings": unset_launch_settings,
         "record_status": record_status,

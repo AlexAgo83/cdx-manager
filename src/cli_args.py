@@ -20,6 +20,7 @@ EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--
 IMPORT_USAGE = "Usage: cdx import <file> [--force|--merge] [--allow-authless-force] [--json] [--sessions name1,name2] [--passphrase-env VAR|--passphrase-stdin]"
 CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--json]"
+LABEL_USAGE = "Usage: cdx label <name> <label> [--json] | cdx label <name> --clear [--json]"
 SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--model MODEL] [--priority 0..100] [--json]"
 UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--reasoning-effort|--permission|--fast|--rtk|--logics|--model|--priority|--all) [--json]"
 SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]"
@@ -105,6 +106,21 @@ def _parse_rename_args(args):
     if len(args) != 2:
         raise CdxError("Usage: cdx ren <source> <dest> [--json]")
     return {"source": args[0], "dest": args[1]}
+
+
+def _parse_label_args(args):
+    parsed = _parse_flag_args(args, {
+        "--clear": {"key": "clear", "type": "bool", "default": False},
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, LABEL_USAGE, positionals_key="values", max_positionals=2)
+    values = parsed["values"]
+    if parsed["clear"]:
+        if len(values) != 1:
+            raise CdxError(LABEL_USAGE)
+        return {"name": values[0], "label": None, "clear": True, "json": parsed["json"]}
+    if len(values) != 2:
+        raise CdxError(LABEL_USAGE)
+    return {"name": values[0], "label": values[1], "clear": False, "json": parsed["json"]}
 
 
 def _parse_remove_args(args):

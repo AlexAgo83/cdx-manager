@@ -36,6 +36,7 @@ One command to launch any session. Zero auth juggling.
 - **Instant launch.** `cdx work` opens your "work" session. `cdx personal` opens another. No config files to edit mid-flow.
 - **Quick relaunch.** `cdx last` reopens the most recently launched assistant profile.
 - **Auth guardrails.** `cdx` checks authentication before launching. If a session is not logged in, it tells you exactly what to run — no silent failures.
+- **Optional session labels.** `cdx label <name> <label>` adds a short human label; list and full status tables show a `LABEL` column only when at least one session has one.
 - **Usage at a glance.** `cdx status` shows token usage, 5-hour window quota, weekly quota, last-updated timestamps, priority guidance, and the last launched session in one aligned table.
 - **Next-ready notification.** `cdx ready` schedules a native system notification for the next assistant that comes back from cooldown, then returns immediately.
 - **Session control.** Disable a session without deleting it when an account is temporarily out of credits; disabled sessions remain visible and sort last.
@@ -345,6 +346,8 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx add [provider] <name> [--model MODEL] [--json]` | Register a new session (`provider`: `codex`, `claude`, `antigravity`, or `ollama`; Ollama requires `--model`) |
 | `cdx cp <source> <dest> [--json]` | Copy a session into another session name, overwriting the destination if it exists |
 | `cdx ren <source> <dest> [--json]` | Rename a session and move its auth data |
+| `cdx label <name> <label> [--json]` | Attach one short label to a session; tables show `LABEL` only when at least one label exists |
+| `cdx label <name> --clear [--json]` | Clear a session label |
 | `cdx login <name> [--json]` | Re-authenticate a session (logout + login) |
 | `cdx logout <name> [--json]` | Log out of a session |
 | `cdx disable <name> [--json]` | Disable a session without deleting it; disabled sessions stay visible and cannot launch |
@@ -399,6 +402,7 @@ Commands with machine-readable output:
 - `cdx add ... --json`
 - `cdx cp ... --json`
 - `cdx ren ... --json`
+- `cdx label ... --json`
 - `cdx rmv ... --json`
 - `cdx clean ... --json`
 - `cdx disk ... --json`

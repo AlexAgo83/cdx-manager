@@ -403,6 +403,7 @@ class CliPythonTests(unittest.TestCase):
         rows = [
             {
                 "session_name": "main",
+                "label": "work",
                 "provider": "codex",
                 "available_pct": 6,
                 "remaining_5h_pct": 100,
@@ -434,6 +435,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("RESET 5H", header)
         self.assertIn("RESET WEEK", header)
         self.assertIn("RESETS", header)
+        self.assertNotIn("LABEL", header)
         self.assertNotIn("PROV.", header)
         self.assertNotIn("BLOCK", header)
         self.assertNotIn("CR", header)
@@ -441,6 +443,43 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Priority:", output)
         self.assertIn("Current:", output)
         self.assertNotIn("Tip:", output)
+
+    def test_status_full_shows_label_column_only_when_present(self):
+        rows = [
+            {
+                "session_name": "main",
+                "label": "work",
+                "provider": "codex",
+                "auth_status": "authenticated",
+                "available_pct": 80,
+                "remaining_5h_pct": 80,
+                "remaining_week_pct": 80,
+                "credits": None,
+                "reset_5h_at": None,
+                "reset_week_at": None,
+                "updated_at": None,
+            },
+            {
+                "session_name": "side",
+                "provider": "codex",
+                "auth_status": "authenticated",
+                "available_pct": 70,
+                "remaining_5h_pct": 70,
+                "remaining_week_pct": 70,
+                "credits": None,
+                "reset_5h_at": None,
+                "reset_week_at": None,
+                "updated_at": None,
+            },
+        ]
+
+        output = _format_status_rows(rows)
+        self.assertIn("LABEL", output.splitlines()[0])
+        self.assertRegex(output, r"\bmain\s+work\s+enabled\b")
+        self.assertRegex(output, r"\bside\s+-\s+enabled\b")
+
+        no_label = _format_status_rows([{**row, "label": None} for row in rows])
+        self.assertNotIn("LABEL", no_label.splitlines()[0])
 
     def test_status_detail_shows_banked_reset_expiry(self):
         output = _format_status_detail({
@@ -1198,6 +1237,83 @@ class CliPythonTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["action"], "list")
         self.assertEqual(payload["sessions"][0]["name"], "main")
+
+    def test_label_command_updates_json_and_conditional_list_column(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["create_session"]("side")
+
+        no_label_io = self.make_io()
+        self.assertEqual(main([], {
+            **no_label_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertNotIn("LABEL", no_label_io["stdout"].getvalue().splitlines()[1])
+
+        label_io = self.make_io()
+        self.assertEqual(main(["label", "main", " client-a ", "--json"], {
+            **label_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        payload = json.loads(label_io["stdout"].getvalue())
+        self.assertEqual(payload["action"], "label")
+        self.assertEqual(payload["label"], "client-a")
+        self.assertEqual(payload["session"]["label"], "client-a")
+        self.assertNotIn("label", payload["session"]["launch"])
+
+        list_io = self.make_io()
+        self.assertEqual(main([], {
+            **list_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        output = list_io["stdout"].getvalue()
+        self.assertIn("LABEL", output.splitlines()[1])
+        self.assertRegex(output, r"\bmain\s+client-a\s+enabled\b")
+        self.assertRegex(output, r"\bside\s+-\s+enabled\b")
+
+        json_io = self.make_io()
+        self.assertEqual(main(["--json"], {
+            **json_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        sessions = {row["name"]: row for row in json.loads(json_io["stdout"].getvalue())["sessions"]}
+        self.assertEqual(sessions["main"]["label"], "client-a")
+        self.assertIsNone(sessions["side"].get("label"))
+
+        clear_io = self.make_io()
+        self.assertEqual(main(["label", "main", "--clear", "--json"], {
+            **clear_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertIsNone(json.loads(clear_io["stdout"].getvalue())["label"])
+        self.assertNotIn("label", service["get_session"]("main"))
+
+    def test_label_command_rejects_invalid_input_without_mutating(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        service["set_session_label"]("main", "work")
+
+        with self.assertRaisesRegex(CdxError, "Session label"):
+            main(["label", "main", "bad\nlabel"], {
+                **self.make_io(),
+                "service": service,
+                "env": {"CDX_HOME": temp_dir},
+            })
+        with self.assertRaisesRegex(CdxError, "Usage: cdx label"):
+            main(["label", "main"], {
+                **self.make_io(),
+                "service": service,
+                "env": {"CDX_HOME": temp_dir},
+            })
+
+        self.assertEqual(service["get_session"]("main")["label"], "work")
 
     def test_context_commands_store_context_per_workspace(self):
         temp_dir = self.make_temp_dir()
@@ -4407,6 +4523,7 @@ class CliPythonTests(unittest.TestCase):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
         service["create_session"]("main")
+        service["set_session_label"]("main", "work")
         service["record_status"]("main", {
             "remaining_5h_pct": 39,
             "remaining_week_pct": 70,
@@ -4428,6 +4545,7 @@ class CliPythonTests(unittest.TestCase):
         rows = payload["rows"]
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["session_name"], "main")
+        self.assertEqual(rows[0]["label"], "work")
         self.assertEqual(rows[0]["available_pct"], 39)
         self.assertEqual(rows[0]["remaining_5h_pct"], 39)
         self.assertEqual(rows[0]["remaining_week_pct"], 70)
@@ -4445,6 +4563,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(detail_payload["schema_version"], 1)
         row = detail_payload["session"]
         self.assertEqual(row["session_name"], "main")
+        self.assertEqual(row["label"], "work")
         self.assertEqual(row["available_pct"], 39)
         self.assertEqual(row["credits"], 453)
         self.assertEqual(row["reset_5h_at"], "Apr 16 02:21")

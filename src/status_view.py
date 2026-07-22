@@ -75,12 +75,19 @@ def _format_credits(value, empty="n/a"):
 
 def _format_status_rows(rows, use_color=False, small=False):
     has_provider = len({r["provider"] for r in rows}) > 1 and not small
+    has_label = any(r.get("label") for r in rows) and not small
     if small:
         headers = ["SESSION", "STATUS", "OK", "5H", "WEEK", "RESETS", "RESET 5H", "RESET WEEK"]
     elif has_provider:
-        headers = ["SESSION", "PROV.", "STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR", "RESETS", "RESET 5H", "RESET WEEK", "UPDATED"]
+        headers = ["SESSION", "PROV."]
+        if has_label:
+            headers.append("LABEL")
+        headers += ["STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR", "RESETS", "RESET 5H", "RESET WEEK", "UPDATED"]
     else:
-        headers = ["SESSION", "STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR", "RESETS", "RESET 5H", "RESET WEEK", "UPDATED"]
+        headers = ["SESSION"]
+        if has_label:
+            headers.append("LABEL")
+        headers += ["STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR", "RESETS", "RESET 5H", "RESET WEEK", "UPDATED"]
     if not rows:
         if small:
             return "SESSION  STATUS  OK  5H  WEEK  RESETS  RESET 5H  RESET WEEK\nNo saved sessions yet."
@@ -102,6 +109,8 @@ def _format_status_rows(rows, use_color=False, small=False):
         base = [_format_session_name(r)]
         if has_provider:
             base.append(r.get("provider") or "n/a")
+        if has_label:
+            base.append(r.get("label") or "-")
         status = r.get("status") or ("enabled" if r.get("enabled", True) else "disabled")
         base.append(_style(status, "2" if status == "disabled" else "32", use_color))
         if not small:

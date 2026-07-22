@@ -1,6 +1,6 @@
 ## prod_005_session_labeling_for_cdx - Session labeling for cdx
 > Date: 2026-07-23
-> Status: Proposed
+> Status: Settled
 > Related request: `req_012_add_optional_labels_to_cdx_sessions`
 > Related backlog: `item_032_optional_session_labels_in_cli_list_and_status_surfaces`
 > Related task: `task_023_orchestrate_optional_session_labels`
@@ -53,5 +53,5 @@ flowchart LR
 - Copy, rename, export, and import keep labels attached to the session.
 
 # References
-- Product back-reference: `req_012_add_optional_labels_to_cdx_sessions`
+- Product back-reference: `item_032_optional_session_labels_in_cli_list_and_status_surfaces`
 - Task back-reference: `task_023_orchestrate_optional_session_labels`

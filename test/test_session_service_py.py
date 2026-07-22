@@ -44,6 +44,37 @@ class SessionServicePythonTests(unittest.TestCase):
         service["remove_session"]("main")
         self.assertEqual([s["name"] for s in service["list_sessions"]()], ["work1"])
 
+    def test_session_label_set_clear_and_validation(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+
+        updated = service["set_session_label"]("main", "  work  ")
+        self.assertEqual(updated["label"], "work")
+        self.assertNotIn("label", updated["launch"])
+        self.assertEqual(service["format_list_rows"]()[0]["label"], "work")
+
+        for label in ("   ", "bad\nlabel", "x" * 65):
+            with self.assertRaises(CdxError):
+                service["set_session_label"]("main", label)
+        self.assertEqual(service["get_session"]("main")["label"], "work")
+
+        cleared = service["clear_session_label"]("main")
+        self.assertNotIn("label", cleared)
+        self.assertIsNone(service["format_list_rows"]()[0].get("label"))
+
+    def test_session_label_is_preserved_by_copy_and_rename(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("source", "claude")
+        service["set_session_label"]("source", "client-a")
+
+        copied = service["copy_session"]("source", "copy")["session"]
+        self.assertEqual(copied["label"], "client-a")
+
+        renamed = service["rename_session"]("copy", "renamed")
+        self.assertEqual(renamed["label"], "client-a")
+
     def test_create_claude_session_disables_claude_commit_attribution(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -1166,6 +1197,7 @@ class SessionServicePythonTests(unittest.TestCase):
         source_dir = self.make_temp_dir()
         source = create_session_service({"base_dir": source_dir})
         source["create_session"]("main")
+        source["set_session_label"]("main", "work")
         source["record_status"]("main", {
             "remaining_5h_pct": 81,
             "remaining_week_pct": 82,
@@ -1184,6 +1216,7 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertFalse(import_result["include_auth"])
         imported = target["get_session"]("main")
         self.assertEqual(imported["provider"], "codex")
+        self.assertEqual(imported["label"], "work")
         self.assertEqual(imported["lastStatus"]["remaining_5h_pct"], 81)
         self.assertTrue(os.path.exists(os.path.join(target_dir, "state", "main.json")))
 

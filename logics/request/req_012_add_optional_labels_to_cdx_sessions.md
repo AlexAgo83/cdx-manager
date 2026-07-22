@@ -1,7 +1,7 @@
 ## req_012_add_optional_labels_to_cdx_sessions - Add optional labels to cdx sessions
 > From version: 0.11.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Low

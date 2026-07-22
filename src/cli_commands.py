@@ -36,6 +36,7 @@ from .cli_args import (
     _parse_flag_args,
     _parse_history_args,
     _parse_import_args,
+    _parse_label_args,
     _parse_json_flag,
     _parse_launch_setting_alias_args,
     _parse_next_args,
@@ -727,6 +728,21 @@ def handle_rename(rest, ctx):
     message = f"Renamed session {parsed['source']} to {parsed['dest']}"
     if json_flag:
         _write_json(ctx, _json_success("rename", message, session=session))
+        return 0
+    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    return 0
+
+
+def handle_label(rest, ctx):
+    parsed = _parse_label_args(rest)
+    if parsed["clear"]:
+        session = ctx["service"]["clear_session_label"](parsed["name"])
+        message = f"Cleared label for {parsed['name']}"
+    else:
+        session = ctx["service"]["set_session_label"](parsed["name"], parsed["label"])
+        message = f"Set label for {parsed['name']}: {session['label']}"
+    if parsed["json"]:
+        _write_json(ctx, _json_success("label", message, session=session, label=session.get("label")))
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
     return 0
