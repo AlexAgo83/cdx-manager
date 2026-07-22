@@ -1,0 +1,126 @@
+{
+  "title": "Add optional labels to cdx sessions",
+  "references": [
+    "src/session_service.py",
+    "src/cli_render.py",
+    "src/status_view.py",
+    "src/cli_args.py",
+    "src/cli_commands.py",
+    "src/cli.py",
+    "README.md",
+    "test/test_session_service_py.py",
+    "test/test_cli_py.py"
+  ],
+  "request": {
+    "complexity": "Low",
+    "theme": "Operator workflow",
+    "needs": [
+      "Users can already name sessions, but names often encode stable launch identity while users still need a lightweight way to group or annotate sessions by account purpose, workspace, client placeholder, or operational role.",
+      "The label must stay optional and quiet: existing users with no labels should see the same compact list and status tables they see today.",
+      "The feature should fit the existing session metadata model and table conventions instead of adding a new tagging system or changing launch behavior."
+    ],
+    "context": [
+      "Session records are persisted as versioned JSON in `sessions.json`; `create_session` builds the root session metadata in `src/session_service.py`, and `format_list_rows` / `_status_row_from_session` flatten records for display and JSON output.",
+      "The default `cdx` list already uses conditional columns: provider appears only when useful, launch appears only when at least one row has launch settings, and `_pad_table` handles alignment.",
+      "`cdx status` builds rows from service-provided status data and already has compact and full variants; the label should not bloat `--small` unless the implementation deliberately keeps it concise.",
+      "`cdx set` / `cdx unset` are launch-setting commands. A session label is identification metadata, so it should not live under `launch` and should not affect provider command arguments, auth checks, priority selection, or launch history semantics.",
+      "Export/import and copy/rename paths should preserve labels because they preserve session identity metadata."
+    ],
+    "acceptance_criteria": [
+      "AC1: A user can set one optional label on a session with a clear CLI command, and the value is persisted on the session record outside the `launch` dictionary.",
+      "AC2: A user can clear a session label; clearing removes or nulls the stored label so unlabeled sessions remain indistinguishable from legacy records.",
+      "AC3: Label input is normalized and validated: trim surrounding whitespace, reject empty values for set operations, reject control characters, and enforce a bounded length.",
+      "AC4: `cdx` list output adds a `LABEL` column only when at least one listed session has a label; unlabeled rows render as `-`, and output without labels remains unchanged.",
+      "AC5: `cdx status` full output adds a `LABEL` column only when at least one status row has a label; `cdx status --small` stays compact unless the implementation proves the column remains readable.",
+      "AC6: `cdx --json`, `cdx status --json`, and the label command JSON response expose the label consistently for automation consumers.",
+      "AC7: Session copy, rename, export, and import preserve labels; launch, auth, runtime, ready/next/select, and history behavior are otherwise unchanged.",
+      "AC8: Help and README command documentation describe the label command and the conditional label column behavior.",
+      "AC9: Focused tests cover set, clear, validation failures, conditional list/status columns, JSON payloads, and preservation through copy/export/import."
+    ]
+  },
+  "product": {
+    "title": "Session labeling for cdx",
+    "overview": "Add a small optional label field to cdx sessions so users can annotate saved assistant sessions without changing their names, launch settings, authentication state, or provider behavior. Labels appear only when present, keeping the default CLI output compact for existing users.",
+    "goals": [
+      "Let users attach one short human-readable label to a saved session.",
+      "Keep labels as session metadata, separate from launch settings and provider runtime behavior.",
+      "Show labels in list and full status tables only when at least one session has a label.",
+      "Expose labels in JSON outputs so other tools can group or display sessions.",
+      "Preserve labels across copy, rename, export, and import."
+    ],
+    "non_goals": [
+      "Multiple labels or tag filtering.",
+      "Colorized label badges, label search, or label-based sorting.",
+      "Provider-specific account metadata discovery.",
+      "Changing session names, auth homes, launch priority, or provider command construction."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Optional session labels in CLI list and status surfaces",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Operator workflow",
+      "request_acs": [
+        "AC1",
+        "AC2",
+        "AC3",
+        "AC4",
+        "AC5",
+        "AC6",
+        "AC7",
+        "AC8",
+        "AC9"
+      ],
+      "problem": [
+        "Session names are stable launch identifiers, so users avoid renaming them just to express a temporary or human grouping such as a workspace, account role, or client placeholder.",
+        "Adding label visibility unconditionally would make the already dense status table worse for users who do not use labels.",
+        "Putting labels under `launch` would mix display metadata with provider behavior and make existing launch-setting commands carry unrelated responsibility."
+      ],
+      "scope_in": [
+        "Add a root-level optional `label` field to session records, with a small service API such as `set_session_label(name, label)` and `clear_session_label(name)` or one combined updater.",
+        "Add a dedicated CLI surface, recommended as `cdx label <name> <label> [--json]` and `cdx label <name> --clear [--json]`, rather than extending launch-setting `set` / `unset`.",
+        "Validate labels with the same defensive style as session names: strip surrounding whitespace, reject empty set values, reject ASCII control characters, and enforce a bounded maximum length such as 64 characters.",
+        "Include `label` in `format_list_rows()` and `_status_row_from_session()` so text and JSON outputs use the same source.",
+        "Add a conditional `LABEL` column to `_format_sessions()` and full `_format_status_rows()` only when any row has a non-empty label; render unlabeled rows as `-`; keep `--small` compact.",
+        "Preserve labels through `copy_session`, `rename_session`, `_build_export_session_record`, and import replacement records.",
+        "Update help text, README command table, and JSON-output documentation for the new command and optional column.",
+        "Add focused unit tests in `test/test_session_service_py.py` and `test/test_cli_py.py` for persistence, validation, text output, JSON payloads, and copy/export/import preservation."
+      ],
+      "scope_out": [
+        "Multiple labels per session.",
+        "Filtering commands such as `cdx --label X`, `cdx status --label X`, or label-aware `cdx select`.",
+        "Label color, formatting themes, or terminal badge rendering.",
+        "Automatic labels inferred from provider account email, workspace path, or auth state.",
+        "Database or store schema migration beyond tolerating legacy sessions without a label key."
+      ],
+      "acceptance_criteria": [
+        "`cdx label main work` persists `label: \"work\"` on the `main` session record outside `launch` and updates `updatedAt`.",
+        "`cdx label main --clear` removes or clears the label and updates `updatedAt`; a following `cdx` list has no `LABEL` column if no other labels exist.",
+        "Labels with only whitespace, control characters, or more than the allowed maximum fail with a short `CdxError` message and do not mutate the session.",
+        "The default `cdx` table is byte-for-byte unchanged when no sessions have labels, aside from existing timestamp variability; when one label exists, the table includes `LABEL` and unlabeled rows show `-`.",
+        "The full `cdx status` table includes `LABEL` only when any status row has a label; `cdx status --small` remains unchanged.",
+        "`cdx --json` and `cdx status --json` include `label` for labeled sessions and omit or null it consistently for unlabeled sessions.",
+        "Copy, rename, export, and import preserve the label while keeping auth homes, launch settings, and status data behavior unchanged.",
+        "Tests cover the service API, CLI command, validation errors, conditional columns, JSON output, and preservation paths."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate optional session labels",
+    "plan": [
+      "Start with the session-service data model: add label validation, root-level persistence, and service methods for set and clear.",
+      "Propagate label into list and status row builders without changing sort order, priority selection, auth checks, launch settings, or runtime state.",
+      "Add the dedicated `cdx label` parser and handler, wire it into the command registry, and return concise text and JSON responses.",
+      "Add conditional `LABEL` columns to the default list and full status formatters, leaving no-label and small-status output compact.",
+      "Preserve labels in copy, rename, export, and import paths.",
+      "Update help and README documentation.",
+      "Run focused CLI and service tests, then the relevant unittest files."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/add_session_labels.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}

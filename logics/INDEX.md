@@ -19,6 +19,7 @@
 | [prod_002_headless_automation_contract_for_orchestia](product/prod_002_headless_automation_contract_for_orchestia.md) | Headless automation contract for Orchestia | Settled |  |  | product/prod_002_headless_automation_contract_for_orchestia.md |
 | [prod_003_code_review_remediation_wave_2026_07](product/prod_003_code_review_remediation_wave_2026_07.md) | Code review remediation wave 2026-07 | Proposed |  |  | product/prod_003_code_review_remediation_wave_2026_07.md |
 | [prod_004_post_remediation_hardening_follow_up_2026_07](product/prod_004_post_remediation_hardening_follow_up_2026_07.md) | Post-remediation hardening follow-up 2026-07 | Settled |  |  | product/prod_004_post_remediation_hardening_follow_up_2026_07.md |
+| [prod_005_session_labeling_for_cdx](product/prod_005_session_labeling_for_cdx.md) | Session labeling for cdx | Proposed |  |  | product/prod_005_session_labeling_for_cdx.md |
 
 ## Roadmaps
 
@@ -40,6 +41,7 @@ _None_
 | [req_009_address_codebase_audit_findings](request/req_009_address_codebase_audit_findings.md) | Address codebase audit findings: hardening, deprecations, and maintainability | Done |  |  | request/req_009_address_codebase_audit_findings.md |
 | [req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup](request/req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup.md) | Address July 2026 code review findings: data-safety, reliability, and cleanup | Done |  |  | request/req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup.md |
 | [req_011_address_july_2026_post_remediation_review_follow_up_findings](request/req_011_address_july_2026_post_remediation_review_follow_up_findings.md) | Address July 2026 post-remediation review follow-up findings | Done |  |  | request/req_011_address_july_2026_post_remediation_review_follow_up_findings.md |
+| [req_012_add_optional_labels_to_cdx_sessions](request/req_012_add_optional_labels_to_cdx_sessions.md) | Add optional labels to cdx sessions | Draft |  |  | request/req_012_add_optional_labels_to_cdx_sessions.md |
 
 ## Backlog
 
@@ -77,6 +79,7 @@ _None_
 | [item_029_fix_standalone_windows_installer_launcher_generation](backlog/item_029_fix_standalone_windows_installer_launcher_generation.md) | Fix standalone Windows installer launcher generation | Done |  | 100% | backlog/item_029_fix_standalone_windows_installer_launcher_generation.md |
 | [item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout](backlog/item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout.md) | Preserve degraded auth semantics on provider probe timeout | Done |  | 100% | backlog/item_030_preserve_degraded_auth_semantics_on_provider_probe_timeout.md |
 | [item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors](backlog/item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors.md) | Reject malformed import bundle profile entries with controlled errors | Done |  | 100% | backlog/item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors.md |
+| [item_032_optional_session_labels_in_cli_list_and_status_surfaces](backlog/item_032_optional_session_labels_in_cli_list_and_status_surfaces.md) | Optional session labels in CLI list and status surfaces | Ready |  | 0% | backlog/item_032_optional_session_labels_in_cli_list_and_status_surfaces.md |
 
 ## Tasks
 
@@ -107,3 +110,4 @@ _None_
 | [task_020_address_codebase_audit_findings_hardening_deprecations_and_maintainability](tasks/task_020_address_codebase_audit_findings_hardening_deprecations_and_maintainability.md) | Address codebase audit findings: hardening, deprecations, and maintainability | Done |  | 100% | tasks/task_020_address_codebase_audit_findings_hardening_deprecations_and_maintainability.md |
 | [task_021_orchestrate_july_2026_code_review_remediation](tasks/task_021_orchestrate_july_2026_code_review_remediation.md) | Orchestrate July 2026 code review remediation | Done |  | 100% | tasks/task_021_orchestrate_july_2026_code_review_remediation.md |
 | [task_022_orchestrate_post_remediation_hardening_follow_up](tasks/task_022_orchestrate_post_remediation_hardening_follow_up.md) | Orchestrate post-remediation hardening follow-up | Done | codex | 100% | tasks/task_022_orchestrate_post_remediation_hardening_follow_up.md |
+| [task_023_orchestrate_optional_session_labels](tasks/task_023_orchestrate_optional_session_labels.md) | Orchestrate optional session labels | Ready |  | 0% | tasks/task_023_orchestrate_optional_session_labels.md |

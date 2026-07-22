@@ -1,0 +1,348 @@
+{
+  "budgets": {
+    "max_docs": 12,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_032_optional_session_labels_in_cli_list_and_status_surfaces.md",
+    "logics/product/prod_005_session_labeling_for_cdx.md",
+    "logics/request/req_012_add_optional_labels_to_cdx_sessions.md",
+    "logics/scaffold/add_session_labels.json",
+    "logics/tasks/task_023_orchestrate_optional_session_labels.md"
+  ],
+  "command": "logics-manager sync context-pack req_012_add_optional_labels_to_cdx_sessions item_032_optional_session_labels_in_cli_list_and_status_surfaces task_023_orchestrate_optional_session_labels --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_032_optional_session_labels_in_cli_list_and_status_surfaces"
+        ],
+        "prod": [
+          "prod_005_session_labeling_for_cdx"
+        ],
+        "req": [
+          "req_012_add_optional_labels_to_cdx_sessions"
+        ],
+        "task": [
+          "task_023_orchestrate_optional_session_labels"
+        ]
+      },
+      "path": "logics/product/prod_005_session_labeling_for_cdx.md",
+      "ref": "prod_005_session_labeling_for_cdx",
+      "sections": {
+        "Goals": [
+          "- Let users attach one short human-readable label to a saved session.",
+          "- Keep labels as session metadata, separate from launch settings and provider runtime behavior.",
+          "- Show labels in list and full status tables only when at least one session has a label.",
+          "- Expose labels in JSON outputs so other tools can group or display sessions.",
+          "- Preserve labels across copy, rename, export, and import."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Add a small optional label field to cdx sessions so users can annotate saved assistant sessions without changing their names, launch settings, authentication state, or provider behavior. Labels appear only when present, keeping the default CLI output compact for existing users."
+        ],
+        "References": [
+          "- Product back-reference: `req_012_add_optional_labels_to_cdx_sessions`",
+          "- Task back-reference: `task_023_orchestrate_optional_session_labels`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Session labeling for cdx"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, add optional labels to cdx sessions, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Add optional labels to cdx sessions",
+        "use when": "You need to implement or review the scaffolded workflow for Add optional labels to cdx sessions."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_032_optional_session_labels_in_cli_list_and_status_surfaces"
+        ],
+        "prod": [
+          "prod_005_session_labeling_for_cdx"
+        ],
+        "req": [
+          "req_012_add_optional_labels_to_cdx_sessions"
+        ]
+      },
+      "path": "logics/request/req_012_add_optional_labels_to_cdx_sessions.md",
+      "ref": "req_012_add_optional_labels_to_cdx_sessions",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A user can set one optional label on a session with a clear CLI command, and the value is persisted on the session record outside the `launch` dictionary.",
+          "- AC2: A user can clear a session label; clearing removes or nulls the stored label so unlabeled sessions remain indistinguishable from legacy records.",
+          "- AC3: Label input is normalized and validated: trim surrounding whitespace, reject empty values for set operations, reject control characters, and enforce a bounded length.",
+          "- AC4: `cdx` list output adds a `LABEL` column only when at least one listed session has a label; unlabeled rows render as `-`, and output without labels remains unchanged.",
+          "- AC5: `cdx status` full output adds a `LABEL` column only when at least one status row has a label; `cdx status --small` stays compact unless the implementation proves the column remains readable.",
+          "- AC6: `cdx --json`, `cdx status --json`, and the label command JSON response expose the label consistently for automation consumers."
+        ],
+        "Needs": [
+          "- Users can already name sessions, but names often encode stable launch identity while users still need a lightweight way to group or annotate sessions by account purpose, workspace, client placeholder, or operational role.",
+          "- The label must stay optional and quiet: existing users with no labels should see the same compact list and status tables they see today.",
+          "- The feature should fit the existing session metadata model and table conventions instead of adding a new tagging system or changing launch behavior."
+        ]
+      },
+      "status": "Draft",
+      "title": "Add optional labels to cdx sessions"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, optional session labels in cli list and status surfaces, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Optional session labels in CLI list and status surfaces",
+        "use when": "Implementing the scaffolded slice for Optional session labels in CLI list and status surfaces."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_032_optional_session_labels_in_cli_list_and_status_surfaces"
+        ],
+        "prod": [
+          "prod_005_session_labeling_for_cdx"
+        ],
+        "req": [
+          "req_012_add_optional_labels_to_cdx_sessions"
+        ],
+        "task": [
+          "task_023_orchestrate_optional_session_labels"
+        ]
+      },
+      "path": "logics/backlog/item_032_optional_session_labels_in_cli_list_and_status_surfaces.md",
+      "ref": "item_032_optional_session_labels_in_cli_list_and_status_surfaces",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- `cdx label main work` persists `label: \"work\"` on the `main` session record outside `launch` and updates `updatedAt`.",
+          "- `cdx label main --clear` removes or clears the label and updates `updatedAt`; a following `cdx` list has no `LABEL` column if no other labels exist.",
+          "- Labels with only whitespace, control characters, or more than the allowed maximum fail with a short `CdxError` message and do not mutate the session.",
+          "- The default `cdx` table is byte-for-byte unchanged when no sessions have labels, aside from existing timestamp variability; when one label exists, the table includes `LABEL` and unlabeled rows show `-`.",
+          "- The full `cdx status` table includes `LABEL` only when any status row has a label; `cdx status --small` remains unchanged.",
+          "- `cdx --json` and `cdx status --json` include `label` for labeled sessions and omit or null it consistently for unlabeled sessions."
+        ],
+        "Problem": [
+          "- Session names are stable launch identifiers, so users avoid renaming them just to express a temporary or human grouping such as a workspace, account role, or client placeholder.",
+          "- Adding label visibility unconditionally would make the already dense status table worse for users who do not use labels.",
+          "- Putting labels under `launch` would mix display metadata with provider behavior and make existing launch-setting commands carry unrelated responsibility."
+        ]
+      },
+      "status": "Ready",
+      "title": "Optional session labels in CLI list and status surfaces"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_032_optional_session_labels_in_cli_list_and_status_surfaces"
+        ],
+        "prod": [
+          "prod_005_session_labeling_for_cdx"
+        ],
+        "req": [
+          "req_012_add_optional_labels_to_cdx_sessions"
+        ],
+        "task": [
+          "task_023_orchestrate_optional_session_labels"
+        ]
+      },
+      "path": "logics/product/prod_005_session_labeling_for_cdx.md",
+      "ref": "prod_005_session_labeling_for_cdx",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Session labeling for cdx"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate optional session labels",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_032_optional_session_labels_in_cli_list_and_status_surfaces"
+        ],
+        "prod": [
+          "prod_005_session_labeling_for_cdx"
+        ],
+        "req": [
+          "req_012_add_optional_labels_to_cdx_sessions"
+        ],
+        "task": [
+          "task_023_orchestrate_optional_session_labels"
+        ]
+      },
+      "path": "logics/tasks/task_023_orchestrate_optional_session_labels.md",
+      "ref": "task_023_orchestrate_optional_session_labels",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- Run `python3 -m logics_manager lint --require-status`.",
+          "- Run scaffold command tests."
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate optional session labels"
+    }
+  ],
+  "estimates": {
+    "char_count": 7688,
+    "companion_doc_count": 1,
+    "doc_count": 4
+  },
+  "generated_at": "2026-07-22T23:20:46Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_012_add_optional_labels_to_cdx_sessions",
+      "item_032_optional_session_labels_in_cli_list_and_status_surfaces",
+      "task_023_orchestrate_optional_session_labels"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_012_add_optional_labels_to_cdx_sessions,item_032_optional_session_labels_in_cli_list_and_status_surfaces,task_023_orchestrate_optional_session_labels",
+  "refs": [
+    "req_012_add_optional_labels_to_cdx_sessions",
+    "item_032_optional_session_labels_in_cli_list_and_status_surfaces",
+    "task_023_orchestrate_optional_session_labels"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.11.0"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- Run `python3 -m logics_manager lint --require-status`.",
+        "- Run scaffold command tests."
+      ],
+      "path": "logics/tasks/task_023_orchestrate_optional_session_labels.md",
+      "ref": "task_023_orchestrate_optional_session_labels"
+    }
+  ]
+}
