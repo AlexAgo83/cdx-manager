@@ -77,7 +77,7 @@ from .status_view import (
 )
 from .update_check import check_for_update, check_logics_manager_for_update
 
-VERSION = "0.11.1"
+VERSION = "0.11.2"
 
 # Public surface: this module is a facade. Names below are imported above
 # purely to be re-exported (consumed by tests and external callers); listing
