@@ -4814,6 +4814,62 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(live_auth["detail"]["live_status"], "authenticated")
         self.assertNotIn("secret-token", json.dumps(payload))
 
+    def test_doctor_treats_shared_codex_business_account_id_as_ambiguous(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        first = service["create_session"]("worka")
+        second = service["create_session"]("workb")
+        for session, email in ((first, "paul@example.com"), (second, "romaric@example.com")):
+            with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+                json.dump({"tokens": {"refresh_token": "secret-token", "account_id": "acct-business-123456789"}}, handle)
+            log_dir = os.path.join(session["authHome"], "log")
+            os.makedirs(log_dir, exist_ok=True)
+            with open(os.path.join(log_dir, "cdx-session.log"), "w", encoding="utf-8") as handle:
+                handle.write(f"Account: {email} (Business)\n")
+        harness = _AuthHarness()
+
+        doctor_io = self.make_io()
+        self.assertEqual(main(["doctor", "--json"], {
+            **doctor_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        payload = json.loads(doctor_io["stdout"].getvalue())
+        issue = next(item for item in payload["report"]["issues"] if item["code"] == "codex_shared_account_id")
+        self.assertEqual(issue["status"], "OK")
+        self.assertEqual(issue["detail"]["account_id"], "acct-b...6789")
+        self.assertEqual(issue["detail"]["observed_identities"], ["paul@example.com", "romaric@example.com"])
+        self.assertIn("not a user identity", issue["message"])
+        self.assertNotIn("secret-token", json.dumps(payload))
+
+    def test_doctor_reports_recent_codex_stale_auth_logs(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        session = service["create_session"]("main")
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"refresh_token": "secret-token"}}, handle)
+        log_dir = os.path.join(session["authHome"], "log")
+        os.makedirs(log_dir, exist_ok=True)
+        with open(os.path.join(log_dir, "cdx-session.log"), "w", encoding="utf-8") as handle:
+            handle.write("HTTP 401 token_expired: authentication token is expired\n")
+
+        doctor_io = self.make_io()
+        self.assertEqual(main(["doctor", "--json"], {
+            **doctor_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn_sync": _AuthHarness().spawn_sync,
+        }), 0)
+
+        payload = json.loads(doctor_io["stdout"].getvalue())
+        issue = next(item for item in payload["report"]["issues"] if item["code"] == "codex_stale_auth_logs")
+        self.assertEqual(issue["status"], "WARN")
+        self.assertEqual(issue["detail"]["markers"], ["token_expired", "authentication token is expired", "http 401"])
+        self.assertIn("cdx login main", issue["message"])
+        self.assertNotIn("secret-token", json.dumps(payload))
+
     def test_doctor_reports_codex_auth_probe_timeout_as_degraded(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

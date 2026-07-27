@@ -166,6 +166,19 @@ def _read_codex_account_email(auth_home):
     return None
 
 
+def _read_codex_account_id(auth_home):
+    try:
+        with open(os.path.join(auth_home, "auth.json"), encoding="utf-8") as handle:
+            auth = json.load(handle)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return None
+    tokens = auth.get("tokens") if isinstance(auth, dict) else {}
+    account_id = tokens.get("account_id") if isinstance(tokens, dict) else None
+    if not account_id:
+        return None
+    return str(account_id).strip() or None
+
+
 def codex_auth_diagnostic(session, spawn_sync=None, env_override=None):
     auth_home = _get_auth_home(session)
     auth_path = os.path.join(auth_home, "auth.json")
@@ -174,6 +187,7 @@ def codex_auth_diagnostic(session, spawn_sync=None, env_override=None):
         "auth_json_exists": os.path.isfile(auth_path),
         "local_tokens_present": _has_local_codex_auth(auth_home),
         "account_email": _read_codex_account_email(auth_home),
+        "account_id": _read_codex_account_id(auth_home),
         "live_status": "unknown",
         "live_error": None,
     }

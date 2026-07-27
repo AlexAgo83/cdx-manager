@@ -3,11 +3,13 @@ import os
 import shutil
 import sys
 import tempfile
+from datetime import datetime, timezone
 from urllib.parse import quote, unquote
 
 from .cli_render import _pad_table, _style
 from .config import PROVIDER_CODEX
 from .provider_runtime import codex_auth_diagnostic
+from .status_source import _extract_account_identity
 
 
 def _encode(name):
@@ -73,6 +75,7 @@ def collect_health_report(service, base_dir, env=None, spawn_sync=None):
     issues.append(_check_cdx_home(base_dir))
     sessions = service["list_sessions"]()
     session_names = {session["name"] for session in sessions}
+    codex_diagnostics = []
     for session in sessions:
         name = session["name"]
         root = session.get("sessionRoot") or service["get_session_root"](name)
@@ -82,16 +85,19 @@ def collect_health_report(service, base_dir, env=None, spawn_sync=None):
         if not os.path.isfile(state_path):
             issues.append(_issue("FAIL", "missing_state", f"session {name} state file is missing", state_path, True))
         if session.get("provider") == PROVIDER_CODEX:
-            issues.extend(_codex_auth_issues(session, spawn_sync=spawn_sync, env=env))
+            diag = codex_auth_diagnostic(session, spawn_sync=spawn_sync, env_override=env)
+            diag["observed_account"] = _recent_codex_observed_account(diag.get("auth_home"))
+            codex_diagnostics.append((session, diag))
+            issues.extend(_codex_auth_issues(session, diag))
 
+    issues.extend(_codex_shared_account_id_issues(codex_diagnostics))
     issues.extend(_collect_profile_issues(base_dir, session_names))
     return {"base_dir": base_dir, "issues": issues, "summary": summarize_health(issues)}
 
 
-def _codex_auth_issues(session, spawn_sync=None, env=None):
+def _codex_auth_issues(session, diag):
     name = session["name"]
-    diag = codex_auth_diagnostic(session, spawn_sync=spawn_sync, env_override=env)
-    identity = diag.get("account_email") or "unknown account"
+    identity = diag.get("account_email") or diag.get("observed_account") or "unknown account"
     issues = [
         _issue(
             "OK" if diag.get("auth_json_exists") else "WARN",
@@ -103,6 +109,8 @@ def _codex_auth_issues(session, spawn_sync=None, env=None):
                 "auth_json_exists": diag.get("auth_json_exists"),
                 "local_tokens_present": diag.get("local_tokens_present"),
                 "account_email": diag.get("account_email"),
+                "observed_account": diag.get("observed_account"),
+                "account_id": _mask_identifier(diag.get("account_id")),
             },
         )
     ]
@@ -120,7 +128,124 @@ def _codex_auth_issues(session, spawn_sync=None, env=None):
             "live_error": diag.get("live_error"),
         },
     ))
+    stale_auth = _recent_codex_auth_error(diag.get("auth_home"))
+    if stale_auth:
+        issues.append(_issue(
+            "WARN",
+            "codex_stale_auth_logs",
+            f"session {name} recent Codex logs mention expired auth; run cdx login {name} if disconnects continue",
+            {
+                "session": name,
+                "auth_home": diag.get("auth_home"),
+                "source": stale_auth["source"],
+                "mtime": stale_auth["mtime"],
+                "markers": stale_auth["markers"],
+            },
+        ))
     return issues
+
+
+def _codex_shared_account_id_issues(codex_diagnostics):
+    by_account_id = {}
+    for session, diag in codex_diagnostics:
+        account_id = diag.get("account_id")
+        if account_id:
+            by_account_id.setdefault(account_id, []).append((session, diag))
+
+    issues = []
+    for account_id, rows in sorted(by_account_id.items()):
+        if len(rows) < 2:
+            continue
+        identities = sorted({
+            _identity_user_part(diag.get("account_email") or diag.get("observed_account"))
+            for _session, diag in rows
+            if _identity_user_part(diag.get("account_email") or diag.get("observed_account"))
+        })
+        sessions = [session["name"] for session, _diag in rows]
+        status = "OK" if len(identities) > 1 else "WARN"
+        message = (
+            "Codex profiles share a Business account_id but observed different users; account_id is not a user identity"
+            if status == "OK"
+            else "Codex profiles share account_id; on Business plans this may be a workspace id, not proof of duplicate user auth"
+        )
+        issues.append(_issue(
+            status,
+            "codex_shared_account_id",
+            message,
+            {
+                "sessions": sessions,
+                "account_id": _mask_identifier(account_id),
+                "observed_identities": identities,
+            },
+        ))
+    return issues
+
+
+def _identity_user_part(value):
+    if not value:
+        return None
+    return str(value).strip().lower().split()[0].split("(", 1)[0]
+
+
+def _mask_identifier(value):
+    if not value:
+        return None
+    text = str(value)
+    return text if len(text) <= 8 else f"{text[:6]}...{text[-4:]}"
+
+
+def _recent_codex_observed_account(auth_home):
+    for path in _recent_codex_log_paths(auth_home):
+        text = _read_tail(path)
+        account = _extract_account_identity(text)
+        if account:
+            return account
+    return None
+
+
+def _recent_codex_auth_error(auth_home):
+    markers = ("token_expired", "authentication token is expired", "http 401")
+    for path in _recent_codex_log_paths(auth_home):
+        text = _read_tail(path).lower()
+        found = [marker for marker in markers if marker in text]
+        if found:
+            try:
+                mtime = datetime.fromtimestamp(os.path.getmtime(path), timezone.utc).isoformat().replace("+00:00", "Z")
+            except OSError:
+                mtime = None
+            return {"source": path, "mtime": mtime, "markers": found}
+    return None
+
+
+def _recent_codex_log_paths(auth_home):
+    if not auth_home:
+        return []
+    candidates = []
+    for root in (os.path.join(auth_home, "log"), os.path.join(auth_home, "sessions")):
+        if not os.path.isdir(root):
+            continue
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [name for name in dirnames if name not in {"cache", "plugins", "skills", "sqlite"}]
+            for filename in filenames:
+                if filename.endswith((".log", ".jsonl")):
+                    path = os.path.join(dirpath, filename)
+                    try:
+                        stat = os.stat(path)
+                    except OSError:
+                        continue
+                    candidates.append((stat.st_mtime, path))
+    return [path for _mtime, path in sorted(candidates, reverse=True)[:16]]
+
+
+def _read_tail(path, max_bytes=128 * 1024):
+    try:
+        with open(path, "rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            handle.seek(max(0, size - max_bytes))
+            return handle.read().decode("utf-8", errors="replace")
+    except OSError:
+        return ""
 
 
 def _check_cdx_home(base_dir):
