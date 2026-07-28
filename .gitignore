@@ -9,6 +9,7 @@ logics/hybrid_assist_audit.jsonl
 logics/hybrid_assist_measurements.jsonl
 logics/mutation_audit.jsonl
 logics/release/evidence.jsonl
+logics/external/*
 node_modules/
 
 # Python build artifacts
