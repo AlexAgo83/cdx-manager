@@ -2,9 +2,9 @@
 > From version: 0.11.2
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Understanding: 95
+> Confidence: 90
+> Progress: 0
 > Complexity: Low
 > Theme: Operator workflow
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -14,6 +14,7 @@
 - Current workspace inference is not enough when the user wants to append to global memory or to a named project from another repo.
 - `cdx context set` replaces the whole file, so a quick one-line decision note is more dangerous than it needs to be.
 - Provider-private memory files exist under profiles, but using them would be brittle, opaque, and outside the stable `cdx-manager` contract.
+- Codex and Claude Code now both expose richer memory concepts, so users are likely to ask for memory management in `cdx`; the first slice should give them one explicit local interface without trying to mirror every provider-native memory model.
 
 # Scope
 - In:
@@ -24,12 +25,15 @@
   - Validate that `--global` and `--project` are not combined, that `--project` is not empty, and that append text is not empty after trimming.
   - Return concise text output and parseable JSON for memory actions, with action names such as `memory.view`, `memory.set`, and `memory.append`, plus scope metadata.
   - Update top-level help, short command help, README command table, data layout notes, and shared handoff documentation where needed.
+  - Document provider boundaries explicitly: `cdx memory` stores user-controlled Markdown and does not edit Codex SQLite memory, Claude Code auto memory, `CLAUDE.md`, or provider plugin/skill files.
   - Add focused unit tests in `test/test_context_store_py.py` and `test/test_cli_py.py`.
 - Out:
   - New persistent storage outside `contexts/<workspace-hash>/context.md`.
   - Direct access to `profiles/*/memories_*.sqlite` or any other provider-owned database.
   - Automatic summarization, compression, or transcript mining.
   - Multi-workspace memory browsing, project listing, global memory aggregation, or cross-machine sync.
+  - Provider-native memory import/export, including Codex import migration, Claude Code `MEMORY.md`, `CLAUDE.md`, and `.claude/rules/`.
+  - `cdx doctor` checks for Claude/Codex model compatibility, fast mode support, or headless stream-json fields.
   - Permissions, ACLs, encryption, or remote APIs beyond the existing local file behavior.
 
 # Acceptance criteria
@@ -43,6 +47,7 @@
 - Whitespace-only append input, empty `--project`, and combined `--global --project` fail with `CdxError` and do not create or modify memory files.
 - `cdx context` behavior and existing context/handoff tests continue to pass unchanged.
 - Documentation tells users to use `cdx memory` for explicit current/global/project memory and warns that provider-private memory files are not the supported interface.
+- Documentation leaves a clear future path for provider-native import/export without promising it in this slice.
 - The implementation passes the focused context/CLI tests and the Logics validation commands.
 
 # AC Traceability

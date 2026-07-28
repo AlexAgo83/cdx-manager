@@ -4,59 +4,11 @@
     "max_docs_per_ref": 4
   },
   "changed_paths": [
-    "logics/backlog/item_033_scoped_memory_alias_and_append_command.md",
     "logics/external/conclusion-3-repetitions.md",
-    "logics/external/orchestrato-cost-of-pass-recap-3-repetitions.xlsx",
-    "logics/product/prod_006_workspace_memory_command_for_cdx.md",
-    "logics/request/req_013_add_a_small_workspace_memory_command_to_cdx.md",
-    "logics/scaffold/add_workspace_memory_command.json",
-    "logics/tasks/task_024_orchestrate_workspace_memory_command.md"
+    "logics/external/orchestrato-cost-of-pass-recap-3-repetitions.xlsx"
   ],
-  "command": "logics-manager sync context-pack req_013_add_a_small_workspace_memory_command_to_cdx item_033_scoped_memory_alias_and_append_command task_024_orchestrate_workspace_memory_command --mode diff-first --profile normal --handoff",
-  "companion_docs": [
-    {
-      "kind": "product",
-      "linked_refs": {
-        "item": [
-          "item_033_scoped_memory_alias_and_append_command"
-        ],
-        "prod": [
-          "prod_006_workspace_memory_command_for_cdx"
-        ],
-        "req": [
-          "req_013_add_a_small_workspace_memory_command_to_cdx"
-        ],
-        "task": [
-          "task_024_orchestrate_workspace_memory_command"
-        ]
-      },
-      "path": "logics/product/prod_006_workspace_memory_command_for_cdx.md",
-      "ref": "prod_006_workspace_memory_command_for_cdx",
-      "sections": {
-        "Goals": [
-          "- Make the existing workspace context easier to discover as project memory.",
-          "- Let users maintain current-workspace, global, and explicitly selected project memory.",
-          "- Let users append short notes or decisions without opening an editor or rewriting the full context.",
-          "- Keep one storage model based on user-controlled Markdown files under `~/.cdx/contexts/`.",
-          "- Keep `cdx context` and `cdx handoff` behavior compatible for existing users and scripts.",
-          "- Avoid provider-private memory internals and expose only user-controlled Markdown memory."
-        ],
-        "Key product decisions": [
-          "- Use structured input as the source of truth for generated docs.",
-          "- Keep generated write paths local and repo-bounded."
-        ],
-        "Overview": [
-          "Expose the existing shared context storage as a clearer `cdx memory` command, with current-workspace, global, and explicit project scopes plus a minimal append operation for durable notes. The command reuses user-controlled Markdown context files and handoff flow so assistant sessions can share memory without depending on provider-private databases."
-        ],
-        "References": [
-          "- Product back-reference: `req_013_add_a_small_workspace_memory_command_to_cdx`",
-          "- Task back-reference: `task_024_orchestrate_workspace_memory_command`"
-        ]
-      },
-      "status": "Proposed",
-      "title": "Workspace memory command for cdx"
-    }
-  ],
+  "command": "logics-manager sync context-pack req_013_add_a_small_workspace_memory_command_to_cdx item_033_scoped_memory_alias_and_append_command task_024_orchestrate_workspace_memory_command --mode diff-first --profile normal",
+  "companion_docs": [],
   "docs": [
     {
       "ai_context": {
@@ -137,7 +89,8 @@
           "- `cdx context` is technically accurate but not obvious to users asking where durable project memory lives.",
           "- Current workspace inference is not enough when the user wants to append to global memory or to a named project from another repo.",
           "- `cdx context set` replaces the whole file, so a quick one-line decision note is more dangerous than it needs to be.",
-          "- Provider-private memory files exist under profiles, but using them would be brittle, opaque, and outside the stable `cdx-manager` contract."
+          "- Provider-private memory files exist under profiles, but using them would be brittle, opaque, and outside the stable `cdx-manager` contract.",
+          "- Codex and Claude Code now both expose richer memory concepts, so users are likely to ask for memory management in `cdx`; the first slice should give them one explicit local interface without trying to mirror every provider-native memory model."
         ]
       },
       "status": "Ready",
@@ -194,7 +147,9 @@
       "schema_version": "1.0",
       "sections": {
         "Context": [
-          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked.",
+          "- Recent Codex and Claude Code releases make memory more visible, but this task should still ship the smallest useful `cdx` surface: scoped Markdown memory plus append.",
+          "- Provider-native memory and diagnostics are useful follow-ups. Do not write Codex SQLite memory, Claude Code auto memory, `CLAUDE.md`, plugin files, or model settings in this implementation."
         ],
         "Validation": [
           "- Run `python3 -m logics_manager lint --require-status`.",
@@ -206,20 +161,20 @@
     }
   ],
   "estimates": {
-    "char_count": 8169,
-    "companion_doc_count": 1,
+    "char_count": 7045,
+    "companion_doc_count": 0,
     "doc_count": 4
   },
-  "generated_at": "2026-07-28T17:14:47Z",
+  "generated_at": "2026-07-28T17:26:39Z",
   "handoff": {
-    "companion_doc_count": 1,
-    "enabled": true,
+    "companion_doc_count": 0,
+    "enabled": false,
     "source_refs": [
       "req_013_add_a_small_workspace_memory_command_to_cdx",
       "item_033_scoped_memory_alias_and_append_command",
       "task_024_orchestrate_workspace_memory_command"
     ],
-    "validation_summary_count": 1
+    "validation_summary_count": 0
   },
   "i18n": {
     "actions": [
@@ -340,14 +295,5 @@
     "state": "blocked",
     "target_version": "0.11.2"
   },
-  "validation_summary": [
-    {
-      "items": [
-        "- Run `python3 -m logics_manager lint --require-status`.",
-        "- Run scaffold command tests."
-      ],
-      "path": "logics/tasks/task_024_orchestrate_workspace_memory_command.md",
-      "ref": "task_024_orchestrate_workspace_memory_command"
-    }
-  ]
+  "validation_summary": []
 }

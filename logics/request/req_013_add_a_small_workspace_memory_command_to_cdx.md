@@ -2,8 +2,8 @@
 > From version: 0.11.2
 > Schema version: 1.0
 > Status: Draft
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95
+> Confidence: 90
 > Complexity: Low
 > Theme: Operator workflow
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
@@ -19,6 +19,9 @@
 - `src/cli_commands.py::handle_context` already exposes `cdx context show|path|init|edit|clear|set [text...] [--json]` and `cdx handoff` already installs the same context as `shared-context.md` into a target provider profile.
 - The current context API accepts `cwd`, so a project selector can stay small by resolving the memory scope before calling the existing store helpers.
 - Codex profiles may contain provider-owned SQLite files such as `memories_1.sqlite`; this request must not inspect, mutate, merge, or depend on those internal files.
+- Recent Codex releases added stronger local memory/import signals, including migration from Claude Code project memory and related project settings. `cdx memory` should keep its storage explicit and user-controlled so a later import/export bridge can target it without coupling to Codex internals.
+- Recent Claude Code releases document project auto memory under `~/.claude/projects/<project>/memory/`, `MEMORY.md`, and `/memory`, plus global/project instruction files. This request should treat those as provider-owned sources for possible future sync/export, not as the primary `cdx` memory store.
+- Recent Claude Code and Codex changes also expose richer model, effort, headless JSON, subagent, and MCP diagnostics. Those are useful follow-ups for `cdx doctor`, `cdx status`, and `cdx run --json`, but they should not block the first memory command.
 - The smallest useful product surface is a friendly `cdx memory` alias over the existing context store plus one new append operation.
 
 # Acceptance criteria
