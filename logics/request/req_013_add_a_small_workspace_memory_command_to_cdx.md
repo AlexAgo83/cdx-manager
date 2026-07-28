@@ -2,8 +2,8 @@
 > From version: 0.11.2
 > Schema version: 1.0
 > Status: Draft
-> Understanding: 95
-> Confidence: 90
+> Understanding: 100
+> Confidence: 95
 > Complexity: Low
 > Theme: Operator workflow
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
@@ -12,6 +12,7 @@
 - Users already have a per-workspace shared context file, but the `cdx context` name is implementation-oriented and does not clearly communicate that this is the durable project memory shared between assistant sessions.
 - Users need memory at two scopes: a global operator memory that follows them everywhere, and project/repo memory that can be selected explicitly instead of only inferred from the current working directory.
 - Users need a fast way to add one decision, warning, command, or project note without replacing the whole context file.
+- Users need a simple way to list the memory scopes `cdx` knows how to address, especially global memory and named project memories, without scanning the filesystem or discovering repositories.
 - The feature should reuse the existing `~/.cdx/contexts/<workspace-hash>/context.md` store and handoff behavior instead of creating another memory database or touching provider-private memory files.
 
 # Context
@@ -31,11 +32,12 @@
 - AC4: `--global` and `--project` are mutually exclusive; without either flag, `cdx memory` targets the current workspace/repo.
 - AC5: A user can run `cdx memory path`, `init`, `edit`, `clear`, and `set` with behavior matching the existing `cdx context` subcommands for the selected scope, including `--json` support.
 - AC6: A user can run `cdx memory append <text...>`, `cdx memory --global append <text...>`, or `cdx memory --project A append <text...>` to append a note without replacing existing content.
-- AC7: Append creates the selected memory file when missing, preserves existing content, inserts a clean newline boundary, trims only surrounding whitespace from the appended note, and rejects an empty note.
-- AC8: JSON responses for `cdx memory` actions expose the selected scope, project selector when present, path, byte count when applicable, and action names that automation can distinguish from legacy `context.*` actions.
-- AC9: `cdx context` remains fully backward compatible; existing scripts, help output, handoff behavior, and current-workspace context file layout keep working.
-- AC10: Help and README documentation explain `cdx memory` as the user-facing memory command, document current/global/project scopes, and mention that it reuses user-controlled Markdown storage rather than provider-private memory databases.
-- AC11: Focused tests cover append behavior in the store, the `cdx memory` alias, global and project selectors, JSON output, no-context display, empty append rejection, and preservation of existing `cdx context` behavior.
+- AC7: A user can run `cdx memory list [--json]` to list global memory, named project memories, and the current workspace memory when present, without scanning arbitrary repos or provider memory stores.
+- AC8: Append creates the selected memory file when missing, preserves existing content, inserts a clean newline boundary, trims only surrounding whitespace from the appended note, and rejects an empty note.
+- AC9: JSON responses for `cdx memory` actions expose the selected scope, project selector when present, path, byte count when applicable, and action names that automation can distinguish from legacy `context.*` actions.
+- AC10: `cdx context` remains fully backward compatible; existing scripts, help output, handoff behavior, and current-workspace context file layout keep working.
+- AC11: Help and README documentation explain `cdx memory` as the user-facing memory command, document current/global/project scopes, `list`, and mention that it reuses user-controlled Markdown storage rather than provider-private memory databases.
+- AC12: Focused tests cover append behavior in the store, the `cdx memory` alias, global and project selectors, list output, JSON output, no-context display, empty append rejection, and preservation of existing `cdx context` behavior.
 
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.

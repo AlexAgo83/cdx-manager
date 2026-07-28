@@ -2,8 +2,8 @@
 > From version: 0.11.2
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 95
-> Confidence: 90
+> Understanding: 100
+> Confidence: 95
 > Progress: 0
 > Complexity: Low
 > Theme: Operator workflow
@@ -13,17 +13,19 @@
 - `cdx context` is technically accurate but not obvious to users asking where durable project memory lives.
 - Current workspace inference is not enough when the user wants to append to global memory or to a named project from another repo.
 - `cdx context set` replaces the whole file, so a quick one-line decision note is more dangerous than it needs to be.
+- Users need a small `list` command so they can see global and named project memories without digging through `~/.cdx`.
 - Provider-private memory files exist under profiles, but using them would be brittle, opaque, and outside the stable `cdx-manager` contract.
 - Codex and Claude Code now both expose richer memory concepts, so users are likely to ask for memory management in `cdx`; the first slice should give them one explicit local interface without trying to mirror every provider-native memory model.
 
 # Scope
 - In:
   - Add `append_context(base_dir, note, cwd=None)` or equivalent in `src/context_store.py` using the existing path and atomic write helpers.
-  - Add the smallest scope resolver needed for `current`, `global`, and `project` memory. Prefer path resolution when `--project` points at an existing path; otherwise map the project name to a stable local context path and store enough metadata to explain it in JSON/path output.
+  - Add the smallest scope resolver needed for `current`, `global`, and `project` memory. If `--project` points at an existing path, use the existing workspace hash behavior for that path; otherwise treat the value as a stable free-form project name and map it to a local project memory path.
   - Add `append` handling to the existing context command or shared helper so `cdx context append <text...>` can be supported if it falls out naturally with little code.
-  - Add `cdx memory [--global|--project <name-or-path>] [view|show|path|init|edit|clear|set|append] [text...] [--json]` as a thin wrapper over the same implementation; `cdx memory` should default to current-workspace view/show.
+  - Add `cdx memory [--global|--project <name-or-path>] [view|show|path|init|edit|clear|set|append|list] [text...] [--json]` as a thin wrapper over the same implementation; `cdx memory` should default to current-workspace view/show.
+  - Add `cdx memory list [--json]` to list the global memory when it exists, named project memories created through free-form `--project <name>`, and the current workspace memory when it exists.
   - Validate that `--global` and `--project` are not combined, that `--project` is not empty, and that append text is not empty after trimming.
-  - Return concise text output and parseable JSON for memory actions, with action names such as `memory.view`, `memory.set`, and `memory.append`, plus scope metadata.
+  - Return concise text output and parseable JSON for memory actions, with action names such as `memory.view`, `memory.set`, `memory.append`, and `memory.list`, plus scope metadata.
   - Update top-level help, short command help, README command table, data layout notes, and shared handoff documentation where needed.
   - Document provider boundaries explicitly: `cdx memory` stores user-controlled Markdown and does not edit Codex SQLite memory, Claude Code auto memory, `CLAUDE.md`, or provider plugin/skill files.
   - Add focused unit tests in `test/test_context_store_py.py` and `test/test_cli_py.py`.
@@ -31,7 +33,7 @@
   - New persistent storage outside `contexts/<workspace-hash>/context.md`.
   - Direct access to `profiles/*/memories_*.sqlite` or any other provider-owned database.
   - Automatic summarization, compression, or transcript mining.
-  - Multi-workspace memory browsing, project listing, global memory aggregation, or cross-machine sync.
+  - Repository discovery, recursive filesystem scanning, global memory aggregation beyond the bounded list command, or cross-machine sync.
   - Provider-native memory import/export, including Codex import migration, Claude Code `MEMORY.md`, `CLAUDE.md`, and `.claude/rules/`.
   - `cdx doctor` checks for Claude/Codex model compatibility, fast mode support, or headless stream-json fields.
   - Permissions, ACLs, encryption, or remote APIs beyond the existing local file behavior.
@@ -41,8 +43,9 @@
 - `cdx memory --global append "Remember: prefer RTK for noisy commands"` writes to a global memory file and does not modify the current workspace memory.
 - `cdx memory --project A append "Decision: ship the lazy version"` writes to project `A` memory and can be run from a different cwd.
 - `cdx memory --project /path/to/repo path --json` resolves an existing path to the same workspace hash that would be used when running inside that repo.
+- `cdx memory list` lists existing global memory, named project memories, and the current workspace memory when present; it does not discover unrelated repositories.
 - `cdx memory path|init|edit|clear|set` reuse existing context behavior for the selected scope and support `--json` consistently.
-- `cdx memory append "Decision: keep cdx-manager as a launcher"` preserves previous content and adds the note at the end with a readable newline boundary.
+- `cdx memory append "Decision: keep cdx-manager as a launcher"` preserves previous content and adds the note at the end with a readable newline boundary, without auto-adding dates or headings.
 - Appending to a missing memory creates the selected memory file and writes only the appended note plus a trailing newline unless the implementation deliberately initializes the template first and tests that behavior.
 - Whitespace-only append input, empty `--project`, and combined `--global --project` fail with `CdxError` and do not create or modify memory files.
 - `cdx context` behavior and existing context/handoff tests continue to pass unchanged.
@@ -57,11 +60,12 @@
 - request-AC4 -> This backlog slice. Proof: `cdx memory --project /path/to/repo path --json` resolves an existing path to the same workspace hash that would be used when running inside that repo.
 - request-AC5 -> This backlog slice. Proof: `cdx memory path|init|edit|clear|set` reuse existing context behavior for the selected scope and support `--json` consistently.
 - request-AC6 -> This backlog slice. Proof: `cdx memory append "Decision: keep cdx-manager as a launcher"` preserves previous content and adds the note at the end with a readable newline boundary.
-- request-AC7 -> This backlog slice. Proof: Appending to a missing memory creates the selected memory file and writes only the appended note plus a trailing newline unless the implementation deliberately initializes the template first and tests that behavior.
-- request-AC8 -> This backlog slice. Proof: Whitespace-only append input, empty `--project`, and combined `--global --project` fail with `CdxError` and do not create or modify memory files.
-- request-AC9 -> This backlog slice. Proof: `cdx context` behavior and existing context/handoff tests continue to pass unchanged.
-- request-AC10 -> This backlog slice. Proof: Documentation tells users to use `cdx memory` for explicit current/global/project memory and warns that provider-private memory files are not the supported interface.
-- request-AC11 -> This backlog slice. Proof: The implementation passes the focused context/CLI tests and the Logics validation commands.
+- request-AC7 -> This backlog slice. Proof: `cdx memory list` lists existing global memory, named project memories, and the current workspace memory when present; it does not discover unrelated repositories.
+- request-AC8 -> This backlog slice. Proof: Appending to a missing memory creates the selected memory file and writes only the appended note plus a trailing newline unless the implementation deliberately initializes the template first and tests that behavior.
+- request-AC9 -> This backlog slice. Proof: Whitespace-only append input, empty `--project`, and combined `--global --project` fail with `CdxError` and do not create or modify memory files.
+- request-AC10 -> This backlog slice. Proof: `cdx context` behavior and existing context/handoff tests continue to pass unchanged.
+- request-AC11 -> This backlog slice. Proof: Documentation tells users to use `cdx memory` for explicit current/global/project memory and warns that provider-private memory files are not the supported interface.
+- request-AC12 -> This backlog slice. Proof: The implementation passes the focused context/CLI tests and the Logics validation commands.
 
 # Decision framing
 - Product framing: Not needed

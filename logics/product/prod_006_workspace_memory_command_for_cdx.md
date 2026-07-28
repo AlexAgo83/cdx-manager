@@ -6,10 +6,10 @@
 > Related task: `task_024_orchestrate_workspace_memory_command`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
-> Non-semantic edit: provider-signal framing added; workflow state and linked refs unchanged.
+> Non-semantic edit: provider-signal/list framing added; workflow state and linked refs unchanged.
 
 # Overview
-Expose the existing shared context storage as a clearer `cdx memory` command, with current-workspace, global, and explicit project scopes plus a minimal append operation for durable notes. The command reuses user-controlled Markdown context files and handoff flow so assistant sessions can share memory without depending on provider-private databases.
+Expose the existing shared context storage as a clearer `cdx memory` command, with current-workspace, global, and explicit project scopes plus minimal append and list operations for durable notes. The command reuses user-controlled Markdown context files and handoff flow so assistant sessions can share memory without depending on provider-private databases.
 
 ```mermaid
 %% logics-kind: product
@@ -28,6 +28,7 @@ flowchart TD
 - Make the existing workspace context easier to discover as project memory.
 - Let users maintain current-workspace, global, and explicitly selected project memory.
 - Let users append short notes or decisions without opening an editor or rewriting the full context.
+- Let users list known memory scopes without scanning arbitrary repositories.
 - Keep one storage model based on user-controlled Markdown files under `~/.cdx/contexts/`.
 - Keep `cdx context` and `cdx handoff` behavior compatible for existing users and scripts.
 - Avoid provider-private memory internals and expose only user-controlled Markdown memory.
@@ -37,12 +38,12 @@ flowchart TD
 - Adding a new memory database, sync service, daemon, or background summarizer.
 - Automatic extraction of memories from transcripts.
 - Memory search, tagging, ranking, pruning, or semantic recall.
-- Complex project registry management beyond resolving a simple project name or path to a stable local memory file.
+- Complex project registry management beyond resolving a simple project name or path to a stable local memory file and listing named project memories created by `cdx`.
 - Changing how provider sessions launch beyond existing handoff context installation.
 
 # Scope and guardrails
-- In: current-workspace memory, global memory, explicit project memory selection, append/set/view/path/init/edit/clear commands, JSON output, docs, and focused tests.
-- Out: provider-owned memory databases, automatic summarization, memory search, project listing, cross-machine sync, remote APIs, and changes to provider launch behavior beyond existing handoff context installation.
+- In: current-workspace memory, global memory, explicit project memory selection, append/set/view/path/init/edit/clear/list commands, JSON output, docs, and focused tests.
+- Out: provider-owned memory databases, automatic summarization, memory search, repository discovery, cross-machine sync, remote APIs, and changes to provider launch behavior beyond existing handoff context installation.
 
 # Recent provider signals
 - Codex now has stronger memory/import surfaces, including import paths from other agents. `cdx memory` should be a stable local Markdown target that future import/export features can use.
@@ -52,7 +53,9 @@ flowchart TD
 # Key product decisions
 - `cdx memory` is a user-facing alias over user-controlled Markdown memory; it must reuse the existing context store instead of introducing a second persistence model.
 - The default scope is the current workspace/repo. `--global` selects one operator-wide memory, and `--project <name-or-path>` selects a specific project memory from any cwd.
-- `append` is intentionally line-oriented and simple: add a note, preserve existing content, and reject empty input.
+- `--project A` is a stable free-form project name, while `--project /path/to/repo` resolves through the existing workspace hash behavior for that path.
+- `append` is intentionally line-oriented and simple: add the provided note, preserve existing content, and reject empty input. It should not auto-date or reformat notes.
+- `list` is intentionally bounded: show global memory, named project memories, and the current workspace memory when present. Do not scan the filesystem to discover repositories.
 - `cdx context` remains the compatibility surface for existing scripts; `cdx memory` is the clearer operator-facing surface.
 - Provider-private files such as `profiles/*/memories_*.sqlite` are not part of the supported memory contract.
 
@@ -64,6 +67,7 @@ flowchart TD
 # Success signals
 - Users can inspect and update memory without knowing the hashed context path.
 - A global note and a project-specific note can be appended from any repo without modifying the wrong memory file.
+- Users can list global and named project memories without needing to remember exact storage paths.
 - Existing `cdx context` and `cdx handoff` workflows continue to pass their current tests.
 - JSON output identifies the action and selected scope clearly enough for automation.
 - The implementation stays small: one storage model, one append helper, and no provider-private memory handling.

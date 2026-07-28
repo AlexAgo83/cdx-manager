@@ -3,10 +3,7 @@
     "max_docs": 12,
     "max_docs_per_ref": 4
   },
-  "changed_paths": [
-    "logics/external/conclusion-3-repetitions.md",
-    "logics/external/orchestrato-cost-of-pass-recap-3-repetitions.xlsx"
-  ],
+  "changed_paths": [],
   "command": "logics-manager sync context-pack req_013_add_a_small_workspace_memory_command_to_cdx item_033_scoped_memory_alias_and_append_command task_024_orchestrate_workspace_memory_command --mode diff-first --profile normal",
   "companion_docs": [],
   "docs": [
@@ -45,6 +42,7 @@
           "- Users already have a per-workspace shared context file, but the `cdx context` name is implementation-oriented and does not clearly communicate that this is the durable project memory shared between assistant sessions.",
           "- Users need memory at two scopes: a global operator memory that follows them everywhere, and project/repo memory that can be selected explicitly instead of only inferred from the current working directory.",
           "- Users need a fast way to add one decision, warning, command, or project note without replacing the whole context file.",
+          "- Users need a simple way to list the memory scopes `cdx` knows how to address, especially global memory and named project memories, without scanning the filesystem or discovering repositories.",
           "- The feature should reuse the existing `~/.cdx/contexts/<workspace-hash>/context.md` store and handoff behavior instead of creating another memory database or touching provider-private memory files."
         ]
       },
@@ -82,13 +80,14 @@
           "- `cdx memory --global append \"Remember: prefer RTK for noisy commands\"` writes to a global memory file and does not modify the current workspace memory.",
           "- `cdx memory --project A append \"Decision: ship the lazy version\"` writes to project `A` memory and can be run from a different cwd.",
           "- `cdx memory --project /path/to/repo path --json` resolves an existing path to the same workspace hash that would be used when running inside that repo.",
-          "- `cdx memory path|init|edit|clear|set` reuse existing context behavior for the selected scope and support `--json` consistently.",
-          "- `cdx memory append \"Decision: keep cdx-manager as a launcher\"` preserves previous content and adds the note at the end with a readable newline boundary."
+          "- `cdx memory list` lists existing global memory, named project memories, and the current workspace memory when present; it does not discover unrelated repositories.",
+          "- `cdx memory path|init|edit|clear|set` reuse existing context behavior for the selected scope and support `--json` consistently."
         ],
         "Problem": [
           "- `cdx context` is technically accurate but not obvious to users asking where durable project memory lives.",
           "- Current workspace inference is not enough when the user wants to append to global memory or to a named project from another repo.",
           "- `cdx context set` replaces the whole file, so a quick one-line decision note is more dangerous than it needs to be.",
+          "- Users need a small `list` command so they can see global and named project memories without digging through `~/.cdx`.",
           "- Provider-private memory files exist under profiles, but using them would be brittle, opaque, and outside the stable `cdx-manager` contract.",
           "- Codex and Claude Code now both expose richer memory concepts, so users are likely to ask for memory management in `cdx`; the first slice should give them one explicit local interface without trying to mirror every provider-native memory model."
         ]
@@ -161,11 +160,11 @@
     }
   ],
   "estimates": {
-    "char_count": 7045,
+    "char_count": 7374,
     "companion_doc_count": 0,
     "doc_count": 4
   },
-  "generated_at": "2026-07-28T17:26:39Z",
+  "generated_at": "2026-07-28T17:36:21Z",
   "handoff": {
     "companion_doc_count": 0,
     "enabled": false,

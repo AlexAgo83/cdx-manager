@@ -17,6 +17,7 @@
       "Users already have a per-workspace shared context file, but the `cdx context` name is implementation-oriented and does not clearly communicate that this is the durable project memory shared between assistant sessions.",
       "Users need memory at two scopes: a global operator memory that follows them everywhere, and project/repo memory that can be selected explicitly instead of only inferred from the current working directory.",
       "Users need a fast way to add one decision, warning, command, or project note without replacing the whole context file.",
+      "Users need a simple way to list the memory scopes `cdx` knows how to address, especially global memory and named project memories, without scanning the filesystem or discovering repositories.",
       "The feature should reuse the existing `~/.cdx/contexts/<workspace-hash>/context.md` store and handoff behavior instead of creating another memory database or touching provider-private memory files."
     ],
     "context": [
@@ -36,20 +37,22 @@
       "AC4: `--global` and `--project` are mutually exclusive; without either flag, `cdx memory` targets the current workspace/repo.",
       "AC5: A user can run `cdx memory path`, `init`, `edit`, `clear`, and `set` with behavior matching the existing `cdx context` subcommands for the selected scope, including `--json` support.",
       "AC6: A user can run `cdx memory append <text...>`, `cdx memory --global append <text...>`, or `cdx memory --project A append <text...>` to append a note without replacing existing content.",
-      "AC7: Append creates the selected memory file when missing, preserves existing content, inserts a clean newline boundary, trims only surrounding whitespace from the appended note, and rejects an empty note.",
-      "AC8: JSON responses for `cdx memory` actions expose the selected scope, project selector when present, path, byte count when applicable, and action names that automation can distinguish from legacy `context.*` actions.",
-      "AC9: `cdx context` remains fully backward compatible; existing scripts, help output, handoff behavior, and current-workspace context file layout keep working.",
-      "AC10: Help and README documentation explain `cdx memory` as the user-facing memory command, document current/global/project scopes, and mention that it reuses user-controlled Markdown storage rather than provider-private memory databases.",
-      "AC11: Focused tests cover append behavior in the store, the `cdx memory` alias, global and project selectors, JSON output, no-context display, empty append rejection, and preservation of existing `cdx context` behavior."
+      "AC7: A user can run `cdx memory list [--json]` to list global memory, named project memories, and the current workspace memory when present, without scanning arbitrary repos or provider memory stores.",
+      "AC8: Append creates the selected memory file when missing, preserves existing content, inserts a clean newline boundary, trims only surrounding whitespace from the appended note, and rejects an empty note.",
+      "AC9: JSON responses for `cdx memory` actions expose the selected scope, project selector when present, path, byte count when applicable, and action names that automation can distinguish from legacy `context.*` actions.",
+      "AC10: `cdx context` remains fully backward compatible; existing scripts, help output, handoff behavior, and current-workspace context file layout keep working.",
+      "AC11: Help and README documentation explain `cdx memory` as the user-facing memory command, document current/global/project scopes, `list`, and mention that it reuses user-controlled Markdown storage rather than provider-private memory databases.",
+      "AC12: Focused tests cover append behavior in the store, the `cdx memory` alias, global and project selectors, list output, JSON output, no-context display, empty append rejection, and preservation of existing `cdx context` behavior."
     ]
   },
   "product": {
     "title": "Workspace memory command for cdx",
-    "overview": "Expose the existing shared context storage as a clearer `cdx memory` command, with current-workspace, global, and explicit project scopes plus a minimal append operation for durable notes. The command reuses user-controlled Markdown context files and handoff flow so assistant sessions can share memory without depending on provider-private databases.",
+    "overview": "Expose the existing shared context storage as a clearer `cdx memory` command, with current-workspace, global, and explicit project scopes plus minimal append and list operations for durable notes. The command reuses user-controlled Markdown context files and handoff flow so assistant sessions can share memory without depending on provider-private databases.",
     "goals": [
       "Make the existing workspace context easier to discover as project memory.",
       "Let users maintain current-workspace, global, and explicitly selected project memory.",
       "Let users append short notes or decisions without opening an editor or rewriting the full context.",
+      "Let users list known memory scopes without scanning arbitrary repositories.",
       "Keep one storage model based on user-controlled Markdown files under `~/.cdx/contexts/`.",
       "Keep `cdx context` and `cdx handoff` behavior compatible for existing users and scripts.",
       "Avoid provider-private memory internals and expose only user-controlled Markdown memory."
@@ -59,7 +62,7 @@
       "Adding a new memory database, sync service, daemon, or background summarizer.",
       "Automatic extraction of memories from transcripts.",
       "Memory search, tagging, ranking, pruning, or semantic recall.",
-      "Complex project registry management beyond resolving a simple project name or path to a stable local memory file.",
+      "Complex project registry management beyond resolving a simple project name or path to a stable local memory file and listing named project memories created by `cdx`.",
       "Changing how provider sessions launch beyond existing handoff context installation."
     ]
   },
@@ -80,22 +83,25 @@
         "AC8",
         "AC9",
         "AC10",
-        "AC11"
+        "AC11",
+        "AC12"
       ],
       "problem": [
         "`cdx context` is technically accurate but not obvious to users asking where durable project memory lives.",
         "Current workspace inference is not enough when the user wants to append to global memory or to a named project from another repo.",
         "`cdx context set` replaces the whole file, so a quick one-line decision note is more dangerous than it needs to be.",
+        "Users need a small `list` command so they can see global and named project memories without digging through `~/.cdx`.",
         "Provider-private memory files exist under profiles, but using them would be brittle, opaque, and outside the stable `cdx-manager` contract.",
         "Codex and Claude Code now both expose richer memory concepts, so users are likely to ask for memory management in `cdx`; the first slice should give them one explicit local interface without trying to mirror every provider-native memory model."
       ],
       "scope_in": [
         "Add `append_context(base_dir, note, cwd=None)` or equivalent in `src/context_store.py` using the existing path and atomic write helpers.",
-        "Add the smallest scope resolver needed for `current`, `global`, and `project` memory. Prefer path resolution when `--project` points at an existing path; otherwise map the project name to a stable local context path and store enough metadata to explain it in JSON/path output.",
+        "Add the smallest scope resolver needed for `current`, `global`, and `project` memory. If `--project` points at an existing path, use the existing workspace hash behavior for that path; otherwise treat the value as a stable free-form project name and map it to a local project memory path.",
         "Add `append` handling to the existing context command or shared helper so `cdx context append <text...>` can be supported if it falls out naturally with little code.",
-        "Add `cdx memory [--global|--project <name-or-path>] [view|show|path|init|edit|clear|set|append] [text...] [--json]` as a thin wrapper over the same implementation; `cdx memory` should default to current-workspace view/show.",
+        "Add `cdx memory [--global|--project <name-or-path>] [view|show|path|init|edit|clear|set|append|list] [text...] [--json]` as a thin wrapper over the same implementation; `cdx memory` should default to current-workspace view/show.",
+        "Add `cdx memory list [--json]` to list the global memory when it exists, named project memories created through free-form `--project <name>`, and the current workspace memory when it exists.",
         "Validate that `--global` and `--project` are not combined, that `--project` is not empty, and that append text is not empty after trimming.",
-        "Return concise text output and parseable JSON for memory actions, with action names such as `memory.view`, `memory.set`, and `memory.append`, plus scope metadata.",
+        "Return concise text output and parseable JSON for memory actions, with action names such as `memory.view`, `memory.set`, `memory.append`, and `memory.list`, plus scope metadata.",
         "Update top-level help, short command help, README command table, data layout notes, and shared handoff documentation where needed.",
         "Document provider boundaries explicitly: `cdx memory` stores user-controlled Markdown and does not edit Codex SQLite memory, Claude Code auto memory, `CLAUDE.md`, or provider plugin/skill files.",
         "Add focused unit tests in `test/test_context_store_py.py` and `test/test_cli_py.py`."
@@ -104,7 +110,7 @@
         "New persistent storage outside `contexts/<workspace-hash>/context.md`.",
         "Direct access to `profiles/*/memories_*.sqlite` or any other provider-owned database.",
         "Automatic summarization, compression, or transcript mining.",
-        "Multi-workspace memory browsing, project listing, global memory aggregation, or cross-machine sync.",
+        "Repository discovery, recursive filesystem scanning, global memory aggregation beyond the bounded list command, or cross-machine sync.",
         "Provider-native memory import/export, including Codex import migration, Claude Code `MEMORY.md`, `CLAUDE.md`, and `.claude/rules/`.",
         "`cdx doctor` checks for Claude/Codex model compatibility, fast mode support, or headless stream-json fields.",
         "Permissions, ACLs, encryption, or remote APIs beyond the existing local file behavior."
@@ -114,8 +120,9 @@
         "`cdx memory --global append \"Remember: prefer RTK for noisy commands\"` writes to a global memory file and does not modify the current workspace memory.",
         "`cdx memory --project A append \"Decision: ship the lazy version\"` writes to project `A` memory and can be run from a different cwd.",
         "`cdx memory --project /path/to/repo path --json` resolves an existing path to the same workspace hash that would be used when running inside that repo.",
+        "`cdx memory list` lists existing global memory, named project memories, and the current workspace memory when present; it does not discover unrelated repositories.",
         "`cdx memory path|init|edit|clear|set` reuse existing context behavior for the selected scope and support `--json` consistently.",
-        "`cdx memory append \"Decision: keep cdx-manager as a launcher\"` preserves previous content and adds the note at the end with a readable newline boundary.",
+        "`cdx memory append \"Decision: keep cdx-manager as a launcher\"` preserves previous content and adds the note at the end with a readable newline boundary, without auto-adding dates or headings.",
         "Appending to a missing memory creates the selected memory file and writes only the appended note plus a trailing newline unless the implementation deliberately initializes the template first and tests that behavior.",
         "Whitespace-only append input, empty `--project`, and combined `--global --project` fail with `CdxError` and do not create or modify memory files.",
         "`cdx context` behavior and existing context/handoff tests continue to pass unchanged.",
@@ -130,11 +137,12 @@
     "plan": [
       "Confirm the current `cdx context` and `cdx handoff` flow so the implementation reuses existing storage instead of adding a second memory system.",
       "Add the smallest context-store append helper with trimming, empty-input rejection, clean newline handling, and atomic write.",
-      "Add minimal scope resolution for current workspace, global memory, and `--project <name-or-path>`.",
+      "Add minimal scope resolution for current workspace, global memory, free-form project names, and existing `--project <path>` values.",
       "Refactor only enough CLI context handling to share behavior between `cdx context` and `cdx memory`.",
       "Wire `memory` into command dispatch and help text, with `cdx memory` defaulting to current-workspace view/show.",
-      "Update README documentation for the memory command, scope flags, and supported storage boundary.",
-      "Add focused tests for append, current/global/project scopes, JSON output, and backward compatibility.",
+      "Add bounded `cdx memory list` output for global memory, named project memories, and current workspace memory when present.",
+      "Update README documentation for the memory command, scope flags, `list`, and supported storage boundary.",
+      "Add focused tests for append, list, current/global/project scopes, JSON output, and backward compatibility.",
       "Capture follow-up notes for provider-native sync/export and version/diagnostic doctor checks without implementing them in this slice.",
       "Run focused tests first, then the standard lint/test checks required by the workflow."
     ]
