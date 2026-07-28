@@ -1,6 +1,6 @@
 ## prod_003_code_review_remediation_wave_2026_07 - Code review remediation wave 2026-07
 > Date: 2026-07-18
-> Status: Proposed
+> Status: Settled
 > Related request: `req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup`
 > Related backlog: `item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback`, `item_023_provider_auth_reliability_probe_timeout_bounded_auth_lock_power_effort_precedence`, `item_024_cli_robustness_tolerant_history_parsing_concurrent_removal_safe_status_clean_disk_view_fixes`, `item_025_unify_npm_entrypoint_through_cli_entry`, `item_026_release_verification_trust_root_and_unverified_install_warning`, `item_027_deduplication_dead_code_removal_and_docs_hygiene`
 > Related task: `task_021_orchestrate_july_2026_code_review_remediation`

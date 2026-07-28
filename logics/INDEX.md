@@ -17,7 +17,7 @@
 | [prod_000_codex_multi_account_session_manager](product/prod_000_codex_multi_account_session_manager.md) | Codex multi-account session manager | Settled |  |  | product/prod_000_codex_multi_account_session_manager.md |
 | [prod_001_per_session_codex_status_recall](product/prod_001_per_session_codex_status_recall.md) | Per-session Codex status usage recall | Settled |  |  | product/prod_001_per_session_codex_status_recall.md |
 | [prod_002_headless_automation_contract_for_orchestia](product/prod_002_headless_automation_contract_for_orchestia.md) | Headless automation contract for Orchestia | Settled |  |  | product/prod_002_headless_automation_contract_for_orchestia.md |
-| [prod_003_code_review_remediation_wave_2026_07](product/prod_003_code_review_remediation_wave_2026_07.md) | Code review remediation wave 2026-07 | Proposed |  |  | product/prod_003_code_review_remediation_wave_2026_07.md |
+| [prod_003_code_review_remediation_wave_2026_07](product/prod_003_code_review_remediation_wave_2026_07.md) | Code review remediation wave 2026-07 | Settled |  |  | product/prod_003_code_review_remediation_wave_2026_07.md |
 | [prod_004_post_remediation_hardening_follow_up_2026_07](product/prod_004_post_remediation_hardening_follow_up_2026_07.md) | Post-remediation hardening follow-up 2026-07 | Settled |  |  | product/prod_004_post_remediation_hardening_follow_up_2026_07.md |
 | [prod_005_session_labeling_for_cdx](product/prod_005_session_labeling_for_cdx.md) | Session labeling for cdx | Settled |  |  | product/prod_005_session_labeling_for_cdx.md |
 | [prod_006_workspace_memory_command_for_cdx](product/prod_006_workspace_memory_command_for_cdx.md) | Workspace memory command for cdx | Proposed |  |  | product/prod_006_workspace_memory_command_for_cdx.md |
