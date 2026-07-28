@@ -1,6 +1,8 @@
 import json
 import os
+import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -42,6 +44,8 @@ def collect_health_report(service, base_dir, env=None, spawn_sync=None):
         path = shutil.which(command, path=env.get("PATH"))
         status = "OK" if path else "WARN"
         issues.append(_issue(status, f"{command}_cli", f"{command} CLI {'found' if path else 'not found'}", path))
+        if path:
+            issues.append(_provider_cli_version_issue(command, path, env, spawn_sync))
 
     rtk_path = shutil.which("rtk", path=env.get("PATH"))
     issues.append(_issue(
@@ -93,6 +97,66 @@ def collect_health_report(service, base_dir, env=None, spawn_sync=None):
     issues.extend(_codex_shared_account_id_issues(codex_diagnostics))
     issues.extend(_collect_profile_issues(base_dir, session_names))
     return {"base_dir": base_dir, "issues": issues, "summary": summarize_health(issues)}
+
+
+def _provider_cli_version_issue(command, path, env, spawn_sync=None):
+    result = _run_version_command(command, env, spawn_sync)
+    raw = (result.get("stdout") or result.get("stderr") or "").strip()
+    version = _extract_version(raw)
+    detail = {
+        "command": command,
+        "path": path,
+        "version": version,
+        "raw": raw,
+        "capabilities": _provider_capability_hints(command),
+    }
+    if version:
+        return _issue("OK", f"{command}_cli_version", f"{command} CLI version detected: {version}", detail)
+    return _issue("WARN", f"{command}_cli_version", f"{command} CLI version could not be detected", detail)
+
+
+def _run_version_command(command, env, spawn_sync=None):
+    try:
+        if spawn_sync:
+            result = spawn_sync(command, ["--version"], {"env": env, "timeout": 5})
+            if isinstance(result, dict):
+                return result
+            return {
+                "stdout": getattr(result, "stdout", "") or "",
+                "stderr": getattr(result, "stderr", "") or "",
+            }
+        completed = subprocess.run(
+            [command, "--version"],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        return {"stdout": completed.stdout or "", "stderr": completed.stderr or ""}
+    except (OSError, subprocess.TimeoutExpired):
+        return {"stdout": "", "stderr": ""}
+
+
+def _extract_version(text):
+    match = re.search(r"\b(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\b", text or "")
+    return match.group(1) if match else None
+
+
+def _provider_capability_hints(command):
+    if command == "codex":
+        return [
+            "version_inventory",
+            "provider_memory_import_surfaces_may_exist_in_recent_codex",
+            "provider_memory_is_not_modified_by_cdx_memory",
+        ]
+    if command == "claude":
+        return [
+            "version_inventory",
+            "project_memory_and_stream_json_diagnostics_may_exist_in_recent_claude_code",
+            "provider_memory_is_not_modified_by_cdx_memory",
+        ]
+    return ["version_inventory"]
 
 
 def _codex_auth_issues(session, diag):

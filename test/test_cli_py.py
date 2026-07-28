@@ -144,11 +144,15 @@ class _AuthHarness:
         authed = self._is_authed(home)
         if command == "codex" and args[:2] == ["login", "status"]:
             return {"stdout": "Logged in using ChatGPT\n" if authed else "Not logged in\n", "stderr": ""}
+        if command == "codex" and args == ["--version"]:
+            return {"stdout": "codex 0.145.0\n", "stderr": ""}
         if command == "claude" and args[:2] == ["auth", "status"]:
             logged_in = "true" if authed else "false"
             auth_method = "oauth" if authed else "none"
             text = f'{{"loggedIn": {logged_in}, "authMethod": "{auth_method}"}}\n'
             return {"stdout": text, "stderr": ""}
+        if command == "claude" and args == ["--version"]:
+            return {"stdout": "Claude Code 2.1.219\n", "stderr": ""}
         if command == "agy" and args == ["--version"]:
             return {"stdout": "agy 1.0.0\n", "stderr": ""}
         if command == "ollama" and args == ["--version"]:
@@ -5003,6 +5007,32 @@ class CliPythonTests(unittest.TestCase):
         issue = next(item for item in report["issues"] if item["code"] == "logics_manager_cli")
         self.assertEqual(issue["status"], "OK")
         self.assertEqual(issue["detail"], "/usr/bin/logics-manager")
+
+    def test_doctor_reports_provider_cli_versions_and_capability_hints(self):
+        temp_dir = self.make_temp_dir()
+        service = {
+            "list_sessions": lambda: [],
+            "get_session_root": lambda _name: temp_dir,
+        }
+        harness = _AuthHarness()
+
+        with mock.patch(
+            "src.health.shutil.which",
+            side_effect=lambda command, path=None: f"/usr/bin/{command}" if command in {"codex", "claude"} else None,
+        ):
+            report = collect_health_report(
+                service,
+                temp_dir,
+                env={"PATH": "/usr/bin"},
+                spawn_sync=harness.spawn_sync,
+            )
+
+        codex = next(item for item in report["issues"] if item["code"] == "codex_cli_version")
+        claude = next(item for item in report["issues"] if item["code"] == "claude_cli_version")
+        self.assertEqual(codex["detail"]["version"], "0.145.0")
+        self.assertIn("provider_memory_import_surfaces_may_exist_in_recent_codex", codex["detail"]["capabilities"])
+        self.assertEqual(claude["detail"]["version"], "2.1.219")
+        self.assertIn("project_memory_and_stream_json_diagnostics_may_exist_in_recent_claude_code", claude["detail"]["capabilities"])
 
     def test_view_delegates_to_logics_manager_from_current_cwd(self):
         temp_dir = self.make_temp_dir()
