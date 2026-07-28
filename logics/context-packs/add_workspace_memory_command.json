@@ -1,0 +1,353 @@
+{
+  "budgets": {
+    "max_docs": 12,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_033_scoped_memory_alias_and_append_command.md",
+    "logics/external/conclusion-3-repetitions.md",
+    "logics/external/orchestrato-cost-of-pass-recap-3-repetitions.xlsx",
+    "logics/product/prod_006_workspace_memory_command_for_cdx.md",
+    "logics/request/req_013_add_a_small_workspace_memory_command_to_cdx.md",
+    "logics/scaffold/add_workspace_memory_command.json",
+    "logics/tasks/task_024_orchestrate_workspace_memory_command.md"
+  ],
+  "command": "logics-manager sync context-pack req_013_add_a_small_workspace_memory_command_to_cdx item_033_scoped_memory_alias_and_append_command task_024_orchestrate_workspace_memory_command --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_033_scoped_memory_alias_and_append_command"
+        ],
+        "prod": [
+          "prod_006_workspace_memory_command_for_cdx"
+        ],
+        "req": [
+          "req_013_add_a_small_workspace_memory_command_to_cdx"
+        ],
+        "task": [
+          "task_024_orchestrate_workspace_memory_command"
+        ]
+      },
+      "path": "logics/product/prod_006_workspace_memory_command_for_cdx.md",
+      "ref": "prod_006_workspace_memory_command_for_cdx",
+      "sections": {
+        "Goals": [
+          "- Make the existing workspace context easier to discover as project memory.",
+          "- Let users maintain current-workspace, global, and explicitly selected project memory.",
+          "- Let users append short notes or decisions without opening an editor or rewriting the full context.",
+          "- Keep one storage model based on user-controlled Markdown files under `~/.cdx/contexts/`.",
+          "- Keep `cdx context` and `cdx handoff` behavior compatible for existing users and scripts.",
+          "- Avoid provider-private memory internals and expose only user-controlled Markdown memory."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Expose the existing shared context storage as a clearer `cdx memory` command, with current-workspace, global, and explicit project scopes plus a minimal append operation for durable notes. The command reuses user-controlled Markdown context files and handoff flow so assistant sessions can share memory without depending on provider-private databases."
+        ],
+        "References": [
+          "- Product back-reference: `req_013_add_a_small_workspace_memory_command_to_cdx`",
+          "- Task back-reference: `task_024_orchestrate_workspace_memory_command`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Workspace memory command for cdx"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, add a small workspace memory command to cdx, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Add a small workspace memory command to cdx",
+        "use when": "You need to implement or review the scaffolded workflow for Add a small workspace memory command to cdx."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_033_scoped_memory_alias_and_append_command"
+        ],
+        "prod": [
+          "prod_006_workspace_memory_command_for_cdx"
+        ],
+        "req": [
+          "req_013_add_a_small_workspace_memory_command_to_cdx"
+        ]
+      },
+      "path": "logics/request/req_013_add_a_small_workspace_memory_command_to_cdx.md",
+      "ref": "req_013_add_a_small_workspace_memory_command_to_cdx",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A user can run `cdx memory` or `cdx memory view` to display the current workspace memory from the same `context.md` file used by `cdx context show`.",
+          "- AC2: A user can run `cdx memory --global view|set|append|path|init|edit|clear` to manage one global memory file that is independent of the current repo.",
+          "- AC3: A user can run `cdx memory --project <name-or-path> view|set|append|path|init|edit|clear` to manage a named or path-resolved project memory even when the shell is in another directory.",
+          "- AC4: `--global` and `--project` are mutually exclusive; without either flag, `cdx memory` targets the current workspace/repo.",
+          "- AC5: A user can run `cdx memory path`, `init`, `edit`, `clear`, and `set` with behavior matching the existing `cdx context` subcommands for the selected scope, including `--json` support.",
+          "- AC6: A user can run `cdx memory append <text...>`, `cdx memory --global append <text...>`, or `cdx memory --project A append <text...>` to append a note without replacing existing content."
+        ],
+        "Needs": [
+          "- Users already have a per-workspace shared context file, but the `cdx context` name is implementation-oriented and does not clearly communicate that this is the durable project memory shared between assistant sessions.",
+          "- Users need memory at two scopes: a global operator memory that follows them everywhere, and project/repo memory that can be selected explicitly instead of only inferred from the current working directory.",
+          "- Users need a fast way to add one decision, warning, command, or project note without replacing the whole context file.",
+          "- The feature should reuse the existing `~/.cdx/contexts/<workspace-hash>/context.md` store and handoff behavior instead of creating another memory database or touching provider-private memory files."
+        ]
+      },
+      "status": "Draft",
+      "title": "Add a small workspace memory command to cdx"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, scoped memory alias and append command, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Scoped memory alias and append command",
+        "use when": "Implementing the scaffolded slice for Scoped memory alias and append command."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_033_scoped_memory_alias_and_append_command"
+        ],
+        "prod": [
+          "prod_006_workspace_memory_command_for_cdx"
+        ],
+        "req": [
+          "req_013_add_a_small_workspace_memory_command_to_cdx"
+        ],
+        "task": [
+          "task_024_orchestrate_workspace_memory_command"
+        ]
+      },
+      "path": "logics/backlog/item_033_scoped_memory_alias_and_append_command.md",
+      "ref": "item_033_scoped_memory_alias_and_append_command",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- `cdx memory` and `cdx memory view` show the same content as `cdx context show` for the current workspace.",
+          "- `cdx memory --global append \"Remember: prefer RTK for noisy commands\"` writes to a global memory file and does not modify the current workspace memory.",
+          "- `cdx memory --project A append \"Decision: ship the lazy version\"` writes to project `A` memory and can be run from a different cwd.",
+          "- `cdx memory --project /path/to/repo path --json` resolves an existing path to the same workspace hash that would be used when running inside that repo.",
+          "- `cdx memory path|init|edit|clear|set` reuse existing context behavior for the selected scope and support `--json` consistently.",
+          "- `cdx memory append \"Decision: keep cdx-manager as a launcher\"` preserves previous content and adds the note at the end with a readable newline boundary."
+        ],
+        "Problem": [
+          "- `cdx context` is technically accurate but not obvious to users asking where durable project memory lives.",
+          "- Current workspace inference is not enough when the user wants to append to global memory or to a named project from another repo.",
+          "- `cdx context set` replaces the whole file, so a quick one-line decision note is more dangerous than it needs to be.",
+          "- Provider-private memory files exist under profiles, but using them would be brittle, opaque, and outside the stable `cdx-manager` contract."
+        ]
+      },
+      "status": "Ready",
+      "title": "Scoped memory alias and append command"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_033_scoped_memory_alias_and_append_command"
+        ],
+        "prod": [
+          "prod_006_workspace_memory_command_for_cdx"
+        ],
+        "req": [
+          "req_013_add_a_small_workspace_memory_command_to_cdx"
+        ],
+        "task": [
+          "task_024_orchestrate_workspace_memory_command"
+        ]
+      },
+      "path": "logics/product/prod_006_workspace_memory_command_for_cdx.md",
+      "ref": "prod_006_workspace_memory_command_for_cdx",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Workspace memory command for cdx"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate workspace memory command",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_033_scoped_memory_alias_and_append_command"
+        ],
+        "prod": [
+          "prod_006_workspace_memory_command_for_cdx"
+        ],
+        "req": [
+          "req_013_add_a_small_workspace_memory_command_to_cdx"
+        ],
+        "task": [
+          "task_024_orchestrate_workspace_memory_command"
+        ]
+      },
+      "path": "logics/tasks/task_024_orchestrate_workspace_memory_command.md",
+      "ref": "task_024_orchestrate_workspace_memory_command",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- Run `python3 -m logics_manager lint --require-status`.",
+          "- Run scaffold command tests."
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate workspace memory command"
+    }
+  ],
+  "estimates": {
+    "char_count": 8169,
+    "companion_doc_count": 1,
+    "doc_count": 4
+  },
+  "generated_at": "2026-07-28T17:14:47Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_013_add_a_small_workspace_memory_command_to_cdx",
+      "item_033_scoped_memory_alias_and_append_command",
+      "task_024_orchestrate_workspace_memory_command"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_013_add_a_small_workspace_memory_command_to_cdx,item_033_scoped_memory_alias_and_append_command,task_024_orchestrate_workspace_memory_command",
+  "refs": [
+    "req_013_add_a_small_workspace_memory_command_to_cdx",
+    "item_033_scoped_memory_alias_and_append_command",
+    "task_024_orchestrate_workspace_memory_command"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.11.2"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- Run `python3 -m logics_manager lint --require-status`.",
+        "- Run scaffold command tests."
+      ],
+      "path": "logics/tasks/task_024_orchestrate_workspace_memory_command.md",
+      "ref": "task_024_orchestrate_workspace_memory_command"
+    }
+  ]
+}
