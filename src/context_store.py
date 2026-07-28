@@ -3,6 +3,7 @@ import os
 import shlex
 import subprocess
 from datetime import datetime
+from urllib.parse import quote, unquote
 
 from .errors import CdxError
 from .fs_utils import atomic_write
@@ -42,12 +43,43 @@ def get_context_path(base_dir, cwd=None):
     return os.path.join(_context_dir(base_dir, cwd), "context.md")
 
 
+def get_global_context_path(base_dir):
+    return os.path.join(base_dir, "contexts", "global", "context.md")
+
+
+def get_named_project_context_path(base_dir, project):
+    return os.path.join(base_dir, "contexts", "projects", quote(project, safe=""), "context.md")
+
+
+def list_named_project_contexts(base_dir):
+    root = os.path.join(base_dir, "contexts", "projects")
+    try:
+        names = sorted(os.listdir(root))
+    except FileNotFoundError:
+        return []
+    rows = []
+    for name in names:
+        path = os.path.join(root, name, "context.md")
+        if not os.path.isfile(path):
+            continue
+        rows.append({
+            "scope": "project",
+            "project": unquote(name),
+            "path": path,
+            "bytes": os.path.getsize(path),
+        })
+    return rows
+
+
 def get_context_meta_path(base_dir, cwd=None):
     return os.path.join(_context_dir(base_dir, cwd), "meta.json")
 
 
 def read_context(base_dir, cwd=None):
-    path = get_context_path(base_dir, cwd)
+    return read_context_path(get_context_path(base_dir, cwd))
+
+
+def read_context_path(path):
     try:
         with open(path, encoding="utf-8") as handle:
             return handle.read()
@@ -56,7 +88,10 @@ def read_context(base_dir, cwd=None):
 
 
 def write_context(base_dir, content, cwd=None):
-    path = get_context_path(base_dir, cwd)
+    return write_context_path(get_context_path(base_dir, cwd), content)
+
+
+def write_context_path(path, content):
     _ensure_dir(os.path.dirname(path))
     atomic_write(path, content.rstrip() + "\n", mode=0o644)
     return {
@@ -66,20 +101,40 @@ def write_context(base_dir, content, cwd=None):
     }
 
 
+def append_context(base_dir, note, cwd=None):
+    return append_context_path(get_context_path(base_dir, cwd), note)
+
+
+def append_context_path(path, note):
+    note = str(note or "").strip()
+    if not note:
+        raise CdxError("Memory append requires text.")
+    current = read_context_path(path).rstrip()
+    content = f"{current}\n{note}" if current else note
+    return write_context_path(path, content)
+
+
 def init_context(base_dir, cwd=None):
-    current = read_context(base_dir, cwd)
+    return init_context_path(get_context_path(base_dir, cwd))
+
+
+def init_context_path(path):
+    current = read_context_path(path)
     if current.strip():
         return {
-            "path": get_context_path(base_dir, cwd),
+            "path": path,
             "created": False,
             "bytes": len(current.encode("utf-8")),
         }
-    result = write_context(base_dir, DEFAULT_CONTEXT_TEMPLATE, cwd)
+    result = write_context_path(path, DEFAULT_CONTEXT_TEMPLATE)
     return {**result, "created": True}
 
 
 def clear_context(base_dir, cwd=None):
-    path = get_context_path(base_dir, cwd)
+    return clear_context_path(get_context_path(base_dir, cwd))
+
+
+def clear_context_path(path):
     try:
         os.remove(path)
         removed = True
@@ -89,7 +144,11 @@ def clear_context(base_dir, cwd=None):
 
 
 def edit_context(base_dir, cwd=None, editor=None, env=None, spawn_sync=None):
-    result = init_context(base_dir, cwd)
+    return edit_context_path(get_context_path(base_dir, cwd), editor=editor, env=env, spawn_sync=spawn_sync)
+
+
+def edit_context_path(path, editor=None, env=None, spawn_sync=None):
+    result = init_context_path(path)
     path = result["path"]
     env = env or os.environ
     editor = editor or env.get("VISUAL") or env.get("EDITOR")

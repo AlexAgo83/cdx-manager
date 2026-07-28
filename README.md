@@ -361,7 +361,8 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx last [--json]` | Launch the most recent existing session from launch history |
 | `cdx resume <name> [--json]` | Resume the provider-native conversation for a session using the named command form |
 | `cdx can-resume <name> [--json]` | Check whether a session supports native resume without launching the provider |
-| `cdx context show\|path\|init\|edit\|clear\|set [text...] [--json]` | Manage the shared Markdown context for the current workspace |
+| `cdx context show\|path\|init\|edit\|clear\|set\|append [text...] [--json]` | Manage the shared Markdown context for the current workspace |
+| `cdx memory [--global\|--project NAME_OR_PATH] [show\|view\|path\|init\|edit\|clear\|set\|append\|list] [text...] [--json]` | Manage explicit user-controlled memory for the current workspace, global scope, or a named/path project |
 | `cdx handoff <name> [--json]` | Install the current workspace context into a target session and launch it unless `--json` is used |
 | `cdx handoff <source> <target> [--json]` | Build shared context from the source session's latest launch transcript, install it into the target session, and launch the target unless `--json` is used; supports cross-provider handoff |
 | `cdx rmv <name> [--force] [--json]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
@@ -414,6 +415,7 @@ Commands with machine-readable output:
 - `cdx disable ... --json`
 - `cdx enable ... --json`
 - `cdx context ... --json`
+- `cdx memory ... --json`
 - `cdx handoff ... --json`
 - `cdx history ... --json`
 - `cdx stats ... --json`
@@ -605,6 +607,10 @@ All session data lives under `CDX_HOME` (default: `~/.cdx/`):
   state/
     <encoded-name>.json     # Per-session rehydration state
     launch_history.jsonl    # Append-only launch history
+  contexts/
+    <workspace-hash>/context.md     # Current-workspace shared context / memory
+    global/context.md               # Global cdx memory
+    projects/<encoded-name>/context.md  # Named project memory from cdx memory --project NAME
   profiles/
     <encoded-name>/         # Codex session: CODEX_HOME points here
       log/
@@ -616,6 +622,10 @@ All session data lives under `CDX_HOME` (default: `~/.cdx/`):
 ```
 
 Session names are URL-encoded when used as directory or file names. CLI command names such as `add`, `disk`, `status`, and `login` are reserved and cannot be used as new session names.
+
+`cdx memory` is the user-facing interface for explicit memory. `--project NAME` uses a stable free-form project name; `--project /path/to/repo` resolves to the same workspace-hash memory that repo would use as the current workspace. `append` adds the text as-is with a clean newline boundary; it does not add dates or headings. `list` reports global memory, named project memories, and the current workspace memory when present; it does not scan your filesystem for repos.
+
+Provider-private memory files, such as Codex SQLite memory databases or Claude Code project memory files, are not edited by `cdx memory`.
 
 ### Disk maintenance
 

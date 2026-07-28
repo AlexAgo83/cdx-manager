@@ -44,6 +44,7 @@ RESERVED_SESSION_NAMES = {
     "label",
     "login",
     "logout",
+    "memory",
     "model",
     "mv",
     "next",

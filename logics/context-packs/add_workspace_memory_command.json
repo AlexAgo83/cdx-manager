@@ -46,7 +46,7 @@
           "- The feature should reuse the existing `~/.cdx/contexts/<workspace-hash>/context.md` store and handoff behavior instead of creating another memory database or touching provider-private memory files."
         ]
       },
-      "status": "Draft",
+      "status": "Done",
       "title": "Add a small workspace memory command to cdx"
     },
     {
@@ -92,7 +92,7 @@
           "- Codex and Claude Code now both expose richer memory concepts, so users are likely to ask for memory management in `cdx`; the first slice should give them one explicit local interface without trying to mirror every provider-native memory model."
         ]
       },
-      "status": "Ready",
+      "status": "Done",
       "title": "Scoped memory alias and append command"
     },
     {
@@ -116,7 +116,7 @@
       "ref": "prod_006_workspace_memory_command_for_cdx",
       "schema_version": "1.0",
       "sections": {},
-      "status": "Proposed",
+      "status": "Settled",
       "title": "Workspace memory command for cdx"
     },
     {
@@ -152,19 +152,23 @@
         ],
         "Validation": [
           "- Run `python3 -m logics_manager lint --require-status`.",
-          "- Run scaffold command tests."
+          "- Run scaffold command tests.",
+          "- Ran `PYTHONPATH=src python3 -m pytest -q`: 485 passed.",
+          "- Ran `python3 -m ruff check src test`: all checks passed.",
+          "- Finish workflow executed on 2026-07-28.",
+          "- Linked backlog/request close verification passed."
         ]
       },
-      "status": "Ready",
+      "status": "Done",
       "title": "Orchestrate workspace memory command"
     }
   ],
   "estimates": {
-    "char_count": 7374,
+    "char_count": 7592,
     "companion_doc_count": 0,
     "doc_count": 4
   },
-  "generated_at": "2026-07-28T17:36:21Z",
+  "generated_at": "2026-07-28T17:53:15Z",
   "handoff": {
     "companion_doc_count": 0,
     "enabled": false,

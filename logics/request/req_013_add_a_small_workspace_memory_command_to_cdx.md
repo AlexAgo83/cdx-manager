@@ -1,7 +1,7 @@
 ## req_013_add_a_small_workspace_memory_command_to_cdx - Add a small workspace memory command to cdx
 > From version: 0.11.2
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 100
 > Confidence: 95
 > Complexity: Low

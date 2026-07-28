@@ -1,6 +1,6 @@
 ## prod_006_workspace_memory_command_for_cdx - Workspace memory command for cdx
 > Date: 2026-07-28
-> Status: Proposed
+> Status: Settled
 > Related request: `req_013_add_a_small_workspace_memory_command_to_cdx`
 > Related backlog: `item_033_scoped_memory_alias_and_append_command`
 > Related task: `task_024_orchestrate_workspace_memory_command`

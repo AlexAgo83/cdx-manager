@@ -1,13 +1,14 @@
 ## task_024_orchestrate_workspace_memory_command - Orchestrate workspace memory command
 > From version: 0.11.2
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 100
 > Confidence: 95
-> Progress: 0
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Owner: codex
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
@@ -33,36 +34,44 @@
 - `item_033_scoped_memory_alias_and_append_command`
 
 # Definition of Done (DoD)
-- [ ] The scoped `cdx memory` command is implemented against the existing context store.
-- [ ] Current-workspace, global, and explicit project memory scopes are covered by focused tests.
-- [ ] Free-form `--project A` and path-based `--project /path/to/repo` behavior are both covered.
-- [ ] `cdx memory list` is covered without repository discovery.
-- [ ] `append` behavior is covered for missing files, existing files, newline boundaries, and empty input rejection.
-- [ ] `cdx context` and `cdx handoff` backward compatibility is verified.
-- [ ] README/help documentation describes the supported memory storage boundary.
-- [ ] Provider-native memory sync/export and provider version diagnostics are explicitly left as follow-ups, not half-implemented.
-- [ ] Logics lint, audit, and request validation pass.
+- [x] The scoped `cdx memory` command is implemented against the existing context store.
+- [x] Current-workspace, global, and explicit project memory scopes are covered by focused tests.
+- [x] Free-form `--project A` and path-based `--project /path/to/repo` behavior are both covered.
+- [x] `cdx memory list` is covered without repository discovery.
+- [x] `append` behavior is covered for missing files, existing files, newline boundaries, and empty input rejection.
+- [x] `cdx context` and `cdx handoff` backward compatibility is verified.
+- [x] README/help documentation describes the supported memory storage boundary.
+- [x] Provider-native memory sync/export and provider version diagnostics are explicitly left as follow-ups, not half-implemented.
+- [x] Logics lint, audit, and request validation pass.
 
 # AC Traceability
-- request-AC1 -> Task plan steps 1, 4, and 5. Proof deferred until implementation verifies `cdx memory` and `cdx memory view`.
-- request-AC2 -> Task plan steps 3, 4, and 7. Proof deferred until implementation verifies `--global`.
-- request-AC3 -> Task plan steps 3, 4, and 7. Proof deferred until implementation verifies `--project <name-or-path>`.
-- request-AC4 -> Task plan steps 3 and 7. Proof deferred until implementation verifies mutual exclusion and default scope.
-- request-AC5 -> Task plan steps 4, 5, 7, and 8. Proof deferred until implementation verifies selected-scope command parity.
-- request-AC6 -> Task plan steps 2, 3, 4, and 8. Proof deferred until implementation verifies append across scopes.
-- request-AC7 -> Task plan steps 6 and 8. Proof deferred until implementation verifies bounded list output.
-- request-AC8 -> Task plan steps 2 and 8. Proof deferred until implementation verifies append file creation and newline behavior.
-- request-AC9 -> Task plan steps 4 and 8. Proof deferred until implementation verifies JSON scope metadata.
-- request-AC10 -> Task plan steps 1, 4, and 8. Proof deferred until compatibility tests pass.
-- request-AC11 -> Task plan steps 5 and 7. Proof deferred until help and README are updated.
-- request-AC12 -> Task plan steps 8 and 10. Proof deferred until focused tests and workflow validation pass.
+- request-AC1 -> Task AC1. Proof: implemented by `handle_memory` show/view handling in `src/cli_commands.py`; covered by `test_memory_commands_support_current_global_project_and_list`.
+- request-AC2 -> Task AC2. Proof: implemented by `--global` memory scope resolution in `src/cli_commands.py`; covered by `test_memory_commands_support_current_global_project_and_list`.
+- request-AC3 -> Task AC3. Proof: implemented by name/path project scope resolution in `src/cli_commands.py`; covered by `test_memory_commands_support_current_global_project_and_list`.
+- request-AC4 -> Task AC4. Proof: implemented by `_parse_memory_args` mutual-exclusion/default-scope handling; covered by `test_memory_rejects_empty_append_and_conflicting_scope_flags`.
+- request-AC5 -> Task AC5. Proof: implemented by `memory path/init/edit/clear/set` branches reusing context-store path helpers in `src/cli_commands.py`; JSON behavior follows `_json_success` payloads.
+- request-AC6 -> Task AC6. Proof: implemented by `append_context_path` and `handle_memory append`; covered by current/global/project assertions in `test_memory_commands_support_current_global_project_and_list`.
+- request-AC7 -> Task AC7. Proof: implemented by `_list_memory_entries` and `handle_memory list`; covered by `test_memory_commands_support_current_global_project_and_list`.
+- request-AC8 -> Task AC8. Proof: implemented by `append_context_path`; covered by `test_append_context_preserves_existing_content_and_rejects_empty`.
+- request-AC9 -> Task AC9. Proof: implemented by `_memory_payload` and JSON branches in `handle_memory`; covered by JSON assertions in `test_memory_commands_support_current_global_project_and_list`.
+- request-AC10 -> Task AC10. Proof: backward compatibility preserved by keeping `handle_context`; covered by existing context/handoff tests and full `pytest` run.
+- request-AC11 -> Task AC11. Proof: documented in `README.md` command table, JSON list, data layout, and provider-private memory boundary.
+- request-AC12 -> Task AC12. Proof: covered by focused context/CLI tests plus full validation: `PYTHONPATH=src python3 -m pytest -q` and `python3 -m ruff check src test`.
 
 # Validation
 - Run `python3 -m logics_manager lint --require-status`.
 - Run scaffold command tests.
+- Ran `PYTHONPATH=src python3 -m pytest -q`: 485 passed.
+- Ran `python3 -m ruff check src test`: all checks passed.
+- Finish workflow executed on 2026-07-28.
+- Linked backlog/request close verification passed.
 
 # Report
-- Not started. Ready for an implementation agent.
+- Implemented scoped `cdx memory` command with current, global, free-form project, path-project, append, list, path, init, edit, clear, set, and JSON behavior.
+- Updated README and Logics context pack.
+- Finished on 2026-07-28.
+- Linked backlog item(s): `item_033_scoped_memory_alias_and_append_command`
+- Related request(s): `req_013_add_a_small_workspace_memory_command_to_cdx`
 
 # AI Context
 - Summary: Orchestrate workspace memory command

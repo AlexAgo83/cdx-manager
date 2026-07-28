@@ -3,11 +3,16 @@ import tempfile
 import unittest
 
 from src.context_store import (
+    append_context,
+    append_context_path,
     clear_context,
     edit_context,
     get_context_path,
+    get_global_context_path,
+    get_named_project_context_path,
     init_context,
     install_context_for_session,
+    list_named_project_contexts,
     read_context,
     write_context,
 )
@@ -90,6 +95,34 @@ class ContextStorePythonTests(unittest.TestCase):
 
         self.assertEqual(first, second)
         self.assertNotEqual(first, third)
+
+    def test_append_context_preserves_existing_content_and_rejects_empty(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-context-") as temp_dir:
+            workspace = os.path.join(temp_dir, "workspace")
+
+            first = append_context(temp_dir, " First note \n", cwd=workspace)
+            self.assertEqual(read_context(temp_dir, cwd=workspace), "First note\n")
+            self.assertEqual(first["bytes"], os.path.getsize(get_context_path(temp_dir, cwd=workspace)))
+
+            append_context(temp_dir, "Second note", cwd=workspace)
+            self.assertEqual(read_context(temp_dir, cwd=workspace), "First note\nSecond note\n")
+
+            with self.assertRaisesRegex(CdxError, "append requires text"):
+                append_context(temp_dir, "   ", cwd=workspace)
+
+    def test_named_project_and_global_context_paths_are_listable(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-context-") as temp_dir:
+            global_path = get_global_context_path(temp_dir)
+            project_path = get_named_project_context_path(temp_dir, "client A")
+
+            append_context_path(global_path, "Global note")
+            append_context_path(project_path, "Project note")
+
+            projects = list_named_project_contexts(temp_dir)
+            self.assertEqual(projects[0]["project"], "client A")
+            self.assertEqual(projects[0]["path"], project_path)
+            with open(global_path, encoding="utf-8") as handle:
+                self.assertEqual(handle.read(), "Global note\n")
 
 
 if __name__ == "__main__":
