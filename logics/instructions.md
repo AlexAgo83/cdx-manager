@@ -24,3 +24,5 @@ During task execution, treat meaningful waves as ADR 009 checkpoints: update aff
 When grooming or creating backlog items, set a deliberate `# Priority` tier (`High`, `Medium`, or `Low`) with a one-line rationale instead of leaving the default unreviewed.
 Sequence delivery plans and roadmaps by status priority order before lower-priority work when dependencies allow.
 When delivery consumes a linked product brief, `flow closeout` should settle it; otherwise set the brief to `Settled` or `Superseded` through the CLI instead of leaving it `Proposed`.
+When `rtk` is available, prefer it for noisy commands. Use raw commands or `rtk proxy <cmd>` when exact output or one-off command semantics matter.
+For targeted npm binaries, prefer `rtk npm exec -- vitest ...` instead of `rtk npx vitest ...`.
