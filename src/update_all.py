@@ -18,6 +18,18 @@ _TOOLS = (
 _PONYTAIL_URL = "https://github.com/DietrichGebert/ponytail.git"
 
 
+def _which(command, env):
+    path = env.get("PATH")
+    resolved = shutil.which(command, path=path)
+    if resolved or not path:
+        return resolved
+    for directory in path.split(os.pathsep):
+        candidate = os.path.join(directory, command)
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
 def _run(command, env, runner=None, timeout=15):
     runner = runner or subprocess.run
     try:
@@ -37,7 +49,7 @@ def _version(command, env, runner):
 
 
 def _npm_latest(package, env, runner):
-    if not shutil.which("npm", path=env.get("PATH")):
+    if not _which("npm", env):
         return None
     result = _run(["npm", "view", package, "version"], env, runner)
     value = (result["stdout"] or "").strip()
@@ -51,7 +63,7 @@ def _newer(latest, current):
 
 
 def _brew_outdated(env, runner):
-    if not shutil.which("brew", path=env.get("PATH")):
+    if not _which("brew", env):
         return {}
     result = _run(["brew", "outdated", "--json=v2"], env, runner, timeout=30)
     try:
@@ -90,7 +102,7 @@ def collect_update_all_plan(service, env=None, runner=None):
     outdated = _brew_outdated(env, runner)
     items, steps = [], []
     for name, command, brew_name, update_command in _TOOLS:
-        path = shutil.which(command, path=env.get("PATH"))
+        path = _which(command, env)
         item = {"name": name, "command": command, "installed": bool(path), "path": path, "version": _version(command, env, runner) if path else None}
         cask_name = _brew_cask_for_path(path)
         brew_target = cask_name or brew_name
