@@ -21,7 +21,7 @@ from src.cli import (
     format_json_error,
     main,
 )
-from src.cli_commands import _extract_claude_oauth_token
+from src.cli_commands import _extract_claude_oauth_token, _format_update_all, _format_update_all_result
 from src.errors import CdxError
 from src.health import collect_health_report
 from src.session_service import create_session_service
@@ -257,6 +257,27 @@ class CliPythonTests(unittest.TestCase):
             "spawn_sync": _AuthHarness().spawn_sync,
             **overrides,
         }
+
+    def test_update_all_format_is_scannable_and_colored(self):
+        plan = {
+            "items": [{"name": "codex", "version": "1.0.0", "latest_version": "1.1.0", "status": "update_available"}],
+            "setup": {"rtk_missing_sessions": ["main"], "ponytail": [{"session": "main", "status": "up_to_date"}]},
+            "steps": [{"name": "codex"}],
+        }
+        plain = _format_update_all(plan)
+        colored = _format_update_all(plan, use_color=True)
+        self.assertIn("Inventory only", plain)
+        self.assertIn("CURRENT", plain)
+        self.assertIn("Session setup", plain)
+        self.assertIn("1 action(s) ready", plain)
+        self.assertIn("\033[", colored)
+
+    def test_update_all_failure_includes_its_reason(self):
+        text = _format_update_all_result({"name": "Claude Code", "command": ["brew", "upgrade", "--cask", "claude-code@latest"], "returncode": 1, "stderr": "network unavailable"})
+        self.assertIn("exit 1", text)
+        self.assertIn("network unavailable", text)
+        self.assertIn("claude-code@latest", text)
+        self.assertIn("blocked by marketplace", _format_update_all_result({"name": "install", "skipped": True, "blocked_by": "marketplace"}))
 
     def test_reset_time_formatting_uses_countdown(self):
         now = datetime.now().astimezone()

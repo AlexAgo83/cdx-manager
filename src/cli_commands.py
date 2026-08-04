@@ -129,21 +129,39 @@ from .update_manager import build_update_plan, format_update_failure, run_update
 from .update_all import apply_update_all_plan, collect_update_all_plan
 
 
-def _format_update_all(plan):
-    rows = [["TOOL", "VERSION", "STATUS"]]
+def _format_update_all(plan, use_color=False):
+    labels = {
+        "up_to_date": _success("OK", use_color),
+        "update_available": _warn("UPDATE", use_color),
+        "not_installed": _warn("MISSING", use_color),
+        "check_with_native_updater": _info("CHECK", use_color),
+    }
+    rows = [[_style("TOOL", "1", use_color), _style("CURRENT", "1", use_color), _style("LATEST", "1", use_color), _style("STATUS", "1", use_color)]]
     for item in plan["items"]:
-        rows.append([item["name"], item.get("version") or "-", item["status"].replace("_", " ")])
-    lines = ["Workstation update check:", _pad_table(rows)]
+        rows.append([_info(item["name"], use_color), item.get("version") or _dim("-", use_color), item.get("latest_version") or _dim("-", use_color), labels.get(item["status"], item["status"].replace("_", " "))])
+    lines = [_style("Workstation update", "1", use_color), _dim("Inventory only — nothing has changed.", use_color), "", _pad_table(rows)]
     missing_rtk = plan["setup"]["rtk_missing_sessions"]
-    if missing_rtk:
-        lines.append(f"RTK will be enabled for: {', '.join(missing_rtk)}")
-    for plugin in plan["setup"]["ponytail"]:
-        lines.append(f"Ponytail {plugin['session']}: {plugin['status'].replace('_', ' ')}")
+    setup = [f"RTK: enable for {', '.join(missing_rtk)}" if missing_rtk else "RTK: configured for every session"]
+    setup.extend(f"Ponytail {plugin['session']}: {labels.get(plugin['status'], plugin['status'].replace('_', ' '))}" for plugin in plan["setup"]["ponytail"])
+    lines.extend(["", _style("Session setup", "1", use_color), *setup])
     if plan["steps"]:
-        lines.append(f"{len(plan['steps'])} safe action(s) ready; no change has been made.")
+        lines.extend(["", _warn(f"{len(plan['steps'])} action(s) ready", use_color), _dim("Confirm to update only the tools listed above.", use_color)])
     else:
-        lines.append("Everything managed by CDX is current and configured.")
+        lines.extend(["", _success("Everything managed by CDX is current and configured.", use_color)])
     return "\n".join(lines)
+
+
+def _format_update_all_result(result, use_color=False):
+    if result.get("skipped"):
+        return _warn(f"skipped: {result['name']} (blocked by {result['blocked_by']})", use_color)
+    if result.get("returncode") == 0:
+        return _success(f"done: {result['name']}", use_color)
+    detail = str(result.get("stderr") or result.get("stdout") or "No error output.").strip().replace("\n", " ")
+    detail = detail[-500:]
+    command = shlex.join(result.get("command") or [])
+    suffix = f"\n  {_dim(command, use_color)}" if command else ""
+    label = _warn(f"failed: {result['name']} (exit {result.get('returncode')})", use_color)
+    return f"{label}\n  {detail}{suffix}"
 
 
 def _resolve_bundle_passphrase(ctx, env_var, prompt, confirm=False, use_stdin=False):
@@ -2698,7 +2716,7 @@ def handle_update(rest, ctx):
             if parsed["json"]:
                 _write_json(ctx, _json_success("update.all", "Collected workstation update plan", plan=plan, apply_required=bool(plan["steps"])))
                 return 0
-            ctx["out"](f"{_format_update_all(plan)}\n")
+            ctx["out"](f"{_format_update_all(plan, ctx['use_color'])}\n")
             if not plan["steps"]:
                 return 0
             if not ctx["stdin_is_tty"]:
@@ -2706,7 +2724,17 @@ def handle_update(rest, ctx):
             if input("Apply this plan? [y/N] ").strip().lower() not in ("y", "yes"):
                 ctx["out"](f"{_warn('Cancelled.', ctx['use_color'])}\n")
                 return 0
-        results = apply_update_all_plan(plan, ctx["service"], env=ctx.get("env"), runner=ctx["options"].get("runUpdateAll"))
+        def progress(event):
+            if parsed["json"]:
+                return
+            step_name = event["step"]["name"]
+            if event["phase"] == "start":
+                progress_label = _info(f"[{event['index']}/{event['total']}]", ctx["use_color"])
+                ctx["out"](f"{progress_label} {step_name}...\n")
+            else:
+                ctx["out"](f"  {_format_update_all_result(event['result'], ctx['use_color'])}\n")
+
+        results = apply_update_all_plan(plan, ctx["service"], env=ctx.get("env"), runner=ctx["options"].get("runUpdateAll"), progress=progress)
         failed = [row for row in results if row.get("returncode") != 0]
         message = "Applied workstation update plan" if not failed else "Workstation update plan completed with failures"
         if parsed["json"]:

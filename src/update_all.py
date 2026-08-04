@@ -66,14 +66,24 @@ def _brew_outdated(env, runner):
     return rows
 
 
-def _ponytail_revision(auth_home):
+def _brew_cask_for_path(path):
+    match = re.search(r"/Caskroom/([^/]+)/", os.path.realpath(path or ""))
+    return match.group(1) if match else None
+
+
+def _ponytail_revision(auth_home, env=None, runner=None):
     try:
         with open(os.path.join(auth_home, "config.toml"), encoding="utf-8") as handle:
             text = handle.read()
     except OSError:
-        return None
+        text = ""
     match = re.search(r'\[marketplaces\.ponytail\].*?last_revision\s*=\s*"([0-9a-f]+)"', text, re.S)
-    return match.group(1) if match else None
+    if match:
+        return match.group(1)
+    cache = os.path.join(auth_home, ".tmp", "marketplaces", "ponytail")
+    result = _run(["git", "-C", cache, "rev-parse", "HEAD"], env or os.environ, runner)
+    revision = (result["stdout"] or "").strip()
+    return revision if re.fullmatch(r"[0-9a-f]{40}", revision) else None
 
 
 def collect_update_all_plan(service, env=None, runner=None):
@@ -83,10 +93,13 @@ def collect_update_all_plan(service, env=None, runner=None):
     for name, command, brew_name, update_command in _TOOLS:
         path = shutil.which(command, path=env.get("PATH"))
         item = {"name": name, "command": command, "installed": bool(path), "path": path, "version": _version(command, env, runner) if path else None}
-        brew_row = outdated.get(brew_name) if brew_name else None
+        cask_name = _brew_cask_for_path(path)
+        brew_target = cask_name or brew_name
+        brew_row = outdated.get(brew_target) if brew_target else None
         if brew_row:
-            item.update({"status": "update_available", "latest_version": brew_row.get("current_version"), "update_command": update_command})
-            steps.append({"name": name, "command": update_command, "env": {}})
+            command_to_run = ["brew", "upgrade", "--cask", brew_target] if cask_name else update_command
+            item.update({"status": "update_available", "latest_version": brew_row.get("current_version"), "update_command": command_to_run, "package": brew_target})
+            steps.append({"name": name, "command": command_to_run, "env": {}})
         elif path and name == PROVIDER_CODEX:
             # Codex owns its installer; it is the only reliable updater across npm, Homebrew and standalone installs.
             latest = _npm_latest("@openai/codex", env, runner)
@@ -105,11 +118,11 @@ def collect_update_all_plan(service, env=None, runner=None):
 
     codex_sessions = [session for session in service["list_sessions"]() if session.get("provider") == PROVIDER_CODEX]
     ponytail_head = None
-    if any(_ponytail_revision(session.get("authHome") or "") for session in codex_sessions):
+    if any(_ponytail_revision(session.get("authHome") or "", env, runner) for session in codex_sessions):
         remote = _run(["git", "ls-remote", _PONYTAIL_URL, "HEAD"], env, runner)
         ponytail_head = (remote["stdout"] or "").split("\t", 1)[0].strip() or None
     for session in codex_sessions:
-        revision = _ponytail_revision(session.get("authHome") or "")
+        revision = _ponytail_revision(session.get("authHome") or "", env, runner)
         row = {"session": session["name"], "installed": bool(revision), "revision": revision}
         if revision:
             row["latest_revision"] = ponytail_head
@@ -118,23 +131,43 @@ def collect_update_all_plan(service, env=None, runner=None):
                 steps.append({"name": f"update Ponytail ({session['name']})", "command": ["codex", "plugin", "marketplace", "upgrade", "ponytail", "--json"], "env": {"CODEX_HOME": session["authHome"]}})
         else:
             row["status"] = "not_installed"
+            marketplace_id = f"ponytail-marketplace:{session['name']}"
             steps.extend([
-                {"name": f"add Ponytail marketplace ({session['name']})", "command": ["codex", "plugin", "marketplace", "add", "ponytail", _PONYTAIL_URL], "env": {"CODEX_HOME": session["authHome"]}},
-                {"name": f"install Ponytail ({session['name']})", "command": ["codex", "plugin", "add", "ponytail@ponytail", "--json"], "env": {"CODEX_HOME": session["authHome"]}},
+                {"id": marketplace_id, "name": f"add Ponytail marketplace ({session['name']})", "command": ["codex", "plugin", "marketplace", "add", _PONYTAIL_URL], "env": {"CODEX_HOME": session["authHome"]}},
+                {"name": f"install Ponytail ({session['name']})", "command": ["codex", "plugin", "add", "ponytail@ponytail", "--json"], "env": {"CODEX_HOME": session["authHome"]}, "requires": marketplace_id},
             ])
         setup["ponytail"].append(row)
     return {"items": items, "setup": setup, "steps": steps}
 
 
-def apply_update_all_plan(plan, service, env=None, runner=None):
+def apply_update_all_plan(plan, service, env=None, runner=None, progress=None):
     env = dict(env or os.environ)
     results = []
-    for step in plan["steps"]:
+    completed = set()
+    for index, step in enumerate(plan["steps"], start=1):
+        if progress:
+            progress({"phase": "start", "index": index, "total": len(plan["steps"]), "step": step})
+        if step.get("requires") and step["requires"] not in completed:
+            result = {"name": step["name"], "returncode": None, "skipped": True, "blocked_by": step["requires"]}
+            results.append(result)
+            if progress:
+                progress({"phase": "done", "index": index, "total": len(plan["steps"]), "step": step, "result": result})
+            continue
         if step["command"] is None:
             for name in step["sessions"]:
                 service["set_launch_settings"](name, {"rtk": True})
-            results.append({"name": step["name"], "returncode": 0, "sessions": step["sessions"]})
+            result = {"name": step["name"], "returncode": 0, "sessions": step["sessions"]}
+            results.append(result)
+            if step.get("id"):
+                completed.add(step["id"])
+            if progress:
+                progress({"phase": "done", "index": index, "total": len(plan["steps"]), "step": step, "result": result})
             continue
         result = _run(step["command"], {**env, **step.get("env", {})}, runner, timeout=120)
-        results.append({"name": step["name"], "command": step["command"], **result})
+        result = {"name": step["name"], "command": step["command"], **result}
+        results.append(result)
+        if result["returncode"] == 0 and step.get("id"):
+            completed.add(step["id"])
+        if progress:
+            progress({"phase": "done", "index": index, "total": len(plan["steps"]), "step": step, "result": result})
     return results
