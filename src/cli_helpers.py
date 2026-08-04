@@ -250,11 +250,10 @@ def _collect_native_handoff_transcript_paths(session):
 
 
 def _latest_handoff_transcript_path(session):
-    launch_path = _latest_launch_transcript_path(session)
-    if launch_path:
-        return launch_path
     native_paths = _collect_native_handoff_transcript_paths(session)
-    return native_paths[0] if native_paths else None
+    if native_paths:
+        return native_paths[0]
+    return _latest_launch_transcript_path(session)
 
 
 def _collect_handoff_text_fragments(value):
@@ -281,6 +280,10 @@ def _collect_handoff_text_fragments(value):
 def _jsonl_record_to_handoff_text(record):
     if not isinstance(record, dict):
         return None
+    if record.get("type") == "response_item":
+        record = record.get("payload")
+        if not isinstance(record, dict):
+            return None
     message = record.get("message") if isinstance(record.get("message"), dict) else {}
     role = (
         message.get("role")
@@ -289,6 +292,8 @@ def _jsonl_record_to_handoff_text(record):
         or record.get("sender")
         or "entry"
     )
+    if role not in ("user", "assistant"):
+        return None
     text_sources = []
     for key in ("content", "text", "payload"):
         if key in record:

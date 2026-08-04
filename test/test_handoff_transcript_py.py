@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 
-from src.cli_commands import _read_handoff_transcript
+from src.cli_commands import _latest_handoff_transcript_path, _read_handoff_transcript
 
 
 class ReadHandoffTranscriptTest(unittest.TestCase):
@@ -27,6 +27,28 @@ class ReadHandoffTranscriptTest(unittest.TestCase):
         self.assertNotIn("\x1b", content)
         self.assertIn("fix the bug", content)
         self.assertIn("Assistant: done", content)
+
+    def test_prefers_native_jsonl_and_excludes_tool_records(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-handoff-") as root:
+            auth_home = os.path.join(root, "profile")
+            log_dir = os.path.join(auth_home, "log")
+            session_dir = os.path.join(auth_home, "sessions", "2026", "08", "04")
+            os.makedirs(log_dir)
+            os.makedirs(session_dir)
+            with open(os.path.join(log_dir, "cdx-session.log"), "w", encoding="utf-8") as handle:
+                handle.write("noisy terminal output\n")
+            native = os.path.join(session_dir, "rollout.jsonl")
+            with open(native, "w", encoding="utf-8") as handle:
+                handle.write('{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Finish the migration"}]}}\n')
+                handle.write('{"type":"response_item","payload":{"type":"function_call","name":"exec","arguments":"very noisy output"}}\n')
+                handle.write('{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Next: run tests"}]}}\n')
+            session = {"authHome": auth_home, "sessionRoot": auth_home}
+            self.assertEqual(_latest_handoff_transcript_path(session), native)
+            content, truncated = _read_handoff_transcript(native)
+            self.assertFalse(truncated)
+            self.assertIn("[user]\nFinish the migration", content)
+            self.assertIn("[assistant]\nNext: run tests", content)
+            self.assertNotIn("noisy", content)
 
 
 if __name__ == "__main__":
