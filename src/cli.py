@@ -219,7 +219,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx doctor [--json]', '36', use_color)}",
         f"  {_style('cdx repair [--dry-run] [--force] [--json]', '36', use_color)}",
         f"  {_style('cdx view [--json]', '36', use_color)}",
-        f"  {_style('cdx update [--check] [--yes] [--json] [--version TAG]', '36', use_color)}",
+        f"  {_style('cdx update [all] [--check] [--yes] [--json] [--version TAG]', '36', use_color)}",
         f"  {_style('cdx ready [--refresh] [--json]', '36', use_color)}",
         f"  {_style('cdx notify <name> --at-reset [--schedule] [--refresh] [--json]', '36', use_color)}",
         f"  {_style('cdx notify --next-ready [--schedule] [--refresh] [--json]', '36', use_color)}",

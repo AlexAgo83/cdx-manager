@@ -15,7 +15,7 @@ STATUS_USAGE = "Usage: cdx status [--json] [--refresh|--cached] [--timeout SECON
 DOCTOR_USAGE = "Usage: cdx doctor [--json]"
 DISK_USAGE = "Usage: cdx disk [profiles] [--candidates] [--json]"
 REPAIR_USAGE = "Usage: cdx repair [--dry-run] [--force] [--json]"
-UPDATE_USAGE = "Usage: cdx update [--check] [--yes] [--json] [--version TAG]"
+UPDATE_USAGE = "Usage: cdx update [all] [--check] [--yes] [--json] [--version TAG]"
 EXPORT_USAGE = "Usage: cdx export <file> [--include-auth] [--force] [--json] [--sessions name1,name2] [--passphrase-env VAR|--passphrase-stdin]"
 IMPORT_USAGE = "Usage: cdx import <file> [--force|--merge] [--allow-authless-force] [--json] [--sessions name1,name2] [--passphrase-env VAR|--passphrase-stdin]"
 CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set|append [text...] [--json]"
@@ -594,11 +594,16 @@ def _parse_update_args(args):
         "--json": {"key": "json", "type": "bool", "default": False},
         "--yes": {"key": "yes", "type": "bool", "default": False},
         "--version": {"key": "version", "type": "str", "default": None},
-    }, UPDATE_USAGE)
+    }, UPDATE_USAGE, positionals_key="values", max_positionals=1)
+    if parsed["values"] not in ([], ["all"]):
+        raise CdxError(UPDATE_USAGE)
+    parsed["all"] = bool(parsed["values"])
+    if parsed["all"] and (parsed["check"] or parsed["version"]):
+        raise CdxError("Usage: cdx update all [--yes] [--json]")
     if parsed["check"] and parsed["version"]:
         raise CdxError("Usage: cdx update --check cannot be combined with --version.")
     if parsed["version"] is not None and not parsed["version"].strip():
-        raise CdxError("Usage: cdx update [--check] [--yes] [--json] [--version TAG]")
+        raise CdxError(UPDATE_USAGE)
     return parsed
 
 

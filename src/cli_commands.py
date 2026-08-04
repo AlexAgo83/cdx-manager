@@ -126,6 +126,24 @@ from .run_usage import extract_run_usage
 from .status_view import _format_status_detail, _format_status_rows, format_priority_instruction, recommend_priority_rows
 from .update_check import LatestReleaseCheckError, fetch_latest_release, fetch_latest_release_or_raise, is_newer_version
 from .update_manager import build_update_plan, format_update_failure, run_update_plan, verify_updated_command
+from .update_all import apply_update_all_plan, collect_update_all_plan
+
+
+def _format_update_all(plan):
+    rows = [["TOOL", "VERSION", "STATUS"]]
+    for item in plan["items"]:
+        rows.append([item["name"], item.get("version") or "-", item["status"].replace("_", " ")])
+    lines = ["Workstation update check:", _pad_table(rows)]
+    missing_rtk = plan["setup"]["rtk_missing_sessions"]
+    if missing_rtk:
+        lines.append(f"RTK will be enabled for: {', '.join(missing_rtk)}")
+    for plugin in plan["setup"]["ponytail"]:
+        lines.append(f"Ponytail {plugin['session']}: {plugin['status'].replace('_', ' ')}")
+    if plan["steps"]:
+        lines.append(f"{len(plan['steps'])} safe action(s) ready; no change has been made.")
+    else:
+        lines.append("Everything managed by CDX is current and configured.")
+    return "\n".join(lines)
 
 
 def _resolve_bundle_passphrase(ctx, env_var, prompt, confirm=False, use_stdin=False):
@@ -2674,6 +2692,28 @@ def handle_logout(rest, ctx):
 
 def handle_update(rest, ctx):
     parsed = _parse_update_args(rest)
+    if parsed["all"]:
+        plan = collect_update_all_plan(ctx["service"], env=ctx.get("env"), runner=ctx["options"].get("runUpdateAll"))
+        if not parsed["yes"]:
+            if parsed["json"]:
+                _write_json(ctx, _json_success("update.all", "Collected workstation update plan", plan=plan, apply_required=bool(plan["steps"])))
+                return 0
+            ctx["out"](f"{_format_update_all(plan)}\n")
+            if not plan["steps"]:
+                return 0
+            if not ctx["stdin_is_tty"]:
+                raise CdxError("cdx update all requires an interactive terminal or --yes.")
+            if input("Apply this plan? [y/N] ").strip().lower() not in ("y", "yes"):
+                ctx["out"](f"{_warn('Cancelled.', ctx['use_color'])}\n")
+                return 0
+        results = apply_update_all_plan(plan, ctx["service"], env=ctx.get("env"), runner=ctx["options"].get("runUpdateAll"))
+        failed = [row for row in results if row.get("returncode") != 0]
+        message = "Applied workstation update plan" if not failed else "Workstation update plan completed with failures"
+        if parsed["json"]:
+            _write_json(ctx, _json_success("update.all", message, plan=plan, results=results, failed=len(failed)))
+        else:
+            ctx["out"](f"{_success(message, ctx['use_color']) if not failed else _warn(message, ctx['use_color'])}\n")
+        return 1 if failed else 0
     json_flag = parsed["json"]
     current_version = str(ctx.get("version") or "").strip()
     release_fetcher = ctx["options"].get("fetchLatestRelease") or fetch_latest_release

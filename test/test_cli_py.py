@@ -530,7 +530,7 @@ class CliPythonTests(unittest.TestCase):
 
         self.assertEqual(main(["--help"], help_io), 0)
         self.assertIn("Usage:", help_io["stdout"].getvalue())
-        self.assertIn("cdx update [--check] [--yes] [--json] [--version TAG]", help_io["stdout"].getvalue())
+        self.assertIn("cdx update [all] [--check] [--yes] [--json] [--version TAG]", help_io["stdout"].getvalue())
         self.assertIn("cdx ready [--refresh] [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx next [--json] [--refresh]", help_io["stdout"].getvalue())
         self.assertIn("cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b>", help_io["stdout"].getvalue())
