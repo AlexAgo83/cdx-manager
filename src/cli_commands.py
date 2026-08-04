@@ -124,9 +124,9 @@ from .run_command import read_run_prompt, run_cdx_error_code, run_result_payload
 from .run_registry import RunRegistry, build_code_review_report
 from .run_usage import extract_run_usage
 from .status_view import _format_status_detail, _format_status_rows, format_priority_instruction, recommend_priority_rows
+from .update_all import apply_update_all_plan, collect_update_all_plan
 from .update_check import LatestReleaseCheckError, fetch_latest_release, fetch_latest_release_or_raise, is_newer_version
 from .update_manager import build_update_plan, format_update_failure, run_update_plan, verify_updated_command
-from .update_all import apply_update_all_plan, collect_update_all_plan
 
 
 def _format_update_all(plan, use_color=False):

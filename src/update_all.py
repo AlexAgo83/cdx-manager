@@ -8,7 +8,6 @@ import subprocess
 
 from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
 
-
 _TOOLS = (
     (PROVIDER_CODEX, "codex", None, ["codex", "update"]),
     (PROVIDER_CLAUDE, "claude", "claude", ["brew", "upgrade", "--cask", "claude"]),
