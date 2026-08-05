@@ -1,10 +1,10 @@
 ## task_025_orchestrate_safe_cdx_ready_no_target_handling - Orchestrate safe cdx ready no-target handling
 > From version: 0.12.1
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -26,19 +26,24 @@
 - `item_034_handle_no_target_cdx_ready_scheduling_gracefully`
 
 # Definition of Done (DoD)
-- [ ] Generated request, product, backlog, and task docs are present.
-- [ ] Context-pack handoff is available when requested.
-- [ ] Validation passes.
-- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+- [x] Generated request, product, backlog, and task docs are present.
+- [x] Context-pack handoff is available when requested.
+- [x] Validation passes.
+- [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
 - request-AC1, request-AC2, request-AC3, request-AC4, request-AC5 -> `item_034_handle_no_target_cdx_ready_scheduling_gracefully`. Proof deferred to slice closeout.
 
 # Validation
 - (no validation recorded yet)
+- Finish workflow executed on 2026-08-05.
+- Linked backlog/request close verification passed.
 
 # Report
 - Not started.
+- Finished on 2026-08-05.
+- Linked backlog item(s): `item_034_handle_no_target_cdx_ready_scheduling_gracefully`
+- Related request(s): `req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled`
 
 # AI Context
 - Summary: Orchestrate safe cdx ready no-target handling

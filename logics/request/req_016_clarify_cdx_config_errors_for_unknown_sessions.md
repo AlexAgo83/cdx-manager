@@ -1,7 +1,7 @@
 ## req_016_clarify_cdx_config_errors_for_unknown_sessions - Clarify cdx config errors for unknown sessions
 > From version: 0.12.1
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Low

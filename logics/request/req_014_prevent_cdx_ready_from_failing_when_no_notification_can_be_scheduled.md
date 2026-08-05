@@ -1,7 +1,7 @@
 ## req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled - Prevent cdx ready from failing when no notification can be scheduled
 > From version: 0.12.1
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Low

@@ -1,7 +1,7 @@
 ## req_015_add_a_severity_filter_to_cdx_doctor - Add a severity filter to cdx doctor
 > From version: 0.12.1
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Low

@@ -1,10 +1,10 @@
 ## item_035_filter_cdx_doctor_report_by_severity - Filter cdx doctor report by severity
 > From version: 0.12.1
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Low
 > Theme: CLI diagnostics
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -54,3 +54,6 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Notes
+- Task `task_026_orchestrate_cdx_doctor_severity_filtering` was finished via `logics-manager flow finish task` on 2026-08-05.

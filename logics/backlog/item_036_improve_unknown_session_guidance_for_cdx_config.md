@@ -1,10 +1,10 @@
 ## item_036_improve_unknown_session_guidance_for_cdx_config - Improve unknown-session guidance for cdx config
 > From version: 0.12.1
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Low
 > Theme: CLI ergonomics
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -52,3 +52,6 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Notes
+- Task `task_027_orchestrate_actionable_cdx_config_error_guidance` was finished via `logics-manager flow finish task` on 2026-08-05.

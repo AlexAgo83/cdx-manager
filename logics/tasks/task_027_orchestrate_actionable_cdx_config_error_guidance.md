@@ -1,10 +1,10 @@
 ## task_027_orchestrate_actionable_cdx_config_error_guidance - Orchestrate actionable cdx config error guidance
 > From version: 0.12.1
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -26,19 +26,24 @@
 - `item_036_improve_unknown_session_guidance_for_cdx_config`
 
 # Definition of Done (DoD)
-- [ ] Generated request, product, backlog, and task docs are present.
-- [ ] Context-pack handoff is available when requested.
-- [ ] Validation passes.
-- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+- [x] Generated request, product, backlog, and task docs are present.
+- [x] Context-pack handoff is available when requested.
+- [x] Validation passes.
+- [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
 - request-AC1, request-AC2, request-AC3, request-AC4 -> `item_036_improve_unknown_session_guidance_for_cdx_config`. Proof deferred to slice closeout.
 
 # Validation
 - (no validation recorded yet)
+- Finish workflow executed on 2026-08-05.
+- Linked backlog/request close verification passed.
 
 # Report
 - Not started.
+- Finished on 2026-08-05.
+- Linked backlog item(s): `item_036_improve_unknown_session_guidance_for_cdx_config`
+- Related request(s): `req_016_clarify_cdx_config_errors_for_unknown_sessions`
 
 # AI Context
 - Summary: Orchestrate actionable cdx config error guidance
