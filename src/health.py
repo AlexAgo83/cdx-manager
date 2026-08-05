@@ -363,6 +363,19 @@ def summarize_health(issues):
     }
 
 
+def filter_health_report(report, severity):
+    if severity is None:
+        return report
+    severities = set(severity.split(","))
+    issues = [issue for issue in report["issues"] if issue["status"] in severities]
+    return {
+        **report,
+        "issues": issues,
+        "summary": summarize_health(issues),
+        "severity": severity,
+    }
+
+
 def format_health_report(report, use_color=False):
     rows = [["STATUS", "CHECK", "MESSAGE"]]
     for issue in report["issues"]:

@@ -221,6 +221,13 @@ def schedule_notification_event(base_dir, parsed, event, spawn_sync=None, env=No
     now_fn = now_fn or time.time
     target_timestamp = event.get("target_timestamp")
     if target_timestamp is None:
+        if parsed["mode"] == "next-ready":
+            return {
+                "scheduled": False,
+                "backend": "none",
+                "message": event["message"],
+                "target_timestamp": None,
+            }
         raise CdxError(f"Cannot schedule notification: {event['message']}")
     if target_timestamp <= now_fn():
         return {

@@ -33,6 +33,7 @@ from .cli_args import (
     _parse_config_args,
     _parse_configs_args,
     _parse_copy_args,
+    _parse_doctor_args,
     _parse_export_args,
     _parse_flag_args,
     _parse_history_args,
@@ -98,7 +99,7 @@ from .context_store import (
 )
 from .errors import CdxError
 from .fs_utils import atomic_write
-from .health import collect_health_report, format_health_report
+from .health import collect_health_report, filter_health_report, format_health_report
 from .notify import (
     format_notify_event,
     format_scheduled_notification,
@@ -1700,7 +1701,10 @@ def handle_config(rest, ctx):
     parsed = _parse_config_args(rest)
     session = ctx["service"]["get_session"](parsed["name"])
     if not session:
-        raise CdxError(f"Unknown session: {parsed['name']}")
+        raise CdxError(
+            f"Unknown session: {parsed['name']}. Run cdx configs to inspect existing sessions or "
+            f"cdx add {parsed['name']} to create it."
+        )
     message = f"Launch settings for {parsed['name']}"
     if parsed["json"]:
         _write_json(ctx, _json_success("config", message, session=session, launch=session.get("launch") or {}))
@@ -1893,17 +1897,15 @@ def handle_clean(rest, ctx):
 
 
 def handle_doctor(rest, ctx):
-    json_flag = "--json" in rest
-    unknown = [arg for arg in rest if arg != "--json"]
-    if unknown:
-        raise CdxError(DOCTOR_USAGE)
+    parsed = _parse_doctor_args(rest)
     report = collect_health_report(
         ctx["service"],
         ctx["service"]["base_dir"],
         env=ctx.get("env"),
         spawn_sync=ctx.get("spawn_sync"),
     )
-    if json_flag:
+    report = filter_health_report(report, parsed["severity"])
+    if parsed["json"]:
         _write_json(ctx, _json_success("doctor", "Collected health report", report=report))
     else:
         ctx["out"](f"{format_health_report(report, use_color=ctx['use_color'])}\n")

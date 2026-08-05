@@ -12,7 +12,7 @@ from .errors import CdxError
 from .provider_runtime import _normalize_reasoning_effort
 
 STATUS_USAGE = "Usage: cdx status [--json] [--refresh|--cached] [--timeout SECONDS] | cdx status --small|-s [--refresh|--cached] [--timeout SECONDS] | cdx status <name> [--json] [--refresh|--cached] [--timeout SECONDS]"
-DOCTOR_USAGE = "Usage: cdx doctor [--json]"
+DOCTOR_USAGE = "Usage: cdx doctor [--severity OK|WARN|FAIL[,OK|WARN|FAIL...]] [--json]"
 DISK_USAGE = "Usage: cdx disk [profiles] [--candidates] [--json]"
 REPAIR_USAGE = "Usage: cdx repair [--dry-run] [--force] [--json]"
 UPDATE_USAGE = "Usage: cdx update [all] [--check] [--yes] [--json] [--version TAG]"
@@ -44,6 +44,35 @@ def _parse_json_flag(args):
     json_flag = "--json" in args
     cleaned = [arg for arg in args if arg != "--json"]
     return json_flag, cleaned
+
+
+def _parse_doctor_args(args):
+    parsed = {"json": False, "severity": None}
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--json":
+            parsed["json"] = True
+            index += 1
+            continue
+        if arg == "--severity":
+            if parsed["severity"] is not None or index + 1 >= len(args):
+                raise CdxError(DOCTOR_USAGE)
+            value = args[index + 1]
+            index += 2
+        elif arg.startswith("--severity="):
+            if parsed["severity"] is not None:
+                raise CdxError(DOCTOR_USAGE)
+            value = arg.split("=", 1)[1]
+            index += 1
+        else:
+            raise CdxError(DOCTOR_USAGE)
+
+        values = [item.strip().upper() for item in value.split(",")]
+        if not values or any(item not in {"OK", "WARN", "FAIL"} for item in values):
+            raise CdxError(DOCTOR_USAGE)
+        parsed["severity"] = ",".join(dict.fromkeys(values))
+    return parsed
 
 
 def _parse_flag_args(args, schema, usage, positionals_key=None, max_positionals=0):

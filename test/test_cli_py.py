@@ -553,6 +553,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Usage:", help_io["stdout"].getvalue())
         self.assertIn("cdx update [all] [--check] [--yes] [--json] [--version TAG]", help_io["stdout"].getvalue())
         self.assertIn("cdx ready [--refresh] [--json]", help_io["stdout"].getvalue())
+        self.assertIn("cdx doctor [--severity OK|WARN|FAIL[,OK|WARN|FAIL...]] [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx next [--json] [--refresh]", help_io["stdout"].getvalue())
         self.assertIn("cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b>", help_io["stdout"].getvalue())
         self.assertIn("cdx stats [name]", help_io["stdout"].getvalue())
@@ -3264,6 +3265,24 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["sessions"][0]["name"], "work")
         self.assertEqual(payload["sessions"][0]["launch"]["power"], "medium")
 
+    def test_config_unknown_session_suggests_configs_and_add(self):
+        temp_dir = self.make_temp_dir()
+        io_obj = self.make_io()
+
+        with self.assertRaisesRegex(CdxError, "Unknown session: configs\\. Run cdx configs") as ctx:
+            main(["config", "configs"], {**io_obj, "env": {"CDX_HOME": temp_dir}})
+
+        self.assertIn("cdx add configs", str(ctx.exception))
+        payload = json.loads(format_json_error(ctx.exception))
+        self.assertEqual(payload["error"]["code"], "unknown_session")
+        self.assertIn("Run cdx configs", payload["error"]["message"])
+
+    def test_config_usage_errors_remain_unchanged(self):
+        for args in (["config"], ["config", "one", "two"]):
+            with self.subTest(args=args):
+                with self.assertRaisesRegex(CdxError, "Usage: cdx config <name> \\[--json\\]"):
+                    main(args, self.make_io())
+
     def test_handoff_launches_claude_target_with_initial_prompt(self):
         temp_dir = self.make_temp_dir()
         workspace = os.path.join(temp_dir, "repo")
@@ -4884,6 +4903,62 @@ class CliPythonTests(unittest.TestCase):
         self.assertEqual(payload["report"]["summary"]["fail"], 1)
         self.assertTrue(any(issue["code"] == "missing_state" for issue in payload["report"]["issues"]))
 
+    def test_doctor_filters_severity_in_json_and_text(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        os.remove(os.path.join(temp_dir, "state", "main.json"))
+
+        json_io = self.make_io()
+        self.assertEqual(main(["doctor", "--severity=warn,fail", "--json"], {
+            **json_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir, "PATH": ""},
+        }), 0)
+        payload = json.loads(json_io["stdout"].getvalue())
+        report = payload["report"]
+        self.assertEqual(report["severity"], "WARN,FAIL")
+        self.assertTrue(report["issues"])
+        self.assertTrue(all(issue["status"] in {"WARN", "FAIL"} for issue in report["issues"]))
+        self.assertEqual(report["summary"]["ok"], 0)
+        self.assertEqual(report["summary"]["fail"], 1)
+
+        text_io = self.make_io()
+        self.assertEqual(main(["doctor", "--severity", "fail"], {
+            **text_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir, "PATH": ""},
+        }), 0)
+        text = text_io["stdout"].getvalue()
+        self.assertIn("missing_state", text)
+        self.assertNotIn("\nWARN", text)
+        self.assertIn("Summary: 0 OK, 0 WARN, 1 FAIL", text)
+
+    def test_doctor_rejects_invalid_or_repeated_severity(self):
+        for args in (
+            ["doctor", "--severity"],
+            ["doctor", "--severity=info"],
+            ["doctor", "--severity", "warn", "--severity", "fail"],
+        ):
+            with self.subTest(args=args):
+                with self.assertRaisesRegex(CdxError, "Usage: cdx doctor"):
+                    main(args, self.make_io())
+
+    def test_doctor_severity_allows_empty_matches(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        io_obj = self.make_io()
+
+        self.assertEqual(main(["doctor", "--severity", "FAIL", "--json"], {
+            **io_obj,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir, "PATH": ""},
+        }), 0)
+        report = json.loads(io_obj["stdout"].getvalue())["report"]
+        self.assertEqual(report["severity"], "FAIL")
+        self.assertEqual(report["issues"], [])
+        self.assertEqual(report["summary"], {"ok": 0, "warn": 0, "fail": 0, "repairable": 0})
+
     def test_doctor_reports_codex_auth_diagnostic_without_tokens(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
@@ -5341,6 +5416,33 @@ class CliPythonTests(unittest.TestCase):
         self.assertTrue(payload["schedule"]["scheduled"])
         self.assertEqual(payload["event"]["session"], "main")
         self.assertEqual(calls[0][0][0], "systemd-run")
+
+    def test_ready_without_upcoming_reset_returns_unscheduled_result(self):
+        temp_dir = self.make_temp_dir()
+        service = {
+            "base_dir": temp_dir,
+            "get_status_rows": lambda **_kwargs: [],
+        }
+
+        json_io = self.make_io()
+        self.assertEqual(main(["ready", "--json"], {
+            **json_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        payload = json.loads(json_io["stdout"].getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["schedule"]["scheduled"])
+        self.assertEqual(payload["schedule"]["backend"], "none")
+        self.assertEqual(payload["event"]["message"], "No upcoming session reset available")
+
+        text_io = self.make_io()
+        self.assertEqual(main(["ready"], {
+            **text_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        self.assertIn("No upcoming session reset available", text_io["stdout"].getvalue())
 
     def test_ready_rejects_notify_only_options(self):
         with self.assertRaisesRegex(CdxError, "Usage: cdx ready"):

@@ -3,6 +3,7 @@ import time
 import unittest
 from unittest import mock
 
+from src.errors import CdxError
 from src.notify import parse_notify_args, schedule_notification_event, send_desktop_notification
 
 
@@ -71,6 +72,40 @@ class NotifyPythonTests(unittest.TestCase):
         self.assertEqual(parsed["mode"], "at-reset")
         self.assertEqual(parsed["name"], "main")
         self.assertTrue(parsed["schedule"])
+
+    def test_schedule_next_ready_without_target_returns_unscheduled_result(self):
+        schedule = schedule_notification_event(
+            "/tmp/cdx",
+            parse_notify_args(["--next-ready", "--schedule"]),
+            {
+                "ready": False,
+                "title": "cdx",
+                "message": "No upcoming session reset available",
+                "session": None,
+                "target_timestamp": None,
+            },
+        )
+
+        self.assertEqual(schedule, {
+            "scheduled": False,
+            "backend": "none",
+            "message": "No upcoming session reset available",
+            "target_timestamp": None,
+        })
+
+    def test_schedule_named_reset_without_target_remains_an_error(self):
+        with self.assertRaisesRegex(CdxError, "Cannot schedule notification: No reset time known for main"):
+            schedule_notification_event(
+                "/tmp/cdx",
+                parse_notify_args(["main", "--at-reset", "--schedule"]),
+                {
+                    "ready": False,
+                    "title": "cdx",
+                    "message": "No reset time known for main",
+                    "session": "main",
+                    "target_timestamp": None,
+                },
+            )
 
     def test_schedule_notification_event_uses_systemd_run_on_linux(self):
         calls = []
