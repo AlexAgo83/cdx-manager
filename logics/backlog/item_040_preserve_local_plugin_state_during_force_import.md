@@ -1,10 +1,10 @@
 ## item_040_preserve_local_plugin_state_during_force_import - Preserve local plugin state during force import
 > From version: 0.12.3
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Status: Done
+> Understanding: 95%
+> Confidence: 90%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Operator workflow
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -65,3 +65,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_031_orchestrate_force_import_plugin_preservation`
+
+# Notes
+- Task `task_031_orchestrate_force_import_plugin_preservation` was finished via `logics-manager flow finish task` on 2026-08-05.

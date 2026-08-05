@@ -1,7 +1,7 @@
 ## req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins - Prevent cdx import force from silently discarding local plugins
 > From version: 0.12.3
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium

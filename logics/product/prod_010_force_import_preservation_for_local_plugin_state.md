@@ -1,6 +1,6 @@
 ## prod_010_force_import_preservation_for_local_plugin_state - Force import preservation for local plugin state
 > Date: 2026-08-05
-> Status: Proposed
+> Status: Settled
 > Related request: `req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins`
 > Related backlog: `item_040_preserve_local_plugin_state_during_force_import`
 > Related task: `task_031_orchestrate_force_import_plugin_preservation`
@@ -46,5 +46,5 @@ flowchart LR
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins`
+- Product back-reference: `item_040_preserve_local_plugin_state_during_force_import`
 - Task back-reference: `task_031_orchestrate_force_import_plugin_preservation`
