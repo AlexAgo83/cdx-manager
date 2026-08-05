@@ -204,7 +204,9 @@ Release maintainer note:
 - Before publishing npm or PyPI packages, run `npm run release:validate`.
 - The release tag must match `package.json`, `pyproject.toml`, `src/cli.py`, and `VERSION`.
 - `checksums/release-archives.json` must include the matching `vX.Y.Z` entry with both `github_tarball_sha256` and `github_zip_sha256`.
-- Use `python3 scripts/update_release_checksums.py --tag vX.Y.Z` after the GitHub tag archives exist, commit the checksum update, attach that file to the tagged GitHub Release as `release-archives.json`, then publish packages only after `npm run release:validate`, `npm run lint`, and `npm test` pass.
+- Publishing a GitHub Release runs the checksum upload workflow: it regenerates `checksums/release-archives.json` for the release tag and uploads it as the `release-archives.json` asset with replacement enabled for safe reruns.
+- If the asset is missing or stale, repair it with `python3 scripts/update_release_checksums.py --tag vX.Y.Z`, then `gh release upload vX.Y.Z checksums/release-archives.json --clobber`.
+- Publish packages only after the checksum workflow succeeds and `npm run release:validate`, `npm run lint`, and `npm test` pass.
 
 ### Environment
 

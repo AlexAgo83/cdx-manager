@@ -1,0 +1,39 @@
+name: Upload release checksums
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to update, for example v0.12.2
+        required: true
+
+jobs:
+  upload:
+    name: Generate and upload checksum asset
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Generate release checksums
+        run: python3 scripts/update_release_checksums.py --tag "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"
+
+      - name: Upload checksum asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" checksums/release-archives.json --clobber

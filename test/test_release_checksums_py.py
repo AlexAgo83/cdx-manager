@@ -62,6 +62,22 @@ class ReleaseChecksumsTests(unittest.TestCase):
                 self.assertNotIn("raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/checksums", text)
                 self.assertNotIn("contents/checksums/release-archives.json?ref=main", text)
 
+    def test_release_checksum_asset_upload_workflow_is_wired(self):
+        root = Path(__file__).resolve().parents[1]
+        text = (root / ".github" / "workflows" / "upload-release-checksums.yml").read_text(encoding="utf-8")
+
+        self.assertIn("release:", text)
+        self.assertIn("types:", text)
+        self.assertIn("- published", text)
+        self.assertIn("workflow_dispatch:", text)
+        self.assertIn("contents: write", text)
+        self.assertIn("RELEASE_TAG:", text)
+        self.assertIn("github.event.release.tag_name", text)
+        self.assertIn("ref: ${{ env.RELEASE_TAG }}", text)
+        self.assertIn('scripts/update_release_checksums.py --tag "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"', text)
+        self.assertIn('gh release upload "$RELEASE_TAG" checksums/release-archives.json --clobber', text)
+        self.assertNotIn("secrets.", text)
+
     def test_windows_installer_launcher_uses_version_directory(self):
         root = Path(__file__).resolve().parents[1]
         powershell = (root / "install.ps1").read_text(encoding="utf-8")
