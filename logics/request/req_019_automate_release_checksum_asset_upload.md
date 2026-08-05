@@ -1,7 +1,7 @@
 ## req_019_automate_release_checksum_asset_upload - Automate release checksum asset upload
 > From version: 0.12.2
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium

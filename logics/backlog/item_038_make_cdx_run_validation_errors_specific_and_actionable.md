@@ -1,10 +1,10 @@
 ## item_038_make_cdx_run_validation_errors_specific_and_actionable - Make cdx run validation errors specific and actionable
 > From version: 0.12.2
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: High
 > Theme: Operator workflow and runtime integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -71,6 +71,7 @@
 - Source file: `logics/request/req_018_make_cdx_run_validation_errors_specific_and_actionable.md`.
 - Generated locally by logics-manager.
 - Related existing corpus is Done and broader: `item_003_command_ergonomics_validation_and_safety`, `task_000_command_ergonomics_validation_and_safety`.
+- Task `task_029_make_cdx_run_validation_errors_specific_and_actionable` was finished via `logics-manager flow finish task` on 2026-08-05.
 
 # Tasks
 - `task_029_make_cdx_run_validation_errors_specific_and_actionable`

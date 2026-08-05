@@ -1,19 +1,19 @@
 ## task_030_automate_release_checksum_asset_upload - Automate release checksum asset upload
 > From version: 0.12.2
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 
 # Definition of Done (DoD)
-- [ ] The backlog scope is implemented.
-- [ ] Acceptance criteria are covered.
-- [ ] Validation passes.
-- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+- [x] The backlog scope is implemented.
+- [x] Acceptance criteria are covered.
+- [x] Validation passes.
+- [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # Backlog
 - `item_039_automate_release_checksum_asset_upload`
@@ -38,9 +38,14 @@
 # Validation
 - Planned: focused release checksum and workflow static tests.
 - Planned: `logics-manager lint --require-status`.
+- Finish workflow executed on 2026-08-05.
+- Linked backlog/request close verification passed.
 
 # Report
 - Not started.
+- Finished on 2026-08-05.
+- Linked backlog item(s): `item_039_automate_release_checksum_asset_upload`
+- Related request(s): `req_019_automate_release_checksum_asset_upload`
 
 # AI Context
 - Summary: Implement automated GitHub Release upload for checksum metadata.

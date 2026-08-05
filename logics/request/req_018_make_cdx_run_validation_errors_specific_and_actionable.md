@@ -1,7 +1,7 @@
 ## req_018_make_cdx_run_validation_errors_specific_and_actionable - Make cdx run validation errors specific and actionable
 > From version: 0.12.2
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Low

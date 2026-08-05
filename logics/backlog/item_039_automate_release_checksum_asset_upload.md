@@ -1,10 +1,10 @@
 ## item_039_automate_release_checksum_asset_upload - Automate release checksum asset upload
 > From version: 0.12.2
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: High
 > Theme: Operator workflow and runtime integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -72,6 +72,7 @@
 - Source file: `logics/request/req_019_automate_release_checksum_asset_upload.md`.
 - Generated locally by logics-manager.
 - Related existing corpus is Done and adjacent: `item_013_release_checksum_governance_gate`, `item_026_release_verification_trust_root_and_unverified_install_warning`, `item_028_use_tagged_release_checksum_assets_in_package_publication_workflows`.
+- Task `task_030_automate_release_checksum_asset_upload` was finished via `logics-manager flow finish task` on 2026-08-05.
 
 # Tasks
 - `task_030_automate_release_checksum_asset_upload`

@@ -1,19 +1,19 @@
 ## task_029_make_cdx_run_validation_errors_specific_and_actionable - Make cdx run validation errors specific and actionable
 > From version: 0.12.2
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 
 # Definition of Done (DoD)
-- [ ] The backlog scope is implemented.
-- [ ] Acceptance criteria are covered.
-- [ ] Validation passes.
-- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+- [x] The backlog scope is implemented.
+- [x] Acceptance criteria are covered.
+- [x] Validation passes.
+- [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # Backlog
 - `item_038_make_cdx_run_validation_errors_specific_and_actionable`
@@ -38,9 +38,14 @@
 # Validation
 - Planned: focused CLI argument parser and `cdx run --json` error tests.
 - Planned: `logics-manager lint --require-status`.
+- Finish workflow executed on 2026-08-05.
+- Linked backlog/request close verification passed.
 
 # Report
 - Not started.
+- Finished on 2026-08-05.
+- Linked backlog item(s): `item_038_make_cdx_run_validation_errors_specific_and_actionable`
+- Related request(s): `req_018_make_cdx_run_validation_errors_specific_and_actionable`
 
 # AI Context
 - Summary: Implement actionable `cdx run` validation errors for issue #5.
