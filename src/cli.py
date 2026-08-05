@@ -215,7 +215,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx clean [name] [--yes] [--json]', '36', use_color)}",
         f"  {_style('cdx clean profiles (--tmp|--old-logs DAYS) [--yes] [--json]', '36', use_color)}",
         f"  {_style('cdx export <file> [--include-auth] [--sessions a,b] [--passphrase-env VAR|--passphrase-stdin] [--force] [--json]', '36', use_color)}",
-        f"  {_style('cdx import <file> [--sessions a,b] [--passphrase-env VAR|--passphrase-stdin] [--force|--merge] [--json]', '36', use_color)}",
+        f"  {_style('cdx import <file> [--sessions a,b] [--passphrase-env VAR|--passphrase-stdin] [--force|--merge] [--allow-authless-force] [--json]', '36', use_color)}",
         f"  {_style('cdx doctor [--severity OK|WARN|FAIL[,OK|WARN|FAIL...]] [--json]', '36', use_color)}",
         f"  {_style('cdx repair [--dry-run] [--force] [--json]', '36', use_color)}",
         f"  {_style('cdx view [--json]', '36', use_color)}",
