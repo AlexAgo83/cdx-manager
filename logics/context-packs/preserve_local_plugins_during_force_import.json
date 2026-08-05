@@ -1,0 +1,442 @@
+{
+  "budgets": {
+    "max_docs": 24,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [
+    "logics/backlog/item_040_preserve_local_plugin_state_during_force_import.md",
+    "logics/context-packs/preserve_local_plugins_during_force_import.json",
+    "logics/product/prod_010_force_import_preservation_for_local_plugin_state.md",
+    "logics/request/req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins.md",
+    "logics/scaffold/preserve_local_plugins_during_force_import.json",
+    "logics/tasks/task_031_orchestrate_force_import_plugin_preservation.md"
+  ],
+  "command": "logics-manager sync context-pack req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins item_040_preserve_local_plugin_state_during_force_import task_031_orchestrate_force_import_plugin_preservation --mode diff-first --profile deep --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_040_preserve_local_plugin_state_during_force_import"
+        ],
+        "prod": [
+          "prod_010_force_import_preservation_for_local_plugin_state"
+        ],
+        "req": [
+          "req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins"
+        ],
+        "task": [
+          "task_031_orchestrate_force_import_plugin_preservation"
+        ]
+      },
+      "path": "logics/product/prod_010_force_import_preservation_for_local_plugin_state.md",
+      "ref": "prod_010_force_import_preservation_for_local_plugin_state",
+      "sections": {
+        "Goals": [
+          "- Prevent silent loss of locally installed plugins during auth-bearing force imports.",
+          "- Keep the existing credential guard from `item_022` intact and separate.",
+          "- Preserve the current transactional import pattern: validate first, rename aside, restore on failure, delete backup only after success.",
+          "- Document the difference between credentials restored from bundles and local plugin state managed outside the bundle."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Make `cdx import --force` safe for auth refresh workflows by preserving locally installed plugin/non-auth profile state, or refusing before mutation when that state cannot be preserved.",
+          "```mermaid",
+          "flowchart LR",
+          "    Existing[Existing session profile] --> Force[cdx import --force]",
+          "    Bundle[Auth-bearing bundle] --> Force",
+          "    Force --> Preserve[Preserve local plugin state]"
+        ],
+        "References": [
+          "- Product back-reference: `req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins`",
+          "- Task back-reference: `task_031_orchestrate_force_import_plugin_preservation`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Force import preservation for local plugin state"
+    },
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback",
+          "item_023_provider_auth_reliability_probe_timeout_bounded_auth_lock_power_effort_precedence",
+          "item_024_cli_robustness_tolerant_history_parsing_concurrent_removal_safe_status_clean_disk_view_fixes",
+          "item_025_unify_npm_entrypoint_through_cli_entry",
+          "item_026_release_verification_trust_root_and_unverified_install_warning",
+          "item_027_deduplication_dead_code_removal_and_docs_hygiene"
+        ],
+        "prod": [
+          "prod_003_code_review_remediation_wave_2026_07"
+        ],
+        "req": [
+          "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup"
+        ],
+        "task": [
+          "task_021_orchestrate_july_2026_code_review_remediation"
+        ]
+      },
+      "path": "logics/product/prod_003_code_review_remediation_wave_2026_07.md",
+      "ref": "prod_003_code_review_remediation_wave_2026_07",
+      "sections": {
+        "Goals": [
+          "- No CLI operation can destroy credentials it cannot restore.",
+          "- Launch, run, doctor, status, and history never hang or hard-fail on recoverable conditions (slow provider CLI, torn log line, concurrent session removal).",
+          "- npm and pip installs behave identically on every platform.",
+          "- Release artifacts are verifiable against a trust root independent of the repository main branch.",
+          "- One implementation per helper: no drifting duplicate builders, formatters, or regexes."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Fix every finding from the July 2026 three-track code review of the session manager CLI: eliminate the bundle-import data-loss path, make provider auth probing and locking reliable under contention, repair five robustness/UX defects in history/status/clean/disk/view, unify the npm and pip entrypoints, harden the release verification trust root, and clear the accumulated duplication and dead code.",
+          "```mermaid",
+          "flowchart LR",
+          "  review[July 2026 code review] --> import[item_022 safe import]",
+          "  review --> auth[item_023 auth reliability]",
+          "  review --> cli[item_024 CLI robustness]"
+        ],
+        "References": [
+          "- Product back-reference: `req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup`",
+          "- Task back-reference: `task_021_orchestrate_july_2026_code_review_remediation`"
+        ]
+      },
+      "status": "Settled",
+      "title": "Code review remediation wave 2026-07"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, prevent cdx import force from silently discarding local plugins, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Prevent cdx import force from silently discarding local plugins",
+        "use when": "You need to implement or review the scaffolded workflow for Prevent cdx import force from silently discarding local plugins."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback",
+          "item_040_preserve_local_plugin_state_during_force_import"
+        ],
+        "prod": [
+          "prod_010_force_import_preservation_for_local_plugin_state"
+        ],
+        "req": [
+          "req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins"
+        ]
+      },
+      "path": "logics/request/req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins.md",
+      "ref": "req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A force import over an existing session with an auth-bearing bundle preserves installed local plugin state by default, including at least a `plugins` directory representing a plugin installed via `codex plugin add`, when the bundle does not include that plugin state.",
+          "- AC2: If preservation cannot be performed for a detected local plugin/non-auth state path, `cdx import --force` fails before mutating the session and reports the affected session and path; no backup is deleted and the existing profile remains intact.",
+          "- AC3: The existing `item_022` credential safety behavior remains unchanged: auth-less force imports are still refused unless `--allow-authless-force` is passed, corrupt bundle entries still roll back per session, and auth files from an auth-bearing bundle still replace the intended credential files.",
+          "- AC4: `cdx import --merge` semantics are unchanged: local files that already exist continue to win, and this request does not turn merge into force or force into merge.",
+          "- AC5: The CLI output/help/README document the force-import behavior precisely: auth-bearing bundles restore credentials but do not inherently carry local plugins, and force import preserves or refuses to discard detected plugin state rather than silently removing it.",
+          "- AC6: Focused tests demonstrate the issue #7 scenario: an existing session with a local `plugins` marker and a valid auth-bearing bundle for the same session survives `import --force`, and a selected session outside `--sessions` remains untouched."
+        ],
+        "Needs": [
+          "- `cdx import <bundle> --force --sessions <names>` must not silently discard locally installed Codex plugins, skills, memories, or other non-auth profile state when overwriting an existing session.",
+          "- The issue is distinct from `item_022`: `item_022` guards credentials only when a force import bundle lacks auth (`include_auth` false), while GitHub issue #7 occurs with an auth-bearing bundle (`--include-auth` present), so the existing `--allow-authless-force` guard never runs.",
+          "- Users need either preservation or an explicit, actionable warning before destructive replacement of local plugin state, because the operation is commonly used for credential refresh and the plugin loss is discovered only after a later `cdx update all` or launch check."
+        ]
+      },
+      "status": "Draft",
+      "title": "Prevent cdx import force from silently discarding local plugins"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, safe bundle import: pre-validation, credential guard, per-session rollback, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Safe bundle import: pre-validation, credential guard, per-session rollback",
+        "use when": "Implementing the scaffolded slice for Safe bundle import: pre-validation, credential guard, per-session rollback."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback"
+        ],
+        "prod": [
+          "prod_003_code_review_remediation_wave_2026_07"
+        ],
+        "req": [
+          "req_010_address_july_2026_code_review_findings_data_safety_reliability_and_cleanup"
+        ],
+        "task": [
+          "task_021_orchestrate_july_2026_code_review_remediation"
+        ]
+      },
+      "path": "logics/backlog/item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback.md",
+      "ref": "item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Force-importing an auth-less bundle over existing sessions exits with an explicit refusal message and touches nothing.",
+          "- A corrupt payload in session N leaves session N's original profile and store record intact.",
+          "- Existing export/import round-trip tests remain green."
+        ],
+        "Problem": [
+          "- import --force removes each existing session profile before re-import; a bundle exported without --include-auth restores no credentials, so every overwritten session is permanently logged out.",
+          "- Bundle content is validated mid-loop after destructive writes have begun, so a corrupt entry leaves earlier sessions committed, the failing session half-deleted, and later sessions untouched."
+        ]
+      },
+      "status": "Done",
+      "title": "Safe bundle import: pre-validation, credential guard, per-session rollback"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, preserve local plugin state during force import, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Preserve local plugin state during force import",
+        "use when": "Implementing the scaffolded slice for Preserve local plugin state during force import."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_040_preserve_local_plugin_state_during_force_import"
+        ],
+        "prod": [
+          "prod_010_force_import_preservation_for_local_plugin_state"
+        ],
+        "req": [
+          "req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins"
+        ],
+        "task": [
+          "task_031_orchestrate_force_import_plugin_preservation"
+        ]
+      },
+      "path": "logics/backlog/item_040_preserve_local_plugin_state_during_force_import.md",
+      "ref": "item_040_preserve_local_plugin_state_during_force_import",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Given an existing session profile containing `plugins/ponytail` (or the locally correct plugin marker path) and a valid bundle for the same session with `include_auth: true` but no plugin files, `import_bundle(..., force=True)` leaves that plugin marker present after success.",
+          "- Given the same bundle and a session excluded by `session_names`, the excluded session profile remains byte-for-byte untouched for the plugin marker path.",
+          "- Given a forced auth-bearing import where plugin-state restoration fails, the command raises `CdxError`, restores the original profile from backup, restores the old session record/state, and does not delete local plugin state.",
+          "- Given an authless bundle over an existing session, `import_bundle(..., force=True, allow_authless_force=False)` still raises the existing explicit credentials refusal before any plugin preservation work.",
+          "- Given merge mode, existing local files keep their current behavior and the new plugin preservation path is not needed.",
+          "- CLI help and README clearly separate auth payload preservation from local plugin preservation and reference the force import behavior."
+        ],
+        "Problem": [
+          "- `import_bundle()` replaces the entire existing session profile directory on `--force`; that directory contains more than credentials, including locally installed Codex plugins such as `ponytail`.",
+          "- The current authless guard from `item_022` only runs when `include_auth` is false. In the issue #7 scenario the bundle includes auth, so `allow_authless_force` is irrelevant and local plugin state is still discarded.",
+          "- The success path deletes `backup_root` after writing bundle files, so any plugin state not present in the bundle is unrecoverable after the command completes."
+        ]
+      },
+      "status": "Ready",
+      "title": "Preserve local plugin state during force import"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_040_preserve_local_plugin_state_during_force_import"
+        ],
+        "prod": [
+          "prod_010_force_import_preservation_for_local_plugin_state"
+        ],
+        "req": [
+          "req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins"
+        ],
+        "task": [
+          "task_031_orchestrate_force_import_plugin_preservation"
+        ]
+      },
+      "path": "logics/product/prod_010_force_import_preservation_for_local_plugin_state.md",
+      "ref": "prod_010_force_import_preservation_for_local_plugin_state",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Force import preservation for local plugin state"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate force import plugin preservation",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_040_preserve_local_plugin_state_during_force_import"
+        ],
+        "prod": [
+          "prod_010_force_import_preservation_for_local_plugin_state"
+        ],
+        "req": [
+          "req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins"
+        ],
+        "task": [
+          "task_031_orchestrate_force_import_plugin_preservation"
+        ]
+      },
+      "path": "logics/tasks/task_031_orchestrate_force_import_plugin_preservation.md",
+      "ref": "task_031_orchestrate_force_import_plugin_preservation",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate force import plugin preservation"
+    }
+  ],
+  "estimates": {
+    "char_count": 13812,
+    "companion_doc_count": 2,
+    "doc_count": 5
+  },
+  "generated_at": "2026-08-05T15:20:39Z",
+  "handoff": {
+    "companion_doc_count": 2,
+    "enabled": true,
+    "source_refs": [
+      "req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins",
+      "item_040_preserve_local_plugin_state_during_force_import",
+      "task_031_orchestrate_force_import_plugin_preservation"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "deep",
+  "ref": "req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins,item_040_preserve_local_plugin_state_during_force_import,task_031_orchestrate_force_import_plugin_preservation",
+  "refs": [
+    "req_020_prevent_cdx_import_force_from_silently_discarding_local_plugins",
+    "item_040_preserve_local_plugin_state_during_force_import",
+    "task_031_orchestrate_force_import_plugin_preservation"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: missing required evidence",
+      "changelog: missing required evidence",
+      "release_checksums: missing required evidence",
+      "local_validation: missing required evidence",
+      "git_push: missing required evidence",
+      "ci: missing required evidence",
+      "github_release: missing required evidence",
+      "npm_publication: missing required evidence",
+      "pypi_publication: missing required evidence"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: missing required evidence",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "preparing",
+    "target_version": "0.12.3"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_031_orchestrate_force_import_plugin_preservation.md",
+      "ref": "task_031_orchestrate_force_import_plugin_preservation"
+    }
+  ]
+}

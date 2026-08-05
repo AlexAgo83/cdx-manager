@@ -1,0 +1,117 @@
+{
+  "title": "Prevent cdx import force from silently discarding local plugins",
+  "references": [
+    "https://github.com/AlexAgo83/cdx-manager/issues/7",
+    "src/session_service.py",
+    "src/cli_args.py",
+    "src/cli_commands.py",
+    "src/update_all.py",
+    "src/cli_helpers.py",
+    "README.md",
+    "test/test_session_service_py.py",
+    "test/test_cli_py.py",
+    "logics/backlog/item_022_safe_bundle_import_pre_validation_credential_guard_per_session_rollback.md"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Operator workflow",
+    "needs": [
+      "`cdx import <bundle> --force --sessions <names>` must not silently discard locally installed Codex plugins, skills, memories, or other non-auth profile state when overwriting an existing session.",
+      "The issue is distinct from `item_022`: `item_022` guards credentials only when a force import bundle lacks auth (`include_auth` false), while GitHub issue #7 occurs with an auth-bearing bundle (`--include-auth` present), so the existing `--allow-authless-force` guard never runs.",
+      "Users need either preservation or an explicit, actionable warning before destructive replacement of local plugin state, because the operation is commonly used for credential refresh and the plugin loss is discovered only after a later `cdx update all` or launch check."
+    ],
+    "context": [
+      "In `src/session_service.py`, `import_bundle()` computes conflicts, then only refuses destructive force imports when `conflicts and force and not decoded[\"meta\"].get(\"include_auth\") and not allow_authless_force`.",
+      "For each existing session imported with `force`, `import_bundle()` captures the old record/state, renames the whole `session_root` to `backup_root`, sets `is_existing = False`, creates a fresh `session_root`, writes the bundle record/state, and writes only files present in `decoded_profiles`; on success the backup is removed in `finally`.",
+      "Because the whole previous profile directory is replaced, local directories such as `plugins`, `skills`, `memories`, marketplace caches, and plugin manager state are lost unless they are included in the bundle payload. Auth inclusion does not imply plugin inclusion.",
+      "GitHub issue #7 reports this exact path on 2026-08-05: after running `cdx import <bundle> --force --sessions claw,corvus,digital,gemi,matcha,olla,rose,tapion,work1,work2,work3,work4,work5,work6` from an auth refresh bundle, all `work*` sessions lost the locally installed `ponytail` plugin even though `main` was excluded and remained intact.",
+      "`cdx update all --yes` can reinstall `ponytail`, but that recovery is manual and plugin-specific; import should not make a silent destructive change to local non-auth state."
+    ],
+    "acceptance_criteria": [
+      "AC1: A force import over an existing session with an auth-bearing bundle preserves installed local plugin state by default, including at least a `plugins` directory representing a plugin installed via `codex plugin add`, when the bundle does not include that plugin state.",
+      "AC2: If preservation cannot be performed for a detected local plugin/non-auth state path, `cdx import --force` fails before mutating the session and reports the affected session and path; no backup is deleted and the existing profile remains intact.",
+      "AC3: The existing `item_022` credential safety behavior remains unchanged: auth-less force imports are still refused unless `--allow-authless-force` is passed, corrupt bundle entries still roll back per session, and auth files from an auth-bearing bundle still replace the intended credential files.",
+      "AC4: `cdx import --merge` semantics are unchanged: local files that already exist continue to win, and this request does not turn merge into force or force into merge.",
+      "AC5: The CLI output/help/README document the force-import behavior precisely: auth-bearing bundles restore credentials but do not inherently carry local plugins, and force import preserves or refuses to discard detected plugin state rather than silently removing it.",
+      "AC6: Focused tests demonstrate the issue #7 scenario: an existing session with a local `plugins` marker and a valid auth-bearing bundle for the same session survives `import --force`, and a selected session outside `--sessions` remains untouched."
+    ]
+  },
+  "product": {
+    "title": "Force import preservation for local plugin state",
+    "overview": "Make `cdx import --force` safe for auth refresh workflows by preserving locally installed plugin/non-auth profile state, or refusing before mutation when that state cannot be preserved.",
+    "goals": [
+      "Prevent silent loss of locally installed plugins during auth-bearing force imports.",
+      "Keep the existing credential guard from `item_022` intact and separate.",
+      "Preserve the current transactional import pattern: validate first, rename aside, restore on failure, delete backup only after success.",
+      "Document the difference between credentials restored from bundles and local plugin state managed outside the bundle."
+    ],
+    "non_goals": [
+      "Changing the bundle schema to export/import installed plugins.",
+      "Adding a new plugin marketplace reconciliation feature.",
+      "Changing `cdx update all` behavior.",
+      "Preserving arbitrary cache directories unless they are required plugin manager state or explicitly covered by the implementation plan.",
+      "Changing `cdx import --merge` behavior."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Preserve local plugin state during force import",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Operator workflow",
+      "request_acs": [
+        "AC1",
+        "AC2",
+        "AC3",
+        "AC4",
+        "AC5",
+        "AC6"
+      ],
+      "problem": [
+        "`import_bundle()` replaces the entire existing session profile directory on `--force`; that directory contains more than credentials, including locally installed Codex plugins such as `ponytail`.",
+        "The current authless guard from `item_022` only runs when `include_auth` is false. In the issue #7 scenario the bundle includes auth, so `allow_authless_force` is irrelevant and local plugin state is still discarded.",
+        "The success path deletes `backup_root` after writing bundle files, so any plugin state not present in the bundle is unrecoverable after the command completes."
+      ],
+      "scope_in": [
+        "Identify the smallest set of local profile paths that must be preserved for installed Codex plugins. Start with the concrete `plugins` path under the session profile; include adjacent plugin manager metadata only if tests or local Codex plugin layout prove it is required for `codex plugin add` installs to survive.",
+        "Before mutating an existing session in force mode, inspect `session_root` for those local plugin-state paths and record the paths that exist.",
+        "After the bundle profile has been written and before deleting `backup_root`, restore the recorded plugin-state paths from `backup_root` into the new `session_root` when the bundle did not provide those same paths.",
+        "If a preserved path conflicts with a bundle-provided path, keep the bundle path and report the conflict only if that would discard a locally installed plugin; choose the simpler behavior that keeps credentials replacement intact.",
+        "If copying/restoring any required plugin-state path fails, call the existing `_restore_import_backup()` path and raise a controlled `CdxError` that names the session and failed path.",
+        "Update CLI help and README import documentation to say that `--force` preserves detected local plugin state and that `--include-auth` only controls credential payloads.",
+        "Add focused service/CLI regression tests for an auth-bearing force import over a session with a local plugin marker, selected-session behavior, and no regression to the authless `--allow-authless-force` guard."
+      ],
+      "scope_out": [
+        "No new bundle format, manifest, or `--include-plugins` export option.",
+        "No automatic plugin reinstall from marketplace URLs.",
+        "No broad preservation of all cache/temp directories; keep temporary clone/backup caches disposable.",
+        "No change to merge-mode local-file precedence.",
+        "No implementation work in this scaffold-only task."
+      ],
+      "acceptance_criteria": [
+        "Given an existing session profile containing `plugins/ponytail` (or the locally correct plugin marker path) and a valid bundle for the same session with `include_auth: true` but no plugin files, `import_bundle(..., force=True)` leaves that plugin marker present after success.",
+        "Given the same bundle and a session excluded by `session_names`, the excluded session profile remains byte-for-byte untouched for the plugin marker path.",
+        "Given a forced auth-bearing import where plugin-state restoration fails, the command raises `CdxError`, restores the original profile from backup, restores the old session record/state, and does not delete local plugin state.",
+        "Given an authless bundle over an existing session, `import_bundle(..., force=True, allow_authless_force=False)` still raises the existing explicit credentials refusal before any plugin preservation work.",
+        "Given merge mode, existing local files keep their current behavior and the new plugin preservation path is not needed.",
+        "CLI help and README clearly separate auth payload preservation from local plugin preservation and reference the force import behavior."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate force import plugin preservation",
+    "plan": [
+      "Reproduce the issue #7 flow with the smallest fixture: create an existing session profile containing a local plugin marker and import an auth-bearing bundle for that same session with `force=True`; confirm the marker is currently lost.",
+      "Inspect real Codex plugin installation layout in a controlled temp profile if needed, then preserve only the path(s) required for installed plugins to survive.",
+      "Patch `import_bundle()` at the force import root cause: record preservable local plugin-state paths before renaming `session_root`, restore them from `backup_root` after bundle file writes and before backup deletion, and route failures through `_restore_import_backup()`.",
+      "Keep `item_022` behavior intact by leaving the authless `include_auth` guard before filesystem mutation and by preserving the existing pre-validation and per-session rollback tests.",
+      "Add focused tests in `test/test_session_service_py.py` for plugin preservation, restoration failure rollback, selected-session isolation, and authless guard non-regression; add a small CLI/help or README assertion only where the repo already tests import help/docs.",
+      "Run focused import tests first, then the relevant CLI/session-service test files, then `logics-manager lint --require-status` and `logics-manager audit` before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/preserve_local_plugins_during_force_import.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}
