@@ -78,6 +78,7 @@ CLAUDE_STATUS_CACHE_TTL_SECONDS = 10 * 60
 # Each live Codex probe spawns app-server, which can refresh+rotate the OAuth
 # token. Cache longer so routine status calls don't keep triggering refreshes.
 CODEX_STATUS_CACHE_TTL_SECONDS = 5 * 60
+_FORCE_IMPORT_PRESERVED_PROFILE_PATHS = ("plugins",)
 STATUS_PROBE_TIMEOUT_SECONDS = 5
 MAX_STATUS_WORKERS = 8
 LAUNCH_POWER_VALUES = {"minimal", "low", "medium", "high", "xhigh"}
@@ -1427,6 +1428,26 @@ def create_session_service(options=None):
         else:
             store["remove_session"](name)
 
+    def _force_import_preserved_profile_paths(session_root):
+        return [rel_path for rel_path in _FORCE_IMPORT_PRESERVED_PROFILE_PATHS if os.path.exists(os.path.join(session_root, rel_path))]
+
+    def _restore_force_import_profile_paths(name, backup_root, session_root, rel_paths):
+        if not backup_root:
+            return
+        for rel_path in rel_paths:
+            source_path = os.path.join(backup_root, rel_path)
+            dest_path = os.path.join(session_root, rel_path)
+            if not os.path.exists(source_path) or os.path.exists(dest_path):
+                continue
+            try:
+                if os.path.isdir(source_path) and not os.path.islink(source_path):
+                    shutil.copytree(source_path, dest_path)
+                else:
+                    _ensure_private_dir(os.path.dirname(dest_path))
+                    shutil.copy2(source_path, dest_path)
+            except Exception as error:
+                raise CdxError(f"Could not restore local plugin state for session {name}: {rel_path}") from error
+
     def import_bundle(
         file_path,
         passphrase=None,
@@ -1479,9 +1500,11 @@ def create_session_service(options=None):
             backup_root = None
             old_record = None
             old_state = None
+            preserved_profile_paths = []
             if is_existing and force:
                 old_record = store["get_session"](name)
                 old_state = store["read_session_state"](name)
+                preserved_profile_paths = _force_import_preserved_profile_paths(session_root)
                 if os.path.exists(session_root):
                     backup_root = tempfile.mkdtemp(prefix=f".{_encode(name)}.import.", dir=os.path.dirname(session_root))
                     os.rmdir(backup_root)
@@ -1535,6 +1558,7 @@ def create_session_service(options=None):
                     _ensure_private_dir(os.path.dirname(dest_path))
                     # Decrypted credentials: 0o600 from creation, no umask window.
                     atomic_write(dest_path, item["content"], mode=0o600)
+                _restore_force_import_profile_paths(name, backup_root, session_root, preserved_profile_paths)
             except Exception:
                 _restore_import_backup(name, backup_root, session_root, old_record, old_state)
                 raise

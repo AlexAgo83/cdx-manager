@@ -1325,13 +1325,17 @@ class SessionServicePythonTests(unittest.TestCase):
             with open(marker, "w", encoding="utf-8") as handle:
                 handle.write(f"local-{name}")
             markers[name] = marker
+        side_auth_path = os.path.join(target_dir, "profiles", "side", "auth.json")
+        with open(side_auth_path, "w", encoding="utf-8") as handle:
+            handle.write('{"token":"local-side"}')
 
         target["import_bundle"](bundle_path, passphrase="pw123", session_names=["main"], force=True)
 
         for name, marker in markers.items():
             with open(marker, encoding="utf-8") as handle:
                 self.assertEqual(handle.read(), f"local-{name}")
-        self.assertFalse(os.path.exists(os.path.join(target_dir, "profiles", "side", "auth.json")))
+        with open(side_auth_path, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), '{"token":"local-side"}')
 
     def test_force_import_prevalidates_profile_files_before_touching_existing_session(self):
         target_dir = self.make_temp_dir()
