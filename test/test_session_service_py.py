@@ -1233,13 +1233,105 @@ class SessionServicePythonTests(unittest.TestCase):
         auth_path = os.path.join(target_dir, "profiles", "main", "auth.json")
         with open(auth_path, "w", encoding="utf-8") as handle:
             handle.write('{"token":"local"}')
+        plugin_marker = os.path.join(target_dir, "profiles", "main", "plugins", "ponytail", ".installed")
+        os.makedirs(os.path.dirname(plugin_marker), exist_ok=True)
+        with open(plugin_marker, "w", encoding="utf-8") as handle:
+            handle.write("local-plugin")
 
         with self.assertRaisesRegex(CdxError, "bundle has no auth payloads"):
             target["import_bundle"](bundle_path, force=True)
 
         with open(auth_path, encoding="utf-8") as handle:
             self.assertEqual(handle.read(), '{"token":"local"}')
+        with open(plugin_marker, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), "local-plugin")
         self.assertEqual(target["get_session"]("main")["name"], "main")
+
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
+    def test_force_import_with_auth_preserves_local_plugins(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("main")
+        auth_path = os.path.join(source_dir, "profiles", "main", "auth.json")
+        with open(auth_path, "w", encoding="utf-8") as handle:
+            handle.write('{"token":"bundle"}')
+        bundle_path = os.path.join(source_dir, "backup.cdx")
+        source["export_bundle"](bundle_path, include_auth=True, passphrase="pw123")
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        target["create_session"]("main")
+        marker = os.path.join(target_dir, "profiles", "main", "plugins", "ponytail", ".installed")
+        os.makedirs(os.path.dirname(marker), exist_ok=True)
+        with open(marker, "w", encoding="utf-8") as handle:
+            handle.write("local")
+
+        target["import_bundle"](bundle_path, passphrase="pw123", force=True)
+
+        with open(marker, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), "local")
+        with open(os.path.join(target_dir, "profiles", "main", "auth.json"), encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), '{"token":"bundle"}')
+
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
+    def test_force_import_plugin_restore_failure_rolls_back(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("main")
+        auth_path = os.path.join(source_dir, "profiles", "main", "auth.json")
+        with open(auth_path, "w", encoding="utf-8") as handle:
+            handle.write('{"token":"bundle"}')
+        bundle_path = os.path.join(source_dir, "backup.cdx")
+        source["export_bundle"](bundle_path, include_auth=True, passphrase="pw123")
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        target["create_session"]("main")
+        target["set_session_label"]("main", "local")
+        marker = os.path.join(target_dir, "profiles", "main", "plugins", "ponytail", ".installed")
+        os.makedirs(os.path.dirname(marker), exist_ok=True)
+        with open(marker, "w", encoding="utf-8") as handle:
+            handle.write("local")
+
+        with mock.patch("src.session_service.shutil.copytree", side_effect=OSError("copy failed")):
+            with self.assertRaisesRegex(CdxError, "Could not restore local plugin state for session main: plugins"):
+                target["import_bundle"](bundle_path, passphrase="pw123", force=True)
+
+        self.assertEqual(target["get_session"]("main")["label"], "local")
+        with open(marker, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), "local")
+
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
+    def test_force_import_preserves_plugins_only_for_selected_sessions(self):
+        source_dir = self.make_temp_dir()
+        source = create_session_service({"base_dir": source_dir})
+        source["create_session"]("main")
+        source["create_session"]("side")
+        for name in ("main", "side"):
+            auth_path = os.path.join(source_dir, "profiles", name, "auth.json")
+            with open(auth_path, "w", encoding="utf-8") as handle:
+                handle.write(f'{{"token":"bundle-{name}"}}')
+        bundle_path = os.path.join(source_dir, "backup.cdx")
+        source["export_bundle"](bundle_path, include_auth=True, passphrase="pw123")
+
+        target_dir = self.make_temp_dir()
+        target = create_session_service({"base_dir": target_dir})
+        target["create_session"]("main")
+        target["create_session"]("side")
+        markers = {}
+        for name in ("main", "side"):
+            marker = os.path.join(target_dir, "profiles", name, "plugins", "ponytail", ".installed")
+            os.makedirs(os.path.dirname(marker), exist_ok=True)
+            with open(marker, "w", encoding="utf-8") as handle:
+                handle.write(f"local-{name}")
+            markers[name] = marker
+
+        target["import_bundle"](bundle_path, passphrase="pw123", session_names=["main"], force=True)
+
+        for name, marker in markers.items():
+            with open(marker, encoding="utf-8") as handle:
+                self.assertEqual(handle.read(), f"local-{name}")
+        self.assertFalse(os.path.exists(os.path.join(target_dir, "profiles", "side", "auth.json")))
 
     def test_force_import_prevalidates_profile_files_before_touching_existing_session(self):
         target_dir = self.make_temp_dir()
