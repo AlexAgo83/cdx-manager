@@ -7,6 +7,7 @@
 > Complexity: Low
 > Theme: CLI diagnostics
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-08-05
 
 # Needs
 - Operators need to focus `cdx doctor` output on one health severity when triaging warnings or failures.
@@ -50,3 +51,10 @@
 
 # Backlog
 - `item_035_filter_cdx_doctor_report_by_severity`
+
+# AC Traceability
+- request-AC1 -> Task `task_026_orchestrate_cdx_doctor_severity_filtering`. Proof: severity parsing accepts canonical OK/WARN/FAIL values case-insensitively.
+- request-AC2 -> Task `task_026_orchestrate_cdx_doctor_severity_filtering`. Proof: JSON output keeps the success envelope and reports filtered issues, summary, and normalized severity.
+- request-AC3 -> Task `task_026_orchestrate_cdx_doctor_severity_filtering`. Proof: text output and summaries reflect only the requested severity, including empty matches.
+- request-AC4 -> Task `task_026_orchestrate_cdx_doctor_severity_filtering`. Proof: invalid severity usage is rejected while unfiltered doctor output remains backward compatible.
+- request-AC5 -> Task `task_026_orchestrate_cdx_doctor_severity_filtering`. Proof: help, README, and focused tests cover the accepted values, invalid input, text output, and JSON output.

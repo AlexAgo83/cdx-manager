@@ -7,6 +7,7 @@
 > Complexity: Low
 > Theme: CLI ergonomics
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-08-05
 
 # Needs
 - Operators who run `cdx config <name>` for a nonexistent session need an error that identifies the failed command and gives an immediate recovery path.
@@ -49,3 +50,9 @@
 
 # Backlog
 - `item_036_improve_unknown_session_guidance_for_cdx_config`
+
+# AC Traceability
+- request-AC1 -> Task `task_027_orchestrate_actionable_cdx_config_error_guidance`. Proof: missing-session config errors name the target and mention `cdx configs` and `cdx add`.
+- request-AC2 -> Task `task_027_orchestrate_actionable_cdx_config_error_guidance`. Proof: JSON failures preserve the standard error envelope and `unknown_session` code with actionable wording.
+- request-AC3 -> Task `task_027_orchestrate_actionable_cdx_config_error_guidance`. Proof: usage-error and success paths remain covered and unchanged.
+- request-AC4 -> Task `task_027_orchestrate_actionable_cdx_config_error_guidance`. Proof: focused tests and CLI documentation cover the updated config error wording.

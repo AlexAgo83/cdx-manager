@@ -8,6 +8,7 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Indicators reviewed: 2026-08-05
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
@@ -32,7 +33,10 @@
 - [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
-- request-AC1, request-AC2, request-AC3, request-AC4 -> `item_036_improve_unknown_session_guidance_for_cdx_config`. Proof deferred to slice closeout.
+- AC1 -> This task. Proof: missing-session config errors name the target and mention `cdx configs` and `cdx add`.
+- AC2 -> This task. Proof: JSON failures preserve the standard error envelope and `unknown_session` code with actionable wording.
+- AC3 -> This task. Proof: usage-error and success paths remain covered and unchanged.
+- AC4 -> This task. Proof: focused tests and CLI documentation cover the updated config error wording.
 
 # Validation
 - (no validation recorded yet)

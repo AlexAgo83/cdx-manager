@@ -8,6 +8,7 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Indicators reviewed: 2026-08-05
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
@@ -32,7 +33,11 @@
 - [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
-- request-AC1, request-AC2, request-AC3, request-AC4, request-AC5 -> `item_035_filter_cdx_doctor_report_by_severity`. Proof deferred to slice closeout.
+- AC1 -> This task. Proof: severity parsing accepts canonical OK/WARN/FAIL values case-insensitively.
+- AC2 -> This task. Proof: JSON output keeps the success envelope and reports filtered issues, summary, and normalized severity.
+- AC3 -> This task. Proof: text output and summaries reflect only the requested severity, including empty matches.
+- AC4 -> This task. Proof: invalid severity usage is rejected while unfiltered doctor output remains backward compatible.
+- AC5 -> This task. Proof: help, README, and focused tests cover the accepted values, invalid input, text output, and JSON output.
 
 # Validation
 - (no validation recorded yet)

@@ -7,6 +7,7 @@
 > Complexity: Low
 > Theme: CLI reliability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-08-05
 
 # Needs
 - Operators need `cdx ready` to finish predictably when there is no eligible future reset, rather than terminating with an uncaught-looking scheduling failure.
@@ -49,3 +50,10 @@
 
 # Backlog
 - `item_034_handle_no_target_cdx_ready_scheduling_gracefully`
+
+# AC Traceability
+- request-AC1 -> Task `task_025_orchestrate_safe_cdx_ready_no_target_handling`. Proof: no-target next-ready scheduling returns a successful non-scheduled result.
+- request-AC2 -> Task `task_025_orchestrate_safe_cdx_ready_no_target_handling`. Proof: JSON output includes the normal notify envelope with `scheduled: false`.
+- request-AC3 -> Task `task_025_orchestrate_safe_cdx_ready_no_target_handling`. Proof: next-ready schedule shares safe no-target behavior while named reset errors remain actionable.
+- request-AC4 -> Task `task_025_orchestrate_safe_cdx_ready_no_target_handling`. Proof: future reset and already-due reset scheduling paths remain covered.
+- request-AC5 -> Task `task_025_orchestrate_safe_cdx_ready_no_target_handling`. Proof: focused CLI and notification regression tests cover no-target, future, due, text, and JSON behavior.

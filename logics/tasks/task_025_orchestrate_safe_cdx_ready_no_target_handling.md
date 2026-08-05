@@ -8,6 +8,7 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Indicators reviewed: 2026-08-05
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
@@ -32,7 +33,11 @@
 - [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
-- request-AC1, request-AC2, request-AC3, request-AC4, request-AC5 -> `item_034_handle_no_target_cdx_ready_scheduling_gracefully`. Proof deferred to slice closeout.
+- AC1 -> This task. Proof: no-target next-ready scheduling returns a successful non-scheduled result.
+- AC2 -> This task. Proof: JSON output includes the normal notify envelope with `scheduled: false`.
+- AC3 -> This task. Proof: next-ready schedule shares safe no-target behavior while named reset errors remain actionable.
+- AC4 -> This task. Proof: future reset and already-due reset scheduling paths remain covered.
+- AC5 -> This task. Proof: focused CLI and notification regression tests cover no-target, future, due, text, and JSON behavior.
 
 # Validation
 - (no validation recorded yet)

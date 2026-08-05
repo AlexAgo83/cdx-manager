@@ -1,12 +1,13 @@
 ## req_017_investigate_missing_cdx_run_registry_entry_after_provider_capacity_failure - Investigate missing cdx run registry entry after provider capacity failure
 > From version: 0.12.2
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
 > Theme: Run observability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-08-05
 
 # Needs
 - A `cdx run` that executes real provider work must always be observable through the run registry once the CLI has accepted the invocation and reached the pre-launch registration point.
@@ -53,5 +54,4 @@
 - Skip when: Work is only about adding new run report fields unrelated to registry persistence.
 
 # Backlog
-- none
 - `item_037_investigate_missing_cdx_run_registry_entry_after_provider_capacity_failure`
