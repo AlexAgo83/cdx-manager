@@ -1,19 +1,19 @@
 ## task_028_investigate_missing_cdx_run_registry_entry_after_provider_capacity_failure - Investigate missing cdx run registry entry after provider capacity failure
 > From version: 0.12.2
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 
 # Definition of Done (DoD)
-- [ ] The backlog scope is implemented.
-- [ ] Acceptance criteria are covered.
-- [ ] Validation passes.
-- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+- [x] The backlog scope is implemented.
+- [x] Acceptance criteria are covered.
+- [x] Validation passes.
+- [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # Backlog
 - `item_037_investigate_missing_cdx_run_registry_entry_after_provider_capacity_failure`
@@ -27,19 +27,22 @@
 - AC6: Existing success, validation-error, timeout, cancellation, and stale-process registry tests continue to pass.
 
 # Plan
-- [ ] 1. Reconstruct the issue #6 lifecycle from `handle_run`, registry writes, provider dispatch, and finalization paths.
-- [ ] 2. Add or extend a fake provider/runtime test that emits stdout JSON events and then fails with `Selected model is at capacity. Please try a different model.`
-- [ ] 3. Fix the smallest lifecycle gap that can leave an accepted run without a registry entry or erase the entry during failure handling.
-- [ ] 4. Assert `runs`, `run-status`, and `run-report` JSON behavior for the simulated failed run.
-- [ ] 5. Run focused run-registry/CLI tests plus Logics lint before closeout.
-- [ ] 6. Record the root cause and any non-reproducible external assumptions in the implementation report.
+- [x] 1. Reconstruct the issue #6 lifecycle from `handle_run`, registry writes, provider dispatch, and finalization paths.
+- [x] 2. Add or extend a fake provider/runtime test that emits stdout JSON events and then fails with `Selected model is at capacity. Please try a different model.`
+- [x] 3. Fix the smallest lifecycle gap that can leave an accepted run without a registry entry or erase the entry during failure handling.
+- [x] 4. Assert `runs`, `run-status`, and `run-report` JSON behavior for the simulated failed run.
+- [x] 5. Run focused run-registry/CLI tests plus Logics lint before closeout.
+- [x] 6. Record the root cause and any non-reproducible external assumptions in the implementation report.
 
 # Validation
-- Planned: focused run registry and CLI tests covering provider capacity failure.
-- Planned: `logics-manager lint --require-status`.
+- Passed: `npm run test:py -- test/test_cli_py.py -k 'run_'`
+- Passed: `npm test`
+- Passed: `PATH="$PWD/.venv/bin:$PATH" npm run lint`
+- Passed: `logics-manager lint --require-status`
 
 # Report
-- Not started.
+- Investigation found the current headless `cdx run` lifecycle already creates the run id and calls `registry.start(...)` after authentication succeeds and before provider subprocess dispatch. The regression gap was that this ordering was not asserted for the named-session and provider-explicit paths, and provider non-zero finalization only persisted the synthetic `"Provider process exited with a non-zero status."` message. A capacity failure emitted on stdout after real provider activity could therefore lose the capacity detail in `final_payload` / registry `error`, making the terminal failed run hard to diagnose and leaving `runs` / `run-status` / `run-report` behavior unguarded against a missing registry entry regression.
+- The fix adds artifact-tail extraction for provider failures so the capacity line is persisted in the JSON result and registry error summary, plus a regression test that proves the accepted provider-explicit run is already queryable as `running` before the fake provider writes stdout, then remains queryable as `failed` through `cdx runs`, `cdx run-status`, and `cdx run-report`. The existing explicit named-session run test now also asserts pre-dispatch registry visibility.
 
 # AI Context
 - Summary: Implement the regression fix for accepted failed `cdx run` invocations missing from the registry.

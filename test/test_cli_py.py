@@ -26,6 +26,7 @@ from src.cli_args import RUN_USAGE, _parse_run_args
 from src.cli_commands import _extract_claude_oauth_token, _format_update_all, _format_update_all_result
 from src.errors import CdxError
 from src.health import collect_health_report
+from src.run_registry import RunRegistry
 from src.session_service import create_session_service
 
 HAS_CRYPTOGRAPHY = importlib.util.find_spec("cryptography") is not None
@@ -5535,6 +5536,10 @@ class CliPythonTests(unittest.TestCase):
 
         def spawn(argv, **kwargs):
             calls.append({"argv": argv, "kwargs": kwargs})
+            running = RunRegistry(target_dir).list(limit=1)[0]
+            self.assertEqual(running["status"], "running")
+            self.assertEqual(running["session"], "work")
+            self.assertEqual(running["artifacts"]["stdout_path"], kwargs["stdout"].name)
             kwargs["stdout"].write(json.dumps({
                 "type": "usage",
                 "usage": {
@@ -5765,6 +5770,66 @@ class CliPythonTests(unittest.TestCase):
             "reasoning_tokens": None,
             "total_tokens": 3,
         })
+
+    def test_run_provider_capacity_failure_remains_queryable_in_registry(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        session = service["create_session"]("auto", "codex")
+        os.makedirs(session["authHome"], exist_ok=True)
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "token"}}, handle)
+        service["update_auth_state"]("auto", lambda auth: {**auth, "status": "authenticated"})
+        service["record_status"]("auto", {"remaining_5h_pct": 75, "remaining_week_pct": 75})
+        capacity_message = "Selected model is at capacity. Please try a different model."
+
+        def spawn(_argv, **kwargs):
+            running = RunRegistry(target_dir).list(limit=1)[0]
+            self.assertEqual(running["status"], "running")
+            self.assertEqual(running["session"], "auto")
+            self.assertEqual(running["provider"], "codex")
+            self.assertEqual(running["cwd"], os.path.abspath(target_dir))
+            self.assertEqual(running["artifacts"]["stdout_path"], kwargs["stdout"].name)
+            kwargs["stdout"].write(json.dumps({"type": "thread.started", "thread_id": "thread_123"}) + "\n")
+            kwargs["stdout"].write(json.dumps({"type": "turn.started"}) + "\n")
+            kwargs["stdout"].write(capacity_message + "\n")
+            return _HeadlessChild(1)
+
+        run_io = self.make_io()
+        self.assertEqual(main([
+            "run", "--provider", "codex", "--cwd", target_dir, "--prompt", "Do it", "--json"
+        ], self.make_run_ctx(run_io, service, spawn_headless=spawn)), 1)
+        run_payload = json.loads(run_io["stdout"].getvalue())
+        run_id = run_payload["run_id"]
+
+        self.assertFalse(run_payload["ok"])
+        self.assertEqual(run_payload["session"], "auto")
+        self.assertEqual(run_payload["provider"], "codex")
+        self.assertEqual(run_payload["error"]["code"], "provider_failed")
+        self.assertEqual(run_payload["error"]["provider_code"], 1)
+        self.assertIn(capacity_message, run_payload["error"]["message"])
+        self.assertTrue(os.path.isabs(run_payload["stdout_path"]))
+
+        runs_io = self.make_io()
+        self.assertEqual(main(["runs", "--json"], self.make_run_ctx(runs_io, service)), 0)
+        runs_payload = json.loads(runs_io["stdout"].getvalue())
+        self.assertEqual(runs_payload["runs"][0]["run_id"], run_id)
+        self.assertEqual(runs_payload["runs"][0]["status"], "failed")
+        self.assertEqual(runs_payload["runs"][0]["cwd"], os.path.abspath(target_dir))
+        self.assertEqual(runs_payload["runs"][0]["artifacts"]["stdout_path"], run_payload["stdout_path"])
+        self.assertIn(capacity_message, runs_payload["runs"][0]["error"]["message"])
+
+        status_io = self.make_io()
+        self.assertEqual(main(["run-status", run_id, "--json"], self.make_run_ctx(status_io, service)), 0)
+        status_payload = json.loads(status_io["stdout"].getvalue())
+        self.assertEqual(status_payload["run"]["run_id"], run_id)
+        self.assertEqual(status_payload["run"]["exit_code"], 1)
+
+        report_io = self.make_io()
+        self.assertEqual(main(["run-report", run_id, "--json"], self.make_run_ctx(report_io, service)), 0)
+        report_payload = json.loads(report_io["stdout"].getvalue())
+        self.assertEqual(report_payload["report"]["run"]["run_id"], run_id)
+        self.assertEqual(report_payload["report"]["artifacts"]["stdout_path"], run_payload["stdout_path"])
+        self.assertIn(capacity_message, report_payload["report"]["error"]["message"])
 
     def test_run_missing_provider_cli_returns_json_error(self):
         target_dir = self.make_temp_dir()

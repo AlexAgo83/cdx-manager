@@ -49,6 +49,30 @@ def run_payload_reasoning_effort(parsed, session):
     )
 
 
+def _tail_line(path, limit=4000):
+    if not path:
+        return None
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as handle:
+            handle.seek(max(0, size - limit))
+            text = handle.read().decode("utf-8", errors="replace")
+    except OSError:
+        return None
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return None
+    return lines[-1][:500]
+
+
+def _provider_failure_message(error, run_info, error_code):
+    base = str(error) if error else "Run failed."
+    if error_code != "provider_failed":
+        return base
+    detail = _tail_line(run_info.get("stderr_path")) or _tail_line(run_info.get("stdout_path"))
+    return f"{base}: {detail}" if detail else base
+
+
 def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
                        error=None, error_source=None, error_code=None):
     run_info = run_info or {}
@@ -56,6 +80,11 @@ def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
         extract_run_usage(session.get("provider"), run_info.get("stdout_path"))
         if session else
         empty_usage()
+    )
+    message = None if ok else (
+        _provider_failure_message(error, run_info, error_code)
+        if error_source == "provider"
+        else (str(error) if error else "Run failed.")
     )
     return {
         "schema_version": api_schema_version,
@@ -79,7 +108,7 @@ def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
         "error": None if ok else {
             "source": error_source or "cdx",
             "code": error_code or "cdx_error",
-            "message": str(error) if error else "Run failed.",
+            "message": message,
             "provider_code": run_info.get("returncode") if error_source == "provider" else None,
         },
     }
