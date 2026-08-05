@@ -35,6 +35,13 @@ CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--json]"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json"
 NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
 RUN_USAGE = "Usage: cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] --json"
+RUN_JSON_REQUIRED = "cdx run: --json is required."
+RUN_TARGET_REQUIRED = "cdx run: specify a session name or --provider PROVIDER."
+RUN_SESSION_PROVIDER_CONFLICT = "cdx run: cannot specify both a session name and --provider."
+RUN_CWD_REQUIRED = "cdx run: --cwd PATH is required."
+RUN_PROMPT_SOURCE_REQUIRED = "cdx run: specify exactly one prompt source: --prompt TEXT or --prompt-file PATH."
+RUN_KIND_VALUES = ("assistant", "code-review")
+RUN_PERMISSION_VALUES = ("review", "default", "auto", "full", "workspace-write", "read-only", "danger-full-access")
 RUNS_USAGE = "Usage: cdx runs [--limit N] --json"
 RUN_STATUS_USAGE = "Usage: cdx run-status <run_id> --json"
 RUN_REPORT_USAGE = "Usage: cdx run-report <run_id> --json"
@@ -327,6 +334,21 @@ def _parse_timeout_seconds(value, usage=RUN_USAGE):
     return parsed
 
 
+def _parse_run_timeout_seconds(value):
+    try:
+        return _parse_timeout_seconds(value, RUN_USAGE)
+    except CdxError as error:
+        raise CdxError(f"cdx run: --timeout-seconds must be a positive number; got {value!r}.") from error
+
+
+def _parse_run_provider(value):
+    try:
+        return _parse_provider_filter(value, RUN_USAGE)
+    except CdxError as error:
+        allowed = "|".join(PROVIDERS)
+        raise CdxError(f"cdx run: invalid --provider {value!r}; allowed values: {allowed}.") from error
+
+
 def _normalize_run_permission(value):
     if value is None:
         return None
@@ -338,7 +360,8 @@ def _normalize_run_permission(value):
     }
     text = aliases.get(text, text)
     if text not in ("review", "default", "auto", "full"):
-        raise CdxError(RUN_USAGE)
+        allowed = "|".join(RUN_PERMISSION_VALUES)
+        raise CdxError(f"cdx run: invalid --permission {value!r}; allowed values: {allowed}.")
     return text
 
 
@@ -347,28 +370,29 @@ def _parse_run_args(args):
         "--cwd": {"key": "cwd", "type": "str", "default": None},
         "--prompt-file": {"key": "prompt_file", "type": "str", "default": None},
         "--prompt": {"key": "prompt", "type": "str", "default": None},
-        "--provider": {"key": "provider", "type": "str", "default": None, "transform": lambda value: _parse_provider_filter(value, RUN_USAGE)},
+        "--provider": {"key": "provider", "type": "str", "default": None, "transform": _parse_run_provider},
         "--model": {"key": "model", "type": "str", "default": None},
         "--kind": {"key": "kind", "type": "str", "default": "assistant"},
         "--reasoning-effort": {"key": "reasoning_effort", "type": "str", "default": None},
         "--power": {"key": "power", "type": "str", "default": None},
         "--permission": {"key": "permission", "type": "str", "default": None, "transform": _normalize_run_permission},
-        "--timeout-seconds": {"key": "timeout_seconds", "type": "str", "default": None, "transform": _parse_timeout_seconds},
+        "--timeout-seconds": {"key": "timeout_seconds", "type": "str", "default": None, "transform": _parse_run_timeout_seconds},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, RUN_USAGE, positionals_key="names", max_positionals=1)
     if not parsed["json"]:
-        raise CdxError(RUN_USAGE)
+        raise CdxError(RUN_JSON_REQUIRED)
     name = parsed["names"][0] if parsed["names"] else None
     if name and parsed["provider"]:
-        raise CdxError(RUN_USAGE)
+        raise CdxError(RUN_SESSION_PROVIDER_CONFLICT)
     if not name and not parsed["provider"]:
-        raise CdxError(RUN_USAGE)
+        raise CdxError(RUN_TARGET_REQUIRED)
     if not parsed["cwd"]:
-        raise CdxError(RUN_USAGE)
+        raise CdxError(RUN_CWD_REQUIRED)
     if bool(parsed["prompt_file"]) == bool(parsed["prompt"]):
-        raise CdxError(RUN_USAGE)
-    if parsed["kind"] not in ("assistant", "code-review"):
-        raise CdxError(RUN_USAGE)
+        raise CdxError(RUN_PROMPT_SOURCE_REQUIRED)
+    if parsed["kind"] not in RUN_KIND_VALUES:
+        allowed = "|".join(RUN_KIND_VALUES)
+        raise CdxError(f"cdx run: invalid --kind {parsed['kind']!r}; allowed values: {allowed}.")
     effort = _normalize_reasoning_effort(
         reasoning_effort=parsed["reasoning_effort"],
         power=parsed["power"],

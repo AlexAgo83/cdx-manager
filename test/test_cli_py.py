@@ -2,6 +2,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -21,6 +22,7 @@ from src.cli import (
     format_json_error,
     main,
 )
+from src.cli_args import RUN_USAGE, _parse_run_args
 from src.cli_commands import _extract_claude_oauth_token, _format_update_all, _format_update_all_result
 from src.errors import CdxError
 from src.health import collect_health_report
@@ -5876,6 +5878,80 @@ class CliPythonTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["error"]["source"], "cdx")
         self.assertEqual(payload["error"]["code"], "invalid_reasoning_effort")
+        self.assertIn("--reasoning-effort and --power", payload["error"]["message"])
+
+    def test_run_validation_errors_are_specific_and_match_json_message(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        cases = [
+            (
+                ["main", "--cwd", target_dir, "--prompt", "Do it"],
+                "cdx run: --json is required.",
+            ),
+            (
+                ["main", "--cwd", target_dir, "--provider", "codex", "--prompt", "Do it", "--json"],
+                "cdx run: cannot specify both a session name and --provider.",
+            ),
+            (
+                ["--cwd", target_dir, "--prompt", "Do it", "--json"],
+                "cdx run: specify a session name or --provider PROVIDER.",
+            ),
+            (
+                ["main", "--prompt", "Do it", "--json"],
+                "cdx run: --cwd PATH is required.",
+            ),
+            (
+                ["main", "--cwd", target_dir, "--json"],
+                "cdx run: specify exactly one prompt source: --prompt TEXT or --prompt-file PATH.",
+            ),
+            (
+                ["main", "--cwd", target_dir, "--prompt", "Do it", "--prompt-file", __file__, "--json"],
+                "cdx run: specify exactly one prompt source: --prompt TEXT or --prompt-file PATH.",
+            ),
+            (
+                ["main", "--cwd", target_dir, "--prompt", "Do it", "--kind", "audit", "--json"],
+                "cdx run: invalid --kind 'audit'; allowed values: assistant|code-review.",
+            ),
+            (
+                ["main", "--cwd", target_dir, "--prompt", "Do it", "--provider", "bogus", "--json"],
+                "cdx run: invalid --provider 'bogus'; allowed values: codex|claude|antigravity|ollama.",
+            ),
+            (
+                ["main", "--cwd", target_dir, "--prompt", "Do it", "--permission", "root", "--json"],
+                "cdx run: invalid --permission 'root'; allowed values: review|default|auto|full|workspace-write|read-only|danger-full-access.",
+            ),
+            (
+                ["main", "--cwd", target_dir, "--prompt", "Do it", "--timeout-seconds", "0", "--json"],
+                "cdx run: --timeout-seconds must be a positive number; got '0'.",
+            ),
+        ]
+
+        for args, message in cases:
+            with self.subTest(args=args):
+                with self.assertRaisesRegex(CdxError, re.escape(message)):
+                    _parse_run_args(args)
+
+                io_obj = self.make_io()
+                self.assertEqual(main(["run", *args], self.make_run_ctx(io_obj, service)), 1)
+                payload = json.loads(io_obj["stdout"].getvalue())
+                self.assertFalse(payload["ok"])
+                self.assertEqual(payload["action"], "run")
+                self.assertEqual(payload["error"]["source"], "cdx")
+                self.assertEqual(payload["error"]["code"], "invalid_request")
+                self.assertEqual(payload["error"]["message"], message)
+
+    def test_run_unknown_flags_still_return_full_usage_contract(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "main", "--cwd", target_dir, "--prompt", "Do it", "--bogus", "--json"
+        ], self.make_run_ctx(io_obj, service)), 1)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertEqual(payload["error"]["code"], "invalid_request")
+        self.assertEqual(payload["error"]["message"], RUN_USAGE)
 
     def test_run_auto_selects_session_from_provider(self):
         target_dir = self.make_temp_dir()

@@ -18,6 +18,8 @@ def run_cdx_error_code(error):
     message = str(error)
     if message.startswith("Usage:"):
         return "invalid_request"
+    if message.startswith("cdx run:"):
+        return "invalid_request"
     if message.startswith("Invalid cwd:"):
         return "invalid_cwd"
     if message.startswith("Session is disabled:"):
