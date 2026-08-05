@@ -1,0 +1,331 @@
+{
+  "budgets": {
+    "max_docs": 12,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled item_034_handle_no_target_cdx_ready_scheduling_gracefully task_025_orchestrate_safe_cdx_ready_no_target_handling --mode full --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_034_handle_no_target_cdx_ready_scheduling_gracefully"
+        ],
+        "prod": [
+          "prod_007_reliable_next_ready_notification_shortcut"
+        ],
+        "req": [
+          "req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled"
+        ],
+        "task": [
+          "task_025_orchestrate_safe_cdx_ready_no_target_handling"
+        ]
+      },
+      "path": "logics/product/prod_007_reliable_next_ready_notification_shortcut.md",
+      "ref": "prod_007_reliable_next_ready_notification_shortcut",
+      "sections": {
+        "Goals": [
+          "- Keep `cdx ready` safe and understandable for every status inventory.",
+          "- Preserve the existing notification and scheduler contracts where a target exists."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Make the ready shortcut report an unschedulable state as a normal outcome."
+        ],
+        "References": [
+          "- Product back-reference: `req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled`",
+          "- Task back-reference: `task_025_orchestrate_safe_cdx_ready_no_target_handling`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Reliable next-ready notification shortcut"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, prevent cdx ready from failing when no notification can be scheduled, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Prevent cdx ready from failing when no notification can be scheduled",
+        "use when": "You need to implement or review the scaffolded workflow for Prevent cdx ready from failing when no notification can be scheduled."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_034_handle_no_target_cdx_ready_scheduling_gracefully"
+        ],
+        "prod": [
+          "prod_007_reliable_next_ready_notification_shortcut"
+        ],
+        "req": [
+          "req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled"
+        ]
+      },
+      "path": "logics/request/req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled.md",
+      "ref": "req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: `cdx ready` with no eligible upcoming reset exits successfully and emits a clear, non-error result explaining that no notification was scheduled.",
+          "- AC2: `cdx ready --json` in that case returns the normal successful notify envelope, keeps the resolved event message, and includes an explicit schedule result with `scheduled: false` instead of an exception or traceback.",
+          "- AC3: `cdx notify --next-ready --schedule` has the same safe no-target behavior, while a named `--at-reset` notification with no known reset retains its actionable error contract.",
+          "- AC4: Existing future-reset scheduling still selects the correct backend and registers one job; already-due targets still notify immediately without creating a job.",
+          "- AC5: Focused CLI and notification tests cover no sessions, only currently usable sessions, missing reset timestamps, future reset, already-due reset, text output, and JSON output."
+        ],
+        "Needs": [
+          "- Operators need `cdx ready` to finish predictably when there is no eligible future reset, rather than terminating with an uncaught-looking scheduling failure."
+        ]
+      },
+      "status": "Draft",
+      "title": "Prevent cdx ready from failing when no notification can be scheduled"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, handle no-target cdx ready scheduling gracefully, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Handle no-target cdx ready scheduling gracefully",
+        "use when": "Implementing the scaffolded slice for Handle no-target cdx ready scheduling gracefully."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_034_handle_no_target_cdx_ready_scheduling_gracefully"
+        ],
+        "prod": [
+          "prod_007_reliable_next_ready_notification_shortcut"
+        ],
+        "req": [
+          "req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled"
+        ],
+        "task": [
+          "task_025_orchestrate_safe_cdx_ready_no_target_handling"
+        ]
+      },
+      "path": "logics/backlog/item_034_handle_no_target_cdx_ready_scheduling_gracefully.md",
+      "ref": "item_034_handle_no_target_cdx_ready_scheduling_gracefully",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A no-target next-ready schedule returns a non-scheduled result, not `CdxError`.",
+          "- AC2: JSON exposes `scheduled: false` and a stable backend/reason field suitable for automation.",
+          "- AC3: Existing scheduled and immediate event paths remain regression-covered.",
+          "- AC4: Named at-reset requests with no reset time remain errors with their current guidance."
+        ],
+        "Problem": [
+          "- A valid no-upcoming-reset result reaches scheduling without a target timestamp and becomes a command failure.",
+          "- The shortcut needs a stable text and JSON outcome that automation can distinguish from a scheduled job."
+        ]
+      },
+      "status": "Ready",
+      "title": "Handle no-target cdx ready scheduling gracefully"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_034_handle_no_target_cdx_ready_scheduling_gracefully"
+        ],
+        "prod": [
+          "prod_007_reliable_next_ready_notification_shortcut"
+        ],
+        "req": [
+          "req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled"
+        ],
+        "task": [
+          "task_025_orchestrate_safe_cdx_ready_no_target_handling"
+        ]
+      },
+      "path": "logics/product/prod_007_reliable_next_ready_notification_shortcut.md",
+      "ref": "prod_007_reliable_next_ready_notification_shortcut",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Reliable next-ready notification shortcut"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate safe cdx ready no-target handling",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_034_handle_no_target_cdx_ready_scheduling_gracefully"
+        ],
+        "prod": [
+          "prod_007_reliable_next_ready_notification_shortcut"
+        ],
+        "req": [
+          "req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled"
+        ],
+        "task": [
+          "task_025_orchestrate_safe_cdx_ready_no_target_handling"
+        ]
+      },
+      "path": "logics/tasks/task_025_orchestrate_safe_cdx_ready_no_target_handling.md",
+      "ref": "task_025_orchestrate_safe_cdx_ready_no_target_handling",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate safe cdx ready no-target handling"
+    }
+  ],
+  "estimates": {
+    "char_count": 6543,
+    "companion_doc_count": 1,
+    "doc_count": 4
+  },
+  "generated_at": "2026-08-05T01:13:20Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled",
+      "item_034_handle_no_target_cdx_ready_scheduling_gracefully",
+      "task_025_orchestrate_safe_cdx_ready_no_target_handling"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "full",
+  "profile": "normal",
+  "ref": "req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled,item_034_handle_no_target_cdx_ready_scheduling_gracefully,task_025_orchestrate_safe_cdx_ready_no_target_handling",
+  "refs": [
+    "req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled",
+    "item_034_handle_no_target_cdx_ready_scheduling_gracefully",
+    "task_025_orchestrate_safe_cdx_ready_no_target_handling"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: missing required evidence",
+      "changelog: missing required evidence",
+      "release_checksums: missing required evidence",
+      "local_validation: missing required evidence",
+      "git_push: missing required evidence",
+      "ci: missing required evidence",
+      "github_release: missing required evidence",
+      "npm_publication: missing required evidence",
+      "pypi_publication: missing required evidence"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: missing required evidence",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "preparing",
+    "target_version": "0.12.1"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_025_orchestrate_safe_cdx_ready_no_target_handling.md",
+      "ref": "task_025_orchestrate_safe_cdx_ready_no_target_handling"
+    }
+  ]
+}

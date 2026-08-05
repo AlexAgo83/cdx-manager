@@ -1,0 +1,331 @@
+{
+  "budgets": {
+    "max_docs": 12,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_015_add_a_severity_filter_to_cdx_doctor item_035_filter_cdx_doctor_report_by_severity task_026_orchestrate_cdx_doctor_severity_filtering --mode full --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_035_filter_cdx_doctor_report_by_severity"
+        ],
+        "prod": [
+          "prod_008_filterable_doctor_diagnostics"
+        ],
+        "req": [
+          "req_015_add_a_severity_filter_to_cdx_doctor"
+        ],
+        "task": [
+          "task_026_orchestrate_cdx_doctor_severity_filtering"
+        ]
+      },
+      "path": "logics/product/prod_008_filterable_doctor_diagnostics.md",
+      "ref": "prod_008_filterable_doctor_diagnostics",
+      "sections": {
+        "Goals": [
+          "- Make warning/failure triage concise.",
+          "- Keep the existing report schema predictable."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Allow focused inspection of doctor severities without changing health collection."
+        ],
+        "References": [
+          "- Product back-reference: `req_015_add_a_severity_filter_to_cdx_doctor`",
+          "- Task back-reference: `task_026_orchestrate_cdx_doctor_severity_filtering`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Filterable doctor diagnostics"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, add a severity filter to cdx doctor, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Add a severity filter to cdx doctor",
+        "use when": "You need to implement or review the scaffolded workflow for Add a severity filter to cdx doctor."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_035_filter_cdx_doctor_report_by_severity"
+        ],
+        "prod": [
+          "prod_008_filterable_doctor_diagnostics"
+        ],
+        "req": [
+          "req_015_add_a_severity_filter_to_cdx_doctor"
+        ]
+      },
+      "path": "logics/request/req_015_add_a_severity_filter_to_cdx_doctor.md",
+      "ref": "req_015_add_a_severity_filter_to_cdx_doctor",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: `cdx doctor --severity <OK|WARN|FAIL>` filters displayed issues to exactly that canonical severity; input is case-insensitive.",
+          "- AC2: The filter composes with `--json`; JSON retains the standard success envelope and returns a report whose issues and summary describe only the filtered subset, plus the normalized requested severity.",
+          "- AC3: Text output contains no issue rows outside the requested severity and reports a matching summary, including an empty-match result without error.",
+          "- AC4: Missing, repeated, or unsupported severity values fail with command usage that documents the three accepted values; existing `cdx doctor` and `cdx doctor --json` output stays backward compatible.",
+          "- AC5: Top-level help, command usage, and README document the option and focused tests cover every accepted severity, case normalization, empty matches, invalid input, text output, and JSON output."
+        ],
+        "Needs": [
+          "- Operators need to focus `cdx doctor` output on one health severity when triaging warnings or failures."
+        ]
+      },
+      "status": "Draft",
+      "title": "Add a severity filter to cdx doctor"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, filter cdx doctor report by severity, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Filter cdx doctor report by severity",
+        "use when": "Implementing the scaffolded slice for Filter cdx doctor report by severity."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_035_filter_cdx_doctor_report_by_severity"
+        ],
+        "prod": [
+          "prod_008_filterable_doctor_diagnostics"
+        ],
+        "req": [
+          "req_015_add_a_severity_filter_to_cdx_doctor"
+        ],
+        "task": [
+          "task_026_orchestrate_cdx_doctor_severity_filtering"
+        ]
+      },
+      "path": "logics/backlog/item_035_filter_cdx_doctor_report_by_severity.md",
+      "ref": "item_035_filter_cdx_doctor_report_by_severity",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Exactly one case-insensitive `--severity` value is accepted from OK, WARN, FAIL.",
+          "- AC2: Filtered text/JSON reports contain only matching issues and matching counts.",
+          "- AC3: Unfiltered output remains byte/shape compatible apart from intentional help documentation.",
+          "- AC4: Invalid argument forms are regression-tested."
+        ],
+        "Problem": [
+          "- Full doctor output obscures the class of issue an operator is actively resolving.",
+          "- No parser or rendering contract exists for severity-scoped reports."
+        ]
+      },
+      "status": "Ready",
+      "title": "Filter cdx doctor report by severity"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_035_filter_cdx_doctor_report_by_severity"
+        ],
+        "prod": [
+          "prod_008_filterable_doctor_diagnostics"
+        ],
+        "req": [
+          "req_015_add_a_severity_filter_to_cdx_doctor"
+        ],
+        "task": [
+          "task_026_orchestrate_cdx_doctor_severity_filtering"
+        ]
+      },
+      "path": "logics/product/prod_008_filterable_doctor_diagnostics.md",
+      "ref": "prod_008_filterable_doctor_diagnostics",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Filterable doctor diagnostics"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate cdx doctor severity filtering",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_035_filter_cdx_doctor_report_by_severity"
+        ],
+        "prod": [
+          "prod_008_filterable_doctor_diagnostics"
+        ],
+        "req": [
+          "req_015_add_a_severity_filter_to_cdx_doctor"
+        ],
+        "task": [
+          "task_026_orchestrate_cdx_doctor_severity_filtering"
+        ]
+      },
+      "path": "logics/tasks/task_026_orchestrate_cdx_doctor_severity_filtering.md",
+      "ref": "task_026_orchestrate_cdx_doctor_severity_filtering",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate cdx doctor severity filtering"
+    }
+  ],
+  "estimates": {
+    "char_count": 5620,
+    "companion_doc_count": 1,
+    "doc_count": 4
+  },
+  "generated_at": "2026-08-05T01:13:21Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_015_add_a_severity_filter_to_cdx_doctor",
+      "item_035_filter_cdx_doctor_report_by_severity",
+      "task_026_orchestrate_cdx_doctor_severity_filtering"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "full",
+  "profile": "normal",
+  "ref": "req_015_add_a_severity_filter_to_cdx_doctor,item_035_filter_cdx_doctor_report_by_severity,task_026_orchestrate_cdx_doctor_severity_filtering",
+  "refs": [
+    "req_015_add_a_severity_filter_to_cdx_doctor",
+    "item_035_filter_cdx_doctor_report_by_severity",
+    "task_026_orchestrate_cdx_doctor_severity_filtering"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: missing required evidence",
+      "changelog: missing required evidence",
+      "release_checksums: missing required evidence",
+      "local_validation: missing required evidence",
+      "git_push: missing required evidence",
+      "ci: missing required evidence",
+      "github_release: missing required evidence",
+      "npm_publication: missing required evidence",
+      "pypi_publication: missing required evidence"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: missing required evidence",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "preparing",
+    "target_version": "0.12.1"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_026_orchestrate_cdx_doctor_severity_filtering.md",
+      "ref": "task_026_orchestrate_cdx_doctor_severity_filtering"
+    }
+  ]
+}

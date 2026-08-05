@@ -21,6 +21,9 @@
 | [prod_004_post_remediation_hardening_follow_up_2026_07](product/prod_004_post_remediation_hardening_follow_up_2026_07.md) | Post-remediation hardening follow-up 2026-07 | Settled |  |  | product/prod_004_post_remediation_hardening_follow_up_2026_07.md |
 | [prod_005_session_labeling_for_cdx](product/prod_005_session_labeling_for_cdx.md) | Session labeling for cdx | Settled |  |  | product/prod_005_session_labeling_for_cdx.md |
 | [prod_006_workspace_memory_command_for_cdx](product/prod_006_workspace_memory_command_for_cdx.md) | Workspace memory command for cdx | Settled |  |  | product/prod_006_workspace_memory_command_for_cdx.md |
+| [prod_007_reliable_next_ready_notification_shortcut](product/prod_007_reliable_next_ready_notification_shortcut.md) | Reliable next-ready notification shortcut | Proposed |  |  | product/prod_007_reliable_next_ready_notification_shortcut.md |
+| [prod_008_filterable_doctor_diagnostics](product/prod_008_filterable_doctor_diagnostics.md) | Filterable doctor diagnostics | Proposed |  |  | product/prod_008_filterable_doctor_diagnostics.md |
+| [prod_009_actionable_cdx_config_failures](product/prod_009_actionable_cdx_config_failures.md) | Actionable cdx config failures | Proposed |  |  | product/prod_009_actionable_cdx_config_failures.md |
 
 ## Roadmaps
 
@@ -44,6 +47,9 @@ _None_
 | [req_011_address_july_2026_post_remediation_review_follow_up_findings](request/req_011_address_july_2026_post_remediation_review_follow_up_findings.md) | Address July 2026 post-remediation review follow-up findings | Done |  |  | request/req_011_address_july_2026_post_remediation_review_follow_up_findings.md |
 | [req_012_add_optional_labels_to_cdx_sessions](request/req_012_add_optional_labels_to_cdx_sessions.md) | Add optional labels to cdx sessions | Done |  |  | request/req_012_add_optional_labels_to_cdx_sessions.md |
 | [req_013_add_a_small_workspace_memory_command_to_cdx](request/req_013_add_a_small_workspace_memory_command_to_cdx.md) | Add a small workspace memory command to cdx | Done |  |  | request/req_013_add_a_small_workspace_memory_command_to_cdx.md |
+| [req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled](request/req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled.md) | Prevent cdx ready from failing when no notification can be scheduled | Draft |  |  | request/req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled.md |
+| [req_015_add_a_severity_filter_to_cdx_doctor](request/req_015_add_a_severity_filter_to_cdx_doctor.md) | Add a severity filter to cdx doctor | Draft |  |  | request/req_015_add_a_severity_filter_to_cdx_doctor.md |
+| [req_016_clarify_cdx_config_errors_for_unknown_sessions](request/req_016_clarify_cdx_config_errors_for_unknown_sessions.md) | Clarify cdx config errors for unknown sessions | Draft |  |  | request/req_016_clarify_cdx_config_errors_for_unknown_sessions.md |
 
 ## Backlog
 
@@ -83,6 +89,9 @@ _None_
 | [item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors](backlog/item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors.md) | Reject malformed import bundle profile entries with controlled errors | Done |  | 100% | backlog/item_031_reject_malformed_import_bundle_profile_entries_with_controlled_errors.md |
 | [item_032_optional_session_labels_in_cli_list_and_status_surfaces](backlog/item_032_optional_session_labels_in_cli_list_and_status_surfaces.md) | Optional session labels in CLI list and status surfaces | Done |  | 100% | backlog/item_032_optional_session_labels_in_cli_list_and_status_surfaces.md |
 | [item_033_scoped_memory_alias_and_append_command](backlog/item_033_scoped_memory_alias_and_append_command.md) | Scoped memory alias and append command | Done |  | 100% | backlog/item_033_scoped_memory_alias_and_append_command.md |
+| [item_034_handle_no_target_cdx_ready_scheduling_gracefully](backlog/item_034_handle_no_target_cdx_ready_scheduling_gracefully.md) | Handle no-target cdx ready scheduling gracefully | Ready |  | 0% | backlog/item_034_handle_no_target_cdx_ready_scheduling_gracefully.md |
+| [item_035_filter_cdx_doctor_report_by_severity](backlog/item_035_filter_cdx_doctor_report_by_severity.md) | Filter cdx doctor report by severity | Ready |  | 0% | backlog/item_035_filter_cdx_doctor_report_by_severity.md |
+| [item_036_improve_unknown_session_guidance_for_cdx_config](backlog/item_036_improve_unknown_session_guidance_for_cdx_config.md) | Improve unknown-session guidance for cdx config | Ready |  | 0% | backlog/item_036_improve_unknown_session_guidance_for_cdx_config.md |
 
 ## Tasks
 
@@ -115,3 +124,6 @@ _None_
 | [task_022_orchestrate_post_remediation_hardening_follow_up](tasks/task_022_orchestrate_post_remediation_hardening_follow_up.md) | Orchestrate post-remediation hardening follow-up | Done | codex | 100% | tasks/task_022_orchestrate_post_remediation_hardening_follow_up.md |
 | [task_023_orchestrate_optional_session_labels](tasks/task_023_orchestrate_optional_session_labels.md) | Orchestrate optional session labels | Done |  | 100% | tasks/task_023_orchestrate_optional_session_labels.md |
 | [task_024_orchestrate_workspace_memory_command](tasks/task_024_orchestrate_workspace_memory_command.md) | Orchestrate workspace memory command | Done | codex | 100% | tasks/task_024_orchestrate_workspace_memory_command.md |
+| [task_025_orchestrate_safe_cdx_ready_no_target_handling](tasks/task_025_orchestrate_safe_cdx_ready_no_target_handling.md) | Orchestrate safe cdx ready no-target handling | Ready |  | 0% | tasks/task_025_orchestrate_safe_cdx_ready_no_target_handling.md |
+| [task_026_orchestrate_cdx_doctor_severity_filtering](tasks/task_026_orchestrate_cdx_doctor_severity_filtering.md) | Orchestrate cdx doctor severity filtering | Ready |  | 0% | tasks/task_026_orchestrate_cdx_doctor_severity_filtering.md |
+| [task_027_orchestrate_actionable_cdx_config_error_guidance](tasks/task_027_orchestrate_actionable_cdx_config_error_guidance.md) | Orchestrate actionable cdx config error guidance | Ready |  | 0% | tasks/task_027_orchestrate_actionable_cdx_config_error_guidance.md |
