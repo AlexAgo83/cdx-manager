@@ -63,10 +63,10 @@ def detect_installation(package_root=None, prefix=None, base_prefix=None):
         return {"mode": "standalone", "package_root": str(root)}
     if _is_source_checkout(root):
         return {"mode": "source", "package_root": str(root)}
-    if _is_python_env(prefix=prefix, base_prefix=base_prefix):
-        return {"mode": "python", "package_root": str(root)}
     if (root / "package.json").exists():
         return {"mode": "npm", "package_root": str(root)}
+    if _is_python_env(prefix=prefix, base_prefix=base_prefix):
+        return {"mode": "python", "package_root": str(root)}
     return {"mode": "unknown", "package_root": str(root)}
 
 
