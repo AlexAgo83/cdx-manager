@@ -17,7 +17,6 @@ from .cli_args import (
     CAN_RESUME_USAGE,
     CONTEXT_USAGE,
     DISK_USAGE,
-    DOCTOR_USAGE,
     HANDOFF_USAGE,
     LAST_USAGE,
     MEMORY_USAGE,
