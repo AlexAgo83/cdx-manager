@@ -1,10 +1,10 @@
 ## item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli - Add an opt-in check that mapped provider flags exist in the provider CLI
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Medium
 > Theme: Contract integrity
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

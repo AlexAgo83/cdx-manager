@@ -12,7 +12,13 @@ from datetime import datetime, timezone
 
 from .claude_usage import _clean_oauth_token, _decode_jwt_claims
 from .codex_usage import codex_auth_lock
-from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
+from .config import (
+    PROVIDER_ANTIGRAVITY,
+    PROVIDER_CLAUDE,
+    PROVIDER_CODEX,
+    PROVIDER_OLLAMA,
+    REASONING_EFFORT_VALUES,
+)
 from .errors import CdxError
 
 LOG_ROTATE_BYTES = 10 * 1024 * 1024  # 10 MB
@@ -21,7 +27,6 @@ CODEX_INTERACTIVE_AUTH_LOCK_TIMEOUT_SECONDS = 10
 AUTH_PROBE_AUTHENTICATED = "authenticated"
 AUTH_PROBE_LOGGED_OUT = "logged_out"
 AUTH_PROBE_DEGRADED = "degraded"
-REASONING_EFFORT_VALUES = {"minimal", "low", "medium", "high", "xhigh"}
 RTK_PROMPT = (
     "When running noisy shell commands, prefer RTK wrappers (`rtk <command>`) if `rtk` is available. "
     "Use raw commands when exact, unfiltered output is required."
@@ -47,6 +52,15 @@ LAUNCH_PERMISSION_ARGS = {
         "auto": ["-s", "workspace-write", "-a", "never"],
         "full": ["-s", "danger-full-access", "-a", "never"],
     },
+    PROVIDER_ANTIGRAVITY: {
+        "review": ["--sandbox"],
+        "full": ["--dangerously-skip-permissions"],
+    },
+    # ollama has no sandbox or permission concept, so it maps to nothing. The
+    # entry is present and deliberately empty: that is what tells the
+    # provider-flag health check there is nothing to verify here, as opposed to
+    # a provider whose mapping nobody ever declared.
+    PROVIDER_OLLAMA: {},
 }
 HEADLESS_CODEX_PERMISSION_ARGS = {
     "review": ["-s", "read-only"],
@@ -76,6 +90,8 @@ def headless_permission_disables_network(provider, permission):
     if not permission:
         return True
     return "-s" in HEADLESS_CODEX_PERMISSION_ARGS.get(permission, [])
+
+
 REDACTED_PROMPT_ARG = "[prompt redacted]"
 CLAUDE_CLI_MODEL_ALIASES = {
     "claude-sonnet": "sonnet",
@@ -350,14 +366,12 @@ def _launch_config_args(session):
         if permission:
             args += LAUNCH_PERMISSION_ARGS[PROVIDER_CLAUDE].get(permission, [])
         return args
-    if provider == PROVIDER_ANTIGRAVITY:
-        if permission == "review":
-            args += ["--sandbox"]
-        if permission == "full":
-            args += ["--dangerously-skip-permissions"]
-        return args
-    if provider == PROVIDER_OLLAMA:
-        # ponytail: ollama has no sandbox/permission concept — nothing to map.
+    if provider in (PROVIDER_ANTIGRAVITY, PROVIDER_OLLAMA):
+        # Both read their mapping from the shared table rather than inline
+        # branches, so the provider-flag health check can verify what they emit
+        # instead of a hand-copied restatement of it.
+        if permission:
+            args += LAUNCH_PERMISSION_ARGS[provider].get(permission, [])
         return args
     if power:
         args += ["-c", f'model_reasoning_effort="{power}"']

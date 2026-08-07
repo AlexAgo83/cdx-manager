@@ -1,10 +1,10 @@
 ## item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run - Accept the permission aliases in cdx set as well as cdx run
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Low
 > Theme: Contract integrity
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

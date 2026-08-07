@@ -1,10 +1,10 @@
 ## item_048_make_the_priority_setting_count_in_next_status_and_ready - Make the priority setting count in next, status, and ready
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Medium
 > Theme: Session selection
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

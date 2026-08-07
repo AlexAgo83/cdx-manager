@@ -13,7 +13,17 @@ from urllib.parse import quote
 from .backup_bundle import decode_bundle, encode_bundle
 from .claude_usage import _decode_jwt_claims
 from .codex_usage import fetch_codex_rate_limits
-from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDERS, get_cdx_home
+from .config import (
+    PERMISSION_INPUT_VALUES,
+    PERMISSION_VALUES,
+    PROVIDER_ANTIGRAVITY,
+    PROVIDER_CLAUDE,
+    PROVIDER_CODEX,
+    PROVIDERS,
+    REASONING_EFFORT_VALUES,
+    get_cdx_home,
+    normalize_permission,
+)
 from .errors import CdxError
 from .fs_utils import atomic_write, remove_tree
 from .session_store import create_session_store
@@ -81,9 +91,13 @@ CODEX_STATUS_CACHE_TTL_SECONDS = 5 * 60
 _FORCE_IMPORT_PRESERVED_PROFILE_PATHS = ("plugins",)
 STATUS_PROBE_TIMEOUT_SECONDS = 5
 MAX_STATUS_WORKERS = 8
-LAUNCH_POWER_VALUES = {"minimal", "low", "medium", "high", "xhigh"}
-LAUNCH_REASONING_EFFORT_VALUES = {"minimal", "low", "medium", "high", "xhigh"}
-LAUNCH_PERMISSION_VALUES = {"review", "default", "auto", "full"}
+# References to the shared definitions in config, not copies. These used to be
+# three separate literals here, validated independently of the ones `cdx run`
+# uses, which is how `cdx set` and `cdx run` came to disagree about the same
+# setting.
+LAUNCH_POWER_VALUES = REASONING_EFFORT_VALUES
+LAUNCH_REASONING_EFFORT_VALUES = REASONING_EFFORT_VALUES
+LAUNCH_PERMISSION_VALUES = PERMISSION_VALUES
 MAX_LAUNCH_MODEL_LENGTH = 128
 MIN_LAUNCH_PRIORITY = 0
 MAX_LAUNCH_PRIORITY = 100
@@ -137,9 +151,17 @@ def _normalize_launch_settings(settings, mark_fast_service_tier=True):
             raise CdxError(f"Unsupported reasoning effort: {settings['reasoning_effort']}")
         normalized["reasoning_effort"] = effort
     if "permission" in settings and settings["permission"] is not None:
-        permission = str(settings["permission"]).strip().lower()
-        if permission not in LAUNCH_PERMISSION_VALUES:
-            raise CdxError(f"Unsupported permission: {settings['permission']}")
+        # Accepts the provider-native aliases (workspace-write, read-only,
+        # danger-full-access) exactly as `cdx run --permission` does, and stores
+        # the canonical value, so nothing downstream has to learn the aliases.
+        # They used to work on `run` only, so a value copied from one command to
+        # the other was rejected.
+        permission = normalize_permission(settings["permission"])
+        if permission is None:
+            allowed = "|".join(PERMISSION_INPUT_VALUES)
+            raise CdxError(
+                f"Unsupported permission: {settings['permission']} (allowed values: {allowed})"
+            )
         normalized["permission"] = permission
     if "fast" in settings and settings["fast"] is not None:
         value = settings["fast"]

@@ -11,6 +11,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest import mock
 
+from src import provider_runtime
 from src.cli import (
     _format_blocking_quota,
     _format_reset_time,
@@ -22,11 +23,16 @@ from src.cli import (
     format_json_error,
     main,
 )
-from src.cli_args import RUN_EFFORT_VALUES, RUN_USAGE, _parse_run_args
+from src.cli_args import (
+    RUN_EFFORT_VALUES,
+    RUN_PERMISSION_ALIASES,
+    RUN_PERMISSION_CANONICAL_VALUES,
+    RUN_USAGE,
+    _parse_run_args,
+)
 from src.cli_commands import _extract_claude_oauth_token, _format_update_all, _format_update_all_result
 from src.errors import CdxError
 from src.health import collect_health_report
-from src.provider_runtime import REASONING_EFFORT_VALUES
 from src.run_registry import RunRegistry
 from src.session_service import create_session_service
 
@@ -557,7 +563,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("Usage:", help_io["stdout"].getvalue())
         self.assertIn("cdx update [all] [--check] [--yes] [--json] [--version TAG]", help_io["stdout"].getvalue())
         self.assertIn("cdx ready [--refresh] [--json]", help_io["stdout"].getvalue())
-        self.assertIn("cdx doctor [--severity OK|WARN|FAIL[,OK|WARN|FAIL...]] [--json]", help_io["stdout"].getvalue())
+        self.assertIn("cdx doctor [--severity OK|WARN|FAIL[,OK|WARN|FAIL...]] [--check-provider-flags] [--json]", help_io["stdout"].getvalue())
         self.assertIn("cdx next [--json] [--refresh]", help_io["stdout"].getvalue())
         self.assertIn("cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b>", help_io["stdout"].getvalue())
         self.assertIn("cdx stats [name]", help_io["stdout"].getvalue())
@@ -6616,10 +6622,68 @@ class CliPythonTests(unittest.TestCase):
         with self.assertRaises(CdxError):
             _parse_run_args(["--cwd", target, "--prompt", "Do it", "--json", "--provider", "nope"])
 
-    def test_schema_effort_values_match_the_runtime_definition(self):
-        # Two modules, one truth: cli_args orders them for display, the runtime
-        # owns the set. Drift here would let schema advertise a dead value.
-        self.assertEqual(set(RUN_EFFORT_VALUES), REASONING_EFFORT_VALUES)
+    def test_every_validator_shares_one_accepted_value_definition(self):
+        # Not equality but identity: equality would still pass if someone
+        # reintroduced a second literal that happened to match today. These
+        # names must all resolve to the one definition config.py owns.
+        from src import config, provider_runtime, session_service
+
+        for shared in (
+            RUN_EFFORT_VALUES,
+            provider_runtime.REASONING_EFFORT_VALUES,
+            session_service.LAUNCH_POWER_VALUES,
+            session_service.LAUNCH_REASONING_EFFORT_VALUES,
+        ):
+            self.assertIs(shared, config.REASONING_EFFORT_VALUES)
+
+        self.assertIs(RUN_PERMISSION_CANONICAL_VALUES, config.PERMISSION_VALUES)
+        self.assertIs(session_service.LAUNCH_PERMISSION_VALUES, config.PERMISSION_VALUES)
+        self.assertIs(RUN_PERMISSION_ALIASES, config.PERMISSION_ALIASES)
+
+    def test_no_module_restates_an_accepted_value_set(self):
+        # The guard that keeps the deduplication from silently regressing: a
+        # fresh copy of one of these sets anywhere in src/ fails here, named.
+        import pathlib
+        import re
+
+        duplicates = []
+        for path in sorted(pathlib.Path("src").glob("*.py")):
+            if path.name == "config.py":
+                continue
+            for number, line in enumerate(path.read_text().splitlines(), 1):
+                literal = re.match(r'^[A-Z_]{4,}\s*=\s*([\{\(].*[\}\)])\s*$', line.strip())
+                if not literal:
+                    continue
+                values = set(re.findall(r'"([^"]+)"', literal.group(1)))
+                if values in (set(RUN_EFFORT_VALUES), set(RUN_PERMISSION_CANONICAL_VALUES)):
+                    duplicates.append(f"{path}:{number} {line.strip()}")
+        self.assertEqual(duplicates, [], "accepted-value set restated instead of imported from config")
+
+    def test_set_and_run_accept_the_same_values(self):
+        from src import config
+        from src.session_service import _normalize_launch_settings
+
+        # A value accepted by one command must be accepted by the other; the
+        # asymmetry this replaces rejected `cdx set --permission workspace-write`
+        # while `cdx run --permission workspace-write` worked.
+        target = self.make_temp_dir()
+        for permission in config.PERMISSION_INPUT_VALUES:
+            expected = config.normalize_permission(permission)
+            self.assertEqual(
+                _parse_run_args(["main", "--cwd", target, "--prompt", "x",
+                                 "--permission", permission, "--json"])["permission"],
+                expected,
+            )
+            self.assertEqual(
+                _normalize_launch_settings({"permission": permission})["permission"],
+                expected,
+            )
+
+        for effort in config.REASONING_EFFORT_VALUES:
+            _parse_run_args(["main", "--cwd", target, "--prompt", "x",
+                             "--reasoning-effort", effort, "--json"])
+            _normalize_launch_settings({"power": effort})
+            _normalize_launch_settings({"reasoning_effort": effort})
 
     def test_schema_declares_the_mutually_exclusive_pairs_it_enforces(self):
         io_obj = self.make_io()
@@ -6633,6 +6697,96 @@ class CliPythonTests(unittest.TestCase):
         target = self.make_temp_dir()
         with self.assertRaises(CdxError):
             _parse_run_args(["main", "--provider", "codex", "--cwd", target, "--prompt", "x", "--json"])
+
+    def _health_report(self, service, help_text=None, **kwargs):
+        from src.health import collect_health_report
+
+        def spawn_sync(_command, args, _options):
+            if args == ["--help"] and help_text is not None:
+                return {"stdout": help_text, "stderr": ""}
+            return {"stdout": "", "stderr": ""}
+
+        return collect_health_report(
+            service, service["base_dir"], env=os.environ, spawn_sync=spawn_sync, **kwargs
+        )
+
+    def _flag_issue(self, report, provider):
+        return next(i for i in report["issues"] if i["code"] == f"{provider}_permission_flags")
+
+    def test_provider_flag_check_confirms_a_complete_mapping(self):
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        service["create_session"]("work", "codex")
+
+        report = self._health_report(
+            service,
+            help_text="-s <sandbox> -a <approval> --dangerously-bypass-approvals-and-sandbox -c <cfg>",
+            check_provider_flags=True,
+        )
+
+        self.assertEqual(self._flag_issue(report, "codex")["status"], "OK")
+
+    def test_provider_flag_check_fails_on_a_flag_the_cli_lacks(self):
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        service["create_session"]("work", "codex")
+
+        # The issue #8 condition: a mapped flag the provider CLI never had.
+        with mock.patch.dict(
+            provider_runtime.LAUNCH_PERMISSION_ARGS[provider_runtime.PROVIDER_CODEX],
+            {"full": ["--experimental-yolo"]},
+        ):
+            report = self._health_report(
+                service,
+                help_text="-s -a --dangerously-bypass-approvals-and-sandbox -c",
+                check_provider_flags=True,
+            )
+
+        issue = self._flag_issue(report, "codex")
+        self.assertEqual(issue["status"], "FAIL")
+        self.assertEqual(issue["detail"]["missing"], {"full": ["--experimental-yolo"]})
+
+    def test_provider_flag_check_is_indeterminate_without_the_cli(self):
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        service["create_session"]("work", "codex")
+
+        with mock.patch("src.health.shutil.which", return_value=None):
+            report = self._health_report(service, check_provider_flags=True)
+
+        # Not a failure, and emphatically not a pass: "could not check" is the
+        # state issue #8 lived in for months.
+        self.assertEqual(self._flag_issue(report, "codex")["status"], "WARN")
+
+    def test_provider_flag_check_is_indeterminate_on_unreadable_help(self):
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        service["create_session"]("work", "codex")
+
+        report = self._health_report(service, help_text="", check_provider_flags=True)
+
+        self.assertEqual(self._flag_issue(report, "codex")["status"], "WARN")
+
+    def test_provider_with_no_mapping_reads_as_deliberate(self):
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        service["create_session"]("local", "ollama")
+
+        report = self._health_report(service, help_text="run", check_provider_flags=True)
+
+        # ollama maps nothing on purpose; that must not look like an
+        # unverified mapping.
+        issue = self._flag_issue(report, "ollama")
+        self.assertEqual(issue["status"], "OK")
+        self.assertEqual(issue["detail"]["mapped"], {})
+
+    def test_provider_flag_check_absence_is_reported_not_omitted(self):
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        service["create_session"]("work", "codex")
+
+        report = self._health_report(service)
+
+        codes = [i["code"] for i in report["issues"]]
+        self.assertNotIn("codex_permission_flags", codes)
+        # A check that did not run must say so; silently omitting it would let
+        # a green doctor imply the mappings were verified.
+        unchecked = next(i for i in report["issues"] if i["code"] == "provider_permission_flags_unchecked")
+        self.assertEqual(unchecked["status"], "WARN")
 
     def test_run_no_suitable_session_includes_launcher(self):
         target_dir = self.make_temp_dir()

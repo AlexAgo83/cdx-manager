@@ -2161,6 +2161,7 @@ def handle_doctor(rest, ctx):
         ctx["service"]["base_dir"],
         env=ctx.get("env"),
         spawn_sync=ctx.get("spawn_sync"),
+        check_provider_flags=parsed["check_provider_flags"],
     )
     report = filter_health_report(report, parsed["severity"])
     if parsed["json"]:

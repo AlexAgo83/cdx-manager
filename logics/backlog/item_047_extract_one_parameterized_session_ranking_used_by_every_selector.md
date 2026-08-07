@@ -1,10 +1,10 @@
 ## item_047_extract_one_parameterized_session_ranking_used_by_every_selector - Extract one parameterized session ranking used by every selector
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 10%
 > Complexity: High
 > Theme: Session selection
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

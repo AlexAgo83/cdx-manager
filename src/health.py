@@ -9,9 +9,22 @@ from datetime import datetime, timezone
 from urllib.parse import quote, unquote
 
 from .cli_render import _pad_table, _style
-from .config import PROVIDER_CODEX
-from .provider_runtime import codex_auth_diagnostic
+from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
+from .provider_runtime import (
+    HEADLESS_CODEX_PERMISSION_ARGS,
+    LAUNCH_PERMISSION_ARGS,
+    codex_auth_diagnostic,
+)
 from .status_source import _extract_account_identity
+
+# The executable each provider is driven through, where it differs from the
+# provider name.
+PROVIDER_CLI_COMMANDS = {
+    PROVIDER_CODEX: "codex",
+    PROVIDER_CLAUDE: "claude",
+    PROVIDER_ANTIGRAVITY: "agy",
+    PROVIDER_OLLAMA: "ollama",
+}
 
 
 def _encode(name):
@@ -36,7 +49,14 @@ def _issue(status, code, message, detail=None, repairable=False):
     }
 
 
-def collect_health_report(service, base_dir, env=None, spawn_sync=None):
+def collect_health_report(service, base_dir, env=None, spawn_sync=None, check_provider_flags=False):
+    """Health report for the cdx home, sessions, and provider CLIs.
+
+    `check_provider_flags` is opt-in because it costs a provider CLI
+    invocation per configured provider. When it is off the report still says
+    so, rather than omitting the check silently — an absent check must not
+    read as a passing one.
+    """
     env = env or os.environ
     issues = []
 
@@ -96,6 +116,15 @@ def collect_health_report(service, base_dir, env=None, spawn_sync=None):
 
     issues.extend(_codex_shared_account_id_issues(codex_diagnostics))
     issues.extend(_collect_profile_issues(base_dir, session_names))
+    if check_provider_flags:
+        issues.extend(_provider_flag_issues(service, env, spawn_sync))
+    else:
+        issues.append(_issue(
+            "WARN",
+            "provider_permission_flags_unchecked",
+            "Provider permission flags were not verified; run cdx doctor --check-provider-flags",
+            {"reason": "opt_in", "cost": "one provider CLI invocation per configured provider"},
+        ))
     return {"base_dir": base_dir, "issues": issues, "summary": summarize_health(issues)}
 
 
@@ -141,6 +170,125 @@ def _run_version_command(command, env, spawn_sync=None):
 def _extract_version(text):
     match = re.search(r"\b(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\b", text or "")
     return match.group(1) if match else None
+
+
+def _mapped_provider_flags(provider):
+    """Every distinct flag cdx would pass to this provider, by permission.
+
+    Read off the same mappings the launch specs use, so a permission added
+    there is automatically covered here rather than quietly unverified.
+    Values (a sandbox name, a config expression) are not flags and are not
+    checked — only the options themselves.
+    """
+    mappings = {}
+    interactive = LAUNCH_PERMISSION_ARGS.get(provider)
+    if interactive is None:
+        # No entry at all means nobody declared this provider's mapping, which
+        # is different from declaring that it has none.
+        return {}
+    for permission, args in interactive.items():
+        mappings.setdefault(permission, set()).update(
+            arg for arg in args if arg.startswith("-")
+        )
+    if provider == PROVIDER_CODEX:
+        for permission, args in HEADLESS_CODEX_PERMISSION_ARGS.items():
+            mappings.setdefault(permission, set()).update(
+                arg for arg in args if arg.startswith("-")
+            )
+    return {permission: sorted(flags) for permission, flags in mappings.items() if flags}
+
+
+def _provider_help_text(command, env, spawn_sync=None):
+    """The provider CLI's own option list, or None if it cannot be obtained.
+
+    Help output is the cheapest authoritative answer to "does this CLI accept
+    this flag". Launching a real run would be authoritative too, and far more
+    expensive for a diagnostic.
+    """
+    try:
+        if spawn_sync:
+            result = spawn_sync(command, ["--help"], {"env": env, "timeout": 10})
+            if isinstance(result, dict):
+                text = f"{result.get('stdout') or ''}\n{result.get('stderr') or ''}"
+            else:
+                text = f"{getattr(result, 'stdout', '') or ''}\n{getattr(result, 'stderr', '') or ''}"
+        else:
+            completed = subprocess.run(
+                [command, "--help"], env=env, capture_output=True, text=True, timeout=10, check=False,
+            )
+            text = f"{completed.stdout or ''}\n{completed.stderr or ''}"
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return text if text.strip() else None
+
+
+def _provider_flag_issues(service, env, spawn_sync=None):
+    """Verify the flags cdx maps for each permission exist in the provider CLI.
+
+    GitHub issue #8 was exactly this going unchecked: `--experimental-yolo` was
+    mapped for ollama, a flag that CLI never had, and nothing noticed until a
+    user ran `permission=full` on an ollama session.
+
+    An unverifiable mapping reports WARN, never OK: "we could not check" is the
+    state that bug lived in for months, and it must not read as a pass.
+    """
+    issues = []
+    providers = sorted({
+        session.get("provider") for session in service["list_sessions"]()
+        if session.get("provider")
+    })
+    for provider in providers:
+        command = PROVIDER_CLI_COMMANDS.get(provider, provider)
+        mappings = _mapped_provider_flags(provider)
+        if not mappings:
+            issues.append(_issue(
+                "OK",
+                f"{provider}_permission_flags",
+                f"{provider} maps no permission to CLI flags; nothing to verify",
+                {"provider": provider, "command": command, "mapped": {}},
+            ))
+            continue
+        if not shutil.which(command, path=env.get("PATH")):
+            issues.append(_issue(
+                "WARN",
+                f"{provider}_permission_flags",
+                f"{provider} CLI not installed; mapped permission flags could not be verified",
+                {"provider": provider, "command": command, "mapped": mappings},
+            ))
+            continue
+        help_text = _provider_help_text(command, env, spawn_sync)
+        if help_text is None:
+            issues.append(_issue(
+                "WARN",
+                f"{provider}_permission_flags",
+                f"{provider} CLI help could not be read; mapped permission flags could not be verified",
+                {"provider": provider, "command": command, "mapped": mappings},
+            ))
+            continue
+        missing = {
+            permission: [flag for flag in flags if flag not in help_text]
+            for permission, flags in mappings.items()
+        }
+        missing = {permission: flags for permission, flags in missing.items() if flags}
+        detail = {"provider": provider, "command": command, "mapped": mappings, "missing": missing}
+        if missing:
+            described = "; ".join(
+                f"{permission}: {', '.join(flags)}" for permission, flags in sorted(missing.items())
+            )
+            issues.append(_issue(
+                "FAIL",
+                f"{provider}_permission_flags",
+                f"{provider} CLI does not accept flags cdx maps ({described})",
+                detail,
+            ))
+        else:
+            issues.append(_issue(
+                "OK",
+                f"{provider}_permission_flags",
+                f"{provider} CLI accepts every flag cdx maps for its permissions",
+                detail,
+            ))
+    return issues
 
 
 def _provider_capability_hints(command):

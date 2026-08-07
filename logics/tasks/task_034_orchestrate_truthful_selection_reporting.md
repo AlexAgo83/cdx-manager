@@ -1,7 +1,7 @@
 ## task_034_orchestrate_truthful_selection_reporting - Orchestrate truthful selection reporting
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
 > Progress: 0%

@@ -1,7 +1,7 @@
 ## task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags - Orchestrate one source of truth for accepted values and provider flags
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
 > Progress: 0%

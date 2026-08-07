@@ -7,12 +7,20 @@ imported back there and used by the handlers.
 
 from datetime import datetime, timedelta
 
-from .config import PROVIDER_CODEX, PROVIDERS
+from .config import (
+    PERMISSION_ALIASES,
+    PERMISSION_INPUT_VALUES,
+    PERMISSION_VALUES,
+    PROVIDER_CODEX,
+    PROVIDERS,
+    REASONING_EFFORT_VALUES,
+    normalize_permission,
+)
 from .errors import CdxArgumentError, CdxError
 from .provider_runtime import _normalize_reasoning_effort
 
 STATUS_USAGE = "Usage: cdx status [--json] [--refresh|--cached] [--timeout SECONDS] | cdx status --small|-s [--refresh|--cached] [--timeout SECONDS] | cdx status <name> [--json] [--refresh|--cached] [--timeout SECONDS]"
-DOCTOR_USAGE = "Usage: cdx doctor [--severity OK|WARN|FAIL[,OK|WARN|FAIL...]] [--json]"
+DOCTOR_USAGE = "Usage: cdx doctor [--severity OK|WARN|FAIL[,OK|WARN|FAIL...]] [--check-provider-flags] [--json]"
 DISK_USAGE = "Usage: cdx disk [profiles] [--candidates] [--json]"
 REPAIR_USAGE = "Usage: cdx repair [--dry-run] [--force] [--json]"
 UPDATE_USAGE = "Usage: cdx update [all] [--check] [--yes] [--json] [--version TAG]"
@@ -41,16 +49,13 @@ RUN_SESSION_PROVIDER_CONFLICT = "cdx run: cannot specify both a session name and
 RUN_CWD_REQUIRED = "cdx run: --cwd PATH is required."
 RUN_PROMPT_SOURCE_REQUIRED = "cdx run: specify exactly one prompt source: --prompt TEXT or --prompt-file PATH."
 RUN_KIND_VALUES = ("assistant", "code-review")
-RUN_PERMISSION_VALUES = ("review", "default", "auto", "full", "workspace-write", "read-only", "danger-full-access")
-RUN_PERMISSION_CANONICAL_VALUES = ("review", "default", "auto", "full")
-RUN_PERMISSION_ALIASES = {
-    "workspace-write": "default",
-    "read-only": "review",
-    "danger-full-access": "full",
-}
-# Ordered for display; test_cli_py asserts this matches provider_runtime's
-# REASONING_EFFORT_VALUES set, so the two cannot drift apart silently.
-RUN_EFFORT_VALUES = ("minimal", "low", "medium", "high", "xhigh")
+# Aliases of the shared definitions in config, kept only so the existing
+# RUN_* spellings in this module keep reading naturally. They are references,
+# not copies: config.py is the single owner.
+RUN_PERMISSION_VALUES = PERMISSION_INPUT_VALUES
+RUN_PERMISSION_CANONICAL_VALUES = PERMISSION_VALUES
+RUN_PERMISSION_ALIASES = PERMISSION_ALIASES
+RUN_EFFORT_VALUES = REASONING_EFFORT_VALUES
 RUNS_USAGE = "Usage: cdx runs [--limit N] [--since 7d|today|DATE] --json"
 RUN_STATUS_USAGE = "Usage: cdx run-status <run_id> --json"
 RUN_REPORT_USAGE = "Usage: cdx run-report <run_id> --json"
@@ -76,12 +81,16 @@ def _parse_json_flag(args):
 
 
 def _parse_doctor_args(args):
-    parsed = {"json": False, "severity": None}
+    parsed = {"json": False, "severity": None, "check_provider_flags": False}
     index = 0
     while index < len(args):
         arg = args[index]
         if arg == "--json":
             parsed["json"] = True
+            index += 1
+            continue
+        if arg == "--check-provider-flags":
+            parsed["check_provider_flags"] = True
             index += 1
             continue
         if arg == "--severity":
@@ -383,9 +392,8 @@ def _parse_run_provider(value):
 def _normalize_run_permission(value):
     if value is None:
         return None
-    text = str(value).strip().lower()
-    text = RUN_PERMISSION_ALIASES.get(text, text)
-    if text not in RUN_PERMISSION_CANONICAL_VALUES:
+    text = normalize_permission(value)
+    if text is None:
         allowed = "|".join(RUN_PERMISSION_VALUES)
         raise CdxArgumentError(
             f"cdx run: invalid --permission {value!r}; allowed values: {allowed}.",
