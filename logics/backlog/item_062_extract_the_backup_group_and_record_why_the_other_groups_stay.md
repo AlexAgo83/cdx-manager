@@ -1,10 +1,10 @@
 ## item_062_extract_the_backup_group_and_record_why_the_other_groups_stay - Extract the backup group and record why the other groups stay
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Maintainability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -36,6 +36,25 @@
 - request-AC6 -> This backlog slice. Proof: The reason the remaining groups were not split is stated where a reader of the code will find it, with the counts behind it.
 - request-AC7 -> This backlog slice. Proof: The extraction is its own commit with the full suite passing.
 - request-AC8 -> This backlog slice. Proof: No caller and no existing test file is changed by the backup extraction, and anything the facade could not cover is recorded with its reason.
+
+# Outcome
+
+Delivered in `672df87`. 11 functions and one constant move to
+`src/session_backup.py`. No test changed:
+`mock.patch("src.session_service.shutil")` still bites because `shutil` is one
+module object shared across modules and `session_service` still imports it.
+
+The coupling table now lives in `session_service`'s module docstring, not only
+in `item_059`. `test_only_the_measured_seams_were_split_out` fails if
+`src/session_runtime.py` or `src/session_auth.py` appears, or if the reasoning
+is deleted.
+
+The facade guard test is deliberately stronger than the `cli_commands` one it
+follows. That version scanned import statements only, which would have caught
+**neither** failure this split produced - both were `mock.patch` string
+targets, where a dropped re-export makes the patch a silent no-op instead of
+an error. This one checks patch targets too, and was verified by removing a
+single re-export: it fails and names the file and line.
 
 # Decision framing
 - Product framing: Not needed

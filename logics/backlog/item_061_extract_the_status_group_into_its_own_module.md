@@ -1,10 +1,10 @@
 ## item_061_extract_the_status_group_into_its_own_module - Extract the status group into its own module
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Maintainability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -35,6 +35,24 @@
 - request-AC5 -> This backlog slice. Proof: The returned dict has the same keys and behavior as before.
 - request-AC7 -> This backlog slice. Proof: The extraction is its own commit with the full suite passing.
 - request-AC8 -> This backlog slice. Proof: No caller and no existing test file is changed by the status extraction, and anything the facade could not cover is recorded with its reason.
+
+# Outcome
+
+Delivered in `7fc239a`. 23 functions and the four status cache constants move
+to `src/session_status.py`, which imports nothing from `session_service`.
+
+One test changed, and it is the case AC8 reserves. `_resolve_session_status`
+reads `get_cdx_home` and `_get_global_codex_home`, and
+`test_codex_status_can_be_derived_from_structured_rollout_rate_limits` patched
+both through `src.session_service`. A re-export binds the function, not the
+module globals a patch reaches through, so the patch stopped affecting the
+call once the function moved - and it failed by returning `None` rather than
+by raising, which is the quiet way for this to go wrong. Both targets now name
+`src.session_status`.
+
+This was predicted before the extraction by surveying every
+`mock.patch("src.session_service.X")` target against the group being moved,
+rather than discovered by the failure.
 
 # Decision framing
 - Product framing: Not needed

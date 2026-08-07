@@ -1,10 +1,10 @@
 ## item_060_move_the_shared_helpers_into_a_session_service_utility_layer - Move the shared helpers into a session service utility layer
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
+> Progress: 100%
 > Complexity: Low
 > Theme: Maintainability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -33,6 +33,24 @@
 - request-AC2 -> This backlog slice. Proof: Every helper reached from more than one concern group has a single definition in the utility layer.
 - request-AC3 -> This backlog slice. Proof: Re-running the coupling measurement afterwards reports zero shared helpers between the remaining groups.
 - request-AC7 -> This backlog slice. Proof: No helper gains a dependency the utility layer did not already have, and no import cycle is introduced.
+
+# Outcome
+
+Delivered in `82449b8` and amended by `23dd79f`. The ten shared helpers and
+the four constants they read live in `src/session_helpers.py`, re-exported by
+`session_service` so `src/__init__.py`, `create_session`'s default argument,
+and the tests that patch `_get_global_codex_home` all keep working.
+
+The slice needed a second commit the scope had not anticipated. The coupling
+measurement that scoped this request counted only **helpers**, so it never saw
+a group calling another group's **entry point**. There were three such calls -
+`status` reads through `list_sessions` and `_session_runtime`, `backup` through
+`list_sessions` - and they landed on exactly the two groups this request
+extracts, so both would have imported back from the module they came out of.
+Both accessors moved to the shared layer too.
+
+Re-measured afterwards: zero shared helpers and zero cross-group entry-point
+calls, so the two extractions were genuinely independent.
 
 # Decision framing
 - Product framing: Not needed

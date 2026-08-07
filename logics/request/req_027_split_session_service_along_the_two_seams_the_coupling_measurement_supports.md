@@ -1,7 +1,7 @@
 ## req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports - Split session_service along the two seams the coupling measurement supports
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
