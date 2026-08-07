@@ -42,7 +42,7 @@ jobs:
       - name: Lint
         run: |
           python -m ruff check .
-          python -m py_compile bin/cdx src/*.py src/commands/*.py scripts/*.py test/test_*_py.py
+          python -m py_compile bin/cdx src/*.py src/commands/*.py scripts/*.py test/*.py
         env:
           PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
 

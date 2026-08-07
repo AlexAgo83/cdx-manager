@@ -46,7 +46,7 @@
     "test": "npm run test:py",
     "test:py": "node bin/python-runner.js -m pytest",
     "test:coverage": "node bin/python-runner.js -m pytest --cov=src --cov-report=term-missing",
-    "lint": "node --check bin/cdx.js && node --check bin/python-runner.js && node bin/python-runner.js scripts/verify_project_docs.py && node bin/python-runner.js -m ruff check . && node bin/python-runner.js -m py_compile bin/cdx src/*.py src/commands/*.py scripts/*.py test/test_*_py.py",
+    "lint": "node --check bin/cdx.js && node --check bin/python-runner.js && node bin/python-runner.js scripts/verify_project_docs.py && node bin/python-runner.js -m ruff check . && node bin/python-runner.js -m py_compile bin/cdx src/*.py src/commands/*.py scripts/*.py test/*.py",
     "release:validate": "node bin/python-runner.js scripts/verify_release_checksums.py",
     "prepublishOnly": "npm run release:validate && npm run lint && npm test",
     "link": "npm link",
