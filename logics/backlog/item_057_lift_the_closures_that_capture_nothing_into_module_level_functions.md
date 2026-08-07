@@ -1,10 +1,10 @@
 ## item_057_lift_the_closures_that_capture_nothing_into_module_level_functions - Lift the closures that capture nothing into module-level functions
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Maintainability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -31,6 +31,18 @@
 - Each moved function is importable and callable without constructing the service.
 - The full suite passes after each individual move.
 - No moved function's body differs from before the move.
+
+# Outcome
+
+Delivered in `ed1d3de`. The factory goes 1154 -> 1014 lines and 46 -> 35
+closures; the service dict is unchanged at 29 keys and no caller changed.
+
+The slice was scoped from a count of 19 zero-capture closures. Only **11**
+lift as-is. The other eight capture no factory local themselves but call a
+peer closure that does, so lifting them means threading that peer through as
+an argument - which is `item_058`'s job, not this one. The difference is
+direct versus transitive measurement, the same distinction that changed the
+shared-helper count in `req_025`.
 
 # AC Traceability
 - request-AC1 -> This backlog slice. Proof: Every closure that references no factory local is defined at module level.

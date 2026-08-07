@@ -1,7 +1,7 @@
 ## req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file - Break up the 1153-line session service factory before splitting its file
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
