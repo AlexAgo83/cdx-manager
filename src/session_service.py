@@ -37,7 +37,9 @@ from .session_helpers import (  # noqa: F401  (re-exported for src/__init__.py, 
     _normalize_provider,
     _process_is_running,
     _runtime_is_active,
+    _session_runtime,
     _validate_new_session_name,
+    list_sessions,
 )
 from .session_store import create_session_store
 from .status_source import find_latest_status_artifact
@@ -606,10 +608,6 @@ def update_auth_state(store, name, updater):
     return updated
 
 
-def list_sessions(store):
-    return store["list_sessions"]()
-
-
 def get_session(store, name):
     return store["get_session"](name)
 
@@ -855,32 +853,6 @@ def create_session(base_dir, env, store, name, provider=DEFAULT_PROVIDER):
     if not result["ok"]:
         raise CdxError(f"Session already exists: {name}")
     return result["session"]
-
-
-def _session_runtime(store, name):
-    found = {}
-
-    def updater(state):
-        if not state:
-            return None
-        runtime = state.get("runtime")
-        if _runtime_is_active(runtime):
-            found["runtime"] = runtime
-            return None
-        if isinstance(runtime, dict) and runtime.get("status") == "running":
-            return {
-                **state,
-                "status": "ready",
-                "runtime": {
-                    **runtime,
-                    "status": "stale",
-                    "endedAt": _local_now_iso(),
-                },
-            }
-        return None
-
-    store["update_session_state"](name, updater)
-    return found.get("runtime")
 
 
 def record_launch_history(store, name, payload):

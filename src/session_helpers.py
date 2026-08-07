@@ -145,3 +145,35 @@ def _get_session_auth_home(base_dir, name, provider):
     if provider == PROVIDER_ANTIGRAVITY:
         return os.path.join(root, "antigravity-home")
     return root
+
+
+# Store accessors used from more than one concern group. They are entry points
+# of the crud and runtime groups, but status and backup both read through them,
+# so they belong here rather than in either group's module.
+def list_sessions(store):
+    return store["list_sessions"]()
+
+def _session_runtime(store, name):
+    found = {}
+
+    def updater(state):
+        if not state:
+            return None
+        runtime = state.get("runtime")
+        if _runtime_is_active(runtime):
+            found["runtime"] = runtime
+            return None
+        if isinstance(runtime, dict) and runtime.get("status") == "running":
+            return {
+                **state,
+                "status": "ready",
+                "runtime": {
+                    **runtime,
+                    "status": "stale",
+                    "endedAt": _local_now_iso(),
+                },
+            }
+        return None
+
+    store["update_session_state"](name, updater)
+    return found.get("runtime")
