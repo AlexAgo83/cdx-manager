@@ -108,6 +108,7 @@ _None_
 | [item_043_replace_catch_all_usage_errors_with_specific_machine_readable_error_codes](backlog/item_043_replace_catch_all_usage_errors_with_specific_machine_readable_error_codes.md) | Replace catch-all usage errors with specific machine-readable error codes | Ready |  | 0% | backlog/item_043_replace_catch_all_usage_errors_with_specific_machine_readable_error_codes.md |
 | [item_044_publish_machine_readable_schema_for_enums_and_argument_constraints](backlog/item_044_publish_machine_readable_schema_for_enums_and_argument_constraints.md) | Publish machine-readable schema for enums and argument constraints | Ready |  | 0% | backlog/item_044_publish_machine_readable_schema_for_enums_and_argument_constraints.md |
 | [item_045_accept_prompt_on_standard_input_and_add_a_completion_cursor_to_runs](backlog/item_045_accept_prompt_on_standard_input_and_add_a_completion_cursor_to_runs.md) | Accept prompt on standard input and add a completion cursor to runs | Ready |  | 0% | backlog/item_045_accept_prompt_on_standard_input_and_add_a_completion_cursor_to_runs.md |
+| [item_046_populate_run_payload_warnings_for_known_silent_degradations](backlog/item_046_populate_run_payload_warnings_for_known_silent_degradations.md) | Populate run payload warnings for known silent degradations | Ready |  | 0% | backlog/item_046_populate_run_payload_warnings_for_known_silent_degradations.md |
 
 ## Tasks
 

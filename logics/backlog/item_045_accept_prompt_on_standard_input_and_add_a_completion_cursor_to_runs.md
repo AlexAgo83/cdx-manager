@@ -8,10 +8,12 @@
 > Complexity: Low
 > Theme: Agent integration surface
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-07
 
 # Problem
 - `read_run_prompt()` in `src/run_command.py:7` accepts inline text or a file path only. A caller relaying arbitrary untrusted prompt text cannot put it on a command line, so it stages a temporary file, transfers it, invokes cdx, and deletes it in a `finally` block, leaking the file if the process dies in between.
 - `handle_runs()` accepts only `--limit`, although `cdx history` already supports `--since`. A watchdog polling for newly-completed runs must request a fixed window and maintain its own bounded set of already-reported run ids to avoid repeating itself.
+- That fixed window loses completions outright. The downstream watchdog polls the 20 most recent runs every 15 minutes; if more than 20 runs complete inside one interval, the older ones scroll out of the window before they are ever observed and are never reported. The caller's de-duplication set suppresses repeats but cannot recover a completion it never saw, so this is a silent miss rather than noise — and the fleet launches runs concurrently, so exceeding 20 completions in 15 minutes is reachable in normal use.
 
 # Scope
 - In:
@@ -32,6 +34,7 @@
 - Given `--prompt-file -` with an interactive terminal on stdin, the command fails immediately with a specific error code instead of blocking on input.
 - Given `--prompt-file -` combined with another prompt source, the existing exclusivity rule still applies and reports the argument error code.
 - Given `cdx runs --since <cursor> --json`, only runs completed after the cursor are returned, and repeating the call with the newest returned completion time yields no duplicates.
+- Given more runs completed after the cursor than the default row count, all of them are returned rather than only the most recent ones, so a polling caller cannot miss a completion by falling behind.
 - Given a malformed cursor, the command fails with a specific argument error code and does not fall back to an unfiltered listing.
 - Given the same cursor forms accepted by `cdx history --since`, `cdx runs --since` accepts them identically.
 

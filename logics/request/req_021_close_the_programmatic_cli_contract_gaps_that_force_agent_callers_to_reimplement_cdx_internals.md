@@ -7,6 +7,7 @@
 > Complexity: High
 > Theme: Agent integration surface
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-08-07
 
 # Needs
 - `cdx` exposes `--json` on every subcommand but its execution model is still synchronous-human-shaped: a run blocks until completion, the assigned `run_id` is never emitted before the run finishes, live output is not readable through the CLI, and argument errors collapse into a single `invalid_request` code carrying a human usage string.
@@ -23,6 +24,8 @@
 - `run_cdx_error_code()` in `src/run_command.py:17` derives the error code by string-prefix sniffing the exception message: any message starting with `Usage:` or `cdx run:` becomes `invalid_request`. `RUN_USAGE` (`src/cli_args.py:37`) is the entire human usage line, and `_parse_run_args` raises it for every distinct argument mistake, so the mutually-exclusive-arguments case is indistinguishable from a missing `--cwd`.
 - `read_run_prompt()` in `src/run_command.py:7` accepts `--prompt TEXT` or reads `--prompt-file PATH` with `open()`. There is no stdin form, so callers handling arbitrary untrusted prompt text (which must never reach a command line) stage a temporary file, transfer it, invoke cdx, then delete it in a `finally` block.
 - `handle_runs()` at `src/cli_commands.py:959` accepts only `--limit`, while `cdx history` already supports `--since`, `--from`, and `--to`. A watchdog polling for newly-completed runs must therefore request a fixed window and maintain its own de-duplication set of already-reported run ids, capped at a fixed size so its state file does not grow without bound.
+- The missing cursor is a correctness gap, not only a verbosity one: the downstream watchdog polls a fixed 20-run window every 15 minutes, so if more than 20 runs complete inside one interval the older ones scroll out of the window and are never reported at all. A caller-side de-duplication set can only suppress repeats; it cannot recover a completion it never observed.
+- `run_result_payload()` in `src/run_command.py:107` hardcodes `"warnings": []` and never populates it, while `handle_status()` composes a real warnings list for its own payload (`src/cli_commands.py:2338` onward). The run contract therefore declares a warning channel it never uses, and a known silent degradation — a Codex-backed run below `full` permission losing provider network access while still exiting zero — reaches callers only as prose in downstream documentation.
 - GitHub issue #8, closed on 2026-08-07, removed a permission flag that never existed in the ollama CLI. It survived undetected precisely because the downstream permission enum was a hand-maintained copy rather than a value obtained from cdx.
 
 # Acceptance criteria
@@ -32,9 +35,10 @@
 - AC4: Argument and usage failures return a specific machine-readable `error.code` naming the failure class rather than the single catch-all `invalid_request`, and the payload identifies the offending argument names; the mutually-exclusive session-and-provider case is distinguishable from a missing required argument by code alone, without parsing any human-readable message.
 - AC5: `cdx schema --json` emits the machine-readable contract for programmatic callers: the valid values for `permission`, `power`/`reasoning-effort`, and `kind`, plus the declared mutually-exclusive argument groups, so a caller can validate input against cdx's own definitions instead of a hand-copied duplicate.
 - AC6: `cdx run --prompt-file -` reads the prompt from standard input, allowing a caller to pipe arbitrary untrusted prompt text without staging a temporary file and without ever placing the text on a command line.
-- AC7: `cdx runs --since <cursor> --json` returns only runs that completed after the given cursor, so a polling caller can detect newly-completed runs without maintaining its own set of already-seen run ids. The accepted cursor forms are consistent with those `cdx history --since` already accepts.
+- AC7: `cdx runs --since <cursor> --json` returns every run that completed after the given cursor, bounded by the cursor rather than by a fixed row count, so a polling caller detects newly-completed runs without maintaining its own set of already-seen run ids and without losing completions that fall outside a fixed window. The accepted cursor forms are consistent with those `cdx history --since` already accepts.
 - AC8: All existing behavior is preserved: a `cdx run` without `--detach` still blocks and returns the same completion payload, `run-status`/`run-report`/`runs` keep their current shapes, and the `schema_version` contract is respected for every added or changed field.
-- AC9: The README documents the programmatic surface as an explicit contract for non-interactive callers: detached launch, run identity at launch, live tail, error codes, schema discovery, stdin prompts, and the runs cursor.
+- AC9: The README documents the programmatic surface as an explicit contract for non-interactive callers: detached launch, run identity at launch, live tail, error codes, schema discovery, stdin prompts, the runs cursor, and the run warning channel.
+- AC10: The run payload's `warnings` list is populated rather than hardcoded empty, and a run launched at a permission level known to disable provider network access carries a warning naming the provider, the effective permission, and the consequence — on the successful path as well as the failing one, since the run exits zero either way.
 
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.
@@ -69,3 +73,4 @@
 - `item_043_replace_catch_all_usage_errors_with_specific_machine_readable_error_codes`
 - `item_044_publish_machine_readable_schema_for_enums_and_argument_constraints`
 - `item_045_accept_prompt_on_standard_input_and_add_a_completion_cursor_to_runs`
+- `item_046_populate_run_payload_warnings_for_known_silent_degradations`

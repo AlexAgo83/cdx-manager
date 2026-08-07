@@ -29,6 +29,8 @@
       "`run_cdx_error_code()` in `src/run_command.py:17` derives the error code by string-prefix sniffing the exception message: any message starting with `Usage:` or `cdx run:` becomes `invalid_request`. `RUN_USAGE` (`src/cli_args.py:37`) is the entire human usage line, and `_parse_run_args` raises it for every distinct argument mistake, so the mutually-exclusive-arguments case is indistinguishable from a missing `--cwd`.",
       "`read_run_prompt()` in `src/run_command.py:7` accepts `--prompt TEXT` or reads `--prompt-file PATH` with `open()`. There is no stdin form, so callers handling arbitrary untrusted prompt text (which must never reach a command line) stage a temporary file, transfer it, invoke cdx, then delete it in a `finally` block.",
       "`handle_runs()` at `src/cli_commands.py:959` accepts only `--limit`, while `cdx history` already supports `--since`, `--from`, and `--to`. A watchdog polling for newly-completed runs must therefore request a fixed window and maintain its own de-duplication set of already-reported run ids, capped at a fixed size so its state file does not grow without bound.",
+      "The missing cursor is a correctness gap, not only a verbosity one: the downstream watchdog polls a fixed 20-run window every 15 minutes, so if more than 20 runs complete inside one interval the older ones scroll out of the window and are never reported at all. A caller-side de-duplication set can only suppress repeats; it cannot recover a completion it never observed.",
+      "`run_result_payload()` in `src/run_command.py:107` hardcodes `\"warnings\": []` and never populates it, while `handle_status()` composes a real warnings list for its own payload (`src/cli_commands.py:2338` onward). The run contract therefore declares a warning channel it never uses, and a known silent degradation — a Codex-backed run below `full` permission losing provider network access while still exiting zero — reaches callers only as prose in downstream documentation.",
       "GitHub issue #8, closed on 2026-08-07, removed a permission flag that never existed in the ollama CLI. It survived undetected precisely because the downstream permission enum was a hand-maintained copy rather than a value obtained from cdx."
     ],
     "acceptance_criteria": [
@@ -38,9 +40,10 @@
       "AC4: Argument and usage failures return a specific machine-readable `error.code` naming the failure class rather than the single catch-all `invalid_request`, and the payload identifies the offending argument names; the mutually-exclusive session-and-provider case is distinguishable from a missing required argument by code alone, without parsing any human-readable message.",
       "AC5: `cdx schema --json` emits the machine-readable contract for programmatic callers: the valid values for `permission`, `power`/`reasoning-effort`, and `kind`, plus the declared mutually-exclusive argument groups, so a caller can validate input against cdx's own definitions instead of a hand-copied duplicate.",
       "AC6: `cdx run --prompt-file -` reads the prompt from standard input, allowing a caller to pipe arbitrary untrusted prompt text without staging a temporary file and without ever placing the text on a command line.",
-      "AC7: `cdx runs --since <cursor> --json` returns only runs that completed after the given cursor, so a polling caller can detect newly-completed runs without maintaining its own set of already-seen run ids. The accepted cursor forms are consistent with those `cdx history --since` already accepts.",
+      "AC7: `cdx runs --since <cursor> --json` returns every run that completed after the given cursor, bounded by the cursor rather than by a fixed row count, so a polling caller detects newly-completed runs without maintaining its own set of already-seen run ids and without losing completions that fall outside a fixed window. The accepted cursor forms are consistent with those `cdx history --since` already accepts.",
       "AC8: All existing behavior is preserved: a `cdx run` without `--detach` still blocks and returns the same completion payload, `run-status`/`run-report`/`runs` keep their current shapes, and the `schema_version` contract is respected for every added or changed field.",
-      "AC9: The README documents the programmatic surface as an explicit contract for non-interactive callers: detached launch, run identity at launch, live tail, error codes, schema discovery, stdin prompts, and the runs cursor."
+      "AC9: The README documents the programmatic surface as an explicit contract for non-interactive callers: detached launch, run identity at launch, live tail, error codes, schema discovery, stdin prompts, the runs cursor, and the run warning channel.",
+      "AC10: The run payload's `warnings` list is populated rather than hardcoded empty, and a run launched at a permission level known to disable provider network access carries a warning naming the provider, the effective permission, and the consequence — on the successful path as well as the failing one, since the run exits zero either way."
     ]
   },
   "product": {
@@ -219,7 +222,8 @@
       ],
       "problem": [
         "`read_run_prompt()` in `src/run_command.py:7` accepts inline text or a file path only. A caller relaying arbitrary untrusted prompt text cannot put it on a command line, so it stages a temporary file, transfers it, invokes cdx, and deletes it in a `finally` block, leaking the file if the process dies in between.",
-        "`handle_runs()` accepts only `--limit`, although `cdx history` already supports `--since`. A watchdog polling for newly-completed runs must request a fixed window and maintain its own bounded set of already-reported run ids to avoid repeating itself."
+        "`handle_runs()` accepts only `--limit`, although `cdx history` already supports `--since`. A watchdog polling for newly-completed runs must request a fixed window and maintain its own bounded set of already-reported run ids to avoid repeating itself.",
+        "That fixed window loses completions outright. The downstream watchdog polls the 20 most recent runs every 15 minutes; if more than 20 runs complete inside one interval, the older ones scroll out of the window before they are ever observed and are never reported. The caller's de-duplication set suppresses repeats but cannot recover a completion it never saw, so this is a silent miss rather than noise — and the fleet launches runs concurrently, so exceeding 20 completions in 15 minutes is reachable in normal use."
       ],
       "scope_in": [
         "Accept `--prompt-file -` as reading the prompt from standard input in `read_run_prompt()`, decoded as UTF-8 consistently with the file path branch.",
@@ -240,8 +244,50 @@
         "Given `--prompt-file -` with an interactive terminal on stdin, the command fails immediately with a specific error code instead of blocking on input.",
         "Given `--prompt-file -` combined with another prompt source, the existing exclusivity rule still applies and reports the argument error code.",
         "Given `cdx runs --since <cursor> --json`, only runs completed after the cursor are returned, and repeating the call with the newest returned completion time yields no duplicates.",
+        "Given more runs completed after the cursor than the default row count, all of them are returned rather than only the most recent ones, so a polling caller cannot miss a completion by falling behind.",
         "Given a malformed cursor, the command fails with a specific argument error code and does not fall back to an unfiltered listing.",
         "Given the same cursor forms accepted by `cdx history --since`, `cdx runs --since` accepts them identically."
+      ]
+    },
+    {
+      "title": "Populate run payload warnings for known silent degradations",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Agent integration surface",
+      "request_acs": [
+        "AC10",
+        "AC8",
+        "AC9"
+      ],
+      "problem": [
+        "`run_result_payload()` in `src/run_command.py:107` hardcodes `\"warnings\": []`. It is the only occurrence of the key in that module, so the run payload's warning channel is declared in the contract and never carries anything.",
+        "Meanwhile a known silent degradation is reported nowhere. On Codex-backed sessions the provider's sandbox ties network access to the permission level, so a run below `full` cannot resolve DNS for network tools invoked inside it. The run still exits zero and reports success; the caller discovers the failed network work only by reading the transcript.",
+        "The knowledge exists, but only as prose in a downstream caller's docstring rather than as data cdx emits, so every caller must rediscover it. It was in fact rediscovered the hard way while auditing this CLI on 2026-08-05.",
+        "`handle_status()` already composes a `warnings` list for its own payload (`src/cli_commands.py:2338` onward), so the pattern to follow exists in the codebase; `run` simply never adopted it."
+      ],
+      "scope_in": [
+        "Populate the run payload's `warnings` list instead of hardcoding it empty, keeping the existing entry shape used elsewhere in the CLI so callers see one consistent warning structure.",
+        "Emit a warning when a run is launched at a permission level that is known to disable provider network access, naming the provider, the effective permission, and the consequence.",
+        "Derive the condition from the provider and effective permission already resolved during the run, not from a separately maintained table that could drift from the launch mapping.",
+        "Emit the warning on the successful path as well as the failure path, since the whole point is that the run appears to succeed.",
+        "Include the warning in the detached launch payload from `item_041` where the condition is known at launch time, so a non-blocking caller is not the only one left uninformed.",
+        "Document the warning channel in the README's programmatic-caller section as a field that callers should surface rather than discard.",
+        "Add tests asserting the warning is present for a network-restricted Codex run, absent when the permission does not restrict network access, and absent for providers with no such coupling."
+      ],
+      "scope_out": [
+        "No new warning severity levels or per-warning suppression flags.",
+        "No change to exit codes, `ok`, or any error field; a warning never turns a success into a failure.",
+        "No audit of every possible provider degradation in this slice; the network-below-full case is the one confirmed by the audit, and the mechanism it introduces is what later cases reuse.",
+        "No change to the permission-to-provider-flag mapping itself."
+      ],
+      "acceptance_criteria": [
+        "Given a Codex-backed run launched at a permission level that disables provider network access, the run payload's `warnings` list contains an entry naming the provider, the effective permission, and the loss of network access.",
+        "Given that same run exits successfully, `ok` remains true, the exit code is unchanged, and the warning is still present.",
+        "Given a run at a permission level that does not restrict network access, the `warnings` list contains no network entry.",
+        "Given a provider whose permission model has no network coupling, no network warning is emitted regardless of permission.",
+        "Given a detached launch from `item_041` where the condition is determinable at launch, the launch-time payload carries the same warning.",
+        "Warning entries use the same structural shape as the warnings already emitted by `cdx status`, so a caller parses one shape across subcommands.",
+        "No test asserts an empty `warnings` list as the expected value for a run that meets a warning condition."
       ]
     }
   ],
@@ -253,8 +299,9 @@
       "Wave 2 - detached launch: add `--detach` to the run parser, branch in `handle_run()` after `registry.start()`, and make the detached child survive both a local parent exit and a non-interactive SSH session. Verify the detached process itself transitions the registry entry to a terminal status, since the launching process is gone. Confirm the blocking path's payload is byte-for-byte unchanged.",
       "Wave 3 - run-tail: add the subcommand next to `run-status`/`run-report`, reading the registry's recorded `stdout_path`. Exercise it against a real in-progress detached run from wave 2, not only a fixture, to confirm partial lines and undecodable bytes are handled.",
       "Wave 4 - stdin prompt and runs cursor: extend `read_run_prompt()` for `-`, reuse the existing `--since` parsing from `cdx history` for `cdx runs`, and confirm both compose with `--detach`.",
-      "Update the README with a dedicated programmatic-caller section covering detached launch, run identity at launch, live tail, error codes, schema discovery, stdin prompts, and the runs cursor.",
-      "Verify the end-to-end shape the downstream callers actually need, without modifying them: launch detached, read `run_id` from the launch payload, tail it while running, and poll `runs --since` until it reports completion.",
+      "Wave 5 - run warnings: replace the hardcoded `\"warnings\": []` in `run_result_payload()` with a populated list, deriving the network-restricted-permission condition from the provider and effective permission already resolved for the run. Reuse the warning entry shape `handle_status()` already emits, and carry the warning into wave 2's detached launch payload where the condition is known at launch.",
+      "Update the README with a dedicated programmatic-caller section covering detached launch, run identity at launch, live tail, error codes, schema discovery, stdin prompts, the runs cursor, and the run warning channel.",
+      "Verify the end-to-end shape the downstream callers actually need, without modifying them: launch detached, read `run_id` from the launch payload, tail it while running, and poll `runs --since` until it reports completion, checking that a network-restricted permission surfaces its warning on a run that still exits zero.",
       "Run the focused CLI, run-registry, and provider-runtime test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout."
     ]
   },
