@@ -1282,6 +1282,358 @@ def _resolve_session_status(store, base_dir, env, fetch_codex_status, session,
     return current_status or resolved
 
 
+def _restore_import_backup(store, name, backup_root, session_root, old_record, old_state):
+    if os.path.exists(session_root):
+        remove_tree(session_root, ignore_errors=True)
+    if backup_root and os.path.exists(backup_root):
+        os.rename(backup_root, session_root)
+    if old_record:
+        store["replace_session"](name, old_record)
+        if old_state is not None:
+            store["write_session_state"](name, old_state)
+    else:
+        store["remove_session"](name)
+
+
+def _resolve_row_session(store, base_dir, env, fetch_codex_status, s,
+    force_refresh=False,
+    cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS,
+    cache_only=False,
+    status_timeout_seconds=None,):
+    status = _resolve_session_status(store, base_dir, env, fetch_codex_status,
+        s,
+        force_refresh=force_refresh,
+        cache_ttl_seconds=cache_ttl_seconds,
+        cache_only=cache_only,
+        status_timeout_seconds=status_timeout_seconds,
+    )
+    return {
+        **s,
+        "lastStatus": status,
+        "lastStatusAt": (status and status.get("updated_at")) or s.get("lastStatusAt"),
+    }
+
+
+def get_status_row(store, base_dir, env, fetch_codex_status, name,
+    progress_callback=None,
+    force_refresh=False,
+    cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS,
+    cache_only=False,
+    status_timeout_seconds=None,):
+    session = store["get_session"](name)
+    if not session:
+        raise CdxError(f"Unknown session: {name}")
+    cache_hit = _status_cache_hit(
+        session,
+        force_refresh=force_refresh,
+        cache_ttl_seconds=cache_ttl_seconds,
+        cache_only=cache_only,
+    )
+    if progress_callback:
+        progress_callback({
+            "event": "status_started",
+            "session_count": 1,
+            "check_count": 0 if cache_hit else 1,
+        })
+        if not cache_hit:
+            progress_callback({
+                "event": "session_started",
+                "session_name": session["name"],
+                "provider": session["provider"],
+            })
+    resolved = _resolve_row_session(store, base_dir, env, fetch_codex_status,
+        session,
+        force_refresh=force_refresh,
+        cache_ttl_seconds=cache_ttl_seconds,
+        cache_only=cache_only,
+        status_timeout_seconds=status_timeout_seconds,
+    )
+    if progress_callback:
+        progress_callback({
+            "event": "session_finished",
+            "session_name": session["name"],
+            "has_status": bool(resolved.get("lastStatus")),
+            "cache_hit": cache_hit,
+        })
+        progress_callback({
+            "event": "status_finished",
+            "row_count": 1,
+        })
+    return _status_row_from_session(store, resolved)
+
+
+def get_status_rows(store, base_dir, env, fetch_codex_status, progress_callback=None,
+    force_refresh=False,
+    cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS,
+    cache_only=False,
+    status_timeout_seconds=None,):
+    sessions = list_sessions(store)
+
+    cache_hits = {
+        s["name"]: _status_cache_hit(
+            s,
+            force_refresh=force_refresh,
+            cache_ttl_seconds=cache_ttl_seconds,
+            cache_only=cache_only,
+        )
+        for s in sessions
+    }
+    if progress_callback:
+        progress_callback({
+            "event": "status_started",
+            "session_count": len(sessions),
+            "check_count": sum(1 for cache_hit in cache_hits.values() if not cache_hit),
+        })
+
+    resolved_by_name = {}
+    if sessions:
+        max_workers = min(MAX_STATUS_WORKERS, len(sessions))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {}
+            for s in sessions:
+                cache_hit = cache_hits[s["name"]]
+                if progress_callback and not cache_hit:
+                    progress_callback({
+                        "event": "session_started",
+                        "session_name": s["name"],
+                        "provider": s["provider"],
+                    })
+                futures[executor.submit(
+                    _resolve_row_session,
+                    store,
+                    base_dir,
+                    env,
+                    fetch_codex_status,
+                    s,
+                    force_refresh=force_refresh,
+                    cache_ttl_seconds=cache_ttl_seconds,
+                    cache_only=cache_only,
+                    status_timeout_seconds=status_timeout_seconds,
+                )] = s
+            for future in as_completed(futures):
+                s = futures[future]
+                try:
+                    resolved = future.result()
+                except CdxError as error:
+                    if not str(error).startswith("Unknown session:"):
+                        raise
+                    continue
+                resolved_by_name[s["name"]] = resolved
+                if progress_callback:
+                    progress_callback({
+                        "event": "session_finished",
+                        "session_name": s["name"],
+                        "has_status": bool(resolved.get("lastStatus")),
+                        "cache_hit": cache_hits[s["name"]],
+                    })
+    resolved = [resolved_by_name[s["name"]] for s in sessions if s["name"] in resolved_by_name]
+
+    def sort_key(s):
+        at = s.get("lastStatusAt") or ""
+        disabled_rank = 1 if s.get("enabled", True) is False else 0
+        return (disabled_rank, "" if at else "\xff", at, s["name"])
+
+    resolved.sort(key=sort_key)
+    enabled = [s for s in resolved if s.get("enabled", True) is not False]
+    disabled = [s for s in resolved if s.get("enabled", True) is False]
+    enabled.reverse()
+    disabled.sort(key=lambda s: s["name"])
+    resolved = enabled + disabled
+
+    rows = []
+    for s in resolved:
+        rows.append(_status_row_from_session(store, s))
+    if progress_callback:
+        progress_callback({
+            "event": "status_finished",
+            "row_count": len(rows),
+        })
+    return rows
+
+
+def export_bundle(base_dir, store, file_path, include_auth=False, session_names=None, passphrase=None, force=False, progress_callback=None):
+    if not file_path:
+        raise CdxError("Export path is required.")
+    if os.path.exists(file_path) and not force:
+        raise CdxError(f"Export path already exists: {file_path}")
+
+    sessions = _resolve_session_subset(store, session_names)
+    payload = {
+        "schema_version": 1,
+        "created_at": _local_now_iso(),
+        "include_auth": bool(include_auth),
+        "sessions": [],
+        "states": {},
+        "profiles": {},
+    }
+    profile_file_count = 0
+    profile_bytes = 0
+    if progress_callback:
+        progress_callback({
+            "event": "export_started",
+            "include_auth": bool(include_auth),
+            "session_count": len(sessions),
+            "session_names": [session["name"] for session in sessions],
+        })
+    for session in sessions:
+        if progress_callback:
+            progress_callback({"event": "session_started", "session_name": session["name"]})
+        payload["sessions"].append(_build_export_session_record(session))
+        state = store["read_session_state"](session["name"])
+        if state is not None:
+            payload["states"][session["name"]] = state
+        if include_auth:
+            session_root = session.get("sessionRoot") or _get_session_root(base_dir, session["name"])
+            profile = _collect_auth_files(session_root, session["provider"], session["name"], progress_callback)
+            payload["profiles"][session["name"]] = profile["files"]
+            profile_file_count += profile["file_count"]
+            profile_bytes += profile["bytes"]
+        if progress_callback:
+            progress_callback({"event": "session_finished", "session_name": session["name"]})
+
+    if progress_callback:
+        progress_callback({"event": "encoding_started"})
+    bundle_bytes = encode_bundle(payload, include_auth=include_auth, passphrase=passphrase)
+    if progress_callback:
+        progress_callback({"event": "writing_started", "path": file_path, "bundle_size_bytes": len(bundle_bytes)})
+    # Atomic + 0o600 from the start: the export path may live in a
+    # world-traversable directory, and a crash must not clobber a
+    # previous good bundle with a truncated one.
+    atomic_write(os.path.abspath(file_path), bundle_bytes, mode=0o600)
+    return {
+        "path": file_path,
+        "include_auth": include_auth,
+        "session_names": [session["name"] for session in sessions],
+        "session_count": len(sessions),
+        "profile_file_count": profile_file_count if include_auth else None,
+        "profile_bytes": profile_bytes if include_auth else None,
+        "bundle_size_bytes": len(bundle_bytes),
+    }
+
+
+def import_bundle(base_dir, store, file_path,
+    passphrase=None,
+    session_names=None,
+    force=False,
+    merge=False,
+    allow_authless_force=False,):
+    if not file_path or not os.path.isfile(file_path):
+        raise CdxError(f"Bundle file not found: {file_path}")
+    with open(file_path, "rb") as handle:
+        decoded = decode_bundle(handle.read(), passphrase=passphrase)
+    payload = decoded["payload"]
+    imported_sessions = payload.get("sessions") or []
+    if payload.get("schema_version") != 1:
+        raise CdxError("Unsupported bundle payload schema version.")
+
+    selected_names = set(session_names or [])
+    if selected_names:
+        imported_sessions = [item for item in imported_sessions if item["name"] in selected_names]
+        missing_names = sorted(selected_names - {item["name"] for item in imported_sessions})
+        if missing_names:
+            raise CdxError(f"Bundle does not contain requested sessions: {', '.join(missing_names)}")
+    names = [item["name"] for item in imported_sessions]
+
+    existing = {session["name"] for session in list_sessions(store)}
+    conflicts = [name for name in names if name in existing]
+    if conflicts and not force and not merge:
+        raise CdxError(f"Import would overwrite existing sessions: {', '.join(conflicts)}")
+    if conflicts and force and not decoded["meta"].get("include_auth") and not allow_authless_force:
+        raise CdxError(
+            "Import --force would overwrite existing session credentials, but this bundle has no auth payloads. "
+            "Re-export with --include-auth, use --merge, or pass --allow-authless-force to discard local credentials."
+        )
+
+    for session_payload in imported_sessions:
+        _validate_new_session_name(session_payload["name"])
+        _normalize_provider(session_payload["provider"])
+    decoded_profiles = _validate_import_profile_files(payload, imported_sessions)
+
+    for session_payload in imported_sessions:
+        name = session_payload["name"]
+        provider = _normalize_provider(session_payload["provider"])
+        is_existing = name in existing
+
+        session_root = _get_session_root(base_dir, name)
+        auth_home = _get_session_auth_home(base_dir, name, provider)
+        _ensure_private_dir(base_dir)
+        _ensure_private_dir(os.path.join(base_dir, "profiles"))
+        backup_root = None
+        old_record = None
+        old_state = None
+        preserved_profile_paths = []
+        if is_existing and force:
+            old_record = store["get_session"](name)
+            old_state = store["read_session_state"](name)
+            preserved_profile_paths = _force_import_preserved_profile_paths(session_root)
+            if os.path.exists(session_root):
+                backup_root = tempfile.mkdtemp(prefix=f".{_encode(name)}.import.", dir=os.path.dirname(session_root))
+                os.rmdir(backup_root)
+                os.rename(session_root, backup_root)
+            is_existing = False
+        _ensure_private_dir(session_root)
+        _ensure_private_dir(auth_home)
+
+        existing_state_before = None
+        try:
+            if is_existing and merge:
+                existing_record = store["get_session"](name) or {}
+                # replace_session resets the state file to defaults, so the
+                # local state must be captured before it runs.
+                existing_state_before = store["read_session_state"](name) or {}
+                bundle_record = {
+                    **session_payload,
+                    "provider": provider,
+                    "enabled": session_payload.get("enabled", True) is not False,
+                    "sessionRoot": session_root,
+                    "authHome": auth_home,
+                }
+                # Existing values take precedence; bundle fills in missing keys only.
+                merged_record = {**bundle_record, **{k: v for k, v in existing_record.items() if v is not None}}
+                merged_record["sessionRoot"] = session_root
+                merged_record["authHome"] = auth_home
+                store["replace_session"](name, merged_record)
+            else:
+                session_record = {
+                    **session_payload,
+                    "provider": provider,
+                    "enabled": session_payload.get("enabled", True) is not False,
+                    "sessionRoot": session_root,
+                    "authHome": auth_home,
+                }
+                store["replace_session"](name, session_record)
+
+            state = (payload.get("states") or {}).get(name)
+            if is_existing and merge:
+                merged_state = {**(state or {}), **{k: v for k, v in (existing_state_before or {}).items() if v is not None}}
+                if merged_state:
+                    store["write_session_state"](name, merged_state)
+            elif state is not None:
+                store["write_session_state"](name, state)
+
+            for item in decoded_profiles.get(name, []):
+                dest_path = os.path.join(session_root, item["path"])
+                # In merge mode, skip files that already exist locally.
+                if is_existing and merge and os.path.exists(dest_path):
+                    continue
+                _ensure_private_dir(os.path.dirname(dest_path))
+                # Decrypted credentials: 0o600 from creation, no umask window.
+                atomic_write(dest_path, item["content"], mode=0o600)
+            _restore_force_import_profile_paths(name, backup_root, session_root, preserved_profile_paths)
+        except Exception:
+            _restore_import_backup(store, name, backup_root, session_root, old_record, old_state)
+            raise
+        finally:
+            if backup_root and os.path.exists(backup_root):
+                remove_tree(backup_root, ignore_errors=True)
+
+    return {
+        "path": file_path,
+        "session_names": names,
+        "include_auth": bool(decoded["meta"].get("include_auth")),
+    }
+
+
 def create_session_service(options=None):
     if options is None:
         options = {}
@@ -1296,7 +1648,6 @@ def create_session_service(options=None):
         or STATUS_PROBE_TIMEOUT_SECONDS
     )
 
-
     # None when there is no fetcher, so callers test the callable they were
     # given rather than a separate flag they would also have to be passed.
     fetch_codex_status = partial(
@@ -1305,360 +1656,6 @@ def create_session_service(options=None):
         custom_codex_status_fetcher,
         default_status_timeout_seconds,
     ) if codex_status_fetcher else None
-
-    def _resolve_row_session(
-        s,
-        force_refresh=False,
-        cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS,
-        cache_only=False,
-        status_timeout_seconds=None,
-    ):
-        status = _resolve_session_status(store, base_dir, env, fetch_codex_status,
-            s,
-            force_refresh=force_refresh,
-            cache_ttl_seconds=cache_ttl_seconds,
-            cache_only=cache_only,
-            status_timeout_seconds=status_timeout_seconds,
-        )
-        return {
-            **s,
-            "lastStatus": status,
-            "lastStatusAt": (status and status.get("updated_at")) or s.get("lastStatusAt"),
-        }
-
-
-    def get_status_row(
-        name,
-        progress_callback=None,
-        force_refresh=False,
-        cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS,
-        cache_only=False,
-        status_timeout_seconds=None,
-    ):
-        session = store["get_session"](name)
-        if not session:
-            raise CdxError(f"Unknown session: {name}")
-        cache_hit = _status_cache_hit(
-            session,
-            force_refresh=force_refresh,
-            cache_ttl_seconds=cache_ttl_seconds,
-            cache_only=cache_only,
-        )
-        if progress_callback:
-            progress_callback({
-                "event": "status_started",
-                "session_count": 1,
-                "check_count": 0 if cache_hit else 1,
-            })
-            if not cache_hit:
-                progress_callback({
-                    "event": "session_started",
-                    "session_name": session["name"],
-                    "provider": session["provider"],
-                })
-        resolved = _resolve_row_session(
-            session,
-            force_refresh=force_refresh,
-            cache_ttl_seconds=cache_ttl_seconds,
-            cache_only=cache_only,
-            status_timeout_seconds=status_timeout_seconds,
-        )
-        if progress_callback:
-            progress_callback({
-                "event": "session_finished",
-                "session_name": session["name"],
-                "has_status": bool(resolved.get("lastStatus")),
-                "cache_hit": cache_hit,
-            })
-            progress_callback({
-                "event": "status_finished",
-                "row_count": 1,
-            })
-        return _status_row_from_session(store, resolved)
-
-    def get_status_rows(
-        progress_callback=None,
-        force_refresh=False,
-        cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS,
-        cache_only=False,
-        status_timeout_seconds=None,
-    ):
-        sessions = list_sessions(store)
-
-        cache_hits = {
-            s["name"]: _status_cache_hit(
-                s,
-                force_refresh=force_refresh,
-                cache_ttl_seconds=cache_ttl_seconds,
-                cache_only=cache_only,
-            )
-            for s in sessions
-        }
-        if progress_callback:
-            progress_callback({
-                "event": "status_started",
-                "session_count": len(sessions),
-                "check_count": sum(1 for cache_hit in cache_hits.values() if not cache_hit),
-            })
-
-        resolved_by_name = {}
-        if sessions:
-            max_workers = min(MAX_STATUS_WORKERS, len(sessions))
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = {}
-                for s in sessions:
-                    cache_hit = cache_hits[s["name"]]
-                    if progress_callback and not cache_hit:
-                        progress_callback({
-                            "event": "session_started",
-                            "session_name": s["name"],
-                            "provider": s["provider"],
-                        })
-                    futures[executor.submit(
-                        _resolve_row_session,
-                        s,
-                        force_refresh=force_refresh,
-                        cache_ttl_seconds=cache_ttl_seconds,
-                        cache_only=cache_only,
-                        status_timeout_seconds=status_timeout_seconds,
-                    )] = s
-                for future in as_completed(futures):
-                    s = futures[future]
-                    try:
-                        resolved = future.result()
-                    except CdxError as error:
-                        if not str(error).startswith("Unknown session:"):
-                            raise
-                        continue
-                    resolved_by_name[s["name"]] = resolved
-                    if progress_callback:
-                        progress_callback({
-                            "event": "session_finished",
-                            "session_name": s["name"],
-                            "has_status": bool(resolved.get("lastStatus")),
-                            "cache_hit": cache_hits[s["name"]],
-                        })
-        resolved = [resolved_by_name[s["name"]] for s in sessions if s["name"] in resolved_by_name]
-
-        def sort_key(s):
-            at = s.get("lastStatusAt") or ""
-            disabled_rank = 1 if s.get("enabled", True) is False else 0
-            return (disabled_rank, "" if at else "\xff", at, s["name"])
-
-        resolved.sort(key=sort_key)
-        enabled = [s for s in resolved if s.get("enabled", True) is not False]
-        disabled = [s for s in resolved if s.get("enabled", True) is False]
-        enabled.reverse()
-        disabled.sort(key=lambda s: s["name"])
-        resolved = enabled + disabled
-
-        rows = []
-        for s in resolved:
-            rows.append(_status_row_from_session(store, s))
-        if progress_callback:
-            progress_callback({
-                "event": "status_finished",
-                "row_count": len(rows),
-            })
-        return rows
-
-
-    def export_bundle(file_path, include_auth=False, session_names=None, passphrase=None, force=False, progress_callback=None):
-        if not file_path:
-            raise CdxError("Export path is required.")
-        if os.path.exists(file_path) and not force:
-            raise CdxError(f"Export path already exists: {file_path}")
-
-        sessions = _resolve_session_subset(store, session_names)
-        payload = {
-            "schema_version": 1,
-            "created_at": _local_now_iso(),
-            "include_auth": bool(include_auth),
-            "sessions": [],
-            "states": {},
-            "profiles": {},
-        }
-        profile_file_count = 0
-        profile_bytes = 0
-        if progress_callback:
-            progress_callback({
-                "event": "export_started",
-                "include_auth": bool(include_auth),
-                "session_count": len(sessions),
-                "session_names": [session["name"] for session in sessions],
-            })
-        for session in sessions:
-            if progress_callback:
-                progress_callback({"event": "session_started", "session_name": session["name"]})
-            payload["sessions"].append(_build_export_session_record(session))
-            state = store["read_session_state"](session["name"])
-            if state is not None:
-                payload["states"][session["name"]] = state
-            if include_auth:
-                session_root = session.get("sessionRoot") or _get_session_root(base_dir, session["name"])
-                profile = _collect_auth_files(session_root, session["provider"], session["name"], progress_callback)
-                payload["profiles"][session["name"]] = profile["files"]
-                profile_file_count += profile["file_count"]
-                profile_bytes += profile["bytes"]
-            if progress_callback:
-                progress_callback({"event": "session_finished", "session_name": session["name"]})
-
-        if progress_callback:
-            progress_callback({"event": "encoding_started"})
-        bundle_bytes = encode_bundle(payload, include_auth=include_auth, passphrase=passphrase)
-        if progress_callback:
-            progress_callback({"event": "writing_started", "path": file_path, "bundle_size_bytes": len(bundle_bytes)})
-        # Atomic + 0o600 from the start: the export path may live in a
-        # world-traversable directory, and a crash must not clobber a
-        # previous good bundle with a truncated one.
-        atomic_write(os.path.abspath(file_path), bundle_bytes, mode=0o600)
-        return {
-            "path": file_path,
-            "include_auth": include_auth,
-            "session_names": [session["name"] for session in sessions],
-            "session_count": len(sessions),
-            "profile_file_count": profile_file_count if include_auth else None,
-            "profile_bytes": profile_bytes if include_auth else None,
-            "bundle_size_bytes": len(bundle_bytes),
-        }
-
-
-    def _restore_import_backup(name, backup_root, session_root, old_record, old_state):
-        if os.path.exists(session_root):
-            remove_tree(session_root, ignore_errors=True)
-        if backup_root and os.path.exists(backup_root):
-            os.rename(backup_root, session_root)
-        if old_record:
-            store["replace_session"](name, old_record)
-            if old_state is not None:
-                store["write_session_state"](name, old_state)
-        else:
-            store["remove_session"](name)
-
-
-    def import_bundle(
-        file_path,
-        passphrase=None,
-        session_names=None,
-        force=False,
-        merge=False,
-        allow_authless_force=False,
-    ):
-        if not file_path or not os.path.isfile(file_path):
-            raise CdxError(f"Bundle file not found: {file_path}")
-        with open(file_path, "rb") as handle:
-            decoded = decode_bundle(handle.read(), passphrase=passphrase)
-        payload = decoded["payload"]
-        imported_sessions = payload.get("sessions") or []
-        if payload.get("schema_version") != 1:
-            raise CdxError("Unsupported bundle payload schema version.")
-
-        selected_names = set(session_names or [])
-        if selected_names:
-            imported_sessions = [item for item in imported_sessions if item["name"] in selected_names]
-            missing_names = sorted(selected_names - {item["name"] for item in imported_sessions})
-            if missing_names:
-                raise CdxError(f"Bundle does not contain requested sessions: {', '.join(missing_names)}")
-        names = [item["name"] for item in imported_sessions]
-
-        existing = {session["name"] for session in list_sessions(store)}
-        conflicts = [name for name in names if name in existing]
-        if conflicts and not force and not merge:
-            raise CdxError(f"Import would overwrite existing sessions: {', '.join(conflicts)}")
-        if conflicts and force and not decoded["meta"].get("include_auth") and not allow_authless_force:
-            raise CdxError(
-                "Import --force would overwrite existing session credentials, but this bundle has no auth payloads. "
-                "Re-export with --include-auth, use --merge, or pass --allow-authless-force to discard local credentials."
-            )
-
-        for session_payload in imported_sessions:
-            _validate_new_session_name(session_payload["name"])
-            _normalize_provider(session_payload["provider"])
-        decoded_profiles = _validate_import_profile_files(payload, imported_sessions)
-
-        for session_payload in imported_sessions:
-            name = session_payload["name"]
-            provider = _normalize_provider(session_payload["provider"])
-            is_existing = name in existing
-
-            session_root = _get_session_root(base_dir, name)
-            auth_home = _get_session_auth_home(base_dir, name, provider)
-            _ensure_private_dir(base_dir)
-            _ensure_private_dir(os.path.join(base_dir, "profiles"))
-            backup_root = None
-            old_record = None
-            old_state = None
-            preserved_profile_paths = []
-            if is_existing and force:
-                old_record = store["get_session"](name)
-                old_state = store["read_session_state"](name)
-                preserved_profile_paths = _force_import_preserved_profile_paths(session_root)
-                if os.path.exists(session_root):
-                    backup_root = tempfile.mkdtemp(prefix=f".{_encode(name)}.import.", dir=os.path.dirname(session_root))
-                    os.rmdir(backup_root)
-                    os.rename(session_root, backup_root)
-                is_existing = False
-            _ensure_private_dir(session_root)
-            _ensure_private_dir(auth_home)
-
-            existing_state_before = None
-            try:
-                if is_existing and merge:
-                    existing_record = store["get_session"](name) or {}
-                    # replace_session resets the state file to defaults, so the
-                    # local state must be captured before it runs.
-                    existing_state_before = store["read_session_state"](name) or {}
-                    bundle_record = {
-                        **session_payload,
-                        "provider": provider,
-                        "enabled": session_payload.get("enabled", True) is not False,
-                        "sessionRoot": session_root,
-                        "authHome": auth_home,
-                    }
-                    # Existing values take precedence; bundle fills in missing keys only.
-                    merged_record = {**bundle_record, **{k: v for k, v in existing_record.items() if v is not None}}
-                    merged_record["sessionRoot"] = session_root
-                    merged_record["authHome"] = auth_home
-                    store["replace_session"](name, merged_record)
-                else:
-                    session_record = {
-                        **session_payload,
-                        "provider": provider,
-                        "enabled": session_payload.get("enabled", True) is not False,
-                        "sessionRoot": session_root,
-                        "authHome": auth_home,
-                    }
-                    store["replace_session"](name, session_record)
-
-                state = (payload.get("states") or {}).get(name)
-                if is_existing and merge:
-                    merged_state = {**(state or {}), **{k: v for k, v in (existing_state_before or {}).items() if v is not None}}
-                    if merged_state:
-                        store["write_session_state"](name, merged_state)
-                elif state is not None:
-                    store["write_session_state"](name, state)
-
-                for item in decoded_profiles.get(name, []):
-                    dest_path = os.path.join(session_root, item["path"])
-                    # In merge mode, skip files that already exist locally.
-                    if is_existing and merge and os.path.exists(dest_path):
-                        continue
-                    _ensure_private_dir(os.path.dirname(dest_path))
-                    # Decrypted credentials: 0o600 from creation, no umask window.
-                    atomic_write(dest_path, item["content"], mode=0o600)
-                _restore_force_import_profile_paths(name, backup_root, session_root, preserved_profile_paths)
-            except Exception:
-                _restore_import_backup(name, backup_root, session_root, old_record, old_state)
-                raise
-            finally:
-                if backup_root and os.path.exists(backup_root):
-                    remove_tree(backup_root, ignore_errors=True)
-
-        return {
-            "path": file_path,
-            "session_names": names,
-            "include_auth": bool(decoded["meta"].get("include_auth")),
-        }
 
     return {
         "create_session": partial(create_session, base_dir, env, store),
@@ -1681,13 +1678,13 @@ def create_session_service(options=None):
         "record_launch_history": partial(record_launch_history, store),
         "get_launch_history": partial(get_launch_history, store),
         "update_auth_state": partial(update_auth_state, store),
-        "get_status_row": get_status_row,
-        "get_status_rows": get_status_rows,
+        "get_status_row": partial(get_status_row, store, base_dir, env, fetch_codex_status),
+        "get_status_rows": partial(get_status_rows, store, base_dir, env, fetch_codex_status),
         "format_list_rows": partial(format_list_rows, store),
         "get_session_auth_home": partial(get_session_auth_home, base_dir),
         "get_session_root": partial(get_session_root, base_dir),
-        "export_bundle": export_bundle,
-        "import_bundle": import_bundle,
+        "export_bundle": partial(export_bundle, base_dir, store),
+        "import_bundle": partial(import_bundle, base_dir, store),
         "base_dir": base_dir,
         "normalize_provider": _normalize_provider,
     }
