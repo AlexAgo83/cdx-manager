@@ -1,9 +1,9 @@
 ## item_046_populate_run_payload_warnings_for_known_silent_degradations - Populate run payload warnings for known silent degradations
 > From version: 0.12.4
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 90%
 > Complexity: Low
 > Theme: Agent integration surface
@@ -44,6 +44,25 @@
 - request-AC10 -> This backlog slice. Proof: Given a Codex-backed run launched at a permission level that disables provider network access, the run payload's `warnings` list contains an entry naming the provider, the effective permission, and the loss of network access.
 - request-AC8 -> This backlog slice. Proof: Given that same run exits successfully, `ok` remains true, the exit code is unchanged, and the warning is still present.
 - request-AC9 -> This backlog slice. Proof: The README's programmatic-caller section documents the warning channel as a field callers should surface rather than discard.
+
+# Outcome
+
+> Closed retrospectively: the code shipped in the commits named below and the
+> proofs were reconstructed from the current code and test suite, not observed
+> at the time of delivery.
+
+Shipped in `b1fceac`. The run payload's `warnings` list is populated rather
+than hardcoded empty, and a run launched at a permission level known to
+disable provider network access carries a warning naming the provider, the
+permission and the consequence.
+
+Covered by `test_run_warns_when_permission_costs_network_access`,
+`test_run_warns_about_no_network_when_no_permission_is_given` and
+`test_run_does_not_warn_when_permission_keeps_network`.
+
+The warning fires on the **successful** path too, which is the point: the run
+exits zero either way, so a caller that only inspects failures would never
+learn its provider had no network.
 
 # Decision framing
 - Product framing: Not needed

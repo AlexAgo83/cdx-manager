@@ -1,9 +1,9 @@
 ## task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags - Orchestrate one source of truth for accepted values and provider flags
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 95%
 > Complexity: Medium
 > Theme: Implementation delivery
@@ -23,7 +23,7 @@
 - [x] 7. Run the CLI, session-service, and health test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.
 - [x] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
 - [x] Keep commit creation under operator control; do not force one commit per micro-step.
-- [ ] GATE: do not close until lint, audit, and scaffold validation pass.
+- [x] GATE: do not close until lint, audit, and scaffold validation pass.
 
 # Backlog
 - `item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions`
@@ -31,15 +31,20 @@
 - `item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli`
 
 # Definition of Done (DoD)
-- [ ] Generated request, product, backlog, and task docs are present.
-- [ ] Context-pack handoff is available when requested.
-- [ ] Validation passes.
-- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+- [x] Generated request, product, backlog, and task docs are present.
+- [x] Context-pack handoff is available when requested.
+- [x] Validation passes.
+- [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
-- request-AC1, request-AC3, request-AC4, request-AC7 -> `item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions`. Proof deferred to slice closeout.
-- request-AC2, request-AC7, request-AC8 -> `item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run`. Proof deferred to slice closeout.
-- request-AC5, request-AC6, request-AC8 -> `item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli`. Proof deferred to slice closeout.
+- request-AC1 -> `item_051`. Proof: the effort and permission value sets have one definition each in `src/config.py`; `test_every_validator_shares_one_accepted_value_definition` asserts identity, not equality.
+- request-AC2 -> `item_052`. Proof: `test_set_and_run_accept_the_same_values` normalizes every value in `PERMISSION_INPUT_VALUES` through both entry points and asserts they agree.
+- request-AC3 -> `item_051`. Proof: `cdx_schema()` returns the same objects the parser validates against, documented in its docstring as a contract rather than a parallel copy.
+- request-AC4 -> `item_051`. Proof: `test_no_module_restates_an_accepted_value_set` scans `src/**/*.py` for a restated literal and names the file and line. The glob was widened from `src/*.py` during `req_025`, when the new command package would otherwise have escaped it.
+- request-AC5 -> `item_053`. Proof: `cdx doctor --check-provider-flags` reports per provider and permission; `test_provider_flag_check_confirms_a_complete_mapping` and `..._fails_on_a_flag_the_cli_lacks` cover both outcomes.
+- request-AC6 -> `item_053`. Proof: the flag is opt-in and the default report states the check was not run (`src/health.py:125`); `test_provider_flag_check_absence_is_reported_not_omitted` asserts the absence is visible, and the two indeterminate tests assert it never reads as a pass.
+- request-AC7 -> `item_052`. Proof: aliases normalize to `default`/`review`/`full` exactly as before; no previously accepted value is rejected.
+- request-AC8 -> `item_051`, `item_053`. Proof: README documents the single source and directs callers to validate against `cdx schema --json` rather than copying the lists.
 
 # Validation
 - `npm run lint` and `npm test` (557 tests) clean.

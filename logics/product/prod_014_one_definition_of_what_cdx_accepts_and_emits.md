@@ -1,6 +1,6 @@
 ## prod_014_one_definition_of_what_cdx_accepts_and_emits - One definition of what cdx accepts and emits
 > Date: 2026-08-07
-> Status: Proposed
+> Status: Settled
 > Related request: `req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits`
 > Related backlog: `item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions`, `item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run`, `item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli`
 > Related task: `task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags`
@@ -9,6 +9,17 @@
 
 # Overview
 Collapse the duplicated accepted-value enums into single definitions every command and the published schema derive from, make `cdx set` and `cdx run` agree on the values they take, and add an opt-in check that the provider flags cdx emits actually exist in the provider CLIs.
+
+```mermaid
+flowchart LR
+    Problem[The same accepted values are restated in six places and disagree] --> Direction[One definition each, derived everywhere]
+    Direction --> Values[Validators, normalizers and the schema read one object]
+    Direction --> Parity[cdx set and cdx run accept the same values]
+    Direction --> Flags[Opt-in check that emitted provider flags really exist]
+    Values --> Outcome[A reintroduced copy fails a test instead of drifting quietly]
+    Parity --> Outcome
+    Flags --> Outcome
+```
 
 # Goals
 - Make it impossible for two commands in cdx to disagree about a valid value.

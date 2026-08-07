@@ -1,9 +1,9 @@
 ## item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind - Let run --provider refresh status and warn when it selects blind
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 95%
 > Complexity: Low
 > Theme: Session selection
@@ -40,6 +40,26 @@
 - request-AC4 -> This backlog slice. Proof: Given an auto-selected session whose `available_pct` was unknown, the run payload carries a warning naming that session and stating the selection ran without status data.
 - request-AC5 -> This backlog slice. Proof: Given an auto-selected session with a known low availability, no such warning is emitted.
 - request-AC6 -> This backlog slice. Proof: Given a session named explicitly rather than auto-selected, no selection warning is emitted regardless of status.
+
+# Outcome
+
+> Closed retrospectively: the code shipped in the commit named below and the
+> proofs were reconstructed from the current code and test suite, not observed
+> at the time of delivery.
+
+Shipped in `9a05308`, with `0f19130` correcting a related readiness check:
+`require_ready` must mean confirmed authenticated, not merely not-logged-out.
+
+`cdx run --provider` accepts `--refresh` so a caller can require fresh status
+before auto-selection, with the cached behaviour still the default. When
+selection lands on a session whose availability is unknown, the payload
+carries `session_selected_without_status` (`src/run_command.py:126`), which is
+deliberately distinct from a session known to be at low availability - the
+two look identical in a payload that reports neither, and only one of them is
+a reason to distrust the choice.
+
+The code is listed in `cdx schema --json` alongside the existing warning
+codes (`src/cli_args.py:481`).
 
 # Decision framing
 - Product framing: Not needed

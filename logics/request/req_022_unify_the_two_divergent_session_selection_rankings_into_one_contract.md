@@ -1,7 +1,7 @@
 ## req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract - Unify the two divergent session selection rankings into one contract
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: High

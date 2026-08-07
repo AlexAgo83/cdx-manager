@@ -1,6 +1,6 @@
 ## prod_016_a_session_service_that_can_be_read_in_pieces - A session service that can be read in pieces
 > Date: 2026-08-07
-> Status: Proposed
+> Status: Settled
 > Related request: `req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file`
 > Related backlog: `item_057_lift_the_closures_that_capture_nothing_into_module_level_functions`, `item_058_give_the_state_dependent_closures_explicit_dependencies`, `item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed`
 > Related task: `task_037_orchestrate_the_session_service_decomposition`
@@ -9,6 +9,14 @@
 
 # Overview
 Turn a 1153-line factory of 46 closures into module-level functions with explicit dependencies, leaving the service interface untouched, so the file's seams become real before anyone decides where to cut it.
+
+```mermaid
+flowchart LR
+    Problem[A 1153-line factory of 46 closures over shared locals] --> Direction[Module-level functions with explicit dependencies]
+    Direction --> Value[Behaviour testable without constructing the whole service]
+    Direction --> Scope[The returned interface dict is untouched]
+    Direction --> Outcome[The file's seams become real before anyone cuts it]
+```
 
 # Goals
 - Make individual session-service behavior readable and testable without constructing the whole service.

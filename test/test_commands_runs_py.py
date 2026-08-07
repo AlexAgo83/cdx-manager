@@ -215,6 +215,40 @@ class RunsCommandTests(CliTestBase):
         self.assertIn("--json", calls[0]["argv"])
         self.assertTrue(any("Do it" in arg for arg in calls[0]["argv"]))
 
+    def test_runs_since_is_bounded_by_the_cursor_not_by_limit(self):
+        # The cursor exists so a polling caller cannot miss completions. Bounding
+        # it by --limit as well would silently reintroduce that miss: a watchdog
+        # behind by more than `limit` completions would never see the older ones.
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        session = service["create_session"]("work", "codex")
+        os.makedirs(session["authHome"], exist_ok=True)
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "token"}}, handle)
+
+        def spawn(_argv, **kwargs):
+            kwargs["stdout"].write("done\n")
+            return _HeadlessChild(0)
+
+        started = []
+        for _ in range(3):
+            run_io = self.make_io()
+            self.assertEqual(main([
+                "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json"
+            ], self.make_run_ctx(run_io, service, spawn_headless=spawn)), 0)
+            started.append(json.loads(run_io["stdout"].getvalue())["run_id"])
+
+        since_io = self.make_io()
+        self.assertEqual(
+            main(["runs", "--since", "today", "--limit", "1", "--json"],
+                 self.make_run_ctx(since_io, service)), 0)
+        payload = json.loads(since_io["stdout"].getvalue())
+
+        # All three come back despite --limit 1, and the caller is told why.
+        self.assertEqual(sorted(r["run_id"] for r in payload["runs"]), sorted(started))
+        self.assertIsNotNone(payload["since"])
+        self.assertEqual([w["code"] for w in payload["warnings"]], ["limit_ignored_with_since"])
+
     def test_run_registry_exposes_recent_status_and_report_json(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})

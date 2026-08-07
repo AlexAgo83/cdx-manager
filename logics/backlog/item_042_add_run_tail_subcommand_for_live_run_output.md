@@ -1,9 +1,9 @@
 ## item_042_add_run_tail_subcommand_for_live_run_output - Add run-tail subcommand for live run output
 > From version: 0.12.4
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 90%
 > Complexity: Low
 > Theme: Agent integration surface
@@ -37,6 +37,23 @@
 # AC Traceability
 - request-AC3 -> This backlog slice. Proof: Given a run currently in progress, `cdx run-tail <run_id> --lines 20 --json` returns up to the last 20 lines written so far, the recorded `stdout_path`, and a status of running.
 - request-AC8 -> This backlog slice. Proof: Given a completed run, the same call returns the last lines of its final output and its terminal status.
+
+# Outcome
+
+> Closed retrospectively: the code shipped in the commits named below and the
+> proofs were reconstructed from the current code and test suite, not observed
+> at the time of delivery.
+
+Shipped in `b1fceac`. `cdx run-tail <run_id> [--lines N] --json` returns the
+tail of the run's recorded `stdout_path` with the run's current status.
+
+The four tests cover the cases that distinguish a real tail from a naive one:
+`test_run_tail_returns_the_last_lines_of_a_running_run`,
+`test_run_tail_on_a_run_that_has_not_written_yet`,
+`test_run_tail_drops_a_partial_leading_line` (seeking backwards into a file
+lands mid-line, and returning that fragment would corrupt a caller's parse),
+and `test_run_tail_missing_output_on_a_finished_run_is_an_error`, which pins
+the specific error code AC3 asked for rather than an empty success.
 
 # Decision framing
 - Product framing: Not needed

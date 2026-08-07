@@ -1,6 +1,6 @@
 ## prod_007_reliable_next_ready_notification_shortcut - Reliable next-ready notification shortcut
 > Date: 2026-08-05
-> Status: Proposed
+> Status: Settled
 > Related request: `req_014_prevent_cdx_ready_from_failing_when_no_notification_can_be_scheduled`
 > Related backlog: `item_034_handle_no_target_cdx_ready_scheduling_gracefully`
 > Related task: `task_025_orchestrate_safe_cdx_ready_no_target_handling`
@@ -9,6 +9,14 @@
 
 # Overview
 Make the ready shortcut report an unschedulable state as a normal outcome.
+
+```mermaid
+flowchart LR
+    Problem[Ready shortcut treats an unschedulable state as a failure] --> Direction[Report unschedulable as a normal outcome]
+    Direction --> Value[A caller can tell 'nothing to schedule' from 'the command broke']
+    Direction --> Scope[cdx ready and its notification path]
+    Direction --> Outcome[No error handling for a state that is not an error]
+```
 
 # Goals
 - Keep `cdx ready` safe and understandable for every status inventory.

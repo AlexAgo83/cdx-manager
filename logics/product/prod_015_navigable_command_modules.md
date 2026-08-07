@@ -1,6 +1,6 @@
 ## prod_015_navigable_command_modules - Navigable command modules
 > Date: 2026-08-07
-> Status: Proposed
+> Status: Settled
 > Related request: `req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade`
 > Related backlog: `item_054_pilot_the_split_with_the_runs_and_maintenance_domains`, `item_055_extract_the_remaining_seven_command_domains`, `item_056_mirror_the_split_in_the_command_test_file`
 > Related task: `task_036_orchestrate_the_command_module_split`
@@ -9,6 +9,14 @@
 
 # Overview
 Turn the single 3313-line command file into nine per-domain modules behind an unchanged import surface, taking advantage of the fact that the domains are already independent.
+
+```mermaid
+flowchart LR
+    Problem[One 3313-line command file holds nine independent domains] --> Direction[A module per domain behind a facade]
+    Direction --> Value[Navigable without reading past eight unrelated domains]
+    Direction --> Scope[Move only; no registry, base class or dispatch indirection]
+    Direction --> Outcome[Every existing import still resolves, so no caller changes]
+```
 
 # Goals
 - Make the handler for a command findable without scrolling past unrelated domains.

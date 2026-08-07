@@ -1,6 +1,6 @@
 ## prod_008_filterable_doctor_diagnostics - Filterable doctor diagnostics
 > Date: 2026-08-05
-> Status: Proposed
+> Status: Settled
 > Related request: `req_015_add_a_severity_filter_to_cdx_doctor`
 > Related backlog: `item_035_filter_cdx_doctor_report_by_severity`
 > Related task: `task_026_orchestrate_cdx_doctor_severity_filtering`
@@ -9,6 +9,14 @@
 
 # Overview
 Allow focused inspection of doctor severities without changing health collection.
+
+```mermaid
+flowchart LR
+    Problem[Doctor reports everything at once, so a single FAIL is buried] --> Direction[Filter the report by severity]
+    Direction --> Value[Focused inspection without reading past healthy rows]
+    Direction --> Scope[Presentation only; health collection is unchanged]
+    Direction --> Outcome[The severity a caller asked about is the one they see]
+```
 
 # Goals
 - Make warning/failure triage concise.

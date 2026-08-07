@@ -1,7 +1,7 @@
 ## req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow - Stop cdx select from publishing a selection policy and reason it does not follow
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium

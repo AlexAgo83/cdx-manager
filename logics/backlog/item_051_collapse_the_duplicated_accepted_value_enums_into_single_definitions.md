@@ -1,9 +1,9 @@
 ## item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions - Collapse the duplicated accepted-value enums into single definitions
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 95%
 > Complexity: Medium
 > Theme: Contract integrity
@@ -42,6 +42,28 @@
 - request-AC3 -> This backlog slice. Proof: `cdx set` and `cdx run` accept identical value sets for `--permission`, `--power`, and `--reasoning-effort`, asserted by a test that enumerates the shared definition rather than a hand-written list.
 - request-AC4 -> This backlog slice. Proof: `cdx schema --json` reflects the values the CLI accepts, and its drift test fails if any validator diverges from the published set.
 - request-AC7 -> This backlog slice. Proof: Reintroducing a duplicate of one of these sets fails a test that names it.
+
+# Outcome
+
+> Closed retrospectively: the code shipped in the commit named below and the
+> proofs were reconstructed from the current code and test suite, not observed
+> at the time of delivery.
+
+Shipped in `28fc7a8`. The six duplicated enums collapsed into single
+definitions in `src/config.py`: `REASONING_EFFORT_VALUES`,
+`PERMISSION_VALUES`, `PERMISSION_ALIASES` and the derived
+`PERMISSION_INPUT_VALUES`. Every validator, normalizer and the published
+schema read those objects rather than a copy.
+
+Two tests hold the line, both in `test/test_cli_contract_py.py` after today's
+test split: `test_every_validator_shares_one_accepted_value_definition`
+asserts **identity**, not equality, so a second literal that happens to match
+today would still fail; and `test_no_module_restates_an_accepted_value_set`
+scans `src/**/*.py` for a restated literal and names the file and line.
+
+The identity assertion matters more than it looks: an equality check would
+pass against a fresh copy on the day it was written and only fail later, once
+the two drifted - which is exactly the failure this slice existed to remove.
 
 # Decision framing
 - Product framing: Not needed

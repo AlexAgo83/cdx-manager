@@ -1,6 +1,6 @@
 ## prod_017_a_session_service_whose_file_boundaries_match_its_real_seams - A session service whose file boundaries match its real seams
 > Date: 2026-08-07
-> Status: Proposed
+> Status: Settled
 > Related request: `req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports`
 > Related backlog: `item_060_move_the_shared_helpers_into_a_session_service_utility_layer`, `item_061_extract_the_status_group_into_its_own_module`, `item_062_extract_the_backup_group_and_record_why_the_other_groups_stay`
 > Related task: `task_038_orchestrate_the_measured_session_service_file_split`
@@ -9,6 +9,15 @@
 
 # Overview
 Cut `session_service.py` only where the coupling measurement says it can be cut, so the resulting files are independently readable rather than merely smaller.
+
+```mermaid
+flowchart LR
+    Problem[The file could be cut anywhere, so instinct would cut it everywhere] --> Direction[Cut only where the coupling measurement supports it]
+    Direction --> Seams[status and backup: self-contained, extracted]
+    Direction --> Kept[runtime and auth: no helpers of their own, kept in place]
+    Seams --> Outcome[Files that are independently readable, not merely smaller]
+    Kept --> Outcome[The reason not to split further lives next to the code]
+```
 
 # Goals
 - Two new modules that can be read without holding the rest of the service in mind.

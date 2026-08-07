@@ -1,6 +1,6 @@
 ## prod_012_one_session_selection_rule_across_every_command - One session selection rule across every command
 > Date: 2026-08-07
-> Status: Proposed
+> Status: Settled
 > Related request: `req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract`
 > Related backlog: `item_047_extract_one_parameterized_session_ranking_used_by_every_selector`, `item_048_make_the_priority_setting_count_in_next_status_and_ready`
 > Related task: `task_033_orchestrate_the_unified_session_selection_ranking`
@@ -9,6 +9,14 @@
 
 # Overview
 Replace the two divergent session ranking algorithms with a single parameterized rule, so every command that picks a session picks the same one, and so a user's `--priority` setting means the same thing everywhere.
+
+```mermaid
+flowchart LR
+    Problem[Two ranking algorithms disagree about which session is best] --> Direction[One parameterized rule for every selector]
+    Direction --> Value[Every command picks the same session from the same inputs]
+    Direction --> Scope[Provider filter, priority, credits, resets and tiering in one place]
+    Direction --> Outcome[--priority means the same thing in every command that reads it]
+```
 
 # Goals
 - Give cdx one definition of 'the best session to use right now'.

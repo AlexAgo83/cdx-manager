@@ -1,9 +1,9 @@
 ## item_044_publish_machine_readable_schema_for_enums_and_argument_constraints - Publish machine-readable schema for enums and argument constraints
 > From version: 0.12.4
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 90%
 > Complexity: Low
 > Theme: Agent integration surface
@@ -37,6 +37,29 @@
 # AC Traceability
 - request-AC5 -> This backlog slice. Proof: `cdx schema --json` returns the accepted values for `permission`, `power`/`reasoning-effort`, and `kind`, and declares the session-and-provider mutual exclusion.
 - request-AC9 -> This backlog slice. Proof: A test fails if a value accepted by the argument parser for a constrained option is absent from the schema output, or the reverse.
+
+# Outcome
+
+> Closed retrospectively: the code shipped in the commits named below and the
+> proofs were reconstructed from the current code and test suite, not observed
+> at the time of delivery.
+
+Shipped in `b1fceac`. `cdx schema --json` publishes the accepted values, the
+declared mutually-exclusive argument groups and the error codes.
+
+The guarantee that makes it worth publishing is that the schema returns **the
+same objects the parser validates against**, not a parallel copy - stated in
+`cdx_schema()`'s docstring and enforced by
+`test_schema_matches_what_the_run_parser_accepts`,
+`test_schema_declares_the_mutually_exclusive_pairs_it_enforces` and
+`test_schema_publishes_every_code_the_run_commands_emit`.
+
+`test_schema_does_not_advertise_must_match_as_mutually_exclusive` pins a
+distinction the first version got wrong: a constraint that two values must
+agree is not the same as two arguments that cannot both appear.
+
+`req_024` later made this structural rather than tested, by collapsing the
+duplicated enums into single definitions in `src/config.py`.
 
 # Decision framing
 - Product framing: Not needed

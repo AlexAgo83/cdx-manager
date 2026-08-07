@@ -1,9 +1,9 @@
 ## item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run - Accept the permission aliases in cdx set as well as cdx run
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 95%
 > Complexity: Low
 > Theme: Contract integrity
@@ -39,6 +39,27 @@
 - request-AC2 -> This backlog slice. Proof: Given `cdx set <name> --permission workspace-write`, the command succeeds and the session stores `default`.
 - request-AC7 -> This backlog slice. Proof: Given `read-only` and `danger-full-access` through `cdx set`, they store `review` and `full` respectively.
 - request-AC8 -> This backlog slice. Proof: Given the same aliases through the `perm` alias command, the behavior matches `cdx set`.
+
+# Outcome
+
+> Closed retrospectively: the code shipped in the commit named below and the
+> proofs were reconstructed from the current code and test suite, not observed
+> at the time of delivery.
+
+Shipped in `28fc7a8`. `cdx set` now accepts the provider-native permission
+aliases that `cdx run` already took, and stores the canonical form:
+`workspace-write` -> `default`, `read-only` -> `review`,
+`danger-full-access` -> `full`.
+
+The decision recorded when this was scoped was honoured rather than quietly
+reversed: the aliases were **added to `set`** instead of removed from `run`,
+because removing them would break callers that pass the provider spellings
+today.
+
+`test_set_and_run_accept_the_same_values` in
+`test/test_commands_settings_py.py` iterates `PERMISSION_INPUT_VALUES` and
+asserts both entry points normalize each value identically, so the asymmetry
+cannot come back one value at a time.
 
 # Decision framing
 - Product framing: Not needed

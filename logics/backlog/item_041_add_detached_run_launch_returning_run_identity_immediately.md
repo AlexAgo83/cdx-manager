@@ -1,9 +1,9 @@
 ## item_041_add_detached_run_launch_returning_run_identity_immediately - Add detached run launch returning run identity immediately
 > From version: 0.12.4
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 90%
 > Complexity: Medium
 > Theme: Agent integration surface
@@ -38,6 +38,29 @@
 - request-AC1 -> This backlog slice. Proof: Given a valid session and cwd, `cdx run <session> --cwd <path> --prompt-file <file> --detach --json` returns within seconds with `ok: true` and a non-null `run_id`, while the provider is still executing.
 - request-AC2 -> This backlog slice. Proof: Given a detached launch, `cdx run-status <run_id> --json` immediately reports the run as running and later reports a terminal status without any further involvement from the launching process.
 - request-AC8 -> This backlog slice. Proof: Given a detached launch whose parent process exits immediately afterwards, the provider process continues and the run still reaches a terminal status.
+
+# Outcome
+
+> Closed retrospectively: the code shipped in the commits named below and the
+> proofs were reconstructed from the current code and test suite, not observed
+> at the time of delivery.
+
+Shipped in `b1fceac`, corrected in `81a0c7a`. `cdx run --detach --json`
+registers the run, launches the provider detached, and returns immediately
+with the `run_id`. The detached child transitions its own registry entry to a
+terminal status, so `cdx runs` and `cdx run-status` stay accurate with nobody
+supervising.
+
+Covered by `test_run_detach_returns_run_id_without_waiting`,
+`test_detached_run_id_is_consumed_not_inherited` and
+`test_detached_child_deletes_the_staged_prompt_file`.
+
+Worth recording honestly: the Windows detachment branch was flagged at
+delivery as unverifiable, since the tests asserted the POSIX
+`start_new_session` unconditionally. That assertion was fixed in `49c6eaf`
+during a later session, and the Windows CI job now exercises the
+`creationflags` path. The spawn is stubbed there, so it proves the flags are
+chosen correctly, not that a child actually survives on Windows.
 
 # Decision framing
 - Product framing: Not needed

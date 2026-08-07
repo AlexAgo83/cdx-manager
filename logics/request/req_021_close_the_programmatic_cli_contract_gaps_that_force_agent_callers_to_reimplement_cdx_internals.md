@@ -1,7 +1,7 @@
 ## req_021_close_the_programmatic_cli_contract_gaps_that_force_agent_callers_to_reimplement_cdx_internals - Close the programmatic CLI contract gaps that force agent callers to reimplement cdx internals
 > From version: 0.12.4
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: High

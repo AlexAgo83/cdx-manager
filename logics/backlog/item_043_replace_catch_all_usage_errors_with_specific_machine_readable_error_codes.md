@@ -1,9 +1,9 @@
 ## item_043_replace_catch_all_usage_errors_with_specific_machine_readable_error_codes - Replace catch-all usage errors with specific machine-readable error codes
 > From version: 0.12.4
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 90%
 > Complexity: Medium
 > Theme: Agent integration surface
@@ -39,6 +39,24 @@
 # AC Traceability
 - request-AC4 -> This backlog slice. Proof: Given `cdx run <session> --provider <provider> --cwd <path> --prompt <text> --json`, the payload reports a mutually-exclusive-arguments error code and names both offending arguments as data.
 - request-AC8 -> This backlog slice. Proof: Given a `cdx run` invocation missing `--cwd`, the payload reports a missing-required-argument code naming that argument, distinguishable from the mutually-exclusive case by code alone.
+
+# Outcome
+
+> Closed retrospectively: the code shipped in the commits named below and the
+> proofs were reconstructed from the current code and test suite, not observed
+> at the time of delivery.
+
+Shipped in `b1fceac`. Argument and usage failures now return a specific
+machine-readable `error.code` naming the failure class and identifying the
+offending arguments, instead of the single catch-all `invalid_request`.
+
+`test_json_error_payload_has_machine_readable_contract` asserts the contract,
+and `test_empty_power_blames_the_flag_that_was_passed` covers the case that
+motivated the slice: an error that named the wrong argument is worse than a
+generic one, because a caller acts on it.
+
+The mutually-exclusive session-and-provider case is distinguishable from a
+missing required argument by code alone, with no message parsing.
 
 # Decision framing
 - Product framing: Not needed

@@ -1,9 +1,9 @@
 ## item_048_make_the_priority_setting_count_in_next_status_and_ready - Make the priority setting count in next, status, and ready
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 95%
 > Complexity: Medium
 > Theme: Session selection
@@ -39,6 +39,25 @@
 - request-AC3 -> This backlog slice. Proof: Given two otherwise-equal sessions where one has a higher `--priority`, `cdx next` names the higher-priority session.
 - request-AC6 -> This backlog slice. Proof: Given the same pair, the `cdx status` recommendation and `cdx ready` name that same session.
 - request-AC8 -> This backlog slice. Proof: Given no session with an explicit priority, the ordering reported by every affected command is unchanged from current behavior.
+
+# Outcome
+
+> Closed retrospectively: the code shipped in the commit named below and the
+> proofs were reconstructed from the current code and test suite, not observed
+> at the time of delivery.
+
+Shipped in `9a05308`. The user-set `--priority` now counts in `cdx next`,
+`cdx status`'s recommendation and `cdx ready`, not only in `cdx select` and
+`cdx run --provider`.
+
+Covered by `test_priority_orders_two_otherwise_equal_sessions` and
+`test_next_uses_same_priority_recommendation_as_status` in
+`test/test_commands_status_py.py`.
+
+The naming ambiguity AC6 named is resolved in the ranking module: the factor
+list and `FACTOR_DESCRIPTIONS` distinguish the user-set preference from the
+recommendation ordering, so a `Priority:` line in output and the `--priority`
+setting no longer mean different things.
 
 # Decision framing
 - Product framing: Not needed

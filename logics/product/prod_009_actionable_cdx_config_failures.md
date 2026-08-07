@@ -1,6 +1,6 @@
 ## prod_009_actionable_cdx_config_failures - Actionable cdx config failures
 > Date: 2026-08-05
-> Status: Proposed
+> Status: Settled
 > Related request: `req_016_clarify_cdx_config_errors_for_unknown_sessions`
 > Related backlog: `item_036_improve_unknown_session_guidance_for_cdx_config`
 > Related task: `task_027_orchestrate_actionable_cdx_config_error_guidance`
@@ -9,6 +9,14 @@
 
 # Overview
 Make a missing config target easy to diagnose and recover from.
+
+```mermaid
+flowchart LR
+    Problem[A missing config target fails without saying which one or what to do] --> Direction[Name the target and the recovery]
+    Direction --> Value[The failure is diagnosable from its own message]
+    Direction --> Scope[cdx config failure paths]
+    Direction --> Outcome[Less guessing from a message that only says something is wrong]
+```
 
 # Goals
 - Give a concrete next command in the config failure path.

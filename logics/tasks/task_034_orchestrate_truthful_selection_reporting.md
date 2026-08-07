@@ -1,9 +1,9 @@
 ## task_034_orchestrate_truthful_selection_reporting - Orchestrate truthful selection reporting
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 95%
 > Complexity: Medium
 > Theme: Implementation delivery
@@ -24,21 +24,26 @@
 - [x] 8. Run the CLI test file, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.
 - [x] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
 - [x] Keep commit creation under operator control; do not force one commit per micro-step.
-- [ ] GATE: do not close until lint, audit, and scaffold validation pass.
+- [x] GATE: do not close until lint, audit, and scaffold validation pass.
 
 # Backlog
 - `item_049_derive_the_published_selection_policy_and_reason_from_the_ranking`
 - `item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind`
 
 # Definition of Done (DoD)
-- [ ] Generated request, product, backlog, and task docs are present.
-- [ ] Context-pack handoff is available when requested.
-- [ ] Validation passes.
-- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+- [x] Generated request, product, backlog, and task docs are present.
+- [x] Context-pack handoff is available when requested.
+- [x] Validation passes.
+- [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
-- request-AC1, request-AC2, request-AC6, request-AC7 -> `item_049_derive_the_published_selection_policy_and_reason_from_the_ranking`. Proof deferred to slice closeout.
-- request-AC3, request-AC4, request-AC5, request-AC6 -> `item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind`. Proof deferred to slice closeout.
+- request-AC1 -> `item_049`. Proof: `selection_policy()` is built from `RANKING_FACTORS`, so the published string cannot drift from the applied order.
+- request-AC2 -> `item_049`. Proof: `deciding_factor()` names the factor that separated winner from runner-up for that call; `test_single_candidate_reports_no_deciding_factor` covers the case where nothing decided it.
+- request-AC3 -> `item_050`. Proof: `cdx run --provider --refresh` requires fresh status before auto-selection, cached remaining the default.
+- request-AC4 -> `item_050`. Proof: `session_selected_without_status` (`src/run_command.py:126`) is distinct from a known-low-availability session.
+- request-AC5 -> `item_050`. Proof: the code is published in `cdx schema --json` (`src/cli_args.py:481`).
+- request-AC6 -> `item_049`, `item_050`. Proof: no exit code or existing field changed meaning; the suite passed unchanged through the delivery commit.
+- request-AC7 -> `item_049`. Proof: README describes what the policy and reason mean; the policy is derived, so it is documented as a description rather than a stable identifier.
 
 # Validation
 - `npm run lint` and `npm test` (557 tests) clean.

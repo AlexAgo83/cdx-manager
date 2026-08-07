@@ -1,7 +1,7 @@
 ## req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits - Give cdx one source of truth for the values it accepts and the provider flags it emits
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: High

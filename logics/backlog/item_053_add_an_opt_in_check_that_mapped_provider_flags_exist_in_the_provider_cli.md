@@ -1,9 +1,9 @@
 ## item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli - Add an opt-in check that mapped provider flags exist in the provider CLI
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 95%
 > Complexity: Medium
 > Theme: Contract integrity
@@ -42,6 +42,32 @@
 - request-AC5 -> This backlog slice. Proof: Given a provider CLI that accepts every flag cdx maps for it, the check reports the mapping confirmed for each permission.
 - request-AC6 -> This backlog slice. Proof: Given a mapped flag the provider CLI rejects, the check reports a failure naming the provider, the permission, and the flag — reproducing the issue #8 condition against a stub.
 - request-AC8 -> This backlog slice. Proof: Given a provider CLI that is not installed, the check reports indeterminate rather than a failure.
+
+# Outcome
+
+> Closed retrospectively: the code shipped in the commit named below and the
+> proofs were reconstructed from the current code and test suite, not observed
+> at the time of delivery.
+
+Shipped in `28fc7a8`. `cdx doctor --check-provider-flags` verifies that the
+flags cdx maps for each permission are actually accepted by the installed
+provider CLI, reporting per provider and per permission.
+
+Both guarantees the slice was scoped around hold, and both are tested:
+
+- **Opt-in, but its absence is visible.** The default run emits "Provider
+  permission flags were not verified; run cdx doctor --check-provider-flags"
+  (`src/health.py:125`), so a green doctor never implies the mappings were
+  checked. `test_provider_flag_check_absence_is_reported_not_omitted` covers
+  it.
+- **Indeterminate is never a pass.** Missing CLI and unreadable help each
+  report a warning rather than success -
+  `test_provider_flag_check_is_indeterminate_without_the_cli` and
+  `..._on_unreadable_help`.
+
+The check was exercised against the real binaries during the following
+session: all four providers confirmed, including `--sandbox` and
+`--dangerously-skip-permissions` against `agy` 1.1.11.
 
 # Decision framing
 - Product framing: Not needed

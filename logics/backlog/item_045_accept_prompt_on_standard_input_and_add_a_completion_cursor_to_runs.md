@@ -1,9 +1,9 @@
 ## item_045_accept_prompt_on_standard_input_and_add_a_completion_cursor_to_runs - Accept prompt on standard input and add a completion cursor to runs
 > From version: 0.12.4
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 90%
 > Complexity: Low
 > Theme: Agent integration surface
@@ -43,6 +43,21 @@
 - request-AC7 -> This backlog slice. Proof: Given `--prompt-file -` with an interactive terminal on stdin, the command fails immediately with a specific error code instead of blocking on input.
 - request-AC8 -> This backlog slice. Proof: Given `--prompt-file -` combined with another prompt source, the existing exclusivity rule still applies and reports the argument error code.
 - request-AC9 -> This backlog slice. Proof: Given `cdx runs --since <cursor> --json`, only runs completed after the cursor are returned, and repeating the call with the newest returned completion time yields no duplicates.
+
+# Outcome
+
+> Closed retrospectively: the code shipped in the commits named below and the
+> proofs were reconstructed from the current code and test suite, not observed
+> at the time of delivery.
+
+Shipped in `b1fceac`. `cdx run --prompt-file -` reads the prompt from standard
+input, so a caller can pipe untrusted prompt text without staging a temporary
+file and without ever placing it on a command line.
+
+`test_run_reads_prompt_from_stdin` covers the path, and
+`test_run_refuses_stdin_prompt_from_a_terminal` covers the refusal - reading a
+prompt from an interactive terminal would hang waiting for input that is not
+coming, which reads to the caller as cdx being stuck rather than misused.
 
 # Decision framing
 - Product framing: Not needed

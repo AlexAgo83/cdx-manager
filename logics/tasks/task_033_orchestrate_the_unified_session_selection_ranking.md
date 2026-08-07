@@ -1,9 +1,9 @@
 ## task_033_orchestrate_the_unified_session_selection_ranking - Orchestrate the unified session selection ranking
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 95%
 > Complexity: Medium
 > Theme: Implementation delivery
@@ -25,21 +25,27 @@
 - [x] 9. Run the CLI, status-view, and notify test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.
 - [x] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
 - [x] Keep commit creation under operator control; do not force one commit per micro-step.
-- [ ] GATE: do not close until lint, audit, and scaffold validation pass.
+- [x] GATE: do not close until lint, audit, and scaffold validation pass.
 
 # Backlog
 - `item_047_extract_one_parameterized_session_ranking_used_by_every_selector`
 - `item_048_make_the_priority_setting_count_in_next_status_and_ready`
 
 # Definition of Done (DoD)
-- [ ] Generated request, product, backlog, and task docs are present.
-- [ ] Context-pack handoff is available when requested.
-- [ ] Validation passes.
-- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+- [x] Generated request, product, backlog, and task docs are present.
+- [x] Context-pack handoff is available when requested.
+- [x] Validation passes.
+- [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
-- request-AC1, request-AC2, request-AC4, request-AC5, request-AC7 -> `item_047_extract_one_parameterized_session_ranking_used_by_every_selector`. Proof deferred to slice closeout.
-- request-AC3, request-AC6, request-AC8 -> `item_048_make_the_priority_setting_count_in_next_status_and_ready`. Proof deferred to slice closeout.
+- request-AC1 -> `item_047`. Proof: `src/session_ranking.py` holds one parameterized ranking; every selector routes through it.
+- request-AC2 -> `item_047`. Proof: the provider filter, `--priority`, credits, reset scheduling and tiering all survive in `RANKING_FACTORS`; the characterisation tests caught three places where a naive merge would have dropped or inverted one.
+- request-AC3 -> `item_048`. Proof: `test_priority_orders_two_otherwise_equal_sessions` and `test_next_uses_same_priority_recommendation_as_status`.
+- request-AC4 -> `item_047`. Proof: `test_every_selector_agrees_on_the_best_session` asserts agreement across selectors directly rather than per command.
+- request-AC5 -> `item_047`. Proof: the reasoning-effort tie-break is an explicit factor with an entry in `FACTOR_DESCRIPTIONS`; `test_lower_reasoning_effort_wins_a_tie` pins its direction.
+- request-AC6 -> `item_048`. Proof: the factor names distinguish the user-set `--priority` from the recommendation ordering.
+- request-AC7 -> `item_047`. Proof: the characterisation suite ran against the old behaviour first; the three disagreements it surfaced were resolved deliberately and recorded, not absorbed silently.
+- request-AC8 -> `item_048`. Proof: README documents `--priority` as a tie-breaker applied after readiness and availability.
 
 # Validation
 - `npm run lint` and `npm test` (557 tests) clean.

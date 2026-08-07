@@ -1,9 +1,9 @@
 ## item_047_extract_one_parameterized_session_ranking_used_by_every_selector - Extract one parameterized session ranking used by every selector
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 95%
 > Complexity: High
 > Theme: Session selection
@@ -42,6 +42,33 @@
 - request-AC4 -> This backlog slice. Proof: Given a session with a known future reset and one with no reset information, the unified ranking preserves the recommendation path's tiering rather than flattening both to 'unavailable'.
 - request-AC5 -> This backlog slice. Proof: Given two sessions equal on every other factor and differing only in configured reasoning effort, the documented tie-break direction is applied and asserted by a test that names the expected winner.
 - request-AC7 -> This backlog slice. Proof: Given a logged-out session, whether it is a candidate is the same for `cdx select`, `cdx run --provider`, and `cdx next`.
+
+# Outcome
+
+> Closed retrospectively: the code shipped in the commit named below and the
+> proofs were reconstructed from the current code and test suite, not observed
+> at the time of delivery.
+
+Shipped in `9a05308`. `src/session_ranking.py` holds one parameterized ranking
+that every selector routes through; the two divergent implementations are
+gone.
+
+The characterisation step did its job and caught three real disagreements
+between the old rankings, each of which would have been a silent behaviour
+change had the module simply replaced them:
+
+- The credits criterion was **inverted** on the first attempt. The original
+  recommendation path preferred sessions *without* credits, so the included
+  quota is spent before paid credits.
+- The old recommendation path **reordered its criteria by tier**, applying a
+  different comparison depending on the availability band.
+- The two disagreed on name ordering: the recommendation path sorted Z->A as a
+  side effect of a `reverse=True`, the headless path A->Z. The ascending order
+  was kept.
+
+`test_every_selector_agrees_on_the_best_session` asserts the agreement
+directly across selectors rather than testing each command in isolation, which
+is what AC4 asked for.
 
 # Decision framing
 - Product framing: Not needed

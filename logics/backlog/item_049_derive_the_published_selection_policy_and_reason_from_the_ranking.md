@@ -1,9 +1,9 @@
 ## item_049_derive_the_published_selection_policy_and_reason_from_the_ranking - Derive the published selection policy and reason from the ranking
 > From version: 0.13.0
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
 > Progress: 95%
 > Complexity: Medium
 > Theme: Session selection
@@ -40,6 +40,25 @@
 - request-AC2 -> This backlog slice. Proof: Given a winner settled by `--priority` rather than availability, `reason` names priority.
 - request-AC6 -> This backlog slice. Proof: Given a winner settled by availability, `reason` names availability, matching today's message for that case.
 - request-AC7 -> This backlog slice. Proof: Given exactly one candidate, `reason` reports that it was the only candidate rather than naming a deciding factor.
+
+# Outcome
+
+> Closed retrospectively: the code shipped in the commit named below and the
+> proofs were reconstructed from the current code and test suite, not observed
+> at the time of delivery.
+
+Shipped in `9a05308`. `selection_policy()` is **built from** `RANKING_FACTORS`
+rather than written by hand, so changing the sort order changes what
+`cdx select` publishes without anyone remembering to edit a string. Its
+docstring records what the hand-written version had drifted into: it omitted
+the reasoning-effort tie-break entirely and described a candidate filter as a
+sort stage.
+
+`deciding_factor()` names the factor that actually separated the winner from
+the runner-up for that specific call, replacing the fixed sentence.
+`test_single_candidate_reports_no_deciding_factor` pins the honest answer in
+the case where nothing decided it, which is the case a fixed sentence gets
+wrong most confidently.
 
 # Decision framing
 - Product framing: Not needed
