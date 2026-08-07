@@ -1,0 +1,160 @@
+{
+  "title": "Unify the two divergent session selection rankings into one contract",
+  "references": [
+    "src/cli_commands.py",
+    "src/status_view.py",
+    "src/notify.py",
+    "src/cli.py",
+    "src/session_service.py",
+    "README.md",
+    "test/test_cli_py.py",
+    "test/test_status_view_py.py",
+    "test/test_notify_py.py"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Session selection",
+    "needs": [
+      "cdx answers the question 'which session should this work go to' with two independent ranking algorithms that do not agree, and a user cannot tell from the outside which one a given command consulted.",
+      "`_select_headless_session` (`src/cli_commands.py:1571`) backs `cdx select` and `cdx run --provider`. `_recommend_priority_sessions` (`src/status_view.py:202`) backs `cdx next`, the `cdx status` recommendation line, and — through `resolve_notify_event` (`src/notify.py:102`) — `cdx notify --next-ready` and `cdx ready`, which `src/cli.py:547` rewrites into the notify path.",
+      "The divergence is not cosmetic. The per-session `--priority` setting is honored only by the headless ranking; `cdx next` ignores it entirely. Conversely credits and reset scheduling are weighed only by the recommendation ranking, which the headless path never consults.",
+      "The naming actively misleads. `cdx next` prints a `Priority:` line produced by `_priority_instruction` (`src/status_view.py:249`), which has nothing to do with the `--priority` value a user set with `cdx set <name> --priority 90`. A user who tunes `--priority` and then runs `cdx next` to see the effect observes no change and has no way to learn why.",
+      "Two rankings also means two places to fix any future selection rule, and no single definition to publish to programmatic callers now that `cdx schema --json` exists as the discovery surface."
+    ],
+    "context": [
+      "`_select_headless_session` filters to one provider and to enabled sessions, optionally drops sessions failing `_row_blocks_ready` when `require_ready` is set, then sorts on the tuple `(-cooldown, -available_pct, -priority, reasoning_rank, name)` where `cooldown` is simply `available_pct > 0`.",
+      "`_recommend_priority_sessions` does not filter by provider at all. It buckets rows into four tiers — usable now, blocked but with a known future reset, reset known, everything else — and ranks within a tier on credits, reset timestamp, available percentage, and name. It never reads the session's `--priority` setting, and status rows do not even carry that field.",
+      "`recommend_priority_rows` (`src/status_view.py:189`) additionally drops rows whose auth status formats as `logged out`. The headless path applies its auth filter only when `require_ready` is true, so the two disagree on whether a logged-out session is a candidate.",
+      "In the headless sort tuple every term is negated for descending order except `reasoning_rank`, which stays positive and therefore sorts ascending. Two otherwise-equal sessions resolve in favour of the *lower* configured reasoning effort. That may be a deliberate cost preference, but it is undocumented and is the kind of rule that should be stated rather than inferred from a sign.",
+      "`_session_reasoning_effort` (`src/cli_commands.py:1535`) falls back to `low` when a session configures no effort, so `--min-reasoning-effort medium` excludes every unconfigured session regardless of what its provider actually defaults to.",
+      "`req_023` covers the reporting half — the hardcoded `selection_policy` and `reason` strings that already misdescribe today's ranking. It is deliberately separable and smaller; this request changes the rule, that one changes cdx's account of it.",
+      "`cdx run --provider` calls the selector with `force_refresh=False` hardcoded (`src/cli_commands.py:1248`) and exposes no way to change it, so auto-selection can decide on status data that was never fetched. A session with no recorded `available_pct` sorts as `-1.0`, behind a session sitting at one percent of its quota."
+    ],
+    "acceptance_criteria": [
+      "AC1: One ranking function decides session selection for every command that selects a session, parameterized by what each caller actually needs (provider filter on or off, readiness required or not) rather than duplicated per caller.",
+      "AC2: The unified ranking preserves the capabilities currently unique to each side: the provider filter and the `--priority` setting from the headless path, and the credits, reset-scheduling, and tiering behavior from the recommendation path.",
+      "AC3: A session's `--priority` setting measurably affects `cdx next`, `cdx status`'s recommendation, and `cdx ready`, not only `cdx select` and `cdx run --provider`. Raising one session's priority moves it ahead of an otherwise-equal session in every one of those commands.",
+      "AC4: `cdx select`, `cdx run --provider`, `cdx next`, and `cdx ready` agree on which session is best when given the same sessions, the same status rows, and equivalent constraints. A test asserts that agreement directly rather than testing each command in isolation.",
+      "AC5: The tie-break on reasoning effort is explicit and documented, whichever direction it settles on, instead of being implied by an un-negated term in a sort tuple.",
+      "AC6: The naming distinguishes the user-set `--priority` value from the recommendation ranking, so a `Priority:` line in cdx output and the `--priority` setting no longer refer to different things.",
+      "AC7: Selection behavior is unchanged for cases where the two rankings already agreed; the request unifies the rule, it does not silently retune which session gets picked in the common case.",
+      "AC8: The README documents the single selection rule once, and states how `--priority`, availability, resets, credits, and reasoning effort combine."
+    ]
+  },
+  "product": {
+    "title": "One session selection rule across every command",
+    "overview": "Replace the two divergent session ranking algorithms with a single parameterized rule, so every command that picks a session picks the same one, and so a user's `--priority` setting means the same thing everywhere.",
+    "goals": [
+      "Give cdx one definition of 'the best session to use right now'.",
+      "Make the `--priority` setting effective in every command that selects or recommends a session.",
+      "Keep the strengths of both current implementations rather than picking one and losing the other.",
+      "Make the ranking explainable: a caller should be able to learn why a session won.",
+      "Leave one place to change when a future selection rule is added."
+    ],
+    "non_goals": [
+      "No new selection inputs such as cost, latency, or historical success rate.",
+      "No change to how status rows themselves are gathered or refreshed.",
+      "No cross-provider selection in `cdx run --provider`, which is provider-scoped by definition.",
+      "No change to the `cdx ready` to `cdx notify --next-ready` aliasing.",
+      "No retuning of which session wins in cases where both current rankings already agree."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Extract one parameterized session ranking used by every selector",
+      "priority": "High",
+      "complexity": "High",
+      "theme": "Session selection",
+      "request_acs": [
+        "AC1",
+        "AC2",
+        "AC4",
+        "AC5",
+        "AC7"
+      ],
+      "problem": [
+        "`_select_headless_session` and `_recommend_priority_sessions` each implement a full ranking, with different inputs, different tie-breaks, and different candidate filtering.",
+        "Each has something the other lacks: the headless path filters by provider and honors `--priority`; the recommendation path understands credits, reset timestamps, and the difference between 'blocked with a known reset' and 'blocked with no information'.",
+        "Any future selection rule has to be written twice or it silently applies to only half the commands."
+      ],
+      "scope_in": [
+        "Define one ranking function taking the candidate sessions, their status rows, and an options object covering at minimum: provider filter, whether readiness is required, and a minimum reasoning effort.",
+        "Fold in the tiering, credits, and reset-timestamp handling from the recommendation path and the provider filter, `--priority`, and reasoning-effort floor from the headless path.",
+        "Settle the reasoning-effort tie-break deliberately, record the choice and its rationale in the code, and make the direction visible rather than implied by a sign in a tuple.",
+        "Align candidate filtering: decide once whether a logged-out session is ever a candidate, and apply that decision to both entry points instead of only when `require_ready` happens to be set.",
+        "Route `_select_headless_session`, `recommend_priority_rows`, and `resolve_notify_event`'s next-ready branch through the shared function.",
+        "Return enough structure alongside the winner for a caller to report which factor decided it, so this item can serve the reporting work tracked separately.",
+        "Add a characterization test suite over representative session sets, asserting the unified result matches today's behavior wherever the two rankings already agreed."
+      ],
+      "scope_out": [
+        "No new ranking inputs beyond what the two current implementations already use.",
+        "No change to the shape of status rows.",
+        "No change to command-line surfaces in this slice."
+      ],
+      "acceptance_criteria": [
+        "Given the same sessions and status rows, `cdx select --provider P`, `cdx run --provider P`, and the recommendation shown by `cdx next` name the same session whenever the constraints are equivalent.",
+        "Given a set where both current implementations already agree on the winner, the unified ranking returns that same winner.",
+        "Given a session with a known future reset and one with no reset information, the unified ranking preserves the recommendation path's tiering rather than flattening both to 'unavailable'.",
+        "Given two sessions equal on every other factor and differing only in configured reasoning effort, the documented tie-break direction is applied and asserted by a test that names the expected winner.",
+        "Given a logged-out session, whether it is a candidate is the same for `cdx select`, `cdx run --provider`, and `cdx next`.",
+        "Only one function in the codebase orders sessions by desirability; a test or a grep-backed assertion prevents a second ranking from reappearing."
+      ]
+    },
+    {
+      "title": "Make the priority setting count in next, status, and ready",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Session selection",
+      "request_acs": [
+        "AC3",
+        "AC6",
+        "AC8"
+      ],
+      "problem": [
+        "`cdx set <name> --priority 90` currently changes only `cdx select` and `cdx run --provider`. `cdx next`, the `cdx status` recommendation line, and `cdx ready` ignore it.",
+        "Status rows do not carry the setting at all, so the recommendation ranking could not honor it even if it wanted to.",
+        "`cdx next` prints a `Priority:` line derived from `_priority_instruction`, which describes the recommendation ranking rather than the `--priority` value. A user tuning `--priority` and checking `cdx next` sees an unchanged line labelled 'Priority' and has no signal that the two are unrelated."
+      ],
+      "scope_in": [
+        "Carry the session's configured priority through to the status rows the recommendation path consumes.",
+        "Weigh it in the unified ranking so it affects `cdx next`, the `cdx status` recommendation, and `cdx ready` alongside the existing factors.",
+        "Decide and document where priority sits relative to availability and reset tiering — specifically whether a high-priority session that is currently unusable outranks a usable low-priority one, which is the case that determines whether the setting feels honored or ignored.",
+        "Resolve the naming collision between the user-set `--priority` and the recommendation ranking in user-facing output, so a `Priority:` line and the `--priority` setting no longer name different concepts.",
+        "Document in the README what `--priority` actually influences, now that the answer is 'every selection command' rather than 'some of them'.",
+        "Add tests asserting that raising one session's priority changes the winner reported by `cdx next`, `cdx status`, and `cdx ready`, and that an unset priority behaves exactly as today."
+      ],
+      "scope_out": [
+        "No change to the accepted range or validation of `--priority`.",
+        "No automatic priority assignment or inference.",
+        "No per-command priority overrides."
+      ],
+      "acceptance_criteria": [
+        "Given two otherwise-equal sessions where one has a higher `--priority`, `cdx next` names the higher-priority session.",
+        "Given the same pair, the `cdx status` recommendation and `cdx ready` name that same session.",
+        "Given no session with an explicit priority, the ordering reported by every affected command is unchanged from current behavior.",
+        "Given a high-priority session that is currently unusable and a usable lower-priority one, the documented rule is applied and a test asserts the expected winner by name.",
+        "No user-facing output uses the word priority for both the `--priority` setting and the recommendation ranking without distinguishing them.",
+        "The README states which commands `--priority` influences and how it combines with availability and resets."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate the unified session selection ranking",
+    "plan": [
+      "Characterize first: build a fixture set of sessions and status rows covering usable, cooling-down, blocked-with-reset, blocked-without-reset, logged-out, disabled, credit-bearing, and priority-tuned cases. Record what each current entry point picks for every fixture, so the refactor has a baseline instead of an intention.",
+      "Identify from that baseline exactly which fixtures the two rankings already disagree on. Those are the only cases where behavior may legitimately change; every other fixture is a regression guard.",
+      "Extract the unified ranking, folding in provider filtering, `--priority`, the reasoning-effort floor, tiering, credits, and reset timestamps. Settle the reasoning-effort tie-break and the logged-out candidacy question explicitly, recording the rationale in the code.",
+      "Route `_select_headless_session`, `recommend_priority_rows`, and `resolve_notify_event`'s next-ready branch through it, one caller at a time, re-running the characterization suite after each so a divergence is attributed to the caller that introduced it.",
+      "Carry the configured priority into status rows and weigh it in the unified ranking, then settle where priority sits relative to availability and reset tiering — this is the decision that determines whether the setting feels honored.",
+      "Resolve the `Priority:` naming collision in user-facing output.",
+      "Return the deciding factor alongside the winner, so the separate reporting work has something truthful to publish.",
+      "Update the README to document one selection rule, replacing any per-command description.",
+      "Run the CLI, status-view, and notify test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/unify_session_selection_ranking.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}

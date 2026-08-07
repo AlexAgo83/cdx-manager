@@ -1,0 +1,400 @@
+{
+  "budgets": {
+    "max_docs": 16,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_047_extract_one_parameterized_session_ranking_used_by_every_selector.md",
+    "logics/backlog/item_048_make_the_priority_setting_count_in_next_status_and_ready.md",
+    "logics/backlog/item_049_derive_the_published_selection_policy_and_reason_from_the_ranking.md",
+    "logics/backlog/item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind.md",
+    "logics/context-packs/unify_session_selection_ranking.json",
+    "logics/product/prod_012_one_session_selection_rule_across_every_command.md",
+    "logics/product/prod_013_truthful_reporting_of_how_a_session_was_selected.md",
+    "logics/request/req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract.md",
+    "logics/request/req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow.md",
+    "logics/scaffold/truthful_selection_reporting.json",
+    "logics/scaffold/unify_session_selection_ranking.json",
+    "logics/tasks/task_033_orchestrate_the_unified_session_selection_ranking.md",
+    "logics/tasks/task_034_orchestrate_truthful_selection_reporting.md"
+  ],
+  "command": "logics-manager sync context-pack req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow item_049_derive_the_published_selection_policy_and_reason_from_the_ranking item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind task_034_orchestrate_truthful_selection_reporting --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_049_derive_the_published_selection_policy_and_reason_from_the_ranking",
+          "item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind"
+        ],
+        "prod": [
+          "prod_013_truthful_reporting_of_how_a_session_was_selected"
+        ],
+        "req": [
+          "req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow"
+        ],
+        "task": [
+          "task_034_orchestrate_truthful_selection_reporting"
+        ]
+      },
+      "path": "logics/product/prod_013_truthful_reporting_of_how_a_session_was_selected.md",
+      "ref": "prod_013_truthful_reporting_of_how_a_session_was_selected",
+      "sections": {
+        "Goals": [
+          "- Never publish a selection policy the code does not follow.",
+          "- Tell a caller which factor actually decided, not which one usually does.",
+          "- Let a caller who cares about freshness ask for it.",
+          "- Distinguish 'this session has low availability' from 'we have no idea what this session's availability is'."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Make cdx's account of its own session selection derived rather than hand-written, and let a caller both request fresh status and learn when a choice was made without it."
+        ],
+        "References": [
+          "- Product back-reference: `req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow`",
+          "- Task back-reference: `task_034_orchestrate_truthful_selection_reporting`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Truthful reporting of how a session was selected"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, stop cdx select from publishing a selection policy and reason it does not follow, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Stop cdx select from publishing a selection policy and reason it does not follow",
+        "use when": "You need to implement or review the scaffolded workflow for Stop cdx select from publishing a selection policy and reason it does not follow."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_049_derive_the_published_selection_policy_and_reason_from_the_ranking",
+          "item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind"
+        ],
+        "prod": [
+          "prod_013_truthful_reporting_of_how_a_session_was_selected"
+        ],
+        "req": [
+          "req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow"
+        ]
+      },
+      "path": "logics/request/req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow.md",
+      "ref": "req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: The `selection_policy` reported by `cdx select` is derived from the ranking the code actually applies, so a change to the sort order changes the published string without anyone editing it, and a test fails if the two can disagree.",
+          "- AC2: The `reason` reported by `cdx select` names the factor that actually decided the winner for that call, rather than a fixed sentence.",
+          "- AC3: `cdx run --provider` accepts a refresh option so a caller can require fresh status before auto-selection, with the current cached behavior remaining the default.",
+          "- AC4: When auto-selection picks a session whose availability is unknown, the payload carries a warning saying the decision was made without status data, distinct from a session known to be at low availability.",
+          "- AC5: `cdx schema --json` lists any new warning codes introduced here, consistent with it already publishing the existing ones.",
+          "- AC6: Existing successful behavior is unchanged: the same session is selected as before for the same inputs, and no exit code or existing field changes meaning."
+        ],
+        "Needs": [
+          "- `cdx select --json` publishes a `selection_policy` string and a `reason` string that describe how the session was chosen. Both are hardcoded and neither matches what the code does, so a programmatic caller reading them is misinformed.",
+          "- `cdx run --provider` picks a session from status data that may never have been fetched, with no way to ask for fresh data and no signal that the decision rested on unknown values.",
+          "- Both are the same failure the `warnings` channel and `cdx schema --json` were just introduced to close: cdx stating something about itself that is written by hand and therefore free to drift from what it actually does."
+        ]
+      },
+      "status": "Draft",
+      "title": "Stop cdx select from publishing a selection policy and reason it does not follow"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, derive the published selection policy and reason from the ranking, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Derive the published selection policy and reason from the ranking",
+        "use when": "Implementing the scaffolded slice for Derive the published selection policy and reason from the ranking."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_049_derive_the_published_selection_policy_and_reason_from_the_ranking"
+        ],
+        "prod": [
+          "prod_013_truthful_reporting_of_how_a_session_was_selected"
+        ],
+        "req": [
+          "req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow"
+        ],
+        "task": [
+          "task_034_orchestrate_truthful_selection_reporting"
+        ]
+      },
+      "path": "logics/backlog/item_049_derive_the_published_selection_policy_and_reason_from_the_ranking.md",
+      "ref": "item_049_derive_the_published_selection_policy_and_reason_from_the_ranking",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Given any selection, the published `selection_policy` lists exactly the factors the sort key uses, in the same order.",
+          "- Given a winner settled by `--priority` rather than availability, `reason` names priority.",
+          "- Given a winner settled by availability, `reason` names availability, matching today's message for that case.",
+          "- Given exactly one candidate, `reason` reports that it was the only candidate rather than naming a deciding factor.",
+          "- Given a change to the ordered factor list, a test fails unless the published policy changes with it.",
+          "- Given the same sessions and status rows as before this change, the selected session is identical."
+        ],
+        "Problem": [
+          "- `policy` and `reason` in `handle_select` are literals that were accurate at some point and are not now. The published policy omits the reasoning-effort tie-break and presents the readiness filter as a sort stage.",
+          "- `reason` claims availability decided the outcome even when priority, reasoning effort, or the alphabetical fallback did.",
+          "- Nothing fails when the sort key changes and the strings do not, which is exactly how they came to be wrong."
+        ]
+      },
+      "status": "Ready",
+      "title": "Derive the published selection policy and reason from the ranking"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, let run --provider refresh status and warn when it selects blind, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Let run --provider refresh status and warn when it selects blind",
+        "use when": "Implementing the scaffolded slice for Let run --provider refresh status and warn when it selects blind."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind"
+        ],
+        "prod": [
+          "prod_013_truthful_reporting_of_how_a_session_was_selected"
+        ],
+        "req": [
+          "req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow"
+        ],
+        "task": [
+          "task_034_orchestrate_truthful_selection_reporting"
+        ]
+      },
+      "path": "logics/backlog/item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind.md",
+      "ref": "item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Given `cdx run --provider P` with the refresh option, the selector is invoked with refreshed status; without it, cached status is used exactly as today.",
+          "- Given an auto-selected session whose `available_pct` was unknown, the run payload carries a warning naming that session and stating the selection ran without status data.",
+          "- Given an auto-selected session with a known low availability, no such warning is emitted.",
+          "- Given a session named explicitly rather than auto-selected, no selection warning is emitted regardless of status.",
+          "- `cdx schema --json` lists the new warning code.",
+          "- Exit codes and every existing payload field keep their current meaning."
+        ],
+        "Problem": [
+          "- `handle_run` hardcodes `force_refresh=False`, so `cdx run --provider` cannot be told to fetch fresh status before choosing, while `cdx select` can.",
+          "- A session with no recorded `available_pct` is mapped to `-1.0` and sorts behind a session at one percent. The payload gives no hint that the ranking ran on absent data.",
+          "- On a freshly imported or long-idle set of sessions this is the ordinary case, so an auto-selected run can quietly land on a session chosen by alphabetical fallback."
+        ]
+      },
+      "status": "Ready",
+      "title": "Let run --provider refresh status and warn when it selects blind"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_049_derive_the_published_selection_policy_and_reason_from_the_ranking",
+          "item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind"
+        ],
+        "prod": [
+          "prod_013_truthful_reporting_of_how_a_session_was_selected"
+        ],
+        "req": [
+          "req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow"
+        ],
+        "task": [
+          "task_034_orchestrate_truthful_selection_reporting"
+        ]
+      },
+      "path": "logics/product/prod_013_truthful_reporting_of_how_a_session_was_selected.md",
+      "ref": "prod_013_truthful_reporting_of_how_a_session_was_selected",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Truthful reporting of how a session was selected"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate truthful selection reporting",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_049_derive_the_published_selection_policy_and_reason_from_the_ranking",
+          "item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind"
+        ],
+        "prod": [
+          "prod_013_truthful_reporting_of_how_a_session_was_selected"
+        ],
+        "req": [
+          "req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow"
+        ],
+        "task": [
+          "task_034_orchestrate_truthful_selection_reporting"
+        ]
+      },
+      "path": "logics/tasks/task_034_orchestrate_truthful_selection_reporting.md",
+      "ref": "task_034_orchestrate_truthful_selection_reporting",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate truthful selection reporting"
+    }
+  ],
+  "estimates": {
+    "char_count": 10893,
+    "companion_doc_count": 1,
+    "doc_count": 5
+  },
+  "generated_at": "2026-08-07T12:18:10Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow",
+      "item_049_derive_the_published_selection_policy_and_reason_from_the_ranking",
+      "item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind",
+      "task_034_orchestrate_truthful_selection_reporting"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow,item_049_derive_the_published_selection_policy_and_reason_from_the_ranking,item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind,task_034_orchestrate_truthful_selection_reporting",
+  "refs": [
+    "req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow",
+    "item_049_derive_the_published_selection_policy_and_reason_from_the_ranking",
+    "item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind",
+    "task_034_orchestrate_truthful_selection_reporting"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: version sources disagree (0.12.4, 0.13.0)",
+      "version_metadata: evidence targets a different commit",
+      "changelog: evidence targets a different commit",
+      "release_checksums: evidence targets a different commit",
+      "local_validation: evidence targets a different commit",
+      "git_push: evidence targets a different commit",
+      "ci: evidence targets a different commit"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: version sources disagree (0.12.4, 0.13.0)",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": null
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_034_orchestrate_truthful_selection_reporting.md",
+      "ref": "task_034_orchestrate_truthful_selection_reporting"
+    }
+  ]
+}

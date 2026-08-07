@@ -1,0 +1,397 @@
+{
+  "budgets": {
+    "max_docs": 16,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_047_extract_one_parameterized_session_ranking_used_by_every_selector.md",
+    "logics/backlog/item_048_make_the_priority_setting_count_in_next_status_and_ready.md",
+    "logics/product/prod_012_one_session_selection_rule_across_every_command.md",
+    "logics/request/req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract.md",
+    "logics/scaffold/truthful_selection_reporting.json",
+    "logics/scaffold/unify_session_selection_ranking.json",
+    "logics/tasks/task_033_orchestrate_the_unified_session_selection_ranking.md"
+  ],
+  "command": "logics-manager sync context-pack req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract item_047_extract_one_parameterized_session_ranking_used_by_every_selector item_048_make_the_priority_setting_count_in_next_status_and_ready task_033_orchestrate_the_unified_session_selection_ranking --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_047_extract_one_parameterized_session_ranking_used_by_every_selector",
+          "item_048_make_the_priority_setting_count_in_next_status_and_ready"
+        ],
+        "prod": [
+          "prod_012_one_session_selection_rule_across_every_command"
+        ],
+        "req": [
+          "req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract"
+        ],
+        "task": [
+          "task_033_orchestrate_the_unified_session_selection_ranking"
+        ]
+      },
+      "path": "logics/product/prod_012_one_session_selection_rule_across_every_command.md",
+      "ref": "prod_012_one_session_selection_rule_across_every_command",
+      "sections": {
+        "Goals": [
+          "- Give cdx one definition of 'the best session to use right now'.",
+          "- Make the `--priority` setting effective in every command that selects or recommends a session.",
+          "- Keep the strengths of both current implementations rather than picking one and losing the other.",
+          "- Make the ranking explainable: a caller should be able to learn why a session won.",
+          "- Leave one place to change when a future selection rule is added."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Replace the two divergent session ranking algorithms with a single parameterized rule, so every command that picks a session picks the same one, and so a user's `--priority` setting means the same thing everywhere."
+        ],
+        "References": [
+          "- Product back-reference: `req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract`",
+          "- Task back-reference: `task_033_orchestrate_the_unified_session_selection_ranking`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "One session selection rule across every command"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, unify the two divergent session selection rankings into one contract, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Unify the two divergent session selection rankings into one contract",
+        "use when": "You need to implement or review the scaffolded workflow for Unify the two divergent session selection rankings into one contract."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_047_extract_one_parameterized_session_ranking_used_by_every_selector",
+          "item_048_make_the_priority_setting_count_in_next_status_and_ready"
+        ],
+        "prod": [
+          "prod_012_one_session_selection_rule_across_every_command"
+        ],
+        "req": [
+          "req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract"
+        ]
+      },
+      "path": "logics/request/req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract.md",
+      "ref": "req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: One ranking function decides session selection for every command that selects a session, parameterized by what each caller actually needs (provider filter on or off, readiness required or not) rather than duplicated per caller.",
+          "- AC2: The unified ranking preserves the capabilities currently unique to each side: the provider filter and the `--priority` setting from the headless path, and the credits, reset-scheduling, and tiering behavior from the recommendation path.",
+          "- AC3: A session's `--priority` setting measurably affects `cdx next`, `cdx status`'s recommendation, and `cdx ready`, not only `cdx select` and `cdx run --provider`. Raising one session's priority moves it ahead of an otherwise-equal session in every one of those commands.",
+          "- AC4: `cdx select`, `cdx run --provider`, `cdx next`, and `cdx ready` agree on which session is best when given the same sessions, the same status rows, and equivalent constraints. A test asserts that agreement directly rather than testing each command in isolation.",
+          "- AC5: The tie-break on reasoning effort is explicit and documented, whichever direction it settles on, instead of being implied by an un-negated term in a sort tuple.",
+          "- AC6: The naming distinguishes the user-set `--priority` value from the recommendation ranking, so a `Priority:` line in cdx output and the `--priority` setting no longer refer to different things."
+        ],
+        "Needs": [
+          "- cdx answers the question 'which session should this work go to' with two independent ranking algorithms that do not agree, and a user cannot tell from the outside which one a given command consulted.",
+          "- `_select_headless_session` (`src/cli_commands.py:1571`) backs `cdx select` and `cdx run --provider`. `_recommend_priority_sessions` (`src/status_view.py:202`) backs `cdx next`, the `cdx status` recommendation line, and \u2014 through `resolve_notify_event` (`src/notify.py:102`) \u2014 `cdx notify --next-ready` and `cdx ready`, which `src/cli.py:547` rewrites into the notify path.",
+          "- The divergence is not cosmetic. The per-session `--priority` setting is honored only by the headless ranking; `cdx next` ignores it entirely. Conversely credits and reset scheduling are weighed only by the recommendation ranking, which the headless path never consults.",
+          "- The naming actively misleads. `cdx next` prints a `Priority:` line produced by `_priority_instruction` (`src/status_view.py:249`), which has nothing to do with the `--priority` value a user set with `cdx set <name> --priority 90`. A user who tunes `--priority` and then runs `cdx next` to see the effect observes no change and has no way to learn why.",
+          "- Two rankings also means two places to fix any future selection rule, and no single definition to publish to programmatic callers now that `cdx schema --json` exists as the discovery surface."
+        ]
+      },
+      "status": "Draft",
+      "title": "Unify the two divergent session selection rankings into one contract"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, extract one parameterized session ranking used by every selector, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Extract one parameterized session ranking used by every selector",
+        "use when": "Implementing the scaffolded slice for Extract one parameterized session ranking used by every selector."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_047_extract_one_parameterized_session_ranking_used_by_every_selector"
+        ],
+        "prod": [
+          "prod_012_one_session_selection_rule_across_every_command"
+        ],
+        "req": [
+          "req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract"
+        ],
+        "task": [
+          "task_033_orchestrate_the_unified_session_selection_ranking"
+        ]
+      },
+      "path": "logics/backlog/item_047_extract_one_parameterized_session_ranking_used_by_every_selector.md",
+      "ref": "item_047_extract_one_parameterized_session_ranking_used_by_every_selector",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Given the same sessions and status rows, `cdx select --provider P`, `cdx run --provider P`, and the recommendation shown by `cdx next` name the same session whenever the constraints are equivalent.",
+          "- Given a set where both current implementations already agree on the winner, the unified ranking returns that same winner.",
+          "- Given a session with a known future reset and one with no reset information, the unified ranking preserves the recommendation path's tiering rather than flattening both to 'unavailable'.",
+          "- Given two sessions equal on every other factor and differing only in configured reasoning effort, the documented tie-break direction is applied and asserted by a test that names the expected winner.",
+          "- Given a logged-out session, whether it is a candidate is the same for `cdx select`, `cdx run --provider`, and `cdx next`.",
+          "- Only one function in the codebase orders sessions by desirability; a test or a grep-backed assertion prevents a second ranking from reappearing."
+        ],
+        "Problem": [
+          "- `_select_headless_session` and `_recommend_priority_sessions` each implement a full ranking, with different inputs, different tie-breaks, and different candidate filtering.",
+          "- Each has something the other lacks: the headless path filters by provider and honors `--priority`; the recommendation path understands credits, reset timestamps, and the difference between 'blocked with a known reset' and 'blocked with no information'.",
+          "- Any future selection rule has to be written twice or it silently applies to only half the commands."
+        ]
+      },
+      "status": "Ready",
+      "title": "Extract one parameterized session ranking used by every selector"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, make the priority setting count in next, status, and ready, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Make the priority setting count in next, status, and ready",
+        "use when": "Implementing the scaffolded slice for Make the priority setting count in next, status, and ready."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_048_make_the_priority_setting_count_in_next_status_and_ready"
+        ],
+        "prod": [
+          "prod_012_one_session_selection_rule_across_every_command"
+        ],
+        "req": [
+          "req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract"
+        ],
+        "task": [
+          "task_033_orchestrate_the_unified_session_selection_ranking"
+        ]
+      },
+      "path": "logics/backlog/item_048_make_the_priority_setting_count_in_next_status_and_ready.md",
+      "ref": "item_048_make_the_priority_setting_count_in_next_status_and_ready",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Given two otherwise-equal sessions where one has a higher `--priority`, `cdx next` names the higher-priority session.",
+          "- Given the same pair, the `cdx status` recommendation and `cdx ready` name that same session.",
+          "- Given no session with an explicit priority, the ordering reported by every affected command is unchanged from current behavior.",
+          "- Given a high-priority session that is currently unusable and a usable lower-priority one, the documented rule is applied and a test asserts the expected winner by name.",
+          "- No user-facing output uses the word priority for both the `--priority` setting and the recommendation ranking without distinguishing them.",
+          "- The README states which commands `--priority` influences and how it combines with availability and resets."
+        ],
+        "Problem": [
+          "- `cdx set <name> --priority 90` currently changes only `cdx select` and `cdx run --provider`. `cdx next`, the `cdx status` recommendation line, and `cdx ready` ignore it.",
+          "- Status rows do not carry the setting at all, so the recommendation ranking could not honor it even if it wanted to.",
+          "- `cdx next` prints a `Priority:` line derived from `_priority_instruction`, which describes the recommendation ranking rather than the `--priority` value. A user tuning `--priority` and checking `cdx next` sees an unchanged line labelled 'Priority' and has no signal that the two are unrelated."
+        ]
+      },
+      "status": "Ready",
+      "title": "Make the priority setting count in next, status, and ready"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_047_extract_one_parameterized_session_ranking_used_by_every_selector",
+          "item_048_make_the_priority_setting_count_in_next_status_and_ready"
+        ],
+        "prod": [
+          "prod_012_one_session_selection_rule_across_every_command"
+        ],
+        "req": [
+          "req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract"
+        ],
+        "task": [
+          "task_033_orchestrate_the_unified_session_selection_ranking"
+        ]
+      },
+      "path": "logics/product/prod_012_one_session_selection_rule_across_every_command.md",
+      "ref": "prod_012_one_session_selection_rule_across_every_command",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "One session selection rule across every command"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate the unified session selection ranking",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_047_extract_one_parameterized_session_ranking_used_by_every_selector",
+          "item_048_make_the_priority_setting_count_in_next_status_and_ready"
+        ],
+        "prod": [
+          "prod_012_one_session_selection_rule_across_every_command"
+        ],
+        "req": [
+          "req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract"
+        ],
+        "task": [
+          "task_033_orchestrate_the_unified_session_selection_ranking"
+        ]
+      },
+      "path": "logics/tasks/task_033_orchestrate_the_unified_session_selection_ranking.md",
+      "ref": "task_033_orchestrate_the_unified_session_selection_ranking",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate the unified session selection ranking"
+    }
+  ],
+  "estimates": {
+    "char_count": 12642,
+    "companion_doc_count": 1,
+    "doc_count": 5
+  },
+  "generated_at": "2026-08-07T12:18:07Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract",
+      "item_047_extract_one_parameterized_session_ranking_used_by_every_selector",
+      "item_048_make_the_priority_setting_count_in_next_status_and_ready",
+      "task_033_orchestrate_the_unified_session_selection_ranking"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract,item_047_extract_one_parameterized_session_ranking_used_by_every_selector,item_048_make_the_priority_setting_count_in_next_status_and_ready,task_033_orchestrate_the_unified_session_selection_ranking",
+  "refs": [
+    "req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract",
+    "item_047_extract_one_parameterized_session_ranking_used_by_every_selector",
+    "item_048_make_the_priority_setting_count_in_next_status_and_ready",
+    "task_033_orchestrate_the_unified_session_selection_ranking"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: version sources disagree (0.12.4, 0.13.0)",
+      "version_metadata: evidence targets a different commit",
+      "changelog: evidence targets a different commit",
+      "release_checksums: evidence targets a different commit",
+      "local_validation: evidence targets a different commit",
+      "git_push: evidence targets a different commit",
+      "ci: evidence targets a different commit"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: version sources disagree (0.12.4, 0.13.0)",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": null
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_033_orchestrate_the_unified_session_selection_ranking.md",
+      "ref": "task_033_orchestrate_the_unified_session_selection_ranking"
+    }
+  ]
+}

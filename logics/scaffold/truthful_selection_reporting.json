@@ -1,0 +1,148 @@
+{
+  "title": "Stop cdx select from publishing a selection policy and reason it does not follow",
+  "references": [
+    "src/cli_commands.py",
+    "src/cli_args.py",
+    "src/run_command.py",
+    "README.md",
+    "test/test_cli_py.py"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Session selection",
+    "needs": [
+      "`cdx select --json` publishes a `selection_policy` string and a `reason` string that describe how the session was chosen. Both are hardcoded and neither matches what the code does, so a programmatic caller reading them is misinformed.",
+      "`cdx run --provider` picks a session from status data that may never have been fetched, with no way to ask for fresh data and no signal that the decision rested on unknown values.",
+      "Both are the same failure the `warnings` channel and `cdx schema --json` were just introduced to close: cdx stating something about itself that is written by hand and therefore free to drift from what it actually does."
+    ],
+    "context": [
+      "`handle_select` sets `policy = \"ready_then_cooldown_then_health_then_priority_then_name\"` (`src/cli_commands.py:858`) as a literal. The real sort key in `_select_headless_session` (`src/cli_commands.py:1571`) is `(-cooldown, -available_pct, -priority, reasoning_rank, name)`. The reasoning-effort term is absent from the published string entirely, and `ready` is not a sort stage at all — it is a candidate filter, applied only when `--require-ready` is passed.",
+      "`reason = \"highest availability suitable session\"` (`src/cli_commands.py:873`) is likewise a literal, returned unchanged whether availability actually decided the outcome or whether the winner was settled on priority, reasoning effort, or alphabetical order.",
+      "`handle_run` calls the selector with `force_refresh=False` hardcoded (`src/cli_commands.py:1248`). `cdx select` exposes `--refresh`; `cdx run --provider` exposes no equivalent.",
+      "A session whose status was never recorded has `available_pct` of `None`, which the selector maps to `-1.0`. It therefore sorts behind a session sitting at one percent of its quota. On a freshly imported or long-idle set of sessions this is the normal case, not an edge case, and nothing in the payload distinguishes 'lowest availability' from 'availability unknown'.",
+      "Relationship to `req_022`: that request unifies the two rankings; this one only fixes what cdx *says* about the ranking it has. Both orders work. Done first, this request derives its policy string and deciding factor from today's headless sort key, and `req_022` moves them when it replaces that key — the drift test added here is what makes the move safe. Done second, `req_022` will already have exposed the deciding factor and this request only has to publish it. Neither blocks the other, and this one is deliberately the smaller, shippable half.",
+      "The run payload now has a populated `warnings` list and cdx publishes `cdx schema --json`, so there is an established channel for reporting a degraded decision and an established expectation that published contract strings are derived rather than typed."
+    ],
+    "acceptance_criteria": [
+      "AC1: The `selection_policy` reported by `cdx select` is derived from the ranking the code actually applies, so a change to the sort order changes the published string without anyone editing it, and a test fails if the two can disagree.",
+      "AC2: The `reason` reported by `cdx select` names the factor that actually decided the winner for that call, rather than a fixed sentence.",
+      "AC3: `cdx run --provider` accepts a refresh option so a caller can require fresh status before auto-selection, with the current cached behavior remaining the default.",
+      "AC4: When auto-selection picks a session whose availability is unknown, the payload carries a warning saying the decision was made without status data, distinct from a session known to be at low availability.",
+      "AC5: `cdx schema --json` lists any new warning codes introduced here, consistent with it already publishing the existing ones.",
+      "AC6: Existing successful behavior is unchanged: the same session is selected as before for the same inputs, and no exit code or existing field changes meaning.",
+      "AC7: The README describes what `selection_policy` and `reason` mean and warns callers not to parse the policy string as a stable identifier if it is derived."
+    ]
+  },
+  "product": {
+    "title": "Truthful reporting of how a session was selected",
+    "overview": "Make cdx's account of its own session selection derived rather than hand-written, and let a caller both request fresh status and learn when a choice was made without it.",
+    "goals": [
+      "Never publish a selection policy the code does not follow.",
+      "Tell a caller which factor actually decided, not which one usually does.",
+      "Let a caller who cares about freshness ask for it.",
+      "Distinguish 'this session has low availability' from 'we have no idea what this session's availability is'."
+    ],
+    "non_goals": [
+      "No change to the ranking itself; that is tracked separately.",
+      "No new status-gathering mechanism.",
+      "No refresh-by-default, which would make every auto-selected run pay for a provider probe.",
+      "No stable machine identifier for a policy, if the policy string is derived and therefore free to change."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Derive the published selection policy and reason from the ranking",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Session selection",
+      "request_acs": [
+        "AC1",
+        "AC2",
+        "AC6",
+        "AC7"
+      ],
+      "problem": [
+        "`policy` and `reason` in `handle_select` are literals that were accurate at some point and are not now. The published policy omits the reasoning-effort tie-break and presents the readiness filter as a sort stage.",
+        "`reason` claims availability decided the outcome even when priority, reasoning effort, or the alphabetical fallback did.",
+        "Nothing fails when the sort key changes and the strings do not, which is exactly how they came to be wrong."
+      ],
+      "scope_in": [
+        "Name the ranking's ordered factors in one place and build both the sort key and the published `selection_policy` from that single definition.",
+        "Describe candidate filtering separately from ordering in the payload, since readiness excludes candidates rather than ordering them.",
+        "Have the ranking report which factor first separated the winner from the runner-up, and use that for `reason`.",
+        "Handle the single-candidate case explicitly: with nothing to compare against, `reason` should say so rather than name an arbitrary factor.",
+        "Add a test that fails if the sort key and the published policy can disagree, in the spirit of the existing schema drift test.",
+        "Document both fields in the README's programmatic-caller section."
+      ],
+      "scope_out": [
+        "No change to the ranking or to which session is selected.",
+        "No stable enumerated policy identifier.",
+        "No reporting of the full ranked list."
+      ],
+      "acceptance_criteria": [
+        "Given any selection, the published `selection_policy` lists exactly the factors the sort key uses, in the same order.",
+        "Given a winner settled by `--priority` rather than availability, `reason` names priority.",
+        "Given a winner settled by availability, `reason` names availability, matching today's message for that case.",
+        "Given exactly one candidate, `reason` reports that it was the only candidate rather than naming a deciding factor.",
+        "Given a change to the ordered factor list, a test fails unless the published policy changes with it.",
+        "Given the same sessions and status rows as before this change, the selected session is identical."
+      ]
+    },
+    {
+      "title": "Let run --provider refresh status and warn when it selects blind",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Session selection",
+      "request_acs": [
+        "AC3",
+        "AC4",
+        "AC5",
+        "AC6"
+      ],
+      "problem": [
+        "`handle_run` hardcodes `force_refresh=False`, so `cdx run --provider` cannot be told to fetch fresh status before choosing, while `cdx select` can.",
+        "A session with no recorded `available_pct` is mapped to `-1.0` and sorts behind a session at one percent. The payload gives no hint that the ranking ran on absent data.",
+        "On a freshly imported or long-idle set of sessions this is the ordinary case, so an auto-selected run can quietly land on a session chosen by alphabetical fallback."
+      ],
+      "scope_in": [
+        "Add a refresh option to `cdx run` that forwards to the selector's `force_refresh`, keeping cached status as the default so ordinary runs do not each pay for a provider probe.",
+        "Emit a warning on the run payload when the selected session's availability was unknown at selection time, naming the session and stating that the choice was made without status data.",
+        "Keep that warning distinct from a session known to be at low availability, which is a different situation and not a degradation.",
+        "Publish the new warning code through `cdx schema --json` alongside the existing ones.",
+        "Document the option and the warning in the README's programmatic-caller section.",
+        "Add tests for the refresh option reaching the selector, the warning firing on unknown availability, and its absence when availability is known — including when it is known to be low."
+      ],
+      "scope_out": [
+        "No refresh by default.",
+        "No refresh option on commands that do not select a session.",
+        "No change to the ranking's treatment of unknown availability, only to what is reported about it."
+      ],
+      "acceptance_criteria": [
+        "Given `cdx run --provider P` with the refresh option, the selector is invoked with refreshed status; without it, cached status is used exactly as today.",
+        "Given an auto-selected session whose `available_pct` was unknown, the run payload carries a warning naming that session and stating the selection ran without status data.",
+        "Given an auto-selected session with a known low availability, no such warning is emitted.",
+        "Given a session named explicitly rather than auto-selected, no selection warning is emitted regardless of status.",
+        "`cdx schema --json` lists the new warning code.",
+        "Exit codes and every existing payload field keep their current meaning."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate truthful selection reporting",
+    "plan": [
+      "Capture the current `cdx select --json` payload for a few session sets, including one where availability does not decide the winner, so the change can be checked against what callers see today.",
+      "Introduce a single ordered definition of the ranking's factors and build both the sort key and the published policy from it, plus the drift test that keeps them together.",
+      "Have the ranking report which factor first separated the winner from the runner-up, covering the single-candidate case explicitly, and use it for `reason`.",
+      "Add the refresh option to `cdx run` and forward it to the selector, leaving cached status as the default.",
+      "Emit the unknown-availability warning through the run payload's existing warnings channel, and publish its code through `cdx schema --json`.",
+      "Confirm the selected session is unchanged for every captured baseline; this request changes what cdx says about its choice, not the choice.",
+      "Document `selection_policy`, `reason`, the refresh option, and the new warning in the README's programmatic-caller section.",
+      "Run the CLI test file, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/truthful_selection_reporting.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}
