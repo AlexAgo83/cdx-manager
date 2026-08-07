@@ -6150,9 +6150,16 @@ class CliPythonTests(unittest.TestCase):
         self.assertTrue(payload["run_id"])
         self.assertIsNone(payload["error"])
 
-        # The child is detached from this process's session so the run outlives
-        # a launcher that exits (an SSH command that returns, for instance).
-        self.assertTrue(spawned["kwargs"]["start_new_session"])
+        # The child is detached so the run outlives a launcher that exits (an
+        # SSH command that returns, for instance). The mechanism is
+        # platform-specific: POSIX gets its own session, Windows needs explicit
+        # creation flags because start_new_session is ignored there.
+        if sys.platform == "win32":
+            flags = spawned["kwargs"]["creationflags"]
+            self.assertTrue(flags & subprocess.DETACHED_PROCESS)
+            self.assertTrue(flags & subprocess.CREATE_NEW_PROCESS_GROUP)
+        else:
+            self.assertTrue(spawned["kwargs"]["start_new_session"])
         self.assertNotIn("--detach", spawned["argv"])
         self.assertIn("--json", spawned["argv"])
         # The prompt reaches the child as a file, never on the command line.
