@@ -2009,6 +2009,55 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(store["read_session_state"]("source")["status"], "custom")
         self.assertIsNone(store["read_session_state"]("dest"))
 
+    def test_session_service_facade_still_exposes_every_name_its_callers_import(self):
+        # session_service re-exports the status, backup and shared-helper
+        # modules it was split into. Nothing else catches a dropped re-export
+        # until an unrelated module fails to import, so assert the contract
+        # directly. ruff removes an unused re-export, which is how this breaks.
+        import ast
+        import importlib
+        import pathlib as _pathlib
+
+        facade = importlib.import_module("src.session_service")
+        sources = [_pathlib.Path("src/__init__.py"), *sorted(_pathlib.Path("test").glob("*.py"))]
+        missing = []
+        for path in sources:
+            tree = ast.parse(path.read_text())
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    if (node.module or "").rsplit(".", 1)[-1] != "session_service":
+                        continue
+                    for alias in node.names:
+                        if not hasattr(facade, alias.name):
+                            missing.append(f"{path}:{node.lineno} import {alias.name}")
+                # mock.patch targets are strings, so no import statement names
+                # them. They are how this broke twice during the split, and a
+                # dropped re-export makes the patch a silent no-op rather than
+                # an error, so they are checked too.
+                elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+                    prefix = "src.session_service."
+                    if node.value.startswith(prefix):
+                        attr = node.value[len(prefix):].split(".")[0]
+                        if attr and not hasattr(facade, attr):
+                            missing.append(f"{path}:{node.lineno} patch {attr}")
+        self.assertEqual(missing, [], "session_service no longer re-exports a name its callers import")
+
+    def test_only_the_measured_seams_were_split_out(self):
+        # The split stopped at status and backup because runtime and auth have
+        # no helper of their own. A later reader finishing the job by instinct
+        # is the failure this guards: the reason has to stay next to the code.
+        import pathlib as _pathlib
+
+        doc = _pathlib.Path("src/session_service.py").read_text()
+        self.assertIn("Why the split stops here", doc)
+        for module in ("src/session_status.py", "src/session_backup.py"):
+            self.assertTrue(_pathlib.Path(module).exists(), f"{module} is missing")
+        for module in ("src/session_runtime.py", "src/session_auth.py"):
+            self.assertFalse(
+                _pathlib.Path(module).exists(),
+                f"{module} exists, but the coupling measurement did not support that seam",
+            )
+
     def test_session_store_replace_restores_state_when_registry_save_fails(self):
         temp_dir = self.make_temp_dir()
         store = create_session_store(temp_dir)
