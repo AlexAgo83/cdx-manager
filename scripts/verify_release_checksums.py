@@ -26,12 +26,25 @@ def _python_version(root):
 
 
 def _cli_version(root):
-    match = re.search(
-        r'^VERSION = "([^"]+)"',
-        (root / "src" / "cli.py").read_text(encoding="utf-8"),
-        re.MULTILINE,
+    """What `cdx --version` actually reports, not what a literal claims.
+
+    cli.py used to restate the version as a fourth hardcoded copy and drifted a
+    release behind. It now resolves the value, so scraping a `VERSION = "..."`
+    literal finds nothing and this validator refused every release. The check
+    that matters is unchanged - does the CLI report the same version as the
+    declarations - so it is made against the resolved value.
+    """
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-c", "from src.cli import VERSION; print(VERSION)"],
+        cwd=str(root),
+        capture_output=True,
+        text=True,
+        check=False,
     )
-    return match.group(1).strip() if match else ""
+    return result.stdout.strip() if result.returncode == 0 else ""
 
 
 def _version_file(root):

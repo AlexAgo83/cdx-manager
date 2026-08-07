@@ -86,6 +86,21 @@ class ReleaseChecksumsTests(unittest.TestCase):
         self.assertIn(r"set SCRIPT=%~dp0..\versions\$versionDir\bin\cdx", powershell)
         self.assertNotIn('${($tag.TrimStart("v"))}', powershell)
 
+    def test_release_validator_reads_a_version_from_every_declaration_site(self):
+        # Each source in expected_versions() must actually yield a version for
+        # the real project. When cli.py stopped restating the version and began
+        # resolving it, the regex scrape here silently returned "" and the
+        # validator rejected every release with "Missing release version in:
+        # src/cli.py" - inside the publish workflow, after the tag was already
+        # public. None of the other tests in this file noticed, because they all
+        # build a synthetic project whose cli.py still holds a literal.
+        from verify_release_checksums import expected_versions
+
+        versions = expected_versions(Path("."))
+        empty = sorted(name for name, value in versions.items() if not value)
+        self.assertEqual(empty, [], f"no version resolved from: {empty}")
+        self.assertEqual(len(set(versions.values())), 1, versions)
+
     def test_release_validator_accepts_project_when_checksum_metadata_exists(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = self._write_release_root(
