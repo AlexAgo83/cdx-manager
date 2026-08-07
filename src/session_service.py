@@ -1126,6 +1126,162 @@ def get_session_auth_home(base_dir, name, provider):
     return _get_session_auth_home(base_dir, name, provider)
 
 
+def _fetch_codex_status(codex_status_fetcher, custom_codex_status_fetcher, default_status_timeout_seconds, session, timeout_seconds=None):
+    if custom_codex_status_fetcher:
+        return custom_codex_status_fetcher(session)
+    timeout = timeout_seconds or default_status_timeout_seconds
+    return codex_status_fetcher(session, timeout=timeout)
+
+
+def _status_row_from_session(store, s):
+    status = s.get("lastStatus")
+    enabled = s.get("enabled", True) is not False
+    row_status = status if enabled else None
+    return {
+        "session_name": s["name"],
+        "label": s.get("label"),
+        "provider": s["provider"],
+        "enabled": enabled,
+        # Carried so the ranking can honor the user's `--priority` and the
+        # configured effort wherever it runs. Without these on the row, the
+        # recommendation path could not see either, which is why `cdx next`
+        # ignored `--priority` entirely.
+        "priority": _row_priority(s),
+        "reasoning_effort": _row_reasoning_effort(s),
+        "active": bool(_session_runtime(store, s["name"])) if enabled else False,
+        "status": "enabled" if enabled else "disabled",
+        "auth_status": (s.get("auth") or {}).get("status") or "unknown",
+        "auth_checked_at": _to_local_iso((s.get("auth") or {}).get("lastCheckedAt")),
+        "remaining_5h_pct": _normalize_pct_value(row_status.get("remaining_5h_pct")) if row_status else None,
+        "remaining_week_pct": _normalize_pct_value(row_status.get("remaining_week_pct")) if row_status else None,
+        "credits": row_status.get("credits") if row_status else None,
+        "reset_credits_available": row_status.get("reset_credits_available") if row_status else None,
+        "reset_credits": row_status.get("reset_credits") if row_status else None,
+        "available_pct": _compute_available_pct(row_status),
+        "reset_5h_at": row_status.get("reset_5h_at") if row_status else None,
+        "reset_week_at": row_status.get("reset_week_at") if row_status else None,
+        "reset_at": row_status.get("reset_at") if row_status else None,
+        "updated_at": _to_local_iso(s.get("lastStatusAt")),
+        "last_launched_at": _to_local_iso(s.get("lastLaunchedAt")),
+    }
+
+
+def _resolve_session_subset(store, session_names):
+    if not session_names:
+        return list_sessions(store)
+    by_name = {session["name"]: session for session in list_sessions(store)}
+    selected = []
+    for name in session_names:
+        session = by_name.get(name)
+        if not session:
+            raise CdxError(f"Unknown session: {name}")
+        selected.append(session)
+    return selected
+
+
+def format_list_rows(store):
+    sessions = list_sessions(store)
+    providers = {s["provider"] for s in sessions}
+    has_multiple = len(providers) > 1
+    sessions = sorted(
+        sessions,
+        key=lambda s: (
+            1 if s.get("enabled", True) is False else 0,
+            s.get("name", ""),
+        ),
+    )
+    return [{
+        "name": s["name"],
+        "label": s.get("label"),
+        "provider": s["provider"] if has_multiple else None,
+        "enabled": s.get("enabled", True) is not False,
+        "active": bool(_session_runtime(store, s["name"])) if s.get("enabled", True) is not False else False,
+        "enabled_status": "disabled" if s.get("enabled", True) is False else "enabled",
+        "status": s.get("lastStatus"),
+        "launch": s.get("launch") or {},
+        "updated_at": _to_local_iso(s.get("updatedAt")),
+    } for s in sessions]
+
+
+def _resolve_session_status(store, base_dir, env, fetch_codex_status, session,
+    force_refresh=False,
+    cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS,
+    cache_only=False,
+    status_timeout_seconds=None,):
+    current_status = session.get("lastStatus")
+    if session.get("enabled", True) is False:
+        return current_status
+    if cache_only:
+        return current_status
+    if current_status and not force_refresh and _is_status_cache_fresh(session, ttl_seconds=cache_ttl_seconds):
+        return current_status
+    source_root = session.get("authHome") or _get_session_auth_home(base_dir,
+        session["name"], session["provider"]
+    )
+    if session["provider"] == PROVIDER_CODEX and fetch_codex_status:
+        live_status = fetch_codex_status(
+            {**session, "authHome": source_root},
+            timeout_seconds=status_timeout_seconds,
+        )
+        if live_status:
+            record_status(store, session["name"], live_status)
+            return live_status
+
+    expected_account_email = (
+        _read_expected_account_email(source_root)
+        if session["provider"] == PROVIDER_CODEX
+        else None
+    )
+    artifact = find_latest_status_artifact(
+        source_root,
+        session["provider"],
+        expected_account_email=expected_account_email,
+    )
+    if (
+        session["provider"] == PROVIDER_CODEX
+        and not artifact
+        and os.path.abspath(base_dir) == os.path.abspath(get_cdx_home(env))
+    ):
+        global_root = _get_global_codex_home(env)
+        if global_root and os.path.abspath(global_root) != os.path.abspath(source_root):
+            artifact = find_latest_status_artifact(
+                global_root,
+                session["provider"],
+                expected_account_email=expected_account_email,
+                # The shared codex home can hold other accounts' rollouts;
+                # structured payloads there cannot be attributed to ours.
+                trust_unattributed_structured=False,
+            )
+    if not artifact:
+        if _is_low_confidence_status_source(current_status):
+            return None
+        return current_status
+    resolved = _normalize_status_payload({
+        "usage_pct": artifact.get("usage_pct"),
+        "remaining_5h_pct": artifact.get("remaining_5h_pct"),
+        "remaining_week_pct": artifact.get("remaining_week_pct"),
+        "credits": artifact.get("credits"),
+        "reset_5h_at": artifact.get("reset_5h_at"),
+        "reset_week_at": artifact.get("reset_week_at"),
+        "reset_at": artifact.get("reset_at"),
+        "updated_at": artifact.get("updated_at"),
+        "raw_status_text": artifact.get("raw_status_text"),
+        "source_ref": artifact.get("source_ref"),
+        "structured": artifact.get("structured"),
+    })
+    if _is_low_confidence_status_source(current_status) and not _is_low_confidence_status_source(resolved):
+        record_status(store, session["name"], resolved)
+        return resolved
+    if _is_status_newer(resolved, current_status):
+        record_status(store, session["name"], resolved)
+        return resolved
+    if _status_has_more_detail(resolved, current_status):
+        merged = _merge_status_payload(current_status, resolved)
+        record_status(store, session["name"], merged)
+        return merged
+    return current_status or resolved
+
+
 def create_session_service(options=None):
     if options is None:
         options = {}
@@ -1140,106 +1296,15 @@ def create_session_service(options=None):
         or STATUS_PROBE_TIMEOUT_SECONDS
     )
 
-    def _fetch_codex_status(session, timeout_seconds=None):
-        if custom_codex_status_fetcher:
-            return custom_codex_status_fetcher(session)
-        timeout = timeout_seconds or default_status_timeout_seconds
-        return codex_status_fetcher(session, timeout=timeout)
 
-
-    def _resolve_session_subset(session_names):
-        if not session_names:
-            return list_sessions(store)
-        by_name = {session["name"]: session for session in list_sessions(store)}
-        selected = []
-        for name in session_names:
-            session = by_name.get(name)
-            if not session:
-                raise CdxError(f"Unknown session: {name}")
-            selected.append(session)
-        return selected
-
-
-    def _resolve_session_status(
-        session,
-        force_refresh=False,
-        cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS,
-        cache_only=False,
-        status_timeout_seconds=None,
-    ):
-        current_status = session.get("lastStatus")
-        if session.get("enabled", True) is False:
-            return current_status
-        if cache_only:
-            return current_status
-        if current_status and not force_refresh and _is_status_cache_fresh(session, ttl_seconds=cache_ttl_seconds):
-            return current_status
-        source_root = session.get("authHome") or _get_session_auth_home(base_dir,
-            session["name"], session["provider"]
-        )
-        if session["provider"] == PROVIDER_CODEX and codex_status_fetcher:
-            live_status = _fetch_codex_status(
-                {**session, "authHome": source_root},
-                timeout_seconds=status_timeout_seconds,
-            )
-            if live_status:
-                record_status(store, session["name"], live_status)
-                return live_status
-
-        expected_account_email = (
-            _read_expected_account_email(source_root)
-            if session["provider"] == PROVIDER_CODEX
-            else None
-        )
-        artifact = find_latest_status_artifact(
-            source_root,
-            session["provider"],
-            expected_account_email=expected_account_email,
-        )
-        if (
-            session["provider"] == PROVIDER_CODEX
-            and not artifact
-            and os.path.abspath(base_dir) == os.path.abspath(get_cdx_home(env))
-        ):
-            global_root = _get_global_codex_home(env)
-            if global_root and os.path.abspath(global_root) != os.path.abspath(source_root):
-                artifact = find_latest_status_artifact(
-                    global_root,
-                    session["provider"],
-                    expected_account_email=expected_account_email,
-                    # The shared codex home can hold other accounts' rollouts;
-                    # structured payloads there cannot be attributed to ours.
-                    trust_unattributed_structured=False,
-                )
-        if not artifact:
-            if _is_low_confidence_status_source(current_status):
-                return None
-            return current_status
-        resolved = _normalize_status_payload({
-            "usage_pct": artifact.get("usage_pct"),
-            "remaining_5h_pct": artifact.get("remaining_5h_pct"),
-            "remaining_week_pct": artifact.get("remaining_week_pct"),
-            "credits": artifact.get("credits"),
-            "reset_5h_at": artifact.get("reset_5h_at"),
-            "reset_week_at": artifact.get("reset_week_at"),
-            "reset_at": artifact.get("reset_at"),
-            "updated_at": artifact.get("updated_at"),
-            "raw_status_text": artifact.get("raw_status_text"),
-            "source_ref": artifact.get("source_ref"),
-            "structured": artifact.get("structured"),
-        })
-        if _is_low_confidence_status_source(current_status) and not _is_low_confidence_status_source(resolved):
-            record_status(store, session["name"], resolved)
-            return resolved
-        if _is_status_newer(resolved, current_status):
-            record_status(store, session["name"], resolved)
-            return resolved
-        if _status_has_more_detail(resolved, current_status):
-            merged = _merge_status_payload(current_status, resolved)
-            record_status(store, session["name"], merged)
-            return merged
-        return current_status or resolved
-
+    # None when there is no fetcher, so callers test the callable they were
+    # given rather than a separate flag they would also have to be passed.
+    fetch_codex_status = partial(
+        _fetch_codex_status,
+        codex_status_fetcher,
+        custom_codex_status_fetcher,
+        default_status_timeout_seconds,
+    ) if codex_status_fetcher else None
 
     def _resolve_row_session(
         s,
@@ -1248,7 +1313,7 @@ def create_session_service(options=None):
         cache_only=False,
         status_timeout_seconds=None,
     ):
-        status = _resolve_session_status(
+        status = _resolve_session_status(store, base_dir, env, fetch_codex_status,
             s,
             force_refresh=force_refresh,
             cache_ttl_seconds=cache_ttl_seconds,
@@ -1261,37 +1326,6 @@ def create_session_service(options=None):
             "lastStatusAt": (status and status.get("updated_at")) or s.get("lastStatusAt"),
         }
 
-    def _status_row_from_session(s):
-        status = s.get("lastStatus")
-        enabled = s.get("enabled", True) is not False
-        row_status = status if enabled else None
-        return {
-            "session_name": s["name"],
-            "label": s.get("label"),
-            "provider": s["provider"],
-            "enabled": enabled,
-            # Carried so the ranking can honor the user's `--priority` and the
-            # configured effort wherever it runs. Without these on the row, the
-            # recommendation path could not see either, which is why `cdx next`
-            # ignored `--priority` entirely.
-            "priority": _row_priority(s),
-            "reasoning_effort": _row_reasoning_effort(s),
-            "active": bool(_session_runtime(store, s["name"])) if enabled else False,
-            "status": "enabled" if enabled else "disabled",
-            "auth_status": (s.get("auth") or {}).get("status") or "unknown",
-            "auth_checked_at": _to_local_iso((s.get("auth") or {}).get("lastCheckedAt")),
-            "remaining_5h_pct": _normalize_pct_value(row_status.get("remaining_5h_pct")) if row_status else None,
-            "remaining_week_pct": _normalize_pct_value(row_status.get("remaining_week_pct")) if row_status else None,
-            "credits": row_status.get("credits") if row_status else None,
-            "reset_credits_available": row_status.get("reset_credits_available") if row_status else None,
-            "reset_credits": row_status.get("reset_credits") if row_status else None,
-            "available_pct": _compute_available_pct(row_status),
-            "reset_5h_at": row_status.get("reset_5h_at") if row_status else None,
-            "reset_week_at": row_status.get("reset_week_at") if row_status else None,
-            "reset_at": row_status.get("reset_at") if row_status else None,
-            "updated_at": _to_local_iso(s.get("lastStatusAt")),
-            "last_launched_at": _to_local_iso(s.get("lastLaunchedAt")),
-        }
 
     def get_status_row(
         name,
@@ -1340,7 +1374,7 @@ def create_session_service(options=None):
                 "event": "status_finished",
                 "row_count": 1,
             })
-        return _status_row_from_session(resolved)
+        return _status_row_from_session(store, resolved)
 
     def get_status_rows(
         progress_callback=None,
@@ -1420,36 +1454,13 @@ def create_session_service(options=None):
 
         rows = []
         for s in resolved:
-            rows.append(_status_row_from_session(s))
+            rows.append(_status_row_from_session(store, s))
         if progress_callback:
             progress_callback({
                 "event": "status_finished",
                 "row_count": len(rows),
             })
         return rows
-
-    def format_list_rows():
-        sessions = list_sessions(store)
-        providers = {s["provider"] for s in sessions}
-        has_multiple = len(providers) > 1
-        sessions = sorted(
-            sessions,
-            key=lambda s: (
-                1 if s.get("enabled", True) is False else 0,
-                s.get("name", ""),
-            ),
-        )
-        return [{
-            "name": s["name"],
-            "label": s.get("label"),
-            "provider": s["provider"] if has_multiple else None,
-            "enabled": s.get("enabled", True) is not False,
-            "active": bool(_session_runtime(store, s["name"])) if s.get("enabled", True) is not False else False,
-            "enabled_status": "disabled" if s.get("enabled", True) is False else "enabled",
-            "status": s.get("lastStatus"),
-            "launch": s.get("launch") or {},
-            "updated_at": _to_local_iso(s.get("updatedAt")),
-        } for s in sessions]
 
 
     def export_bundle(file_path, include_auth=False, session_names=None, passphrase=None, force=False, progress_callback=None):
@@ -1458,7 +1469,7 @@ def create_session_service(options=None):
         if os.path.exists(file_path) and not force:
             raise CdxError(f"Export path already exists: {file_path}")
 
-        sessions = _resolve_session_subset(session_names)
+        sessions = _resolve_session_subset(store, session_names)
         payload = {
             "schema_version": 1,
             "created_at": _local_now_iso(),
@@ -1672,7 +1683,7 @@ def create_session_service(options=None):
         "update_auth_state": partial(update_auth_state, store),
         "get_status_row": get_status_row,
         "get_status_rows": get_status_rows,
-        "format_list_rows": format_list_rows,
+        "format_list_rows": partial(format_list_rows, store),
         "get_session_auth_home": partial(get_session_auth_home, base_dir),
         "get_session_root": partial(get_session_root, base_dir),
         "export_bundle": export_bundle,
