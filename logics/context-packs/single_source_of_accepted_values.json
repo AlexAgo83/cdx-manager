@@ -1,0 +1,445 @@
+{
+  "budgets": {
+    "max_docs": 20,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions.md",
+    "logics/backlog/item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run.md",
+    "logics/backlog/item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli.md",
+    "logics/product/prod_014_one_definition_of_what_cdx_accepts_and_emits.md",
+    "logics/request/req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits.md",
+    "logics/scaffold/single_source_of_accepted_values.json",
+    "logics/tasks/task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags.md"
+  ],
+  "command": "logics-manager sync context-pack req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions",
+          "item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run",
+          "item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli"
+        ],
+        "prod": [
+          "prod_014_one_definition_of_what_cdx_accepts_and_emits"
+        ],
+        "req": [
+          "req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits"
+        ],
+        "task": [
+          "task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags"
+        ]
+      },
+      "path": "logics/product/prod_014_one_definition_of_what_cdx_accepts_and_emits.md",
+      "ref": "prod_014_one_definition_of_what_cdx_accepts_and_emits",
+      "sections": {
+        "Goals": [
+          "- Make it impossible for two commands in cdx to disagree about a valid value.",
+          "- Make `cdx schema --json` describe the CLI rather than one command of it.",
+          "- Catch a mapped provider flag that the provider does not have, before a user does.",
+          "- Leave one place to edit when an accepted value or a provider mapping changes."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Collapse the duplicated accepted-value enums into single definitions every command and the published schema derive from, make `cdx set` and `cdx run` agree on the values they take, and add an opt-in check that the provider flags cdx emits actually exist in the provider CLIs."
+        ],
+        "References": [
+          "- Product back-reference: `req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits`",
+          "- Task back-reference: `task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "One definition of what cdx accepts and emits"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, give cdx one source of truth for the values it accepts and the provider flags it emits, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Give cdx one source of truth for the values it accepts and the provider flags it emits",
+        "use when": "You need to implement or review the scaffolded workflow for Give cdx one source of truth for the values it accepts and the provider flags it emits."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions",
+          "item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run",
+          "item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli"
+        ],
+        "prod": [
+          "prod_014_one_definition_of_what_cdx_accepts_and_emits"
+        ],
+        "req": [
+          "req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits"
+        ]
+      },
+      "path": "logics/request/req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits.md",
+      "ref": "req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Each accepted-value set is defined once. The reasoning-effort values and the permission values each have a single definition that every validator, normalizer, and the published schema derive from.",
+          "- AC2: `cdx set` and `cdx run` accept the same values for `--permission`, `--power`, and `--reasoning-effort`. A value accepted by one is accepted by the other, and the permission aliases work in both.",
+          "- AC3: The published `cdx schema --json` describes the whole CLI rather than the run command alone, and the drift test covers every validator that consumes the shared definitions, not a subset of them.",
+          "- AC4: A test fails if a second copy of one of these value sets is reintroduced, so the deduplication cannot silently regress.",
+          "- AC5: An opt-in health check verifies that the provider CLI flags cdx maps for each permission are actually accepted by that provider's installed CLI, and reports per provider and permission which mappings could not be confirmed.",
+          "- AC6: The check is opt-in rather than part of the default `cdx doctor` run, since it costs a provider CLI invocation per provider, and its absence is never reported as a passing result."
+        ],
+        "Needs": [
+          "- cdx maintains several hand-written copies of what it accepts, and several hand-written claims about what the provider CLIs accept. Every copy is free to drift from the others, and from reality, with nothing failing when it does.",
+          "- The reasoning-effort enum is defined four times and the permission enum twice, across three modules. `cdx set` validates against one pair of copies while `cdx run` validates against another, so the same setting has two definitions in one CLI.",
+          "- This has already reached users: `cdx run --permission workspace-write` is accepted and normalized to `default`, while `cdx set <name> --permission workspace-write` fails with `Unsupported permission: workspace-write`. A value copied from one command to the other is rejected.",
+          "- `cdx schema --json` was introduced as the discovery surface for programmatic callers, with a drift test \u2014 but that test covers only the `cli_args` and `provider_runtime` copies. The three copies in `session_service` are outside it, so the schema presents itself as describing cdx while in fact describing only `cdx run`.",
+          "- Nothing verifies that a provider flag cdx is about to emit actually exists in that provider's CLI. GitHub issue #8 was precisely this: `--experimental-yolo` was mapped for ollama, a flag that CLI never had, and it survived undetected until someone exercised `permission=full` on an ollama session."
+        ]
+      },
+      "status": "Draft",
+      "title": "Give cdx one source of truth for the values it accepts and the provider flags it emits"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, collapse the duplicated accepted-value enums into single definitions, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Collapse the duplicated accepted-value enums into single definitions",
+        "use when": "Implementing the scaffolded slice for Collapse the duplicated accepted-value enums into single definitions."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions"
+        ],
+        "prod": [
+          "prod_014_one_definition_of_what_cdx_accepts_and_emits"
+        ],
+        "req": [
+          "req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits"
+        ],
+        "task": [
+          "task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags"
+        ]
+      },
+      "path": "logics/backlog/item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions.md",
+      "ref": "item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Each of the reasoning-effort and permission value sets has exactly one definition in the codebase; the others import it.",
+          "- `cdx set` and `cdx run` accept identical value sets for `--permission`, `--power`, and `--reasoning-effort`, asserted by a test that enumerates the shared definition rather than a hand-written list.",
+          "- `cdx schema --json` reflects the values the CLI accepts, and its drift test fails if any validator diverges from the published set.",
+          "- Reintroducing a duplicate of one of these sets fails a test that names it.",
+          "- Every value accepted before this change is still accepted, and the permission aliases still normalize to the same canonical values.",
+          "- No import cycle is introduced by the chosen ownership."
+        ],
+        "Problem": [
+          "- The reasoning-effort values exist in four places and the permission values in two, across `cli_args`, `provider_runtime`, and `session_service`.",
+          "- `LAUNCH_POWER_VALUES` and `LAUNCH_REASONING_EFFORT_VALUES` are identical sets defined on consecutive lines of the same module, which is the clearest possible signal that nobody is maintaining them as one thing.",
+          "- `cdx schema --json` and its drift test cover only two of the copies, so the schema silently speaks for `cdx run` while presenting itself as the contract for cdx."
+        ]
+      },
+      "status": "Ready",
+      "title": "Collapse the duplicated accepted-value enums into single definitions"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, accept the permission aliases in cdx set as well as cdx run, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Accept the permission aliases in cdx set as well as cdx run",
+        "use when": "Implementing the scaffolded slice for Accept the permission aliases in cdx set as well as cdx run."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run"
+        ],
+        "prod": [
+          "prod_014_one_definition_of_what_cdx_accepts_and_emits"
+        ],
+        "req": [
+          "req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits"
+        ],
+        "task": [
+          "task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags"
+        ]
+      },
+      "path": "logics/backlog/item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run.md",
+      "ref": "item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Given `cdx set <name> --permission workspace-write`, the command succeeds and the session stores `default`.",
+          "- Given `read-only` and `danger-full-access` through `cdx set`, they store `review` and `full` respectively.",
+          "- Given the same aliases through the `perm` alias command, the behavior matches `cdx set`.",
+          "- Given a genuinely unsupported permission, the error lists the accepted values including the aliases.",
+          "- Given a canonical value through `cdx set`, behavior is unchanged from today.",
+          "- Reading back a session configured through an alias shows the canonical value, so nothing downstream needs to know aliases exist."
+        ],
+        "Problem": [
+          "- `cdx run --permission workspace-write` is accepted and normalized to `default`; `cdx set <name> --permission workspace-write` fails with `Unsupported permission: workspace-write`.",
+          "- The same asymmetry applies to `read-only` and `danger-full-access`, which are the provider-native spellings a user is most likely to have in hand.",
+          "- `cdx schema --json` publishes the aliases without saying they apply to one command only, so following the schema produces a rejection."
+        ]
+      },
+      "status": "Ready",
+      "title": "Accept the permission aliases in cdx set as well as cdx run"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, add an opt-in check that mapped provider flags exist in the provider cli, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Add an opt-in check that mapped provider flags exist in the provider CLI",
+        "use when": "Implementing the scaffolded slice for Add an opt-in check that mapped provider flags exist in the provider CLI."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli"
+        ],
+        "prod": [
+          "prod_014_one_definition_of_what_cdx_accepts_and_emits"
+        ],
+        "req": [
+          "req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits"
+        ],
+        "task": [
+          "task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags"
+        ]
+      },
+      "path": "logics/backlog/item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli.md",
+      "ref": "item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Given a provider CLI that accepts every flag cdx maps for it, the check reports the mapping confirmed for each permission.",
+          "- Given a mapped flag the provider CLI rejects, the check reports a failure naming the provider, the permission, and the flag \u2014 reproducing the issue #8 condition against a stub.",
+          "- Given a provider CLI that is not installed, the check reports indeterminate rather than a failure.",
+          "- Given a provider with no permission mapping, the check reports that as deliberate rather than as an unverified mapping.",
+          "- Given a default `cdx doctor` run, the check does not execute, and the report makes clear it was not run rather than omitting it silently.",
+          "- Given the opt-in flag, the check executes and its findings appear with the existing severity levels."
+        ],
+        "Problem": [
+          "- `LAUNCH_PERMISSION_ARGS` and `HEADLESS_CODEX_PERMISSION_ARGS` assert what each provider CLI accepts, and nothing verifies the assertion. GitHub issue #8 was a mapped flag the provider never had, undetected until a user hit it.",
+          "- `collect_health_report` checks layout, profiles, state files, and provider CLI versions, but never exercises a flag cdx will actually pass.",
+          "- `_provider_capability_hints` returns hardcoded prose about provider capabilities rather than anything observed, so it cannot notice a mapping going stale either."
+        ]
+      },
+      "status": "Ready",
+      "title": "Add an opt-in check that mapped provider flags exist in the provider CLI"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate one source of truth for accepted values and provider flags",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions",
+          "item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run",
+          "item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli"
+        ],
+        "prod": [
+          "prod_014_one_definition_of_what_cdx_accepts_and_emits"
+        ],
+        "req": [
+          "req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits"
+        ],
+        "task": [
+          "task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags"
+        ]
+      },
+      "path": "logics/tasks/task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags.md",
+      "ref": "task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate one source of truth for accepted values and provider flags"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions",
+          "item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run",
+          "item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli"
+        ],
+        "prod": [
+          "prod_014_one_definition_of_what_cdx_accepts_and_emits"
+        ],
+        "req": [
+          "req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits"
+        ],
+        "task": [
+          "task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags"
+        ]
+      },
+      "path": "logics/product/prod_014_one_definition_of_what_cdx_accepts_and_emits.md",
+      "ref": "prod_014_one_definition_of_what_cdx_accepts_and_emits",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "One definition of what cdx accepts and emits"
+    }
+  ],
+  "estimates": {
+    "char_count": 15173,
+    "companion_doc_count": 1,
+    "doc_count": 6
+  },
+  "generated_at": "2026-08-07T12:37:55Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits",
+      "item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions",
+      "item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run",
+      "item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli",
+      "task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits,item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions,item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run,item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli,task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags",
+  "refs": [
+    "req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits",
+    "item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions",
+    "item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run",
+    "item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli",
+    "task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: version sources disagree (0.12.4, 0.13.0)",
+      "version_metadata: evidence targets a different commit",
+      "changelog: evidence targets a different commit",
+      "release_checksums: evidence targets a different commit",
+      "local_validation: evidence targets a different commit",
+      "git_push: evidence targets a different commit",
+      "ci: evidence targets a different commit"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: version sources disagree (0.12.4, 0.13.0)",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": null
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags.md",
+      "ref": "task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags"
+    }
+  ]
+}

@@ -1,0 +1,183 @@
+{
+  "title": "Give cdx one source of truth for the values it accepts and the provider flags it emits",
+  "references": [
+    "src/cli_args.py",
+    "src/session_service.py",
+    "src/provider_runtime.py",
+    "src/health.py",
+    "src/cli_commands.py",
+    "README.md",
+    "test/test_cli_py.py",
+    "test/test_session_service_py.py",
+    "test/test_health_py.py"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Contract integrity",
+    "needs": [
+      "cdx maintains several hand-written copies of what it accepts, and several hand-written claims about what the provider CLIs accept. Every copy is free to drift from the others, and from reality, with nothing failing when it does.",
+      "The reasoning-effort enum is defined four times and the permission enum twice, across three modules. `cdx set` validates against one pair of copies while `cdx run` validates against another, so the same setting has two definitions in one CLI.",
+      "This has already reached users: `cdx run --permission workspace-write` is accepted and normalized to `default`, while `cdx set <name> --permission workspace-write` fails with `Unsupported permission: workspace-write`. A value copied from one command to the other is rejected.",
+      "`cdx schema --json` was introduced as the discovery surface for programmatic callers, with a drift test — but that test covers only the `cli_args` and `provider_runtime` copies. The three copies in `session_service` are outside it, so the schema presents itself as describing cdx while in fact describing only `cdx run`.",
+      "Nothing verifies that a provider flag cdx is about to emit actually exists in that provider's CLI. GitHub issue #8 was precisely this: `--experimental-yolo` was mapped for ollama, a flag that CLI never had, and it survived undetected until someone exercised `permission=full` on an ollama session."
+    ],
+    "context": [
+      "`REASONING_EFFORT_VALUES` (`src/provider_runtime.py:24`), `RUN_EFFORT_VALUES` (`src/cli_args.py:53`), `LAUNCH_POWER_VALUES` (`src/session_service.py:84`), and `LAUNCH_REASONING_EFFORT_VALUES` (`src/session_service.py:85`) all hold the same five values. The last two are byte-identical copies sitting one line apart in the same file.",
+      "`RUN_PERMISSION_CANONICAL_VALUES` (`src/cli_args.py:45`) and `LAUNCH_PERMISSION_VALUES` (`src/session_service.py:86`) hold the same four canonical values, but only `cli_args` also defines the aliases `workspace-write`, `read-only`, and `danger-full-access` and normalizes them.",
+      "`src/session_service.py:131-141` validates launch settings against its own three copies. `cdx run` never reaches that code, and `cdx set` never reaches `cli_args`.",
+      "`cdx schema --json` publishes `RUN_PERMISSION_ALIASES` without stating that the aliases apply to `cdx run` only, so a caller reading the schema and then calling `cdx set` with an advertised alias gets a rejection.",
+      "`LAUNCH_PERMISSION_ARGS` and `HEADLESS_CODEX_PERMISSION_ARGS` (`src/provider_runtime.py:37` and `:51`) map each permission to concrete provider CLI flags. These were verified by hand against the installed CLIs on 2026-08-07 and are currently correct — claude accepts all four mapped modes (`default` being an undocumented but accepted alias), and antigravity accepts `--sandbox` and `--dangerously-skip-permissions`. Correct today is not the point: `--experimental-yolo` was also assumed correct for months.",
+      "`collect_health_report` (`src/health.py:39`) checks the cdx home layout, session profiles and state files, and provider CLI versions. `_provider_capability_hints` (`src/health.py:146`) returns hardcoded prose hints about provider capabilities rather than anything probed. No check exercises a flag cdx will actually pass."
+    ],
+    "acceptance_criteria": [
+      "AC1: Each accepted-value set is defined once. The reasoning-effort values and the permission values each have a single definition that every validator, normalizer, and the published schema derive from.",
+      "AC2: `cdx set` and `cdx run` accept the same values for `--permission`, `--power`, and `--reasoning-effort`. A value accepted by one is accepted by the other, and the permission aliases work in both.",
+      "AC3: The published `cdx schema --json` describes the whole CLI rather than the run command alone, and the drift test covers every validator that consumes the shared definitions, not a subset of them.",
+      "AC4: A test fails if a second copy of one of these value sets is reintroduced, so the deduplication cannot silently regress.",
+      "AC5: An opt-in health check verifies that the provider CLI flags cdx maps for each permission are actually accepted by that provider's installed CLI, and reports per provider and permission which mappings could not be confirmed.",
+      "AC6: The check is opt-in rather than part of the default `cdx doctor` run, since it costs a provider CLI invocation per provider, and its absence is never reported as a passing result.",
+      "AC7: Existing behavior is preserved for every value that works today: no currently-accepted value becomes rejected, and the normalization of the permission aliases to their canonical forms is unchanged.",
+      "AC8: The README states that the accepted values come from one place, documents that the permission aliases work in both `set` and `run`, and describes the opt-in provider flag check."
+    ]
+  },
+  "product": {
+    "title": "One definition of what cdx accepts and emits",
+    "overview": "Collapse the duplicated accepted-value enums into single definitions every command and the published schema derive from, make `cdx set` and `cdx run` agree on the values they take, and add an opt-in check that the provider flags cdx emits actually exist in the provider CLIs.",
+    "goals": [
+      "Make it impossible for two commands in cdx to disagree about a valid value.",
+      "Make `cdx schema --json` describe the CLI rather than one command of it.",
+      "Catch a mapped provider flag that the provider does not have, before a user does.",
+      "Leave one place to edit when an accepted value or a provider mapping changes."
+    ],
+    "non_goals": [
+      "No new accepted values, and no removal of ones that work today.",
+      "No change to how permissions map to provider flags, only verification that the mapping is real.",
+      "No provider CLI probing in the default `cdx doctor` path.",
+      "No runtime verification before each run; this is a diagnostic, not a launch-time gate.",
+      "No unification of the session selection rankings, which is tracked under `req_022`."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Collapse the duplicated accepted-value enums into single definitions",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Contract integrity",
+      "request_acs": ["AC1", "AC3", "AC4", "AC7"],
+      "problem": [
+        "The reasoning-effort values exist in four places and the permission values in two, across `cli_args`, `provider_runtime`, and `session_service`.",
+        "`LAUNCH_POWER_VALUES` and `LAUNCH_REASONING_EFFORT_VALUES` are identical sets defined on consecutive lines of the same module, which is the clearest possible signal that nobody is maintaining them as one thing.",
+        "`cdx schema --json` and its drift test cover only two of the copies, so the schema silently speaks for `cdx run` while presenting itself as the contract for cdx."
+      ],
+      "scope_in": [
+        "Choose one module to own each accepted-value set and have every other module import it rather than restate it. Prefer the module that has no dependency on the others, so the ownership does not create an import cycle.",
+        "Keep any ordering a display surface needs derived from the single definition rather than as a second literal.",
+        "Point `session_service`'s launch-setting validation at the shared definitions.",
+        "Extend `cdx schema --json` so it describes the values the whole CLI accepts, distinguishing where a value is accepted by some commands only, if any such case survives this work.",
+        "Extend the existing schema drift test to cover every validator consuming the shared definitions, so the guard matches the claim the schema makes.",
+        "Add a check that fails if a second copy of one of these sets is reintroduced, phrased so it names the offending duplicate rather than just failing.",
+        "Add tests asserting that every value accepted by `cdx run` is accepted by `cdx set` and vice versa, for each of the three settings."
+      ],
+      "scope_out": [
+        "No new accepted values.",
+        "No change to how values are normalized once accepted, beyond making the alias handling shared.",
+        "No renaming of the existing constants beyond what deduplication requires.",
+        "No changes to provider flag mappings in this slice."
+      ],
+      "acceptance_criteria": [
+        "Each of the reasoning-effort and permission value sets has exactly one definition in the codebase; the others import it.",
+        "`cdx set` and `cdx run` accept identical value sets for `--permission`, `--power`, and `--reasoning-effort`, asserted by a test that enumerates the shared definition rather than a hand-written list.",
+        "`cdx schema --json` reflects the values the CLI accepts, and its drift test fails if any validator diverges from the published set.",
+        "Reintroducing a duplicate of one of these sets fails a test that names it.",
+        "Every value accepted before this change is still accepted, and the permission aliases still normalize to the same canonical values.",
+        "No import cycle is introduced by the chosen ownership."
+      ]
+    },
+    {
+      "title": "Accept the permission aliases in cdx set as well as cdx run",
+      "priority": "High",
+      "complexity": "Low",
+      "theme": "Contract integrity",
+      "request_acs": ["AC2", "AC7", "AC8"],
+      "problem": [
+        "`cdx run --permission workspace-write` is accepted and normalized to `default`; `cdx set <name> --permission workspace-write` fails with `Unsupported permission: workspace-write`.",
+        "The same asymmetry applies to `read-only` and `danger-full-access`, which are the provider-native spellings a user is most likely to have in hand.",
+        "`cdx schema --json` publishes the aliases without saying they apply to one command only, so following the schema produces a rejection."
+      ],
+      "scope_in": [
+        "Apply the same alias normalization in `cdx set` (and any other launch-setting entry point such as the `perm` alias command) that `cdx run` already performs.",
+        "Store the canonical value, not the alias, so persisted session state stays in the canonical vocabulary and nothing downstream has to learn the aliases.",
+        "Confirm the direction: aliases are added to `set` rather than removed from `run`, because removing them would break callers that pass provider-native spellings today.",
+        "Make the error message for a genuinely unsupported permission list the accepted values including aliases, consistent with how `cdx run` already reports it.",
+        "Document in the README that the aliases work wherever a permission is accepted.",
+        "Add tests for each alias through `cdx set` and through the `perm` alias command, asserting the stored value is the canonical form."
+      ],
+      "scope_out": [
+        "No removal of the aliases from `cdx run`.",
+        "No new aliases beyond the three that already exist.",
+        "No aliasing for power or reasoning effort, which have no alternative spellings."
+      ],
+      "acceptance_criteria": [
+        "Given `cdx set <name> --permission workspace-write`, the command succeeds and the session stores `default`.",
+        "Given `read-only` and `danger-full-access` through `cdx set`, they store `review` and `full` respectively.",
+        "Given the same aliases through the `perm` alias command, the behavior matches `cdx set`.",
+        "Given a genuinely unsupported permission, the error lists the accepted values including the aliases.",
+        "Given a canonical value through `cdx set`, behavior is unchanged from today.",
+        "Reading back a session configured through an alias shows the canonical value, so nothing downstream needs to know aliases exist."
+      ]
+    },
+    {
+      "title": "Add an opt-in check that mapped provider flags exist in the provider CLI",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Contract integrity",
+      "request_acs": ["AC5", "AC6", "AC8"],
+      "problem": [
+        "`LAUNCH_PERMISSION_ARGS` and `HEADLESS_CODEX_PERMISSION_ARGS` assert what each provider CLI accepts, and nothing verifies the assertion. GitHub issue #8 was a mapped flag the provider never had, undetected until a user hit it.",
+        "`collect_health_report` checks layout, profiles, state files, and provider CLI versions, but never exercises a flag cdx will actually pass.",
+        "`_provider_capability_hints` returns hardcoded prose about provider capabilities rather than anything observed, so it cannot notice a mapping going stale either."
+      ],
+      "scope_in": [
+        "Add a health check that, for each configured provider, asks the installed provider CLI whether the flags cdx maps for each permission are accepted, and reports per provider and permission whether the mapping was confirmed, refused, or could not be determined.",
+        "Prefer the cheapest interrogation that gives a real answer — reading the CLI's own help or option list where that is authoritative, rather than launching a run.",
+        "Report a refused flag as a failure, and an indeterminate result as a warning, never as a pass: an unverifiable mapping is the state issue #8 was in.",
+        "Make the check opt-in behind an explicit flag on `cdx doctor`, since it costs at least one provider CLI invocation per provider, and make its absence visible in the default report rather than silently omitted.",
+        "Cover the case of a provider with no permission mapping at all, such as ollama, so an empty mapping reads as deliberate rather than as a missing check.",
+        "Handle a provider CLI that is not installed as indeterminate rather than as a failure.",
+        "Document the flag in the README alongside the existing doctor documentation.",
+        "Add tests with a stubbed provider CLI covering: a confirmed mapping, a refused flag, an uninstalled CLI, a provider with no mapping, and the check being absent unless requested."
+      ],
+      "scope_out": [
+        "No verification at launch time; this is a diagnostic.",
+        "No automatic correction of a mapping found to be wrong.",
+        "No probing of provider behavior beyond whether the mapped flags are accepted.",
+        "No replacement of the existing hardcoded capability hints in this slice."
+      ],
+      "acceptance_criteria": [
+        "Given a provider CLI that accepts every flag cdx maps for it, the check reports the mapping confirmed for each permission.",
+        "Given a mapped flag the provider CLI rejects, the check reports a failure naming the provider, the permission, and the flag — reproducing the issue #8 condition against a stub.",
+        "Given a provider CLI that is not installed, the check reports indeterminate rather than a failure.",
+        "Given a provider with no permission mapping, the check reports that as deliberate rather than as an unverified mapping.",
+        "Given a default `cdx doctor` run, the check does not execute, and the report makes clear it was not run rather than omitting it silently.",
+        "Given the opt-in flag, the check executes and its findings appear with the existing severity levels."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate one source of truth for accepted values and provider flags",
+    "plan": [
+      "Map the current state before changing it: for each of the three settings, record which module each entry point validates against and what each copy contains, so any divergence introduced later is attributable.",
+      "Wave 1 - deduplicate: pick the owning module for each value set (avoiding an import cycle), point every validator and the schema at it, and delete the copies. Extend the schema drift test to cover every validator, and add the guard against a duplicate reappearing.",
+      "Wave 2 - close the alias asymmetry: apply `cdx run`'s permission alias normalization in `cdx set` and the `perm` alias command, storing the canonical value. Confirm against the deduplicated definitions from wave 1 rather than adding a fourth list.",
+      "Wave 3 - provider flag check: add the opt-in doctor check, exercising the mapped flags against the installed provider CLI. Build it against a stubbed CLI first so the issue #8 condition is reproducible in tests, then confirm against the real CLIs.",
+      "Verify the user-visible outcome directly: a value accepted by `cdx run` is accepted by `cdx set`, `cdx schema --json` matches what both accept, and the opt-in check reports the current mappings as confirmed on a machine with the provider CLIs installed.",
+      "Update the README for the single source of accepted values, the aliases working in both commands, and the opt-in check.",
+      "Run the CLI, session-service, and health test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/single_source_of_accepted_values.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}

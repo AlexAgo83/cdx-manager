@@ -28,6 +28,7 @@
 | [prod_011_programmatic_cli_contract_for_non_interactive_callers](product/prod_011_programmatic_cli_contract_for_non_interactive_callers.md) | Programmatic CLI contract for non-interactive callers | Proposed |  |  | product/prod_011_programmatic_cli_contract_for_non_interactive_callers.md |
 | [prod_012_one_session_selection_rule_across_every_command](product/prod_012_one_session_selection_rule_across_every_command.md) | One session selection rule across every command | Proposed |  |  | product/prod_012_one_session_selection_rule_across_every_command.md |
 | [prod_013_truthful_reporting_of_how_a_session_was_selected](product/prod_013_truthful_reporting_of_how_a_session_was_selected.md) | Truthful reporting of how a session was selected | Proposed |  |  | product/prod_013_truthful_reporting_of_how_a_session_was_selected.md |
+| [prod_014_one_definition_of_what_cdx_accepts_and_emits](product/prod_014_one_definition_of_what_cdx_accepts_and_emits.md) | One definition of what cdx accepts and emits | Proposed |  |  | product/prod_014_one_definition_of_what_cdx_accepts_and_emits.md |
 
 ## Roadmaps
 
@@ -61,6 +62,7 @@ _None_
 | [req_021_close_the_programmatic_cli_contract_gaps_that_force_agent_callers_to_reimplement_cdx_internals](request/req_021_close_the_programmatic_cli_contract_gaps_that_force_agent_callers_to_reimplement_cdx_internals.md) | Close the programmatic CLI contract gaps that force agent callers to reimplement cdx internals | Draft |  |  | request/req_021_close_the_programmatic_cli_contract_gaps_that_force_agent_callers_to_reimplement_cdx_internals.md |
 | [req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract](request/req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract.md) | Unify the two divergent session selection rankings into one contract | Draft |  |  | request/req_022_unify_the_two_divergent_session_selection_rankings_into_one_contract.md |
 | [req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow](request/req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow.md) | Stop cdx select from publishing a selection policy and reason it does not follow | Draft |  |  | request/req_023_stop_cdx_select_from_publishing_a_selection_policy_and_reason_it_does_not_follow.md |
+| [req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits](request/req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits.md) | Give cdx one source of truth for the values it accepts and the provider flags it emits | Draft |  |  | request/req_024_give_cdx_one_source_of_truth_for_the_values_it_accepts_and_the_provider_flags_it_emits.md |
 
 ## Backlog
 
@@ -117,6 +119,9 @@ _None_
 | [item_048_make_the_priority_setting_count_in_next_status_and_ready](backlog/item_048_make_the_priority_setting_count_in_next_status_and_ready.md) | Make the priority setting count in next, status, and ready | Ready |  | 0% | backlog/item_048_make_the_priority_setting_count_in_next_status_and_ready.md |
 | [item_049_derive_the_published_selection_policy_and_reason_from_the_ranking](backlog/item_049_derive_the_published_selection_policy_and_reason_from_the_ranking.md) | Derive the published selection policy and reason from the ranking | Ready |  | 0% | backlog/item_049_derive_the_published_selection_policy_and_reason_from_the_ranking.md |
 | [item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind](backlog/item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind.md) | Let run --provider refresh status and warn when it selects blind | Ready |  | 0% | backlog/item_050_let_run_provider_refresh_status_and_warn_when_it_selects_blind.md |
+| [item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions](backlog/item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions.md) | Collapse the duplicated accepted-value enums into single definitions | Ready |  | 0% | backlog/item_051_collapse_the_duplicated_accepted_value_enums_into_single_definitions.md |
+| [item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run](backlog/item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run.md) | Accept the permission aliases in cdx set as well as cdx run | Ready |  | 0% | backlog/item_052_accept_the_permission_aliases_in_cdx_set_as_well_as_cdx_run.md |
+| [item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli](backlog/item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli.md) | Add an opt-in check that mapped provider flags exist in the provider CLI | Ready |  | 0% | backlog/item_053_add_an_opt_in_check_that_mapped_provider_flags_exist_in_the_provider_cli.md |
 
 ## Tasks
 
@@ -159,3 +164,4 @@ _None_
 | [task_032_orchestrate_the_programmatic_cli_contract_for_agent_callers](tasks/task_032_orchestrate_the_programmatic_cli_contract_for_agent_callers.md) | Orchestrate the programmatic CLI contract for agent callers | In progress |  | 90% | tasks/task_032_orchestrate_the_programmatic_cli_contract_for_agent_callers.md |
 | [task_033_orchestrate_the_unified_session_selection_ranking](tasks/task_033_orchestrate_the_unified_session_selection_ranking.md) | Orchestrate the unified session selection ranking | Ready |  | 0% | tasks/task_033_orchestrate_the_unified_session_selection_ranking.md |
 | [task_034_orchestrate_truthful_selection_reporting](tasks/task_034_orchestrate_truthful_selection_reporting.md) | Orchestrate truthful selection reporting | Ready |  | 0% | tasks/task_034_orchestrate_truthful_selection_reporting.md |
+| [task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags](tasks/task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags.md) | Orchestrate one source of truth for accepted values and provider flags | Ready |  | 0% | tasks/task_035_orchestrate_one_source_of_truth_for_accepted_values_and_provider_flags.md |
