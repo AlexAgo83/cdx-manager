@@ -1,10 +1,10 @@
 ## item_055_extract_the_remaining_seven_command_domains - Extract the remaining seven command domains
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Maintainability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -41,6 +41,55 @@
 - request-AC4 -> This backlog slice. Proof: The full test suite passes after every individual extraction, not only at the end.
 - request-AC5 -> This backlog slice. Proof: No handler signature, name, or behavior differs from before the moves.
 - request-AC8 -> This backlog slice. Proof: The `_COMMAND_HANDLERS` dispatch dict is structurally unchanged.
+
+# Outcome
+
+All nine domains extracted. `cli_commands.py` went 3313 -> 264 lines and now
+defines nothing: 63 import statements, zero functions, zero constants. The 42
+handlers stay importable from it and `_COMMAND_HANDLERS` is unchanged at 40
+entries. 561 tests pass, `npm run lint` clean.
+
+| commit | domain |
+|---|---|
+| `783fdee` | backup |
+| `23c5818` | context & memory |
+| `387f292` | the eight shared helpers -> `cli_helpers` |
+| `a83eb36` | settings |
+| `f9d5c81` | lifecycle |
+| `a972e1d` | launch |
+| `735476b` | auth |
+| `d403570` | status |
+
+Deviation from the plan: the shared helpers moved in one commit rather than
+one at a time as each domain needed them. Eight relocations spread across five
+extractions would have buried the moves inside unrelated diffs; as a single
+commit the relocation reads on its own. After it, the five remaining domains
+had zero shared helpers and extracted independently.
+
+Three failure modes the pilot had not exposed, each caught by tests rather
+than review:
+
+- **Pass-through imports get stripped.** `_format_bytes` and `STATUS_USAGE`
+  were imported by `cli_commands` for its own use and consumed by `cli.py`
+  through the facade. Once the last in-file caller moved out, ruff removed
+  them as unused and unrelated modules stopped importing. Both are now
+  explicit `# noqa: F401` re-exports, and
+  `test_cli_commands_facade_still_exposes_every_name_its_callers_import`
+  fails if any future extraction drops one. Verified it fails when a
+  re-export is removed.
+- **Relative imports inside moved bodies.** Four function-local
+  `from .cli_render import ...` statements in the status domain resolved one
+  package level too shallow once inside `src/commands/`. Four tests failed;
+  all such imports now re-level to `..`. status was the only domain with any.
+- **ruff splits `X as X` re-exports.** isort emits one statement per
+  redundant alias, which turned the facade into 50 separate imports. Grouped
+  `# noqa: F401` blocks say the same thing in one place per module.
+
+The extractions were driven by a script that cuts the named definitions
+verbatim and derives the new module's imports from what the moved code
+actually references. It refused to emit a module twice rather than guessing -
+once on a nested function name, once on a function-local import - which is
+what kept the moves verbatim.
 
 # Decision framing
 - Product framing: Not needed
