@@ -8,6 +8,7 @@
 > Theme: Maintainability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
 > Indicators reviewed: 2026-08-07
+> Non-semantic edit: removed a duplicated sentence about the req_025 ordering constraint; no scope, criterion, or estimate changed.
 
 # Needs
 - `src/session_service.py` is 1652 lines, but its size is a symptom. `create_session_service` alone spans 1153 of them and defines 46 closures inside a single function body.
