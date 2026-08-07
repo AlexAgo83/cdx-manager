@@ -6710,7 +6710,7 @@ class CliPythonTests(unittest.TestCase):
         with self.assertRaises(CdxError):
             _parse_run_args(["main", "--provider", "codex", "--cwd", target, "--prompt", "x", "--json"])
 
-    def _health_report(self, service, help_text=None, **kwargs):
+    def _health_report(self, service, help_text=None, cli_installed=True, **kwargs):
         from src.health import collect_health_report
 
         def spawn_sync(_command, args, _options):
@@ -6718,9 +6718,17 @@ class CliPythonTests(unittest.TestCase):
                 return {"stdout": help_text, "stderr": ""}
             return {"stdout": "", "stderr": ""}
 
-        return collect_health_report(
-            service, service["base_dir"], env=os.environ, spawn_sync=spawn_sync, **kwargs
+        # Whether a provider CLI is installed is a property of the machine, not
+        # of the behavior under test. Left unpatched these tests pass on a
+        # developer box with codex installed and fail on CI, which is exactly
+        # what they did.
+        which = (lambda command, path=None: f"/usr/bin/{command}") if cli_installed else (
+            lambda command, path=None: None
         )
+        with mock.patch("src.health.shutil.which", side_effect=which):
+            return collect_health_report(
+                service, service["base_dir"], env=os.environ, spawn_sync=spawn_sync, **kwargs
+            )
 
     def _flag_issue(self, report, provider):
         return next(i for i in report["issues"] if i["code"] == f"{provider}_permission_flags")
@@ -6760,8 +6768,7 @@ class CliPythonTests(unittest.TestCase):
         service = create_session_service({"base_dir": self.make_temp_dir()})
         service["create_session"]("work", "codex")
 
-        with mock.patch("src.health.shutil.which", return_value=None):
-            report = self._health_report(service, check_provider_flags=True)
+        report = self._health_report(service, cli_installed=False, check_provider_flags=True)
 
         # Not a failure, and emphatically not a pass: "could not check" is the
         # state issue #8 lived in for months.
