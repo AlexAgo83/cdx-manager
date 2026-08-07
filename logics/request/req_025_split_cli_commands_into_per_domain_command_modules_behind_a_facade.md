@@ -1,7 +1,7 @@
 ## req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade - Split cli_commands into per-domain command modules behind a facade
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium

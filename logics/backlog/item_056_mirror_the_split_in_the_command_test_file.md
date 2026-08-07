@@ -1,10 +1,10 @@
 ## item_056_mirror_the_split_in_the_command_test_file - Mirror the split in the command test file
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Status: Done
+> Understanding: 100%
+> Confidence: 100%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Maintainability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -36,6 +36,38 @@
 # AC Traceability
 - request-AC7 -> This backlog slice. Proof: Each command domain has its own test module, matching the source module names.
 - request-AC4 -> This backlog slice. Proof: The number of tests collected is identical before and after the split.
+
+# Outcome
+
+Delivered in `f766858`. `test/test_cli_py.py` (7141 lines, 264 tests in one
+class) becomes 16 modules: nine named for the command domains, and seven for
+the tests that are not about a single domain - `test_main_screen_py`,
+`test_cli_contract_py`, `test_provider_flags_py`,
+`test_session_ranking_contract_py`, `test_cli_rendering_py`,
+`test_commands_view_py`, `test_commands_ready_py`.
+
+Shared fixtures moved to `test/cli_test_support.py` as `CliTestBase` plus the
+harness classes. It is deliberately not named `test_*_py.py`, so pytest's
+configured `python_files` pattern does not collect it.
+
+Evidence for the two ACs that guard against a bad move:
+
+- **Nothing dropped, nothing changed.** Every test body was compared against
+  its source at HEAD: 264 of 264 relocated, 0 differ. Collection is 561 before
+  and after, and `--cov` reports 82% on identical statement and branch counts
+  both sides.
+- **Attribution held.** Tests were assigned by name prefix with the last
+  command invoked as fallback, because the first `main([...])` call in a test
+  is usually fixture setup rather than the subject. Twelve heuristic misfiles
+  were corrected by hand after reading each one.
+
+One thing worth recording. ruff removed a function-local `import re` from two
+tests and `from src import provider_runtime` from a third, because the copied
+module header already provided those names. That is behaviour-preserving but
+it makes a body differ from the original, which is exactly what this slice
+forbids. The module-level imports were dropped instead - they existed only for
+those three tests - so the bodies stayed byte-identical. The verbatim check
+above is what caught it; nothing else would have.
 
 # Decision framing
 - Product framing: Not needed
