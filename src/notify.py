@@ -7,11 +7,11 @@ import time
 from datetime import datetime, timedelta
 
 from .errors import CdxError
+from .session_ranking import rank_sessions
 from .status_view import (
     PRIORITY_EMPTY_AVAILABLE_THRESHOLD,
     _parse_reset_timestamp,
     _priority_reset_timestamp,
-    _recommend_priority_sessions,
 )
 
 NOTIFY_USAGE = "Usage: cdx notify <name> --at-reset [--poll seconds] [--once] [--schedule] [--refresh] | cdx notify --next-ready [--poll seconds] [--once] [--schedule] [--refresh]"
@@ -103,10 +103,16 @@ def resolve_notify_event(rows, parsed, now_ts=None):
     now_ts = time.time() if now_ts is None else now_ts
     if parsed["mode"] == "next-ready":
         active_rows = [row for row in rows if row.get("enabled", True) is not False]
-        priority = _recommend_priority_sessions([
-            row for row in active_rows
-            if not _is_usable_now(row) and _priority_reset_timestamp(row) is not None
-        ])
+        # Same ranking every other selector uses; the pre-filter is what makes
+        # this "next to come back" rather than "best right now".
+        priority, _decision = rank_sessions(
+            [
+                row for row in active_rows
+                if not _is_usable_now(row) and _priority_reset_timestamp(row) is not None
+            ],
+            now_ts,
+            _priority_reset_timestamp,
+        )
         if not priority:
             return _event(False, "cdx", "No upcoming session reset available", None)
         first = priority[0]

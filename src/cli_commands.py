@@ -126,7 +126,15 @@ from .repair import format_repair_report, repair_health
 from .run_command import read_run_prompt, run_cdx_error_code, run_launch_payload, run_result_payload
 from .run_registry import RunRegistry, build_code_review_report
 from .run_usage import extract_run_usage
-from .status_view import _format_status_detail, _format_status_rows, format_priority_instruction, recommend_priority_rows
+from .session_ranking import FACTOR_DESCRIPTIONS, rank_sessions, selection_policy
+from .status_view import (
+    _format_status_detail,
+    _format_status_rows,
+    _now_timestamp,
+    _priority_reset_timestamp,
+    format_priority_instruction,
+    recommend_priority_rows,
+)
 from .update_all import apply_update_all_plan, collect_update_all_plan
 from .update_check import LatestReleaseCheckError, fetch_latest_release, fetch_latest_release_or_raise, is_newer_version
 from .update_manager import build_update_plan, format_update_failure, run_update_plan, verify_updated_command
@@ -855,7 +863,11 @@ def handle_select(rest, ctx):
         require_ready=parsed["require_ready"],
         force_refresh=parsed["refresh"],
     )
-    policy = "ready_then_cooldown_then_health_then_priority_then_name"
+    # Derived from the ranking rather than written by hand: the previous
+    # literal omitted the reasoning-effort tie-break and described a candidate
+    # filter as a sort stage, and nothing failed when the sort key moved on
+    # without it.
+    policy = selection_policy()
     if not selected:
         message = "No suitable session found."
         _write_json(ctx, _json_failure(
@@ -870,20 +882,33 @@ def handle_select(rest, ctx):
         return 1
     session = selected["session"]
     row = selected.get("row") or {}
-    reason = "highest availability suitable session"
     _write_json(ctx, _json_success(
         "select",
         f"Selected session {session['name']}",
         session=session["name"],
         provider=session["provider"],
-        reason=reason,
+        reason=_selection_reason(selected.get("decision")),
+        deciding_factor=selected.get("decision"),
         selection_policy=policy,
         min_reasoning_effort=parsed["min_reasoning_effort"],
-        reasoning_effort=_session_reasoning_effort(session),
+        reasoning_effort=row.get("reasoning_effort"),
+        priority=row.get("priority"),
         available_pct=row.get("available_pct"),
         auth_status=row.get("auth_status"),
     ))
     return 0
+
+
+def _selection_reason(decision):
+    """Why this session won, for this call.
+
+    Names the factor that actually separated it from the runner-up instead of
+    the factor that usually does: the old fixed sentence claimed availability
+    decided even when priority or the alphabetical fallback did.
+    """
+    if decision is None:
+        return "only suitable session"
+    return f"decided on {decision}: {FACTOR_DESCRIPTIONS[decision]}"
 
 
 def _format_next_pct(value):
@@ -1225,6 +1250,7 @@ def handle_run_report(rest, ctx):
 def handle_run(rest, ctx):
     registry = None
     run_id = None
+    selection_row = None
     # pop, not get: the variable is consumed once. Left in the environment it is
     # inherited by the provider process, and any nested `cdx run` the agent
     # itself makes would claim this same run_id — deleting this run's registry
@@ -1245,7 +1271,10 @@ def handle_run(rest, ctx):
                 parsed["provider"],
                 min_reasoning_effort=parsed["reasoning_effort"],
                 require_ready=True,
-                force_refresh=False,
+                # Cached by default: refreshing would make every auto-selected
+                # run pay for a provider probe. `--refresh` is there for callers
+                # that would rather pay than choose on stale data.
+                force_refresh=parsed.get("refresh", False),
             )
             if not selected:
                 _write_json(ctx, _json_failure(
@@ -1257,6 +1286,7 @@ def handle_run(rest, ctx):
                 ))
                 return 1
             session = selected["session"]
+            selection_row = selected.get("row") or {}
 
         cwd = os.path.abspath(parsed["cwd"])
         if not os.path.isdir(cwd):
@@ -1325,6 +1355,7 @@ def handle_run(rest, ctx):
                 cwd=cwd,
                 pid=launch.get("pid"),
                 launch_log_path=launch.get("launch_log_path"),
+                selection_row=selection_row,
             ))
             return 0
 
@@ -1341,7 +1372,10 @@ def handle_run(rest, ctx):
         run_info = {**run_info, "usage": usage}
         ok = run_info.get("returncode") == 0
         if ok:
-            final_payload = run_result_payload(API_SCHEMA_VERSION, True, parsed, run_session, run_info=run_info)
+            final_payload = run_result_payload(
+                API_SCHEMA_VERSION, True, parsed, run_session, run_info=run_info,
+                selection_row=selection_row,
+            )
             task_report = build_code_review_report(run_id, final_payload) if parsed.get("kind") == "code-review" else None
             registry.finish(
                 run_id,
@@ -1369,6 +1403,7 @@ def handle_run(rest, ctx):
             error=error,
             error_source="provider",
             error_code="provider_timeout" if run_info.get("timed_out") else "provider_failed",
+            selection_row=selection_row,
         )
         registry.finish(
             run_id,
@@ -1398,6 +1433,7 @@ def handle_run(rest, ctx):
             error=error,
             error_source="cdx",
             error_code=run_cdx_error_code(error),
+            selection_row=selection_row,
         )
         if registry and run_id:
             registry.finish(
@@ -1527,86 +1563,29 @@ def _resolve_bulk_launch_targets(parsed, service):
     return targets
 
 
-def _reasoning_rank(value):
-    order = {"minimal": 0, "low": 1, "medium": 2, "high": 3, "xhigh": 4}
-    return order.get(str(value or "low").lower(), -1)
-
-
-def _session_reasoning_effort(session):
-    launch = session.get("launch") or {}
-    return (
-        launch.get("reasoning_effort")
-        or launch.get("reasoningEffort")
-        or launch.get("power")
-        or ("low" if launch.get("fast") is True and launch.get("fastMode") != "service_tier" else None)
-        or "low"
-    )
-
-
-def _session_selection_priority(session):
-    launch = session.get("launch") or {}
-    try:
-        return int(launch.get("priority") or 0)
-    except (TypeError, ValueError):
-        return 0
-
-
-def _row_blocks_ready(row):
-    if row.get("provider") in (PROVIDER_ANTIGRAVITY, PROVIDER_OLLAMA):
-        auth = "n/a"
-    else:
-        auth = row.get("auth_status") or "unknown"
-    if auth not in ("authenticated", "n/a"):
-        return True
-    available = row.get("available_pct")
-    if available is not None:
-        try:
-            if float(available) <= 0:
-                return True
-        except (TypeError, ValueError):
-            return True
-    return False
-
-
 def _select_headless_session(ctx, provider, min_reasoning_effort=None, require_ready=False, force_refresh=False):
-    sessions = [
-        session for session in ctx["service"]["list_sessions"]()
-        if session.get("provider") == provider and session.get("enabled", True) is not False
-    ]
-    if min_reasoning_effort:
-        minimum = _reasoning_rank(min_reasoning_effort)
-        sessions = [
-            session for session in sessions
-            if _reasoning_rank(_session_reasoning_effort(session)) >= minimum
-        ]
+    """The best session for a headless run, using the one shared ranking.
+
+    Returns the winning session with its status row and why it won, or None if
+    no candidate survived the filters.
+    """
+    sessions_by_name = {
+        session["name"]: session for session in ctx["service"]["list_sessions"]()
+    }
     rows = ctx["service"]["get_status_rows"](force_refresh=force_refresh)
-    row_by_name = {row.get("session_name"): row for row in rows}
-    candidates = []
-    for session in sessions:
-        row = row_by_name.get(session["name"], {})
-        if require_ready and _row_blocks_ready(row):
-            continue
-        available = row.get("available_pct")
-        try:
-            available_sort = float(available) if available is not None else -1.0
-        except (TypeError, ValueError):
-            available_sort = -1.0
-        cooldown_sort = 1 if available_sort > 0 else 0
-        candidates.append({
-            "session": session,
-            "row": row,
-            "sort_key": (
-                -cooldown_sort,
-                -available_sort,
-                -_session_selection_priority(session),
-                _reasoning_rank(_session_reasoning_effort(session)),
-                session["name"],
-            ),
-        })
-    if not candidates:
-        return None
-    candidates.sort(key=lambda item: item["sort_key"])
-    return candidates[0]
+    ordered, decision = rank_sessions(
+        rows,
+        _now_timestamp(),
+        _priority_reset_timestamp,
+        provider=provider,
+        require_ready=require_ready,
+        min_reasoning_effort=min_reasoning_effort,
+    )
+    for row in ordered:
+        session = sessions_by_name.get(row.get("session_name"))
+        if session:
+            return {"session": session, "row": row, "decision": decision}
+    return None
 
 
 def _format_bulk_launch_summary(sessions):

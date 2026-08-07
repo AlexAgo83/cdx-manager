@@ -9,6 +9,7 @@ from .cli_render import (
     _style,
     _style_pct,
 )
+from .session_ranking import rank_sessions
 
 RESET_COUNTDOWN_SAFETY_SECONDS = 60
 PRIORITY_EMPTY_AVAILABLE_THRESHOLD = 5
@@ -140,13 +141,17 @@ def _format_status_rows(rows, use_color=False, small=False):
                 _style(_format_relative_age(r.get("updated_at")), "2", use_color),
             ]
         table_rows.append(base)
+    # "Recommended", not "Priority": the `--priority` setting is one input to
+    # this ranking among several, and labelling the whole recommendation with
+    # its name made users tune `--priority` and conclude it did nothing when
+    # availability or resets had decided instead.
     priority_line = (
-        f"Priority: {_priority_instruction(priority[0], 'first')}"
+        f"Recommended: {_priority_instruction(priority[0], 'first')}"
         + (
             f", {_priority_instruction(priority[1], 'next')}."
             if len(priority) > 1 else "."
         )
-    ) if priority else "Priority: no usable session status yet."
+    ) if priority else "Recommended: no usable session status yet."
     current_line = _format_current_session_line(rows)
     return "\n".join([
         _pad_table([headers] + table_rows),
@@ -187,44 +192,20 @@ def _format_auth_status(row):
 
 
 def recommend_priority_rows(rows):
-    active_rows = [r for r in rows if r.get("enabled", True) is not False]
-    priority_candidates = [
-        r for r in active_rows
-        if _format_auth_status(r) != "logged out"
-    ]
-    return _recommend_priority_sessions(priority_candidates)
+    """Sessions to recommend, best first.
+
+    Delegates to the one ranking every selector shares, so `cdx next`, `cdx
+    status`, and `cdx ready` cannot disagree with `cdx select` and `cdx run
+    --provider` about which session is best.
+    """
+    ordered, _decision = rank_sessions(rows, _now_timestamp(), _priority_reset_timestamp)
+    return ordered
 
 
 def format_priority_instruction(row, position="first"):
     return _priority_instruction(row, position)
 
 
-def _recommend_priority_sessions(rows):
-    if not rows:
-        return []
-
-    def rank(row):
-        has_credits = row.get("credits") is not None
-        credit_rank = 0 if has_credits else 1
-        available = row.get("available_pct")
-        usable_now = available is not None and available > PRIORITY_EMPTY_AVAILABLE_THRESHOLD
-        known_available = available is not None
-        reset_timestamp = _priority_reset_timestamp(row)
-        reset_is_future = reset_timestamp is not None and reset_timestamp >= _now_timestamp()
-        blocked_future = not usable_now and reset_is_future
-        reset_is_known = reset_timestamp is not None
-        reset_rank = -reset_timestamp if reset_is_known else float("-inf")
-        available_rank = available if available is not None else -1
-        name_rank = row.get("session_name") or ""
-        if usable_now:
-            return (3, credit_rank, 1 if known_available else 0, available_rank, reset_rank, name_rank)
-        if blocked_future:
-            return (2, 1 if reset_is_known else 0, reset_rank, credit_rank, available_rank, name_rank)
-        if reset_is_known:
-            return (1, reset_rank, credit_rank, 1 if known_available else 0, available_rank, name_rank)
-        return (0, credit_rank, 1 if known_available else 0, available_rank, name_rank)
-
-    return sorted(rows, key=rank, reverse=True)
 
 
 def _format_blocking_quota(row):

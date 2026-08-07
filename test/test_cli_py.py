@@ -34,6 +34,7 @@ from src.cli_commands import _extract_claude_oauth_token, _format_update_all, _f
 from src.errors import CdxError
 from src.health import collect_health_report
 from src.run_registry import RunRegistry
+from src.session_ranking import RANKING_FACTORS
 from src.session_service import create_session_service
 
 HAS_CRYPTOGRAPHY = importlib.util.find_spec("cryptography") is not None
@@ -399,7 +400,7 @@ class CliPythonTests(unittest.TestCase):
             },
         ])
 
-        self.assertIn("Priority: use loggedin first", output)
+        self.assertIn("Recommended: use loggedin first", output)
         self.assertNotIn("use loggedout", output)
 
     def test_status_auth_is_not_applicable_for_local_providers(self):
@@ -431,8 +432,12 @@ class CliPythonTests(unittest.TestCase):
         ])
 
         lines = output.splitlines()
-        self.assertRegex(lines[1], r"\bollama\s+enabled\s+n/a\b")
-        self.assertRegex(lines[2], r"\bantigravity\s+enabled\s+n/a\b")
+        # Ties break on session name ascending ("agy" before "local"). The old
+        # recommendation ranking sorted names descending as a side effect of
+        # reversing the whole sort tuple, disagreeing with the headless
+        # ranking; the unified rule keeps the ascending order.
+        self.assertRegex(lines[1], r"\bantigravity\s+enabled\s+n/a\b")
+        self.assertRegex(lines[2], r"\bollama\s+enabled\s+n/a\b")
 
     def test_status_small_hides_metadata_columns(self):
         rows = [
@@ -475,7 +480,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertNotIn("BLOCK", header)
         self.assertNotIn("CR", header)
         self.assertNotIn("UPDATED", header)
-        self.assertIn("Priority:", output)
+        self.assertIn("Recommended:", output)
         self.assertIn("Current:", output)
         self.assertNotIn("Tip:", output)
 
@@ -3911,7 +3916,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("60%", output)
         self.assertIn("RESET 5H", output)
         self.assertIn("RESET WEEK", output)
-        self.assertIn("Priority: use work1 first (60% OK).", output)
+        self.assertIn("Recommended: use work1 first (60% OK).", output)
 
     def test_status_text_shows_progress_but_json_stays_clean(self):
         temp_dir = self.make_temp_dir()
@@ -4423,7 +4428,7 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
 
         self.assertIn(
-            "Priority: use regular first (80% OK), next credit (95% OK).",
+            "Recommended: use regular first (80% OK), next credit (95% OK).",
             status_io["stdout"].getvalue(),
         )
 
@@ -4511,7 +4516,7 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("low", output)
         self.assertIn("5%", output)
         self.assertIn(
-            "Priority: use usable first (6% OK), next low (0% OK).",
+            "Recommended: use usable first (6% OK), next low (0% OK).",
             output,
         )
 
@@ -4553,7 +4558,7 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
 
         self.assertIn(
-            "Priority: use work1 first (6% OK), next claude (0% OK, 5H resets first).",
+            "Recommended: use work1 first (6% OK), next claude (0% OK, 5H resets first).",
             status_io["stdout"].getvalue(),
         )
 
@@ -4596,7 +4601,7 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
 
         self.assertIn(
-            "Priority: use work1 first (6% OK), next credit (0% OK, WEEK resets first).",
+            "Recommended: use work1 first (6% OK), next credit (0% OK, WEEK resets first).",
             status_io["stdout"].getvalue(),
         )
 
@@ -4638,7 +4643,7 @@ class CliPythonTests(unittest.TestCase):
         }), 0)
 
         self.assertIn(
-            "Priority: use work1 first (6% OK), refresh claude next (0% OK, 5H reset passed).",
+            "Recommended: use work1 first (6% OK), refresh claude next (0% OK, 5H reset passed).",
             status_io["stdout"].getvalue(),
         )
 
@@ -5477,8 +5482,15 @@ class CliPythonTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["session"], "full")
         self.assertEqual(payload["provider"], "codex")
-        self.assertEqual(payload["reason"], "highest availability suitable session")
-        self.assertEqual(payload["selection_policy"], "ready_then_cooldown_then_health_then_priority_then_name")
+        # The reason names the factor that actually decided this call, and the
+        # policy is built from the ranking rather than typed out, so neither can
+        # describe an order the code does not apply.
+        self.assertIn(payload["deciding_factor"], (None, *RANKING_FACTORS))
+        self.assertEqual(
+            [factor["name"] for factor in payload["selection_policy"]["factors"]],
+            list(RANKING_FACTORS),
+        )
+        self.assertIn("availability", payload["selection_policy"]["summary"])
 
     def test_select_without_minimum_includes_minimal_power_sessions(self):
         target_dir = self.make_temp_dir()
@@ -6787,6 +6799,129 @@ class CliPythonTests(unittest.TestCase):
         # a green doctor imply the mappings were verified.
         unchecked = next(i for i in report["issues"] if i["code"] == "provider_permission_flags_unchecked")
         self.assertEqual(unchecked["status"], "WARN")
+
+    def _ranked(self, rows, **kwargs):
+        from src.session_ranking import rank_sessions
+
+        ordered, decision = rank_sessions(rows, 1_000_000, lambda _row: None, **kwargs)
+        return [row["session_name"] for row in ordered], decision
+
+    def _row(self, name, **overrides):
+        return {
+            "session_name": name, "provider": "codex", "enabled": True,
+            "auth_status": "authenticated", "available_pct": 50, "credits": None,
+            "priority": 0, "reasoning_effort": "medium", **overrides,
+        }
+
+    def test_priority_orders_two_otherwise_equal_sessions(self):
+        names, decision = self._ranked([
+            self._row("plain"),
+            self._row("preferred", priority=90),
+        ])
+
+        self.assertEqual(names[0], "preferred")
+        self.assertEqual(decision, "priority")
+
+    def test_priority_does_not_promote_a_session_that_cannot_serve(self):
+        names, _ = self._ranked([
+            self._row("usable", available_pct=40),
+            self._row("empty", available_pct=0, priority=99),
+        ])
+
+        # Priority says which usable session to prefer. It does not make an
+        # exhausted session the right place to send work.
+        self.assertEqual(names[0], "usable")
+
+    def test_every_selector_agrees_on_the_best_session(self):
+        from src.status_view import recommend_priority_rows
+
+        rows = [self._row("beta", available_pct=30), self._row("alpha", available_pct=80, priority=10)]
+
+        ranked, _ = self._ranked(rows)
+        self.assertEqual(recommend_priority_rows(rows)[0]["session_name"], ranked[0])
+
+    def test_logged_out_sessions_are_never_candidates(self):
+        names, _ = self._ranked([
+            self._row("out", auth_status="logged_out", available_pct=99),
+            self._row("in", available_pct=10),
+        ])
+
+        # `cdx select` without --require-ready used to be able to return one.
+        self.assertEqual(names, ["in"])
+
+    def test_lower_reasoning_effort_wins_a_tie(self):
+        names, decision = self._ranked([
+            self._row("strong", reasoning_effort="xhigh"),
+            self._row("cheap", reasoning_effort="low"),
+        ])
+
+        # Deliberate cost preference, kept from the headless ranking where it
+        # was implied by an un-negated sort term.
+        self.assertEqual(names[0], "cheap")
+        self.assertEqual(decision, "reasoning_effort")
+
+    def test_single_candidate_reports_no_deciding_factor(self):
+        _names, decision = self._ranked([self._row("only")])
+
+        self.assertIsNone(decision)
+
+    def test_selection_policy_is_built_from_the_ranking(self):
+        from src.session_ranking import RANKING_FACTORS, selection_policy
+
+        policy = selection_policy()
+
+        # Derived, so reordering RANKING_FACTORS changes what cdx publishes
+        # without anyone editing a string.
+        self.assertEqual([f["name"] for f in policy["factors"]], list(RANKING_FACTORS))
+        self.assertNotIn("require_ready", [f["name"] for f in policy["factors"]])
+        self.assertIn("require_ready", [f["name"] for f in policy["filters"]])
+
+    def test_run_warns_when_it_selects_a_session_with_no_status(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        session = service["create_session"]("blind", "codex")
+        os.makedirs(session["authHome"], exist_ok=True)
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"access_token": "token"}}, handle)
+        service["update_auth_state"]("blind", lambda auth: {**auth, "status": "authenticated"})
+
+        def spawn(_argv, **kwargs):
+            kwargs["stdout"].write("ok\n")
+            return _HeadlessChild(0)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "--provider", "codex", "--cwd", target_dir, "--prompt", "Do it",
+            "--permission", "full", "--json",
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 0)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        # No availability was ever recorded, so the ranking chose on nothing.
+        self.assertIn(
+            "session_selected_without_status",
+            [warning["code"] for warning in payload["warnings"]],
+        )
+
+    def test_named_session_does_not_warn_about_selection(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        self._authenticated_codex_session(service, name="named")
+
+        def spawn(_argv, **kwargs):
+            kwargs["stdout"].write("ok\n")
+            return _HeadlessChild(0)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "named", "--cwd", target_dir, "--prompt", "Do it",
+            "--permission", "full", "--json",
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 0)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertNotIn(
+            "session_selected_without_status",
+            [warning["code"] for warning in payload["warnings"]],
+        )
 
     def test_run_no_suitable_session_includes_launcher(self):
         target_dir = self.make_temp_dir()

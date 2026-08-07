@@ -271,6 +271,25 @@ def _to_local_iso(value):
     return parsed.astimezone().isoformat()
 
 
+def _row_priority(session):
+    launch = session.get("launch") or {}
+    try:
+        return int(launch.get("priority") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _row_reasoning_effort(session):
+    launch = session.get("launch") or {}
+    return (
+        launch.get("reasoning_effort")
+        or launch.get("reasoningEffort")
+        or launch.get("power")
+        or ("low" if launch.get("fast") is True and launch.get("fastMode") != "service_tier" else None)
+        or "low"
+    )
+
+
 def _normalize_pct_value(value):
     if value is None:
         return None
@@ -1172,6 +1191,12 @@ def create_session_service(options=None):
             "label": s.get("label"),
             "provider": s["provider"],
             "enabled": enabled,
+            # Carried so the ranking can honor the user's `--priority` and the
+            # configured effort wherever it runs. Without these on the row, the
+            # recommendation path could not see either, which is why `cdx next`
+            # ignored `--priority` entirely.
+            "priority": _row_priority(s),
+            "reasoning_effort": _row_reasoning_effort(s),
             "active": bool(_session_runtime(s["name"])) if enabled else False,
             "status": "enabled" if enabled else "disabled",
             "auth_status": (s.get("auth") or {}).get("status") or "unknown",

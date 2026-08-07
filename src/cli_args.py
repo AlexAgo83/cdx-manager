@@ -42,7 +42,7 @@ RESUME_USAGE = "Usage: cdx resume <name> [--json]"
 CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--json]"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json"
 NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
-RUN_USAGE = "Usage: cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--detach] --json"
+RUN_USAGE = "Usage: cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--detach] [--refresh] --json"
 RUN_JSON_REQUIRED = "cdx run: --json is required."
 RUN_TARGET_REQUIRED = "cdx run: specify a session name or --provider PROVIDER."
 RUN_SESSION_PROVIDER_CONFLICT = "cdx run: cannot specify both a session name and --provider."
@@ -478,6 +478,7 @@ def cdx_schema():
         },
         "warning_codes": [
             "network_disabled_by_permission",
+            "session_selected_without_status",
             "limit_ignored_with_since",
         ],
     }
@@ -553,6 +554,7 @@ def _parse_run_args(args):
         "--permission": {"key": "permission", "type": "str", "default": None, "transform": _normalize_run_permission},
         "--timeout-seconds": {"key": "timeout_seconds", "type": "str", "default": None, "transform": _parse_run_timeout_seconds},
         "--detach": {"key": "detach", "type": "bool", "default": False},
+        "--refresh": {"key": "refresh", "type": "bool", "default": False},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, RUN_USAGE, positionals_key="names", max_positionals=1)
     if not parsed["json"]:
@@ -600,6 +602,7 @@ def _parse_run_args(args):
         "permission": parsed["permission"],
         "timeout_seconds": parsed["timeout_seconds"],
         "detach": parsed["detach"],
+        "refresh": parsed["refresh"],
         "reasoning_effort": effort.get("reasoning_effort"),
         "power": effort.get("power"),
     }

@@ -111,13 +111,26 @@ def run_effective_permission(parsed, session):
     return parsed.get("permission") or launch.get("permission")
 
 
-def run_warnings(parsed, session):
+def run_warnings(parsed, session, selection_row=None):
     """Known degradations that a zero exit code would otherwise hide.
 
     Emitted on success as much as on failure: the whole point is that the run
     looks fine and quietly did less than it was asked to.
     """
     warnings = []
+    if selection_row is not None and selection_row.get("available_pct") is None:
+        # Auto-selection ranked this session without ever having seen its
+        # status. That is not "low availability" — it is no information, and on
+        # a freshly imported or long-idle set of sessions it is the normal case.
+        warnings.append({
+            "code": "session_selected_without_status",
+            "message": (
+                f"Session {selection_row.get('session_name')!r} was auto-selected without any "
+                "recorded availability; the choice was made on missing status data. "
+                "Pass --refresh to fetch status before selecting."
+            ),
+            "session": selection_row.get("session_name"),
+        })
     provider = session.get("provider") if session else parsed.get("provider")
     permission = run_effective_permission(parsed, session)
     if headless_permission_disables_network(provider, permission):
@@ -136,7 +149,7 @@ def run_warnings(parsed, session):
 
 
 def run_launch_payload(api_schema_version, parsed, session, artifacts, cwd=None,
-                       pid=None, launch_log_path=None):
+                       pid=None, launch_log_path=None, selection_row=None):
     """Payload for a detached launch: identity and artifact paths, no outcome.
 
     Deliberately shaped like `run_result_payload` minus the fields only a
@@ -161,13 +174,13 @@ def run_launch_payload(api_schema_version, parsed, session, artifacts, cwd=None,
         "stdout_path": artifacts.get("stdout_path"),
         "stderr_path": artifacts.get("stderr_path"),
         "launch_log_path": launch_log_path,
-        "warnings": run_warnings(parsed, session),
+        "warnings": run_warnings(parsed, session, selection_row),
         "error": None,
     }
 
 
 def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
-                       error=None, error_source=None, error_code=None):
+                       error=None, error_source=None, error_code=None, selection_row=None):
     run_info = run_info or {}
     usage = run_info.get("usage") if isinstance(run_info.get("usage"), dict) else (
         extract_run_usage(session.get("provider"), run_info.get("stdout_path"))
@@ -197,7 +210,7 @@ def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
         "stdout_path": run_info.get("stdout_path"),
         "stderr_path": run_info.get("stderr_path"),
         "usage": usage,
-        "warnings": run_warnings(parsed, session),
+        "warnings": run_warnings(parsed, session, selection_row),
         "error": None if ok else {
             "source": error_source or "cdx",
             "code": error_code or "cdx_error",
