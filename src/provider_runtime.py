@@ -66,9 +66,15 @@ def headless_permission_disables_network(provider, permission):
 
     Read off the same mapping the launch spec uses rather than a parallel list
     of permissions, so adding a permission cannot leave this behind.
+
+    No permission at all is the common case, not an exemption: the launch spec
+    simply appends no sandbox flag, and `codex exec` then applies its own
+    sandboxed default. Only an explicit `full` actually buys network access.
     """
-    if provider != PROVIDER_CODEX or not permission:
+    if provider != PROVIDER_CODEX:
         return False
+    if not permission:
+        return True
     return "-s" in HEADLESS_CODEX_PERMISSION_ARGS.get(permission, [])
 REDACTED_PROMPT_ARG = "[prompt redacted]"
 CLAUDE_CLI_MODEL_ALIASES = {

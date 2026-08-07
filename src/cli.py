@@ -249,13 +249,18 @@ def format_json_error(error):
     # declared one fall back to sniffing the message prefix below.
     declared = getattr(error, "code", None)
     if declared:
+        allowed = getattr(error, "allowed", None)
+        # Same field set as run_result_payload's error object, so a caller does
+        # not need two shapes depending on which command raised.
         return json.dumps({
             "schema_version": API_SCHEMA_VERSION,
             "ok": False,
             "error": {
+                "source": "cdx",
                 "code": declared,
                 "message": message,
                 "arguments": list(getattr(error, "arguments", ()) or []),
+                "allowed_values": list(allowed) if allowed else None,
                 "exit_code": error.exit_code,
             },
         }, indent=2)

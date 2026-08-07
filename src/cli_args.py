@@ -429,18 +429,48 @@ def cdx_schema():
                 "arguments": ["--prompt-file", "--prompt"],
                 "reason": "Exactly one prompt source.",
             },
+        ],
+        # Not mutually exclusive: both may be given, and cdx accepts them when
+        # they agree. A caller generating validation from `mutually_exclusive`
+        # would otherwise reject a command line cdx would have run.
+        "must_match": [
             {
                 "command": "run",
                 "arguments": ["--reasoning-effort", "--power"],
-                "reason": "Aliases of one setting; they must match when both are given.",
+                "reason": "Aliases of one setting; supplying both with different values fails.",
             },
         ],
-        "error_codes": [
-            ARG_CODE_MISSING,
-            ARG_CODE_MUTUALLY_EXCLUSIVE,
-            ARG_CODE_INVALID_VALUE,
-            ARG_CODE_OUT_OF_RANGE,
-            ARG_CODE_UNKNOWN,
+        # Every code a run-family command can put in `error.code`, not just the
+        # argument ones — a caller matching exhaustively over this list must not
+        # fall through on a code it will certainly see.
+        "error_codes": {
+            "arguments": [
+                ARG_CODE_MISSING,
+                ARG_CODE_MUTUALLY_EXCLUSIVE,
+                ARG_CODE_INVALID_VALUE,
+                ARG_CODE_OUT_OF_RANGE,
+                ARG_CODE_UNKNOWN,
+                "invalid_reasoning_effort",
+            ],
+            "run": [
+                "invalid_cwd",
+                "session_disabled",
+                "no_suitable_session",
+                "provider_cli_not_found",
+                "provider_start_failed",
+                "provider_failed",
+                "provider_timeout",
+                "cdx_error",
+            ],
+            "run_lookup": [
+                "run_not_found",
+                "run_output_unavailable",
+                "run_output_unreadable",
+            ],
+        },
+        "warning_codes": [
+            "network_disabled_by_permission",
+            "limit_ignored_with_since",
         ],
     }
 
@@ -483,7 +513,13 @@ def _parse_run_effort(reasoning_effort, power):
                 code=ARG_CODE_MUTUALLY_EXCLUSIVE,
                 arguments=["--reasoning-effort", "--power"],
             ) from error
-        argument = "--power" if message.startswith("Unsupported power:") else "--reasoning-effort"
+        # An empty value raises the bare usage line, which names neither flag.
+        # Blame the one actually supplied rather than guessing, since naming the
+        # offending argument is the entire point of this error.
+        if message.startswith("Unsupported power:") or (power is not None and reasoning_effort is None):
+            argument = "--power"
+        else:
+            argument = "--reasoning-effort"
         # Keeps the pre-existing `invalid_reasoning_effort` code rather than
         # flattening it into the generic invalid-value one: it was already
         # specific, and callers may already branch on it. The new codes exist to

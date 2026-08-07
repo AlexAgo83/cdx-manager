@@ -45,6 +45,21 @@ The run payload's `warnings` list was declared in the contract but hardcoded emp
 - Two tests still asserted the `--experimental-yolo` flag removed from ollama launches in 0.12.4 (GitHub issue #8); the launch behavior was already correct, the stale expectations are now aligned.
 - `format_json_error` honors an error's declared code instead of always re-deriving one from the message prefix, so structured argument errors keep their code when they reach the CLI entry point.
 
+## Review fixes
+
+Found by a review pass over the implementation, before release:
+
+- The detached child's `CDX_RUN_ID` is consumed rather than read, so it is no longer inherited by the provider process. Left set, an agent making its own nested `cdx run` would have claimed the outer run's id, deleting its registry record and truncating its stdout, stderr, and transcript files.
+- The detached child receives the resolved absolute `--cwd`; a relative path would have resolved against the child's own working directory.
+- `--detach` now detaches correctly on Windows (`DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP`), and always re-invokes through `sys.executable -m` rather than `sys.argv[0]`, which is not reliably executable there.
+- `network_disabled_by_permission` now fires when no `--permission` is given at all — the most common invocation, where `codex exec` still applies its own sandboxed default. It previously exempted exactly the case it was written for.
+- `cdx run-tail` on a run that has not written its first byte returns `lines: []` instead of failing, so the launch-then-tail flow does not report a fatal error during that window. A missing output file on a *finished* run is still an error.
+- `run-tail` drops a partial leading line when the read window opens mid-line, rather than returning a fragment as if it were a whole line.
+- `cdx schema --json` publishes every error code the run commands emit, grouped by area, plus the warning codes; and `--reasoning-effort`/`--power` moved from `mutually_exclusive` to a new `must_match` group, since cdx accepts both when they agree.
+- An empty `--power ""` blames `--power` instead of `--reasoning-effort`.
+- `format_json_error` emits the same error field set as the run payload, so callers do not need two shapes.
+- The prompt a detached launch stages for its child is deleted once the child reads it, instead of leaving a permanent cleartext copy in the session log directory.
+
 ## Validation
 
 - `npm run lint`

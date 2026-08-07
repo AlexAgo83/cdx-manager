@@ -121,10 +121,11 @@ def run_warnings(parsed, session):
     provider = session.get("provider") if session else parsed.get("provider")
     permission = run_effective_permission(parsed, session)
     if headless_permission_disables_network(provider, permission):
+        described = repr(permission) if permission else "its default (none set)"
         warnings.append({
             "code": "network_disabled_by_permission",
             "message": (
-                f"{provider} runs at permission {permission!r} inside a sandbox with no network "
+                f"{provider} runs at permission {described} inside a sandbox with no network "
                 "access, so tools needing the network (DNS, HTTPS) fail inside this run even "
                 "though it exits successfully. Use --permission full if the run needs network."
             ),

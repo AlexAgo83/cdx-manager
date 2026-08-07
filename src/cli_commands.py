@@ -974,9 +974,17 @@ def _tail_file_lines(path, lines):
     with open(path, "rb") as handle:
         handle.seek(0, os.SEEK_END)
         size = handle.tell()
+        truncated = size > RUN_TAIL_READ_BYTES
         handle.seek(max(0, size - RUN_TAIL_READ_BYTES))
         text = handle.read().decode("utf-8", errors="replace")
-    return text.splitlines()[-lines:]
+    found = text.splitlines()
+    if truncated and found:
+        # The window opened mid-line, so the first entry is a fragment. Codex
+        # emits very long single-line JSON events, so this is reachable, and
+        # handing a caller half a line as if it were whole is worse than one
+        # line short.
+        found = found[1:]
+    return found[-lines:]
 
 
 def _cdx_self_command():
@@ -988,15 +996,31 @@ def _cdx_self_command():
     is already tested, without a second implementation that only detached runs
     exercise. `os.fork()` would avoid the re-exec but is not available on
     Windows, which this CLI supports.
+
+    Always goes through `sys.executable -m`, never `sys.argv[0]`: the console
+    script has no reliable executable bit on Windows (`os.access(X_OK)` is true
+    for any existing file there) and a shebang script handed to CreateProcess
+    does not start at all.
     """
-    entry = sys.argv[0] if sys.argv else ""
-    if entry and os.path.isfile(entry) and os.access(entry, os.X_OK):
-        return [entry], None
     package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     return [sys.executable, "-m", f"{__package__}.cli"], package_root
 
 
-def _detached_child_argv(parsed, prompt_path, session_name):
+def _detached_spawn_options():
+    """Platform flags that keep the child alive after this process exits.
+
+    `start_new_session` is silently ignored on Windows, where a child stays
+    attached to the console and dies with the launcher unless it is explicitly
+    detached and given its own process group.
+    """
+    if sys.platform == "win32":
+        detached_process = getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+        new_group = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+        return {"creationflags": detached_process | new_group}
+    return {"start_new_session": True}
+
+
+def _detached_child_argv(parsed, prompt_path, session_name, cwd):
     """Child argv for a detached run.
 
     Always names the session the parent already resolved, never `--provider`:
@@ -1004,7 +1028,9 @@ def _detached_child_argv(parsed, prompt_path, session_name):
     again could land it on a different session than the one the launch payload
     just reported to the caller.
     """
-    argv = ["run", session_name, "--cwd", parsed["cwd"], "--prompt-file", prompt_path]
+    # The resolved absolute cwd, not the raw user string: the child is started
+    # from the package root, so a relative "--cwd ." would resolve there.
+    argv = ["run", session_name, "--cwd", cwd, "--prompt-file", prompt_path]
     for flag, key in (
         ("--model", "model"),
         ("--kind", "kind"),
@@ -1023,7 +1049,28 @@ def _detached_child_argv(parsed, prompt_path, session_name):
     return argv
 
 
-def _spawn_detached_run(parsed, prompt, artifacts, ctx, session_name):
+DETACHED_PROMPT_SUFFIX = ".prompt.txt"
+
+
+def _consume_detached_prompt_file(parsed, detached_run_id):
+    """Delete the prompt file a detached launch staged for this child.
+
+    The prompt is arbitrary, often sensitive text, and the rest of the codebase
+    keeps it out of anything persisted (`REDACTED_PROMPT_ARG`, `sensitive_args`).
+    Leaving the staged copy behind would put a permanent cleartext prompt in the
+    session's log directory for every detached run. Only the child that was
+    handed a run id removes it, and only a file this code wrote.
+    """
+    prompt_file = parsed.get("prompt_file")
+    if not detached_run_id or not prompt_file or not prompt_file.endswith(DETACHED_PROMPT_SUFFIX):
+        return
+    try:
+        os.remove(prompt_file)
+    except OSError:
+        pass
+
+
+def _spawn_detached_run(parsed, prompt, artifacts, ctx, session_name, cwd):
     """Stage the prompt, then launch the child detached and return immediately.
 
     The prompt is written beside the run's other artifacts rather than to a
@@ -1033,7 +1080,7 @@ def _spawn_detached_run(parsed, prompt, artifacts, ctx, session_name):
     """
     # transcript_path is "<prefix>.log"; the other artifacts share that prefix.
     prefix = os.path.splitext(artifacts["transcript_path"])[0]
-    prompt_path = f"{prefix}.prompt.txt"
+    prompt_path = f"{prefix}{DETACHED_PROMPT_SUFFIX}"
     launch_log_path = f"{prefix}.launch.log"
     with open(prompt_path, "w", encoding="utf-8") as handle:
         handle.write(prompt)
@@ -1048,16 +1095,16 @@ def _spawn_detached_run(parsed, prompt, artifacts, ctx, session_name):
     try:
         with open(launch_log_path, "w", encoding="utf-8", errors="replace") as log_file:
             child = spawn(
-                command + _detached_child_argv(parsed, prompt_path, session_name),
+                command + _detached_child_argv(parsed, prompt_path, session_name, cwd),
                 stdout=log_file,
                 stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL,
-                # Detach from this process's session so the run outlives the
-                # launcher, including when cdx was invoked over a non-interactive
-                # SSH command that closes as soon as it returns.
-                start_new_session=True,
+                # Detach so the run outlives the launcher, including when cdx
+                # was invoked over a non-interactive SSH command that closes as
+                # soon as it returns.
                 cwd=package_root or None,
                 env=env,
+                **_detached_spawn_options(),
             )
     except OSError as error:
         # Surface as a CdxError so handle_run's own handler marks the already
@@ -1113,6 +1160,21 @@ def handle_run_tail(rest, ctx):
         return 1
     try:
         lines = _tail_file_lines(stdout_path, parsed["lines"])
+    except FileNotFoundError:
+        if run.get("status") != "running":
+            _write_json(ctx, _json_failure(
+                "run-tail",
+                "run_output_unreadable",
+                f"Missing output file for a finished run: {stdout_path}",
+                run_id=parsed["run_id"],
+                stdout_path=stdout_path,
+            ))
+            return 1
+        # A run registered a moment ago has not written its first byte yet.
+        # That is "no output so far", not a failure — the advertised flow is
+        # launch detached, then tail immediately, and a polling caller must not
+        # read that window as fatal.
+        lines = []
     except OSError as error:
         _write_json(ctx, _json_failure(
             "run-tail",
@@ -1163,6 +1225,11 @@ def handle_run_report(rest, ctx):
 def handle_run(rest, ctx):
     registry = None
     run_id = None
+    # pop, not get: the variable is consumed once. Left in the environment it is
+    # inherited by the provider process, and any nested `cdx run` the agent
+    # itself makes would claim this same run_id — deleting this run's registry
+    # record and truncating its stdout/stderr/transcript files.
+    detached_run_id = os.environ.pop(DETACHED_RUN_ID_ENV, None) or None
     try:
         parsed = _parse_run_args(rest)
         session = None
@@ -1195,6 +1262,7 @@ def handle_run(rest, ctx):
         if not os.path.isdir(cwd):
             raise CdxError(f"Invalid cwd: {parsed['cwd']}")
         prompt = read_run_prompt(parsed, stdin=ctx.get("prompt_stdin"))
+        _consume_detached_prompt_file(parsed, detached_run_id)
         launch_updates = {}
         if parsed.get("model"):
             launch_updates["model"] = parsed["model"]
@@ -1224,7 +1292,11 @@ def handle_run(rest, ctx):
         registry = _run_registry(ctx)
         # A detached child is handed its parent's run_id so both agree on the
         # identity the launch payload already reported to the caller.
-        artifacts = _headless_artifact_paths(run_session, run_id=os.environ.get(DETACHED_RUN_ID_ENV) or None)
+        # pop, not get: the variable is consumed once. Left in the environment
+        # it is inherited by the provider process, and any nested `cdx run` the
+        # agent itself makes would claim this same run_id — deleting this run's
+        # registry record and truncating its stdout/stderr/transcript files.
+        artifacts = _headless_artifact_paths(run_session, run_id=detached_run_id)
         run_id = artifacts["run_id"]
         registry.start(
             run_id,
@@ -1240,7 +1312,7 @@ def handle_run(rest, ctx):
             },
         )
         if parsed.get("detach"):
-            launch = _spawn_detached_run(parsed, prompt, artifacts, ctx, run_session["name"])
+            launch = _spawn_detached_run(parsed, prompt, artifacts, ctx, run_session["name"], cwd)
             # Hand the record the child's pid: this process is about to exit,
             # and a run pointing at a dead pid gets swept up as stale.
             if launch.get("pid"):

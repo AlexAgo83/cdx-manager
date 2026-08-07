@@ -6213,6 +6213,181 @@ class CliPythonTests(unittest.TestCase):
         self.assertIn("picked", spawned["argv"])
         self.assertNotIn("--provider", spawned["argv"])
 
+    def test_detached_run_id_is_consumed_not_inherited(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        self._authenticated_codex_session(service)
+
+        seen_env = {}
+
+        def spawn(_argv, **kwargs):
+            seen_env["env"] = dict(kwargs.get("env") or os.environ)
+            kwargs["stdout"].write("ok\n")
+            return _HeadlessChild(0)
+
+        io_obj = self.make_io()
+        with mock.patch.dict(os.environ, {"CDX_RUN_ID": "outer-run"}):
+            self.assertEqual(main([
+                "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json"
+            ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 0)
+            # Left set, the provider inherits it and any nested `cdx run` the
+            # agent makes claims this same run_id, wiping the outer run's
+            # registry record and truncating its artifact files.
+            self.assertIsNone(os.environ.get("CDX_RUN_ID"))
+
+        self.assertEqual(json.loads(io_obj["stdout"].getvalue())["run_id"], "outer-run")
+        self.assertNotIn("CDX_RUN_ID", seen_env["env"])
+
+    def test_detached_child_deletes_the_staged_prompt_file(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        self._authenticated_codex_session(service)
+        prompt_path = os.path.join(self.make_temp_dir(), "cdx-run-x.prompt.txt")
+        with open(prompt_path, "w", encoding="utf-8") as handle:
+            handle.write("secret prompt")
+
+        def spawn(_argv, **kwargs):
+            kwargs["stdout"].write("ok\n")
+            return _HeadlessChild(0)
+
+        io_obj = self.make_io()
+        with mock.patch.dict(os.environ, {"CDX_RUN_ID": "child-run"}):
+            self.assertEqual(main([
+                "run", "work", "--cwd", target_dir, "--prompt-file", prompt_path, "--json"
+            ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 0)
+
+        # Prompts are kept out of everything else that persists; a detached run
+        # must not leave a permanent cleartext copy in the log directory.
+        self.assertFalse(os.path.exists(prompt_path))
+
+    def test_ordinary_run_keeps_a_caller_supplied_prompt_file(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        self._authenticated_codex_session(service)
+        prompt_path = os.path.join(self.make_temp_dir(), "task.prompt.txt")
+        with open(prompt_path, "w", encoding="utf-8") as handle:
+            handle.write("mine to keep")
+
+        def spawn(_argv, **kwargs):
+            kwargs["stdout"].write("ok\n")
+            return _HeadlessChild(0)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work", "--cwd", target_dir, "--prompt-file", prompt_path, "--json"
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 0)
+
+        # Only a detached child cleans up, and only the copy cdx staged itself.
+        self.assertTrue(os.path.exists(prompt_path))
+
+    def test_run_warns_about_no_network_when_no_permission_is_given(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        self._authenticated_codex_session(service)
+
+        def spawn(_argv, **kwargs):
+            kwargs["stdout"].write("ok\n")
+            return _HeadlessChild(0)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work", "--cwd", target_dir, "--prompt", "gh pr list", "--json"
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 0)
+
+        # The most common invocation: no --permission at all. codex still runs
+        # sandboxed by default, so this is exactly the silent degradation the
+        # warning exists for — it must not be exempt.
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertEqual(
+            [warning["code"] for warning in payload["warnings"]],
+            ["network_disabled_by_permission"],
+        )
+
+    def test_run_tail_on_a_run_that_has_not_written_yet(self):
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        registry = RunRegistry(service["base_dir"])
+        missing = os.path.join(self.make_temp_dir(), "not-yet.stdout.log")
+        registry.start("fresh", kind="assistant", session="work", provider="codex",
+                       model=None, cwd=".", artifacts={"stdout_path": missing})
+
+        io_obj = self.make_io()
+        # launch detached -> tail immediately is the advertised flow; the child
+        # has not written its first byte yet. "No output so far" is not fatal.
+        self.assertEqual(main(["run-tail", "fresh", "--json"], self.make_run_ctx(io_obj, service)), 0)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertEqual(payload["lines"], [])
+        self.assertEqual(payload["status"], "running")
+
+    def test_run_tail_missing_output_on_a_finished_run_is_an_error(self):
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        registry = RunRegistry(service["base_dir"])
+        missing = os.path.join(self.make_temp_dir(), "gone.stdout.log")
+        registry.start("done", kind="assistant", session="work", provider="codex",
+                       model=None, cwd=".", artifacts={"stdout_path": missing})
+        registry.finish("done", status="succeeded")
+
+        io_obj = self.make_io()
+        self.assertEqual(main(["run-tail", "done", "--json"], self.make_run_ctx(io_obj, service)), 1)
+
+        self.assertEqual(
+            json.loads(io_obj["stdout"].getvalue())["error"]["code"],
+            "run_output_unreadable",
+        )
+
+    def test_run_tail_drops_a_partial_leading_line(self):
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        # One line larger than the read window, so the seek lands mid-line.
+        body = (b"H" * (2 << 20)) + b"\nsecond line\n"
+        run_id, _ = self._finished_run_with_output(service, body, run_id="huge")
+
+        io_obj = self.make_io()
+        self.assertEqual(main(["run-tail", run_id, "--lines", "10", "--json"],
+                              self.make_run_ctx(io_obj, service)), 0)
+
+        # Half of a line handed over as if it were whole is worse than one line
+        # short, especially for codex's single-line JSON events.
+        self.assertEqual(json.loads(io_obj["stdout"].getvalue())["lines"], ["second line"])
+
+    def test_empty_power_blames_the_flag_that_was_passed(self):
+        target = self.make_temp_dir()
+        with self.assertRaises(CdxError) as caught:
+            _parse_run_args(["main", "--cwd", target, "--prompt", "x", "--power", "", "--json"])
+
+        self.assertEqual(caught.exception.arguments, ("--power",))
+
+    def test_schema_does_not_advertise_must_match_as_mutually_exclusive(self):
+        io_obj = self.make_io()
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        self.assertEqual(main(["schema", "--json"], self.make_run_ctx(io_obj, service)), 0)
+        schema = json.loads(io_obj["stdout"].getvalue())
+
+        exclusive = {tuple(group["arguments"]) for group in schema["mutually_exclusive"]}
+        must_match = {tuple(group["arguments"]) for group in schema["must_match"]}
+        self.assertNotIn(("--reasoning-effort", "--power"), exclusive)
+        self.assertIn(("--reasoning-effort", "--power"), must_match)
+
+        # cdx accepts both when they agree, so validation generated from the
+        # schema must not reject it.
+        target = self.make_temp_dir()
+        _parse_run_args(["main", "--cwd", target, "--prompt", "x",
+                         "--reasoning-effort", "low", "--power", "low", "--json"])
+
+    def test_schema_publishes_every_code_the_run_commands_emit(self):
+        io_obj = self.make_io()
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        self.assertEqual(main(["schema", "--json"], self.make_run_ctx(io_obj, service)), 0)
+        published = set()
+        for group in json.loads(io_obj["stdout"].getvalue())["error_codes"].values():
+            published.update(group)
+
+        # An agent matching exhaustively over the advertised list must not fall
+        # through on a code it will certainly see.
+        for code in ("invalid_reasoning_effort", "run_not_found", "run_output_unavailable",
+                     "run_output_unreadable", "no_suitable_session", "provider_failed"):
+            self.assertIn(code, published)
+
     def test_run_detach_spawn_failure_stays_a_json_error(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})
