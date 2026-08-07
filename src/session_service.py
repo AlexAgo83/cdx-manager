@@ -496,6 +496,152 @@ def _ensure_claude_attribution_disabled(auth_home):
     return True
 
 
+def _normalize_provider(provider):
+    value = provider or DEFAULT_PROVIDER
+    if value not in ALLOWED_PROVIDERS:
+        raise CdxError(f"Unsupported provider: {value}")
+    return value
+
+def _runtime_is_active(runtime):
+    return (
+        isinstance(runtime, dict)
+        and runtime.get("status") == "running"
+        and _process_is_running(runtime.get("pid"))
+    )
+
+def _validate_new_session_name(name):
+    if not name:
+        raise CdxError("Session name is required")
+    if str(name) != str(name).strip():
+        raise CdxError("Session name cannot start or end with whitespace")
+    if str(name) in (".", ".."):
+        raise CdxError("Session name cannot be . or ..")
+    if len(str(name)) > MAX_SESSION_NAME_LENGTH:
+        raise CdxError(f"Session name is too long (max {MAX_SESSION_NAME_LENGTH} characters)")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in str(name)):
+        raise CdxError("Session name cannot contain control characters")
+    if name in RESERVED_SESSION_NAMES:
+        raise CdxError(f"Session name is reserved: {name}")
+
+def _normalize_session_label(label):
+    text = str(label or "").strip()
+    if not text:
+        raise CdxError("Session label is required")
+    if len(text) > MAX_SESSION_LABEL_LENGTH:
+        raise CdxError(f"Session label is too long (max {MAX_SESSION_LABEL_LENGTH} characters)")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in text):
+        raise CdxError("Session label cannot contain control characters")
+    return text
+
+def _build_export_session_record(session):
+    return {
+        "name": session["name"],
+        "provider": session["provider"],
+        "label": session.get("label"),
+        "enabled": session.get("enabled", True) is not False,
+        "createdAt": session.get("createdAt"),
+        "updatedAt": session.get("updatedAt"),
+        "lastLaunchedAt": session.get("lastLaunchedAt"),
+        "lastStatusAt": session.get("lastStatusAt"),
+        "lastStatus": session.get("lastStatus"),
+        "launch": session.get("launch"),
+        "auth": session.get("auth"),
+    }
+
+def _auth_bundle_paths(provider):
+    if provider == PROVIDER_CLAUDE:
+        return [
+            "claude-home/configs/default.json",
+            "claude-home/credentials/default.json",
+            "claude-home/.claude/.credentials.json",
+            "claude-home/.claude.json",
+            "claude-home/auth.json",
+        ]
+    return [
+        "auth.json",
+    ]
+
+def _collect_auth_files(session_root, provider, session_name=None, progress_callback=None):
+    files = []
+    total_bytes = 0
+    if not os.path.isdir(session_root):
+        return {"files": files, "file_count": 0, "bytes": 0}
+    for rel_path in _auth_bundle_paths(provider):
+        full_path = os.path.join(session_root, rel_path)
+        if not os.path.isfile(full_path):
+            continue
+        with open(full_path, "rb") as handle:
+            raw_content = handle.read()
+            total_bytes += len(raw_content)
+            content = base64.b64encode(raw_content).decode("ascii")
+        files.append({"path": rel_path.replace(os.sep, "/"), "data_b64": content})
+        if progress_callback:
+            progress_callback({
+                "event": "profile_progress",
+                "session_name": session_name,
+                "file_count": len(files),
+                "bytes": total_bytes,
+            })
+    return {"files": files, "file_count": len(files), "bytes": total_bytes}
+
+def _status_cache_hit(s, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS, cache_only=False):
+    return (
+        cache_only
+        or s.get("enabled", True) is False
+        or (
+            s.get("lastStatus")
+            and not force_refresh
+            and _is_status_cache_fresh(s, ttl_seconds=cache_ttl_seconds)
+        )
+    )
+
+def _validate_import_profile_files(payload, imported_sessions):
+    profiles = payload.get("profiles") or {}
+    if not isinstance(profiles, dict):
+        raise CdxError("Bundle contains invalid profile data.")
+    decoded_profiles = {}
+    for session_payload in imported_sessions:
+        name = session_payload["name"]
+        files = []
+        profile_items = profiles.get(name, [])
+        if not isinstance(profile_items, list):
+            raise CdxError(f"Bundle contains invalid profile data for session {name}.")
+        for item in profile_items:
+            if not isinstance(item, dict):
+                raise CdxError(f"Bundle contains invalid profile entry for session {name}.")
+            rel_path = _safe_relpath(item.get("path"))
+            data_b64 = item.get("data_b64")
+            if not isinstance(data_b64, str):
+                raise CdxError(f"Bundle contains invalid file data for session {name}: {rel_path}")
+            try:
+                content = base64.b64decode(data_b64.encode("ascii"), validate=True)
+            except (binascii.Error, UnicodeEncodeError) as error:
+                raise CdxError(f"Bundle contains invalid file data for session {name}: {rel_path}") from error
+            files.append({"path": rel_path, "content": content})
+        decoded_profiles[name] = files
+    return decoded_profiles
+
+def _force_import_preserved_profile_paths(session_root):
+    return [rel_path for rel_path in _FORCE_IMPORT_PRESERVED_PROFILE_PATHS if os.path.exists(os.path.join(session_root, rel_path))]
+
+def _restore_force_import_profile_paths(name, backup_root, session_root, rel_paths):
+    if not backup_root:
+        return
+    for rel_path in rel_paths:
+        source_path = os.path.join(backup_root, rel_path)
+        dest_path = os.path.join(session_root, rel_path)
+        if not os.path.exists(source_path) or os.path.exists(dest_path):
+            continue
+        try:
+            if os.path.isdir(source_path) and not os.path.islink(source_path):
+                shutil.copytree(source_path, dest_path)
+            else:
+                _ensure_private_dir(os.path.dirname(dest_path))
+                shutil.copy2(source_path, dest_path)
+        except Exception as error:
+            raise CdxError(f"Could not restore local plugin state for session {name}: {rel_path}") from error
+
+
 def create_session_service(options=None):
     if options is None:
         options = {}
@@ -527,18 +673,6 @@ def create_session_service(options=None):
             return os.path.join(root, "antigravity-home")
         return root
 
-    def _normalize_provider(provider):
-        value = provider or DEFAULT_PROVIDER
-        if value not in ALLOWED_PROVIDERS:
-            raise CdxError(f"Unsupported provider: {value}")
-        return value
-
-    def _runtime_is_active(runtime):
-        return (
-            isinstance(runtime, dict)
-            and runtime.get("status") == "running"
-            and _process_is_running(runtime.get("pid"))
-        )
 
     def _session_runtime(name):
         found = {}
@@ -565,80 +699,6 @@ def create_session_service(options=None):
         store["update_session_state"](name, updater)
         return found.get("runtime")
 
-    def _validate_new_session_name(name):
-        if not name:
-            raise CdxError("Session name is required")
-        if str(name) != str(name).strip():
-            raise CdxError("Session name cannot start or end with whitespace")
-        if str(name) in (".", ".."):
-            raise CdxError("Session name cannot be . or ..")
-        if len(str(name)) > MAX_SESSION_NAME_LENGTH:
-            raise CdxError(f"Session name is too long (max {MAX_SESSION_NAME_LENGTH} characters)")
-        if any(ord(ch) < 32 or ord(ch) == 127 for ch in str(name)):
-            raise CdxError("Session name cannot contain control characters")
-        if name in RESERVED_SESSION_NAMES:
-            raise CdxError(f"Session name is reserved: {name}")
-
-    def _normalize_session_label(label):
-        text = str(label or "").strip()
-        if not text:
-            raise CdxError("Session label is required")
-        if len(text) > MAX_SESSION_LABEL_LENGTH:
-            raise CdxError(f"Session label is too long (max {MAX_SESSION_LABEL_LENGTH} characters)")
-        if any(ord(ch) < 32 or ord(ch) == 127 for ch in text):
-            raise CdxError("Session label cannot contain control characters")
-        return text
-
-    def _build_export_session_record(session):
-        return {
-            "name": session["name"],
-            "provider": session["provider"],
-            "label": session.get("label"),
-            "enabled": session.get("enabled", True) is not False,
-            "createdAt": session.get("createdAt"),
-            "updatedAt": session.get("updatedAt"),
-            "lastLaunchedAt": session.get("lastLaunchedAt"),
-            "lastStatusAt": session.get("lastStatusAt"),
-            "lastStatus": session.get("lastStatus"),
-            "launch": session.get("launch"),
-            "auth": session.get("auth"),
-        }
-
-    def _auth_bundle_paths(provider):
-        if provider == PROVIDER_CLAUDE:
-            return [
-                "claude-home/configs/default.json",
-                "claude-home/credentials/default.json",
-                "claude-home/.claude/.credentials.json",
-                "claude-home/.claude.json",
-                "claude-home/auth.json",
-            ]
-        return [
-            "auth.json",
-        ]
-
-    def _collect_auth_files(session_root, provider, session_name=None, progress_callback=None):
-        files = []
-        total_bytes = 0
-        if not os.path.isdir(session_root):
-            return {"files": files, "file_count": 0, "bytes": 0}
-        for rel_path in _auth_bundle_paths(provider):
-            full_path = os.path.join(session_root, rel_path)
-            if not os.path.isfile(full_path):
-                continue
-            with open(full_path, "rb") as handle:
-                raw_content = handle.read()
-                total_bytes += len(raw_content)
-                content = base64.b64encode(raw_content).decode("ascii")
-            files.append({"path": rel_path.replace(os.sep, "/"), "data_b64": content})
-            if progress_callback:
-                progress_callback({
-                    "event": "profile_progress",
-                    "session_name": session_name,
-                    "file_count": len(files),
-                    "bytes": total_bytes,
-                })
-        return {"files": files, "file_count": len(files), "bytes": total_bytes}
 
     def _resolve_session_subset(session_names):
         if not session_names:
@@ -1151,16 +1211,6 @@ def create_session_service(options=None):
             raise CdxError(f"Unknown session: {name}")
         return updated
 
-    def _status_cache_hit(s, force_refresh=False, cache_ttl_seconds=STATUS_CACHE_TTL_SECONDS, cache_only=False):
-        return (
-            cache_only
-            or s.get("enabled", True) is False
-            or (
-                s.get("lastStatus")
-                and not force_refresh
-                and _is_status_cache_fresh(s, ttl_seconds=cache_ttl_seconds)
-            )
-        )
 
     def _resolve_row_session(
         s,
@@ -1437,31 +1487,6 @@ def create_session_service(options=None):
             "bundle_size_bytes": len(bundle_bytes),
         }
 
-    def _validate_import_profile_files(payload, imported_sessions):
-        profiles = payload.get("profiles") or {}
-        if not isinstance(profiles, dict):
-            raise CdxError("Bundle contains invalid profile data.")
-        decoded_profiles = {}
-        for session_payload in imported_sessions:
-            name = session_payload["name"]
-            files = []
-            profile_items = profiles.get(name, [])
-            if not isinstance(profile_items, list):
-                raise CdxError(f"Bundle contains invalid profile data for session {name}.")
-            for item in profile_items:
-                if not isinstance(item, dict):
-                    raise CdxError(f"Bundle contains invalid profile entry for session {name}.")
-                rel_path = _safe_relpath(item.get("path"))
-                data_b64 = item.get("data_b64")
-                if not isinstance(data_b64, str):
-                    raise CdxError(f"Bundle contains invalid file data for session {name}: {rel_path}")
-                try:
-                    content = base64.b64decode(data_b64.encode("ascii"), validate=True)
-                except (binascii.Error, UnicodeEncodeError) as error:
-                    raise CdxError(f"Bundle contains invalid file data for session {name}: {rel_path}") from error
-                files.append({"path": rel_path, "content": content})
-            decoded_profiles[name] = files
-        return decoded_profiles
 
     def _restore_import_backup(name, backup_root, session_root, old_record, old_state):
         if os.path.exists(session_root):
@@ -1475,25 +1500,6 @@ def create_session_service(options=None):
         else:
             store["remove_session"](name)
 
-    def _force_import_preserved_profile_paths(session_root):
-        return [rel_path for rel_path in _FORCE_IMPORT_PRESERVED_PROFILE_PATHS if os.path.exists(os.path.join(session_root, rel_path))]
-
-    def _restore_force_import_profile_paths(name, backup_root, session_root, rel_paths):
-        if not backup_root:
-            return
-        for rel_path in rel_paths:
-            source_path = os.path.join(backup_root, rel_path)
-            dest_path = os.path.join(session_root, rel_path)
-            if not os.path.exists(source_path) or os.path.exists(dest_path):
-                continue
-            try:
-                if os.path.isdir(source_path) and not os.path.islink(source_path):
-                    shutil.copytree(source_path, dest_path)
-                else:
-                    _ensure_private_dir(os.path.dirname(dest_path))
-                    shutil.copy2(source_path, dest_path)
-            except Exception as error:
-                raise CdxError(f"Could not restore local plugin state for session {name}: {rel_path}") from error
 
     def import_bundle(
         file_path,
