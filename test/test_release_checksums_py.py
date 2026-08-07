@@ -115,12 +115,28 @@ class ReleaseChecksumsTests(unittest.TestCase):
 
             self.assertEqual(validate_release_checksums(root), "v1.2.3")
 
-    def test_release_validator_rejects_missing_current_tag(self):
+    def test_release_validator_rejects_a_named_tag_with_no_checksums(self):
+        # An explicit tag means "validate this published release", so a missing
+        # entry is a real failure. This is the path both publish workflows take.
         with tempfile.TemporaryDirectory() as temp_dir:
             root = self._write_release_root(temp_dir)
 
             with self.assertRaisesRegex(ValueError, "missing release checksum metadata for v1.2.3"):
+                validate_release_checksums(root, tag="v1.2.3")
+
+    def test_release_validator_reports_an_unrecorded_version_instead_of_failing(self):
+        # Without a tag the caller is asking about the working tree, whose
+        # version has no entry until it is released. Failing there made the
+        # command red on every checkout between releases, and a check that is
+        # always red stops being read.
+        from verify_release_checksums import ReleaseNotRecorded
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._write_release_root(temp_dir)
+
+            with self.assertRaises(ReleaseNotRecorded) as caught:
                 validate_release_checksums(root)
+            self.assertEqual(caught.exception.args[0], "v1.2.3")
 
     def test_release_validator_requires_both_archive_checksums(self):
         with tempfile.TemporaryDirectory() as temp_dir:

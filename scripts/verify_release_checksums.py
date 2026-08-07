@@ -8,6 +8,17 @@ from pathlib import Path
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
+class ReleaseNotRecorded(Exception):
+    """The version has no entry in the local checksum ledger, which is not a failure.
+
+    Checksums are computed from the archives GitHub generates *after* a tag is
+    pushed, so a version still in development can never have them. Reporting
+    that as an error made this command red on every checkout between releases,
+    and a check that is always red stops being read - which is how a real
+    defect in this same script survived three releases unnoticed.
+    """
+
+
 def _read_json(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -87,6 +98,11 @@ def validate_release_checksums(root, tag=None, checksums_file=None):
     payload = _read_json(checksums_path)
     entry = (payload.get("releases") or {}).get(expected_tag)
     if not isinstance(entry, dict):
+        # An explicit tag means "validate this published release", so a missing
+        # entry is fatal. Without one, the caller is asking about the version in
+        # the working tree, which has no entry until it is released.
+        if tag is None and checksums_file is None:
+            raise ReleaseNotRecorded(expected_tag)
         raise ValueError(f"{checksums_path} is missing release checksum metadata for {expected_tag}")
 
     missing_fields = [
@@ -105,8 +121,9 @@ def validate_release_checksums(root, tag=None, checksums_file=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description=(
-            "Validate that the current release version has GitHub archive checksums "
-            "before registry publication."
+            "Validate that a release version has GitHub archive checksums. With --tag, a "
+            "missing entry is a failure; without one, an unreleased version reports that it "
+            "is not published yet rather than failing."
         )
     )
     parser.add_argument("--tag", help="Release tag to validate, for example v0.7.8")
@@ -120,6 +137,13 @@ def main(argv=None):
 
     try:
         resolved_tag = validate_release_checksums(args.root, tag=args.tag, checksums_file=args.checksums_file)
+    except ReleaseNotRecorded as pending:
+        print(
+            f"Release checksum validation: {pending.args[0]} has no entry in the local checksum "
+            "ledger. Entries are written when the release is published, so this is expected "
+            "before a release. Version declarations are consistent."
+        )
+        return 0
     except (OSError, json.JSONDecodeError, ValueError) as error:
         raise SystemExit(f"Release checksum validation failed: {error}") from error
 
