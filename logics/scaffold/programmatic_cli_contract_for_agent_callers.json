@@ -1,0 +1,266 @@
+{
+  "title": "Close the programmatic CLI contract gaps that force agent callers to reimplement cdx internals",
+  "references": [
+    "src/cli_commands.py",
+    "src/cli_args.py",
+    "src/run_command.py",
+    "src/run_registry.py",
+    "src/provider_runtime.py",
+    "README.md",
+    "test/test_cli_py.py",
+    "test/test_run_registry_py.py",
+    "test/test_provider_runtime_helpers_py.py"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Agent integration surface",
+    "needs": [
+      "`cdx` exposes `--json` on every subcommand but its execution model is still synchronous-human-shaped: a run blocks until completion, the assigned `run_id` is never emitted before the run finishes, live output is not readable through the CLI, and argument errors collapse into a single `invalid_request` code carrying a human usage string.",
+      "Programmatic callers therefore reimplement cdx internals to compensate. An audit of the downstream MCP server that wraps this CLI (a sibling private repository, `mcp-server/cdx_mcp_server.py`) found roughly 250 of its 640 lines exist purely as workarounds for these gaps, with no domain logic of their own.",
+      "The workarounds are fragile, not merely verbose: the caller polls `cdx runs` every 300ms for up to 8s to guess which run it just launched by matching `session + cwd + status == running + not-previously-seen`, and gives up with a null `run_id` when session authentication is slow.",
+      "The opaque error contract has already caused a silent false positive in production use: a caller passed a session name together with `--provider` (rejected as mutually exclusive by `_parse_run_args`), received a payload with every field null and code `invalid_request`, and reported the launch as successful because nothing in the response identified the offending arguments.",
+      "Enum values (`permission`, `power`, `kind`) are hand-copied into every downstream caller because cdx publishes no machine-readable schema. This duplication is the root cause of GitHub issue #8, where an `--experimental-yolo` flag was mapped for the ollama provider and never exercised because no caller shared cdx's own definition of the valid permission set.",
+      "cdx is not consumed by one caller: an MCP server, a fleet watchdog cron job, and several agent skills all drive the same CLI, so every gap is paid for repeatedly and independently."
+    ],
+    "context": [
+      "`handle_run()` in `src/cli_commands.py:995` resolves `run_id = artifacts['run_id']` at line 1058 and calls `registry.start(...)` immediately after, before `_run_headless_provider_command()` executes the provider. The identifier is therefore known and registered before any long-running work begins, but is only written to stdout in the terminal payload after the provider process exits.",
+      "`handle_run()` has no detached mode. Callers that need a non-blocking launch spawn `cdx run` themselves with `subprocess.Popen(..., start_new_session=True)` and redirect output to a log file they manage. Over SSH this is not implemented at all downstream, because detaching the remote process from the SSH session was never solved — so background launches are unavailable in remote mode.",
+      "`handle_run_status()` at `src/cli_commands.py:968` already returns `artifacts.stdout_path`, and `handle_run_report()` returns the same map, but no subcommand reads that file. Callers fetch the path via `run-status --json`, then open the file directly in local mode or shell out to `tail -n` over SSH — two code paths reimplementing a read of a file cdx itself wrote.",
+      "`run_cdx_error_code()` in `src/run_command.py:17` derives the error code by string-prefix sniffing the exception message: any message starting with `Usage:` or `cdx run:` becomes `invalid_request`. `RUN_USAGE` (`src/cli_args.py:37`) is the entire human usage line, and `_parse_run_args` raises it for every distinct argument mistake, so the mutually-exclusive-arguments case is indistinguishable from a missing `--cwd`.",
+      "`read_run_prompt()` in `src/run_command.py:7` accepts `--prompt TEXT` or reads `--prompt-file PATH` with `open()`. There is no stdin form, so callers handling arbitrary untrusted prompt text (which must never reach a command line) stage a temporary file, transfer it, invoke cdx, then delete it in a `finally` block.",
+      "`handle_runs()` at `src/cli_commands.py:959` accepts only `--limit`, while `cdx history` already supports `--since`, `--from`, and `--to`. A watchdog polling for newly-completed runs must therefore request a fixed window and maintain its own de-duplication set of already-reported run ids, capped at a fixed size so its state file does not grow without bound.",
+      "GitHub issue #8, closed on 2026-08-07, removed a permission flag that never existed in the ollama CLI. It survived undetected precisely because the downstream permission enum was a hand-maintained copy rather than a value obtained from cdx."
+    ],
+    "acceptance_criteria": [
+      "AC1: `cdx run --detach --json` registers the run, launches the provider process detached from the invoking process, and returns immediately with a payload containing the assigned `run_id`, without waiting for the provider to finish; the detached process survives the parent exiting, including when cdx was itself invoked over a non-interactive SSH session.",
+      "AC2: The `run_id` assigned to a run is observable at launch time in both detached and non-detached modes, so a caller never has to poll `cdx runs` to discover the identity of the run it just started.",
+      "AC3: `cdx run-tail <run_id> [--lines N] --json` returns the last N lines of that run's recorded `stdout_path` together with the run's current status, works whether the run is in progress or already finished, and returns a specific error code when no `stdout_path` was recorded for the run.",
+      "AC4: Argument and usage failures return a specific machine-readable `error.code` naming the failure class rather than the single catch-all `invalid_request`, and the payload identifies the offending argument names; the mutually-exclusive session-and-provider case is distinguishable from a missing required argument by code alone, without parsing any human-readable message.",
+      "AC5: `cdx schema --json` emits the machine-readable contract for programmatic callers: the valid values for `permission`, `power`/`reasoning-effort`, and `kind`, plus the declared mutually-exclusive argument groups, so a caller can validate input against cdx's own definitions instead of a hand-copied duplicate.",
+      "AC6: `cdx run --prompt-file -` reads the prompt from standard input, allowing a caller to pipe arbitrary untrusted prompt text without staging a temporary file and without ever placing the text on a command line.",
+      "AC7: `cdx runs --since <cursor> --json` returns only runs that completed after the given cursor, so a polling caller can detect newly-completed runs without maintaining its own set of already-seen run ids. The accepted cursor forms are consistent with those `cdx history --since` already accepts.",
+      "AC8: All existing behavior is preserved: a `cdx run` without `--detach` still blocks and returns the same completion payload, `run-status`/`run-report`/`runs` keep their current shapes, and the `schema_version` contract is respected for every added or changed field.",
+      "AC9: The README documents the programmatic surface as an explicit contract for non-interactive callers: detached launch, run identity at launch, live tail, error codes, schema discovery, stdin prompts, and the runs cursor."
+    ]
+  },
+  "product": {
+    "title": "Programmatic CLI contract for non-interactive callers",
+    "overview": "Make cdx directly consumable by agents, MCP servers, and watchdogs by closing the gaps that currently force those callers to reimplement cdx internals: non-blocking launch with immediate run identity, live output through the CLI, machine-readable errors and schema, stdin prompts, and a completion cursor.",
+    "goals": [
+      "Let a caller launch a run without blocking and know immediately which run it launched.",
+      "Let a caller observe a running run's live output through cdx rather than by reading cdx's own files behind its back.",
+      "Make failures machine-distinguishable so a caller can react to the specific error instead of pattern-matching English text.",
+      "Publish the enums and argument constraints so downstream callers stop maintaining drifting copies of them.",
+      "Remove the need for temporary prompt files and caller-side de-duplication state."
+    ],
+    "non_goals": [
+      "Adding a daemon, scheduler, or long-lived server process to cdx.",
+      "Building or shipping an MCP server inside this repository.",
+      "Changing the interactive terminal UX or the default blocking behavior of `cdx run`.",
+      "Streaming or following output continuously; `run-tail` returns a bounded snapshot, not a follow mode.",
+      "Adding provider-side capabilities such as resuming or reusing a provider session between runs.",
+      "Modifying the downstream repositories that consume this CLI."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Add detached run launch returning run identity immediately",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Agent integration surface",
+      "request_acs": [
+        "AC1",
+        "AC2",
+        "AC8"
+      ],
+      "problem": [
+        "`handle_run()` always blocks for the full duration of the provider process, so a caller with its own per-call timeout cannot launch anything long-running even though the run itself would succeed server-side.",
+        "`run_id` is computed at `src/cli_commands.py:1058` and registered before the provider starts, but is only emitted after completion, so a caller that launches a run has no way to name it.",
+        "Downstream this is worked around by spawning cdx via `Popen` with a detached session and a caller-managed log file, then polling `cdx runs` for up to 8 seconds to guess the run id by matching session, cwd, running status and absence from a pre-launch snapshot. The guess returns nothing when authentication is slow, and the whole mechanism is unavailable over SSH."
+      ],
+      "scope_in": [
+        "Add a `--detach` flag to `cdx run` argument parsing in `src/cli_args.py`, rejected in combination with any option whose meaning depends on waiting for completion.",
+        "In `handle_run()`, after `registry.start()` has registered the run, branch on `--detach`: launch the provider process detached from the invoking process, write a success payload carrying `run_id` and the artifact paths, and return without awaiting the provider.",
+        "Ensure the detached child survives the parent exiting in a non-interactive SSH context, not only in a local shell.",
+        "Ensure the registry entry for a detached run is still transitioned to a terminal status by the detached process itself, so `runs`/`run-status` remain accurate without the launching process.",
+        "Emit `run_id` in the launch-time payload for the detached path, and confirm the blocking path continues to report the same `run_id` it always did.",
+        "Add tests covering: detached launch returns a payload with a non-null `run_id` promptly, the run appears in `cdx runs` immediately after launch, the detached run reaches a terminal status, and the non-detached path is unchanged."
+      ],
+      "scope_out": [
+        "No process supervision, restart, or cancellation feature for detached runs.",
+        "No change to how artifact paths are computed.",
+        "No new notification or callback mechanism on completion."
+      ],
+      "acceptance_criteria": [
+        "Given a valid session and cwd, `cdx run <session> --cwd <path> --prompt-file <file> --detach --json` returns within seconds with `ok: true` and a non-null `run_id`, while the provider is still executing.",
+        "Given a detached launch, `cdx run-status <run_id> --json` immediately reports the run as running and later reports a terminal status without any further involvement from the launching process.",
+        "Given a detached launch whose parent process exits immediately afterwards, the provider process continues and the run still reaches a terminal status.",
+        "Given `--detach` combined with an option that only has meaning when waiting for completion, the command fails before launching anything, with a specific error code.",
+        "Given a run launched without `--detach`, the command still blocks and returns the existing completion payload unchanged, including `usage` and artifact paths."
+      ]
+    },
+    {
+      "title": "Add run-tail subcommand for live run output",
+      "priority": "High",
+      "complexity": "Low",
+      "theme": "Agent integration surface",
+      "request_acs": [
+        "AC3",
+        "AC8"
+      ],
+      "problem": [
+        "`run-status` reports only running/succeeded/failed with no detail about the current step, so a caller watching a long run has no way to see what it is doing.",
+        "cdx records `stdout_path` in the run registry and returns it from `run-status`, but offers no way to read it, so callers open cdx's own artifact file directly, with one code path for local access and another shelling out to `tail` remotely."
+      ],
+      "scope_in": [
+        "Add a `run-tail <run_id> [--lines N] --json` subcommand with usage, argument parsing, and dispatch alongside the existing `run-status` and `run-report` handlers.",
+        "Resolve the run from the registry, read the last N lines of its recorded `stdout_path`, and return them with the run's current status and the path itself.",
+        "Bound `--lines` to a sane range with a documented default, and validate it like other numeric CLI arguments.",
+        "Return specific error codes for an unknown run id and for a run with no recorded `stdout_path`, distinct from a read failure of an existing path.",
+        "Handle a partially written final line and undecodable bytes without raising.",
+        "Add tests for an in-progress run, a completed run, an unknown run id, a run with no `stdout_path`, and an out-of-range `--lines`."
+      ],
+      "scope_out": [
+        "No follow/streaming mode.",
+        "No parsing, filtering, or summarizing of provider output; lines are returned raw.",
+        "No tailing of `stderr_path` in this item."
+      ],
+      "acceptance_criteria": [
+        "Given a run currently in progress, `cdx run-tail <run_id> --lines 20 --json` returns up to the last 20 lines written so far, the recorded `stdout_path`, and a status of running.",
+        "Given a completed run, the same call returns the last lines of its final output and its terminal status.",
+        "Given an unknown run id, the command fails with the run-not-found error code already used by `run-status`.",
+        "Given a run whose registry entry has no `stdout_path`, the command fails with a distinct, specific error code rather than a generic read failure.",
+        "Given `--lines` outside the accepted range, the command fails with a specific argument error code before touching the filesystem.",
+        "Given output containing undecodable bytes, the command returns the lines with replacement characters rather than raising."
+      ]
+    },
+    {
+      "title": "Replace catch-all usage errors with specific machine-readable error codes",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Agent integration surface",
+      "request_acs": [
+        "AC4",
+        "AC8"
+      ],
+      "problem": [
+        "`run_cdx_error_code()` in `src/run_command.py:17` classifies errors by string-prefix matching the exception message, so every distinct argument mistake that raises `RUN_USAGE` collapses to the single code `invalid_request`.",
+        "The resulting payload has every descriptive field null and carries the full human usage line as its message, which tells an automated caller nothing about which argument was wrong.",
+        "This has produced a real silent false positive: a caller passing a session name together with `--provider` received that all-null payload and treated the failed launch as successful, because no field distinguished it from any other usage error."
+      ],
+      "scope_in": [
+        "Enumerate the distinct argument-failure classes `cdx run` can produce, minimally: mutually exclusive arguments, missing required argument, unknown value for a constrained option, and out-of-range numeric value.",
+        "Introduce a structured argument error carrying a specific code and the offending argument names, raised at the point of detection in `src/cli_args.py` rather than reconstructed later from message text.",
+        "Extend the failure payload so the offending argument names are present as data, not only inside the human message.",
+        "Keep the human-readable usage message in the payload for terminal users, and keep the existing exit codes.",
+        "Retire message-prefix sniffing for the cases now carrying an explicit code, keeping the fallback only for errors not yet classified.",
+        "Apply the same treatment to the other subcommands wrapped by programmatic callers where the same catch-all currently applies.",
+        "Add tests asserting the specific code and the reported argument names for each failure class, including the session-plus-provider case."
+      ],
+      "scope_out": [
+        "No renaming of existing non-usage error codes such as `invalid_cwd` or `session_disabled`.",
+        "No change to exit codes.",
+        "No localization of error messages."
+      ],
+      "acceptance_criteria": [
+        "Given `cdx run <session> --provider <provider> --cwd <path> --prompt <text> --json`, the payload reports a mutually-exclusive-arguments error code and names both offending arguments as data.",
+        "Given a `cdx run` invocation missing `--cwd`, the payload reports a missing-required-argument code naming that argument, distinguishable from the mutually-exclusive case by code alone.",
+        "Given an unsupported `--permission` value, the payload reports an invalid-value code naming the argument, and lists the accepted values.",
+        "Given `--timeout-seconds` outside the accepted range, the payload reports an out-of-range code naming that argument.",
+        "Given any of the above, the human-readable usage message remains present in the payload and the exit code is unchanged from current behavior.",
+        "No error classification for the above cases depends on matching the prefix of a message string."
+      ]
+    },
+    {
+      "title": "Publish machine-readable schema for enums and argument constraints",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Agent integration surface",
+      "request_acs": [
+        "AC5",
+        "AC9"
+      ],
+      "problem": [
+        "The valid values for `permission`, `power`/`reasoning-effort`, and `kind` exist only inside cdx's parser and inside the human usage strings, so every programmatic caller hand-copies them.",
+        "Those copies drift silently. GitHub issue #8 mapped a permission to a provider flag that never existed in that provider's CLI, and it survived because no caller shared cdx's own definition of the permission set.",
+        "The mutual exclusivity of a named session and `--provider` is likewise undiscoverable except by triggering it."
+      ],
+      "scope_in": [
+        "Add a `cdx schema --json` subcommand emitting the accepted values for the constrained options, the declared mutually-exclusive argument groups, and the current `schema_version`.",
+        "Derive the emitted values from the same definitions the parser and provider mapping already use, so the schema cannot drift from enforcement.",
+        "Add a test asserting the schema and the parser agree on every constrained option, so adding a value in one place without the other fails.",
+        "Document the subcommand in the README as the discovery entry point for programmatic callers.",
+        "Note in the documentation which provider mappings are intentionally empty, so an absent mapping reads as deliberate rather than missing."
+      ],
+      "scope_out": [
+        "No full JSON Schema or OpenAPI document for every subcommand.",
+        "No generated client code.",
+        "No versioned schema negotiation beyond the existing `schema_version` field.",
+        "No change to how permissions are mapped to provider flags."
+      ],
+      "acceptance_criteria": [
+        "`cdx schema --json` returns the accepted values for `permission`, `power`/`reasoning-effort`, and `kind`, and declares the session-and-provider mutual exclusion.",
+        "A test fails if a value accepted by the argument parser for a constrained option is absent from the schema output, or the reverse.",
+        "The emitted values match the parser's accepted values exactly for every constrained option, with no separately maintained list introduced by this item.",
+        "The README documents `cdx schema --json` as the way a programmatic caller discovers valid values instead of copying them.",
+        "The command requires `--json` consistently with the other machine-facing subcommands."
+      ]
+    },
+    {
+      "title": "Accept prompt on standard input and add a completion cursor to runs",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Agent integration surface",
+      "request_acs": [
+        "AC6",
+        "AC7",
+        "AC8",
+        "AC9"
+      ],
+      "problem": [
+        "`read_run_prompt()` in `src/run_command.py:7` accepts inline text or a file path only. A caller relaying arbitrary untrusted prompt text cannot put it on a command line, so it stages a temporary file, transfers it, invokes cdx, and deletes it in a `finally` block, leaking the file if the process dies in between.",
+        "`handle_runs()` accepts only `--limit`, although `cdx history` already supports `--since`. A watchdog polling for newly-completed runs must request a fixed window and maintain its own bounded set of already-reported run ids to avoid repeating itself."
+      ],
+      "scope_in": [
+        "Accept `--prompt-file -` as reading the prompt from standard input in `read_run_prompt()`, decoded as UTF-8 consistently with the file path branch.",
+        "Fail with a specific error code when stdin is requested but is an interactive terminal, so an operator is not left waiting at a silent prompt.",
+        "Ensure the stdin form composes with the existing prompt-source exclusivity rules and with `--detach`.",
+        "Add `--since` to `cdx runs`, filtering on run completion time and accepting the same cursor forms `cdx history --since` already accepts, reusing that parsing rather than adding a second implementation.",
+        "Define and document the behavior for runs that have not completed, so a polling caller gets a stable definition of what the cursor selects.",
+        "Add tests for the stdin prompt path including empty input and non-ASCII content, the interactive-terminal refusal, cursor filtering boundaries, and rejection of a malformed cursor."
+      ],
+      "scope_out": [
+        "No new prompt source beyond stdin.",
+        "No opaque or token-based pagination cursor.",
+        "No `--from`/`--to` window on `runs` in this item.",
+        "No change to `cdx history` behavior."
+      ],
+      "acceptance_criteria": [
+        "Given prompt text piped to `cdx run <session> --cwd <path> --prompt-file - --json`, the run receives exactly that text, including non-ASCII characters, with no temporary file created by cdx.",
+        "Given `--prompt-file -` with an interactive terminal on stdin, the command fails immediately with a specific error code instead of blocking on input.",
+        "Given `--prompt-file -` combined with another prompt source, the existing exclusivity rule still applies and reports the argument error code.",
+        "Given `cdx runs --since <cursor> --json`, only runs completed after the cursor are returned, and repeating the call with the newest returned completion time yields no duplicates.",
+        "Given a malformed cursor, the command fails with a specific argument error code and does not fall back to an unfiltered listing.",
+        "Given the same cursor forms accepted by `cdx history --since`, `cdx runs --since` accepts them identically."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate the programmatic CLI contract for agent callers",
+    "plan": [
+      "Establish the baseline: capture the current payloads for a blocking `cdx run`, a usage failure, `runs`, and `run-status`, so every later change can be checked against what callers observe today.",
+      "Wave 1 - error contract and schema first, because the later waves add arguments whose failures should already be reported with specific codes: introduce the structured argument error in `src/cli_args.py`, retire message-prefix sniffing in `run_cdx_error_code()` for the classified cases, then add `cdx schema --json` deriving its values from the parser's own definitions plus the agreement test that prevents drift.",
+      "Wave 2 - detached launch: add `--detach` to the run parser, branch in `handle_run()` after `registry.start()`, and make the detached child survive both a local parent exit and a non-interactive SSH session. Verify the detached process itself transitions the registry entry to a terminal status, since the launching process is gone. Confirm the blocking path's payload is byte-for-byte unchanged.",
+      "Wave 3 - run-tail: add the subcommand next to `run-status`/`run-report`, reading the registry's recorded `stdout_path`. Exercise it against a real in-progress detached run from wave 2, not only a fixture, to confirm partial lines and undecodable bytes are handled.",
+      "Wave 4 - stdin prompt and runs cursor: extend `read_run_prompt()` for `-`, reuse the existing `--since` parsing from `cdx history` for `cdx runs`, and confirm both compose with `--detach`.",
+      "Update the README with a dedicated programmatic-caller section covering detached launch, run identity at launch, live tail, error codes, schema discovery, stdin prompts, and the runs cursor.",
+      "Verify the end-to-end shape the downstream callers actually need, without modifying them: launch detached, read `run_id` from the launch payload, tail it while running, and poll `runs --since` until it reports completion.",
+      "Run the focused CLI, run-registry, and provider-runtime test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/programmatic_cli_contract_for_agent_callers.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}
