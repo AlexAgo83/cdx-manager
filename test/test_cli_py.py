@@ -6666,7 +6666,7 @@ class CliPythonTests(unittest.TestCase):
         import re
 
         duplicates = []
-        for path in sorted(pathlib.Path("src").glob("*.py")):
+        for path in sorted(pathlib.Path("src").rglob("*.py")):
             if path.name == "config.py":
                 continue
             for number, line in enumerate(path.read_text().splitlines(), 1):
@@ -6677,6 +6677,31 @@ class CliPythonTests(unittest.TestCase):
                 if values in (set(RUN_EFFORT_VALUES), set(RUN_PERMISSION_CANONICAL_VALUES)):
                     duplicates.append(f"{path}:{number} {line.strip()}")
         self.assertEqual(duplicates, [], "accepted-value set restated instead of imported from config")
+
+    def test_cli_commands_facade_still_exposes_every_name_its_callers_import(self):
+        # cli_commands is a facade over src/commands/*: the handlers live
+        # elsewhere but must stay importable from here. Nothing else catches a
+        # dropped re-export until an unrelated module fails to import, so the
+        # contract is asserted directly. This caught `_format_bytes`, which
+        # cli.py imports through the facade and ruff removed as unused once the
+        # last in-file caller moved out.
+        import ast
+        import importlib
+        import pathlib
+
+        facade = importlib.import_module("src.cli_commands")
+        missing = []
+        for path in [pathlib.Path("src/cli.py"), *sorted(pathlib.Path("test").glob("test_*.py"))]:
+            tree = ast.parse(path.read_text())
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ImportFrom):
+                    continue
+                if (node.module or "").rsplit(".", 1)[-1] != "cli_commands":
+                    continue
+                for alias in node.names:
+                    if not hasattr(facade, alias.name):
+                        missing.append(f"{path}:{node.lineno} {alias.name}")
+        self.assertEqual(missing, [], "cli_commands no longer re-exports a name its callers import")
 
     def test_set_and_run_accept_the_same_values(self):
         from src import config

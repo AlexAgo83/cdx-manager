@@ -2,7 +2,6 @@ import json
 import os
 import re
 import shlex
-import sys
 import time
 import uuid
 from datetime import datetime
@@ -10,10 +9,8 @@ from datetime import datetime
 from .claude_refresh import _refresh_claude_sessions
 from .cli_args import (
     CAN_RESUME_USAGE,
-    CONTEXT_USAGE,
     HANDOFF_USAGE,
     LAST_USAGE,
-    MEMORY_USAGE,
     RESUME_USAGE,
     STATUS_USAGE,
     _filter_history_period,
@@ -37,7 +34,7 @@ from .cli_args import (
     _parse_unset_args,
     _public_history_period,
 )
-from .cli_helpers import (
+from .cli_helpers import (  # noqa: F401  (_format_bytes is re-exported for cli.py)
     API_SCHEMA_VERSION,
     _build_handoff_context,
     _format_bytes,
@@ -57,157 +54,76 @@ from .cli_helpers import (
 from .cli_render import _dim, _info, _pad_table, _style, _success, _warn
 from .cli_view import handle_view as handle_view  # re-export for cli.py / tests
 from .codex_usage import consume_codex_rate_limit_reset_credit
-from .commands.backup import (  # re-export for cli.py / tests
-    _resolve_bundle_passphrase as _resolve_bundle_passphrase,
+
+# Re-exported for cli.py and tests; see src/commands/__init__.py.
+from .commands.backup import (  # noqa: F401
+    _resolve_bundle_passphrase,
+    handle_export,
+    handle_import,
 )
-from .commands.backup import (
-    handle_export as handle_export,
+
+# Re-exported for cli.py and tests; see src/commands/__init__.py.
+from .commands.context_memory import (  # noqa: F401
+    _list_memory_entries,
+    _memory_payload,
+    _memory_target,
+    _parse_memory_args,
+    handle_context,
+    handle_memory,
 )
-from .commands.backup import (
-    handle_import as handle_import,
+
+# Re-exported for cli.py and tests; see src/commands/__init__.py.
+from .commands.maintenance import (  # noqa: F401
+    _candidate,
+    _clean_profile_old_logs,
+    _clean_profile_tmp,
+    _collect_old_logs,
+    _collect_profile_cleanup_candidates,
+    _confirm_log_cleanup,
+    _confirm_profile_cleanup,
+    _directory_child_sizes,
+    _directory_size_bytes,
+    _format_cleanup_candidates,
+    _format_disk_report,
+    _format_update_all,
+    _format_update_all_result,
+    _handle_clean_profiles,
+    _iter_profile_dirs,
+    _parse_days,
+    _remove_path,
+    handle_clean,
+    handle_disk,
+    handle_doctor,
+    handle_repair,
+    handle_update,
 )
-from .commands.maintenance import (  # re-export for cli.py / tests
-    _candidate as _candidate,
-)
-from .commands.maintenance import (
-    _clean_profile_old_logs as _clean_profile_old_logs,
-)
-from .commands.maintenance import (
-    _clean_profile_tmp as _clean_profile_tmp,
-)
-from .commands.maintenance import (
-    _collect_old_logs as _collect_old_logs,
-)
-from .commands.maintenance import (
-    _collect_profile_cleanup_candidates as _collect_profile_cleanup_candidates,
-)
-from .commands.maintenance import (
-    _confirm_log_cleanup as _confirm_log_cleanup,
-)
-from .commands.maintenance import (
-    _confirm_profile_cleanup as _confirm_profile_cleanup,
-)
-from .commands.maintenance import (
-    _directory_child_sizes as _directory_child_sizes,
-)
-from .commands.maintenance import (
-    _directory_size_bytes as _directory_size_bytes,
-)
-from .commands.maintenance import (
-    _format_cleanup_candidates as _format_cleanup_candidates,
-)
-from .commands.maintenance import (
-    _format_disk_report as _format_disk_report,
-)
-from .commands.maintenance import (
-    _format_update_all as _format_update_all,
-)
-from .commands.maintenance import (
-    _format_update_all_result as _format_update_all_result,
-)
-from .commands.maintenance import (
-    _handle_clean_profiles as _handle_clean_profiles,
-)
-from .commands.maintenance import (
-    _iter_profile_dirs as _iter_profile_dirs,
-)
-from .commands.maintenance import (
-    _parse_days as _parse_days,
-)
-from .commands.maintenance import (
-    _remove_path as _remove_path,
-)
-from .commands.maintenance import (
-    handle_clean as handle_clean,
-)
-from .commands.maintenance import (
-    handle_disk as handle_disk,
-)
-from .commands.maintenance import (
-    handle_doctor as handle_doctor,
-)
-from .commands.maintenance import (
-    handle_repair as handle_repair,
-)
-from .commands.maintenance import (
-    handle_update as handle_update,
-)
-from .commands.runs import (  # re-export for cli.py / tests
-    DETACHED_PROMPT_SUFFIX as DETACHED_PROMPT_SUFFIX,
-)
-from .commands.runs import (
-    DETACHED_RUN_ID_ENV as DETACHED_RUN_ID_ENV,
-)
-from .commands.runs import (
-    RUN_TAIL_READ_BYTES as RUN_TAIL_READ_BYTES,
-)
-from .commands.runs import (
-    _cdx_self_command as _cdx_self_command,
-)
-from .commands.runs import (
-    _consume_detached_prompt_file as _consume_detached_prompt_file,
-)
-from .commands.runs import (
-    _detached_child_argv as _detached_child_argv,
-)
-from .commands.runs import (
-    _detached_spawn_options as _detached_spawn_options,
-)
-from .commands.runs import (
-    _run_registry as _run_registry,
-)
-from .commands.runs import (
-    _select_headless_session as _select_headless_session,
-)
-from .commands.runs import (
-    _selection_reason as _selection_reason,
-)
-from .commands.runs import (
-    _spawn_detached_run as _spawn_detached_run,
-)
-from .commands.runs import (
-    _tail_file_lines as _tail_file_lines,
-)
-from .commands.runs import (
-    handle_run as handle_run,
-)
-from .commands.runs import (
-    handle_run_report as handle_run_report,
-)
-from .commands.runs import (
-    handle_run_status as handle_run_status,
-)
-from .commands.runs import (
-    handle_run_tail as handle_run_tail,
-)
-from .commands.runs import (
-    handle_runs as handle_runs,
-)
-from .commands.runs import (
-    handle_schema as handle_schema,
-)
-from .commands.runs import (
-    handle_select as handle_select,
+
+# Re-exported for cli.py and tests; see src/commands/__init__.py.
+from .commands.runs import (  # noqa: F401
+    DETACHED_PROMPT_SUFFIX,
+    DETACHED_RUN_ID_ENV,
+    RUN_TAIL_READ_BYTES,
+    _cdx_self_command,
+    _consume_detached_prompt_file,
+    _detached_child_argv,
+    _detached_spawn_options,
+    _run_registry,
+    _select_headless_session,
+    _selection_reason,
+    _spawn_detached_run,
+    _tail_file_lines,
+    handle_run,
+    handle_run_report,
+    handle_run_status,
+    handle_run_tail,
+    handle_runs,
+    handle_schema,
+    handle_select,
 )
 from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
 from .context_store import (
-    append_context,
-    append_context_path,
-    clear_context,
-    clear_context_path,
-    edit_context,
-    edit_context_path,
-    get_context_path,
-    get_global_context_path,
-    get_named_project_context_path,
-    init_context,
-    init_context_path,
     install_context_for_session,
-    list_named_project_contexts,
-    read_context,
-    read_context_path,
     write_context,
-    write_context_path,
 )
 from .errors import CdxError
 from .fs_utils import atomic_write
@@ -472,7 +388,6 @@ def _next_action(row):
 
 
 def _format_next_selection(session, row, use_color=False):
-    from .cli_render import _pad_table
 
     action = _next_action(row)
     command = f"cdx status {session['name']} --refresh" if action == "refresh" else f"cdx {session['name']}"
@@ -532,7 +447,7 @@ def handle_next(rest, ctx):
 
 
 def _format_launch_config(session, use_color=False):
-    from .cli_render import _dim, _pad_table, _style
+    from .cli_render import _dim, _style
 
     launch = session.get("launch") or {}
     rows = [[_style("SETTING", "1", use_color), _style("VALUE", "1", use_color)]]
@@ -588,7 +503,7 @@ def _format_launch_setting_value(launch, key, use_color=False):
 
 
 def _format_launch_configs(sessions, use_color=False):
-    from .cli_render import _dim, _pad_table, _style
+    from .cli_render import _dim, _style
 
     if not sessions:
         return "\n".join([
@@ -804,7 +719,7 @@ def _format_period_display(value):
 
 
 def _format_history_summary(entries, period=None, use_color=False, active_sessions=None):
-    from .cli_render import _format_relative_age, _pad_table
+    from .cli_render import _format_relative_age
 
     active_sessions = active_sessions or set()
     summary = _summarize_history(entries)
@@ -832,7 +747,7 @@ def _format_history_summary(entries, period=None, use_color=False, active_sessio
 
 
 def _format_history(entries, use_color=False, active_sessions=None):
-    from .cli_render import _format_relative_age, _pad_table
+    from .cli_render import _format_relative_age
 
     active_sessions = active_sessions or set()
     if not entries:
@@ -873,7 +788,7 @@ def _format_token_count(value):
 
 
 def _format_stats(rows, totals, period=None, use_color=False, active_sessions=None):
-    from .cli_render import _format_relative_age, _pad_table
+    from .cli_render import _format_relative_age
 
     active_sessions = active_sessions or set()
     if not rows:
@@ -1154,322 +1069,6 @@ def handle_notify(rest, ctx):
     else:
         ctx["out"](f"{format_notify_event(event)}\n")
     return 0
-
-
-def handle_context(rest, ctx):
-    json_flag, args = _parse_json_flag(rest)
-    if not args:
-        args = ["show"]
-    action = args[0]
-    base_dir = ctx["service"]["base_dir"]
-    cwd = ctx.get("cwd")
-
-    if action == "show":
-        if len(args) != 1:
-            raise CdxError(CONTEXT_USAGE)
-        content = read_context(base_dir, cwd)
-        payload = {
-            "path": get_context_path(base_dir, cwd),
-            "exists": bool(content.strip()),
-            "content": content,
-        }
-        if json_flag:
-            _write_json(ctx, _json_success("context.show", "Loaded shared context", context=payload))
-            return 0
-        if content.strip():
-            ctx["out"](content if content.endswith("\n") else f"{content}\n")
-        else:
-            ctx["out"](f"{_dim('No shared context for this workspace. Run: cdx context init or cdx context set <text>', ctx['use_color'])}\n")
-        return 0
-
-    if action == "path":
-        if len(args) != 1:
-            raise CdxError(CONTEXT_USAGE)
-        path = get_context_path(base_dir, cwd)
-        if json_flag:
-            _write_json(ctx, _json_success("context.path", "Resolved shared context path", path=path))
-            return 0
-        ctx["out"](f"{path}\n")
-        return 0
-
-    if action == "init":
-        if len(args) != 1:
-            raise CdxError(CONTEXT_USAGE)
-        result = init_context(base_dir, cwd)
-        message = "Created shared context" if result.get("created") else "Shared context already exists"
-        if json_flag:
-            _write_json(ctx, _json_success("context.init", message, context=result))
-            return 0
-        text = f"{message}: {result['path']}"
-        ctx["out"](f"{_success(text, ctx['use_color'])}\n")
-        return 0
-
-    if action == "edit":
-        if len(args) != 1:
-            raise CdxError(CONTEXT_USAGE)
-        result = edit_context(
-            base_dir,
-            cwd,
-            env=ctx.get("env"),
-            spawn_sync=ctx.get("spawn_sync"),
-        )
-        if json_flag:
-            _write_json(ctx, _json_success("context.edit", "Edited shared context", context=result))
-            return 0
-        text = f"Edited shared context: {result['path']}"
-        ctx["out"](f"{_success(text, ctx['use_color'])}\n")
-        return 0
-
-    if action == "clear":
-        if len(args) != 1:
-            raise CdxError(CONTEXT_USAGE)
-        result = clear_context(base_dir, cwd)
-        message = "Cleared shared context" if result["removed"] else "No shared context to clear"
-        if json_flag:
-            _write_json(ctx, _json_success("context.clear", message, context=result))
-            return 0
-        ctx["out"](f"{_success(message, ctx['use_color'])}\n")
-        return 0
-
-    if action == "set":
-        content_args = args[1:]
-        if content_args:
-            content = " ".join(content_args)
-        else:
-            stdin = ctx["options"].get("stdin_data")
-            if stdin is None and not ctx.get("stdin_is_tty"):
-                stdin = sys.stdin.read()
-            if stdin is None:
-                raise CdxError("Usage: cdx context set <text> [--json]")
-            content = stdin
-        result = write_context(base_dir, content, cwd)
-        if json_flag:
-            _write_json(ctx, _json_success("context.set", "Saved shared context", context=result))
-            return 0
-        text = f"Saved shared context: {result['path']}"
-        ctx["out"](f"{_success(text, ctx['use_color'])}\n")
-        return 0
-
-    if action == "append":
-        note = " ".join(args[1:])
-        if not note.strip():
-            raise CdxError("Usage: cdx context append <text> [--json]")
-        result = append_context(base_dir, note, cwd)
-        if json_flag:
-            _write_json(ctx, _json_success("context.append", "Appended shared context", context=result))
-            return 0
-        text = f"Appended shared context: {result['path']}"
-        ctx["out"](f"{_success(text, ctx['use_color'])}\n")
-        return 0
-
-    raise CdxError(CONTEXT_USAGE)
-
-
-def _parse_memory_args(rest):
-    json_flag, args = _parse_json_flag(rest)
-    scope = "current"
-    project = None
-    cleaned = []
-    index = 0
-    while index < len(args):
-        arg = args[index]
-        if arg == "--global":
-            if scope != "current":
-                raise CdxError(MEMORY_USAGE)
-            scope = "global"
-            index += 1
-            continue
-        if arg == "--project":
-            if scope != "current" or index + 1 >= len(args) or not args[index + 1].strip():
-                raise CdxError(MEMORY_USAGE)
-            scope = "project"
-            project = args[index + 1].strip()
-            index += 2
-            continue
-        if arg.startswith("--project="):
-            if scope != "current":
-                raise CdxError(MEMORY_USAGE)
-            project = arg.split("=", 1)[1].strip()
-            if not project:
-                raise CdxError(MEMORY_USAGE)
-            scope = "project"
-            index += 1
-            continue
-        cleaned.append(arg)
-        index += 1
-    if not cleaned:
-        cleaned = ["show"]
-    if cleaned[0] == "view":
-        cleaned[0] = "show"
-    return json_flag, scope, project, cleaned
-
-
-def _memory_target(base_dir, cwd, scope, project):
-    if scope == "global":
-        return {"scope": "global", "path": get_global_context_path(base_dir)}
-    if scope == "project":
-        if os.path.exists(project):
-            return {
-                "scope": "project",
-                "project": project,
-                "project_kind": "path",
-                "path": get_context_path(base_dir, project),
-            }
-        return {
-            "scope": "project",
-            "project": project,
-            "project_kind": "name",
-            "path": get_named_project_context_path(base_dir, project),
-        }
-    return {"scope": "current", "path": get_context_path(base_dir, cwd)}
-
-
-def _memory_payload(target, content=None):
-    payload = {
-        "scope": target["scope"],
-        "path": target["path"],
-        "exists": os.path.isfile(target["path"]),
-    }
-    if target.get("project") is not None:
-        payload["project"] = target["project"]
-        payload["project_kind"] = target.get("project_kind")
-    if payload["exists"]:
-        payload["bytes"] = os.path.getsize(target["path"])
-    if content is not None:
-        payload["content"] = content
-    return payload
-
-
-def _list_memory_entries(base_dir, cwd):
-    entries = []
-    global_path = get_global_context_path(base_dir)
-    if os.path.isfile(global_path):
-        entries.append({"scope": "global", "path": global_path, "bytes": os.path.getsize(global_path)})
-    entries.extend(list_named_project_contexts(base_dir))
-    current_path = get_context_path(base_dir, cwd)
-    if os.path.isfile(current_path):
-        entries.append({"scope": "current", "path": current_path, "bytes": os.path.getsize(current_path)})
-    return entries
-
-
-def handle_memory(rest, ctx):
-    json_flag, scope, project, args = _parse_memory_args(rest)
-    action = args[0]
-    base_dir = ctx["service"]["base_dir"]
-    cwd = ctx.get("cwd")
-
-    if action == "list":
-        if len(args) != 1 or scope != "current":
-            raise CdxError(MEMORY_USAGE)
-        entries = _list_memory_entries(base_dir, cwd)
-        if json_flag:
-            _write_json(ctx, _json_success("memory.list", "Listed memory scopes", memories=entries))
-            return 0
-        if not entries:
-            ctx["out"](f"{_dim('No cdx memory files found.', ctx['use_color'])}\n")
-            return 0
-        rows = [["SCOPE", "PROJECT", "SIZE", "PATH"]]
-        for entry in entries:
-            rows.append([
-                entry["scope"],
-                entry.get("project") or "-",
-                _format_bytes(entry.get("bytes") or 0),
-                entry["path"],
-            ])
-        ctx["out"](_pad_table(rows) + "\n")
-        return 0
-
-    target = _memory_target(base_dir, cwd, scope, project)
-    path = target["path"]
-
-    if action == "show":
-        if len(args) != 1:
-            raise CdxError(MEMORY_USAGE)
-        content = read_context_path(path)
-        payload = _memory_payload(target, content=content)
-        if json_flag:
-            _write_json(ctx, _json_success("memory.show", "Loaded memory", memory=payload))
-            return 0
-        if content.strip():
-            ctx["out"](content if content.endswith("\n") else f"{content}\n")
-        else:
-            ctx["out"](f"{_dim('No memory for this scope. Run: cdx memory append <text>', ctx['use_color'])}\n")
-        return 0
-
-    if action == "path":
-        if len(args) != 1:
-            raise CdxError(MEMORY_USAGE)
-        if json_flag:
-            _write_json(ctx, _json_success("memory.path", "Resolved memory path", memory=_memory_payload(target)))
-            return 0
-        ctx["out"](f"{path}\n")
-        return 0
-
-    if action == "init":
-        if len(args) != 1:
-            raise CdxError(MEMORY_USAGE)
-        result = init_context_path(path)
-        result = {**result, **{key: value for key, value in target.items() if key != "path"}}
-        message = "Created memory" if result.get("created") else "Memory already exists"
-        if json_flag:
-            _write_json(ctx, _json_success("memory.init", message, memory=result))
-            return 0
-        ctx["out"](f"{_success(f'{message}: {path}', ctx['use_color'])}\n")
-        return 0
-
-    if action == "edit":
-        if len(args) != 1:
-            raise CdxError(MEMORY_USAGE)
-        result = edit_context_path(path, env=ctx.get("env"), spawn_sync=ctx.get("spawn_sync"))
-        result = {**result, **{key: value for key, value in target.items() if key != "path"}}
-        if json_flag:
-            _write_json(ctx, _json_success("memory.edit", "Edited memory", memory=result))
-            return 0
-        ctx["out"](f"{_success(f'Edited memory: {path}', ctx['use_color'])}\n")
-        return 0
-
-    if action == "clear":
-        if len(args) != 1:
-            raise CdxError(MEMORY_USAGE)
-        result = clear_context_path(path)
-        result = {**result, **{key: value for key, value in target.items() if key != "path"}}
-        message = "Cleared memory" if result["removed"] else "No memory to clear"
-        if json_flag:
-            _write_json(ctx, _json_success("memory.clear", message, memory=result))
-            return 0
-        ctx["out"](f"{_success(message, ctx['use_color'])}\n")
-        return 0
-
-    if action == "set":
-        content_args = args[1:]
-        if content_args:
-            content = " ".join(content_args)
-        else:
-            stdin = ctx["options"].get("stdin_data")
-            if stdin is None and not ctx.get("stdin_is_tty"):
-                stdin = sys.stdin.read()
-            if stdin is None:
-                raise CdxError("Usage: cdx memory set <text> [--json]")
-            content = stdin
-        result = write_context_path(path, content)
-        result = {**result, **{key: value for key, value in target.items() if key != "path"}}
-        if json_flag:
-            _write_json(ctx, _json_success("memory.set", "Saved memory", memory=result))
-            return 0
-        ctx["out"](f"{_success(f'Saved memory: {path}', ctx['use_color'])}\n")
-        return 0
-
-    if action == "append":
-        note = " ".join(args[1:])
-        result = append_context_path(path, note)
-        result = {**result, **{key: value for key, value in target.items() if key != "path"}}
-        if json_flag:
-            _write_json(ctx, _json_success("memory.append", "Appended memory", memory=result))
-            return 0
-        ctx["out"](f"{_success(f'Appended memory: {path}', ctx['use_color'])}\n")
-        return 0
-
-    raise CdxError(MEMORY_USAGE)
 
 
 def handle_status(rest, ctx):
