@@ -6940,6 +6940,27 @@ class CliPythonTests(unittest.TestCase):
             [warning["code"] for warning in payload["warnings"]],
         )
 
+    def test_every_version_declaration_agrees(self):
+        import pathlib
+        import re
+
+        from src.cli import VERSION
+
+        root = pathlib.Path(".")
+        declared = (root / "VERSION").read_text().strip()
+        package_json = json.loads((root / "package.json").read_text())["version"]
+        pyproject = re.search(
+            r'^version = "([^"]+)"', (root / "pyproject.toml").read_text(), re.M
+        ).group(1)
+        badge = re.search(r"badge/version-v([0-9][^-]*)-", (root / "README.md").read_text()).group(1)
+
+        # cli.py used to restate the version as a fourth copy and drifted a
+        # release behind, so `cdx --version` reported a release it was not.
+        self.assertEqual(VERSION, declared)
+        self.assertEqual(package_json, declared)
+        self.assertEqual(pyproject, declared)
+        self.assertEqual(badge, declared)
+
     def test_run_no_suitable_session_includes_launcher(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})

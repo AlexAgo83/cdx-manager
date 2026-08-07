@@ -64,6 +64,10 @@ Antigravity and ollama permission mappings also moved out of inline branches int
 - `cdx status`'s recommendation line is labelled `Recommended:` instead of `Priority:`.
 - `cdx select --json`'s `selection_policy` is now a structured object rather than an underscore-joined string.
 
+## Fixes
+
+- `cdx --version` reported a stale release. `src/cli.py` restated the version as a fourth hardcoded copy alongside `VERSION`, `package.json`, and `pyproject.toml`, and nothing kept the four in step — it had been left at 0.12.4. The version is now resolved from the `VERSION` file in a checkout and from installed package metadata otherwise, and a test fails if any of the four (plus the README badge) disagree.
+
 ## Validation
 
 - `npm run lint`

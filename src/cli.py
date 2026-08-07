@@ -80,7 +80,38 @@ from .status_view import (
 )
 from .update_check import check_for_update, check_logics_manager_for_update
 
-VERSION = "0.12.4"
+
+def _resolve_version():
+    """The version, resolved rather than restated.
+
+    This was a hardcoded string, a fourth copy alongside VERSION, package.json,
+    and pyproject.toml, with nothing keeping the four in step — so
+    `cdx --version` could report a release it was not.
+
+    The VERSION file next to the package wins when it exists, because that only
+    happens in a checkout, where it is the thing being edited and the installed
+    metadata is whatever was last `pip install`ed. Installed packages have no
+    such file and fall through to their own metadata.
+    """
+    version_file = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION"
+    )
+    try:
+        with open(version_file, encoding="utf-8") as handle:
+            text = handle.read().strip()
+        if text:
+            return text
+    except OSError:
+        pass
+    try:
+        from importlib.metadata import version
+
+        return version("cdx-manager")
+    except Exception:  # noqa: BLE001 - any resolution failure falls back below
+        return "0.0.0"
+
+
+VERSION = _resolve_version()
 
 # Public surface: this module is a facade. Names below are imported above
 # purely to be re-exported (consumed by tests and external callers); listing
