@@ -1,10 +1,10 @@
 ## task_036_orchestrate_the_command_module_split - Orchestrate the command module split
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 33%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -13,9 +13,9 @@
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
 
 # Plan
-- [ ] 1. Re-measure before starting: handler counts, per-domain line totals, and the helper-to-domain attribution. The plan rests on those numbers and they will have moved since they were taken.
-- [ ] 2. Wave 1 - pilot: create the command package, extract the runs domain, put the facade in place, then extract the maintenance domain. Run the full suite after each. Stop here and evaluate.
-- [ ] 3. Decision point: if a domain's helpers did not come away as cleanly as measured, or the facade could not keep an import working, re-plan rather than continue. This is the checkpoint the request exists to honor.
+- [x] 1. Re-measure before starting: handler counts, per-domain line totals, and the helper-to-domain attribution. The plan rests on those numbers and they will have moved since they were taken. Done: 41 handlers / 71 helpers unchanged, but the shared-helper count is 9 rather than 2 once the transitive closure is used.
+- [x] 2. Wave 1 - pilot: create the command package, extract the runs domain, put the facade in place, then extract the maintenance domain. Run the full suite after each. Stop here and evaluate. Done in `3e42788` and `3429fc3`, 560 tests passing after each.
+- [x] 3. Decision point: if a domain's helpers did not come away as cleanly as measured, or the facade could not keep an import working, re-plan rather than continue. This is the checkpoint the request exists to honor. Evaluated: both conditions fired in a bounded way - the helper attribution was understated and one patch target could not be covered - but neither invalidates the pattern. See the pilot outcome in `item_054`. Continuing with the transitive closure as the extraction unit.
 - [ ] 4. Wave 2 - remaining domains, one commit each, easiest first, relocating the two cross-group helpers to the shared layer when the first domain that needs them is extracted.
 - [ ] 5. Confirm the end state: `cli_commands` defines no handler, every prior import still resolves, `_COMMAND_HANDLERS` is unchanged.
 - [ ] 6. Wave 3 - mirror the split in the test file, verifying the collected test count is identical before and after.
