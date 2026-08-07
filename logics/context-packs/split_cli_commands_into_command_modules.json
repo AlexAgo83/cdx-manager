@@ -1,0 +1,444 @@
+{
+  "budgets": {
+    "max_docs": 20,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_054_pilot_the_split_with_the_runs_and_maintenance_domains.md",
+    "logics/backlog/item_055_extract_the_remaining_seven_command_domains.md",
+    "logics/backlog/item_056_mirror_the_split_in_the_command_test_file.md",
+    "logics/product/prod_015_navigable_command_modules.md",
+    "logics/request/req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade.md",
+    "logics/scaffold/decompose_session_service_factory.json",
+    "logics/scaffold/split_cli_commands_into_command_modules.json",
+    "logics/tasks/task_036_orchestrate_the_command_module_split.md"
+  ],
+  "command": "logics-manager sync context-pack req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade item_054_pilot_the_split_with_the_runs_and_maintenance_domains item_055_extract_the_remaining_seven_command_domains item_056_mirror_the_split_in_the_command_test_file task_036_orchestrate_the_command_module_split --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_054_pilot_the_split_with_the_runs_and_maintenance_domains",
+          "item_055_extract_the_remaining_seven_command_domains",
+          "item_056_mirror_the_split_in_the_command_test_file"
+        ],
+        "prod": [
+          "prod_015_navigable_command_modules"
+        ],
+        "req": [
+          "req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade"
+        ],
+        "task": [
+          "task_036_orchestrate_the_command_module_split"
+        ]
+      },
+      "path": "logics/product/prod_015_navigable_command_modules.md",
+      "ref": "prod_015_navigable_command_modules",
+      "sections": {
+        "Goals": [
+          "- Make the handler for a command findable without scrolling past unrelated domains.",
+          "- Keep every existing import working, so no caller has to change.",
+          "- Land the move in reviewable, individually revertible pieces.",
+          "- Leave the structure no more abstract than it is today."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Turn the single 3313-line command file into nine per-domain modules behind an unchanged import surface, taking advantage of the fact that the domains are already independent."
+        ],
+        "References": [
+          "- Product back-reference: `req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade`",
+          "- Task back-reference: `task_036_orchestrate_the_command_module_split`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Navigable command modules"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, split cli_commands into per-domain command modules behind a facade, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Split cli_commands into per-domain command modules behind a facade",
+        "use when": "You need to implement or review the scaffolded workflow for Split cli_commands into per-domain command modules behind a facade."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_054_pilot_the_split_with_the_runs_and_maintenance_domains",
+          "item_055_extract_the_remaining_seven_command_domains",
+          "item_056_mirror_the_split_in_the_command_test_file"
+        ],
+        "prod": [
+          "prod_015_navigable_command_modules"
+        ],
+        "req": [
+          "req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade"
+        ]
+      },
+      "path": "logics/request/req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade.md",
+      "ref": "req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Each handler domain lives in its own module, with the private helpers used by only that domain moved alongside it.",
+          "- AC2: `cli_commands` remains the import location for every handler it exposes today, so `src/cli.py`, the tests, and any external caller import exactly what they imported before, unchanged.",
+          "- AC3: The two genuinely cross-group helpers are relocated to the shared helper layer rather than duplicated or left behind in a module that no longer owns them.",
+          "- AC4: No behavior changes: the split is a move. No handler is renamed, no signature changes, and no logic is rewritten in the same commit as a move.",
+          "- AC5: The work lands as one commit per extracted domain, each with the full suite passing, so a regression is attributable to a single domain rather than to a 3000-line diff.",
+          "- AC6: The extraction of the first two domains is treated as a pilot: if the pattern does not hold cleanly there, the request stops and is re-planned rather than continuing through the remaining seven."
+        ],
+        "Needs": [
+          "- `src/cli_commands.py` is 3313 lines and 112 top-level functions, a quarter of the source tree in one file. Finding the handler for a command means scrolling past eight unrelated domains.",
+          "- The file is not tangled, it is stacked: its 41 handlers fall into nine domain groups with no remainder, and only 2 of its 71 private helpers are used by more than one group. It is already nine modules sharing a filename.",
+          "- The cost of the split is therefore unusually low, which is the whole reason to do it. A split that requires untangling shared state usually is not worth its price; this one requires relocating two helpers.",
+          "- This request buys navigation speed, not correctness. It fixes no bug and unblocks no feature, and should be judged on that basis."
+        ]
+      },
+      "status": "Draft",
+      "title": "Split cli_commands into per-domain command modules behind a facade"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, pilot the split with the runs and maintenance domains, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Pilot the split with the runs and maintenance domains",
+        "use when": "Implementing the scaffolded slice for Pilot the split with the runs and maintenance domains."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_054_pilot_the_split_with_the_runs_and_maintenance_domains"
+        ],
+        "prod": [
+          "prod_015_navigable_command_modules"
+        ],
+        "req": [
+          "req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade"
+        ],
+        "task": [
+          "task_036_orchestrate_the_command_module_split"
+        ]
+      },
+      "path": "logics/backlog/item_054_pilot_the_split_with_the_runs_and_maintenance_domains.md",
+      "ref": "item_054_pilot_the_split_with_the_runs_and_maintenance_domains",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Every handler in the runs and maintenance domains lives in its own module, with the helpers used only by that domain alongside it.",
+          "- `from src.cli_commands import <handler>` works for every handler that worked before, including the ones now defined elsewhere.",
+          "- `src/cli.py` and `test/test_cli_py.py` are unchanged by the extraction, aside from anything the facade genuinely cannot cover.",
+          "- The full test suite passes after each of the two extractions independently.",
+          "- No handler signature, name, or behavior differs from before the move.",
+          "- The pilot's outcome is recorded, including any helper that did not move as cleanly as measured."
+        ],
+        "Problem": [
+          "- The measurement says the domains are independent, but a measurement is not an extraction. Whether the facade keeps every import working, and whether a domain's helpers really come away cleanly, is only known by doing it.",
+          "- Committing to all nine extractions before proving the pattern risks discovering the problem on the eighth."
+        ]
+      },
+      "status": "Ready",
+      "title": "Pilot the split with the runs and maintenance domains"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, extract the remaining seven command domains, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Extract the remaining seven command domains",
+        "use when": "Implementing the scaffolded slice for Extract the remaining seven command domains."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_055_extract_the_remaining_seven_command_domains"
+        ],
+        "prod": [
+          "prod_015_navigable_command_modules"
+        ],
+        "req": [
+          "req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade"
+        ],
+        "task": [
+          "task_036_orchestrate_the_command_module_split"
+        ]
+      },
+      "path": "logics/backlog/item_055_extract_the_remaining_seven_command_domains.md",
+      "ref": "item_055_extract_the_remaining_seven_command_domains",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- All nine domains live in their own modules and `cli_commands` defines no handler itself.",
+          "- The two cross-group helpers live in the shared helper layer, with a single definition each.",
+          "- Every import that worked before the request works after it.",
+          "- The full test suite passes after every individual extraction, not only at the end.",
+          "- No handler signature, name, or behavior differs from before the moves.",
+          "- The `_COMMAND_HANDLERS` dispatch dict is structurally unchanged."
+        ],
+        "Problem": [
+          "- Seven domains remain in the file after the pilot: context and memory, status, auth, launch, session lifecycle, backup, and launch settings.",
+          "- Two helpers, `_resolve_confirmation` and `_bootstrap_claude_setup_token`, are used by more than one of them and cannot travel with any single domain."
+        ]
+      },
+      "status": "Ready",
+      "title": "Extract the remaining seven command domains"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, mirror the split in the command test file, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Mirror the split in the command test file",
+        "use when": "Implementing the scaffolded slice for Mirror the split in the command test file."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_056_mirror_the_split_in_the_command_test_file"
+        ],
+        "prod": [
+          "prod_015_navigable_command_modules"
+        ],
+        "req": [
+          "req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade"
+        ],
+        "task": [
+          "task_036_orchestrate_the_command_module_split"
+        ]
+      },
+      "path": "logics/backlog/item_056_mirror_the_split_in_the_command_test_file.md",
+      "ref": "item_056_mirror_the_split_in_the_command_test_file",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Each command domain has its own test module, matching the source module names.",
+          "- The number of tests collected is identical before and after the split.",
+          "- Shared fixtures live in one place and are imported, not copied.",
+          "- No test body differs from before the move.",
+          "- Tests not tied to one command domain are in a module named for what they cover.",
+          "- The full suite passes and coverage totals do not drop."
+        ],
+        "Problem": [
+          "- `test/test_cli_py.py` is 7116 lines, larger than the module it tests, and covers all nine domains plus health, ranking, schema, and version concerns.",
+          "- Its structure follows the source, so splitting it before the source has settled would mean splitting it twice."
+        ]
+      },
+      "status": "Ready",
+      "title": "Mirror the split in the command test file"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate the command module split",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_054_pilot_the_split_with_the_runs_and_maintenance_domains",
+          "item_055_extract_the_remaining_seven_command_domains",
+          "item_056_mirror_the_split_in_the_command_test_file"
+        ],
+        "prod": [
+          "prod_015_navigable_command_modules"
+        ],
+        "req": [
+          "req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade"
+        ],
+        "task": [
+          "task_036_orchestrate_the_command_module_split"
+        ]
+      },
+      "path": "logics/tasks/task_036_orchestrate_the_command_module_split.md",
+      "ref": "task_036_orchestrate_the_command_module_split",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate the command module split"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_054_pilot_the_split_with_the_runs_and_maintenance_domains",
+          "item_055_extract_the_remaining_seven_command_domains",
+          "item_056_mirror_the_split_in_the_command_test_file"
+        ],
+        "prod": [
+          "prod_015_navigable_command_modules"
+        ],
+        "req": [
+          "req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade"
+        ],
+        "task": [
+          "task_036_orchestrate_the_command_module_split"
+        ]
+      },
+      "path": "logics/product/prod_015_navigable_command_modules.md",
+      "ref": "prod_015_navigable_command_modules",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Navigable command modules"
+    }
+  ],
+  "estimates": {
+    "char_count": 11405,
+    "companion_doc_count": 1,
+    "doc_count": 6
+  },
+  "generated_at": "2026-08-07T13:55:58Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade",
+      "item_054_pilot_the_split_with_the_runs_and_maintenance_domains",
+      "item_055_extract_the_remaining_seven_command_domains",
+      "item_056_mirror_the_split_in_the_command_test_file",
+      "task_036_orchestrate_the_command_module_split"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade,item_054_pilot_the_split_with_the_runs_and_maintenance_domains,item_055_extract_the_remaining_seven_command_domains,item_056_mirror_the_split_in_the_command_test_file,task_036_orchestrate_the_command_module_split",
+  "refs": [
+    "req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade",
+    "item_054_pilot_the_split_with_the_runs_and_maintenance_domains",
+    "item_055_extract_the_remaining_seven_command_domains",
+    "item_056_mirror_the_split_in_the_command_test_file",
+    "task_036_orchestrate_the_command_module_split"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.14.0"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_036_orchestrate_the_command_module_split.md",
+      "ref": "task_036_orchestrate_the_command_module_split"
+    }
+  ]
+}

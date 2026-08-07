@@ -1,0 +1,448 @@
+{
+  "budgets": {
+    "max_docs": 20,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_054_pilot_the_split_with_the_runs_and_maintenance_domains.md",
+    "logics/backlog/item_055_extract_the_remaining_seven_command_domains.md",
+    "logics/backlog/item_056_mirror_the_split_in_the_command_test_file.md",
+    "logics/backlog/item_057_lift_the_closures_that_capture_nothing_into_module_level_functions.md",
+    "logics/backlog/item_058_give_the_state_dependent_closures_explicit_dependencies.md",
+    "logics/backlog/item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed.md",
+    "logics/context-packs/split_cli_commands_into_command_modules.json",
+    "logics/product/prod_015_navigable_command_modules.md",
+    "logics/product/prod_016_a_session_service_that_can_be_read_in_pieces.md",
+    "logics/request/req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade.md",
+    "logics/request/req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file.md",
+    "logics/scaffold/decompose_session_service_factory.json",
+    "logics/scaffold/split_cli_commands_into_command_modules.json",
+    "logics/tasks/task_036_orchestrate_the_command_module_split.md",
+    "logics/tasks/task_037_orchestrate_the_session_service_decomposition.md"
+  ],
+  "command": "logics-manager sync context-pack req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file item_057_lift_the_closures_that_capture_nothing_into_module_level_functions item_058_give_the_state_dependent_closures_explicit_dependencies item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed task_037_orchestrate_the_session_service_decomposition --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_057_lift_the_closures_that_capture_nothing_into_module_level_functions",
+          "item_058_give_the_state_dependent_closures_explicit_dependencies",
+          "item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed"
+        ],
+        "prod": [
+          "prod_016_a_session_service_that_can_be_read_in_pieces"
+        ],
+        "req": [
+          "req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file"
+        ],
+        "task": [
+          "task_037_orchestrate_the_session_service_decomposition"
+        ]
+      },
+      "path": "logics/product/prod_016_a_session_service_that_can_be_read_in_pieces.md",
+      "ref": "prod_016_a_session_service_that_can_be_read_in_pieces",
+      "sections": {
+        "Goals": [
+          "- Make individual session-service behavior readable and testable without constructing the whole service.",
+          "- Make each piece's dependencies visible in its signature instead of implicit in a closure.",
+          "- Keep every caller and every existing test working throughout.",
+          "- Reach a state where splitting the file is an obvious next step rather than a guess."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Turn a 1153-line factory of 46 closures into module-level functions with explicit dependencies, leaving the service interface untouched, so the file's seams become real before anyone decides where to cut it."
+        ],
+        "References": [
+          "- Product back-reference: `req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file`",
+          "- Task back-reference: `task_037_orchestrate_the_session_service_decomposition`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "A session service that can be read in pieces"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, break up the 1153-line session service factory before splitting its file, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Break up the 1153-line session service factory before splitting its file",
+        "use when": "You need to implement or review the scaffolded workflow for Break up the 1153-line session service factory before splitting its file."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_057_lift_the_closures_that_capture_nothing_into_module_level_functions",
+          "item_058_give_the_state_dependent_closures_explicit_dependencies",
+          "item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed"
+        ],
+        "prod": [
+          "prod_016_a_session_service_that_can_be_read_in_pieces"
+        ],
+        "req": [
+          "req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file"
+        ]
+      },
+      "path": "logics/request/req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file.md",
+      "ref": "req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: The service interface is unchanged: `create_session_service` returns a dict with the same keys and the same callable behavior, so no caller is touched.",
+          "- AC2: Behavior that does not need the factory's locals becomes a module-level function, testable directly rather than only through the returned dict.",
+          "- AC3: Behavior that does need factory state receives it explicitly rather than capturing it, so what a piece depends on is visible in its signature.",
+          "- AC4: `create_session_service` is materially smaller, and what remains in it is assembly rather than logic.",
+          "- AC5: The decomposition is a sequence of behavior-preserving moves, each with the full suite passing, not one large rewrite.",
+          "- AC6: No file split happens in this request. Whether to split the file, and along which seam, is decided once the closures have become functions and the seams are real."
+        ],
+        "Needs": [
+          "- `src/session_service.py` is 1652 lines, but its size is a symptom. `create_session_service` alone spans 1153 of them and defines 46 closures inside a single function body.",
+          "- Because the behavior lives in closures over the factory's locals, none of it can be tested, read, or moved independently. Splitting the file while that holds would produce several files that still cannot be reasoned about separately.",
+          "- This is the opposite problem from `req_025`'s command file. There the domains were already independent and only shared a filename; here they share a scope, so the decomposition has to come before, not after, any file split.",
+          "- The closures cluster by concern \u2014 roughly 19 on session CRUD, 8 on backup and bundles, 7 on status, 5 on launch and history, 4 on auth \u2014 so the seams exist; they are just not expressible while everything closes over the same locals."
+        ]
+      },
+      "status": "Draft",
+      "title": "Break up the 1153-line session service factory before splitting its file"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, lift the closures that capture nothing into module-level functions, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Lift the closures that capture nothing into module-level functions",
+        "use when": "Implementing the scaffolded slice for Lift the closures that capture nothing into module-level functions."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_057_lift_the_closures_that_capture_nothing_into_module_level_functions"
+        ],
+        "prod": [
+          "prod_016_a_session_service_that_can_be_read_in_pieces"
+        ],
+        "req": [
+          "req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file"
+        ],
+        "task": [
+          "task_037_orchestrate_the_session_service_decomposition"
+        ]
+      },
+      "path": "logics/backlog/item_057_lift_the_closures_that_capture_nothing_into_module_level_functions.md",
+      "ref": "item_057_lift_the_closures_that_capture_nothing_into_module_level_functions",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Every closure that references no factory local is defined at module level.",
+          "- `create_session_service` returns the same keys, bound to the same behavior.",
+          "- Each moved function is importable and callable without constructing the service.",
+          "- The full suite passes after each individual move.",
+          "- No moved function's body differs from before the move."
+        ],
+        "Problem": [
+          "- Some of the 46 closures are inside the factory only by position, not because they need anything from it. They are ordinary functions written in the wrong place.",
+          "- While they sit there they cannot be imported or tested directly, and they inflate the factory that everything else has to be read through."
+        ]
+      },
+      "status": "Ready",
+      "title": "Lift the closures that capture nothing into module-level functions"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, give the state-dependent closures explicit dependencies, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Give the state-dependent closures explicit dependencies",
+        "use when": "Implementing the scaffolded slice for Give the state-dependent closures explicit dependencies."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_058_give_the_state_dependent_closures_explicit_dependencies"
+        ],
+        "prod": [
+          "prod_016_a_session_service_that_can_be_read_in_pieces"
+        ],
+        "req": [
+          "req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file"
+        ],
+        "task": [
+          "task_037_orchestrate_the_session_service_decomposition"
+        ]
+      },
+      "path": "logics/backlog/item_058_give_the_state_dependent_closures_explicit_dependencies.md",
+      "ref": "item_058_give_the_state_dependent_closures_explicit_dependencies",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- No closure in `create_session_service` captures factory state implicitly; dependencies appear in signatures.",
+          "- `create_session_service` contains assembly and binding, not behavior.",
+          "- The returned dict has the same keys and behavior as before the request.",
+          "- Session-service behavior can be exercised without constructing the whole service.",
+          "- The full suite passes after each commit, and existing test bodies are unchanged.",
+          "- The remaining factory is materially smaller than 1153 lines, with the figure recorded at closeout."
+        ],
+        "Problem": [
+          "- The remaining closures capture factory locals such as the base directory, the store, and cached state, so their dependencies are invisible at the call site and they cannot be exercised in isolation.",
+          "- This is what actually keeps the factory at four figures, and what makes any file split premature."
+        ]
+      },
+      "status": "Ready",
+      "title": "Give the state-dependent closures explicit dependencies"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, decide the file split from the seams the decomposition exposed, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Decide the file split from the seams the decomposition exposed",
+        "use when": "Implementing the scaffolded slice for Decide the file split from the seams the decomposition exposed."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed"
+        ],
+        "prod": [
+          "prod_016_a_session_service_that_can_be_read_in_pieces"
+        ],
+        "req": [
+          "req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file"
+        ],
+        "task": [
+          "task_037_orchestrate_the_session_service_decomposition"
+        ]
+      },
+      "path": "logics/backlog/item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed.md",
+      "ref": "item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- The coupling between concern groups is measured, not estimated, using the same method applied to the command file.",
+          "- A decision is recorded with the measurement that supports it.",
+          "- If the measurement does not support a split, that outcome is recorded as the answer rather than treated as a failure.",
+          "- Any split that is warranted is scoped as a separate request."
+        ],
+        "Problem": [
+          "- The obvious instinct is to split the file by the concern clusters, but those clusters were inferred from closure names before the dependencies were made explicit.",
+          "- Deciding the seam now would repeat the mistake this request exists to avoid: cutting a file whose parts are not yet separable."
+        ]
+      },
+      "status": "Ready",
+      "title": "Decide the file split from the seams the decomposition exposed"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate the session service decomposition",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_057_lift_the_closures_that_capture_nothing_into_module_level_functions",
+          "item_058_give_the_state_dependent_closures_explicit_dependencies",
+          "item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed"
+        ],
+        "prod": [
+          "prod_016_a_session_service_that_can_be_read_in_pieces"
+        ],
+        "req": [
+          "req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file"
+        ],
+        "task": [
+          "task_037_orchestrate_the_session_service_decomposition"
+        ]
+      },
+      "path": "logics/tasks/task_037_orchestrate_the_session_service_decomposition.md",
+      "ref": "task_037_orchestrate_the_session_service_decomposition",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate the session service decomposition"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_057_lift_the_closures_that_capture_nothing_into_module_level_functions",
+          "item_058_give_the_state_dependent_closures_explicit_dependencies",
+          "item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed"
+        ],
+        "prod": [
+          "prod_016_a_session_service_that_can_be_read_in_pieces"
+        ],
+        "req": [
+          "req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file"
+        ],
+        "task": [
+          "task_037_orchestrate_the_session_service_decomposition"
+        ]
+      },
+      "path": "logics/product/prod_016_a_session_service_that_can_be_read_in_pieces.md",
+      "ref": "prod_016_a_session_service_that_can_be_read_in_pieces",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "A session service that can be read in pieces"
+    }
+  ],
+  "estimates": {
+    "char_count": 12162,
+    "companion_doc_count": 1,
+    "doc_count": 6
+  },
+  "generated_at": "2026-08-07T13:55:59Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file",
+      "item_057_lift_the_closures_that_capture_nothing_into_module_level_functions",
+      "item_058_give_the_state_dependent_closures_explicit_dependencies",
+      "item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed",
+      "task_037_orchestrate_the_session_service_decomposition"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file,item_057_lift_the_closures_that_capture_nothing_into_module_level_functions,item_058_give_the_state_dependent_closures_explicit_dependencies,item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed,task_037_orchestrate_the_session_service_decomposition",
+  "refs": [
+    "req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file",
+    "item_057_lift_the_closures_that_capture_nothing_into_module_level_functions",
+    "item_058_give_the_state_dependent_closures_explicit_dependencies",
+    "item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed",
+    "task_037_orchestrate_the_session_service_decomposition"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.14.0"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_037_orchestrate_the_session_service_decomposition.md",
+      "ref": "task_037_orchestrate_the_session_service_decomposition"
+    }
+  ]
+}

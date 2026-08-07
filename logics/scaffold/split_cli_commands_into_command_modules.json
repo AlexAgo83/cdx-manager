@@ -1,0 +1,187 @@
+{
+  "title": "Split cli_commands into per-domain command modules behind a facade",
+  "references": [
+    "src/cli_commands.py",
+    "src/cli.py",
+    "src/cli_helpers.py",
+    "test/test_cli_py.py"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Maintainability",
+    "needs": [
+      "`src/cli_commands.py` is 3313 lines and 112 top-level functions, a quarter of the source tree in one file. Finding the handler for a command means scrolling past eight unrelated domains.",
+      "The file is not tangled, it is stacked: its 41 handlers fall into nine domain groups with no remainder, and only 2 of its 71 private helpers are used by more than one group. It is already nine modules sharing a filename.",
+      "The cost of the split is therefore unusually low, which is the whole reason to do it. A split that requires untangling shared state usually is not worth its price; this one requires relocating two helpers.",
+      "This request buys navigation speed, not correctness. It fixes no bug and unblocks no feature, and should be judged on that basis."
+    ],
+    "context": [
+      "Measured on the current file: 41 `handle_*` functions totalling 1728 lines, and 71 private helpers totalling 1443 lines.",
+      "Grouping the handlers by domain leaves nothing ungrouped: runs (7 handlers, ~353 lines), maintenance (5, ~326), context and memory (2, ~229), status (7, ~226), auth (4, ~192), launch (5, ~176), session lifecycle (7, ~137), backup (2, ~74), launch settings (3, ~15).",
+      "Of the 71 private helpers, 41 are used by exactly one handler group and move with it. Exactly two are used by more than one: `_resolve_confirmation` (auth, lifecycle, maintenance) and `_bootstrap_claude_setup_token` (auth, lifecycle). The remainder are helpers of helpers rather than cross-group dependencies.",
+      "No helper in the file is dead: every one is referenced from somewhere in `src/` or `test/`. There is no cleanup to fold into this work.",
+      "`src/cli.py` already documents a re-export facade pattern with an `__all__` block explaining that names are imported purely to be re-exported, so keeping `cli_commands` as a facade follows an existing convention rather than inventing one.",
+      "`req_026` decomposes the session service factory. It is deliberately sequenced after this request's pilot, so two structural changes are never in flight over the same test suite.",
+      "`test/test_cli_py.py` is 7116 lines, larger than the module it tests. Its structure mirrors `cli_commands`, so its split is determined by this one and has to follow rather than lead."
+    ],
+    "acceptance_criteria": [
+      "AC1: Each handler domain lives in its own module, with the private helpers used by only that domain moved alongside it.",
+      "AC2: `cli_commands` remains the import location for every handler it exposes today, so `src/cli.py`, the tests, and any external caller import exactly what they imported before, unchanged.",
+      "AC3: The two genuinely cross-group helpers are relocated to the shared helper layer rather than duplicated or left behind in a module that no longer owns them.",
+      "AC4: No behavior changes: the split is a move. No handler is renamed, no signature changes, and no logic is rewritten in the same commit as a move.",
+      "AC5: The work lands as one commit per extracted domain, each with the full suite passing, so a regression is attributable to a single domain rather than to a 3000-line diff.",
+      "AC6: The extraction of the first two domains is treated as a pilot: if the pattern does not hold cleanly there, the request stops and is re-planned rather than continuing through the remaining seven.",
+      "AC7: `test/test_cli_py.py` is split to mirror the resulting module structure, after the source split has settled.",
+      "AC8: No new abstraction is introduced: no command registry, no base class, no dispatch indirection. The existing `_COMMAND_HANDLERS` dict stays as it is."
+    ]
+  },
+  "product": {
+    "title": "Navigable command modules",
+    "overview": "Turn the single 3313-line command file into nine per-domain modules behind an unchanged import surface, taking advantage of the fact that the domains are already independent.",
+    "goals": [
+      "Make the handler for a command findable without scrolling past unrelated domains.",
+      "Keep every existing import working, so no caller has to change.",
+      "Land the move in reviewable, individually revertible pieces.",
+      "Leave the structure no more abstract than it is today."
+    ],
+    "non_goals": [
+      "No behavior change, no renaming, no signature changes.",
+      "No new dispatch abstraction, registry, or command base class.",
+      "No split of `provider_runtime.py`, which is cohesive per provider and would only gain cross-imports.",
+      "No decomposition of `session_service.py`, whose problem is a 1153-line function rather than a file size and which is tracked separately.",
+      "No dead-code removal, since the file has none."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Pilot the split with the runs and maintenance domains",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Maintainability",
+      "request_acs": [
+        "AC1",
+        "AC2",
+        "AC4",
+        "AC5",
+        "AC6",
+        "AC8"
+      ],
+      "problem": [
+        "The measurement says the domains are independent, but a measurement is not an extraction. Whether the facade keeps every import working, and whether a domain's helpers really come away cleanly, is only known by doing it.",
+        "Committing to all nine extractions before proving the pattern risks discovering the problem on the eighth."
+      ],
+      "scope_in": [
+        "Create the package for command modules and extract the runs domain first: run, runs, run-status, run-report, run-tail, select, schema, with the helpers used only by them.",
+        "Turn `cli_commands` into a facade re-exporting the extracted handlers, following the `__all__` convention `src/cli.py` already documents, so existing imports keep working.",
+        "Extract the maintenance domain second: doctor, repair, clean, disk, update.",
+        "Move only. Do not rename, resequence, or rewrite anything in the same commit as an extraction, so the diff reads as a move and `git log --follow` stays useful.",
+        "Run the full suite after each extraction, not once at the end.",
+        "Record what the pilot cost and whether the helper attribution held, so the decision to continue is made on evidence rather than on the original estimate."
+      ],
+      "scope_out": [
+        "No extraction of the remaining seven domains in this slice.",
+        "No test file split yet.",
+        "No relocation of the two shared helpers yet; the pilot domains do not use them.",
+        "No new abstraction."
+      ],
+      "acceptance_criteria": [
+        "Every handler in the runs and maintenance domains lives in its own module, with the helpers used only by that domain alongside it.",
+        "`from src.cli_commands import <handler>` works for every handler that worked before, including the ones now defined elsewhere.",
+        "`src/cli.py` and `test/test_cli_py.py` are unchanged by the extraction, aside from anything the facade genuinely cannot cover.",
+        "The full test suite passes after each of the two extractions independently.",
+        "No handler signature, name, or behavior differs from before the move.",
+        "The pilot's outcome is recorded, including any helper that did not move as cleanly as measured."
+      ]
+    },
+    {
+      "title": "Extract the remaining seven command domains",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Maintainability",
+      "request_acs": [
+        "AC1",
+        "AC2",
+        "AC3",
+        "AC4",
+        "AC5",
+        "AC8"
+      ],
+      "problem": [
+        "Seven domains remain in the file after the pilot: context and memory, status, auth, launch, session lifecycle, backup, and launch settings.",
+        "Two helpers, `_resolve_confirmation` and `_bootstrap_claude_setup_token`, are used by more than one of them and cannot travel with any single domain."
+      ],
+      "scope_in": [
+        "Extract the remaining domains, one commit each, in ascending order of coupling so the easiest land first.",
+        "Move `_resolve_confirmation` and `_bootstrap_claude_setup_token` into the shared helper layer, rather than duplicating them or leaving them in a module that no longer owns their callers.",
+        "Keep the facade complete after every extraction, so the import surface never regresses even mid-sequence.",
+        "Confirm at the end that `cli_commands` contains no handler of its own and reads as what it now is.",
+        "Run the full suite after each extraction."
+      ],
+      "scope_out": [
+        "No behavior change or rename.",
+        "No test file split.",
+        "No new abstraction.",
+        "No re-litigating the domain grouping settled by the pilot."
+      ],
+      "acceptance_criteria": [
+        "All nine domains live in their own modules and `cli_commands` defines no handler itself.",
+        "The two cross-group helpers live in the shared helper layer, with a single definition each.",
+        "Every import that worked before the request works after it.",
+        "The full test suite passes after every individual extraction, not only at the end.",
+        "No handler signature, name, or behavior differs from before the moves.",
+        "The `_COMMAND_HANDLERS` dispatch dict is structurally unchanged."
+      ]
+    },
+    {
+      "title": "Mirror the split in the command test file",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Maintainability",
+      "request_acs": [
+        "AC7",
+        "AC4"
+      ],
+      "problem": [
+        "`test/test_cli_py.py` is 7116 lines, larger than the module it tests, and covers all nine domains plus health, ranking, schema, and version concerns.",
+        "Its structure follows the source, so splitting it before the source has settled would mean splitting it twice."
+      ],
+      "scope_in": [
+        "Split the test file to mirror the module structure the source split produced, one test module per command domain.",
+        "Move shared fixtures and helpers into a common test helper module rather than duplicating them across the new files.",
+        "Keep every existing test, unchanged in content: this is a move, and a test that changes while moving is a test whose regression cannot be attributed.",
+        "Verify the total test count is identical before and after, so nothing is silently dropped by a bad move.",
+        "Give the tests that are not about a single command domain (ranking, schema, version agreement, health) a home that says so, rather than leaving them wherever they happen to sit."
+      ],
+      "scope_out": [
+        "No new tests in this slice.",
+        "No rewriting or deduplicating of existing assertions.",
+        "No change to the source modules."
+      ],
+      "acceptance_criteria": [
+        "Each command domain has its own test module, matching the source module names.",
+        "The number of tests collected is identical before and after the split.",
+        "Shared fixtures live in one place and are imported, not copied.",
+        "No test body differs from before the move.",
+        "Tests not tied to one command domain are in a module named for what they cover.",
+        "The full suite passes and coverage totals do not drop."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate the command module split",
+    "plan": [
+      "Re-measure before starting: handler counts, per-domain line totals, and the helper-to-domain attribution. The plan rests on those numbers and they will have moved since they were taken.",
+      "Wave 1 - pilot: create the command package, extract the runs domain, put the facade in place, then extract the maintenance domain. Run the full suite after each. Stop here and evaluate.",
+      "Decision point: if a domain's helpers did not come away as cleanly as measured, or the facade could not keep an import working, re-plan rather than continue. This is the checkpoint the request exists to honor.",
+      "Wave 2 - remaining domains, one commit each, easiest first, relocating the two cross-group helpers to the shared layer when the first domain that needs them is extracted.",
+      "Confirm the end state: `cli_commands` defines no handler, every prior import still resolves, `_COMMAND_HANDLERS` is unchanged.",
+      "Wave 3 - mirror the split in the test file, verifying the collected test count is identical before and after.",
+      "Run the full suite and `npm run lint`, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/split_cli_commands_into_command_modules.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}
