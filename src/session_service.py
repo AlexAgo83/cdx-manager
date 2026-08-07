@@ -715,6 +715,270 @@ def update_auth_state(store, name, updater):
     return updated
 
 
+def _get_session_root(base_dir, name):
+    return os.path.join(base_dir, "profiles", _encode(name))
+
+
+def _get_session_auth_home(base_dir, name, provider):
+    root = _get_session_root(base_dir, name)
+    if provider == PROVIDER_CLAUDE:
+        return os.path.join(root, "claude-home")
+    if provider == PROVIDER_ANTIGRAVITY:
+        return os.path.join(root, "antigravity-home")
+    return root
+
+
+def list_sessions(store):
+    return store["list_sessions"]()
+
+
+def get_session(store, name):
+    return store["get_session"](name)
+
+
+def ensure_session_state(store, name):
+    session = store["get_session"](name)
+    if not session:
+        raise CdxError(f"Unknown session: {name}")
+    result = {}
+
+    def updater(state):
+        if state:
+            result["state"] = state
+            return None
+        repaired = {
+            "provider": session["provider"],
+            "status": "ready",
+            "rehydratedAt": None,
+        }
+        result["state"] = repaired
+        return repaired
+
+    store["update_session_state"](name, updater)
+    return result["state"]
+
+
+def set_session_label(store, name, label):
+    session = store["get_session"](name)
+    if not session:
+        raise CdxError(f"Unknown session: {name}")
+    normalized = _normalize_session_label(label)
+    now = _local_now_iso()
+    return store["update_session"](name, lambda s: {
+        **s,
+        "label": normalized,
+        "updatedAt": now,
+    })
+
+
+def clear_session_label(store, name):
+    session = store["get_session"](name)
+    if not session:
+        raise CdxError(f"Unknown session: {name}")
+    now = _local_now_iso()
+
+    def updater(s):
+        updated = {**s, "updatedAt": now}
+        updated.pop("label", None)
+        return updated
+
+    return store["update_session"](name, updater)
+
+
+def set_session_enabled(store, name, enabled):
+    session = store["get_session"](name)
+    if not session:
+        raise CdxError(f"Unknown session: {name}")
+    now = _local_now_iso()
+    return store["update_session"](name, lambda s: {
+        **s,
+        "enabled": bool(enabled),
+        "updatedAt": now,
+    })
+
+
+def remove_session(base_dir, store, name):
+    session = store["get_session"](name)
+    if not session:
+        raise CdxError(f"Unknown session: {name}")
+    session_root = session.get("sessionRoot") or _get_session_root(base_dir, name)
+    quarantine_root = None
+    if os.path.exists(session_root):
+        profiles_dir = os.path.dirname(session_root)
+        os.makedirs(profiles_dir, exist_ok=True)
+        quarantine_root = tempfile.mkdtemp(prefix=f".{_encode(name)}.remove.", dir=profiles_dir)
+        os.rmdir(quarantine_root)
+        os.rename(session_root, quarantine_root)
+    try:
+        removed = store["remove_session"](name)
+    except Exception:
+        if quarantine_root and os.path.exists(quarantine_root) and not os.path.exists(session_root):
+            os.rename(quarantine_root, session_root)
+        raise
+    if not removed:
+        if quarantine_root and os.path.exists(quarantine_root) and not os.path.exists(session_root):
+            os.rename(quarantine_root, session_root)
+        raise CdxError(f"Unknown session: {name}")
+    if quarantine_root:
+        try:
+            remove_tree(quarantine_root)
+        except OSError as error:
+            raise CdxError(
+                f"Removed session {name}, but failed to delete archived profile {quarantine_root}: {error}"
+            ) from error
+    return removed
+
+
+def copy_session(base_dir, store, source_name, dest_name):
+    if source_name == dest_name:
+        raise CdxError("Source and destination session names must be different")
+    _validate_new_session_name(dest_name)
+    source = store["get_session"](source_name)
+    if not source:
+        raise CdxError(f"Unknown session: {source_name}")
+    existing = store["get_session"](dest_name)
+    overwritten = False
+    source_root = source.get("sessionRoot") or _get_session_root(base_dir, source_name)
+    dest_root = _get_session_root(base_dir, dest_name)
+    if not existing and os.path.exists(dest_root):
+        raise CdxError(f"Session profile already exists: {dest_name}")
+    dest_auth_home = _get_session_auth_home(base_dir, dest_name, source["provider"])
+    profiles_dir = os.path.dirname(dest_root)
+    os.makedirs(profiles_dir, exist_ok=True)
+    temp_parent = tempfile.mkdtemp(prefix=f".{_encode(dest_name)}.copy.", dir=profiles_dir)
+    temp_root = os.path.join(temp_parent, "profile")
+    backup_root = None
+    moved_temp = False
+    now = _local_now_iso()
+    replacement = {
+        "name": dest_name,
+        "provider": source["provider"],
+        "enabled": True,
+        "sessionRoot": dest_root,
+        "authHome": dest_auth_home,
+        "createdAt": now,
+        "updatedAt": now,
+        "lastLaunchedAt": None,
+        "lastStatusAt": None,
+        "lastStatus": None,
+        **({"launch": source.get("launch")} if source.get("launch") else {}),
+        **({"label": source.get("label")} if source.get("label") else {}),
+        "auth": {
+            "status": "unknown",
+            "lastCheckedAt": None,
+            "lastAuthenticatedAt": None,
+            "lastLoggedOutAt": None,
+        },
+    }
+    try:
+        shutil.copytree(source_root, temp_root)
+        if existing:
+            backup_root = tempfile.mkdtemp(prefix=f".{_encode(dest_name)}.backup.", dir=profiles_dir)
+            os.rmdir(backup_root)
+            if os.path.exists(dest_root):
+                os.rename(dest_root, backup_root)
+        os.rename(temp_root, dest_root)
+        moved_temp = True
+        result = store["replace_session"](dest_name, replacement)
+        overwritten = bool(existing)
+    except Exception:
+        if moved_temp and os.path.exists(dest_root):
+            remove_tree(dest_root, ignore_errors=True)
+        if backup_root and os.path.exists(backup_root) and not os.path.exists(dest_root):
+            os.rename(backup_root, dest_root)
+        raise
+    finally:
+        if backup_root and os.path.exists(backup_root):
+            remove_tree(backup_root, ignore_errors=True)
+        remove_tree(temp_parent, ignore_errors=True)
+    if not result["ok"]:
+        raise CdxError(f"Failed to create session: {dest_name}")
+    return {"session": result["session"], "overwritten": overwritten}
+
+
+def rename_session(base_dir, store, source_name, dest_name):
+    if source_name == dest_name:
+        raise CdxError("Source and destination session names must be different")
+    _validate_new_session_name(dest_name)
+    source = store["get_session"](source_name)
+    if not source:
+        raise CdxError(f"Unknown session: {source_name}")
+    if store["get_session"](dest_name):
+        raise CdxError(f"Session already exists: {dest_name}")
+
+    source_root = source.get("sessionRoot") or _get_session_root(base_dir, source_name)
+    dest_root = _get_session_root(base_dir, dest_name)
+    if os.path.exists(dest_root):
+        raise CdxError(f"Session profile already exists: {dest_name}")
+
+    if os.path.exists(source_root):
+        os.rename(source_root, dest_root)
+        moved_profile = True
+    else:
+        moved_profile = False
+
+    now = _local_now_iso()
+    try:
+        result = store["rename_session"](source_name, dest_name, lambda s: {
+            **s,
+            "name": dest_name,
+            "sessionRoot": dest_root,
+            "authHome": _get_session_auth_home(base_dir, dest_name, s["provider"]),
+            "updatedAt": now,
+        })
+    except Exception:
+        if moved_profile and os.path.exists(dest_root) and not os.path.exists(source_root):
+            os.rename(dest_root, source_root)
+        raise
+
+    if not result["ok"]:
+        if moved_profile and os.path.exists(dest_root) and not os.path.exists(source_root):
+            os.rename(dest_root, source_root)
+        if result["reason"] == "exists":
+            raise CdxError(f"Session already exists: {dest_name}")
+        raise CdxError(f"Unknown session: {source_name}")
+    return result["session"]
+
+
+def create_session(base_dir, env, store, name, provider=DEFAULT_PROVIDER):
+    _validate_new_session_name(name)
+    normalized_provider = _normalize_provider(provider)
+    session_root = _get_session_root(base_dir, name)
+    auth_home = _get_session_auth_home(base_dir, name, normalized_provider)
+    _ensure_private_dir(base_dir)
+    _ensure_private_dir(os.path.join(base_dir, "profiles"))
+    _ensure_private_dir(session_root)
+    _ensure_private_dir(auth_home)
+    if normalized_provider == PROVIDER_CODEX:
+        _seed_codex_auth_from_global(auth_home, env=env)
+    if normalized_provider == PROVIDER_CLAUDE:
+        _ensure_claude_attribution_disabled(auth_home)
+    now = _local_now_iso()
+    session = {
+        "name": name,
+        "provider": normalized_provider,
+        "enabled": True,
+        "sessionRoot": session_root,
+        "authHome": auth_home,
+        "createdAt": now,
+        "updatedAt": now,
+        "lastLaunchedAt": None,
+        "lastStatusAt": None,
+        "lastStatus": None,
+        "launch": dict(DEFAULT_LAUNCH_SETTINGS),
+        "auth": {
+            "status": "unknown",
+            "lastCheckedAt": None,
+            "lastAuthenticatedAt": None,
+            "lastLoggedOutAt": None,
+        },
+    }
+    result = store["add_session"](session)
+    if not result["ok"]:
+        raise CdxError(f"Session already exists: {name}")
+    return result["session"]
+
+
 def create_session_service(options=None):
     if options is None:
         options = {}
@@ -734,17 +998,6 @@ def create_session_service(options=None):
             return custom_codex_status_fetcher(session)
         timeout = timeout_seconds or default_status_timeout_seconds
         return codex_status_fetcher(session, timeout=timeout)
-
-    def _get_session_root(name):
-        return os.path.join(base_dir, "profiles", _encode(name))
-
-    def _get_session_auth_home(name, provider):
-        root = _get_session_root(name)
-        if provider == PROVIDER_CLAUDE:
-            return os.path.join(root, "claude-home")
-        if provider == PROVIDER_ANTIGRAVITY:
-            return os.path.join(root, "antigravity-home")
-        return root
 
 
     def _session_runtime(name):
@@ -775,8 +1028,8 @@ def create_session_service(options=None):
 
     def _resolve_session_subset(session_names):
         if not session_names:
-            return list_sessions()
-        by_name = {session["name"]: session for session in list_sessions()}
+            return list_sessions(store)
+        by_name = {session["name"]: session for session in list_sessions(store)}
         selected = []
         for name in session_names:
             session = by_name.get(name)
@@ -785,183 +1038,6 @@ def create_session_service(options=None):
             selected.append(session)
         return selected
 
-    def create_session(name, provider=DEFAULT_PROVIDER):
-        _validate_new_session_name(name)
-        normalized_provider = _normalize_provider(provider)
-        session_root = _get_session_root(name)
-        auth_home = _get_session_auth_home(name, normalized_provider)
-        _ensure_private_dir(base_dir)
-        _ensure_private_dir(os.path.join(base_dir, "profiles"))
-        _ensure_private_dir(session_root)
-        _ensure_private_dir(auth_home)
-        if normalized_provider == PROVIDER_CODEX:
-            _seed_codex_auth_from_global(auth_home, env=env)
-        if normalized_provider == PROVIDER_CLAUDE:
-            _ensure_claude_attribution_disabled(auth_home)
-        now = _local_now_iso()
-        session = {
-            "name": name,
-            "provider": normalized_provider,
-            "enabled": True,
-            "sessionRoot": session_root,
-            "authHome": auth_home,
-            "createdAt": now,
-            "updatedAt": now,
-            "lastLaunchedAt": None,
-            "lastStatusAt": None,
-            "lastStatus": None,
-            "launch": dict(DEFAULT_LAUNCH_SETTINGS),
-            "auth": {
-                "status": "unknown",
-                "lastCheckedAt": None,
-                "lastAuthenticatedAt": None,
-                "lastLoggedOutAt": None,
-            },
-        }
-        result = store["add_session"](session)
-        if not result["ok"]:
-            raise CdxError(f"Session already exists: {name}")
-        return result["session"]
-
-    def remove_session(name):
-        session = store["get_session"](name)
-        if not session:
-            raise CdxError(f"Unknown session: {name}")
-        session_root = session.get("sessionRoot") or _get_session_root(name)
-        quarantine_root = None
-        if os.path.exists(session_root):
-            profiles_dir = os.path.dirname(session_root)
-            os.makedirs(profiles_dir, exist_ok=True)
-            quarantine_root = tempfile.mkdtemp(prefix=f".{_encode(name)}.remove.", dir=profiles_dir)
-            os.rmdir(quarantine_root)
-            os.rename(session_root, quarantine_root)
-        try:
-            removed = store["remove_session"](name)
-        except Exception:
-            if quarantine_root and os.path.exists(quarantine_root) and not os.path.exists(session_root):
-                os.rename(quarantine_root, session_root)
-            raise
-        if not removed:
-            if quarantine_root and os.path.exists(quarantine_root) and not os.path.exists(session_root):
-                os.rename(quarantine_root, session_root)
-            raise CdxError(f"Unknown session: {name}")
-        if quarantine_root:
-            try:
-                remove_tree(quarantine_root)
-            except OSError as error:
-                raise CdxError(
-                    f"Removed session {name}, but failed to delete archived profile {quarantine_root}: {error}"
-                ) from error
-        return removed
-
-    def copy_session(source_name, dest_name):
-        if source_name == dest_name:
-            raise CdxError("Source and destination session names must be different")
-        _validate_new_session_name(dest_name)
-        source = store["get_session"](source_name)
-        if not source:
-            raise CdxError(f"Unknown session: {source_name}")
-        existing = store["get_session"](dest_name)
-        overwritten = False
-        source_root = source.get("sessionRoot") or _get_session_root(source_name)
-        dest_root = _get_session_root(dest_name)
-        if not existing and os.path.exists(dest_root):
-            raise CdxError(f"Session profile already exists: {dest_name}")
-        dest_auth_home = _get_session_auth_home(dest_name, source["provider"])
-        profiles_dir = os.path.dirname(dest_root)
-        os.makedirs(profiles_dir, exist_ok=True)
-        temp_parent = tempfile.mkdtemp(prefix=f".{_encode(dest_name)}.copy.", dir=profiles_dir)
-        temp_root = os.path.join(temp_parent, "profile")
-        backup_root = None
-        moved_temp = False
-        now = _local_now_iso()
-        replacement = {
-            "name": dest_name,
-            "provider": source["provider"],
-            "enabled": True,
-            "sessionRoot": dest_root,
-            "authHome": dest_auth_home,
-            "createdAt": now,
-            "updatedAt": now,
-            "lastLaunchedAt": None,
-            "lastStatusAt": None,
-            "lastStatus": None,
-            **({"launch": source.get("launch")} if source.get("launch") else {}),
-            **({"label": source.get("label")} if source.get("label") else {}),
-            "auth": {
-                "status": "unknown",
-                "lastCheckedAt": None,
-                "lastAuthenticatedAt": None,
-                "lastLoggedOutAt": None,
-            },
-        }
-        try:
-            shutil.copytree(source_root, temp_root)
-            if existing:
-                backup_root = tempfile.mkdtemp(prefix=f".{_encode(dest_name)}.backup.", dir=profiles_dir)
-                os.rmdir(backup_root)
-                if os.path.exists(dest_root):
-                    os.rename(dest_root, backup_root)
-            os.rename(temp_root, dest_root)
-            moved_temp = True
-            result = store["replace_session"](dest_name, replacement)
-            overwritten = bool(existing)
-        except Exception:
-            if moved_temp and os.path.exists(dest_root):
-                remove_tree(dest_root, ignore_errors=True)
-            if backup_root and os.path.exists(backup_root) and not os.path.exists(dest_root):
-                os.rename(backup_root, dest_root)
-            raise
-        finally:
-            if backup_root and os.path.exists(backup_root):
-                remove_tree(backup_root, ignore_errors=True)
-            remove_tree(temp_parent, ignore_errors=True)
-        if not result["ok"]:
-            raise CdxError(f"Failed to create session: {dest_name}")
-        return {"session": result["session"], "overwritten": overwritten}
-
-    def rename_session(source_name, dest_name):
-        if source_name == dest_name:
-            raise CdxError("Source and destination session names must be different")
-        _validate_new_session_name(dest_name)
-        source = store["get_session"](source_name)
-        if not source:
-            raise CdxError(f"Unknown session: {source_name}")
-        if store["get_session"](dest_name):
-            raise CdxError(f"Session already exists: {dest_name}")
-
-        source_root = source.get("sessionRoot") or _get_session_root(source_name)
-        dest_root = _get_session_root(dest_name)
-        if os.path.exists(dest_root):
-            raise CdxError(f"Session profile already exists: {dest_name}")
-
-        if os.path.exists(source_root):
-            os.rename(source_root, dest_root)
-            moved_profile = True
-        else:
-            moved_profile = False
-
-        now = _local_now_iso()
-        try:
-            result = store["rename_session"](source_name, dest_name, lambda s: {
-                **s,
-                "name": dest_name,
-                "sessionRoot": dest_root,
-                "authHome": _get_session_auth_home(dest_name, s["provider"]),
-                "updatedAt": now,
-            })
-        except Exception:
-            if moved_profile and os.path.exists(dest_root) and not os.path.exists(source_root):
-                os.rename(dest_root, source_root)
-            raise
-
-        if not result["ok"]:
-            if moved_profile and os.path.exists(dest_root) and not os.path.exists(source_root):
-                os.rename(dest_root, source_root)
-            if result["reason"] == "exists":
-                raise CdxError(f"Session already exists: {dest_name}")
-            raise CdxError(f"Unknown session: {source_name}")
-        return result["session"]
 
     def launch_session(name):
         session = store["get_session"](name)
@@ -1040,69 +1116,6 @@ def create_session_service(options=None):
         store["update_session_state"](name, updater)
         return outcome.get("runtime")
 
-    def ensure_session_state(name):
-        session = store["get_session"](name)
-        if not session:
-            raise CdxError(f"Unknown session: {name}")
-        result = {}
-
-        def updater(state):
-            if state:
-                result["state"] = state
-                return None
-            repaired = {
-                "provider": session["provider"],
-                "status": "ready",
-                "rehydratedAt": None,
-            }
-            result["state"] = repaired
-            return repaired
-
-        store["update_session_state"](name, updater)
-        return result["state"]
-
-    def list_sessions():
-        return store["list_sessions"]()
-
-    def get_session(name):
-        return store["get_session"](name)
-
-    def set_session_enabled(name, enabled):
-        session = store["get_session"](name)
-        if not session:
-            raise CdxError(f"Unknown session: {name}")
-        now = _local_now_iso()
-        return store["update_session"](name, lambda s: {
-            **s,
-            "enabled": bool(enabled),
-            "updatedAt": now,
-        })
-
-    def set_session_label(name, label):
-        session = store["get_session"](name)
-        if not session:
-            raise CdxError(f"Unknown session: {name}")
-        normalized = _normalize_session_label(label)
-        now = _local_now_iso()
-        return store["update_session"](name, lambda s: {
-            **s,
-            "label": normalized,
-            "updatedAt": now,
-        })
-
-    def clear_session_label(name):
-        session = store["get_session"](name)
-        if not session:
-            raise CdxError(f"Unknown session: {name}")
-        now = _local_now_iso()
-
-        def updater(s):
-            updated = {**s, "updatedAt": now}
-            updated.pop("label", None)
-            return updated
-
-        return store["update_session"](name, updater)
-
 
     def record_status(name, payload):
         normalized = _normalize_status_payload(payload)
@@ -1148,7 +1161,7 @@ def create_session_service(options=None):
             return current_status
         if current_status and not force_refresh and _is_status_cache_fresh(session, ttl_seconds=cache_ttl_seconds):
             return current_status
-        source_root = session.get("authHome") or _get_session_auth_home(
+        source_root = session.get("authHome") or _get_session_auth_home(base_dir,
             session["name"], session["provider"]
         )
         if session["provider"] == PROVIDER_CODEX and codex_status_fetcher:
@@ -1323,7 +1336,7 @@ def create_session_service(options=None):
         cache_only=False,
         status_timeout_seconds=None,
     ):
-        sessions = list_sessions()
+        sessions = list_sessions(store)
 
         cache_hits = {
             s["name"]: _status_cache_hit(
@@ -1403,7 +1416,7 @@ def create_session_service(options=None):
         return rows
 
     def format_list_rows():
-        sessions = list_sessions()
+        sessions = list_sessions(store)
         providers = {s["provider"] for s in sessions}
         has_multiple = len(providers) > 1
         sessions = sorted(
@@ -1426,10 +1439,10 @@ def create_session_service(options=None):
         } for s in sessions]
 
     def get_session_auth_home(name, provider):
-        return _get_session_auth_home(name, provider)
+        return _get_session_auth_home(base_dir, name, provider)
 
     def get_session_root(name):
-        return _get_session_root(name)
+        return _get_session_root(base_dir, name)
 
     def export_bundle(file_path, include_auth=False, session_names=None, passphrase=None, force=False, progress_callback=None):
         if not file_path:
@@ -1463,7 +1476,7 @@ def create_session_service(options=None):
             if state is not None:
                 payload["states"][session["name"]] = state
             if include_auth:
-                session_root = session.get("sessionRoot") or _get_session_root(session["name"])
+                session_root = session.get("sessionRoot") or _get_session_root(base_dir, session["name"])
                 profile = _collect_auth_files(session_root, session["provider"], session["name"], progress_callback)
                 payload["profiles"][session["name"]] = profile["files"]
                 profile_file_count += profile["file_count"]
@@ -1529,7 +1542,7 @@ def create_session_service(options=None):
                 raise CdxError(f"Bundle does not contain requested sessions: {', '.join(missing_names)}")
         names = [item["name"] for item in imported_sessions]
 
-        existing = {session["name"] for session in list_sessions()}
+        existing = {session["name"] for session in list_sessions(store)}
         conflicts = [name for name in names if name in existing]
         if conflicts and not force and not merge:
             raise CdxError(f"Import would overwrite existing sessions: {', '.join(conflicts)}")
@@ -1549,8 +1562,8 @@ def create_session_service(options=None):
             provider = _normalize_provider(session_payload["provider"])
             is_existing = name in existing
 
-            session_root = _get_session_root(name)
-            auth_home = _get_session_auth_home(name, provider)
+            session_root = _get_session_root(base_dir, name)
+            auth_home = _get_session_auth_home(base_dir, name, provider)
             _ensure_private_dir(base_dir)
             _ensure_private_dir(os.path.join(base_dir, "profiles"))
             backup_root = None
@@ -1629,20 +1642,20 @@ def create_session_service(options=None):
         }
 
     return {
-        "create_session": create_session,
-        "remove_session": remove_session,
-        "copy_session": copy_session,
-        "rename_session": rename_session,
+        "create_session": partial(create_session, base_dir, env, store),
+        "remove_session": partial(remove_session, base_dir, store),
+        "copy_session": partial(copy_session, base_dir, store),
+        "rename_session": partial(rename_session, base_dir, store),
         "launch_session": launch_session,
         "active_session_runtime": _session_runtime,
         "start_session_runtime": start_session_runtime,
         "finish_session_runtime": finish_session_runtime,
-        "ensure_session_state": ensure_session_state,
-        "list_sessions": list_sessions,
-        "get_session": get_session,
-        "set_session_enabled": set_session_enabled,
-        "set_session_label": set_session_label,
-        "clear_session_label": clear_session_label,
+        "ensure_session_state": partial(ensure_session_state, store),
+        "list_sessions": partial(list_sessions, store),
+        "get_session": partial(get_session, store),
+        "set_session_enabled": partial(set_session_enabled, store),
+        "set_session_label": partial(set_session_label, store),
+        "clear_session_label": partial(clear_session_label, store),
         "set_launch_settings": partial(set_launch_settings, store),
         "unset_launch_settings": partial(unset_launch_settings, store),
         "record_status": record_status,
