@@ -60,14 +60,14 @@ Antigravity and ollama permission mappings also moved out of inline branches int
 
 - **`--priority` now outranks availability.** It previously sat below availability in the headless sort, so it only broke exact ties and was effectively inert. A session with lower availability but higher priority now wins within the same usability class. This is the change that makes the setting mean anything.
 - **Ties on session name now sort ascending everywhere.** The recommendation ranking sorted names descending as a side effect of reversing its whole sort tuple, disagreeing with the headless ranking. The ascending order is kept.
-- **Logged-out sessions are never selection candidates.** `cdx select` without `--require-ready` could previously return one.
+- **Logged-out sessions are never selection candidates.** `cdx select` without `--require-ready` could previously return one. `--require-ready` remains stricter still: it requires a confirmed `authenticated` state, so a session whose auth has never been checked is not offered to `cdx run --provider`.
 - `cdx status`'s recommendation line is labelled `Recommended:` instead of `Priority:`.
 - `cdx select --json`'s `selection_policy` is now a structured object rather than an underscore-joined string.
 
 ## Validation
 
 - `npm run lint`
-- `npm test` — 557 tests.
+- `npm test` — 559 tests.
 - End-to-end: with one session at 80% availability and priority 0 and another at 40% and priority 90, `cdx select`, `cdx next`, and `cdx status` all name the second, and `cdx select` reports `decided on priority`.
 - The issue #8 condition reproduced against the new provider flag check: mapping `--experimental-yolo` for codex fails the check by name.
 - `logics-manager lint --require-status`

@@ -59,7 +59,7 @@ FILTER_DESCRIPTIONS = {
     "authenticated": "logged-out sessions are never candidates; they cannot serve work",
     "provider": "only sessions for the requested provider (when a provider is given)",
     "min_reasoning_effort": "only sessions configured at or above the requested effort (when given)",
-    "require_ready": "only sessions with availability left (when readiness is required)",
+    "require_ready": "only sessions confirmed authenticated with availability left (when readiness is required)",
 }
 
 
@@ -170,7 +170,7 @@ def candidate_rows(rows, provider=None, require_ready=False, min_reasoning_effor
             continue
         if minimum is not None and reasoning_rank(row.get("reasoning_effort")) < minimum:
             continue
-        if require_ready and not _row_has_availability(row):
+        if require_ready and not _row_is_ready(row):
             continue
         candidates.append(row)
     return candidates
@@ -180,6 +180,22 @@ def _row_is_logged_out(row):
     if row.get("provider") in ("antigravity", "ollama"):
         return False
     return str(row.get("auth_status") or "").strip().lower() == "logged_out"
+
+
+def _row_is_ready(row):
+    """Ready to receive a run right now.
+
+    Stricter than "not logged out": an unknown auth state is not readiness.
+    `cdx run --provider` asks for readiness precisely so it does not hand work
+    to a session that will fail at launch, and the headless ranking required a
+    confirmed `authenticated` here before the two rankings were merged.
+    Sessions that are only recommended, rather than selected to run, do not
+    pass `require_ready` and so are still surfaced with an unknown state.
+    """
+    if row.get("provider") not in ("antigravity", "ollama"):
+        if str(row.get("auth_status") or "").strip().lower() != "authenticated":
+            return False
+    return _row_has_availability(row)
 
 
 def _row_has_availability(row):

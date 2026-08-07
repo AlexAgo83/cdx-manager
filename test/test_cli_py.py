@@ -6840,6 +6840,23 @@ class CliPythonTests(unittest.TestCase):
         ranked, _ = self._ranked(rows)
         self.assertEqual(recommend_priority_rows(rows)[0]["session_name"], ranked[0])
 
+    def test_require_ready_rejects_an_unknown_auth_state(self):
+        names, _ = self._ranked(
+            [self._row("unknown", auth_status="unknown"), self._row("known")],
+            require_ready=True,
+        )
+
+        # `cdx run --provider` asks for readiness so it does not hand work to a
+        # session that will fail at launch; unknown is not ready.
+        self.assertEqual(names, ["known"])
+
+    def test_recommendation_still_surfaces_unknown_auth_sessions(self):
+        names, _ = self._ranked([self._row("unknown", auth_status="unknown")])
+
+        # Without require_ready (cdx next, cdx status) an unverified session is
+        # still worth showing; it is only excluded from being run.
+        self.assertEqual(names, ["unknown"])
+
     def test_logged_out_sessions_are_never_candidates(self):
         names, _ = self._ranked([
             self._row("out", auth_status="logged_out", available_pct=99),
