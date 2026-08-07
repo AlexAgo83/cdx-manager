@@ -1,0 +1,155 @@
+{
+ "title": "Split session_service along the two seams the coupling measurement supports",
+ "references": [
+  "src/session_service.py",
+  "src/cli_helpers.py",
+  "src/commands/__init__.py",
+  "test/test_session_service_py.py",
+  "test/test_session_service_helpers_py.py"
+ ],
+ "request": {
+  "complexity": "Medium",
+  "theme": "Maintainability",
+  "needs": [
+   "`req_026` removed the reason `src/session_service.py` could not be split: `create_session_service` is 56 lines and holds no closures, and the module is 71 flat functions with a median length of 12 lines. The file is still 1690 lines.",
+   "`item_059` measured the coupling between concern groups and found two real seams and four false ones. Acting on that measurement is what this request is for; it exists so the measurement is used rather than filed.",
+   "The status group is 264 lines of entry points with 16 helpers reached only from it, and the backup group is 179 lines with 9. Those two are separable today.",
+   "The runtime and auth groups have zero exclusive helpers between them. Made into files they would be thin wrappers over imports from the module they came from, which reads worse than leaving them where they are."
+  ],
+  "context": [
+   "The coupling table is recorded in `item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed`. It was taken as a transitive closure from each group's entry points, not as direct calls, because a helper reached only through another helper still has to move with the group that reaches it.",
+   "Ten helpers are shared across groups. Six of them are small utilities: `_local_now_iso` (2 lines) is used by all six groups, and `_encode`, `_get_session_root`, `_get_session_auth_home`, `_ensure_private_dir` are path and formatting helpers rather than domain logic.",
+   "`req_025` established the pattern this request should follow: extract to a package, keep the original module as a facade that re-exports every name its callers import, and prove the facade with a guard test. `test_cli_commands_facade_still_exposes_every_name_its_callers_import` is the working example.",
+   "That request also produced the failure modes to expect. A pass-through import gets stripped by ruff once its last in-file caller leaves, and function-local relative imports resolve one package level too shallow once inside a subpackage.",
+   "`src/session_service.py` is imported by `src/cli.py` via `create_session_service`, and `test/test_session_service_py.py` (2055 lines) plus `test/test_session_service_helpers_py.py` exercise it. Those tests are the regression net.",
+   "The service interface is the dict `create_session_service` returns: 29 keys, bound with `functools.partial`. It must not change, exactly as in `req_026`."
+  ],
+  "acceptance_criteria": [
+   "AC1: The status group and the backup group each live in their own module, with the helpers reached only from that group alongside them.",
+   "AC2: The shared helpers are relocated to a utility layer before either extraction, so neither new module imports back from the module it was cut out of.",
+   "AC3: `session_service` remains the import location for every name its callers import today, including `create_session_service` and any helper the tests import directly.",
+   "AC4: A guard test fails if the facade stops exposing a name its callers import, following the one `req_025` added for `cli_commands`.",
+   "AC5: The service interface is unchanged: the returned dict has the same 29 keys and the same behavior, verified against a pre-request build.",
+   "AC6: The runtime, auth, crud and settings groups are not made into files. The measurement that rules the first two out is restated in the code or the commit, so a later reader does not redo the split by instinct.",
+   "AC7: Each extraction is its own commit with the full suite passing, so a regression is attributable to one group.",
+   "AC8: `src/cli.py` and the existing test files are unchanged, aside from anything the facade genuinely cannot cover, and any such case is recorded."
+  ]
+ },
+ "product": {
+  "title": "A session service whose file boundaries match its real seams",
+  "overview": "Cut `session_service.py` only where the coupling measurement says it can be cut, so the resulting files are independently readable rather than merely smaller.",
+  "goals": [
+   "Two new modules that can be read without holding the rest of the service in mind.",
+   "A shared utility layer that both new modules and the original depend on, with no import cycling back.",
+   "A recorded reason for every group that was left in place, so the decision survives the next reader's instinct to finish the job."
+  ],
+  "non_goals": [
+   "Splitting the groups the measurement does not support.",
+   "Changing the service interface or any caller.",
+   "Introducing a service class, registry, or dependency-injection layer.",
+   "Rewriting the existing tests to the new shape."
+  ]
+ },
+ "backlog_items": [
+  {
+   "title": "Move the shared helpers into a session service utility layer",
+   "priority": "High",
+   "complexity": "Low",
+   "theme": "Maintainability",
+   "request_acs": ["AC2", "AC3", "AC7"],
+   "problem": [
+    "Ten helpers are reached from more than one concern group. Extracting status or backup before relocating them would leave the new module importing back from the module it was just cut out of.",
+    "`req_025` learned this the expensive way in the opposite order: its plan relocated shared helpers per domain, and doing all of them in one commit turned out to read far better as a diff."
+   ],
+   "scope_in": [
+    "Relocate the ten shared helpers into a utility module, in one commit, before any group is extracted.",
+    "Verify afterwards that no group shares a helper with another, so the remaining extractions are independent.",
+    "Keep them importable from `session_service` for any caller or test that names them today."
+   ],
+   "scope_out": [
+    "No extraction of the status or backup groups in this slice.",
+    "No renaming or rewriting of the helpers while moving them.",
+    "No relocation of helpers that only one group reaches."
+   ],
+   "acceptance_criteria": [
+    "Every helper reached from more than one concern group has a single definition in the utility layer.",
+    "Re-running the coupling measurement afterwards reports zero shared helpers between the remaining groups.",
+    "No helper gains a dependency the utility layer did not already have, and no import cycle is introduced.",
+    "The full suite passes and the service interface is unchanged."
+   ]
+  },
+  {
+   "title": "Extract the status group into its own module",
+   "priority": "High",
+   "complexity": "Medium",
+   "theme": "Maintainability",
+   "request_acs": ["AC1", "AC3", "AC5", "AC7", "AC8"],
+   "problem": [
+    "The status group is the largest separable cluster at 264 lines of entry points and 16 helpers reached only from it, and it is the one a reader most often needs to follow end to end."
+   ],
+   "scope_in": [
+    "Move the status entry points and the helpers only they reach into a status module.",
+    "Keep `session_service` re-exporting every moved name, following the `req_025` facade pattern.",
+    "Re-measure the group's closure immediately before extracting rather than reusing the number recorded in `item_059`.",
+    "Run the full suite, and verify the returned dict's keys against a pre-request build."
+   ],
+   "scope_out": [
+    "No extraction of the backup group in this slice.",
+    "No change to the status behavior while moving it."
+   ],
+   "acceptance_criteria": [
+    "The status entry points and their exclusive helpers live in their own module.",
+    "Every name importable from `session_service` before the move is still importable from it.",
+    "The returned dict has the same keys and behavior as before.",
+    "The full suite passes, and any test or caller change the facade could not cover is recorded with its reason."
+   ]
+  },
+  {
+   "title": "Extract the backup group and record why the other groups stay",
+   "priority": "Medium",
+   "complexity": "Medium",
+   "theme": "Maintainability",
+   "request_acs": ["AC1", "AC4", "AC6", "AC7", "AC8"],
+   "problem": [
+    "The backup group is the second and last seam the measurement supports, at 179 lines and 9 exclusive helpers.",
+    "Once two groups have been extracted, the natural instinct is to finish the job on the other four. Nothing in the code says why that would be wrong, and the measurement that rules it out lives only in a Logics doc."
+   ],
+   "scope_in": [
+    "Move the backup entry points and the helpers only they reach into a backup module.",
+    "Add the facade guard test, so a dropped re-export fails loudly rather than surfacing as an unrelated import error.",
+    "Record in the code why runtime, auth, crud and settings were left in place, with the exclusive-helper counts that support it.",
+    "Confirm the end state: the interface unchanged, the facade complete, and the coupling measurement re-run."
+   ],
+   "scope_out": [
+    "No extraction of the runtime, auth, crud or settings groups.",
+    "No new abstraction over the modules that now exist."
+   ],
+   "acceptance_criteria": [
+    "The backup entry points and their exclusive helpers live in their own module.",
+    "A guard test fails when the facade stops exposing a name its callers import, verified by removing one.",
+    "The reason the remaining groups were not split is stated where a reader of the code will find it, with the counts behind it.",
+    "The service interface is unchanged and the full suite passes."
+   ]
+  }
+ ],
+ "orchestration_task": {
+  "title": "Orchestrate the measured session service file split",
+  "plan": [
+   "1. Re-measure the coupling before starting. The numbers in `item_059` were taken at `req_026` closeout and the file has not been frozen since; both prior requests found that a measurement reused across steps is wrong by the time it is used.",
+   "2. Wave 1 - relocate the ten shared helpers to the utility layer in one commit, then confirm the remaining groups share nothing.",
+   "3. Wave 2 - extract the status group, facade in place, full suite and interface check.",
+   "4. Wave 3 - extract the backup group, add the facade guard test, and record in the code why the other four groups stay.",
+   "5. Expect the two `req_025` failure modes and check for them explicitly: pass-through imports stripped by ruff once their last in-file caller leaves, and function-local relative imports resolving one level too shallow inside a subpackage.",
+   "6. Confirm the end state: interface unchanged at 29 keys, every prior import still resolving, no caller touched.",
+   "7. Run the full suite and `npm run lint`, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.",
+   "ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.",
+   "Keep commit creation under operator control; do not force one commit per micro-step.",
+   "GATE: do not close until lint, audit, and scaffold validation pass."
+  ]
+ },
+ "context_pack": {
+  "out": "logics/context-packs/split_session_service_along_measured_seams.json",
+  "mode": "diff-first",
+  "profile": "normal"
+ }
+}

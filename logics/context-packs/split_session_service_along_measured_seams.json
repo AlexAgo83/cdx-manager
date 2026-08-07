@@ -1,0 +1,518 @@
+{
+  "budgets": {
+    "max_docs": 20,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_060_move_the_shared_helpers_into_a_session_service_utility_layer.md",
+    "logics/backlog/item_061_extract_the_status_group_into_its_own_module.md",
+    "logics/backlog/item_062_extract_the_backup_group_and_record_why_the_other_groups_stay.md",
+    "logics/product/prod_017_a_session_service_whose_file_boundaries_match_its_real_seams.md",
+    "logics/request/req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports.md",
+    "logics/scaffold/split_session_service_along_measured_seams.json",
+    "logics/tasks/task_038_orchestrate_the_measured_session_service_file_split.md"
+  ],
+  "command": "logics-manager sync context-pack req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports item_060_move_the_shared_helpers_into_a_session_service_utility_layer item_061_extract_the_status_group_into_its_own_module item_062_extract_the_backup_group_and_record_why_the_other_groups_stay task_038_orchestrate_the_measured_session_service_file_split --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_060_move_the_shared_helpers_into_a_session_service_utility_layer",
+          "item_061_extract_the_status_group_into_its_own_module",
+          "item_062_extract_the_backup_group_and_record_why_the_other_groups_stay"
+        ],
+        "prod": [
+          "prod_017_a_session_service_whose_file_boundaries_match_its_real_seams"
+        ],
+        "req": [
+          "req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports"
+        ],
+        "task": [
+          "task_038_orchestrate_the_measured_session_service_file_split"
+        ]
+      },
+      "path": "logics/product/prod_017_a_session_service_whose_file_boundaries_match_its_real_seams.md",
+      "ref": "prod_017_a_session_service_whose_file_boundaries_match_its_real_seams",
+      "sections": {
+        "Goals": [
+          "- Two new modules that can be read without holding the rest of the service in mind.",
+          "- A shared utility layer that both new modules and the original depend on, with no import cycling back.",
+          "- A recorded reason for every group that was left in place, so the decision survives the next reader's instinct to finish the job."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Cut `session_service.py` only where the coupling measurement says it can be cut, so the resulting files are independently readable rather than merely smaller."
+        ],
+        "References": [
+          "- Product back-reference: `req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports`",
+          "- Task back-reference: `task_038_orchestrate_the_measured_session_service_file_split`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "A session service whose file boundaries match its real seams"
+    },
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_057_lift_the_closures_that_capture_nothing_into_module_level_functions",
+          "item_058_give_the_state_dependent_closures_explicit_dependencies",
+          "item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed"
+        ],
+        "prod": [
+          "prod_016_a_session_service_that_can_be_read_in_pieces"
+        ],
+        "req": [
+          "req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file"
+        ],
+        "task": [
+          "task_037_orchestrate_the_session_service_decomposition"
+        ]
+      },
+      "path": "logics/product/prod_016_a_session_service_that_can_be_read_in_pieces.md",
+      "ref": "prod_016_a_session_service_that_can_be_read_in_pieces",
+      "sections": {
+        "Goals": [
+          "- Make individual session-service behavior readable and testable without constructing the whole service.",
+          "- Make each piece's dependencies visible in its signature instead of implicit in a closure.",
+          "- Keep every caller and every existing test working throughout.",
+          "- Reach a state where splitting the file is an obvious next step rather than a guess."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Turn a 1153-line factory of 46 closures into module-level functions with explicit dependencies, leaving the service interface untouched, so the file's seams become real before anyone decides where to cut it."
+        ],
+        "References": [
+          "- Product back-reference: `req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file`",
+          "- Task back-reference: `task_037_orchestrate_the_session_service_decomposition`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "A session service that can be read in pieces"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, split session_service along the two seams the coupling measurement supports, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Split session_service along the two seams the coupling measurement supports",
+        "use when": "You need to implement or review the scaffolded workflow for Split session_service along the two seams the coupling measurement supports."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed",
+          "item_060_move_the_shared_helpers_into_a_session_service_utility_layer",
+          "item_061_extract_the_status_group_into_its_own_module",
+          "item_062_extract_the_backup_group_and_record_why_the_other_groups_stay"
+        ],
+        "prod": [
+          "prod_017_a_session_service_whose_file_boundaries_match_its_real_seams"
+        ],
+        "req": [
+          "req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports"
+        ]
+      },
+      "path": "logics/request/req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports.md",
+      "ref": "req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: The status group and the backup group each live in their own module, with the helpers reached only from that group alongside them.",
+          "- AC2: The shared helpers are relocated to a utility layer before either extraction, so neither new module imports back from the module it was cut out of.",
+          "- AC3: `session_service` remains the import location for every name its callers import today, including `create_session_service` and any helper the tests import directly.",
+          "- AC4: A guard test fails if the facade stops exposing a name its callers import, following the one `req_025` added for `cli_commands`.",
+          "- AC5: The service interface is unchanged: the returned dict has the same 29 keys and the same behavior, verified against a pre-request build.",
+          "- AC6: The runtime, auth, crud and settings groups are not made into files. The measurement that rules the first two out is restated in the code or the commit, so a later reader does not redo the split by instinct."
+        ],
+        "Needs": [
+          "- `req_026` removed the reason `src/session_service.py` could not be split: `create_session_service` is 56 lines and holds no closures, and the module is 71 flat functions with a median length of 12 lines. The file is still 1690 lines.",
+          "- `item_059` measured the coupling between concern groups and found two real seams and four false ones. Acting on that measurement is what this request is for; it exists so the measurement is used rather than filed.",
+          "- The status group is 264 lines of entry points with 16 helpers reached only from it, and the backup group is 179 lines with 9. Those two are separable today.",
+          "- The runtime and auth groups have zero exclusive helpers between them. Made into files they would be thin wrappers over imports from the module they came from, which reads worse than leaving them where they are."
+        ]
+      },
+      "status": "Draft",
+      "title": "Split session_service along the two seams the coupling measurement supports"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, decide the file split from the seams the decomposition exposed, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Decide the file split from the seams the decomposition exposed",
+        "use when": "Implementing the scaffolded slice for Decide the file split from the seams the decomposition exposed."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed"
+        ],
+        "prod": [
+          "prod_016_a_session_service_that_can_be_read_in_pieces"
+        ],
+        "req": [
+          "req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file"
+        ],
+        "task": [
+          "task_037_orchestrate_the_session_service_decomposition"
+        ]
+      },
+      "path": "logics/backlog/item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed.md",
+      "ref": "item_059_decide_the_file_split_from_the_seams_the_decomposition_exposed",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- The coupling between concern groups is measured, not estimated, using the same method applied to the command file.",
+          "- A decision is recorded with the measurement that supports it.",
+          "- If the measurement does not support a split, that outcome is recorded as the answer rather than treated as a failure.",
+          "- Any split that is warranted is scoped as a separate request."
+        ],
+        "Problem": [
+          "- The obvious instinct is to split the file by the concern clusters, but those clusters were inferred from closure names before the dependencies were made explicit.",
+          "- Deciding the seam now would repeat the mistake this request exists to avoid: cutting a file whose parts are not yet separable."
+        ]
+      },
+      "status": "Done",
+      "title": "Decide the file split from the seams the decomposition exposed"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, move the shared helpers into a session service utility layer, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Move the shared helpers into a session service utility layer",
+        "use when": "Implementing the scaffolded slice for Move the shared helpers into a session service utility layer."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_060_move_the_shared_helpers_into_a_session_service_utility_layer"
+        ],
+        "prod": [
+          "prod_017_a_session_service_whose_file_boundaries_match_its_real_seams"
+        ],
+        "req": [
+          "req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports"
+        ],
+        "task": [
+          "task_038_orchestrate_the_measured_session_service_file_split"
+        ]
+      },
+      "path": "logics/backlog/item_060_move_the_shared_helpers_into_a_session_service_utility_layer.md",
+      "ref": "item_060_move_the_shared_helpers_into_a_session_service_utility_layer",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Every helper reached from more than one concern group has a single definition in the utility layer.",
+          "- Re-running the coupling measurement afterwards reports zero shared helpers between the remaining groups.",
+          "- No helper gains a dependency the utility layer did not already have, and no import cycle is introduced.",
+          "- The full suite passes and the service interface is unchanged."
+        ],
+        "Problem": [
+          "- Ten helpers are reached from more than one concern group. Extracting status or backup before relocating them would leave the new module importing back from the module it was just cut out of.",
+          "- `req_025` learned this the expensive way in the opposite order: its plan relocated shared helpers per domain, and doing all of them in one commit turned out to read far better as a diff."
+        ]
+      },
+      "status": "Ready",
+      "title": "Move the shared helpers into a session service utility layer"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, extract the status group into its own module, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Extract the status group into its own module",
+        "use when": "Implementing the scaffolded slice for Extract the status group into its own module."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_061_extract_the_status_group_into_its_own_module"
+        ],
+        "prod": [
+          "prod_017_a_session_service_whose_file_boundaries_match_its_real_seams"
+        ],
+        "req": [
+          "req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports"
+        ],
+        "task": [
+          "task_038_orchestrate_the_measured_session_service_file_split"
+        ]
+      },
+      "path": "logics/backlog/item_061_extract_the_status_group_into_its_own_module.md",
+      "ref": "item_061_extract_the_status_group_into_its_own_module",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- The status entry points and their exclusive helpers live in their own module.",
+          "- Every name importable from `session_service` before the move is still importable from it.",
+          "- The returned dict has the same keys and behavior as before.",
+          "- The full suite passes, and any test or caller change the facade could not cover is recorded with its reason."
+        ],
+        "Problem": [
+          "- The status group is the largest separable cluster at 264 lines of entry points and 16 helpers reached only from it, and it is the one a reader most often needs to follow end to end."
+        ]
+      },
+      "status": "Ready",
+      "title": "Extract the status group into its own module"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate the measured session service file split",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_060_move_the_shared_helpers_into_a_session_service_utility_layer",
+          "item_061_extract_the_status_group_into_its_own_module",
+          "item_062_extract_the_backup_group_and_record_why_the_other_groups_stay"
+        ],
+        "prod": [
+          "prod_017_a_session_service_whose_file_boundaries_match_its_real_seams"
+        ],
+        "req": [
+          "req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports"
+        ],
+        "task": [
+          "task_038_orchestrate_the_measured_session_service_file_split"
+        ]
+      },
+      "path": "logics/tasks/task_038_orchestrate_the_measured_session_service_file_split.md",
+      "ref": "task_038_orchestrate_the_measured_session_service_file_split",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate the measured session service file split"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_060_move_the_shared_helpers_into_a_session_service_utility_layer",
+          "item_061_extract_the_status_group_into_its_own_module",
+          "item_062_extract_the_backup_group_and_record_why_the_other_groups_stay"
+        ],
+        "prod": [
+          "prod_017_a_session_service_whose_file_boundaries_match_its_real_seams"
+        ],
+        "req": [
+          "req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports"
+        ],
+        "task": [
+          "task_038_orchestrate_the_measured_session_service_file_split"
+        ]
+      },
+      "path": "logics/product/prod_017_a_session_service_whose_file_boundaries_match_its_real_seams.md",
+      "ref": "prod_017_a_session_service_whose_file_boundaries_match_its_real_seams",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "A session service whose file boundaries match its real seams"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, extract the backup group and record why the other groups stay, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Extract the backup group and record why the other groups stay",
+        "use when": "Implementing the scaffolded slice for Extract the backup group and record why the other groups stay."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_062_extract_the_backup_group_and_record_why_the_other_groups_stay"
+        ],
+        "prod": [
+          "prod_017_a_session_service_whose_file_boundaries_match_its_real_seams"
+        ],
+        "req": [
+          "req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports"
+        ],
+        "task": [
+          "task_038_orchestrate_the_measured_session_service_file_split"
+        ]
+      },
+      "path": "logics/backlog/item_062_extract_the_backup_group_and_record_why_the_other_groups_stay.md",
+      "ref": "item_062_extract_the_backup_group_and_record_why_the_other_groups_stay",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- The backup entry points and their exclusive helpers live in their own module.",
+          "- A guard test fails when the facade stops exposing a name its callers import, verified by removing one.",
+          "- The reason the remaining groups were not split is stated where a reader of the code will find it, with the counts behind it.",
+          "- The service interface is unchanged and the full suite passes."
+        ],
+        "Problem": [
+          "- The backup group is the second and last seam the measurement supports, at 179 lines and 9 exclusive helpers.",
+          "- Once two groups have been extracted, the natural instinct is to finish the job on the other four. Nothing in the code says why that would be wrong, and the measurement that rules it out lives only in a Logics doc."
+        ]
+      },
+      "status": "Ready",
+      "title": "Extract the backup group and record why the other groups stay"
+    }
+  ],
+  "estimates": {
+    "char_count": 15620,
+    "companion_doc_count": 2,
+    "doc_count": 7
+  },
+  "generated_at": "2026-08-07T14:59:45Z",
+  "handoff": {
+    "companion_doc_count": 2,
+    "enabled": true,
+    "source_refs": [
+      "req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports",
+      "item_060_move_the_shared_helpers_into_a_session_service_utility_layer",
+      "item_061_extract_the_status_group_into_its_own_module",
+      "item_062_extract_the_backup_group_and_record_why_the_other_groups_stay",
+      "task_038_orchestrate_the_measured_session_service_file_split"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports,item_060_move_the_shared_helpers_into_a_session_service_utility_layer,item_061_extract_the_status_group_into_its_own_module,item_062_extract_the_backup_group_and_record_why_the_other_groups_stay,task_038_orchestrate_the_measured_session_service_file_split",
+  "refs": [
+    "req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports",
+    "item_060_move_the_shared_helpers_into_a_session_service_utility_layer",
+    "item_061_extract_the_status_group_into_its_own_module",
+    "item_062_extract_the_backup_group_and_record_why_the_other_groups_stay",
+    "task_038_orchestrate_the_measured_session_service_file_split"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.14.0"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_038_orchestrate_the_measured_session_service_file_split.md",
+      "ref": "task_038_orchestrate_the_measured_session_service_file_split"
+    }
+  ]
+}
