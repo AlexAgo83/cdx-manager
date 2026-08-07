@@ -1,10 +1,10 @@
 ## item_043_replace_catch_all_usage_errors_with_specific_machine_readable_error_codes - Replace catch-all usage errors with specific machine-readable error codes
 > From version: 0.12.4
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 90%
 > Complexity: Medium
 > Theme: Agent integration surface
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

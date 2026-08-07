@@ -1,10 +1,10 @@
 ## item_041_add_detached_run_launch_returning_run_identity_immediately - Add detached run launch returning run identity immediately
 > From version: 0.12.4
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 90%
 > Complexity: Medium
 > Theme: Agent integration surface
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

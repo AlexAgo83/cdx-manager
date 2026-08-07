@@ -75,6 +75,26 @@ def _is_pid_alive(pid):
         return False
 
 
+def _completed_after(run, since):
+    """True when this run finished strictly after `since`.
+
+    `since` is timezone-aware (the CLI resolves it in local time); stored
+    timestamps are UTC with a `Z` suffix. A record with an unparseable or
+    missing `ended_at` is treated as not-yet-completed rather than matching, so
+    a corrupt row cannot be reported as freshly finished on every poll.
+    """
+    ended_at = run.get("ended_at")
+    if not ended_at:
+        return False
+    try:
+        ended = datetime.fromisoformat(str(ended_at).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if ended.tzinfo is None:
+        ended = ended.replace(tzinfo=timezone.utc)
+    return ended > since
+
+
 def _refresh_stale_runs(data):
     now = utc_now_iso()
     changed = False
@@ -128,6 +148,24 @@ class RunRegistry:
             _write_registry(self.path, data)
         return record
 
+    def set_pid(self, run_id, pid):
+        """Point a registered run at the process actually doing the work.
+
+        `start()` records the caller's own pid, which is right when that caller
+        stays to supervise. A detached launch does not: it returns immediately,
+        so its pid dies within seconds and `_refresh_stale_runs` would find no
+        live process, mark the run `stale`, and stamp an `ended_at` — reporting
+        a run that is still going as finished, including to `list(since=...)`.
+        """
+        with _registry_lock(self.path):
+            data = _read_registry(self.path)
+            for run in data["runs"]:
+                if run.get("run_id") == run_id:
+                    run["pid"] = pid
+                    _write_registry(self.path, data)
+                    return run
+        return None
+
     def finish(self, run_id, *, status, final_payload=None, run_info=None, error=None, task_report=None):
         with _registry_lock(self.path):
             return self._finish_locked(run_id, status=status, final_payload=final_payload, run_info=run_info, error=error, task_report=task_report)
@@ -167,13 +205,26 @@ class RunRegistry:
             return run
         return None
 
-    def list(self, limit=20):
+    def list(self, limit=20, since=None):
+        """Recent runs, newest first.
+
+        `since` selects every run that *completed* strictly after that moment
+        and bypasses `limit` entirely. A cursor caller is asking "what finished
+        since I last looked"; capping that by row count would hand back a
+        truncated answer that looks complete, which is the silent miss the
+        cursor exists to remove. Runs still in flight have no completion time
+        and are excluded — they will be returned by a later call, once they
+        have actually completed.
+        """
         with _registry_lock(self.path):
             data = _read_registry(self.path)
             changed = _refresh_stale_runs(data)
             if changed:
                 _write_registry(self.path, data)
-        return data["runs"][: max(0, int(limit or 20))]
+        runs = data["runs"]
+        if since is not None:
+            return [run for run in runs if _completed_after(run, since)]
+        return runs[: max(0, int(limit or 20))]
 
     def get(self, run_id):
         with _registry_lock(self.path):

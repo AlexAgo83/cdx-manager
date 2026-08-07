@@ -8,7 +8,7 @@ imported back there and used by the handlers.
 from datetime import datetime, timedelta
 
 from .config import PROVIDER_CODEX, PROVIDERS
-from .errors import CdxError
+from .errors import CdxArgumentError, CdxError
 from .provider_runtime import _normalize_reasoning_effort
 
 STATUS_USAGE = "Usage: cdx status [--json] [--refresh|--cached] [--timeout SECONDS] | cdx status --small|-s [--refresh|--cached] [--timeout SECONDS] | cdx status <name> [--json] [--refresh|--cached] [--timeout SECONDS]"
@@ -34,7 +34,7 @@ RESUME_USAGE = "Usage: cdx resume <name> [--json]"
 CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--json]"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json"
 NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
-RUN_USAGE = "Usage: cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] --json"
+RUN_USAGE = "Usage: cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--detach] --json"
 RUN_JSON_REQUIRED = "cdx run: --json is required."
 RUN_TARGET_REQUIRED = "cdx run: specify a session name or --provider PROVIDER."
 RUN_SESSION_PROVIDER_CONFLICT = "cdx run: cannot specify both a session name and --provider."
@@ -42,9 +42,31 @@ RUN_CWD_REQUIRED = "cdx run: --cwd PATH is required."
 RUN_PROMPT_SOURCE_REQUIRED = "cdx run: specify exactly one prompt source: --prompt TEXT or --prompt-file PATH."
 RUN_KIND_VALUES = ("assistant", "code-review")
 RUN_PERMISSION_VALUES = ("review", "default", "auto", "full", "workspace-write", "read-only", "danger-full-access")
-RUNS_USAGE = "Usage: cdx runs [--limit N] --json"
+RUN_PERMISSION_CANONICAL_VALUES = ("review", "default", "auto", "full")
+RUN_PERMISSION_ALIASES = {
+    "workspace-write": "default",
+    "read-only": "review",
+    "danger-full-access": "full",
+}
+# Ordered for display; test_cli_py asserts this matches provider_runtime's
+# REASONING_EFFORT_VALUES set, so the two cannot drift apart silently.
+RUN_EFFORT_VALUES = ("minimal", "low", "medium", "high", "xhigh")
+RUNS_USAGE = "Usage: cdx runs [--limit N] [--since 7d|today|DATE] --json"
 RUN_STATUS_USAGE = "Usage: cdx run-status <run_id> --json"
 RUN_REPORT_USAGE = "Usage: cdx run-report <run_id> --json"
+RUN_TAIL_USAGE = "Usage: cdx run-tail <run_id> [--lines N] --json"
+SCHEMA_USAGE = "Usage: cdx schema --json"
+
+RUN_TAIL_DEFAULT_LINES = 50
+RUN_TAIL_MAX_LINES = 2000
+
+# Argument-failure codes emitted in `error.code`. Specific enough that a caller
+# branches on the code alone, never on the human message.
+ARG_CODE_MISSING = "missing_required_argument"
+ARG_CODE_MUTUALLY_EXCLUSIVE = "mutually_exclusive_arguments"
+ARG_CODE_INVALID_VALUE = "invalid_argument_value"
+ARG_CODE_OUT_OF_RANGE = "argument_value_out_of_range"
+ARG_CODE_UNKNOWN = "unknown_argument"
 
 
 def _parse_json_flag(args):
@@ -338,7 +360,11 @@ def _parse_run_timeout_seconds(value):
     try:
         return _parse_timeout_seconds(value, RUN_USAGE)
     except CdxError as error:
-        raise CdxError(f"cdx run: --timeout-seconds must be a positive number; got {value!r}.") from error
+        raise CdxArgumentError(
+            f"cdx run: --timeout-seconds must be a positive number; got {value!r}.",
+            code=ARG_CODE_OUT_OF_RANGE,
+            arguments=["--timeout-seconds"],
+        ) from error
 
 
 def _parse_run_provider(value):
@@ -346,27 +372,132 @@ def _parse_run_provider(value):
         return _parse_provider_filter(value, RUN_USAGE)
     except CdxError as error:
         allowed = "|".join(PROVIDERS)
-        raise CdxError(f"cdx run: invalid --provider {value!r}; allowed values: {allowed}.") from error
+        raise CdxArgumentError(
+            f"cdx run: invalid --provider {value!r}; allowed values: {allowed}.",
+            code=ARG_CODE_INVALID_VALUE,
+            arguments=["--provider"],
+            allowed=PROVIDERS,
+        ) from error
 
 
 def _normalize_run_permission(value):
     if value is None:
         return None
     text = str(value).strip().lower()
-    aliases = {
-        "workspace-write": "default",
-        "read-only": "review",
-        "danger-full-access": "full",
-    }
-    text = aliases.get(text, text)
-    if text not in ("review", "default", "auto", "full"):
+    text = RUN_PERMISSION_ALIASES.get(text, text)
+    if text not in RUN_PERMISSION_CANONICAL_VALUES:
         allowed = "|".join(RUN_PERMISSION_VALUES)
-        raise CdxError(f"cdx run: invalid --permission {value!r}; allowed values: {allowed}.")
+        raise CdxArgumentError(
+            f"cdx run: invalid --permission {value!r}; allowed values: {allowed}.",
+            code=ARG_CODE_INVALID_VALUE,
+            arguments=["--permission"],
+            allowed=RUN_PERMISSION_VALUES,
+        )
     return text
 
 
-def _parse_run_args(args):
+def cdx_schema():
+    """The machine-readable contract for programmatic callers.
+
+    Every value here is the same object the parser validates against, not a
+    parallel copy — `cdx schema --json` cannot advertise a value `cdx run`
+    rejects, which is exactly how the ollama `--experimental-yolo` mapping
+    survived unexercised (GitHub issue #8).
+    """
+    # No `schema_version` here: the JSON envelope already carries it, and two
+    # keys of that name in one payload would be one too many.
+    return {
+        "enums": {
+            "permission": {
+                "accepted": list(RUN_PERMISSION_VALUES),
+                "canonical": list(RUN_PERMISSION_CANONICAL_VALUES),
+                "aliases": dict(RUN_PERMISSION_ALIASES),
+            },
+            "reasoning_effort": {"accepted": list(RUN_EFFORT_VALUES)},
+            "power": {"accepted": list(RUN_EFFORT_VALUES)},
+            "kind": {"accepted": list(RUN_KIND_VALUES)},
+            "provider": {"accepted": list(PROVIDERS)},
+        },
+        "mutually_exclusive": [
+            {
+                "command": "run",
+                "arguments": ["session", "--provider"],
+                "reason": "A session already fixes its provider; pass one or the other.",
+            },
+            {
+                "command": "run",
+                "arguments": ["--prompt-file", "--prompt"],
+                "reason": "Exactly one prompt source.",
+            },
+            {
+                "command": "run",
+                "arguments": ["--reasoning-effort", "--power"],
+                "reason": "Aliases of one setting; they must match when both are given.",
+            },
+        ],
+        "error_codes": [
+            ARG_CODE_MISSING,
+            ARG_CODE_MUTUALLY_EXCLUSIVE,
+            ARG_CODE_INVALID_VALUE,
+            ARG_CODE_OUT_OF_RANGE,
+            ARG_CODE_UNKNOWN,
+        ],
+    }
+
+
+def _parse_schema_args(args):
     parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, SCHEMA_USAGE)
+    if not parsed["json"]:
+        raise CdxError(SCHEMA_USAGE)
+    return parsed
+
+
+def _parse_run_flag_args(args, schema, usage, positionals_key=None, max_positionals=0):
+    """`_parse_flag_args` is shared by every command and raises a bare usage
+    error for an unrecognized flag or a value-less option. Only `run` promises a
+    specific code for those, so translate here rather than teaching the shared
+    parser about codes it does not need. Transforms that already raised a
+    `CdxArgumentError` keep their own, more precise code."""
+    try:
+        return _parse_flag_args(args, schema, usage, positionals_key, max_positionals)
+    except CdxArgumentError:
+        raise
+    except CdxError as error:
+        raise CdxArgumentError(str(error), code=ARG_CODE_UNKNOWN) from error
+
+
+def _parse_run_effort(reasoning_effort, power):
+    try:
+        return _normalize_reasoning_effort(
+            reasoning_effort=reasoning_effort,
+            power=power,
+            usage=RUN_USAGE,
+        )
+    except CdxError as error:
+        message = str(error)
+        if "must match" in message:
+            raise CdxArgumentError(
+                message,
+                code=ARG_CODE_MUTUALLY_EXCLUSIVE,
+                arguments=["--reasoning-effort", "--power"],
+            ) from error
+        argument = "--power" if message.startswith("Unsupported power:") else "--reasoning-effort"
+        # Keeps the pre-existing `invalid_reasoning_effort` code rather than
+        # flattening it into the generic invalid-value one: it was already
+        # specific, and callers may already branch on it. The new codes exist to
+        # split what used to be indistinguishable, not to rename what wasn't.
+        raise CdxArgumentError(
+            message,
+            code="invalid_reasoning_effort",
+            arguments=[argument],
+            allowed=RUN_EFFORT_VALUES,
+        ) from error
+
+
+def _parse_run_args(args):
+    parsed = _parse_run_flag_args(args, {
         "--cwd": {"key": "cwd", "type": "str", "default": None},
         "--prompt-file": {"key": "prompt_file", "type": "str", "default": None},
         "--prompt": {"key": "prompt", "type": "str", "default": None},
@@ -377,27 +508,43 @@ def _parse_run_args(args):
         "--power": {"key": "power", "type": "str", "default": None},
         "--permission": {"key": "permission", "type": "str", "default": None, "transform": _normalize_run_permission},
         "--timeout-seconds": {"key": "timeout_seconds", "type": "str", "default": None, "transform": _parse_run_timeout_seconds},
+        "--detach": {"key": "detach", "type": "bool", "default": False},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, RUN_USAGE, positionals_key="names", max_positionals=1)
     if not parsed["json"]:
-        raise CdxError(RUN_JSON_REQUIRED)
+        raise CdxArgumentError(RUN_JSON_REQUIRED, code=ARG_CODE_MISSING, arguments=["--json"])
     name = parsed["names"][0] if parsed["names"] else None
     if name and parsed["provider"]:
-        raise CdxError(RUN_SESSION_PROVIDER_CONFLICT)
+        raise CdxArgumentError(
+            RUN_SESSION_PROVIDER_CONFLICT,
+            code=ARG_CODE_MUTUALLY_EXCLUSIVE,
+            arguments=["session", "--provider"],
+        )
     if not name and not parsed["provider"]:
-        raise CdxError(RUN_TARGET_REQUIRED)
+        raise CdxArgumentError(RUN_TARGET_REQUIRED, code=ARG_CODE_MISSING, arguments=["session", "--provider"])
     if not parsed["cwd"]:
-        raise CdxError(RUN_CWD_REQUIRED)
-    if bool(parsed["prompt_file"]) == bool(parsed["prompt"]):
-        raise CdxError(RUN_PROMPT_SOURCE_REQUIRED)
+        raise CdxArgumentError(RUN_CWD_REQUIRED, code=ARG_CODE_MISSING, arguments=["--cwd"])
+    if parsed["prompt_file"] and parsed["prompt"]:
+        raise CdxArgumentError(
+            RUN_PROMPT_SOURCE_REQUIRED,
+            code=ARG_CODE_MUTUALLY_EXCLUSIVE,
+            arguments=["--prompt-file", "--prompt"],
+        )
+    if not parsed["prompt_file"] and not parsed["prompt"]:
+        raise CdxArgumentError(
+            RUN_PROMPT_SOURCE_REQUIRED,
+            code=ARG_CODE_MISSING,
+            arguments=["--prompt-file", "--prompt"],
+        )
     if parsed["kind"] not in RUN_KIND_VALUES:
         allowed = "|".join(RUN_KIND_VALUES)
-        raise CdxError(f"cdx run: invalid --kind {parsed['kind']!r}; allowed values: {allowed}.")
-    effort = _normalize_reasoning_effort(
-        reasoning_effort=parsed["reasoning_effort"],
-        power=parsed["power"],
-        usage=RUN_USAGE,
-    )
+        raise CdxArgumentError(
+            f"cdx run: invalid --kind {parsed['kind']!r}; allowed values: {allowed}.",
+            code=ARG_CODE_INVALID_VALUE,
+            arguments=["--kind"],
+            allowed=RUN_KIND_VALUES,
+        )
+    effort = _parse_run_effort(parsed["reasoning_effort"], parsed["power"])
     return {
         "name": name,
         "provider": parsed["provider"],
@@ -408,6 +555,7 @@ def _parse_run_args(args):
         "model": parsed["model"],
         "permission": parsed["permission"],
         "timeout_seconds": parsed["timeout_seconds"],
+        "detach": parsed["detach"],
         "reasoning_effort": effort.get("reasoning_effort"),
         "power": effort.get("power"),
     }
@@ -709,11 +857,28 @@ def _parse_import_args(args):
     return parsed
 
 
-def _parse_runs_args(rest):
-    return _parse_flag_args(rest, {
+def _parse_runs_args(rest, now=None):
+    now = now or datetime.now().astimezone()
+    parsed = _parse_flag_args(rest, {
         "--limit": {"key": "limit", "type": "str", "default": 20, "transform": _parse_positive_int},
+        "--since": {"key": "since", "type": "str", "default": None},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, RUNS_USAGE, max_positionals=0)
+    since = None
+    if parsed["since"] is not None:
+        # Same cursor forms as `cdx history --since`, parsed by the same code:
+        # a caller that learned one syntax does not learn a second one.
+        since = _parse_since_value(parsed["since"], now, RUNS_USAGE)
+    return {
+        "limit": parsed["limit"],
+        "since": since,
+        # A cursor selects by completion time, not by row count. Keeping the
+        # caller's own --limit would silently reintroduce the miss it removes:
+        # a watchdog behind by more than `limit` completions would never see
+        # the older ones at all.
+        "limit_given": any(arg == "--limit" or arg.startswith("--limit=") for arg in rest),
+        "json": parsed["json"],
+    }
 
 
 def _parse_run_id_json_args(rest, usage):
@@ -723,3 +888,32 @@ def _parse_run_id_json_args(rest, usage):
     if not parsed["json"] or len(parsed["ids"]) != 1:
         raise CdxError(usage)
     return {"run_id": parsed["ids"][0], "json": True}
+
+
+def _parse_run_tail_args(rest):
+    parsed = _parse_flag_args(rest, {
+        "--lines": {"key": "lines", "type": "str", "default": RUN_TAIL_DEFAULT_LINES,
+                    "transform": _parse_run_tail_lines},
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, RUN_TAIL_USAGE, positionals_key="ids", max_positionals=1)
+    if not parsed["json"] or len(parsed["ids"]) != 1:
+        raise CdxError(RUN_TAIL_USAGE)
+    return {"run_id": parsed["ids"][0], "lines": parsed["lines"], "json": True}
+
+
+def _parse_run_tail_lines(value):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as error:
+        raise CdxArgumentError(
+            f"cdx run-tail: --lines must be an integer; got {value!r}.",
+            code=ARG_CODE_INVALID_VALUE,
+            arguments=["--lines"],
+        ) from error
+    if not 1 <= parsed <= RUN_TAIL_MAX_LINES:
+        raise CdxArgumentError(
+            f"cdx run-tail: --lines must be between 1 and {RUN_TAIL_MAX_LINES}; got {parsed}.",
+            code=ARG_CODE_OUT_OF_RANGE,
+            arguments=["--lines"],
+        )
+    return parsed

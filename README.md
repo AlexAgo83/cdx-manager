@@ -384,7 +384,12 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx notify --next-ready [--poll seconds] [--once] [--schedule] [--refresh] [--json]` | Wait until the recommended session is usable, or schedule the next known reset notification |
 | `cdx next [--json] [--refresh]` | Select the best next assistant using the same priority logic as `cdx status` |
 | `cdx select --provider PROVIDER [--min-reasoning-effort minimal\|low\|medium\|high\|xhigh] [--min-power minimal\|low\|medium\|high\|xhigh] [--require-ready] [--refresh] --json` | Select a suitable session for headless automation |
-| `cdx run [session] --cwd PATH (--prompt-file PATH\|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--reasoning-effort minimal\|low\|medium\|high\|xhigh] [--power minimal\|low\|medium\|high\|xhigh] [--permission MODE] [--timeout-seconds N] --json` | Run one headless task and return a stable JSON result |
+| `cdx run [session] --cwd PATH (--prompt-file PATH\|--prompt TEXT\|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--reasoning-effort minimal\|low\|medium\|high\|xhigh] [--power minimal\|low\|medium\|high\|xhigh] [--permission MODE] [--timeout-seconds N] [--detach] --json` | Run one headless task and return a stable JSON result; `--detach` returns the `run_id` at launch without waiting, `--prompt-file -` reads the prompt from stdin |
+| `cdx run-report <run_id> --json` | Full report, transcript metadata, and final payload for a run |
+| `cdx run-status <run_id> --json` | Status of one run by id |
+| `cdx run-tail <run_id> [--lines N] --json` | Last lines of a run's own output, while it is still running or after it finished |
+| `cdx runs [--limit N] [--since 7d\|today\|DATE] --json` | List recent runs; `--since` returns every run completed after the cursor and ignores `--limit` |
+| `cdx schema --json` | Publish the enums, mutually-exclusive argument groups, and error codes programmatic callers should validate against |
 | `cdx stats [name] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Aggregate launch counts, duration, and known headless token usage by session |
 | `cdx status [--json] [--refresh\|--cached] [--timeout SECONDS]` | Show token usage table for all sessions; `--cached` skips live provider probes and returns only stored status |
 | `cdx status --small [--refresh\|--cached] [--timeout SECONDS]` / `cdx status -s [--refresh\|--cached] [--timeout SECONDS]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
@@ -505,6 +510,96 @@ cdx stats work
 ```bash
 cdx select --provider codex --min-reasoning-effort low --require-ready --json
 ```
+
+### Programmatic Callers
+
+`cdx run` blocks until the provider finishes, which suits a supervisor that can wait. Agents, MCP servers, and watchdogs usually cannot, so the surface below exists specifically for them: launch without waiting, watch progress, react to failures by code, and discover valid values instead of hard-coding them.
+
+**Launch without waiting.** `--detach` returns as soon as the run is registered, with the `run_id` already assigned:
+
+```bash
+cdx run work --cwd /path/to/repo --prompt-file task.md --detach --json
+```
+
+The payload carries `detached: true`, `run_id`, `pid`, and the artifact paths — but no `exit_code`, `duration_seconds`, or `usage`, since the run has not finished. The detached process is put in its own session, so it survives the launcher exiting, including when cdx was invoked over an SSH command that returns immediately. It transitions its own registry entry to a terminal status, so `cdx runs` and `cdx run-status` stay accurate with nobody supervising.
+
+Authentication is still resolved before the launch returns, so a login problem surfaces synchronously rather than silently in the background.
+
+**Watch a run in progress.** `cdx run-status` reports only running/succeeded/failed; `run-tail` shows what the run is actually doing:
+
+```bash
+cdx run-tail <run_id> --lines 50 --json
+```
+
+It returns the last lines of the run's own `stdout_path` plus its current status, whether the run is still going or already finished. Lines are raw provider output, not summarized. Undecodable bytes come back with replacement characters rather than failing the call.
+
+**Pipe an untrusted prompt.** `--prompt-file -` reads the prompt from standard input, so arbitrary text never has to reach a command line or a temporary file the caller must clean up:
+
+```bash
+echo "$UNTRUSTED_PROMPT" | cdx run work --cwd /path/to/repo --prompt-file - --json
+```
+
+It fails immediately if standard input is a terminal, rather than blocking at a silent prompt.
+
+**Poll for completions with a cursor.** `cdx runs --since` returns every run that completed after the cursor, using the same cursor forms as `cdx history --since`:
+
+```bash
+cdx runs --since 15m --json
+cdx runs --since 2026-08-07T09:00:00Z --json
+```
+
+A cursor is bounded by time, not by row count: `--limit` is ignored when `--since` is given (and says so in `warnings`). That is deliberate — capping a cursor query by row count would silently drop completions a caller had not yet seen, which is exactly the miss the cursor removes. Runs still in flight are not returned; they appear once they complete. Callers do not need to keep their own set of already-reported run ids.
+
+**React to failures by code, not by message.** Argument failures report a specific `error.code` and name the offending arguments as data:
+
+| `error.code` | Raised when |
+| --- | --- |
+| `missing_required_argument` | A required argument is absent |
+| `mutually_exclusive_arguments` | Two arguments that cannot be combined were both given |
+| `invalid_argument_value` | A constrained option got a value outside its accepted set |
+| `argument_value_out_of_range` | A numeric argument fell outside its accepted range |
+| `unknown_argument` | An unrecognized flag |
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "mutually_exclusive_arguments",
+    "message": "cdx run: cannot specify both a session name and --provider.",
+    "arguments": ["session", "--provider"],
+    "allowed_values": null
+  }
+}
+```
+
+Never branch on `error.message`; it is written for a human reading a terminal and may be reworded.
+
+**Discover valid values.** `cdx schema --json` publishes the enums and argument constraints the parser itself validates against:
+
+```bash
+cdx schema --json
+```
+
+It returns accepted values for `permission` (with its aliases and canonical forms), `reasoning_effort`/`power`, `kind`, and `provider`, plus the declared mutually-exclusive argument groups and the error codes above. Validate against this rather than copying the lists into your own code — a hand-maintained copy drifts, and cdx will not tell you when it does.
+
+**Surface run warnings.** The run payload's `warnings` list reports degradations a zero exit code would otherwise hide, on the successful path as much as the failing one:
+
+```json
+{
+  "ok": true,
+  "exit_code": 0,
+  "warnings": [
+    {
+      "code": "network_disabled_by_permission",
+      "message": "codex runs at permission 'review' inside a sandbox with no network access, ...",
+      "provider": "codex",
+      "permission": "review"
+    }
+  ]
+}
+```
+
+Codex ties network access to its sandbox, so any permission below `full` leaves the run unable to resolve DNS — `gh`, `curl`, and package installs fail inside an otherwise successful run. Show these warnings to whoever reads your output rather than discarding them; a run that succeeds while quietly doing less is the case they exist for.
 
 ---
 

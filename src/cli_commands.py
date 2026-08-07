@@ -45,7 +45,9 @@ from .cli_args import (
     _parse_rename_args,
     _parse_run_args,
     _parse_run_id_json_args,
+    _parse_run_tail_args,
     _parse_runs_args,
+    _parse_schema_args,
     _parse_select_args,
     _parse_set_args,
     _parse_stats_args,
@@ -54,6 +56,7 @@ from .cli_args import (
     _parse_unset_args,
     _parse_update_args,
     _public_history_period,
+    cdx_schema,
 )
 from .cli_helpers import (
     API_SCHEMA_VERSION,
@@ -120,7 +123,7 @@ from .provider_runtime import (
     get_resume_capability,
 )
 from .repair import format_repair_report, repair_health
-from .run_command import read_run_prompt, run_cdx_error_code, run_result_payload
+from .run_command import read_run_prompt, run_cdx_error_code, run_launch_payload, run_result_payload
 from .run_registry import RunRegistry, build_code_review_report
 from .run_usage import extract_run_usage
 from .status_view import _format_status_detail, _format_status_rows, format_priority_instruction, recommend_priority_rows
@@ -956,12 +959,177 @@ def _run_registry(ctx):
     return RunRegistry(ctx["service"]["base_dir"])
 
 
+DETACHED_RUN_ID_ENV = "CDX_RUN_ID"
+RUN_TAIL_READ_BYTES = 1 << 20
+
+
+def _tail_file_lines(path, lines):
+    """Last `lines` lines of a run's output, safe to call while it is still being written.
+
+    Reads a bounded tail of the file in binary and decodes with replacement, so
+    provider output containing undecodable bytes returns those lines instead of
+    raising. A final line that is still mid-write is returned as-is: the caller
+    asked what the run is doing right now, not for a complete record.
+    """
+    with open(path, "rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        size = handle.tell()
+        handle.seek(max(0, size - RUN_TAIL_READ_BYTES))
+        text = handle.read().decode("utf-8", errors="replace")
+    return text.splitlines()[-lines:]
+
+
+def _cdx_self_command():
+    """argv prefix that re-runs this same cdx as a child process.
+
+    `--detach` re-invokes cdx rather than forking: the child then walks the
+    ordinary blocking run path, so registry bookkeeping, usage extraction,
+    history, and the code-review report all happen exactly once, in code that
+    is already tested, without a second implementation that only detached runs
+    exercise. `os.fork()` would avoid the re-exec but is not available on
+    Windows, which this CLI supports.
+    """
+    entry = sys.argv[0] if sys.argv else ""
+    if entry and os.path.isfile(entry) and os.access(entry, os.X_OK):
+        return [entry], None
+    package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return [sys.executable, "-m", f"{__package__}.cli"], package_root
+
+
+def _detached_child_argv(parsed, prompt_path, session_name):
+    """Child argv for a detached run.
+
+    Always names the session the parent already resolved, never `--provider`:
+    the parent may have auto-selected an account, and letting the child select
+    again could land it on a different session than the one the launch payload
+    just reported to the caller.
+    """
+    argv = ["run", session_name, "--cwd", parsed["cwd"], "--prompt-file", prompt_path]
+    for flag, key in (
+        ("--model", "model"),
+        ("--kind", "kind"),
+        ("--permission", "permission"),
+    ):
+        value = parsed.get(key)
+        if value:
+            argv += [flag, str(value)]
+    # reasoning_effort and power are normalized to the same value upstream;
+    # passing one back is enough and avoids re-tripping the must-match check.
+    if parsed.get("reasoning_effort"):
+        argv += ["--reasoning-effort", str(parsed["reasoning_effort"])]
+    if parsed.get("timeout_seconds"):
+        argv += ["--timeout-seconds", str(parsed["timeout_seconds"])]
+    argv.append("--json")
+    return argv
+
+
+def _spawn_detached_run(parsed, prompt, artifacts, ctx, session_name):
+    """Stage the prompt, then launch the child detached and return immediately.
+
+    The prompt is written beside the run's other artifacts rather than to a
+    temporary file so that nothing has to survive this process in order to
+    clean it up, and so the child cannot lose its input if the launcher exits
+    first.
+    """
+    # transcript_path is "<prefix>.log"; the other artifacts share that prefix.
+    prefix = os.path.splitext(artifacts["transcript_path"])[0]
+    prompt_path = f"{prefix}.prompt.txt"
+    launch_log_path = f"{prefix}.launch.log"
+    with open(prompt_path, "w", encoding="utf-8") as handle:
+        handle.write(prompt)
+
+    command, package_root = _cdx_self_command()
+    env = {**os.environ, DETACHED_RUN_ID_ENV: artifacts["run_id"]}
+    if package_root:
+        existing = env.get("PYTHONPATH")
+        env["PYTHONPATH"] = f"{package_root}{os.pathsep}{existing}" if existing else package_root
+
+    spawn = ctx.get("spawn_detached") or subprocess.Popen
+    try:
+        with open(launch_log_path, "w", encoding="utf-8", errors="replace") as log_file:
+            child = spawn(
+                command + _detached_child_argv(parsed, prompt_path, session_name),
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                # Detach from this process's session so the run outlives the
+                # launcher, including when cdx was invoked over a non-interactive
+                # SSH command that closes as soon as it returns.
+                start_new_session=True,
+                cwd=package_root or None,
+                env=env,
+            )
+    except OSError as error:
+        # Surface as a CdxError so handle_run's own handler marks the already
+        # registered run failed, instead of letting a raw OSError escape as an
+        # unhandled traceback on a --json call.
+        raise CdxError(f"Failed to start detached cdx run: {error}", 126) from error
+    return {"pid": getattr(child, "pid", None), "launch_log_path": launch_log_path}
+
+
+def handle_schema(rest, ctx):
+    _parse_schema_args(rest)
+    _write_json(ctx, _json_success("schema", "Schema loaded.", **cdx_schema()))
+    return 0
+
+
 def handle_runs(rest, ctx):
     parsed = _parse_runs_args(rest)
     if not parsed["json"]:
         raise CdxError(RUNS_USAGE)
-    runs = _run_registry(ctx).list(limit=parsed["limit"])
-    _write_json(ctx, _json_success("runs", "Runs loaded.", runs=runs))
+    since = parsed.get("since")
+    runs = _run_registry(ctx).list(limit=parsed["limit"], since=since)
+    warnings = []
+    if since is not None and parsed.get("limit_given"):
+        warnings.append({
+            "code": "limit_ignored_with_since",
+            "message": "--since returns every run completed after the cursor; --limit was ignored.",
+        })
+    _write_json(ctx, _json_success(
+        "runs",
+        "Runs loaded.",
+        warnings=warnings,
+        runs=runs,
+        since=since.isoformat() if since is not None else None,
+    ))
+    return 0
+
+
+def handle_run_tail(rest, ctx):
+    parsed = _parse_run_tail_args(rest)
+    run = _run_registry(ctx).get(parsed["run_id"])
+    if not run:
+        _write_json(ctx, _json_failure("run-tail", "run_not_found", f"Unknown run: {parsed['run_id']}"))
+        return 1
+    stdout_path = (run.get("artifacts") or {}).get("stdout_path")
+    if not stdout_path:
+        _write_json(ctx, _json_failure(
+            "run-tail",
+            "run_output_unavailable",
+            f"No stdout_path recorded for run: {parsed['run_id']}",
+            run_id=parsed["run_id"],
+            status=run.get("status"),
+        ))
+        return 1
+    try:
+        lines = _tail_file_lines(stdout_path, parsed["lines"])
+    except OSError as error:
+        _write_json(ctx, _json_failure(
+            "run-tail",
+            "run_output_unreadable",
+            f"Failed to read {stdout_path}: {error}",
+            run_id=parsed["run_id"],
+            stdout_path=stdout_path,
+        ))
+        return 1
+    _write_json(ctx, _json_success(
+        "run-tail",
+        "Run output loaded.",
+        run_id=parsed["run_id"],
+        status=run.get("status"),
+        stdout_path=stdout_path,
+        lines=lines,
+    ))
     return 0
 
 
@@ -1026,7 +1194,7 @@ def handle_run(rest, ctx):
         cwd = os.path.abspath(parsed["cwd"])
         if not os.path.isdir(cwd):
             raise CdxError(f"Invalid cwd: {parsed['cwd']}")
-        prompt = read_run_prompt(parsed)
+        prompt = read_run_prompt(parsed, stdin=ctx.get("prompt_stdin"))
         launch_updates = {}
         if parsed.get("model"):
             launch_updates["model"] = parsed["model"]
@@ -1054,7 +1222,9 @@ def handle_run(rest, ctx):
             trust_local_credentials=False,
         )
         registry = _run_registry(ctx)
-        artifacts = _headless_artifact_paths(run_session)
+        # A detached child is handed its parent's run_id so both agree on the
+        # identity the launch payload already reported to the caller.
+        artifacts = _headless_artifact_paths(run_session, run_id=os.environ.get(DETACHED_RUN_ID_ENV) or None)
         run_id = artifacts["run_id"]
         registry.start(
             run_id,
@@ -1069,6 +1239,23 @@ def handle_run(rest, ctx):
                 "stderr_path": artifacts.get("stderr_path"),
             },
         )
+        if parsed.get("detach"):
+            launch = _spawn_detached_run(parsed, prompt, artifacts, ctx, run_session["name"])
+            # Hand the record the child's pid: this process is about to exit,
+            # and a run pointing at a dead pid gets swept up as stale.
+            if launch.get("pid"):
+                registry.set_pid(run_id, launch["pid"])
+            _write_json(ctx, run_launch_payload(
+                API_SCHEMA_VERSION,
+                parsed,
+                run_session,
+                artifacts,
+                cwd=cwd,
+                pid=launch.get("pid"),
+                launch_log_path=launch.get("launch_log_path"),
+            ))
+            return 0
+
         run_info = _run_headless_provider_command(
             run_session,
             cwd=cwd,

@@ -54,6 +54,22 @@ HEADLESS_CODEX_PERMISSION_ARGS = {
     "auto": ["-s", "workspace-write", "-c", 'approval_policy="never"'],
     "full": ["--dangerously-bypass-approvals-and-sandbox"],
 }
+
+
+def headless_permission_disables_network(provider, permission):
+    """True when this provider/permission pair silently costs the run network access.
+
+    Codex ties network access to its sandbox: every permission except `full`
+    maps to `-s <sandbox>` above, and inside that sandbox a tool like `gh`
+    cannot resolve DNS. The run still exits zero, so without a warning the
+    caller only finds out by reading the transcript.
+
+    Read off the same mapping the launch spec uses rather than a parallel list
+    of permissions, so adding a permission cannot leave this behind.
+    """
+    if provider != PROVIDER_CODEX or not permission:
+        return False
+    return "-s" in HEADLESS_CODEX_PERMISSION_ARGS.get(permission, [])
 REDACTED_PROMPT_ARG = "[prompt redacted]"
 CLAUDE_CLI_MODEL_ALIASES = {
     "claude-sonnet": "sonnet",

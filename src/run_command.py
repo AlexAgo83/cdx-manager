@@ -1,12 +1,27 @@
 import os
+import sys
 
-from .errors import CdxError
+from .cli_args import ARG_CODE_INVALID_VALUE
+from .errors import CdxArgumentError, CdxError
+from .provider_runtime import headless_permission_disables_network
 from .run_usage import empty_usage, extract_run_usage
 
+PROMPT_STDIN = "-"
 
-def read_run_prompt(parsed):
+
+def read_run_prompt(parsed, stdin=None):
     if parsed.get("prompt") is not None:
         return parsed["prompt"]
+    if parsed.get("prompt_file") == PROMPT_STDIN:
+        stream = stdin if stdin is not None else sys.stdin
+        if stream is None or getattr(stream, "isatty", lambda: False)():
+            raise CdxArgumentError(
+                "cdx run: --prompt-file - reads the prompt from standard input, but standard "
+                "input is a terminal. Pipe the prompt in, or pass a file path.",
+                code=ARG_CODE_INVALID_VALUE,
+                arguments=["--prompt-file"],
+            )
+        return stream.read()
     try:
         with open(parsed["prompt_file"], encoding="utf-8") as handle:
             return handle.read()
@@ -15,6 +30,9 @@ def read_run_prompt(parsed):
 
 
 def run_cdx_error_code(error):
+    code = getattr(error, "code", None)
+    if code:
+        return code
     message = str(error)
     if message.startswith("Usage:"):
         return "invalid_request"
@@ -73,6 +91,80 @@ def _provider_failure_message(error, run_info, error_code):
     return f"{base}: {detail}" if detail else base
 
 
+def run_error_arguments(error):
+    """The argument names a `CdxArgumentError` blames, as data.
+
+    Always a list so the error object keeps one shape: an empty list means the
+    failure is not about specific arguments, never that the caller should go
+    parse the message to find out.
+    """
+    return list(getattr(error, "arguments", ()) or [])
+
+
+def run_error_allowed_values(error):
+    allowed = getattr(error, "allowed", None)
+    return list(allowed) if allowed else None
+
+
+def run_effective_permission(parsed, session):
+    launch = (session.get("launch") or {}) if session else {}
+    return parsed.get("permission") or launch.get("permission")
+
+
+def run_warnings(parsed, session):
+    """Known degradations that a zero exit code would otherwise hide.
+
+    Emitted on success as much as on failure: the whole point is that the run
+    looks fine and quietly did less than it was asked to.
+    """
+    warnings = []
+    provider = session.get("provider") if session else parsed.get("provider")
+    permission = run_effective_permission(parsed, session)
+    if headless_permission_disables_network(provider, permission):
+        warnings.append({
+            "code": "network_disabled_by_permission",
+            "message": (
+                f"{provider} runs at permission {permission!r} inside a sandbox with no network "
+                "access, so tools needing the network (DNS, HTTPS) fail inside this run even "
+                "though it exits successfully. Use --permission full if the run needs network."
+            ),
+            "provider": provider,
+            "permission": permission,
+        })
+    return warnings
+
+
+def run_launch_payload(api_schema_version, parsed, session, artifacts, cwd=None,
+                       pid=None, launch_log_path=None):
+    """Payload for a detached launch: identity and artifact paths, no outcome.
+
+    Deliberately shaped like `run_result_payload` minus the fields only a
+    finished run can fill (`exit_code`, `duration_seconds`, `usage`), so a
+    caller reads `run_id` from the same place either way.
+    """
+    return {
+        "schema_version": api_schema_version,
+        "ok": True,
+        "action": "run",
+        "launcher": "cdx",
+        "detached": True,
+        "session": session.get("name") if session else None,
+        "provider": session.get("provider") if session else parsed.get("provider"),
+        "model": parsed.get("model") or ((session.get("launch") or {}).get("model") if session else None),
+        "reasoning_effort": run_payload_reasoning_effort(parsed, session),
+        "power": parsed.get("power") or ((session.get("launch") or {}).get("power") if session else None),
+        "cwd": os.path.abspath(cwd or parsed.get("cwd") or os.getcwd()),
+        "run_id": artifacts.get("run_id"),
+        "pid": pid,
+        "transcript_path": artifacts.get("transcript_path"),
+        "stdout_path": artifacts.get("stdout_path"),
+        "stderr_path": artifacts.get("stderr_path"),
+        "launch_log_path": launch_log_path,
+        "warnings": run_warnings(parsed, session),
+        "error": None,
+    }
+
+
 def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
                        error=None, error_source=None, error_code=None):
     run_info = run_info or {}
@@ -104,11 +196,13 @@ def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
         "stdout_path": run_info.get("stdout_path"),
         "stderr_path": run_info.get("stderr_path"),
         "usage": usage,
-        "warnings": [],
+        "warnings": run_warnings(parsed, session),
         "error": None if ok else {
             "source": error_source or "cdx",
             "code": error_code or "cdx_error",
             "message": message,
+            "arguments": run_error_arguments(error),
+            "allowed_values": run_error_allowed_values(error),
             "provider_code": run_info.get("returncode") if error_source == "provider" else None,
         },
     }

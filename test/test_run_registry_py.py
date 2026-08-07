@@ -3,6 +3,7 @@ import shutil
 import tempfile
 import threading
 import unittest
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest import mock
 
@@ -44,6 +45,53 @@ class RunRegistryTests(unittest.TestCase):
         listed = self.registry.list()
         self.assertEqual(listed[0]["status"], "stale")
         self.assertEqual(listed[0]["error"]["code"], "stale_process")
+
+    def _finish_at(self, run_id, ended_at):
+        self._start(run_id)
+        self.registry.finish(run_id, status="succeeded")
+        import json
+
+        with open(self.registry.path, encoding="utf-8") as handle:
+            data = json.load(handle)
+        for run in data["runs"]:
+            if run["run_id"] == run_id:
+                run["ended_at"] = ended_at
+        with open(self.registry.path, "w", encoding="utf-8") as handle:
+            json.dump(data, handle)
+
+    def test_since_selects_only_runs_completed_after_the_cursor(self):
+        self._finish_at("old", "2026-08-07T10:00:00Z")
+        self._finish_at("new", "2026-08-07T12:00:00Z")
+        cursor = datetime(2026, 8, 7, 11, 0, 0, tzinfo=timezone.utc)
+
+        listed = self.registry.list(since=cursor)
+
+        self.assertEqual([run["run_id"] for run in listed], ["new"])
+
+    def test_since_returns_everything_after_the_cursor_ignoring_limit(self):
+        for index in range(25):
+            self._finish_at(f"run-{index:02d}", f"2026-08-07T12:{index:02d}:00Z")
+        cursor = datetime(2026, 8, 7, 11, 0, 0, tzinfo=timezone.utc)
+
+        # A cursor caller asks "what finished since I last looked". Truncating
+        # that to a row count is the silent miss the cursor exists to remove:
+        # a watchdog more than `limit` completions behind would never see the
+        # older ones at all.
+        self.assertEqual(len(self.registry.list(limit=5, since=cursor)), 25)
+        self.assertEqual(len(self.registry.list(limit=5)), 5)
+
+    def test_since_excludes_runs_that_have_not_completed(self):
+        self._start("in-flight")
+        cursor = datetime(2020, 1, 1, tzinfo=timezone.utc)
+
+        self.assertEqual(self.registry.list(since=cursor), [])
+
+    def test_since_ignores_records_with_an_unparseable_end_time(self):
+        self._finish_at("broken", "not-a-timestamp")
+        cursor = datetime(2020, 1, 1, tzinfo=timezone.utc)
+
+        # Reporting it would re-announce the same corrupt row on every poll.
+        self.assertEqual(self.registry.list(since=cursor), [])
 
     def test_concurrent_starts_do_not_lose_records(self):
         errors = []

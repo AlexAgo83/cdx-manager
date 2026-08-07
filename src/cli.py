@@ -43,7 +43,9 @@ from .cli_commands import (
     handle_run,
     handle_run_report,
     handle_run_status,
+    handle_run_tail,
     handle_runs,
+    handle_schema,
     handle_select,
     handle_set,
     handle_stats,
@@ -130,7 +132,9 @@ _COMMAND_HANDLERS = {
     "run": handle_run,
     "run-report": handle_run_report,
     "run-status": handle_run_status,
+    "run-tail": handle_run_tail,
     "runs": handle_runs,
+    "schema": handle_schema,
     "select": handle_select,
     "set": handle_set,
     "stats": handle_stats,
@@ -183,10 +187,12 @@ def _print_help(use_color=False):
         f"  {_style('cdx next [--json] [--refresh]', '36', use_color)}",
         f"  {_style('cdx reset <name> [--yes] [--json]', '36', use_color)}",
         f"  {_style('cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json', '36', use_color)}",
-        f"  {_style('cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] --json', '36', use_color)}",
-        f"  {_style('cdx runs [--limit N] --json', '36', use_color)}",
+        f"  {_style('cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--detach] --json', '36', use_color)}",
+        f"  {_style('cdx runs [--limit N] [--since 7d|today|DATE] --json', '36', use_color)}",
         f"  {_style('cdx run-status <run_id> --json', '36', use_color)}",
         f"  {_style('cdx run-report <run_id> --json', '36', use_color)}",
+        f"  {_style('cdx run-tail <run_id> [--lines N] --json', '36', use_color)}",
+        f"  {_style('cdx schema --json', '36', use_color)}",
         f"  {_style('cdx context show|path|init|edit|clear|set|append [text...] [--json]', '36', use_color)}",
         f"  {_style('cdx memory [--global|--project NAME_OR_PATH] [show|view|path|init|edit|clear|set|append|list] [text...] [--json]', '36', use_color)}",
         f"  {_style('cdx disk [profiles] [--candidates] [--json]', '36', use_color)}",
@@ -239,6 +245,20 @@ def wants_json(argv):
 
 def format_json_error(error):
     message = str(error)
+    # An error that already knows its own code keeps it. Only errors that never
+    # declared one fall back to sniffing the message prefix below.
+    declared = getattr(error, "code", None)
+    if declared:
+        return json.dumps({
+            "schema_version": API_SCHEMA_VERSION,
+            "ok": False,
+            "error": {
+                "code": declared,
+                "message": message,
+                "arguments": list(getattr(error, "arguments", ()) or []),
+                "exit_code": error.exit_code,
+            },
+        }, indent=2)
     code = "cdx_error"
     if message.startswith("Usage:"):
         code = "invalid_usage"
@@ -506,7 +526,11 @@ def main(argv, options=None):
         "service": service,
         "signal_emitter": signal_emitter,
         "spawn": spawn,
+        "spawn_detached": options.get("spawn_detached"),
         "spawn_headless": options.get("spawn_headless"),
+        # Stream `--prompt-file -` reads from. Distinct from "stdin", which is
+        # the {"isTTY": ...} descriptor the interactive paths use.
+        "prompt_stdin": options.get("prompt_stdin"),
         "spawn_sync": spawn_sync,
         "stdin_is_tty": stdin_is_tty,
         "version": VERSION,

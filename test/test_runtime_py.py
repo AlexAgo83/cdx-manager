@@ -898,7 +898,8 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertEqual(spec["fallback"]["command"], "ollama")
         self.assertEqual(
             spec["fallback"]["args"],
-            ["run", "llama3.2", "--experimental-yolo", "hello"],
+            # ollama has no permission concept; permission maps to no flags.
+            ["run", "llama3.2", "hello"],
         )
         self.assertEqual(spec["fallback"]["options"]["cwd"], "/tmp/repo")
         self.assertEqual(spec["fallback"]["options"]["env"]["OLLAMA_NOHISTORY"], "1")
