@@ -1,4 +1,3 @@
-import getpass
 import json
 import os
 import re
@@ -8,7 +7,6 @@ import time
 import uuid
 from datetime import datetime
 
-from .backup_bundle import read_bundle_meta
 from .claude_refresh import _refresh_claude_sessions
 from .cli_args import (
     CAN_RESUME_USAGE,
@@ -24,10 +22,8 @@ from .cli_args import (
     _parse_config_args,
     _parse_configs_args,
     _parse_copy_args,
-    _parse_export_args,
     _parse_flag_args,
     _parse_history_args,
-    _parse_import_args,
     _parse_json_flag,
     _parse_label_args,
     _parse_launch_setting_alias_args,
@@ -45,13 +41,11 @@ from .cli_helpers import (
     API_SCHEMA_VERSION,
     _build_handoff_context,
     _format_bytes,
-    _format_export_report,
     _handoff_launch_prompt,
     _json_failure,
     _json_success,
     _latest_handoff_transcript_path,
     _local_now_iso,
-    _make_export_progress,
     _make_notify_progress,
     _make_status_progress,
     _read_handoff_transcript,
@@ -63,6 +57,15 @@ from .cli_helpers import (
 from .cli_render import _dim, _info, _pad_table, _style, _success, _warn
 from .cli_view import handle_view as handle_view  # re-export for cli.py / tests
 from .codex_usage import consume_codex_rate_limit_reset_credit
+from .commands.backup import (  # re-export for cli.py / tests
+    _resolve_bundle_passphrase as _resolve_bundle_passphrase,
+)
+from .commands.backup import (
+    handle_export as handle_export,
+)
+from .commands.backup import (
+    handle_import as handle_import,
+)
 from .commands.maintenance import (  # re-export for cli.py / tests
     _candidate as _candidate,
 )
@@ -231,33 +234,6 @@ from .status_view import (
     format_priority_instruction,
     recommend_priority_rows,
 )
-
-
-def _resolve_bundle_passphrase(ctx, env_var, prompt, confirm=False, use_stdin=False):
-    env = ctx.get("env", {})
-    if env_var:
-        passphrase = env.get(env_var)
-        if not passphrase:
-            raise CdxError(f"Environment variable {env_var} is empty or unset.")
-        return passphrase
-    if use_stdin:
-        reader = ctx["options"].get("read_stdin")
-        raw = reader() if callable(reader) else sys.stdin.readline()
-        passphrase = (raw or "").rstrip("\r\n")
-        if not passphrase:
-            raise CdxError("Bundle passphrase from stdin is empty.")
-        return passphrase
-    if not ctx["stdin_is_tty"]:
-        raise CdxError("Encrypted bundle export/import requires an interactive terminal, --passphrase-env, or --passphrase-stdin.")
-    getpass_fn = ctx["options"].get("getpass") or getpass.getpass
-    passphrase = getpass_fn(prompt)
-    if not passphrase:
-        raise CdxError("Bundle passphrase cannot be empty.")
-    if confirm:
-        confirmation = getpass_fn("Confirm bundle passphrase: ")
-        if passphrase != confirmation:
-            raise CdxError("Bundle passphrase confirmation does not match.")
-    return passphrase
 
 
 def _confirm_removal(name):
@@ -1750,80 +1726,6 @@ def _write_refresh_warnings(refresh_errors, ctx, stream="out", rows=None):
     rows_by_name = _rows_by_session(rows)
     for item in refresh_errors:
         write(f"{_warn(_format_refresh_warning(item, rows_by_name), ctx['use_color'])}\n")
-
-
-def handle_export(rest, ctx):
-    parsed = _parse_export_args(rest)
-    passphrase = None
-    if parsed["include_auth"]:
-        passphrase = _resolve_bundle_passphrase(
-            ctx,
-            parsed["passphrase_env"],
-            "Bundle passphrase: ",
-            confirm=True,
-            use_stdin=parsed["passphrase_stdin"],
-        )
-    result = ctx["service"]["export_bundle"](
-        parsed["file_path"],
-        include_auth=parsed["include_auth"],
-        session_names=parsed["session_names"],
-        passphrase=passphrase,
-        force=parsed["force"],
-        progress_callback=None if parsed["json"] else _make_export_progress(ctx),
-    )
-    session_count = len(result["session_names"])
-    auth_suffix = " with auth" if result["include_auth"] else ""
-    message = f"Exported {session_count} session{'s' if session_count != 1 else ''}{auth_suffix} to {result['path']}"
-    payload = _json_success(
-        "export",
-        message,
-        bundle=result,
-    )
-    if parsed["json"]:
-        _write_json(ctx, payload)
-        return 0
-    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
-    ctx["out"](f"{_format_export_report(result)}\n")
-    return 0
-
-
-def handle_import(rest, ctx):
-    parsed = _parse_import_args(rest)
-    passphrase = None
-    try:
-        with open(parsed["file_path"], "rb") as handle:
-            meta = read_bundle_meta(handle.read())
-    except OSError as error:
-        raise CdxError(f"Bundle file not found: {parsed['file_path']}") from error
-    if meta.get("encrypted"):
-        passphrase = _resolve_bundle_passphrase(
-            ctx,
-            parsed["passphrase_env"],
-            "Bundle passphrase: ",
-            confirm=False,
-            use_stdin=parsed["passphrase_stdin"],
-        )
-    result = ctx["service"]["import_bundle"](
-        parsed["file_path"],
-        passphrase=passphrase,
-        session_names=parsed["session_names"],
-        force=parsed["force"],
-        merge=parsed["merge"],
-        allow_authless_force=parsed["allow_authless_force"],
-    )
-    session_count = len(result["session_names"])
-    auth_suffix = " with auth" if result["include_auth"] else ""
-    message = f"Imported {session_count} session{'s' if session_count != 1 else ''}{auth_suffix} from {result['path']}"
-    payload = _json_success(
-        "import",
-        message,
-        bundle=result,
-    )
-    if parsed["json"]:
-        _write_json(ctx, payload)
-        return 0
-    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
-    return 0
 
 
 def handle_login(rest, ctx):
