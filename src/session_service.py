@@ -979,6 +979,153 @@ def create_session(base_dir, env, store, name, provider=DEFAULT_PROVIDER):
     return result["session"]
 
 
+def _session_runtime(store, name):
+    found = {}
+
+    def updater(state):
+        if not state:
+            return None
+        runtime = state.get("runtime")
+        if _runtime_is_active(runtime):
+            found["runtime"] = runtime
+            return None
+        if isinstance(runtime, dict) and runtime.get("status") == "running":
+            return {
+                **state,
+                "status": "ready",
+                "runtime": {
+                    **runtime,
+                    "status": "stale",
+                    "endedAt": _local_now_iso(),
+                },
+            }
+        return None
+
+    store["update_session_state"](name, updater)
+    return found.get("runtime")
+
+
+def record_launch_history(store, name, payload):
+    session = store["get_session"](name)
+    if not session:
+        raise CdxError(f"Unknown session: {name}")
+    entry = {
+        "schema_version": 1,
+        "session_name": session["name"],
+        "provider": session["provider"],
+        "launch": session.get("launch") or {},
+        **payload,
+    }
+    store["append_launch_history"](entry)
+    return entry
+
+
+def get_launch_history(store, name=None, limit=20):
+    if name and not store["get_session"](name):
+        raise CdxError(f"Unknown session: {name}")
+    return store["list_launch_history"](session_name=name, limit=limit)
+
+
+def start_session_runtime(store, name, payload=None):
+    session = store["get_session"](name)
+    if not session:
+        raise CdxError(f"Unknown session: {name}")
+    payload = dict(payload or {})
+    now = _local_now_iso()
+    runtime = {
+        "status": "running",
+        "runId": payload.get("runId") or uuid.uuid4().hex,
+        "startedAt": payload.get("startedAt") or now,
+        "pid": payload.get("pid") or os.getpid(),
+        "command": payload.get("command"),
+        "label": payload.get("label"),
+        "transcriptPath": payload.get("transcript_path") or payload.get("transcriptPath"),
+    }
+
+    def updater(state):
+        if not state:
+            raise CdxError(f"Session state missing for {name}. Reconnect required.")
+        return {
+            **state,
+            "status": "running",
+            "runtime": runtime,
+        }
+
+    store["update_session_state"](name, updater)
+    return runtime
+
+
+def finish_session_runtime(store, name, run_id=None, payload=None):
+    session = store["get_session"](name)
+    if not session:
+        raise CdxError(f"Unknown session: {name}")
+    payload = dict(payload or {})
+    outcome = {}
+
+    def updater(state):
+        if not state:
+            return None
+        runtime = state.get("runtime") or {}
+        if run_id and runtime.get("runId") != run_id:
+            outcome["runtime"] = runtime
+            return None
+        updated_runtime = {
+            **runtime,
+            "status": payload.get("status") or "stopped",
+            "endedAt": payload.get("endedAt") or _local_now_iso(),
+        }
+        if "returncode" in payload:
+            updated_runtime["returncode"] = payload["returncode"]
+        outcome["runtime"] = updated_runtime
+        return {
+            **state,
+            "status": "ready",
+            "runtime": updated_runtime,
+        }
+
+    store["update_session_state"](name, updater)
+    return outcome.get("runtime")
+
+
+def launch_session(store, name):
+    session = store["get_session"](name)
+    if not session:
+        raise CdxError(f"Unknown session: {name}")
+    if session.get("enabled", True) is False:
+        raise CdxError(f"Session is disabled: {name}")
+    now = _local_now_iso()
+
+    def state_updater(state):
+        if not state:
+            raise CdxError(f"Session state missing for {name}. Reconnect required.")
+        return {**state, "rehydratedAt": now}
+
+    store["update_session_state"](name, state_updater)
+    return store["update_session"](name, lambda s: {
+        **s, "updatedAt": now, "lastLaunchedAt": now
+    })
+
+
+def record_status(store, name, payload):
+    normalized = _normalize_status_payload(payload)
+    updated = store["update_session"](name, lambda s: {
+        **s,
+        "lastStatus": normalized,
+        "lastStatusAt": normalized["updated_at"],
+    })
+    if not updated:
+        raise CdxError(f"Unknown session: {name}")
+    return updated
+
+
+def get_session_root(base_dir, name):
+    return _get_session_root(base_dir, name)
+
+
+def get_session_auth_home(base_dir, name, provider):
+    return _get_session_auth_home(base_dir, name, provider)
+
+
 def create_session_service(options=None):
     if options is None:
         options = {}
@@ -1000,32 +1147,6 @@ def create_session_service(options=None):
         return codex_status_fetcher(session, timeout=timeout)
 
 
-    def _session_runtime(name):
-        found = {}
-
-        def updater(state):
-            if not state:
-                return None
-            runtime = state.get("runtime")
-            if _runtime_is_active(runtime):
-                found["runtime"] = runtime
-                return None
-            if isinstance(runtime, dict) and runtime.get("status") == "running":
-                return {
-                    **state,
-                    "status": "ready",
-                    "runtime": {
-                        **runtime,
-                        "status": "stale",
-                        "endedAt": _local_now_iso(),
-                    },
-                }
-            return None
-
-        store["update_session_state"](name, updater)
-        return found.get("runtime")
-
-
     def _resolve_session_subset(session_names):
         if not session_names:
             return list_sessions(store)
@@ -1038,114 +1159,6 @@ def create_session_service(options=None):
             selected.append(session)
         return selected
 
-
-    def launch_session(name):
-        session = store["get_session"](name)
-        if not session:
-            raise CdxError(f"Unknown session: {name}")
-        if session.get("enabled", True) is False:
-            raise CdxError(f"Session is disabled: {name}")
-        now = _local_now_iso()
-
-        def state_updater(state):
-            if not state:
-                raise CdxError(f"Session state missing for {name}. Reconnect required.")
-            return {**state, "rehydratedAt": now}
-
-        store["update_session_state"](name, state_updater)
-        return store["update_session"](name, lambda s: {
-            **s, "updatedAt": now, "lastLaunchedAt": now
-        })
-
-    def start_session_runtime(name, payload=None):
-        session = store["get_session"](name)
-        if not session:
-            raise CdxError(f"Unknown session: {name}")
-        payload = dict(payload or {})
-        now = _local_now_iso()
-        runtime = {
-            "status": "running",
-            "runId": payload.get("runId") or uuid.uuid4().hex,
-            "startedAt": payload.get("startedAt") or now,
-            "pid": payload.get("pid") or os.getpid(),
-            "command": payload.get("command"),
-            "label": payload.get("label"),
-            "transcriptPath": payload.get("transcript_path") or payload.get("transcriptPath"),
-        }
-
-        def updater(state):
-            if not state:
-                raise CdxError(f"Session state missing for {name}. Reconnect required.")
-            return {
-                **state,
-                "status": "running",
-                "runtime": runtime,
-            }
-
-        store["update_session_state"](name, updater)
-        return runtime
-
-    def finish_session_runtime(name, run_id=None, payload=None):
-        session = store["get_session"](name)
-        if not session:
-            raise CdxError(f"Unknown session: {name}")
-        payload = dict(payload or {})
-        outcome = {}
-
-        def updater(state):
-            if not state:
-                return None
-            runtime = state.get("runtime") or {}
-            if run_id and runtime.get("runId") != run_id:
-                outcome["runtime"] = runtime
-                return None
-            updated_runtime = {
-                **runtime,
-                "status": payload.get("status") or "stopped",
-                "endedAt": payload.get("endedAt") or _local_now_iso(),
-            }
-            if "returncode" in payload:
-                updated_runtime["returncode"] = payload["returncode"]
-            outcome["runtime"] = updated_runtime
-            return {
-                **state,
-                "status": "ready",
-                "runtime": updated_runtime,
-            }
-
-        store["update_session_state"](name, updater)
-        return outcome.get("runtime")
-
-
-    def record_status(name, payload):
-        normalized = _normalize_status_payload(payload)
-        updated = store["update_session"](name, lambda s: {
-            **s,
-            "lastStatus": normalized,
-            "lastStatusAt": normalized["updated_at"],
-        })
-        if not updated:
-            raise CdxError(f"Unknown session: {name}")
-        return updated
-
-    def record_launch_history(name, payload):
-        session = store["get_session"](name)
-        if not session:
-            raise CdxError(f"Unknown session: {name}")
-        entry = {
-            "schema_version": 1,
-            "session_name": session["name"],
-            "provider": session["provider"],
-            "launch": session.get("launch") or {},
-            **payload,
-        }
-        store["append_launch_history"](entry)
-        return entry
-
-    def get_launch_history(name=None, limit=20):
-        if name and not store["get_session"](name):
-            raise CdxError(f"Unknown session: {name}")
-        return store["list_launch_history"](session_name=name, limit=limit)
 
     def _resolve_session_status(
         session,
@@ -1170,7 +1183,7 @@ def create_session_service(options=None):
                 timeout_seconds=status_timeout_seconds,
             )
             if live_status:
-                record_status(session["name"], live_status)
+                record_status(store, session["name"], live_status)
                 return live_status
 
         expected_account_email = (
@@ -1216,14 +1229,14 @@ def create_session_service(options=None):
             "structured": artifact.get("structured"),
         })
         if _is_low_confidence_status_source(current_status) and not _is_low_confidence_status_source(resolved):
-            record_status(session["name"], resolved)
+            record_status(store, session["name"], resolved)
             return resolved
         if _is_status_newer(resolved, current_status):
-            record_status(session["name"], resolved)
+            record_status(store, session["name"], resolved)
             return resolved
         if _status_has_more_detail(resolved, current_status):
             merged = _merge_status_payload(current_status, resolved)
-            record_status(session["name"], merged)
+            record_status(store, session["name"], merged)
             return merged
         return current_status or resolved
 
@@ -1263,7 +1276,7 @@ def create_session_service(options=None):
             # ignored `--priority` entirely.
             "priority": _row_priority(s),
             "reasoning_effort": _row_reasoning_effort(s),
-            "active": bool(_session_runtime(s["name"])) if enabled else False,
+            "active": bool(_session_runtime(store, s["name"])) if enabled else False,
             "status": "enabled" if enabled else "disabled",
             "auth_status": (s.get("auth") or {}).get("status") or "unknown",
             "auth_checked_at": _to_local_iso((s.get("auth") or {}).get("lastCheckedAt")),
@@ -1431,18 +1444,13 @@ def create_session_service(options=None):
             "label": s.get("label"),
             "provider": s["provider"] if has_multiple else None,
             "enabled": s.get("enabled", True) is not False,
-            "active": bool(_session_runtime(s["name"])) if s.get("enabled", True) is not False else False,
+            "active": bool(_session_runtime(store, s["name"])) if s.get("enabled", True) is not False else False,
             "enabled_status": "disabled" if s.get("enabled", True) is False else "enabled",
             "status": s.get("lastStatus"),
             "launch": s.get("launch") or {},
             "updated_at": _to_local_iso(s.get("updatedAt")),
         } for s in sessions]
 
-    def get_session_auth_home(name, provider):
-        return _get_session_auth_home(base_dir, name, provider)
-
-    def get_session_root(name):
-        return _get_session_root(base_dir, name)
 
     def export_bundle(file_path, include_auth=False, session_names=None, passphrase=None, force=False, progress_callback=None):
         if not file_path:
@@ -1646,10 +1654,10 @@ def create_session_service(options=None):
         "remove_session": partial(remove_session, base_dir, store),
         "copy_session": partial(copy_session, base_dir, store),
         "rename_session": partial(rename_session, base_dir, store),
-        "launch_session": launch_session,
-        "active_session_runtime": _session_runtime,
-        "start_session_runtime": start_session_runtime,
-        "finish_session_runtime": finish_session_runtime,
+        "launch_session": partial(launch_session, store),
+        "active_session_runtime": partial(_session_runtime, store),
+        "start_session_runtime": partial(start_session_runtime, store),
+        "finish_session_runtime": partial(finish_session_runtime, store),
         "ensure_session_state": partial(ensure_session_state, store),
         "list_sessions": partial(list_sessions, store),
         "get_session": partial(get_session, store),
@@ -1658,15 +1666,15 @@ def create_session_service(options=None):
         "clear_session_label": partial(clear_session_label, store),
         "set_launch_settings": partial(set_launch_settings, store),
         "unset_launch_settings": partial(unset_launch_settings, store),
-        "record_status": record_status,
-        "record_launch_history": record_launch_history,
-        "get_launch_history": get_launch_history,
+        "record_status": partial(record_status, store),
+        "record_launch_history": partial(record_launch_history, store),
+        "get_launch_history": partial(get_launch_history, store),
         "update_auth_state": partial(update_auth_state, store),
         "get_status_row": get_status_row,
         "get_status_rows": get_status_rows,
         "format_list_rows": format_list_rows,
-        "get_session_auth_home": get_session_auth_home,
-        "get_session_root": get_session_root,
+        "get_session_auth_home": partial(get_session_auth_home, base_dir),
+        "get_session_root": partial(get_session_root, base_dir),
         "export_bundle": export_bundle,
         "import_bundle": import_bundle,
         "base_dir": base_dir,
