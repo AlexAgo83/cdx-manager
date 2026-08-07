@@ -793,7 +793,7 @@ class CliPythonTests(unittest.TestCase):
         with open(os.path.join(marketplace_dir, "cache.bin"), "wb") as handle:
             handle.write(b"x")
 
-        with mock.patch("src.cli_commands.shutil.rmtree", side_effect=OSError("permission denied")):
+        with mock.patch("src.commands.maintenance.shutil.rmtree", side_effect=OSError("permission denied")):
             with self.assertRaisesRegex(CdxError, "Failed to remove cleanup candidate"):
                 main(["clean", "profiles", "--tmp", "--yes"], {
                     **self.make_io(),
@@ -865,7 +865,7 @@ class CliPythonTests(unittest.TestCase):
                 raise OSError("permission denied")
             return real_remove(path)
 
-        with mock.patch("src.cli_commands.os.remove", side_effect=remove):
+        with mock.patch("src.commands.maintenance.os.remove", side_effect=remove):
             with self.assertRaisesRegex(CdxError, "Failed to remove old log"):
                 main(["clean", "profiles", "--old-logs", "30d", "--yes"], {
                     **self.make_io(),

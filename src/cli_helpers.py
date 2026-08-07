@@ -5,6 +5,7 @@ Split out of cli_commands.py as the low-level, side-effect-light helper layer
 (no command dispatch). Imported back into cli_commands and used by handlers.
 """
 
+import asyncio
 import json
 import os
 import re
@@ -383,3 +384,14 @@ def _handoff_launch_prompt(session, install=None):
         f"Read {context_ref} first, then resume the previous session "
         "from the latest actionable state. Do not ask me to paste the context again."
     )
+
+
+def _resolve_confirmation(confirm_fn, name):
+    confirmed = (
+        asyncio.get_event_loop().run_until_complete(confirm_fn(name))
+        if asyncio.iscoroutinefunction(confirm_fn)
+        else confirm_fn(name)
+    )
+    if hasattr(confirmed, "__await__"):
+        confirmed = asyncio.get_event_loop().run_until_complete(confirmed)
+    return confirmed
