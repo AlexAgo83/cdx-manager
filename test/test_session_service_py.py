@@ -679,8 +679,8 @@ class SessionServicePythonTests(unittest.TestCase):
             }))
             handle.write("\n")
 
-        with mock.patch("src.session_service.get_cdx_home", return_value=temp_dir):
-            with mock.patch("src.session_service._get_global_codex_home", return_value=global_home):
+        with mock.patch("src.session_status.get_cdx_home", return_value=temp_dir):
+            with mock.patch("src.session_status._get_global_codex_home", return_value=global_home):
                 service = create_session_service({"base_dir": temp_dir})
                 service["create_session"]("main")
                 rows = service["get_status_rows"]()
