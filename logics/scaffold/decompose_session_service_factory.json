@@ -20,8 +20,7 @@
       "The 46 inner closures are returned as a dict of callables, which is the service interface every caller uses. That interface is what must not change.",
       "The closures capture factory locals such as the resolved base directory, the session store, and cached state. Turning one into a module-level function means passing what it currently captures, which is the actual work of this request.",
       "`test/test_session_service_py.py` is 2055 lines and exercises the service almost entirely through the returned dict, so it is a usable regression net for a decomposition that preserves that dict.",
-      "Ordering constraint: `req_025` splits the command file. This request should not start before that pilot has reported, so a regression in either is attributable to one of them rather than to both at once.",
-      "`req_025` splits `src/cli_commands.py` into per-domain modules. That request explicitly excludes this file, and this one should not begin before its pilot has reported, so two large structural changes are not in flight over the same test suite at once."
+      "Ordering constraint: `req_025` splits the command file and explicitly excludes this one. This request should not start before that pilot has reported, so a regression in either is attributable to one of them rather than to both at once."
     ],
     "acceptance_criteria": [
       "AC1: The service interface is unchanged: `create_session_service` returns a dict with the same keys and the same callable behavior, so no caller is touched.",
