@@ -1,6 +1,5 @@
 import os
 import time
-import uuid
 from datetime import datetime
 
 from .claude_refresh import _refresh_claude_sessions
@@ -44,9 +43,23 @@ from .cli_helpers import (  # noqa: F401  (several names are re-exported for cli
     _write_json,
     _write_update_notice,
 )
-from .cli_render import _dim, _info, _pad_table, _style, _success, _warn
+from .cli_render import _dim, _info, _pad_table, _style, _warn
 from .cli_view import handle_view as handle_view  # re-export for cli.py / tests
-from .codex_usage import consume_codex_rate_limit_reset_credit
+from .commands.auth import (  # re-export for cli.py / tests
+    _confirm_reset as _confirm_reset,
+)
+from .commands.auth import (
+    handle_login as handle_login,
+)
+from .commands.auth import (
+    handle_logout as handle_logout,
+)
+from .commands.auth import (
+    handle_notify as handle_notify,
+)
+from .commands.auth import (
+    handle_reset as handle_reset,
+)
 from .commands.backup import (  # noqa: F401
     _resolve_bundle_passphrase,
     handle_export,
@@ -173,23 +186,12 @@ from .commands.settings import (
 from .commands.settings import (
     handle_unset as handle_unset,
 )
-from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
+from .config import PROVIDER_CLAUDE
 from .errors import CdxError
-from .notify import (
-    format_notify_event,
-    format_scheduled_notification,
-    parse_notify_args,
-    resolve_notify_event,
-    schedule_notification_event,
-    send_desktop_notification,
-    wait_for_notification_event,
-)
 from .provider_runtime import (
     AUTH_PROBE_AUTHENTICATED,
     AUTH_PROBE_DEGRADED,
-    _ensure_session_authentication,
     _probe_provider_auth_status,
-    _run_interactive_provider_command,
 )
 from .status_view import (
     _format_status_detail,
@@ -197,11 +199,6 @@ from .status_view import (
     format_priority_instruction,
     recommend_priority_rows,
 )
-
-
-def _confirm_reset(name):
-    answer = input(f"Consume one banked Codex reset for {name}? [y/N] ")
-    return answer.strip().lower() in ("y", "yes")
 
 
 def _format_next_pct(value):
@@ -679,64 +676,6 @@ def handle_last(rest, ctx):
     return handle_launch(session["name"], ctx)
 
 
-def handle_notify(rest, ctx):
-    parsed = parse_notify_args(rest)
-
-    def notifier(title, message):
-        send_desktop_notification(
-            title,
-            message,
-            spawn_sync=ctx.get("spawn_sync"),
-            env=ctx.get("env"),
-        )
-
-    if parsed["schedule"]:
-        event = resolve_notify_event(
-            ctx["service"]["get_status_rows"](
-                progress_callback=None if parsed["json"] else _make_notify_progress(ctx),
-                force_refresh=parsed.get("refresh", False),
-            ),
-            parsed,
-            (ctx["options"].get("now") or time.time)(),
-        )
-        if event["ready"]:
-            notifier(event["title"], event["message"])
-            schedule = {
-                "scheduled": False,
-                "backend": "immediate",
-                "message": event["message"],
-                "target_timestamp": event.get("target_timestamp"),
-            }
-        else:
-            schedule = schedule_notification_event(
-                ctx["service"]["base_dir"],
-                parsed,
-                event,
-                spawn_sync=ctx.get("spawn_sync"),
-                env=ctx.get("env"),
-                now_fn=ctx["options"].get("now"),
-            )
-        if parsed["json"]:
-            _write_json(ctx, _json_success("notify", "Scheduled notification event", event=event, schedule=schedule))
-        else:
-            ctx["out"](f"{format_scheduled_notification(schedule)}\n")
-        return 0
-
-    event = wait_for_notification_event(
-        ctx["service"],
-        parsed,
-        notifier=notifier,
-        sleep_fn=ctx["options"].get("sleep"),
-        now_fn=ctx["options"].get("now"),
-        progress_callback=None if parsed["json"] else _make_notify_progress(ctx),
-    )
-    if parsed["json"]:
-        _write_json(ctx, _json_success("notify", "Resolved notification event", event=event))
-    else:
-        ctx["out"](f"{format_notify_event(event)}\n")
-    return 0
-
-
 def handle_status(rest, ctx):
     parsed = _parse_flag_args(rest, {
         "--json": {"key": "json", "type": "bool", "default": False},
@@ -828,69 +767,6 @@ def handle_status(rest, ctx):
     ctx["out"](f"{_format_status_rows(rows, use_color=ctx['use_color'], small=parsed['small'])}\n")
     _write_refresh_warnings(refresh_errors, ctx, rows=rows)
     _write_update_notice(ctx)
-    return 0
-
-
-def handle_reset(rest, ctx):
-    parsed = _parse_flag_args(rest, {
-        "--json": {"key": "json", "type": "bool", "default": False},
-        "--yes": {"key": "yes", "type": "bool", "default": False},
-    }, "Usage: cdx reset <name> [--yes] [--json]", positionals_key="args", max_positionals=1)
-    if len(parsed["args"]) != 1:
-        raise CdxError("Usage: cdx reset <name> [--yes] [--json]")
-    name = parsed["args"][0]
-    session = ctx["service"]["get_session"](name)
-    if not session:
-        raise CdxError(f"Unknown session: {name}")
-    if session["provider"] != PROVIDER_CODEX:
-        raise CdxError("Banked rate-limit resets are only available for Codex sessions.")
-
-    status = ctx["service"]["get_status_row"](name, force_refresh=True)
-    if status.get("reset_credits_available") == 0:
-        raise CdxError(f"No banked Codex reset is available for {name}.")
-    if not parsed["yes"]:
-        confirm_fn = ctx["options"].get("confirmReset")
-        if confirm_fn:
-            confirmed = _resolve_confirmation(confirm_fn, name)
-        elif not ctx["stdin_is_tty"]:
-            raise CdxError("Reset activation requires an interactive terminal or --yes in non-interactive mode.")
-        else:
-            confirmed = _confirm_reset(name)
-        if not confirmed:
-            if parsed["json"]:
-                _write_json(ctx, _json_success("reset", "Cancelled.", cancelled=True, session=name))
-                return 0
-            ctx["out"](f"{_warn('Cancelled.', ctx['use_color'])}\n")
-            return 0
-
-    credit_rows = status.get("reset_credits") or []
-    credit_id = credit_rows[0].get("id") if credit_rows else None
-    consumer = ctx["options"].get("consumeCodexReset") or consume_codex_rate_limit_reset_credit
-    result = consumer(
-        session,
-        ctx["options"].get("resetIdempotencyKey") or str(uuid.uuid4()),
-        credit_id=credit_id,
-    )
-    if not result.get("ok"):
-        if result.get("reason") == "reset_consume_failed":
-            raise CdxError(
-                f"Unable to activate Codex reset for {name}. "
-                "The installed Codex version or account may not support reset activation."
-            )
-        raise CdxError(f"Unable to activate Codex reset for {name}: {result.get('reason') or 'unknown error'}")
-    outcome = result.get("outcome")
-    if outcome == "noCredit":
-        raise CdxError(f"No banked Codex reset is available for {name}.")
-    if outcome == "nothingToReset":
-        raise CdxError(f"No current Codex rate-limit window is eligible for reset on {name}.")
-    if outcome not in ("reset", "alreadyRedeemed"):
-        raise CdxError(f"Unexpected Codex reset outcome for {name}: {outcome or 'missing'}")
-    refreshed = ctx["service"]["get_status_row"](name, force_refresh=True)
-    message = f"Activated banked Codex reset for {name}"
-    if parsed["json"]:
-        _write_json(ctx, _json_success("reset", message, cancelled=False, outcome=outcome, session=refreshed))
-        return 0
-    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
     return 0
 
 
@@ -991,76 +867,5 @@ def _write_refresh_warnings(refresh_errors, ctx, stream="out", rows=None):
     rows_by_name = _rows_by_session(rows)
     for item in refresh_errors:
         write(f"{_warn(_format_refresh_warning(item, rows_by_name), ctx['use_color'])}\n")
-
-
-def handle_login(rest, ctx):
-    rest = [arg for arg in rest if arg != "--setup-token"]  # accepted for back-compat; setup-token is now the default for Claude
-    json_flag, args = _parse_json_flag(rest)
-    if len(args) != 1:
-        raise CdxError("Usage: cdx login <name> [--json]")
-    if not ctx["stdin_is_tty"]:
-        raise CdxError("Login requires an interactive terminal.")
-    session = ctx["service"]["get_session"](args[0])
-    if not session:
-        raise CdxError(f"Unknown session: {args[0]}")
-    if session["provider"] == PROVIDER_CLAUDE:
-        # ponytail: setup-token mints a ~1yr token; claude login mints a ~daily one that forces reconnects
-        _bootstrap_claude_setup_token(session, ctx)
-    else:
-        _run_interactive_provider_command(
-            session, "login", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
-            signal_emitter=ctx.get("signal_emitter")
-        )
-    auth_probe = _ensure_session_authentication(
-        session,
-        ctx["service"],
-        spawn_sync=ctx.get("spawn_sync"),
-        env_override=ctx.get("env"),
-        behavior="probe-only",
-        trust_local_credentials=False,
-    )
-    if not auth_probe.get("authenticated"):
-        raise CdxError(
-            f"Login command completed, but session {session['name']} is still not authenticated."
-        )
-    now = _local_now_iso()
-    ctx["service"]["update_auth_state"](args[0], lambda auth: {
-        **auth, "status": "authenticated",
-        "lastCheckedAt": now, "lastAuthenticatedAt": now,
-    })
-    message = f"Reauthenticated session {session['name']} ({session['provider']})"
-    if json_flag:
-        _write_json(ctx, _json_success("login", message, session=ctx["service"]["get_session"](session["name"])))
-        return 0
-    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
-    return 0
-
-
-def handle_logout(rest, ctx):
-    json_flag, args = _parse_json_flag(rest)
-    if len(args) != 1:
-        raise CdxError("Usage: cdx logout <name> [--json]")
-    session = ctx["service"]["get_session"](args[0])
-    if not session:
-        raise CdxError(f"Unknown session: {args[0]}")
-    if session["provider"] == PROVIDER_ANTIGRAVITY:
-        raise CdxError("Antigravity logout is managed inside agy. Launch the session and run /logout.")
-    if session["provider"] == PROVIDER_OLLAMA:
-        raise CdxError("Ollama sessions do not use cdx-managed authentication.")
-    _run_interactive_provider_command(
-        session, "logout", spawn=ctx.get("spawn"), env_override=ctx.get("env"),
-        signal_emitter=ctx.get("signal_emitter")
-    )
-    now = _local_now_iso()
-    ctx["service"]["update_auth_state"](args[0], lambda auth: {
-        **auth, "status": "logged_out",
-        "lastCheckedAt": now, "lastLoggedOutAt": now,
-    })
-    message = f"Logged out session {session['name']} ({session['provider']})"
-    if json_flag:
-        _write_json(ctx, _json_success("logout", message, session=ctx["service"]["get_session"](session["name"])))
-        return 0
-    ctx["out"](f"{_success(message, ctx['use_color'])}\n")
-    return 0
 
 
