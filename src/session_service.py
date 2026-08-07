@@ -3,13 +3,11 @@ import binascii
 import json
 import os
 import shutil
-import sys
 import tempfile
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from functools import partial
-from urllib.parse import quote
 
 from .backup_bundle import decode_bundle, encode_bundle
 from .claude_usage import _decode_jwt_claims
@@ -17,73 +15,34 @@ from .codex_usage import fetch_codex_rate_limits
 from .config import (
     PERMISSION_INPUT_VALUES,
     PERMISSION_VALUES,
-    PROVIDER_ANTIGRAVITY,
     PROVIDER_CLAUDE,
     PROVIDER_CODEX,
-    PROVIDERS,
     REASONING_EFFORT_VALUES,
     get_cdx_home,
     normalize_permission,
 )
 from .errors import CdxError
 from .fs_utils import atomic_write, remove_tree
+from .session_helpers import (  # noqa: F401  (re-exported for src/__init__.py, callers and tests)
+    ALLOWED_PROVIDERS,
+    DEFAULT_PROVIDER,
+    MAX_SESSION_NAME_LENGTH,
+    RESERVED_SESSION_NAMES,
+    _encode,
+    _ensure_private_dir,
+    _get_global_codex_home,
+    _get_session_auth_home,
+    _get_session_root,
+    _local_now_iso,
+    _normalize_provider,
+    _process_is_running,
+    _runtime_is_active,
+    _validate_new_session_name,
+)
 from .session_store import create_session_store
 from .status_source import find_latest_status_artifact
 
-DEFAULT_PROVIDER = PROVIDER_CODEX
-ALLOWED_PROVIDERS = set(PROVIDERS)
-MAX_SESSION_NAME_LENGTH = 64
 MAX_SESSION_LABEL_LENGTH = 64
-RESERVED_SESSION_NAMES = {
-    "add",
-    "can-resume",
-    "clean",
-    "context",
-    "configs",
-    "cp",
-    "disable",
-    "disk",
-    "doctor",
-    "enable",
-    "export",
-    "fast",
-    "help",
-    "handoff",
-    "history",
-    "import",
-    "last",
-    "label",
-    "login",
-    "logout",
-    "memory",
-    "model",
-    "mv",
-    "next",
-    "notify",
-    "perm",
-    "power",
-    "ready",
-    "repair",
-    "reset",
-    "resume",
-    "ren",
-    "rename",
-    "rmv",
-    "run",
-    "select",
-    "config",
-    "set",
-    "stats",
-    "status",
-    "unset",
-    "update",
-    "view",
-    "version",
-    "--help",
-    "-h",
-    "--version",
-    "-v",
-}
 STATUS_CACHE_TTL_SECONDS = 60
 CLAUDE_STATUS_CACHE_TTL_SECONDS = 10 * 60
 # Each live Codex probe spawns app-server, which can refresh+rotate the OAuth
@@ -106,25 +65,6 @@ DEFAULT_LAUNCH_SETTINGS = {
     "power": "medium",
     "fast": False,
 }
-
-
-def _encode(name):
-    return quote(name, safe="")
-
-
-def _ensure_private_dir(path):
-    os.makedirs(path, exist_ok=True)
-    if sys.platform == "win32":
-        return
-    try:
-        os.chmod(path, 0o700)
-    except OSError:
-        pass
-
-
-def _get_global_codex_home(env=None):
-    env = env or os.environ
-    return env.get("CODEX_HOME") or os.path.join(os.path.expanduser("~"), ".codex")
 
 
 def _seed_codex_auth_from_global(auth_home, env=None):
@@ -222,28 +162,6 @@ def _normalize_launch_settings(settings, mark_fast_service_tier=True):
             raise CdxError(f"Unsupported priority: {settings['priority']}")
         normalized["priority"] = priority
     return normalized
-
-
-def _local_now_iso():
-    return datetime.now().astimezone().isoformat()
-
-
-def _process_is_running(pid):
-    try:
-        pid = int(pid)
-    except (TypeError, ValueError):
-        return False
-    if pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    except OSError:
-        return False
-    return True
 
 
 def _safe_relpath(path):
@@ -497,33 +415,6 @@ def _ensure_claude_attribution_disabled(auth_home):
     return True
 
 
-def _normalize_provider(provider):
-    value = provider or DEFAULT_PROVIDER
-    if value not in ALLOWED_PROVIDERS:
-        raise CdxError(f"Unsupported provider: {value}")
-    return value
-
-def _runtime_is_active(runtime):
-    return (
-        isinstance(runtime, dict)
-        and runtime.get("status") == "running"
-        and _process_is_running(runtime.get("pid"))
-    )
-
-def _validate_new_session_name(name):
-    if not name:
-        raise CdxError("Session name is required")
-    if str(name) != str(name).strip():
-        raise CdxError("Session name cannot start or end with whitespace")
-    if str(name) in (".", ".."):
-        raise CdxError("Session name cannot be . or ..")
-    if len(str(name)) > MAX_SESSION_NAME_LENGTH:
-        raise CdxError(f"Session name is too long (max {MAX_SESSION_NAME_LENGTH} characters)")
-    if any(ord(ch) < 32 or ord(ch) == 127 for ch in str(name)):
-        raise CdxError("Session name cannot contain control characters")
-    if name in RESERVED_SESSION_NAMES:
-        raise CdxError(f"Session name is reserved: {name}")
-
 def _normalize_session_label(label):
     text = str(label or "").strip()
     if not text:
@@ -713,19 +604,6 @@ def update_auth_state(store, name, updater):
     if not updated:
         raise CdxError(f"Unknown session: {name}")
     return updated
-
-
-def _get_session_root(base_dir, name):
-    return os.path.join(base_dir, "profiles", _encode(name))
-
-
-def _get_session_auth_home(base_dir, name, provider):
-    root = _get_session_root(base_dir, name)
-    if provider == PROVIDER_CLAUDE:
-        return os.path.join(root, "claude-home")
-    if provider == PROVIDER_ANTIGRAVITY:
-        return os.path.join(root, "antigravity-home")
-    return root
 
 
 def list_sessions(store):
