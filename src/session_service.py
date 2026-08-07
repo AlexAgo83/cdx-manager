@@ -8,6 +8,7 @@ import tempfile
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from functools import partial
 from urllib.parse import quote
 
 from .backup_bundle import decode_bundle, encode_bundle
@@ -642,6 +643,78 @@ def _restore_force_import_profile_paths(name, backup_root, session_root, rel_pat
             raise CdxError(f"Could not restore local plugin state for session {name}: {rel_path}") from error
 
 
+def set_launch_settings(store, name, settings):
+    session = store["get_session"](name)
+    if not session:
+        raise CdxError(f"Unknown session: {name}")
+    updates = _normalize_launch_settings(settings)
+    if not updates:
+        raise CdxError("At least one launch setting is required.")
+    now = _local_now_iso()
+
+    def updater(s):
+        # Build the new launch dict from the fresh record inside the store
+        # lock; a pre-lock snapshot loses a concurrent setting change.
+        current = _normalize_launch_settings(s.get("launch") or {}, mark_fast_service_tier=False)
+        launch = {**current, **updates}
+        if "power" in updates:
+            launch.pop("reasoning_effort", None)
+            launch.pop("reasoningEffort", None)
+        if "reasoning_effort" in updates:
+            launch.pop("power", None)
+        explicit_power = "power" in updates or "reasoning_effort" in updates
+        if explicit_power and "fast" not in updates and launch.get("fastMode") != "service_tier":
+            launch["fast"] = False
+            launch.pop("fastMode", None)
+        if updates.get("fast") is False:
+            launch.pop("fastMode", None)
+            if not any(key in launch for key in ("power", "reasoning_effort", "reasoningEffort")):
+                launch["power"] = DEFAULT_LAUNCH_SETTINGS["power"]
+        return {
+            **s,
+            "launch": launch,
+            "updatedAt": now,
+        }
+
+    return store["update_session"](name, updater)
+
+def unset_launch_settings(store, name, keys):
+    session = store["get_session"](name)
+    if not session:
+        raise CdxError(f"Unknown session: {name}")
+    if not keys:
+        raise CdxError("At least one launch setting is required.")
+    allowed = {"power", "reasoning_effort", "reasoningEffort", "permission", "fast", "rtk", "logics", "model", "priority"}
+    unknown = [key for key in keys if key not in allowed]
+    if unknown:
+        raise CdxError(f"Unsupported launch setting: {', '.join(unknown)}")
+    now = _local_now_iso()
+
+    def updater(s):
+        current = dict(s.get("launch") or {})
+        for key in keys:
+            current.pop(key, None)
+        updated = {**s, "updatedAt": now}
+        if current:
+            updated["launch"] = current
+        else:
+            updated.pop("launch", None)
+        return updated
+
+    return store["update_session"](name, updater)
+
+def update_auth_state(store, name, updater):
+    now = _local_now_iso()
+    updated = store["update_session"](name, lambda s: {
+        **s,
+        "updatedAt": now,
+        "auth": updater(s.get("auth") or {}),
+    })
+    if not updated:
+        raise CdxError(f"Unknown session: {name}")
+    return updated
+
+
 def create_session_service(options=None):
     if options is None:
         options = {}
@@ -1030,65 +1103,6 @@ def create_session_service(options=None):
 
         return store["update_session"](name, updater)
 
-    def set_launch_settings(name, settings):
-        session = store["get_session"](name)
-        if not session:
-            raise CdxError(f"Unknown session: {name}")
-        updates = _normalize_launch_settings(settings)
-        if not updates:
-            raise CdxError("At least one launch setting is required.")
-        now = _local_now_iso()
-
-        def updater(s):
-            # Build the new launch dict from the fresh record inside the store
-            # lock; a pre-lock snapshot loses a concurrent setting change.
-            current = _normalize_launch_settings(s.get("launch") or {}, mark_fast_service_tier=False)
-            launch = {**current, **updates}
-            if "power" in updates:
-                launch.pop("reasoning_effort", None)
-                launch.pop("reasoningEffort", None)
-            if "reasoning_effort" in updates:
-                launch.pop("power", None)
-            explicit_power = "power" in updates or "reasoning_effort" in updates
-            if explicit_power and "fast" not in updates and launch.get("fastMode") != "service_tier":
-                launch["fast"] = False
-                launch.pop("fastMode", None)
-            if updates.get("fast") is False:
-                launch.pop("fastMode", None)
-                if not any(key in launch for key in ("power", "reasoning_effort", "reasoningEffort")):
-                    launch["power"] = DEFAULT_LAUNCH_SETTINGS["power"]
-            return {
-                **s,
-                "launch": launch,
-                "updatedAt": now,
-            }
-
-        return store["update_session"](name, updater)
-
-    def unset_launch_settings(name, keys):
-        session = store["get_session"](name)
-        if not session:
-            raise CdxError(f"Unknown session: {name}")
-        if not keys:
-            raise CdxError("At least one launch setting is required.")
-        allowed = {"power", "reasoning_effort", "reasoningEffort", "permission", "fast", "rtk", "logics", "model", "priority"}
-        unknown = [key for key in keys if key not in allowed]
-        if unknown:
-            raise CdxError(f"Unsupported launch setting: {', '.join(unknown)}")
-        now = _local_now_iso()
-
-        def updater(s):
-            current = dict(s.get("launch") or {})
-            for key in keys:
-                current.pop(key, None)
-            updated = {**s, "updatedAt": now}
-            if current:
-                updated["launch"] = current
-            else:
-                updated.pop("launch", None)
-            return updated
-
-        return store["update_session"](name, updater)
 
     def record_status(name, payload):
         normalized = _normalize_status_payload(payload)
@@ -1199,17 +1213,6 @@ def create_session_service(options=None):
             record_status(session["name"], merged)
             return merged
         return current_status or resolved
-
-    def update_auth_state(name, updater):
-        now = _local_now_iso()
-        updated = store["update_session"](name, lambda s: {
-            **s,
-            "updatedAt": now,
-            "auth": updater(s.get("auth") or {}),
-        })
-        if not updated:
-            raise CdxError(f"Unknown session: {name}")
-        return updated
 
 
     def _resolve_row_session(
@@ -1640,12 +1643,12 @@ def create_session_service(options=None):
         "set_session_enabled": set_session_enabled,
         "set_session_label": set_session_label,
         "clear_session_label": clear_session_label,
-        "set_launch_settings": set_launch_settings,
-        "unset_launch_settings": unset_launch_settings,
+        "set_launch_settings": partial(set_launch_settings, store),
+        "unset_launch_settings": partial(unset_launch_settings, store),
         "record_status": record_status,
         "record_launch_history": record_launch_history,
         "get_launch_history": get_launch_history,
-        "update_auth_state": update_auth_state,
+        "update_auth_state": partial(update_auth_state, store),
         "get_status_row": get_status_row,
         "get_status_rows": get_status_rows,
         "format_list_rows": format_list_rows,
