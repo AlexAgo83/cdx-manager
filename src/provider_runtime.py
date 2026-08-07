@@ -335,8 +335,7 @@ def _launch_config_args(session):
             args += ["--dangerously-skip-permissions"]
         return args
     if provider == PROVIDER_OLLAMA:
-        if permission == "full":
-            args += ["--experimental-yolo"]
+        # ponytail: ollama has no sandbox/permission concept — nothing to map.
         return args
     if power:
         args += ["-c", f'model_reasoning_effort="{power}"']

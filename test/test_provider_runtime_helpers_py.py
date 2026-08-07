@@ -112,11 +112,14 @@ class LaunchConfigArgsTests(unittest.TestCase):
             ["--dangerously-skip-permissions"],
         )
 
-    def test_ollama_full_permission(self):
-        self.assertEqual(
-            _launch_config_args({"provider": PROVIDER_OLLAMA, "launch": {"permission": "full"}}),
-            ["--experimental-yolo"],
-        )
+    def test_ollama_permission_maps_to_nothing(self):
+        for permission in ("full", "review", "safe", None):
+            self.assertEqual(
+                _launch_config_args(
+                    {"provider": PROVIDER_OLLAMA, "launch": {"permission": permission}}
+                ),
+                [],
+            )
 
 
 class RedactSensitiveArgsTests(unittest.TestCase):
