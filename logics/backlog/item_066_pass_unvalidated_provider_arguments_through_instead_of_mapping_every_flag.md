@@ -1,10 +1,10 @@
 ## item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag - Pass unvalidated provider arguments through instead of mapping every flag
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: Medium
 > Theme: Provider surface
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

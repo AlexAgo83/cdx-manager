@@ -1,10 +1,10 @@
 ## item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit - Continue a headless run on the next eligible account after a rate limit
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: High
 > Theme: Quota-aware execution
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

@@ -130,6 +130,49 @@ class SettingsCommandTests(CliTestBase):
         payload = json.loads(select_io["stdout"].getvalue())
         self.assertEqual(payload["session"], "beta")
 
+    def test_set_persists_budget_and_fallback_model_and_unset_clears_them(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("solo", "claude")
+
+        set_io = self.make_io()
+        self.assertEqual(main([
+            "set", "solo", "--budget", "5", "--fallback-model", "sonnet,haiku", "--json"
+        ], {**set_io, "service": service}), 0)
+        launch = json.loads(set_io["stdout"].getvalue())["launch"]
+        self.assertEqual(launch["budget"], 5)
+        self.assertEqual(launch["fallback_model"], "sonnet,haiku")
+
+        unset_io = self.make_io()
+        self.assertEqual(main([
+            "unset", "solo", "--budget", "--fallback-model", "--json"
+        ], {**unset_io, "service": service}), 0)
+        cleared = json.loads(unset_io["stdout"].getvalue())["launch"]
+        self.assertNotIn("budget", cleared)
+        self.assertNotIn("fallback_model", cleared)
+
+    def test_set_rejects_budgets_that_express_nothing(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("solo", "claude")
+
+        for value in ("0", "-1", "abc", "20000", "nan"):
+            with self.assertRaises(CdxError, msg=f"budget {value} should be rejected"):
+                main(["set", "solo", "--budget", value], {**self.make_io(), "service": service})
+
+        self.assertIsNone((service["get_session"]("solo").get("launch") or {}).get("budget"))
+
+    def test_set_validates_every_element_of_the_fallback_model_list(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("solo", "claude")
+
+        for value in ("sonnet,", ",haiku", "sonnet,,haiku", "sonnet,bad\x01name", "sonnet," + "x" * 200):
+            with self.assertRaises(CdxError, msg=f"fallback list {value!r} should be rejected"):
+                main(["set", "solo", "--fallback-model", value], {**self.make_io(), "service": service})
+
+        self.assertIsNone((service["get_session"]("solo").get("launch") or {}).get("fallback_model"))
+
     def test_set_rejects_conflicting_target_selectors_and_flag_values(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

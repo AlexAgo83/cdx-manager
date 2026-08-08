@@ -1,14 +1,15 @@
 ## item_063_add_budget_and_fallback_model_as_pinnable_launch_settings - Add budget and fallback-model as pinnable launch settings
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: Low
 > Theme: Quota-aware execution
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
 > Indicators reviewed: 2026-08-08
+> Owner: claude
 
 # Problem
 - Claude Code 2.1.226 ships `--max-budget-usd` and `--fallback-model`; cdx maps neither, so a user who wants either must launch the provider outside cdx and lose account isolation.

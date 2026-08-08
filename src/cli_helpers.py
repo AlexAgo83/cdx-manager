@@ -487,6 +487,8 @@ def _format_launch_config(session, use_color=False):
         ("rtk", "RTK"),
         ("logics", "Logics"),
         ("model", "Model"),
+        ("fallback_model", "Fallback"),
+        ("budget", "Budget"),
         ("priority", "Priority"),
     ]:
         rows.append([
@@ -520,6 +522,10 @@ def _format_launch_setting_value(launch, key, use_color=False):
     value = launch.get(key)
     if value is None or value == "":
         return _dim("default", use_color)
+    if key == "budget":
+        from .provider_runtime import _format_budget_arg
+
+        return _style(_format_budget_arg(value), "33", use_color)
     if key == "priority":
         return _style(str(value), "33", use_color)
     if key == "power":

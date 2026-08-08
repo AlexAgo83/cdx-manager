@@ -34,6 +34,13 @@ PERMISSION_ALIASES = {
 # Everything accepted as input for a permission, canonical values first.
 PERMISSION_INPUT_VALUES = PERMISSION_VALUES + tuple(PERMISSION_ALIASES)
 
+# A budget is a ceiling, so the only bound worth enforcing is the one a caller
+# could cross by accident. Zero and negatives express nothing; the upper bound
+# catches a misplaced decimal rather than stating a policy. Defined here, not in
+# each parser, because `cdx set` and `cdx run` validating the same setting from
+# separate literals is how they came to disagree before.
+MAX_LAUNCH_BUDGET_USD = 10000
+
 
 def normalize_permission(value):
     """Canonical form of a permission input, or None if it is not one.

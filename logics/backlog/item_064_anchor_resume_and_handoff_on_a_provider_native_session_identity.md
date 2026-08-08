@@ -1,10 +1,10 @@
 ## item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity - Anchor resume and handoff on a provider-native session identity
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: Medium
 > Theme: Session identity
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

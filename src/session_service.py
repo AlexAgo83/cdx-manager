@@ -35,6 +35,7 @@ from functools import partial
 
 from .codex_usage import fetch_codex_rate_limits
 from .config import (
+    MAX_LAUNCH_BUDGET_USD,
     PERMISSION_INPUT_VALUES,
     PERMISSION_VALUES,
     PROVIDER_CLAUDE,
@@ -214,6 +215,29 @@ def _normalize_launch_settings(settings, mark_fast_service_tier=True):
         if len(model) > MAX_LAUNCH_MODEL_LENGTH or any(ord(ch) < 32 or ord(ch) == 127 for ch in model):
             raise CdxError("Model contains unsupported characters.")
         normalized["model"] = model
+    if "fallback_model" in settings and settings["fallback_model"] is not None:
+        # Claude accepts a comma-separated list here and tries each in order, so
+        # this validates every element rather than the string as one model name.
+        raw = str(settings["fallback_model"]).strip()
+        if not raw:
+            raise CdxError("Fallback model cannot be empty.")
+        elements = [element.strip() for element in raw.split(",")]
+        if any(not element for element in elements):
+            raise CdxError("Fallback model cannot contain an empty entry.")
+        for element in elements:
+            if len(element) > MAX_LAUNCH_MODEL_LENGTH or any(ord(ch) < 32 or ord(ch) == 127 for ch in element):
+                raise CdxError("Fallback model contains unsupported characters.")
+        normalized["fallback_model"] = ",".join(elements)
+    if "budget" in settings and settings["budget"] is not None:
+        try:
+            budget = float(settings["budget"])
+        except (TypeError, ValueError) as error:
+            raise CdxError(f"Unsupported budget: {settings['budget']}") from error
+        # NaN fails every comparison below, so it has to be rejected explicitly
+        # or it would sail through the range check.
+        if budget != budget or budget <= 0 or budget > MAX_LAUNCH_BUDGET_USD:
+            raise CdxError(f"Unsupported budget: {settings['budget']}")
+        normalized["budget"] = budget
     if "priority" in settings and settings["priority"] is not None:
         try:
             priority = int(settings["priority"])
@@ -310,7 +334,10 @@ def unset_launch_settings(store, name, keys):
         raise CdxError(f"Unknown session: {name}")
     if not keys:
         raise CdxError("At least one launch setting is required.")
-    allowed = {"power", "reasoning_effort", "reasoningEffort", "permission", "fast", "rtk", "logics", "model", "priority"}
+    allowed = {
+        "power", "reasoning_effort", "reasoningEffort", "permission", "fast", "rtk", "logics",
+        "model", "fallback_model", "budget", "priority",
+    }
     unknown = [key for key in keys if key not in allowed]
     if unknown:
         raise CdxError(f"Unsupported launch setting: {', '.join(unknown)}")

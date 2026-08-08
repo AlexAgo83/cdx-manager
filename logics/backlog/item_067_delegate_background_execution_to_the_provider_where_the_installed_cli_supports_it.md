@@ -1,10 +1,10 @@
 ## item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it - Delegate background execution to the provider where the installed CLI supports it
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: Medium
 > Theme: Provider surface
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

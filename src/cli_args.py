@@ -8,6 +8,7 @@ imported back there and used by the handlers.
 from datetime import datetime, timedelta
 
 from .config import (
+    MAX_LAUNCH_BUDGET_USD,
     PERMISSION_ALIASES,
     PERMISSION_INPUT_VALUES,
     PERMISSION_VALUES,
@@ -30,8 +31,8 @@ CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set|append [text..
 MEMORY_USAGE = "Usage: cdx memory [--global|--project NAME_OR_PATH] [show|view|path|init|edit|clear|set|append|list] [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--json]"
 LABEL_USAGE = "Usage: cdx label <name> <label> [--json] | cdx label <name> --clear [--json]"
-SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--model MODEL] [--priority 0..100] [--json]"
-UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--reasoning-effort|--permission|--fast|--rtk|--logics|--model|--priority|--all) [--json]"
+SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--model MODEL] [--fallback-model MODEL[,MODEL...]] [--budget USD] [--priority 0..100] [--json]"
+UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--reasoning-effort|--permission|--fast|--rtk|--logics|--model|--fallback-model|--budget|--priority|--all) [--json]"
 SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 CONFIGS_USAGE = "Usage: cdx configs [--json]"
@@ -228,6 +229,17 @@ def _parse_priority_value(value):
     return priority
 
 
+def _parse_budget_value(value):
+    try:
+        budget = float(value)
+    except (TypeError, ValueError) as error:
+        raise CdxError(SET_USAGE) from error
+    # NaN compares false against every bound, so reject it before the range check.
+    if budget != budget or budget <= 0 or budget > MAX_LAUNCH_BUDGET_USD:
+        raise CdxError(SET_USAGE)
+    return budget
+
+
 def _parse_set_args(args):
     parsed = _parse_flag_args(args, {
         "--power": {"key": "power", "type": "str", "default": None},
@@ -236,6 +248,8 @@ def _parse_set_args(args):
         "--rtk": {"key": "rtk", "type": "str", "default": None, "transform": _parse_fast_value},
         "--logics": {"key": "logics", "type": "str", "default": None, "transform": _parse_fast_value},
         "--model": {"key": "model", "type": "str", "default": None},
+        "--fallback-model": {"key": "fallback_model", "type": "str", "default": None},
+        "--budget": {"key": "budget", "type": "str", "default": None, "transform": _parse_budget_value},
         "--priority": {"key": "priority", "type": "str", "default": None, "transform": _parse_priority_value},
         "--sessions": {"key": "sessions", "type": "str", "default": None, "transform": _parse_set_unset_sessions},
         "--provider": {"key": "provider", "type": "str", "default": None, "transform": lambda value: _parse_provider_filter(value, SET_USAGE)},
@@ -253,7 +267,7 @@ def _parse_set_args(args):
         raise CdxError(SET_USAGE)
     settings = {
         key: parsed[key]
-        for key in ("power", "permission", "fast", "rtk", "logics", "model", "priority")
+        for key in ("power", "permission", "fast", "rtk", "logics", "model", "fallback_model", "budget", "priority")
         if parsed[key] is not None
     }
     if not settings:
@@ -276,6 +290,8 @@ def _parse_unset_args(args):
         "--rtk": {"key": "rtk", "type": "bool", "default": False},
         "--logics": {"key": "logics", "type": "bool", "default": False},
         "--model": {"key": "model", "type": "bool", "default": False},
+        "--fallback-model": {"key": "fallback_model", "type": "bool", "default": False},
+        "--budget": {"key": "budget", "type": "bool", "default": False},
         "--priority": {"key": "priority", "type": "bool", "default": False},
         "--all": {"key": "all", "type": "bool", "default": False},
         "--sessions": {"key": "sessions", "type": "str", "default": None, "transform": _parse_set_unset_sessions},
@@ -292,9 +308,11 @@ def _parse_unset_args(args):
         raise CdxError(UNSET_USAGE)
     if not parsed["names"] and not parsed["sessions"] and not parsed["provider"]:
         raise CdxError(UNSET_USAGE)
-    keys = ["power", "reasoning_effort", "permission", "fast", "rtk", "logics", "model", "priority"] if parsed["all"] else [
-        key for key in ("power", "reasoning_effort", "permission", "fast", "rtk", "logics", "model", "priority") if parsed[key]
-    ]
+    _UNSET_KEYS = (
+        "power", "reasoning_effort", "permission", "fast", "rtk", "logics",
+        "model", "fallback_model", "budget", "priority",
+    )
+    keys = list(_UNSET_KEYS) if parsed["all"] else [key for key in _UNSET_KEYS if parsed[key]]
     if not keys:
         raise CdxError(UNSET_USAGE)
     return {

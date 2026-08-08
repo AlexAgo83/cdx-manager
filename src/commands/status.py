@@ -117,12 +117,22 @@ def _format_launch_configs(sessions, use_color=False):
             "",
             _dim(_format_launch_settings_hint(), use_color),
         ])
-    rows = [[_style(value, "1", use_color) for value in [
-        "SESSION", "PROVIDER", "POWER", "PERMISSION", "FAST", "RTK", "LOGICS", "MODEL", "PRIORITY"
-    ]]]
+    # The table is already nine columns wide, so the two headless-only settings
+    # follow the LABEL convention from the session list: shown once somebody
+    # uses them, absent otherwise.
+    has_headless = any(
+        (session.get("launch") or {}).get(key) is not None
+        for session in sessions
+        for key in ("fallback_model", "budget")
+    )
+    headers = ["SESSION", "PROVIDER", "POWER", "PERMISSION", "FAST", "RTK", "LOGICS", "MODEL"]
+    if has_headless:
+        headers += ["FALLBACK", "BUDGET"]
+    headers.append("PRIORITY")
+    rows = [[_style(value, "1", use_color) for value in headers]]
     for session in sessions:
         launch = session.get("launch") or {}
-        rows.append([
+        row = [
             _style(session["name"], "36", use_color),
             _dim(session.get("provider") or "-", use_color),
             _format_launch_setting_value(launch, "power", use_color),
@@ -131,14 +141,25 @@ def _format_launch_configs(sessions, use_color=False):
             _format_launch_setting_value(launch, "rtk", use_color),
             _format_launch_setting_value(launch, "logics", use_color),
             _format_launch_setting_value(launch, "model", use_color),
-            _format_launch_setting_value(launch, "priority", use_color),
-        ])
-    return "\n".join([
+        ]
+        if has_headless:
+            row.append(_format_launch_setting_value(launch, "fallback_model", use_color))
+            row.append(_format_launch_setting_value(launch, "budget", use_color))
+        row.append(_format_launch_setting_value(launch, "priority", use_color))
+        rows.append(row)
+    lines = [
         _style("Launch settings:", "1", use_color),
         _pad_table(rows),
         "",
-        _dim(_format_launch_settings_hint(), use_color),
-    ])
+    ]
+    if has_headless:
+        lines.append(_dim(
+            "FALLBACK and BUDGET apply to headless Claude runs only "
+            "(cdx run); the provider accepts them with --print alone.",
+            use_color,
+        ))
+    lines.append(_dim(_format_launch_settings_hint(), use_color))
+    return "\n".join(lines)
 
 def _format_duration_ms(value):
     if value is None:

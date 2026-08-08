@@ -354,6 +354,28 @@ def _claude_cli_model(model):
     return raw
 
 
+def _claude_fallback_model(value):
+    """Normalize each element of the comma-separated fallback list.
+
+    Claude tries the entries in order, so the separator has to survive while
+    each name goes through the same aliasing a primary `--model` gets.
+    """
+    if not value:
+        return value
+    return ",".join(_claude_cli_model(element) for element in str(value).split(","))
+
+
+def _format_budget_arg(value):
+    """Render a budget without the float artefacts a bare str() would show.
+
+    A stored 5.0 must reach the CLI as `5`, not `5.0`, and 2.50 as `2.5`.
+    """
+    number = float(value)
+    if number == int(number):
+        return str(int(number))
+    return f"{number:g}"
+
+
 def _launch_config_args(session):
     launch = session.get("launch") or {}
     args = []
@@ -654,6 +676,13 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
         args = ["--print", "--output-format", "json", "--name", session["name"]]
         if model:
             args += ["--model", _claude_cli_model(model)]
+        # --max-budget-usd and --fallback-model are --print-only in the claude
+        # CLI, so they belong to this spec alone: the interactive and resume
+        # specs would be rejected by the provider for carrying them.
+        if launch.get("budget") is not None:
+            args += ["--max-budget-usd", _format_budget_arg(launch["budget"])]
+        if launch.get("fallback_model"):
+            args += ["--fallback-model", _claude_fallback_model(launch["fallback_model"])]
         args += _launch_config_args(session)
         if initial_prompt:
             args.append(initial_prompt)

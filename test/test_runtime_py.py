@@ -1078,6 +1078,57 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertEqual(spec["options"]["cwd"], "/tmp/repo")
         self.assertEqual(spec["options"]["env"]["HOME"], "/tmp/claude-home")
 
+    def test_headless_claude_spec_carries_budget_and_fallback_model(self):
+        session = {
+            "name": "claude",
+            "provider": "claude",
+            "authHome": "/tmp/claude-home",
+            "launch": {"budget": 5.0, "fallback_model": "sonnet-4.5,haiku"},
+        }
+
+        spec = provider_runtime._build_headless_launch_spec(session, cwd="/tmp/repo", initial_prompt="do it")
+
+        budget_index = spec["args"].index("--max-budget-usd") + 1
+        self.assertEqual(spec["args"][budget_index], "5")
+        fallback_index = spec["args"].index("--fallback-model") + 1
+        self.assertEqual(spec["args"][fallback_index], "claude-sonnet-4-5,haiku")
+
+    def test_interactive_and_resume_claude_specs_reject_the_print_only_flags(self):
+        # Both flags are --print-only in the claude CLI, so carrying them into a
+        # spec that does not pass --print would make the provider reject the launch.
+        session = {
+            "name": "claude",
+            "provider": "claude",
+            "authHome": "/tmp/claude-home",
+            "launch": {"budget": 5.0, "fallback_model": "haiku"},
+        }
+
+        launch_spec = provider_runtime._build_launch_spec(session, cwd="/tmp/repo", capture_transcript=False)
+        resume_spec = provider_runtime._build_resume_spec(session, cwd="/tmp/repo", capture_transcript=False)
+
+        for spec in (launch_spec, resume_spec):
+            self.assertNotIn("--max-budget-usd", spec["args"])
+            self.assertNotIn("--fallback-model", spec["args"])
+
+    def test_codex_specs_never_carry_the_claude_only_settings(self):
+        session = {
+            "name": "work",
+            "provider": "codex",
+            "authHome": "/tmp/codex-home",
+            "launch": {"budget": 5.0, "fallback_model": "haiku"},
+        }
+
+        spec = provider_runtime._build_headless_launch_spec(session, cwd="/tmp/repo", initial_prompt="do it")
+
+        self.assertEqual(spec["command"], "codex")
+        self.assertNotIn("--max-budget-usd", spec["args"])
+        self.assertNotIn("--fallback-model", spec["args"])
+
+    def test_budget_argument_drops_float_artefacts(self):
+        self.assertEqual(provider_runtime._format_budget_arg(5.0), "5")
+        self.assertEqual(provider_runtime._format_budget_arg(2.50), "2.5")
+        self.assertEqual(provider_runtime._format_budget_arg(0.25), "0.25")
+
     def test_claude_launch_model_normalizes_api_and_marketing_names(self):
         self.assertEqual(provider_runtime._claude_cli_model("claude-sonnet-4-5-20250929"), "claude-sonnet-4-5")
         self.assertEqual(provider_runtime._claude_cli_model("sonnet-4.5"), "claude-sonnet-4-5")
