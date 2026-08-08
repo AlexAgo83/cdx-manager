@@ -733,6 +733,9 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
 
     if session["provider"] == PROVIDER_CLAUDE:
         args = ["--print", "--output-format", "json", "--name", session["name"]]
+        conversation_id = _conversation_id(session)
+        if conversation_id:
+            args += ["--session-id", conversation_id]
         if model:
             args += ["--model", _claude_cli_model(model)]
         # --max-budget-usd and --fallback-model are --print-only in the claude

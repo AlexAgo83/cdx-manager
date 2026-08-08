@@ -539,6 +539,11 @@ def handle_run(rest, ctx):
         if parsed.get("reasoning_effort"):
             launch_updates["reasoning_effort"] = parsed["reasoning_effort"]
             launch_updates["power"] = parsed["reasoning_effort"]
+        # Claude needs its conversation id before the spec is built; Codex
+        # records its own afterwards, from the rollout. Without this a headless
+        # Claude run left the session with no identity and `cdx resume` fell
+        # back to recency for Claude while working by id for Codex.
+        session = ctx["service"]["begin_conversation"](session["name"])
         run_session = {
             **session,
             "launch": {

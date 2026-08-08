@@ -789,6 +789,29 @@ def _conversation_identity_for_launch(session):
     }
 
 
+def begin_conversation(store, name):
+    """Mint the conversation id a Claude run is about to carry, and store it.
+
+    `launch_session` does this for interactive launches, but a headless run
+    never goes through it, so `cdx run` used to leave Claude sessions with no
+    identity at all - `cdx resume` then fell back to recency for Claude while
+    working by id for Codex, which records its own after the fact. Same shape
+    for both providers now: whatever ran last is what resume names.
+
+    Returns the updated session, or the unchanged one for providers that mint
+    nothing here.
+    """
+    session = store["get_session"](name)
+    if not session:
+        raise CdxError(f"Unknown session: {name}")
+    conversation = _conversation_identity_for_launch(session)
+    if not conversation:
+        return session
+    return store["update_session"](name, lambda s: {
+        **s, "conversation": conversation, "updatedAt": _local_now_iso(),
+    })
+
+
 def get_session_root(base_dir, name):
     return _get_session_root(base_dir, name)
 
@@ -826,6 +849,7 @@ def create_session_service(options=None):
         "copy_session": partial(copy_session, base_dir, store),
         "rename_session": partial(rename_session, base_dir, store),
         "launch_session": partial(launch_session, store),
+        "begin_conversation": partial(begin_conversation, store),
         "active_session_runtime": partial(_session_runtime, store),
         "start_session_runtime": partial(start_session_runtime, store),
         "finish_session_runtime": partial(finish_session_runtime, store),
