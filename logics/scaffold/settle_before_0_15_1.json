@@ -1,0 +1,231 @@
+{
+  "title": "Settle what 0.15.0 left behind before cutting 0.15.1",
+  "references": [
+    "src/run_registry.py",
+    "src/cli_args.py",
+    "src/session_service.py",
+    "src/cli_helpers.py",
+    "src/commands/status.py",
+    "src/provider_runtime.py",
+    "src/run_failover.py",
+    "src/status_source.py",
+    "logics/tasks/task_039_orchestrate_executable_quota_routing_across_accounts_and_providers.md",
+    "test/test_run_registry_py.py",
+    "test/test_run_failover_py.py",
+    "changelogs/CHANGELOGS_0_15_0.md"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Release hygiene and CLI surface",
+    "needs": [
+      "0.15.0 shipped and three things did not settle with it. One is a traceability record that now claims less than the truth, one is a concurrency failure on a supported platform under exactly the load cdx is built for, and one is a class of defect this codebase produced during that very release and can produce again.",
+      "`req_028`'s closeout records AC11 as `unverified` and says background delegation is 'disabled rather than shipped broken'. That was accurate when written. It was then made to work and verified end to end - launch, closeout with usage read from the provider's session transcript, and the parked session stopped. The record is now the same kind of untruth this project spent a release fighting, only in the other direction: a document asserting less verification than actually happened is as useless as one asserting more.",
+      "`test_concurrent_starts_do_not_lose_records` fails on a real Windows machine with `OSError(36, 'Resource deadlock avoided')` under twenty concurrent writers. It passes in CI and reproduces identically on the `v0.14.0` tag, so it predates this work - which is why it was set aside. That framing understates it: the scenario is a fleet of parallel runs each writing the run registry, which is the load cdx exists to carry, on one of its two supported platforms.",
+      "Adding `--failover` during 0.15.0 required five coordinated edits: usage string, parser table, schema exclusivity declaration, conflict check, and the returned dict. One was missed - the returned dict - and the flag parsed, validated and documented while doing nothing at all. No error, no failing test until an integration test happened to catch it. The same shape recurred for `--budget`, `--fallback-model` and `--extra-args`, each touching five to eight files.",
+      "The fix for `rate_limit_reached` is already on main and unreleased. It corrects a false negative in `--failover`: an account whose credits are depleted while both percentage windows still read healthy was reported as not exhausted, so a run that could not possibly succeed was never migrated. Shipping it is the point of 0.15.1, and it should not ship alone."
+    ],
+    "context": [
+      "`_registry_lock` in `src/run_registry.py:18` uses `msvcrt.locking(fileno, LK_LOCK, 1)` on Windows and `fcntl.flock` elsewhere. `LK_LOCK` retries ten times at one-second intervals and then raises `EDEADLOCK`; there is no retry above it, so contention beyond that budget surfaces to the caller as an `OSError` rather than as a wait. The POSIX branch blocks indefinitely instead, so the two platforms do not behave alike under contention.",
+      "The option layer is already table-driven - `_parse_flag_args` in `src/cli_args.py:118` consumes a schema dict - but the table is not the only source. A single option is currently declared in the parser table, in one or two usage strings, in the returned dict, in the unset key tuple, in `_normalize_launch_settings`, in the `unset_launch_settings` allow-set, in the display list in `src/cli_helpers.py`, in `_format_launch_configs` in `src/commands/status.py`, and in the provider argument mapping.",
+      "Measured touch points for existing options: `budget` appears in 7 files, `fallback_model` in 5, `extra_args` in 8, `rtk` in 9, `priority` in 11. The count is the symptom; which of those are genuinely independent decisions and which are mechanical restatements is the question a design has to answer, and nobody has measured that yet.",
+      "This project has an established precedent for that: `req_027` measured coupling by transitive closure before splitting `session_service`, and the measurement is what said to stop after two modules rather than six. A measurement pass on the option layer is the equivalent, and it exists because the same author's intuition about `provider_runtime` was half wrong once measured.",
+      "`item_051` already collapsed duplicated accepted-value enums into single definitions, and `src/session_service.py` records why: three separate literals validated independently are how `cdx set` and `cdx run` came to disagree about the same setting. The CLI option layer never received that treatment.",
+      "`cdx schema --json` derives its enums and mutually-exclusive groups from the parser's own definitions, and callers depend on it. Any consolidation has to keep that derivation intact rather than replacing it with a second description.",
+      "The repository has one runtime dependency, `cryptography`, and five installation channels. Adopting Typer or Click would add a runtime dependency to all of them, which is a cost this project has consistently declined."
+    ],
+    "acceptance_criteria": [
+      "AC1: `req_028`'s AC11 record states what was actually verified about background delegation - that it works, how it was observed, and that it remains opt-in for exposure reasons rather than for correctness ones - and the request's own criterion is marked accordingly.",
+      "AC2: The claim in `CHANGELOGS_0_15_0.md` that background delegation is off because it 'has been exercised far less' remains accurate, or is corrected if the closeout revision contradicts it.",
+      "AC3: Twenty concurrent writers to the run registry all succeed on Windows, with no `OSError` reaching the caller, and `test_concurrent_starts_do_not_lose_records` passes on a real Windows machine rather than only in CI.",
+      "AC4: Lock acquisition behaves equivalently on both platforms under contention - a waiter waits rather than failing - and the difference between `LK_LOCK`'s bounded retry and `flock`'s indefinite block is either removed or documented as deliberate.",
+      "AC5: A caller that cannot acquire the lock within a bounded time receives a specific, actionable error rather than a raw `OSError`, so an exhausted wait is distinguishable from a bug.",
+      "AC6: The option layer's touch points are measured and published - which declarations are independent decisions and which are mechanical restatements of the same fact - before any consolidation design is chosen.",
+      "AC7: Adding one option to `cdx set` requires one declaration, and a declaration that is incomplete fails loudly at import or test time rather than producing a flag that parses and does nothing.",
+      "AC8: `cdx schema --json` still derives its enums, mutually-exclusive groups and error codes from the same definitions the parser uses, with no second description of the same facts.",
+      "AC9: No runtime dependency is added.",
+      "AC10: The regression that motivated this - a flag present in the parser table but absent from the returned dict - is impossible to express, and a test demonstrates that the failure mode is now caught.",
+      "AC11: 0.15.1 ships with the `rate_limit_reached` fix, the registry lock fix, and a changelog that says which of 0.15.0's stated gaps have closed."
+    ]
+  },
+  "product": {
+    "title": "Settle 0.15.0's remainder",
+    "overview": "Three loose ends from 0.15.0, plus the patch release that carries them. A traceability record that understates what was verified, a registry lock that fails on Windows under the concurrency cdx exists to serve, and an option layer where adding one flag means five to eight coordinated edits and forgetting one produces a flag that silently does nothing.",
+    "goals": [
+      "Make the closeout record say what was actually verified, in both directions.",
+      "Let a fleet of parallel runs write the registry on Windows without one of them failing.",
+      "Make an incomplete option declaration impossible rather than merely unlikely.",
+      "Ship 0.15.1 with the failover false-negative fix that is already on main and unreleased."
+    ],
+    "non_goals": [
+      "Adopting an argument-parsing framework, or any runtime dependency.",
+      "Redesigning the command surface, renaming options, or changing what any existing flag does.",
+      "Extending `cdx schema --json` to describe passthrough arguments, which remain deliberately unvalidated.",
+      "Splitting `provider_runtime.py`; the coupling measurement found one seam worth 183 lines of 1320 and that is hygiene, not a problem."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Correct the req_028 record to state what background delegation was actually verified to do",
+      "priority": "High",
+      "complexity": "Low",
+      "theme": "Release hygiene",
+      "request_acs": ["AC1", "AC2"],
+      "problem": [
+        "`req_028`'s closeout records AC11 as `unverified` and describes background delegation as disabled rather than shipped broken. Both were true when written and neither is true now.",
+        "It was subsequently made to work and verified end to end against a live account: the agent identified from the `backgrounded - <id>` line, completion read from the provider's session transcript rather than from agent state, usage and final answer recovered, and the parked session stopped.",
+        "A traceability document that understates verification is the same defect as one that overstates it. This project spent a release insisting the difference between `tested` and `observed` be stated; the record has to hold in both directions or the distinction is decorative."
+      ],
+      "scope_in": [
+        "Rewrite the AC11 proof to state what was observed, when, and what remains unexercised.",
+        "State that delegation is opt-in for exposure - one account, one prompt shape - and not because it is known broken.",
+        "Check `CHANGELOGS_0_15_0.md` against the revised record and correct it if the two now disagree.",
+        "Re-baseline indicators and re-run `flow validate`."
+      ],
+      "scope_out": [
+        "Flipping the delegation default, which is a separate decision with its own evidence bar.",
+        "Re-cutting or amending the 0.15.0 release notes."
+      ],
+      "acceptance_criteria": [
+        "AC1: The AC11 proof names the observation - launch, closeout with usage from the session transcript, session stopped - rather than reporting the criterion as unverified.",
+        "AC2: The record states why delegation stays opt-in, distinguishing limited exposure from known breakage.",
+        "AC3: `CHANGELOGS_0_15_0.md` and the closeout record agree.",
+        "AC4: `flow validate` reports no findings and the audit stays at zero blocking."
+      ]
+    },
+    {
+      "title": "Let concurrent writers wait for the run registry lock on Windows instead of failing",
+      "priority": "High",
+      "complexity": "Low",
+      "theme": "Concurrency",
+      "request_acs": ["AC3", "AC4", "AC5"],
+      "problem": [
+        "`_registry_lock` uses `msvcrt.locking(fileno, LK_LOCK, 1)` on Windows, which retries ten times at one-second intervals and then raises `EDEADLOCK`. Twenty concurrent writers exhaust that budget and the `OSError` reaches the caller.",
+        "Reproduced on a real Windows machine, and identically on the `v0.14.0` tag, so it predates this work. It passes in CI, which is why it went unnoticed: the runner is less contended than a physical desktop.",
+        "It was set aside as a pre-existing flake. That understates it - a fleet of parallel runs each writing the registry is the load cdx is built to carry, and this is that load failing on one of two supported platforms.",
+        "The two platforms also disagree: `fcntl.flock` blocks indefinitely while `LK_LOCK` gives up, so the same contention produces a wait on one and an error on the other."
+      ],
+      "scope_in": [
+        "Wrap Windows lock acquisition in a retry loop with backoff so a waiter waits rather than failing at the tenth attempt.",
+        "Bound the total wait and raise a specific, actionable error when it is exhausted, so an over-contended registry is distinguishable from a defect.",
+        "Make the two platforms behave equivalently under contention, or document the remaining difference as deliberate.",
+        "Verify against a real Windows machine, not only CI, since CI is the environment that hides this."
+      ],
+      "scope_out": [
+        "Replacing the file-lock mechanism with a different concurrency primitive.",
+        "Changing the registry file format or its write strategy."
+      ],
+      "acceptance_criteria": [
+        "AC1: Twenty concurrent `start()` calls all succeed on Windows with no `OSError` reaching the caller.",
+        "AC2: `test_concurrent_starts_do_not_lose_records` passes on a physical Windows machine.",
+        "AC3: A waiter that cannot acquire the lock within the bounded wait raises a `CdxError` naming the contention, not a raw `OSError`.",
+        "AC4: The POSIX path is unchanged in behaviour, and a test covers contention on both platforms.",
+        "AC5: No run record is lost or overwritten under contention, which is what the existing test already asserts."
+      ]
+    },
+    {
+      "title": "Measure what a single option actually costs before designing anything",
+      "priority": "High",
+      "complexity": "Low",
+      "theme": "CLI surface",
+      "request_acs": ["AC6"],
+      "problem": [
+        "Adding `--failover` took five coordinated edits and one was missed, producing a flag that parsed, validated and documented while doing nothing. `--budget`, `--fallback-model` and `--extra-args` each took five to eight files.",
+        "Raw counts are known - `budget` in 7 files, `fallback_model` in 5, `extra_args` in 8, `rtk` in 9, `priority` in 11 - but a count is a symptom, not a diagnosis. Some of those sites are genuine independent decisions, such as how a value is displayed or which provider flag it maps to; others are mechanical restatements of the same fact.",
+        "Designing the consolidation before knowing which is which would repeat a mistake already made in this project: the intuition that `provider_runtime` should split between spec-building and process execution was half wrong once the coupling was actually measured, and only measurement said so."
+      ],
+      "scope_in": [
+        "Enumerate every declaration site an option touches today, classifying each as an independent decision or a restatement of something already declared.",
+        "Do it across several existing options of different shapes - a boolean, a bounded number, a free string, a provider-specific one - so the result is not fitted to one case.",
+        "Publish the measurement in the request as the evidence the design decision rests on, the way `req_027` recorded its coupling table.",
+        "Name explicitly which sites a single declaration could generate and which it could not."
+      ],
+      "scope_out": [
+        "Choosing or implementing a consolidation design; that is the next slice and depends on this one.",
+        "Any change to behaviour, parsing or output."
+      ],
+      "acceptance_criteria": [
+        "AC1: Every declaration site for at least four existing options is enumerated and classified.",
+        "AC2: The classification distinguishes independent decisions from mechanical restatements, with the reasoning stated per category rather than asserted.",
+        "AC3: The measurement is recorded in the corpus, not only in a commit message, and names what a single declaration could and could not generate.",
+        "AC4: No source behaviour changes in this slice."
+      ]
+    },
+    {
+      "title": "Make an incomplete option declaration impossible",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "CLI surface",
+      "request_acs": ["AC7", "AC8", "AC9", "AC10"],
+      "problem": [
+        "A flag can currently be declared in the parser table and omitted from the returned dict, which parses and validates and does nothing. That happened during 0.15.0 and only an integration test caught it.",
+        "`_parse_flag_args` is already table-driven, so the mechanism exists; what is missing is that the table is not the only source of truth for an option.",
+        "The same failure is expressible in the other direction: an option added to the settings validator but never displayed, or displayed but never mapped to a provider argument."
+      ],
+      "scope_in": [
+        "Derive from one declaration whatever the measurement showed can be derived - parsing, the returned dict, usage text, the unset key set, the settings allow-list, and display.",
+        "Make an incomplete declaration fail at import or test time rather than at runtime, so the failure is loud and early.",
+        "Keep `cdx schema --json` deriving from the same definitions, with no second description of the same facts.",
+        "Add no runtime dependency.",
+        "Migrate existing options to the single declaration, one at a time, with the suite green between each."
+      ],
+      "scope_out": [
+        "Adopting Typer, Click or any parsing framework.",
+        "Renaming options, changing their semantics, or altering any output.",
+        "Sites the measurement classified as genuine independent decisions, which stay where they are."
+      ],
+      "acceptance_criteria": [
+        "AC1: Adding one option to `cdx set` requires one declaration, demonstrated by adding a throwaway option in a test.",
+        "AC2: A declaration missing any derived site fails at import or in the suite, with a message naming what is missing.",
+        "AC3: A flag present in the parser table but absent from the returned dict is no longer expressible, and a test demonstrates the failure mode is caught.",
+        "AC4: `cdx schema --json` returns the same payload as before the migration for every existing option.",
+        "AC5: No runtime dependency is added and the package manifests are unchanged.",
+        "AC6: Every existing option behaves identically; the CLI contract tests pass unchanged."
+      ]
+    },
+    {
+      "title": "Cut 0.15.1 once the rest has settled",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Release hygiene",
+      "request_acs": ["AC11"],
+      "problem": [
+        "The `rate_limit_reached` fix is on main and unreleased. It corrects a false negative in `--failover`: an account with depleted credits but healthy percentage windows was reported as not exhausted, so a run that could not succeed was never migrated.",
+        "It should not ship alone. Coupled with the registry lock fix it makes a patch release with real substance and avoids two releases in quick succession.",
+        "0.15.0's changelog states two known gaps. At least one has since changed, and a patch release that does not say so leaves the published record stale."
+      ],
+      "scope_in": [
+        "Bump the three version declarations and the README badge.",
+        "Write `changelogs/CHANGELOGS_0_15_1.md`, stating which of 0.15.0's known gaps have closed and which remain.",
+        "Run the release gates through `logics-manager release plan` and `validate`, recording only evidence that has actually been observed.",
+        "Tag, publish, and record the post-publication evidence."
+      ],
+      "scope_out": [
+        "Shipping the option-layer consolidation, which lands on its own schedule.",
+        "Flipping the background delegation default."
+      ],
+      "acceptance_criteria": [
+        "AC1: 0.15.1 carries both the `rate_limit_reached` fix and the registry lock fix.",
+        "AC2: The changelog states which of 0.15.0's known gaps have closed and which remain open.",
+        "AC3: All nine release gates pass with evidence recorded only after the fact it describes was observed.",
+        "AC4: npm and PyPI both report 0.15.1, verified at the registries rather than from workflow status alone."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Settle 0.15.0's remainder and cut 0.15.1",
+    "plan": [
+      "Correct the `req_028` record first. It is the smallest item and the one whose being wrong costs the most: every later decision in this repository is made by reading these documents, and one that understates verification teaches the reader to distrust all of them.",
+      "Then the registry lock, because it is a real failure of the product's own use case on a supported platform, and because 0.15.1 should not go out without it. Verify on a physical Windows machine - CI is the environment that hides this, so a green CI proves nothing here.",
+      "Then measure the option layer, and stop there. Publish the classification before choosing a design. The precedent is `req_027`, whose measurement said to stop after two modules when intuition said six, and the more recent one on `provider_runtime`, where measurement showed the intended seam had no helpers of its own.",
+      "Then consolidate, migrating one option at a time with the suite green between each. The test that proves the work is one that adds a throwaway option and demonstrates an incomplete declaration failing loudly.",
+      "Cut 0.15.1 last, carrying the two fixes. Record release evidence only after observing the thing it describes - the checksum, GitHub release and publication gates are only observable after the tag exists.",
+      "Throughout: no runtime dependency, no renamed options, no changed semantics. This request is about making the existing surface hold, not about redesigning it.",
+      "Closeout: state for each criterion whether it was tested or observed, and on which platform. The Windows criteria are only satisfiable by observation on a real machine."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/settle_before_0_15_1.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}
