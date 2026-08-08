@@ -43,12 +43,13 @@ RESUME_USAGE = "Usage: cdx resume <name> [--json]"
 CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--json]"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json"
 NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
-RUN_USAGE = "Usage: cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--detach] [--refresh] --json"
+RUN_USAGE = "Usage: cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--detach] [--failover] [--refresh] --json"
 RUN_JSON_REQUIRED = "cdx run: --json is required."
 RUN_TARGET_REQUIRED = "cdx run: specify a session name or --provider PROVIDER."
 RUN_SESSION_PROVIDER_CONFLICT = "cdx run: cannot specify both a session name and --provider."
 RUN_CWD_REQUIRED = "cdx run: --cwd PATH is required."
 RUN_PROMPT_SOURCE_REQUIRED = "cdx run: specify exactly one prompt source: --prompt TEXT or --prompt-file PATH."
+RUN_DETACH_FAILOVER_CONFLICT = "cdx run: --failover needs to watch the run, which --detach gives up."
 RUN_KIND_VALUES = ("assistant", "code-review")
 # Aliases of the shared definitions in config, kept only so the existing
 # RUN_* spellings in this module keep reading naturally. They are references,
@@ -455,6 +456,11 @@ def cdx_schema():
                 "arguments": ["--prompt-file", "--prompt"],
                 "reason": "Exactly one prompt source.",
             },
+            {
+                "command": "run",
+                "arguments": ["--detach", "--failover"],
+                "reason": "Failover has to watch the run to react to a rate limit; --detach stops watching.",
+            },
         ],
         # Not mutually exclusive: both may be given, and cdx accepts them when
         # they agree. A caller generating validation from `mutually_exclusive`
@@ -572,6 +578,7 @@ def _parse_run_args(args):
         "--permission": {"key": "permission", "type": "str", "default": None, "transform": _normalize_run_permission},
         "--timeout-seconds": {"key": "timeout_seconds", "type": "str", "default": None, "transform": _parse_run_timeout_seconds},
         "--detach": {"key": "detach", "type": "bool", "default": False},
+        "--failover": {"key": "failover", "type": "bool", "default": False},
         "--refresh": {"key": "refresh", "type": "bool", "default": False},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, RUN_USAGE, positionals_key="names", max_positionals=1)
@@ -593,6 +600,12 @@ def _parse_run_args(args):
             RUN_PROMPT_SOURCE_REQUIRED,
             code=ARG_CODE_MUTUALLY_EXCLUSIVE,
             arguments=["--prompt-file", "--prompt"],
+        )
+    if parsed["detach"] and parsed["failover"]:
+        raise CdxArgumentError(
+            RUN_DETACH_FAILOVER_CONFLICT,
+            code=ARG_CODE_MUTUALLY_EXCLUSIVE,
+            arguments=["--detach", "--failover"],
         )
     if not parsed["prompt_file"] and not parsed["prompt"]:
         raise CdxArgumentError(
@@ -620,6 +633,7 @@ def _parse_run_args(args):
         "permission": parsed["permission"],
         "timeout_seconds": parsed["timeout_seconds"],
         "detach": parsed["detach"],
+        "failover": parsed["failover"],
         "refresh": parsed["refresh"],
         "reasoning_effort": effort.get("reasoning_effort"),
         "power": effort.get("power"),

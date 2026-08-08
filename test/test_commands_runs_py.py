@@ -1317,3 +1317,95 @@ class RunsCommandTests(CliTestBase):
         self.assertEqual(payload["error"]["code"], "provider_timeout")
         self.assertEqual(payload["exit_code"], 124)
 
+
+    def test_failover_continues_the_task_on_the_next_account(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        for name in ("work1", "work2"):
+            self._authenticated_codex_session(service, name)
+        # work1 is spent, work2 is not, so the ranking prefers work2 as the
+        # successor and the corroboration step agrees work1 is exhausted.
+        service["record_status"]("work1", {"remaining_5h_pct": 0, "remaining_week_pct": 0})
+
+        seen = []
+
+        def spawn(_argv, **kwargs):
+            running = RunRegistry(target_dir).list(limit=1)[0]
+            seen.append(running["session"])
+            if running["session"] == "work1":
+                kwargs["stdout"].write(json.dumps(
+                    {"type": "error", "payload": {"kind": "rate_limit"}}
+                ) + "\n")
+                return _HeadlessChild(1)
+            return _HeadlessChild(0)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work1", "--cwd", target_dir, "--prompt", "Do it", "--failover", "--json"
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 0)
+
+        self.assertEqual(seen, ["work1", "work2"])
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["session"], "work2")
+
+        runs = RunRegistry(target_dir).list(limit=10)
+        self.assertEqual(len(runs), 1, "a failover is one run, not several")
+        self.assertEqual(
+            [item["session"] for item in runs[0]["occupancies"]], ["work1", "work2"]
+        )
+
+    def test_failover_reports_exhausting_every_account_distinctly(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        self._authenticated_codex_session(service, "only")
+        service["record_status"]("only", {"remaining_5h_pct": 0, "remaining_week_pct": 0})
+
+        def spawn(_argv, **kwargs):
+            kwargs["stdout"].write(json.dumps({"type": "error", "payload": {"kind": "rate_limit"}}) + "\n")
+            return _HeadlessChild(1)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "only", "--cwd", target_dir, "--prompt", "Do it", "--failover", "--json"
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 1)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["code"], "failover_exhausted")
+
+    def test_without_failover_a_rate_limited_run_fails_as_before(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        for name in ("work1", "work2"):
+            self._authenticated_codex_session(service, name)
+        service["record_status"]("work1", {"remaining_5h_pct": 0, "remaining_week_pct": 0})
+
+        attempts = []
+
+        def spawn(_argv, **kwargs):
+            attempts.append(1)
+            kwargs["stdout"].write(json.dumps({"type": "error", "payload": {"kind": "rate_limit"}}) + "\n")
+            return _HeadlessChild(1)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work1", "--cwd", target_dir, "--prompt", "Do it", "--json"
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 1)
+
+        self.assertEqual(len(attempts), 1)
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertEqual(payload["error"]["code"], "provider_failed")
+
+    def test_detach_and_failover_are_rejected_together(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        self._authenticated_codex_session(service, "work")
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--detach", "--failover", "--json"
+        ], self.make_run_ctx(io_obj, service)), 1)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertEqual(payload["error"]["code"], "mutually_exclusive_arguments")

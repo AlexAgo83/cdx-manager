@@ -124,6 +124,18 @@ def _base_record(run_id, *, kind, session, provider, model, cwd, artifacts=None)
         # the liveness proxy until finish() records the provider child's pid.
         "pid": os.getpid(),
         "started_at": utc_now_iso(),
+        # A failover run occupies several sessions in turn while staying one
+        # run. `session` and `provider` above name the current occupant so every
+        # existing reader keeps working; this is the ordered history behind
+        # them, and it exists from the start so no run is ever written in a
+        # shape the reporting cannot express.
+        "occupancies": [{
+            "session": session,
+            "provider": provider,
+            "started_at": utc_now_iso(),
+            "ended_at": None,
+            "reason": "initial_selection",
+        }],
         "ended_at": None,
         "duration_seconds": None,
         "exit_code": None,
@@ -166,6 +178,37 @@ class RunRegistry:
                     return run
         return None
 
+    def migrate(self, run_id, *, session, provider, reason):
+        """Move a still-running run onto another session, keeping one run_id.
+
+        Closes the current occupancy with the reason it ended and opens the
+        next one. The top-level `session`/`provider` follow the new occupant so
+        readers that know nothing about occupancies stay correct.
+        """
+        with _registry_lock(self.path):
+            data = _read_registry(self.path)
+            now = utc_now_iso()
+            for run in data["runs"]:
+                if run.get("run_id") != run_id:
+                    continue
+                occupancies = run.get("occupancies") or []
+                if occupancies and occupancies[-1].get("ended_at") is None:
+                    occupancies[-1]["ended_at"] = now
+                    occupancies[-1]["reason"] = reason
+                occupancies.append({
+                    "session": session,
+                    "provider": provider,
+                    "started_at": now,
+                    "ended_at": None,
+                    "reason": "failover_target",
+                })
+                run["occupancies"] = occupancies
+                run["session"] = session
+                run["provider"] = provider
+                _write_registry(self.path, data)
+                return run
+            return None
+
     def finish(self, run_id, *, status, final_payload=None, run_info=None, error=None, task_report=None):
         with _registry_lock(self.path):
             return self._finish_locked(run_id, status=status, final_payload=final_payload, run_info=run_info, error=error, task_report=task_report)
@@ -178,6 +221,10 @@ class RunRegistry:
                 continue
             run["status"] = status
             run["ended_at"] = now
+            occupancies = run.get("occupancies") or []
+            if occupancies and occupancies[-1].get("ended_at") is None:
+                occupancies[-1]["ended_at"] = now
+                occupancies[-1]["reason"] = status
             if run.get("started_at"):
                 try:
                     start = datetime.fromisoformat(str(run["started_at"]).replace("Z", "+00:00"))

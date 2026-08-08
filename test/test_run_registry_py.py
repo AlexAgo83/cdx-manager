@@ -26,6 +26,37 @@ class RunRegistryTests(unittest.TestCase):
             cwd=self.base_dir,
         )
 
+    def test_migrate_keeps_one_run_and_records_the_session_sequence(self):
+        registry = RunRegistry(self.base_dir)
+        registry.start("r1", kind="assistant", session="work1", provider="codex", model=None, cwd=self.base_dir)
+
+        registry.migrate("r1", session="work2", provider="codex", reason="rate_limited")
+        registry.migrate("r1", session="oss", provider="claude", reason="rate_limited")
+        registry.finish("r1", status="succeeded")
+
+        runs = registry.list(limit=10)
+        self.assertEqual(len(runs), 1)
+        run = runs[0]
+        # Top-level session/provider name the current occupant, so readers that
+        # know nothing about occupancies stay correct.
+        self.assertEqual(run["session"], "oss")
+        self.assertEqual(run["provider"], "claude")
+        self.assertEqual(
+            [(item["session"], item["reason"]) for item in run["occupancies"]],
+            [("work1", "rate_limited"), ("work2", "rate_limited"), ("oss", "succeeded")],
+        )
+        self.assertTrue(all(item["ended_at"] for item in run["occupancies"]))
+
+    def test_a_run_that_never_migrates_still_records_one_occupancy(self):
+        registry = RunRegistry(self.base_dir)
+        registry.start("r2", kind="assistant", session="work1", provider="codex", model=None, cwd=self.base_dir)
+        registry.finish("r2", status="failed")
+
+        run = registry.get("r2")
+        self.assertEqual(len(run["occupancies"]), 1)
+        self.assertEqual(run["occupancies"][0]["session"], "work1")
+        self.assertEqual(run["occupancies"][0]["reason"], "failed")
+
     def test_in_flight_run_is_not_marked_stale(self):
         record = self._start("run-1")
         self.assertEqual(record["pid"], os.getpid())

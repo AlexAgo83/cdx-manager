@@ -23,6 +23,7 @@ from ..cli_helpers import API_SCHEMA_VERSION, _json_failure, _json_success, _wri
 from ..errors import CdxError
 from ..provider_runtime import _ensure_session_authentication, _headless_artifact_paths, _run_headless_provider_command
 from ..run_command import read_run_prompt, run_cdx_error_code, run_launch_payload, run_result_payload
+from ..run_failover import MAX_FAILOVER_TRANSITIONS, should_fail_over
 from ..run_registry import RunRegistry, build_code_review_report
 from ..run_usage import extract_run_usage
 from ..session_ranking import FACTOR_DESCRIPTIONS, rank_sessions, selection_policy
@@ -450,17 +451,72 @@ def handle_run(rest, ctx):
             ))
             return 0
 
-        run_info = _run_headless_provider_command(
-            run_session,
-            cwd=cwd,
-            env_override=ctx.get("env"),
-            initial_prompt=prompt,
-            timeout_seconds=parsed.get("timeout_seconds"),
-            spawn=ctx.get("spawn_headless") or ctx.get("spawn"),
-            run_id=run_id,
-        )
-        usage = extract_run_usage(run_session.get("provider"), run_info.get("stdout_path"))
-        run_info = {**run_info, "usage": usage}
+        attempted = [run_session["name"]]
+        failover_error_code = None
+        while True:
+            run_info = _run_headless_provider_command(
+                run_session,
+                cwd=cwd,
+                env_override=ctx.get("env"),
+                initial_prompt=prompt,
+                timeout_seconds=parsed.get("timeout_seconds"),
+                spawn=ctx.get("spawn_headless") or ctx.get("spawn"),
+                run_id=run_id,
+            )
+            usage = extract_run_usage(run_session.get("provider"), run_info.get("stdout_path"))
+            run_info = {**run_info, "usage": usage}
+            if run_info.get("returncode") == 0 or not parsed.get("failover"):
+                break
+            if not should_fail_over(
+                run_session.get("provider"),
+                run_info,
+                _status_row_for(ctx, run_session["name"]),
+            ):
+                break
+            if len(attempted) > MAX_FAILOVER_TRANSITIONS:
+                # A systematic misclassification must not be able to walk one
+                # task through every account the user owns.
+                failover_error_code = "failover_limit_reached"
+                break
+            successor = _select_headless_session(
+                ctx,
+                parsed["provider"] or run_session.get("provider"),
+                min_reasoning_effort=parsed["reasoning_effort"],
+                require_ready=True,
+                force_refresh=False,
+                exclude=attempted,
+            )
+            if not successor:
+                failover_error_code = "failover_exhausted"
+                break
+            selection_row = successor.get("row") or {}
+            run_session = {
+                **successor["session"],
+                "launch": {**(successor["session"].get("launch") or {}), **launch_updates},
+            }
+            attempted.append(run_session["name"])
+            # A different account means different credentials; an unauthenticated
+            # successor would fail for a reason unrelated to the task.
+            _ensure_session_authentication(
+                run_session,
+                ctx["service"],
+                spawn=ctx.get("spawn"),
+                spawn_sync=ctx.get("spawn_sync"),
+                env_override=ctx.get("env"),
+                stdin_is_tty=False,
+                behavior="launch",
+                signal_emitter=ctx.get("signal_emitter"),
+                trust_local_credentials=False,
+            )
+            registry.migrate(
+                run_id,
+                session=run_session["name"],
+                provider=run_session.get("provider"),
+                reason="rate_limited",
+            )
+            # The successor is a different account with its own auth, so the
+            # context the task built so far travels with it as the prompt.
+            prompt = _failover_prompt(prompt, attempted)
         ok = run_info.get("returncode") == 0
         if ok:
             final_payload = run_result_payload(
@@ -483,7 +539,14 @@ def handle_run(rest, ctx):
             })
             _write_json(ctx, final_payload)
             return 0
-        message = "Provider process timed out." if run_info.get("timed_out") else "Provider process exited with a non-zero status."
+        if failover_error_code == "failover_exhausted":
+            message = f"Every eligible session was rate limited: {', '.join(attempted)}."
+        elif failover_error_code == "failover_limit_reached":
+            message = f"Failover stopped after {MAX_FAILOVER_TRANSITIONS} transitions: {', '.join(attempted)}."
+        elif run_info.get("timed_out"):
+            message = "Provider process timed out."
+        else:
+            message = "Provider process exited with a non-zero status."
         error = CdxError(message, run_info.get("returncode") or 1)
         final_payload = run_result_payload(
             API_SCHEMA_VERSION,
@@ -493,7 +556,11 @@ def handle_run(rest, ctx):
             run_info=run_info,
             error=error,
             error_source="provider",
-            error_code="provider_timeout" if run_info.get("timed_out") else "provider_failed",
+            # Running out of accounts is a different outcome from the task
+            # failing, and a caller has to be able to branch on which happened.
+            error_code=failover_error_code or (
+                "provider_timeout" if run_info.get("timed_out") else "provider_failed"
+            ),
             selection_row=selection_row,
         )
         registry.finish(
@@ -537,12 +604,17 @@ def handle_run(rest, ctx):
         _write_json(ctx, final_payload)
         return error.exit_code
 
-def _select_headless_session(ctx, provider, min_reasoning_effort=None, require_ready=False, force_refresh=False):
+def _select_headless_session(
+    ctx, provider, min_reasoning_effort=None, require_ready=False, force_refresh=False, exclude=None,
+):
     """The best session for a headless run, using the one shared ranking.
 
     Returns the winning session with its status row and why it won, or None if
-    no candidate survived the filters.
+    no candidate survived the filters. `exclude` drops sessions a failover has
+    already tried, which is the only selection input failover adds - the
+    ranking itself is untouched.
     """
+    excluded = set(exclude or ())
     sessions_by_name = {
         session["name"]: session for session in ctx["service"]["list_sessions"]()
     }
@@ -556,7 +628,53 @@ def _select_headless_session(ctx, provider, min_reasoning_effort=None, require_r
         min_reasoning_effort=min_reasoning_effort,
     )
     for row in ordered:
-        session = sessions_by_name.get(row.get("session_name"))
+        name = row.get("session_name")
+        if name in excluded:
+            continue
+        session = sessions_by_name.get(name)
         if session:
             return {"session": session, "row": row, "decision": decision}
     return None
+
+
+def _failover_prompt(prompt, attempted):
+    """The prompt the successor account receives.
+
+    What travels is the task, plus the fact that earlier accounts ran out
+    mid-way. What does NOT travel is the provider conversation: the successor
+    is a different account with its own auth and its own history, so it starts
+    fresh. Any work the previous attempt left on disk is still on disk, which
+    is why the note tells the assistant to check before redoing it.
+    """
+    previous = ", ".join(attempted[:-1])
+    return (
+        "This task was already started on another account "
+        f"({previous}) and stopped when that account hit its rate limit. "
+        "Work already written to the working tree is still there; check the "
+        "current state before redoing anything.\n\n"
+        f"{prompt}"
+    )
+
+
+def _status_row_for(ctx, name):
+    """The status to corroborate a rate-limited termination against.
+
+    Forced refresh on purpose: this runs once per rate-limited termination. The
+    Codex probe spawns app-server and can rotate the OAuth token, which is why
+    the cache exists, so this must stay rare and must never be called in a loop.
+
+    A refresh that comes back with no readable window falls back to the stored
+    status rather than being taken as "not exhausted": a failed probe is an
+    absence of evidence, and the account may well have a recorded 0% from the
+    moment it stopped answering.
+    """
+    def _read(force_refresh):
+        try:
+            return ctx["service"]["get_status_row"](name, force_refresh=force_refresh)
+        except CdxError:
+            return None
+
+    row = _read(True)
+    if row and any(row.get(key) is not None for key in ("remaining_5h_pct", "remaining_week_pct")):
+        return row
+    return _read(False) or row
