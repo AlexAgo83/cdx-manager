@@ -141,6 +141,11 @@ def _base_record(run_id, *, kind, session, provider, model, cwd, artifacts=None)
         "exit_code": None,
         "usage": None,
         "artifacts": dict(artifacts or {}),
+        # Which mechanism is carrying a detached run, and the provider's own
+        # handle when it is the provider's. Present on every record so a reader
+        # never has to infer it from absence.
+        "background_path": None,
+        "provider_session_id": None,
         "error": None,
         "task_report": None,
         "final_payload": None,
@@ -177,6 +182,18 @@ class RunRegistry:
                     _write_registry(self.path, data)
                     return run
         return None
+
+    def record_background(self, run_id, *, path, provider_session_id=None):
+        with _registry_lock(self.path):
+            data = _read_registry(self.path)
+            for run in data["runs"]:
+                if run.get("run_id") != run_id:
+                    continue
+                run["background_path"] = path
+                run["provider_session_id"] = provider_session_id
+                _write_registry(self.path, data)
+                return run
+            return None
 
     def migrate(self, run_id, *, session, provider, reason):
         """Move a still-running run onto another session, keeping one run_id.

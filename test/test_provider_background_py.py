@@ -1,0 +1,80 @@
+"""Tests for delegating detached runs to a provider's own background agents."""
+
+import json
+import unittest
+
+from src.provider_background import (
+    agent_terminal_status,
+    find_agent,
+    list_background_agents,
+    supports_native_background,
+)
+
+
+def _runner(responses):
+    def run(argv, env=None):
+        return responses.get(" ".join(argv))
+    return run
+
+
+class CapabilityDetectionTests(unittest.TestCase):
+    def test_requires_both_starting_and_observing(self):
+        both = _runner({
+            "claude --help": "  --bg, --background  Start the session as a background agent",
+            "claude agents --help": "  --json  Print active sessions as a JSON array",
+        })
+        self.assertTrue(supports_native_background("claude", spawn_sync=both))
+
+        # An agent cdx can start but never observe would leave runs stuck at
+        # "running" forever, which is worse than not delegating at all.
+        start_only = _runner({
+            "claude --help": "  --bg  Start the session as a background agent",
+            "claude agents --help": "  --cwd <path>  Filter by directory",
+        })
+        self.assertFalse(supports_native_background("claude", spawn_sync=start_only))
+
+    def test_codex_is_not_delegated_to_while_its_surface_is_experimental(self):
+        anything = _runner({
+            "codex --help": "--bg",
+            "codex agents --help": "--json",
+        })
+        self.assertFalse(supports_native_background("codex", spawn_sync=anything))
+
+    def test_an_unreadable_cli_is_not_a_capability(self):
+        self.assertFalse(supports_native_background("claude", spawn_sync=_runner({})))
+
+
+class AgentListingTests(unittest.TestCase):
+    def test_parses_the_agent_array(self):
+        agents = [{"pid": 1, "sessionId": "abc", "status": "busy"}]
+        runner = _runner({"claude agents --json --all": json.dumps(agents)})
+
+        found = list_background_agents(spawn_sync=runner)
+
+        self.assertEqual(found, agents)
+        self.assertEqual(find_agent(found, "abc")["pid"], 1)
+        self.assertIsNone(find_agent(found, "missing"))
+
+    def test_any_failure_yields_an_empty_list_rather_than_raising(self):
+        # This feeds a status refresh that must never take down the command
+        # that asked for it.
+        for payload in (None, "", "not json", "{}"):
+            self.assertEqual(list_background_agents(spawn_sync=_runner(
+                {"claude agents --json --all": payload}
+            )), [])
+
+
+class TerminalStatusTests(unittest.TestCase):
+    def test_a_running_agent_has_no_terminal_status(self):
+        for status in ("busy", "idle", "starting"):
+            self.assertIsNone(agent_terminal_status({"status": status}))
+
+    def test_completion_maps_to_succeeded_and_everything_else_to_failed(self):
+        self.assertEqual(agent_terminal_status({"status": "completed"}), "succeeded")
+        for status in ("failed", "cancelled", "error"):
+            self.assertEqual(agent_terminal_status({"status": status}), "failed")
+
+    def test_an_agent_the_provider_no_longer_lists_is_never_called_a_success(self):
+        # Its outcome was never observed, and success is the one answer that
+        # must not be guessed.
+        self.assertEqual(agent_terminal_status(None), "failed")

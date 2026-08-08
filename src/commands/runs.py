@@ -21,7 +21,20 @@ from ..cli_args import (
 )
 from ..cli_helpers import API_SCHEMA_VERSION, _json_failure, _json_success, _write_json
 from ..errors import CdxError
-from ..provider_runtime import _ensure_session_authentication, _headless_artifact_paths, _run_headless_provider_command
+from ..provider_background import (
+    BACKGROUND_PATH_CDX,
+    BACKGROUND_PATH_PROVIDER,
+    find_agent,
+    list_background_agents,
+    supports_native_background,
+)
+from ..provider_runtime import (
+    _build_headless_launch_spec,
+    _conversation_id,
+    _ensure_session_authentication,
+    _headless_artifact_paths,
+    _run_headless_provider_command,
+)
 from ..run_command import read_run_prompt, run_cdx_error_code, run_launch_payload, run_result_payload
 from ..run_failover import MAX_FAILOVER_TRANSITIONS, should_fail_over
 from ..run_registry import RunRegistry, build_code_review_report
@@ -234,7 +247,56 @@ def _spawn_detached_run(parsed, prompt, artifacts, ctx, session_name, cwd):
         # registered run failed, instead of letting a raw OSError escape as an
         # unhandled traceback on a --json call.
         raise CdxError(f"Failed to start detached cdx run: {error}", 126) from error
-    return {"pid": getattr(child, "pid", None), "launch_log_path": launch_log_path}
+    return {
+        "pid": getattr(child, "pid", None),
+        "launch_log_path": launch_log_path,
+        "background_path": BACKGROUND_PATH_CDX,
+    }
+
+
+def _spawn_provider_background_run(run_session, prompt, artifacts, ctx, cwd):
+    """Start the run as the provider's own background agent.
+
+    Returns the same shape as the in-house launcher so the caller does not
+    branch on which path ran, plus the provider handle needed to observe it
+    later. Returns None when the provider declines to start one, which sends
+    the caller back to the in-house path rather than failing the run.
+    """
+    spec = _build_headless_launch_spec(run_session, cwd=cwd, initial_prompt=prompt)
+    argv = [spec["command"], "--bg"] + [arg for arg in spec["args"] if arg != "--print"]
+    env = (spec.get("options") or {}).get("env")
+    spawn = ctx.get("spawn_detached") or subprocess.Popen
+    prefix = os.path.splitext(artifacts["transcript_path"])[0]
+    launch_log_path = f"{prefix}.launch.log"
+    try:
+        with open(launch_log_path, "w", encoding="utf-8", errors="replace") as log_file:
+            spawn(
+                argv,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                cwd=cwd,
+                env=env,
+                **_detached_spawn_options(),
+            )
+    except OSError:
+        return None
+
+    # The provider owns the agent, so its identity and pid come from asking it,
+    # not from the process cdx just spawned.
+    agents = list_background_agents(env=env, cwd=cwd, spawn_sync=ctx.get("spawn_text"))
+    agent = None
+    conversation_id = _conversation_id(run_session)
+    if conversation_id:
+        agent = find_agent(agents, conversation_id)
+    if agent is None:
+        return None
+    return {
+        "pid": agent.get("pid"),
+        "launch_log_path": launch_log_path,
+        "background_path": BACKGROUND_PATH_PROVIDER,
+        "provider_session_id": agent.get("sessionId"),
+    }
 
 def handle_schema(rest, ctx):
     _parse_schema_args(rest)
@@ -434,7 +496,23 @@ def handle_run(rest, ctx):
             },
         )
         if parsed.get("detach"):
-            launch = _spawn_detached_run(parsed, prompt, artifacts, ctx, run_session["name"], cwd)
+            # Delegate where the installed CLI can both start a background
+            # agent and report on it; fall back to the in-house launcher
+            # otherwise, and whenever the provider declines to start one.
+            launch = None
+            if supports_native_background(
+                run_session.get("provider"),
+                env=ctx.get("env"),
+                spawn_sync=ctx.get("spawn_text"),
+            ):
+                launch = _spawn_provider_background_run(run_session, prompt, artifacts, ctx, cwd)
+            if launch is None:
+                launch = _spawn_detached_run(parsed, prompt, artifacts, ctx, run_session["name"], cwd)
+            registry.record_background(
+                run_id,
+                path=launch.get("background_path"),
+                provider_session_id=launch.get("provider_session_id"),
+            )
             # Hand the record the child's pid: this process is about to exit,
             # and a run pointing at a dead pid gets swept up as stale.
             if launch.get("pid"):
