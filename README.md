@@ -2,19 +2,48 @@
 
 [![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.14.0-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
-**Run multiple Codex, Claude, Antigravity, and Ollama sessions from one terminal. Switch between accounts instantly.**
+**Stop guessing which AI account still has quota.** `cdx` tracks the rate-limit window of every Codex and Claude account you own, tells you which one is usable right now, and launches it with isolated auth — in one command.
 
-If you use AI coding tools at scale ; multiple accounts, multiple providers : you know the friction: re-authenticating, losing context, juggling environment variables. `cdx` removes all of that.
-
-One command to launch any session. Zero auth juggling.
+If you pay for several AI coding subscriptions, you know the dance: you hit a 5-hour limit mid-task, guess which other account still has room, re-authenticate, and lose your context on the way. `cdx` turns that into `cdx next`.
 
 <img width="213" height="227" alt="image" src="https://github.com/user-attachments/assets/f15f449c-d23e-47fe-a455-17c7386f9be2" />
 <img width="645" height="129" alt="image" src="https://github.com/user-attachments/assets/34bcb395-f832-4da6-9247-3e5022e75e56" />
 
 ---
 
+## Quick Start
+
+```bash
+npm install -g cdx-manager
+
+cdx add codex work      # register an isolated Codex profile named "work"
+cdx add claude perso    # and a Claude one
+cdx status              # every account's remaining quota, side by side
+cdx next                # which account should I use right now?
+```
+
+Supported providers: `codex`, `claude`, `antigravity`, `ollama`.
+
+---
+
+## The Core Five
+
+Everything else is optional. These five cover the daily loop:
+
+| Command | What it gives you |
+|---|---|
+| `cdx add <provider> <name>` | An isolated account profile — its own auth, its own home |
+| `cdx <name>` | Launch that account, auth checked first |
+| `cdx status` | Remaining 5-hour and weekly quota for every account at once |
+| `cdx next` | The account you should use right now, and why |
+| `cdx run --prompt ... --json` | The same routing, headless, for scripts and agents |
+
+---
+
 ## Table of Contents
 
+- [Quick Start](#quick-start)
+- [The Core Five](#the-core-five)
 - [What it does](#what-it-does)
 - [Technical Overview](#technical-overview)
 - [Getting Started](#getting-started)
@@ -32,24 +61,47 @@ One command to launch any session. Zero auth juggling.
 
 ## What it does
 
+### Quota-aware routing
+
+The reason `cdx` exists: knowing, across every account you own, which one you can actually use.
+
+- **Usage at a glance.** `cdx status` shows token usage, 5-hour window quota, weekly quota, last-updated timestamps, priority guidance, and the last launched session in one aligned table.
+- **Pick for me.** `cdx next` selects the best available assistant from your pinned priorities and the live quota picture, shows the reason, and prints the exact command to run.
+- **Next-ready notification.** `cdx ready` schedules a native system notification for the next assistant that comes back from cooldown, then returns immediately. `cdx notify` covers reset times and scheduled wake-ups.
+- **Passive status resolution.** Codex status is read from the local Codex app-server rate-limit API when available, with legacy transcript/history parsing kept as a fallback.
+- **Banked reset visibility.** Eligible Codex accounts show the number of manually redeemable bonus resets in `cdx status` and expose reset details in JSON output.
+
+### Isolated multi-account sessions
+
 - **Multiple providers, one tool.** Register as many Codex, Claude, Antigravity, or Ollama sessions as you need. Codex and Claude get isolated auth environments; Antigravity is launchable through `agy` with OS-keyring auth; Ollama runs local models through `ollama run`.
 - **Instant launch.** `cdx work` opens your "work" session. `cdx personal` opens another. No config files to edit mid-flow.
 - **Quick relaunch.** `cdx last` reopens the most recently launched assistant profile.
 - **Auth guardrails.** `cdx` checks authentication before launching. If a session is not logged in, it tells you exactly what to run — no silent failures.
-- **Optional session labels.** `cdx label <name> <label>` adds a short human label; list and full status tables show a `LABEL` column only when at least one session has one.
-- **Usage at a glance.** `cdx status` shows token usage, 5-hour window quota, weekly quota, last-updated timestamps, priority guidance, and the last launched session in one aligned table.
-- **Next-ready notification.** `cdx ready` schedules a native system notification for the next assistant that comes back from cooldown, then returns immediately.
-- **Session control.** Disable a session without deleting it when an account is temporarily out of credits; disabled sessions remain visible and sort last.
 - **Persistent launch settings.** Pin per-session power, permission, and fast-mode preferences once; `cdx` reapplies them on every launch until you unset them.
+- **Session control.** Disable a session without deleting it when an account is temporarily out of credits; disabled sessions remain visible and sort last.
+- **Optional session labels.** `cdx label <name> <label>` adds a short human label; list and full status tables show a `LABEL` column only when at least one session has one.
+- **Clean removal.** `cdx rmv` wipes a session and its entire auth directory. No orphaned files, no stale credentials.
+
+### Headless automation
+
+- **One task, one JSON result.** `cdx run` executes a prompt against a chosen or auto-selected session and returns a stable payload; `--detach` returns a `run_id` immediately.
+- **Observable runs.** `cdx run-status`, `cdx run-tail`, `cdx run-report`, and `cdx runs --since` follow a run while it happens and after it ends.
+- **Selection without launching.** `cdx select --provider ... --require-ready --json` answers "which session should this job use?" for orchestrators.
+- **Validated contract.** `cdx schema --json` publishes the enums, mutually-exclusive argument groups, and error codes programmatic callers should validate against.
+
+### Context handoff
+
+- **Shared handoff context.** Keep a per-workspace Markdown context, or build one from a source session transcript, and install it into another assistant session before switching providers or accounts.
+- **Session transcript capture.** Every launch is recorded to a local log file via `script`, giving you a full terminal transcript for each session.
+
+### Maintenance
+
 - **Launch history.** Inspect recent launches with provider, result, duration, working directory, launch settings, and transcript path.
 - **Disk usage and cleanup.** `cdx disk` reports `CDX_HOME` usage, `cdx disk profiles --candidates` identifies reclaimable profile caches/logs with evidence, and `cdx clean profiles ...` applies explicit cleanup actions.
+- **Health and repair.** `cdx doctor` inspects dependencies, permissions, and orphan profiles; `cdx repair` plans or applies safe fixes.
+- **Portable bundles.** `cdx export` / `cdx import` move sessions between machines, with passphrase-encrypted auth data when you ask for it.
 - **Update prompts.** Periodic update checks surface `cdx update` directly in the `cdx`, `cdx status`, and launch output when a newer release is available. When `logics-manager` is installed, `cdx` can also suggest `logics-manager self-update`.
 - **Logics viewer shortcut.** `cdx view` opens the Logics browser/focus viewer through `logics-manager view` when the companion CLI is installed. All viewer flags are forwarded: `--lan`, `--lan-rw`, `--focus <ref>`, `--read`, `--port`, `--host`, `--refresh-interval`, `--tls`, `--tls-cert`, `--tls-key`, `--open`, `--no-open`. `cdx view --json` reports availability and update diagnostics without opening the viewer.
-- **Shared handoff context.** Keep a per-workspace Markdown context, or build one from a source session transcript, and install it into another assistant session before switching providers or accounts.
-- **Passive status resolution.** Codex status is read from the local Codex app-server rate-limit API when available, with legacy transcript/history parsing kept as a fallback.
-- **Banked reset visibility.** Eligible Codex accounts show the number of manually redeemable bonus resets in `cdx status` and expose reset details in JSON output.
-- **Session transcript capture.** Every launch is recorded to a local log file via `script`, giving you a full terminal transcript for each session.
-- **Clean removal.** `cdx rmv` wipes a session and its entire auth directory. No orphaned files, no stale credentials.
 
 ---
 
