@@ -9,7 +9,10 @@ from src.provider_background import (
     find_agent,
     list_background_agents,
     parse_backgrounded_id,
+    read_transcript_outcome,
+    stop_background_agent,
     supports_native_background,
+    turn_is_complete,
 )
 
 ON = {"CDX_EXPERIMENTAL_NATIVE_BG": "1"}
@@ -154,3 +157,72 @@ class BackgroundArgvTests(unittest.TestCase):
         # The settings that do apply to a session still travel.
         self.assertIn("--session-id", argv)
         self.assertIn("--model", argv)
+
+
+class TranscriptOutcomeTests(unittest.TestCase):
+    def _transcript(self, records):
+        handle = tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False, encoding="utf-8")
+        for record in records:
+            handle.write(json.dumps(record) + "\n")
+        handle.close()
+        return handle.name
+
+    def test_reads_the_answer_and_sums_usage_across_turns(self):
+        path = self._transcript([
+            {"type": "user"},
+            {"type": "assistant", "message": {
+                "content": [{"type": "text", "text": "first"}],
+                "usage": {"input_tokens": 2, "cache_creation_input_tokens": 10,
+                          "cache_read_input_tokens": 5, "output_tokens": 3},
+            }},
+            {"type": "assistant", "message": {
+                "content": [{"type": "text", "text": "OK"}],
+                "usage": {"input_tokens": 1, "output_tokens": 4},
+            }},
+        ])
+
+        outcome = read_transcript_outcome(path)
+
+        self.assertEqual(outcome["result"], "OK")
+        # Cache creation and cache reads are input the account paid for.
+        self.assertEqual(outcome["usage"]["input_tokens"], 18)
+        self.assertEqual(outcome["usage"]["output_tokens"], 7)
+        self.assertEqual(outcome["usage"]["total_tokens"], 25)
+
+    def test_an_unreadable_or_missing_transcript_yields_nothing(self):
+        for path in (None, "/nonexistent.jsonl", self._transcript([])):
+            outcome = read_transcript_outcome(path)
+            self.assertIsNone(outcome["result"])
+            self.assertIsNone(outcome["usage"])
+
+    def test_turn_is_complete_needs_both_an_answer_and_usage(self):
+        self.assertTrue(turn_is_complete({"result": "OK", "usage": {"total_tokens": 1}}))
+        self.assertFalse(turn_is_complete({"result": "OK", "usage": None}))
+        self.assertFalse(turn_is_complete({"result": None, "usage": {"total_tokens": 1}}))
+        self.assertFalse(turn_is_complete(None))
+
+    def test_a_parked_session_is_complete_even_though_its_state_is_not_terminal(self):
+        """The behaviour that made state-based detection wrong.
+
+        A --bg session answers, then parks at state: blocked / status: idle and
+        stays there forever waiting for a next prompt a one-shot run never
+        sends. Observed on a real run whose transcript held the answer and its
+        usage while the agent reported blocked indefinitely.
+        """
+        self.assertIsNone(agent_terminal_status({"state": "blocked", "status": "idle"}))
+        self.assertTrue(turn_is_complete({"result": "OK", "usage": {"total_tokens": 32327}}))
+
+
+class StopAgentTests(unittest.TestCase):
+    def test_stop_uses_the_short_agent_id(self):
+        calls = []
+
+        def runner(argv, env=None):
+            calls.append(argv)
+            return "stopped bfd439ed"
+
+        self.assertTrue(stop_background_agent("bfd439ed", spawn_sync=runner))
+        self.assertEqual(calls[0], ["claude", "stop", "bfd439ed"])
+
+    def test_stopping_without_an_id_does_nothing(self):
+        self.assertFalse(stop_background_agent(None, spawn_sync=lambda *a, **k: "x"))

@@ -149,6 +149,31 @@ def find_agent(agents, identifier):
     return None
 
 
+def stop_background_agent(identifier, env=None, spawn_sync=None):
+    """Release a parked session once its task is done.
+
+    `--bg` starts an interactive session that outlives the turn it was given,
+    so a one-shot run leaves it alive unless cdx stops it. Six were leaked
+    during development before this existed.
+    """
+    if not identifier:
+        return False
+    runner = spawn_sync or _default_spawn_sync
+    return runner(["claude", "stop", str(identifier)], env=env) is not None
+
+
+def turn_is_complete(outcome):
+    """Whether the provider recorded an answer for the prompt cdx submitted.
+
+    This, not the agent's state, is what says a one-shot delegated task
+    finished. A `--bg` session parks at `state: blocked, status: idle` after
+    answering and stays there indefinitely, waiting for a next prompt that a
+    one-shot run will never send - indistinguishable, by state alone, from an
+    agent still thinking.
+    """
+    return bool(outcome and outcome.get("result") is not None and outcome.get("usage"))
+
+
 def agent_terminal_status(agent):
     """The cdx run status a provider agent maps to, or None while it runs.
 
@@ -163,3 +188,76 @@ def agent_terminal_status(agent):
     if state not in _TERMINAL_STATES:
         return None
     return "succeeded" if state == _SUCCESS_STATE else "failed"
+
+
+def find_session_transcript(auth_home, session_id):
+    """The provider's own JSONL transcript for a background session, or None.
+
+    Claude Code writes one file per session under `.claude/projects/<cwd>/`,
+    named by session id. Located by walking rather than by reconstructing the
+    encoded cwd directory, because that encoding is the provider's and is not
+    part of any contract cdx should depend on.
+    """
+    if not auth_home or not session_id:
+        return None
+    root = os.path.join(auth_home, ".claude", "projects")
+    if not os.path.isdir(root):
+        return None
+    target = f"{session_id}.jsonl"
+    for dirpath, _dirnames, filenames in os.walk(root):
+        if target in filenames:
+            return os.path.join(dirpath, target)
+    return None
+
+
+def read_transcript_outcome(path):
+    """The final assistant text and summed token usage from a session transcript.
+
+    This is what makes a delegated run able to honour the `cdx run --json`
+    contract at all: `--bg` produces no structured stdout, but the provider
+    records the same facts here. Usage is summed across assistant messages
+    because a session can hold several turns.
+    """
+    outcome = {"result": None, "usage": None}
+    if not path:
+        return outcome
+    totals = {"input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0, "total_tokens": 0}
+    seen = False
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line.startswith("{"):
+                    continue
+                try:
+                    record = json.loads(line)
+                except ValueError:
+                    continue
+                if record.get("type") != "assistant":
+                    continue
+                message = record.get("message")
+                if not isinstance(message, dict):
+                    continue
+                content = message.get("content")
+                if isinstance(content, list):
+                    text = " ".join(
+                        block.get("text", "") for block in content
+                        if isinstance(block, dict) and block.get("type") == "text"
+                    ).strip()
+                    if text:
+                        outcome["result"] = text
+                usage = message.get("usage")
+                if isinstance(usage, dict):
+                    seen = True
+                    inp = (usage.get("input_tokens") or 0) + (usage.get("cache_creation_input_tokens") or 0) \
+                        + (usage.get("cache_read_input_tokens") or 0)
+                    out = usage.get("output_tokens") or 0
+                    totals["input_tokens"] += inp
+                    totals["output_tokens"] += out
+                    totals["total_tokens"] += inp + out
+    except OSError:
+        return outcome
+    if seen:
+        totals["reasoning_tokens"] = None
+        outcome["usage"] = totals
+    return outcome

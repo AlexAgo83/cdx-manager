@@ -24,10 +24,15 @@ from ..errors import CdxError
 from ..provider_background import (
     BACKGROUND_PATH_CDX,
     BACKGROUND_PATH_PROVIDER,
+    agent_terminal_status,
     find_agent,
+    find_session_transcript,
     list_background_agents,
     parse_backgrounded_id,
+    read_transcript_outcome,
+    stop_background_agent,
     supports_native_background,
+    turn_is_complete,
 )
 from ..provider_runtime import (
     _build_launch_spec,
@@ -315,6 +320,7 @@ def _spawn_provider_background_run(run_session, prompt, artifacts, ctx, cwd):
         "launch_log_path": launch_log_path,
         "background_path": BACKGROUND_PATH_PROVIDER,
         "provider_session_id": agent.get("sessionId") or identifier,
+        "provider_agent_id": identifier,
     }
 
 def handle_schema(rest, ctx):
@@ -322,11 +328,68 @@ def handle_schema(rest, ctx):
     _write_json(ctx, _json_success("schema", "Schema loaded.", **cdx_schema()))
     return 0
 
+def _reconcile_background_runs(ctx):
+    """Close out delegated runs the provider has finished.
+
+    A delegated run has no cdx child to report its own completion, so the
+    registry would leave it `running` forever. This asks the provider once, on
+    the read paths a caller actually uses, and closes what has finished -
+    including the usage and final result read back from the session transcript,
+    which is the only place a `--bg` run records them.
+
+    Never raises: a provider that is slow, missing, or unparseable must not
+    take down `cdx runs`.
+    """
+    registry = _run_registry(ctx)
+    try:
+        pending = [run for run in registry.list(limit=50)
+                   if run.get("status") == "running"
+                   and run.get("background_path") == BACKGROUND_PATH_PROVIDER]
+    except Exception:
+        return
+    if not pending:
+        return
+    for run in pending:
+        session = ctx["service"]["get_session"](run.get("session") or "")
+        if not session:
+            continue
+        auth_home = session.get("authHome")
+        env = {**os.environ, "HOME": auth_home} if auth_home else None
+        try:
+            outcome = read_transcript_outcome(
+                find_session_transcript(auth_home, run.get("provider_session_id"))
+            )
+            # The transcript decides, not the agent state: a --bg session parks
+            # after answering and never reports a terminal state on its own.
+            if turn_is_complete(outcome):
+                status = "succeeded"
+            else:
+                agents = list_background_agents(env=env, cwd=run.get("cwd"), spawn_sync=ctx.get("spawn_text"))
+                status = agent_terminal_status(find_agent(agents, run.get("provider_session_id")))
+            if not status:
+                continue
+            # `claude stop` accepts the short agent id only; the session id
+            # names the transcript file and is rejected here.
+            stop_background_agent(run.get("provider_agent_id"), env=env, spawn_sync=ctx.get("spawn_text"))
+            registry.finish(
+                run["run_id"],
+                status=status,
+                final_payload={
+                    "usage": outcome["usage"],
+                    "result": outcome["result"],
+                    "background_path": BACKGROUND_PATH_PROVIDER,
+                },
+            )
+        except Exception:
+            continue
+
+
 def handle_runs(rest, ctx):
     parsed = _parse_runs_args(rest)
     if not parsed["json"]:
         raise CdxError(RUNS_USAGE)
     since = parsed.get("since")
+    _reconcile_background_runs(ctx)
     runs = _run_registry(ctx).list(limit=parsed["limit"], since=since)
     warnings = []
     if since is not None and parsed.get("limit_given"):
@@ -397,6 +460,7 @@ def handle_run_tail(rest, ctx):
 
 def handle_run_status(rest, ctx):
     parsed = _parse_run_id_json_args(rest, RUN_STATUS_USAGE)
+    _reconcile_background_runs(ctx)
     run = _run_registry(ctx).get(parsed["run_id"])
     if not run:
         _write_json(ctx, _json_failure("run-status", "run_not_found", f"Unknown run: {parsed['run_id']}"))
@@ -406,6 +470,7 @@ def handle_run_status(rest, ctx):
 
 def handle_run_report(rest, ctx):
     parsed = _parse_run_id_json_args(rest, RUN_REPORT_USAGE)
+    _reconcile_background_runs(ctx)
     run = _run_registry(ctx).get(parsed["run_id"])
     if not run:
         _write_json(ctx, _json_failure("run-report", "run_not_found", f"Unknown run: {parsed['run_id']}"))
@@ -531,6 +596,7 @@ def handle_run(rest, ctx):
                 run_id,
                 path=launch.get("background_path"),
                 provider_session_id=launch.get("provider_session_id"),
+                provider_agent_id=launch.get("provider_agent_id"),
             )
             # Hand the record the child's pid: this process is about to exit,
             # and a run pointing at a dead pid gets swept up as stale.

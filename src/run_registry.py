@@ -101,6 +101,12 @@ def _refresh_stale_runs(data):
     for run in data["runs"]:
         if run.get("status") != "running":
             continue
+        if run.get("background_path") == "provider_native":
+            # The provider owns this agent's lifecycle and the pid it reports
+            # belongs to a daemon helper, not the run. Sweeping on pid liveness
+            # would mark a healthy delegated run stale; its terminal status
+            # comes from the provider instead.
+            continue
         pid = run.get("pid")
         if pid and _is_pid_alive(pid):
             continue
@@ -145,7 +151,10 @@ def _base_record(run_id, *, kind, session, provider, model, cwd, artifacts=None)
         # handle when it is the provider's. Present on every record so a reader
         # never has to infer it from absence.
         "background_path": None,
+        # Two handles, because the provider uses two: the session id names the
+        # transcript file, the short agent id is what `claude stop` accepts.
         "provider_session_id": None,
+        "provider_agent_id": None,
         "error": None,
         "task_report": None,
         "final_payload": None,
@@ -183,7 +192,7 @@ class RunRegistry:
                     return run
         return None
 
-    def record_background(self, run_id, *, path, provider_session_id=None):
+    def record_background(self, run_id, *, path, provider_session_id=None, provider_agent_id=None):
         with _registry_lock(self.path):
             data = _read_registry(self.path)
             for run in data["runs"]:
@@ -191,6 +200,7 @@ class RunRegistry:
                     continue
                 run["background_path"] = path
                 run["provider_session_id"] = provider_session_id
+                run["provider_agent_id"] = provider_agent_id
                 _write_registry(self.path, data)
                 return run
             return None
