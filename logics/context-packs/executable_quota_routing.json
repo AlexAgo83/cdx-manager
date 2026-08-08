@@ -1,0 +1,549 @@
+{
+  "budgets": {
+    "max_docs": 56,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [
+    "logics/backlog/item_063_add_budget_and_fallback_model_as_pinnable_launch_settings.md",
+    "logics/backlog/item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity.md",
+    "logics/backlog/item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit.md",
+    "logics/backlog/item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag.md",
+    "logics/backlog/item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it.md",
+    "logics/product/prod_018_executable_quota_routing.md",
+    "logics/request/req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers.md",
+    "logics/scaffold/executable_quota_routing.json",
+    "logics/tasks/task_039_orchestrate_executable_quota_routing_across_accounts_and_providers.md"
+  ],
+  "command": "logics-manager sync context-pack req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers item_063_add_budget_and_fallback_model_as_pinnable_launch_settings item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it task_039_orchestrate_executable_quota_routing_across_accounts_and_providers --mode diff-first --profile deep --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_063_add_budget_and_fallback_model_as_pinnable_launch_settings",
+          "item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity",
+          "item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit",
+          "item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag",
+          "item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it"
+        ],
+        "prod": [
+          "prod_018_executable_quota_routing"
+        ],
+        "req": [
+          "req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers"
+        ],
+        "task": [
+          "task_039_orchestrate_executable_quota_routing_across_accounts_and_providers"
+        ]
+      },
+      "path": "logics/product/prod_018_executable_quota_routing.md",
+      "ref": "prod_018_executable_quota_routing",
+      "sections": {
+        "Goals": [
+          "- Make a long unattended task survive hitting a rate limit, by moving it to an account that has quota instead of failing.",
+          "- Give resume and context handoff a stable provider-native identity to anchor on, instead of recency heuristics and transcript scraping.",
+          "- Let a user cap what a session may spend, and let a session fall back automatically when its model is unavailable.",
+          "- Stop the flag-mapping treadmill by providing one explicit, clearly-unvalidated passthrough instead of chasing every new provider flag.",
+          "- Spend cdx's effort on cross-account routing - the part no provider will ever solve - and delegate the parts providers now solve natively."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "cdx already knows which of a user's accounts has quota. This turns that knowledge from a recommendation the user has to act on into execution cdx performs: budgets and fallbacks pinned per session, resume anchored to a provider-native session identity rather than to recency, and headless runs that survive a rate limit by moving to the next eligible account and carrying their context with them. Supporting it are an escape hatch for provider flags cdx does not model, and a decision to route to native background execution instead of deepening the in-house one."
+        ],
+        "References": [
+          "- Product back-reference: `req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers`",
+          "- Task back-reference: `task_039_orchestrate_executable_quota_routing_across_accounts_and_providers`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Executable quota routing"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, turn quota awareness from advice into execution across accounts and providers, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Turn quota awareness from advice into execution across accounts and providers",
+        "use when": "You need to implement or review the scaffolded workflow for Turn quota awareness from advice into execution across accounts and providers."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_063_add_budget_and_fallback_model_as_pinnable_launch_settings",
+          "item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity",
+          "item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit",
+          "item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag",
+          "item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it"
+        ],
+        "prod": [
+          "prod_018_executable_quota_routing"
+        ],
+        "req": [
+          "req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers"
+        ]
+      },
+      "path": "logics/request/req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers.md",
+      "ref": "req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: `cdx set <name> --budget <amount>` persists a per-session spend ceiling, `cdx configs` displays it, `cdx unset <name> --budget` clears it, and a non-positive or non-numeric amount is rejected with a specific error rather than being silently stored.",
+          "- AC2: `cdx set <name> --fallback-model <model>` persists a per-session fallback model, validated with the same character and length rules as `--model`, and both settings survive a launch/relaunch cycle exactly as `power` and `permission` do.",
+          "- AC3: For a Claude session carrying either setting, the launch command includes `--max-budget-usd` and `--fallback-model` respectively; for a Codex session the settings are accepted and stored but produce no provider argument, and this asymmetry is reported by `cdx configs` rather than failing the launch.",
+          "- AC4: cdx records a provider-native session identifier for each session that supports one, and `cdx resume <name>` uses that identifier instead of the recency heuristics `codex resume --last` and `claude --continue`, so resuming is unaffected by the working directory or by other sessions having run more recently.",
+          "- AC5: `cdx can-resume <name> --json` reports which resume strategy will actually be used (identity-based or recency-based) and why, so a caller can tell a reliable resume from a best-effort one before relying on it.",
+          "- AC6: `cdx run --failover` detects that a run has terminated because of a provider rate limit, distinguishes that cause from every other failure, re-ranks the remaining sessions, transfers the working context, and continues the task on the next eligible session without user intervention."
+        ],
+        "Needs": [
+          "- cdx knows, across every registered account, which one has quota left. That knowledge is applied exactly once - before the work starts - and never again at the moment it matters, which is when a run hits the wall mid-task. `cdx status` reports, `cdx next` recommends, and then the user is on their own.",
+          "- `cdx run` selects a session at launch through `_select_headless_session` and dies with it. There is no rate-limit detection anywhere in the codebase: the only retry in `src/provider_runtime.py` is `_should_retry_without_transcript`, which relaunches without transcript capture after a `script` failure and has nothing to do with quota. A long headless task therefore fails at the first limit even when four other registered accounts are at 100%.",
+          "- The provider CLIs have moved. Claude Code 2.1.226 now ships `--max-budget-usd` (hard spend ceiling), `--fallback-model` (automatic model fallback), `--session-id <uuid>`, `--fork-session`, and native background execution via `--bg` plus `claude agents`. codex-cli 0.147.0 ships `resume`, `fork`, `archive`, `cloud`, and `exec-server`. cdx maps none of these except `--effort` and `--model`.",
+          "- Mapping provider flags one at a time is a treadmill cdx will lose: both CLIs ship new flags faster than cdx can adopt them, and every unmapped flag is a user who has to stop using cdx to get at it. There is currently no escape hatch of any kind - a user who needs `--add-dir` or `--allowedTools` must abandon the isolation cdx provides.",
+          "- cdx hand-rolls detached execution in `_spawn_detached_run` (PID tracking, `start_new_session`, a child argv rebuilt by `_detached_child_argv`) while both providers now ship background execution natively. Continuing to deepen the in-house mechanism spends effort on the one part of the problem the providers will solve themselves, instead of the part only cdx can solve: routing across accounts neither provider can see.",
+          "- The differentiator is compositional, not inventive: ranking (`rank_sessions`), run tracking (`RunRegistry`), and cross-provider context transfer (`handoff`, which already builds context from a source session's transcript and installs it into a target) all exist independently and have never been wired into a single loop."
+        ]
+      },
+      "status": "Draft",
+      "title": "Turn quota awareness from advice into execution across accounts and providers"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, add budget and fallback-model as pinnable launch settings, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Add budget and fallback-model as pinnable launch settings",
+        "use when": "Implementing the scaffolded slice for Add budget and fallback-model as pinnable launch settings."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_063_add_budget_and_fallback_model_as_pinnable_launch_settings"
+        ],
+        "prod": [
+          "prod_018_executable_quota_routing"
+        ],
+        "req": [
+          "req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers"
+        ],
+        "task": [
+          "task_039_orchestrate_executable_quota_routing_across_accounts_and_providers"
+        ]
+      },
+      "path": "logics/backlog/item_063_add_budget_and_fallback_model_as_pinnable_launch_settings.md",
+      "ref": "item_063_add_budget_and_fallback_model_as_pinnable_launch_settings",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: `cdx set <name> --budget 5` then `cdx config <name> --json` reports the stored ceiling, and `cdx unset <name> --budget` removes it.",
+          "- AC2: `--budget 0`, `--budget -1`, `--budget abc` and a value above the accepted maximum are each rejected with an error naming the setting, and nothing is written to the store.",
+          "- AC3: `cdx set <name> --fallback-model <model>` is validated identically to `--model`, including the rejection of control characters and over-length values.",
+          "- AC4: A Claude launch for a session carrying both settings includes `--max-budget-usd` and `--fallback-model` with the stored values.",
+          "- AC5: A Codex launch for a session carrying both settings includes neither flag and still launches successfully.",
+          "- AC6: `cdx configs` shows both settings for every session, and marks them as not applying to Codex sessions."
+        ],
+        "Problem": [
+          "- Claude Code 2.1.226 ships `--max-budget-usd` and `--fallback-model`; cdx maps neither, so a user who wants either must launch the provider outside cdx and lose account isolation.",
+          "- A spend ceiling is the natural companion to quota routing and cdx cannot express it: `cdx stats` measures spend after the fact and nothing can cap it.",
+          "- `--fallback-model` is the provider's own in-process answer to unavailability, which makes it both immediately useful and a useful reference point for the cross-account failover this request builds later."
+        ]
+      },
+      "status": "Ready",
+      "title": "Add budget and fallback-model as pinnable launch settings"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, anchor resume and handoff on a provider-native session identity, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Anchor resume and handoff on a provider-native session identity",
+        "use when": "Implementing the scaffolded slice for Anchor resume and handoff on a provider-native session identity."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity"
+        ],
+        "prod": [
+          "prod_018_executable_quota_routing"
+        ],
+        "req": [
+          "req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers"
+        ],
+        "task": [
+          "task_039_orchestrate_executable_quota_routing_across_accounts_and_providers"
+        ]
+      },
+      "path": "logics/backlog/item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity.md",
+      "ref": "item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: After a launch, the session record carries the provider-native session identifier for Codex and Claude sessions where the provider exposes one.",
+          "- AC2: `cdx resume <name>` for a session with a recorded identifier resumes that exact conversation, and does so from a different working directory than the one it was launched in.",
+          "- AC3: `cdx resume <name>` still succeeds through the existing recency path for a session with no recorded identifier.",
+          "- AC4: `cdx can-resume <name> --json` names the strategy that will be used and distinguishes identity-based from recency-based.",
+          "- AC5: Launching an unrelated session in between does not change which conversation `cdx resume <name>` resumes.",
+          "- AC6: `handoff` uses the recorded identifier where one exists and falls back to transcript scraping where none does, with the source reported in its JSON payload."
+        ],
+        "Problem": [
+          "- `get_resume_capability` at `src/provider_runtime.py:555` resolves resume to `codex resume --last --cd <cwd>` and `claude --continue`, both of which mean 'the most recent conversation in this directory'. Resuming therefore depends on the working directory and on no other session having run since.",
+          "- `handoff` reconstructs context by scraping the source session's terminal transcript. It is the only cross-provider transfer that exists and it works, but a terminal transcript is a weak anchor for anything that must run unattended.",
+          "- Claude's `--session-id <uuid>` and `--fork-session`, and Codex's `resume <id>` and `fork`, make identity-based resume available for the first time. Without adopting them, the failover this request builds would be founded on transcript scraping."
+        ]
+      },
+      "status": "Ready",
+      "title": "Anchor resume and handoff on a provider-native session identity"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, continue a headless run on the next eligible account after a rate limit, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Continue a headless run on the next eligible account after a rate limit",
+        "use when": "Implementing the scaffolded slice for Continue a headless run on the next eligible account after a rate limit."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit"
+        ],
+        "prod": [
+          "prod_018_executable_quota_routing"
+        ],
+        "req": [
+          "req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers"
+        ],
+        "task": [
+          "task_039_orchestrate_executable_quota_routing_across_accounts_and_providers"
+        ]
+      },
+      "path": "logics/backlog/item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit.md",
+      "ref": "item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A run whose provider terminates for a rate-limit reason is classified as rate-limited, and a run that fails for any other reason is not.",
+          "- AC2: `cdx run --failover` continues on the next eligible session, chosen by the same ranking `cdx next` uses.",
+          "- AC3: The continuation receives the working context from the session it replaced.",
+          "- AC4: The whole task keeps one `run_id`, and `cdx run-report <run_id> --json` lists each session occupied in order with the reason for each transition.",
+          "- AC5: `cdx runs` shows one row for a run that failed over, not one per session.",
+          "- AC6: With no eligible session left, the run ends with a specific error code naming what was attempted, distinct from a task failure."
+        ],
+        "Problem": [
+          "- `cdx run` selects a session once and dies with it. A task that hits a rate limit fails even when other registered accounts are at full quota - the exact situation cdx exists to know about.",
+          "- There is no rate-limit detection in the codebase. The only retry, `_should_retry_without_transcript`, relaunches without transcript capture after a `script` failure and is unrelated to quota. Detection is the genuinely hard and genuinely new part of this item, and the providers signal exhaustion differently.",
+          "- `RunRegistry` records one session per run, so a run that moved between accounts has no representation today and would appear in `cdx runs` as either one misleading row or several unrelated ones."
+        ]
+      },
+      "status": "Ready",
+      "title": "Continue a headless run on the next eligible account after a rate limit"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, pass unvalidated provider arguments through instead of mapping every flag, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Pass unvalidated provider arguments through instead of mapping every flag",
+        "use when": "Implementing the scaffolded slice for Pass unvalidated provider arguments through instead of mapping every flag."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag"
+        ],
+        "prod": [
+          "prod_018_executable_quota_routing"
+        ],
+        "req": [
+          "req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers"
+        ],
+        "task": [
+          "task_039_orchestrate_executable_quota_routing_across_accounts_and_providers"
+        ]
+      },
+      "path": "logics/backlog/item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag.md",
+      "ref": "item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: `cdx set <name> --extra-args \"...\"` persists, displays in `cdx configs`, and clears through `cdx unset`.",
+          "- AC2: Stored passthrough arguments appear on the provider command line unmodified, after cdx's own mapped arguments.",
+          "- AC3: A per-run passthrough form reaches the provider without modifying the stored setting.",
+          "- AC4: `cdx schema --json` does not describe passthrough arguments, and says that it does not.",
+          "- AC5: `cdx doctor --check-provider-flags` neither verifies nor reports passthrough arguments.",
+          "- AC6: A passthrough argument that duplicates one cdx maps produces the documented, observable outcome rather than a silent surprise."
+        ],
+        "Problem": [
+          "- Both provider CLIs ship flags faster than cdx can map them: `--add-dir`, `--search`, `--image`, `--allowedTools`, `--sandbox`, `--approve-for-me`, `--profile` and `--agents` are all unmapped today, and the list grows every release.",
+          "- There is no escape hatch, so a user who needs any unmapped flag must abandon cdx and lose the account isolation that is the reason to use it.",
+          "- Adding these one at a time is a treadmill with no end state, and each addition enlarges a validated surface cdx then has to keep true."
+        ]
+      },
+      "status": "Ready",
+      "title": "Pass unvalidated provider arguments through instead of mapping every flag"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, delegate background execution to the provider where the installed cli supports it, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Delegate background execution to the provider where the installed CLI supports it",
+        "use when": "Implementing the scaffolded slice for Delegate background execution to the provider where the installed CLI supports it."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it"
+        ],
+        "prod": [
+          "prod_018_executable_quota_routing"
+        ],
+        "req": [
+          "req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers"
+        ],
+        "task": [
+          "task_039_orchestrate_executable_quota_routing_across_accounts_and_providers"
+        ]
+      },
+      "path": "logics/backlog/item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it.md",
+      "ref": "item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Capability detection reports whether the installed provider CLI offers native background execution, without assuming a version number.",
+          "- AC2: With native capability present, `cdx run --detach` uses it and still returns the cdx `run_id` at launch.",
+          "- AC3: With no native capability, the existing in-house path runs unchanged and its tests still pass.",
+          "- AC4: The run record names which path was used.",
+          "- AC5: `cdx run-status`, `cdx run-tail` and `cdx runs` return the same shape for a run on either path.",
+          "- AC6: A run launched through the native path reaches a terminal status in `cdx runs` without a supervising cdx process."
+        ],
+        "Problem": [
+          "- `_spawn_detached_run` reimplements detached execution with PID tracking, `start_new_session`, and a child argv rebuilt by `_detached_child_argv`, while Claude Code now ships `--bg` with `claude agents` and codex-cli ships `cloud` and `exec-server`.",
+          "- Deepening the in-house mechanism spends effort on the part of the problem the providers are solving themselves, rather than on cross-account routing, which neither provider can do.",
+          "- The in-house path works and is covered by tests, so the answer is delegation where the installed CLI supports it, not removal."
+        ]
+      },
+      "status": "Ready",
+      "title": "Delegate background execution to the provider where the installed CLI supports it"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_063_add_budget_and_fallback_model_as_pinnable_launch_settings",
+          "item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity",
+          "item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit",
+          "item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag",
+          "item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it"
+        ],
+        "prod": [
+          "prod_018_executable_quota_routing"
+        ],
+        "req": [
+          "req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers"
+        ],
+        "task": [
+          "task_039_orchestrate_executable_quota_routing_across_accounts_and_providers"
+        ]
+      },
+      "path": "logics/product/prod_018_executable_quota_routing.md",
+      "ref": "prod_018_executable_quota_routing",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Executable quota routing"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate executable quota routing across accounts and providers",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_063_add_budget_and_fallback_model_as_pinnable_launch_settings",
+          "item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity",
+          "item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit",
+          "item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag",
+          "item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it"
+        ],
+        "prod": [
+          "prod_018_executable_quota_routing"
+        ],
+        "req": [
+          "req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers"
+        ],
+        "task": [
+          "task_039_orchestrate_executable_quota_routing_across_accounts_and_providers"
+        ]
+      },
+      "path": "logics/tasks/task_039_orchestrate_executable_quota_routing_across_accounts_and_providers.md",
+      "ref": "task_039_orchestrate_executable_quota_routing_across_accounts_and_providers",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate executable quota routing across accounts and providers"
+    }
+  ],
+  "estimates": {
+    "char_count": 22917,
+    "companion_doc_count": 1,
+    "doc_count": 8
+  },
+  "generated_at": "2026-08-08T17:19:46Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers",
+      "item_063_add_budget_and_fallback_model_as_pinnable_launch_settings",
+      "item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity",
+      "item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit",
+      "item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag",
+      "item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it",
+      "task_039_orchestrate_executable_quota_routing_across_accounts_and_providers"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "deep",
+  "ref": "req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers,item_063_add_budget_and_fallback_model_as_pinnable_launch_settings,item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity,item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit,item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag,item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it,task_039_orchestrate_executable_quota_routing_across_accounts_and_providers",
+  "refs": [
+    "req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers",
+    "item_063_add_budget_and_fallback_model_as_pinnable_launch_settings",
+    "item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity",
+    "item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit",
+    "item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag",
+    "item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it",
+    "task_039_orchestrate_executable_quota_routing_across_accounts_and_providers"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.14.0"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_039_orchestrate_executable_quota_routing_across_accounts_and_providers.md",
+      "ref": "task_039_orchestrate_executable_quota_routing_across_accounts_and_providers"
+    }
+  ]
+}

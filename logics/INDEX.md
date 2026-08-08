@@ -32,6 +32,7 @@
 | [prod_015_navigable_command_modules](product/prod_015_navigable_command_modules.md) | Navigable command modules | Settled |  |  | product/prod_015_navigable_command_modules.md |
 | [prod_016_a_session_service_that_can_be_read_in_pieces](product/prod_016_a_session_service_that_can_be_read_in_pieces.md) | A session service that can be read in pieces | Settled |  |  | product/prod_016_a_session_service_that_can_be_read_in_pieces.md |
 | [prod_017_a_session_service_whose_file_boundaries_match_its_real_seams](product/prod_017_a_session_service_whose_file_boundaries_match_its_real_seams.md) | A session service whose file boundaries match its real seams | Settled |  |  | product/prod_017_a_session_service_whose_file_boundaries_match_its_real_seams.md |
+| [prod_018_executable_quota_routing](product/prod_018_executable_quota_routing.md) | Executable quota routing | Proposed |  |  | product/prod_018_executable_quota_routing.md |
 
 ## Roadmaps
 
@@ -69,6 +70,7 @@ _None_
 | [req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade](request/req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade.md) | Split cli_commands into per-domain command modules behind a facade | Done |  |  | request/req_025_split_cli_commands_into_per_domain_command_modules_behind_a_facade.md |
 | [req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file](request/req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file.md) | Break up the 1153-line session service factory before splitting its file | Done |  |  | request/req_026_break_up_the_1153_line_session_service_factory_before_splitting_its_file.md |
 | [req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports](request/req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports.md) | Split session_service along the two seams the coupling measurement supports | Done |  |  | request/req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports.md |
+| [req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers](request/req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers.md) | Turn quota awareness from advice into execution across accounts and providers | Draft |  |  | request/req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers.md |
 
 ## Backlog
 
@@ -137,6 +139,11 @@ _None_
 | [item_060_move_the_shared_helpers_into_a_session_service_utility_layer](backlog/item_060_move_the_shared_helpers_into_a_session_service_utility_layer.md) | Move the shared helpers into a session service utility layer | Done |  | 100% | backlog/item_060_move_the_shared_helpers_into_a_session_service_utility_layer.md |
 | [item_061_extract_the_status_group_into_its_own_module](backlog/item_061_extract_the_status_group_into_its_own_module.md) | Extract the status group into its own module | Done |  | 100% | backlog/item_061_extract_the_status_group_into_its_own_module.md |
 | [item_062_extract_the_backup_group_and_record_why_the_other_groups_stay](backlog/item_062_extract_the_backup_group_and_record_why_the_other_groups_stay.md) | Extract the backup group and record why the other groups stay | Done |  | 100% | backlog/item_062_extract_the_backup_group_and_record_why_the_other_groups_stay.md |
+| [item_063_add_budget_and_fallback_model_as_pinnable_launch_settings](backlog/item_063_add_budget_and_fallback_model_as_pinnable_launch_settings.md) | Add budget and fallback-model as pinnable launch settings | Ready |  | 0% | backlog/item_063_add_budget_and_fallback_model_as_pinnable_launch_settings.md |
+| [item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity](backlog/item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity.md) | Anchor resume and handoff on a provider-native session identity | Ready |  | 0% | backlog/item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity.md |
+| [item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit](backlog/item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit.md) | Continue a headless run on the next eligible account after a rate limit | Ready |  | 0% | backlog/item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit.md |
+| [item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag](backlog/item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag.md) | Pass unvalidated provider arguments through instead of mapping every flag | Ready |  | 0% | backlog/item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag.md |
+| [item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it](backlog/item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it.md) | Delegate background execution to the provider where the installed CLI supports it | Ready |  | 0% | backlog/item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it.md |
 
 ## Tasks
 
@@ -183,3 +190,4 @@ _None_
 | [task_036_orchestrate_the_command_module_split](tasks/task_036_orchestrate_the_command_module_split.md) | Orchestrate the command module split | Done |  | 100% | tasks/task_036_orchestrate_the_command_module_split.md |
 | [task_037_orchestrate_the_session_service_decomposition](tasks/task_037_orchestrate_the_session_service_decomposition.md) | Orchestrate the session service decomposition | Done |  | 100% | tasks/task_037_orchestrate_the_session_service_decomposition.md |
 | [task_038_orchestrate_the_measured_session_service_file_split](tasks/task_038_orchestrate_the_measured_session_service_file_split.md) | Orchestrate the measured session service file split | Done |  | 100% | tasks/task_038_orchestrate_the_measured_session_service_file_split.md |
+| [task_039_orchestrate_executable_quota_routing_across_accounts_and_providers](tasks/task_039_orchestrate_executable_quota_routing_across_accounts_and_providers.md) | Orchestrate executable quota routing across accounts and providers | Ready |  | 0% | tasks/task_039_orchestrate_executable_quota_routing_across_accounts_and_providers.md |

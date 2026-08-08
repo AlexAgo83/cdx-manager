@@ -1,0 +1,61 @@
+## item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag - Pass unvalidated provider arguments through instead of mapping every flag
+> From version: 0.14.0
+> Schema version: 1.0
+> Status: Ready
+> Understanding: 90%
+> Confidence: 85%
+> Progress: 0%
+> Complexity: Medium
+> Theme: Provider surface
+> Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+
+# Problem
+- Both provider CLIs ship flags faster than cdx can map them: `--add-dir`, `--search`, `--image`, `--allowedTools`, `--sandbox`, `--approve-for-me`, `--profile` and `--agents` are all unmapped today, and the list grows every release.
+- There is no escape hatch, so a user who needs any unmapped flag must abandon cdx and lose the account isolation that is the reason to use it.
+- Adding these one at a time is a treadmill with no end state, and each addition enlarges a validated surface cdx then has to keep true.
+
+# Scope
+- In:
+  - Add a per-session `extra_args` launch setting, following the established launch-setting pattern.
+  - Add a per-run form so a single `cdx run` can pass provider arguments without changing the stored setting.
+  - Append passthrough arguments to the provider command line unmodified, after the arguments cdx itself maps.
+  - Document explicitly that passthrough arguments are unvalidated and unsupported, and exclude them from `cdx schema --json` and from `cdx doctor --check-provider-flags`.
+  - Define what happens when a passthrough argument collides with one cdx maps itself, and make that behaviour observable rather than silent.
+- Out:
+  - Validating passthrough arguments or checking them against the installed provider CLI.
+  - Retiring any currently-mapped setting in favour of passthrough.
+  - Any change to the ollama provider.
+
+# Acceptance criteria
+- AC1: `cdx set <name> --extra-args "..."` persists, displays in `cdx configs`, and clears through `cdx unset`.
+- AC2: Stored passthrough arguments appear on the provider command line unmodified, after cdx's own mapped arguments.
+- AC3: A per-run passthrough form reaches the provider without modifying the stored setting.
+- AC4: `cdx schema --json` does not describe passthrough arguments, and says that it does not.
+- AC5: `cdx doctor --check-provider-flags` neither verifies nor reports passthrough arguments.
+- AC6: A passthrough argument that duplicates one cdx maps produces the documented, observable outcome rather than a silent surprise.
+- AC7: Arguments containing shell metacharacters are passed as literal argv entries and never through a shell.
+
+# AC Traceability
+- request-AC9 -> This backlog slice. Proof: AC1: `cdx set <name> --extra-args "..."` persists, displays in `cdx configs`, and clears through `cdx unset`.
+- request-AC10 -> This backlog slice. Proof: AC2: Stored passthrough arguments appear on the provider command line unmodified, after cdx's own mapped arguments.
+- request-AC13 -> This backlog slice. Proof: AC3: A per-run passthrough form reaches the provider without modifying the stored setting.
+
+# Decision framing
+- Product framing: Not needed
+- Architecture framing: Not needed
+
+# Links
+- Product brief(s): `prod_018_executable_quota_routing`
+- Architecture decision(s): (none yet)
+- Request: `req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers`
+- Primary task(s): `task_039_orchestrate_executable_quota_routing_across_accounts_and_providers`
+
+# AI Context
+- Summary: Pass unvalidated provider arguments through instead of mapping every flag
+- Keywords: scaffolded-backlog, pass unvalidated provider arguments through instead of mapping every flag, implementation-ready
+- Use when: Implementing the scaffolded slice for Pass unvalidated provider arguments through instead of mapping every flag.
+- Skip when: The change belongs to another backlog slice.
+
+# Priority
+- Priority: Medium
+- Rationale: Set by scaffold input or defaulted for grooming.

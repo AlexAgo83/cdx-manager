@@ -1,0 +1,264 @@
+{
+  "title": "Turn quota awareness from advice into execution across accounts and providers",
+  "references": [
+    "src/session_service.py",
+    "src/session_ranking.py",
+    "src/session_status.py",
+    "src/provider_runtime.py",
+    "src/cli_args.py",
+    "src/cli_helpers.py",
+    "src/commands/runs.py",
+    "src/commands/launch.py",
+    "src/commands/settings.py",
+    "src/run_registry.py",
+    "src/context_store.py",
+    "README.md",
+    "test/test_commands_runs_py.py",
+    "test/test_commands_settings_py.py",
+    "test/test_commands_launch_py.py",
+    "test/test_runtime_py.py",
+    "test/test_session_service_py.py"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Quota-aware execution",
+    "needs": [
+      "cdx knows, across every registered account, which one has quota left. That knowledge is applied exactly once - before the work starts - and never again at the moment it matters, which is when a run hits the wall mid-task. `cdx status` reports, `cdx next` recommends, and then the user is on their own.",
+      "`cdx run` selects a session at launch through `_select_headless_session` and dies with it. There is no rate-limit detection anywhere in the codebase: the only retry in `src/provider_runtime.py` is `_should_retry_without_transcript`, which relaunches without transcript capture after a `script` failure and has nothing to do with quota. A long headless task therefore fails at the first limit even when four other registered accounts are at 100%.",
+      "The provider CLIs have moved. Claude Code 2.1.226 now ships `--max-budget-usd` (hard spend ceiling), `--fallback-model` (automatic model fallback), `--session-id <uuid>`, `--fork-session`, and native background execution via `--bg` plus `claude agents`. codex-cli 0.147.0 ships `resume`, `fork`, `archive`, `cloud`, and `exec-server`. cdx maps none of these except `--effort` and `--model`.",
+      "Mapping provider flags one at a time is a treadmill cdx will lose: both CLIs ship new flags faster than cdx can adopt them, and every unmapped flag is a user who has to stop using cdx to get at it. There is currently no escape hatch of any kind - a user who needs `--add-dir` or `--allowedTools` must abandon the isolation cdx provides.",
+      "cdx hand-rolls detached execution in `_spawn_detached_run` (PID tracking, `start_new_session`, a child argv rebuilt by `_detached_child_argv`) while both providers now ship background execution natively. Continuing to deepen the in-house mechanism spends effort on the one part of the problem the providers will solve themselves, instead of the part only cdx can solve: routing across accounts neither provider can see.",
+      "The differentiator is compositional, not inventive: ranking (`rank_sessions`), run tracking (`RunRegistry`), and cross-provider context transfer (`handoff`, which already builds context from a source session's transcript and installs it into a target) all exist independently and have never been wired into a single loop."
+    ],
+    "context": [
+      "Launch settings follow one established pattern across `src/session_service.py` (`_normalize_launch_settings`, and the allowed-key set in `unset_launch_settings`), `src/cli_args.py` (the `--power`/`--permission`/`--fast`/`--rtk`/`--logics`/`--model`/`--priority` tables), `src/cli_helpers.py` (the display label list), `src/commands/status.py` (`_format_launch_configs`) and `src/provider_runtime.py` (argument mapping). `rtk` is the most recent addition and is the reference implementation to mirror.",
+      "`--max-budget-usd` and `--fallback-model` are Claude Code flags with no Codex equivalent. cdx already has precedent for provider-specific launch settings: `_launch_config_args` maps `power` to `-c model_reasoning_effort=` for Codex and to `--effort` for Claude, and `cdx doctor --check-provider-flags` exists specifically to verify that mapped flags are accepted by the installed provider CLI.",
+      "Native resume is recency-based, not identity-based. `get_resume_capability` in `src/provider_runtime.py:555` returns `codex resume --last --cd <cwd>` for Codex and `claude --continue` for Claude. Both mean 'the most recent conversation here', so resume depends on directory and ordering rather than on a session cdx can name. Claude's `--session-id <uuid>` and Codex's `resume <id>` make an identity-based form available for the first time.",
+      "`handoff` reconstructs context by reading a source session's launch transcript (`_latest_handoff_transcript_path`, `_read_handoff_transcript`, `_build_handoff_context` in `src/commands/launch.py`) and installing the result as the workspace context. It works, and it is the only cross-provider context transfer that exists, but scraping a terminal transcript is a weaker foundation than a provider-native session identifier for anything that must be reliable unattended.",
+      "`RunRegistry` (`src/run_registry.py`) records one session and one provider per run through `start()` and closes it with `finish(status=...)`. It has no representation for a run that moved between sessions, so a failover would currently be invisible in `cdx runs` and `cdx run-report`.",
+      "`rank_sessions` and `selection_policy` in `src/session_ranking.py` are already the single ranking shared by `cdx next`, `cdx select`, `cdx status` and `cdx run`, so re-selection mid-run needs no new selection logic - only a caller.",
+      "The ollama provider is explicitly out of scope for this request. The maintainer uses the ollama CLI directly alongside cdx, and the overlap with `codex --oss --local-provider ollama` is a deliberate non-goal rather than a duplication to resolve."
+    ],
+    "acceptance_criteria": [
+      "AC1: `cdx set <name> --budget <amount>` persists a per-session spend ceiling, `cdx configs` displays it, `cdx unset <name> --budget` clears it, and a non-positive or non-numeric amount is rejected with a specific error rather than being silently stored.",
+      "AC2: `cdx set <name> --fallback-model <model>` persists a per-session fallback model, validated with the same character and length rules as `--model`, and both settings survive a launch/relaunch cycle exactly as `power` and `permission` do.",
+      "AC3: For a Claude session carrying either setting, the launch command includes `--max-budget-usd` and `--fallback-model` respectively; for a Codex session the settings are accepted and stored but produce no provider argument, and this asymmetry is reported by `cdx configs` rather than failing the launch.",
+      "AC4: cdx records a provider-native session identifier for each session that supports one, and `cdx resume <name>` uses that identifier instead of the recency heuristics `codex resume --last` and `claude --continue`, so resuming is unaffected by the working directory or by other sessions having run more recently.",
+      "AC5: `cdx can-resume <name> --json` reports which resume strategy will actually be used (identity-based or recency-based) and why, so a caller can tell a reliable resume from a best-effort one before relying on it.",
+      "AC6: `cdx run --failover` detects that a run has terminated because of a provider rate limit, distinguishes that cause from every other failure, re-ranks the remaining sessions, transfers the working context, and continues the task on the next eligible session without user intervention.",
+      "AC7: A run that failed over is fully traceable: `cdx run-report <run_id> --json` names every session the run occupied, in order, with the reason for each transition, and `cdx runs` shows the run as one run rather than as several unrelated ones.",
+      "AC8: When no eligible session remains, a failover run terminates with a specific error code that distinguishes 'exhausted every account' from 'the task itself failed', and reports what was attempted.",
+      "AC9: A user can pass provider arguments cdx does not model, per session (`cdx set --extra-args`) and per run, and those arguments reach the provider command line unmodified.",
+      "AC10: Passthrough arguments are documented and reported as unvalidated: they are excluded from the `cdx schema --json` contract and from `cdx doctor --check-provider-flags`, and cdx never claims to have verified them.",
+      "AC11: Where the installed provider CLI offers native background execution, `cdx run --detach` delegates to it rather than to the in-house detached launcher, decided by capability detection against the installed CLI rather than by a version assumption.",
+      "AC12: When the installed CLI offers no native background execution, the existing in-house detached path continues to work exactly as it does today, and which path was taken is visible in the run record.",
+      "AC13: No behaviour of the `ollama` provider changes anywhere in this request."
+    ]
+  },
+  "product": {
+    "title": "Executable quota routing",
+    "overview": "cdx already knows which of a user's accounts has quota. This turns that knowledge from a recommendation the user has to act on into execution cdx performs: budgets and fallbacks pinned per session, resume anchored to a provider-native session identity rather than to recency, and headless runs that survive a rate limit by moving to the next eligible account and carrying their context with them. Supporting it are an escape hatch for provider flags cdx does not model, and a decision to route to native background execution instead of deepening the in-house one.",
+    "goals": [
+      "Make a long unattended task survive hitting a rate limit, by moving it to an account that has quota instead of failing.",
+      "Give resume and context handoff a stable provider-native identity to anchor on, instead of recency heuristics and transcript scraping.",
+      "Let a user cap what a session may spend, and let a session fall back automatically when its model is unavailable.",
+      "Stop the flag-mapping treadmill by providing one explicit, clearly-unvalidated passthrough instead of chasing every new provider flag.",
+      "Spend cdx's effort on cross-account routing - the part no provider will ever solve - and delegate the parts providers now solve natively."
+    ],
+    "non_goals": [
+      "Changing anything about the ollama provider, including the overlap with `codex --oss --local-provider ollama`, which the maintainer deliberately keeps as-is.",
+      "Removing or rewriting the existing in-house detached launcher, which works and stays as the fallback path.",
+      "Validating passthrough arguments, or extending the machine-readable schema contract to cover them.",
+      "Automatic failover for interactive launches; this request covers headless `cdx run` only.",
+      "Reconciling cdx's own permission vocabulary with the providers' finer-grained tool and sandbox controls."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Add budget and fallback-model as pinnable launch settings",
+      "priority": "High",
+      "complexity": "Low",
+      "theme": "Quota-aware execution",
+      "request_acs": ["AC1", "AC2", "AC3", "AC13"],
+      "problem": [
+        "Claude Code 2.1.226 ships `--max-budget-usd` and `--fallback-model`; cdx maps neither, so a user who wants either must launch the provider outside cdx and lose account isolation.",
+        "A spend ceiling is the natural companion to quota routing and cdx cannot express it: `cdx stats` measures spend after the fact and nothing can cap it.",
+        "`--fallback-model` is the provider's own in-process answer to unavailability, which makes it both immediately useful and a useful reference point for the cross-account failover this request builds later."
+      ],
+      "scope_in": [
+        "Add `budget` and `fallback_model` to `_normalize_launch_settings` in `src/session_service.py`, with `budget` rejecting non-numeric, non-positive, NaN and infinite values, and `fallback_model` reusing the existing model character and length rules.",
+        "Add both keys to the allowed set in `unset_launch_settings`.",
+        "Add the `--budget` and `--fallback-model` options to the `cdx set` and `cdx unset` tables in `src/cli_args.py`, following the `--model` and `--priority` entries.",
+        "Add both to the display list in `src/cli_helpers.py` and to `_format_launch_configs` in `src/commands/status.py`.",
+        "Map both to Claude launch arguments in `src/provider_runtime.py` alongside the existing `--effort` and `--model` mapping.",
+        "Report in `cdx configs` that both settings are inert for Codex sessions rather than rejecting them at launch."
+      ],
+      "scope_out": [
+        "Any shortcut command of the form `cdx budget <name> <value>`, which can follow once the settings exist.",
+        "Enforcing the budget inside cdx; the ceiling is the provider's to apply.",
+        "Any change to the ollama provider."
+      ],
+      "acceptance_criteria": [
+        "AC1: `cdx set <name> --budget 5` then `cdx config <name> --json` reports the stored ceiling, and `cdx unset <name> --budget` removes it.",
+        "AC2: `--budget 0`, `--budget -1`, `--budget abc` and a value above the accepted maximum are each rejected with an error naming the setting, and nothing is written to the store.",
+        "AC3: `cdx set <name> --fallback-model <model>` is validated identically to `--model`, including the rejection of control characters and over-length values.",
+        "AC4: A Claude launch for a session carrying both settings includes `--max-budget-usd` and `--fallback-model` with the stored values.",
+        "AC5: A Codex launch for a session carrying both settings includes neither flag and still launches successfully.",
+        "AC6: `cdx configs` shows both settings for every session, and marks them as not applying to Codex sessions.",
+        "AC7: `cdx set --sessions all` and `--provider PROVIDER` apply both settings in bulk exactly as they do for `power`."
+      ]
+    },
+    {
+      "title": "Anchor resume and handoff on a provider-native session identity",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Session identity",
+      "request_acs": ["AC4", "AC5", "AC13"],
+      "problem": [
+        "`get_resume_capability` at `src/provider_runtime.py:555` resolves resume to `codex resume --last --cd <cwd>` and `claude --continue`, both of which mean 'the most recent conversation in this directory'. Resuming therefore depends on the working directory and on no other session having run since.",
+        "`handoff` reconstructs context by scraping the source session's terminal transcript. It is the only cross-provider transfer that exists and it works, but a terminal transcript is a weak anchor for anything that must run unattended.",
+        "Claude's `--session-id <uuid>` and `--fork-session`, and Codex's `resume <id>` and `fork`, make identity-based resume available for the first time. Without adopting them, the failover this request builds would be founded on transcript scraping."
+      ],
+      "scope_in": [
+        "Record a provider-native session identifier on the session record when the provider supplies or accepts one, for Codex and Claude only.",
+        "Extend `get_resume_capability` to report an identity-based strategy when an identifier is recorded, keeping the current recency strategy as the fallback.",
+        "Use the identifier in `_build_resume_spec` in place of `--continue` and `resume --last` when it is available.",
+        "Report the strategy actually chosen, and the reason, through `cdx can-resume --json`.",
+        "Use the identifier as the anchor for `handoff` where one exists, keeping transcript scraping for sessions that have none."
+      ],
+      "scope_out": [
+        "Forking sessions (`--fork-session`, `codex fork`), which is a separate capability once identity exists.",
+        "Codex `archive`/`unarchive`/`delete` session management.",
+        "Removing transcript scraping, which remains the fallback for sessions without an identifier.",
+        "Any change to the ollama provider."
+      ],
+      "acceptance_criteria": [
+        "AC1: After a launch, the session record carries the provider-native session identifier for Codex and Claude sessions where the provider exposes one.",
+        "AC2: `cdx resume <name>` for a session with a recorded identifier resumes that exact conversation, and does so from a different working directory than the one it was launched in.",
+        "AC3: `cdx resume <name>` still succeeds through the existing recency path for a session with no recorded identifier.",
+        "AC4: `cdx can-resume <name> --json` names the strategy that will be used and distinguishes identity-based from recency-based.",
+        "AC5: Launching an unrelated session in between does not change which conversation `cdx resume <name>` resumes.",
+        "AC6: `handoff` uses the recorded identifier where one exists and falls back to transcript scraping where none does, with the source reported in its JSON payload."
+      ]
+    },
+    {
+      "title": "Continue a headless run on the next eligible account after a rate limit",
+      "priority": "High",
+      "complexity": "High",
+      "theme": "Quota-aware execution",
+      "request_acs": ["AC6", "AC7", "AC8", "AC13"],
+      "problem": [
+        "`cdx run` selects a session once and dies with it. A task that hits a rate limit fails even when other registered accounts are at full quota - the exact situation cdx exists to know about.",
+        "There is no rate-limit detection in the codebase. The only retry, `_should_retry_without_transcript`, relaunches without transcript capture after a `script` failure and is unrelated to quota. Detection is the genuinely hard and genuinely new part of this item, and the providers signal exhaustion differently.",
+        "`RunRegistry` records one session per run, so a run that moved between accounts has no representation today and would appear in `cdx runs` as either one misleading row or several unrelated ones."
+      ],
+      "scope_in": [
+        "Detect provider rate-limit termination for Codex and Claude, distinguished from every other non-zero exit, with the detection isolated behind one function per provider so it can be corrected as the providers change.",
+        "Add `--failover` to `cdx run`, re-ranking through the existing `rank_sessions` rather than introducing a second selection path.",
+        "Transfer the working context to the newly selected session, using the identity anchor from the session-identity item where available.",
+        "Extend the run record to represent a sequence of session occupancies with a reason per transition, keeping one `run_id` for the whole task.",
+        "Report the sequence through `cdx run-report --json` and keep `cdx runs` showing one row per task.",
+        "Add a specific terminal error code for exhausting every eligible session, distinct from the task itself failing."
+      ],
+      "scope_out": [
+        "Failover for interactive launches.",
+        "Resuming the provider conversation across the boundary; the continuation carries transferred context, and what is guaranteed about partial work is stated rather than assumed.",
+        "Any change to the ollama provider."
+      ],
+      "acceptance_criteria": [
+        "AC1: A run whose provider terminates for a rate-limit reason is classified as rate-limited, and a run that fails for any other reason is not.",
+        "AC2: `cdx run --failover` continues on the next eligible session, chosen by the same ranking `cdx next` uses.",
+        "AC3: The continuation receives the working context from the session it replaced.",
+        "AC4: The whole task keeps one `run_id`, and `cdx run-report <run_id> --json` lists each session occupied in order with the reason for each transition.",
+        "AC5: `cdx runs` shows one row for a run that failed over, not one per session.",
+        "AC6: With no eligible session left, the run ends with a specific error code naming what was attempted, distinct from a task failure.",
+        "AC7: Without `--failover`, `cdx run` behaves exactly as it does today, including on a rate-limited termination.",
+        "AC8: A disabled session is never selected as a failover target."
+      ]
+    },
+    {
+      "title": "Pass unvalidated provider arguments through instead of mapping every flag",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Provider surface",
+      "request_acs": ["AC9", "AC10", "AC13"],
+      "problem": [
+        "Both provider CLIs ship flags faster than cdx can map them: `--add-dir`, `--search`, `--image`, `--allowedTools`, `--sandbox`, `--approve-for-me`, `--profile` and `--agents` are all unmapped today, and the list grows every release.",
+        "There is no escape hatch, so a user who needs any unmapped flag must abandon cdx and lose the account isolation that is the reason to use it.",
+        "Adding these one at a time is a treadmill with no end state, and each addition enlarges a validated surface cdx then has to keep true."
+      ],
+      "scope_in": [
+        "Add a per-session `extra_args` launch setting, following the established launch-setting pattern.",
+        "Add a per-run form so a single `cdx run` can pass provider arguments without changing the stored setting.",
+        "Append passthrough arguments to the provider command line unmodified, after the arguments cdx itself maps.",
+        "Document explicitly that passthrough arguments are unvalidated and unsupported, and exclude them from `cdx schema --json` and from `cdx doctor --check-provider-flags`.",
+        "Define what happens when a passthrough argument collides with one cdx maps itself, and make that behaviour observable rather than silent."
+      ],
+      "scope_out": [
+        "Validating passthrough arguments or checking them against the installed provider CLI.",
+        "Retiring any currently-mapped setting in favour of passthrough.",
+        "Any change to the ollama provider."
+      ],
+      "acceptance_criteria": [
+        "AC1: `cdx set <name> --extra-args \"...\"` persists, displays in `cdx configs`, and clears through `cdx unset`.",
+        "AC2: Stored passthrough arguments appear on the provider command line unmodified, after cdx's own mapped arguments.",
+        "AC3: A per-run passthrough form reaches the provider without modifying the stored setting.",
+        "AC4: `cdx schema --json` does not describe passthrough arguments, and says that it does not.",
+        "AC5: `cdx doctor --check-provider-flags` neither verifies nor reports passthrough arguments.",
+        "AC6: A passthrough argument that duplicates one cdx maps produces the documented, observable outcome rather than a silent surprise.",
+        "AC7: Arguments containing shell metacharacters are passed as literal argv entries and never through a shell."
+      ]
+    },
+    {
+      "title": "Delegate background execution to the provider where the installed CLI supports it",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Provider surface",
+      "request_acs": ["AC11", "AC12", "AC13"],
+      "problem": [
+        "`_spawn_detached_run` reimplements detached execution with PID tracking, `start_new_session`, and a child argv rebuilt by `_detached_child_argv`, while Claude Code now ships `--bg` with `claude agents` and codex-cli ships `cloud` and `exec-server`.",
+        "Deepening the in-house mechanism spends effort on the part of the problem the providers are solving themselves, rather than on cross-account routing, which neither provider can do.",
+        "The in-house path works and is covered by tests, so the answer is delegation where the installed CLI supports it, not removal."
+      ],
+      "scope_in": [
+        "Detect native background capability against the installed provider CLI, by capability rather than by assuming a version.",
+        "Route `cdx run --detach` to the native mechanism when it is available, keeping one cdx-level `run_id` and the existing JSON payload shape.",
+        "Keep the in-house detached path as the fallback, unchanged, when no native capability is detected.",
+        "Record which path a run took, and surface it in the run record.",
+        "Keep `cdx run-status`, `cdx run-tail` and `cdx runs` behaving identically to the caller regardless of which path was used."
+      ],
+      "scope_out": [
+        "Removing or rewriting the in-house detached launcher.",
+        "Codex Cloud task browsing, and Claude cloud or teleport sessions, which are separate capabilities.",
+        "Any change to the ollama provider."
+      ],
+      "acceptance_criteria": [
+        "AC1: Capability detection reports whether the installed provider CLI offers native background execution, without assuming a version number.",
+        "AC2: With native capability present, `cdx run --detach` uses it and still returns the cdx `run_id` at launch.",
+        "AC3: With no native capability, the existing in-house path runs unchanged and its tests still pass.",
+        "AC4: The run record names which path was used.",
+        "AC5: `cdx run-status`, `cdx run-tail` and `cdx runs` return the same shape for a run on either path.",
+        "AC6: A run launched through the native path reaches a terminal status in `cdx runs` without a supervising cdx process."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate executable quota routing across accounts and providers",
+    "plan": [
+      "Establish the baseline: capture today's `cdx run --json` payload for a success and a failure, today's `cdx resume`/`cdx can-resume` behaviour, and today's `cdx configs` output, so every later change is checked against what users and callers observe now.",
+      "Wave 1 - the two pinnable settings, because they are the established pattern with the lowest risk and they exercise every touch point (`session_service`, `cli_args`, `cli_helpers`, `commands/status`, `provider_runtime`) that later waves reuse. Mirror `rtk` as the reference implementation.",
+      "Wave 2 - session identity, before failover and not after. Failover needs a reliable anchor for continuation; building it on transcript scraping first and migrating later would mean writing the hardest part twice. Keep the recency path as the fallback throughout.",
+      "Wave 3 - rate-limit detection alone, isolated behind one function per provider and tested against recorded provider output before anything depends on it. This is the genuinely new part of the request and the part most likely to be wrong; treat a mis-detection as worse than no detection, since a false positive would migrate a healthy run off a working account.",
+      "Wave 4 - the failover loop itself, composing the detection from wave 3, `rank_sessions`, and the context transfer from wave 2. Extend the run record to a sequence of occupancies first, so no run is ever recorded in a shape the reporting cannot express.",
+      "Wave 5 - the passthrough escape hatch, deliberately after the mapped settings so the boundary between validated and unvalidated arguments is drawn once, with the schema and doctor exclusions written in the same change that introduces the feature rather than added afterwards.",
+      "Wave 6 - background delegation, last because it changes an execution path that already works and carries the least user-visible upside. Capability detection first, delegation second, with the in-house path untouched as the fallback.",
+      "Throughout: the ollama provider is not touched in any wave. Re-read the request non-goals before any change to provider dispatch.",
+      "Closeout: verify each request AC against observed command output rather than by inspection, and record which provider CLI versions the detection in wave 3 was verified against, since that is the part most likely to drift."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/executable_quota_routing.json",
+    "mode": "diff-first",
+    "profile": "deep"
+  }
+}
