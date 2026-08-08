@@ -2,8 +2,11 @@ import json
 import os
 import sys
 import tempfile
+import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
+
+from .errors import CdxError
 
 
 def utc_now_iso():
@@ -14,14 +17,49 @@ def registry_path(base_dir):
     return os.path.join(base_dir, "runs.json")
 
 
+# A waiter waits. `fcntl.flock` blocks until the lock is free, but Windows'
+# `LK_LOCK` retries ten times at one-second intervals and then raises
+# EDEADLOCK, so the same contention produced a wait on one platform and an
+# OSError on the other. Twenty parallel runs writing this registry is the load
+# cdx exists to carry, and on a physical Windows machine it exhausted that
+# budget - CI never showed it, being less contended than a real desktop.
+REGISTRY_LOCK_TIMEOUT_SECONDS = 120
+_LOCK_RETRY_SECONDS = 0.05
+
+
+def _acquire_windows_lock(handle, timeout_seconds):
+    """Block until the byte is locked, or give up with a nameable error.
+
+    Uses the non-blocking form and does the waiting here, so the wait is
+    bounded by a deadline cdx chooses rather than by `LK_LOCK`'s fixed ten
+    attempts. Unbounded would be worse than the original: a stuck holder would
+    hang every later command with nothing to report.
+    """
+    import msvcrt
+
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        handle.seek(0)
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            return
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise CdxError(
+                    "Timed out waiting for the run registry lock after "
+                    f"{timeout_seconds}s. Another cdx process may be stuck holding it.",
+                    75,
+                ) from None
+            time.sleep(_LOCK_RETRY_SECONDS)
+
+
 @contextmanager
-def _registry_lock(path):
+def _registry_lock(path, timeout_seconds=REGISTRY_LOCK_TIMEOUT_SECONDS):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path + ".lock", "a") as handle:
         if sys.platform == "win32":
             import msvcrt
-            handle.seek(0)
-            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            _acquire_windows_lock(handle, timeout_seconds)
             try:
                 yield
             finally:

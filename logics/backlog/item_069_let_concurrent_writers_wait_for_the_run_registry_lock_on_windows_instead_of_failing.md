@@ -1,13 +1,14 @@
 ## item_069_let_concurrent_writers_wait_for_the_run_registry_lock_on_windows_instead_of_failing - Let concurrent writers wait for the run registry lock on Windows instead of failing
 > From version: 0.15.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
 > Progress: 0%
 > Complexity: Low
 > Theme: Concurrency
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Owner: claude
 
 # Problem
 - `_registry_lock` uses `msvcrt.locking(fileno, LK_LOCK, 1)` on Windows, which retries ten times at one-second intervals and then raises `EDEADLOCK`. Twenty concurrent writers exhaust that budget and the `OSError` reaches the caller.

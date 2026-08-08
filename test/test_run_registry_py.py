@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest import mock
 
+from src.errors import CdxError
 from src.run_registry import RunRegistry
 
 
@@ -142,17 +143,70 @@ class RunRegistryTests(unittest.TestCase):
         listed = self.registry.list(limit=50)
         self.assertEqual(len(listed), 20)
 
-    def test_windows_uses_native_file_locking(self):
+    def test_contention_waits_instead_of_failing(self):
+        """Twenty parallel writers is the load cdx exists to carry.
+
+        On Windows this used to raise OSError(36) once `LK_LOCK`'s ten fixed
+        attempts ran out, while POSIX `flock` simply waited - the same
+        contention producing an error on one platform and a wait on the other.
+        Reproduced on a physical machine; CI never showed it, being less
+        contended than a real desktop.
+        """
+        errors = []
+
+        def worker(index):
+            try:
+                self._start(f"contend-{index}")
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(20)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(errors, [])
+        self.assertEqual(len({run["run_id"] for run in self.registry.list(limit=50)}), 20)
+
+    def test_an_exhausted_wait_is_reported_as_contention_not_as_an_oserror(self):
+        """Bounded on purpose: an unbounded wait would hang every later command
+        behind a stuck holder, with nothing to report."""
+        from src.run_registry import _acquire_windows_lock
+
+        class NeverFree:
+            def seek(self, _pos): pass
+            def fileno(self): return -1
+
+        with mock.patch("src.run_registry.time.sleep"):
+            with mock.patch.dict("sys.modules", {"msvcrt": mock.Mock(
+                LK_NBLCK=1, locking=mock.Mock(side_effect=OSError(36, "Resource deadlock avoided")),
+            )}):
+                with self.assertRaises(CdxError) as caught:
+                    _acquire_windows_lock(NeverFree(), timeout_seconds=0)
+
+        self.assertIn("run registry lock", str(caught.exception))
+        self.assertEqual(caught.exception.exit_code, 75)
+
+    def test_windows_locks_without_blocking_and_waits_in_our_own_loop(self):
+        """The non-blocking form on purpose.
+
+        `LK_LOCK` does its own waiting - ten attempts, one second apart, then
+        EDEADLOCK - which is a budget cdx cannot extend or report on. Taking
+        `LK_NBLCK` and looping here makes the wait bounded by a deadline cdx
+        chooses and lets an exhausted wait be named.
+        """
         calls = []
         fake_msvcrt = SimpleNamespace(
-            LK_LOCK=1,
+            LK_NBLCK=3,
             LK_UNLCK=2,
             locking=lambda fd, mode, length: calls.append((mode, length)),
         )
         with mock.patch("src.run_registry.sys.platform", "win32"):
             with mock.patch.dict("sys.modules", {"msvcrt": fake_msvcrt}):
                 self._start("run-1")
-        self.assertEqual(calls, [(1, 1), (2, 1)])
+
+        self.assertEqual(calls, [(3, 1), (2, 1)])
 
 
 if __name__ == "__main__":
