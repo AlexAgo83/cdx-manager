@@ -35,6 +35,14 @@ _MAX_TAIL_BYTES = 64 * 1024
 # "out of credits" was missing from the first version of this list, which is why
 # it never matched anything real. Credit exhaustion and a rate limit are the
 # same thing for this decision: the account cannot serve the task, try another.
+# Claude's own wording, captured from a real transcript on this machine:
+#   API error: 429 {"type":"error","error":{"type":"rate_limit_error",
+#     "message":"Usage credits are required for this model.", ...}}
+# `rate_limit_error` is already covered by "rate_limit" below. Worth knowing:
+# that same 429 is also how an org policy disabling a model is reported
+# (`disabled_reason: org_level_disabled`), which no amount of failing over
+# would fix - every account in the org hits it. The status corroboration in
+# `failover_reason` is what keeps that case from migrating a healthy run.
 _RATE_LIMIT_MARKERS = (
     "out of credits",
     "rate_limit",

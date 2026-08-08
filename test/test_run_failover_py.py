@@ -174,3 +174,40 @@ class ShouldFailOverTests(unittest.TestCase):
         # what the message said.
         self.assertTrue(should_fail_over("codex", healthy, spent))
         self.assertFalse(should_fail_over("codex", healthy, fine))
+
+
+class RealClaudeRateLimitPayloadTests(unittest.TestCase):
+    """Captured from a real transcript on this machine, not constructed.
+
+    Claude surfaces an org policy blocking a model as an HTTP 429 with
+    `type: rate_limit_error` - the wording of an exhausted account, for a
+    situation where no other account would help, since every account in the
+    org hits the same rule. `exhausted_included_allowance: false` and
+    `disabled_reason: org_level_disabled` say so, but neither is something a
+    wording matcher should be asked to interpret.
+
+    This is what the status corroboration is for: the wording matches, and the
+    migration still does not happen, because the account is not spent.
+    """
+
+    PAYLOAD = json.dumps({
+        "type": "result", "is_error": True,
+        "result": 'API error: 429 {"type":"error","error":{"type":"rate_limit_error",'
+                  '"message":"Usage credits are required for this model.",'
+                  '"details":{"error_code":"credits_required",'
+                  '"exhausted_included_allowance":false,'
+                  '"disabled_reason":"org_level_disabled"}}}',
+    })
+
+    def test_the_wording_alone_would_have_migrated_a_healthy_account(self):
+        self.assertTrue(looks_rate_limited("claude", _stdout(self.PAYLOAD)))
+
+    def test_corroboration_stops_it(self):
+        healthy = {"remaining_5h_pct": 90, "remaining_week_pct": 90}
+        self.assertIsNone(failover_reason("claude", _stdout(self.PAYLOAD), healthy))
+
+    def test_the_same_wording_on_a_spent_account_does_migrate(self):
+        self.assertEqual(
+            failover_reason("claude", _stdout(self.PAYLOAD), {"remaining_week_pct": 0}),
+            "provider_reported_exhaustion",
+        )

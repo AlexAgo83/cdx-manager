@@ -131,9 +131,14 @@ synthetic home (`scripts/seed_demo_home.py`) so they carry no account names.
 
 ## Known gaps
 
-- The rate-limit wording of a personal-plan Codex account and of Claude has not
-  been observed; only an enterprise workspace out of credits has. The
-  `account_status_exhausted` route covers the unobserved cases, so this costs
-  the precise reason rather than the failover itself.
+- The rate-limit wording of a personal-plan Codex account has not been
+  observed; only an enterprise workspace out of credits has. Claude's wording
+  was recovered from local transcripts after the release was cut - it reports
+  `type: rate_limit_error` under HTTP 429, which the matcher already covers.
+  Worth knowing: that same 429 is also how an org policy disabling a model is
+  reported, a case no failover can fix, and the status corroboration is what
+  stops a healthy account being abandoned for it. The
+  `account_status_exhausted` route covers whatever wording remains unseen, so
+  this costs the precise reason rather than the failover itself.
 - Background delegation has been exercised on one account with one prompt
   shape, which is why it is opt-in.
