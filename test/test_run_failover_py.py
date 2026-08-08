@@ -211,3 +211,35 @@ class RealClaudeRateLimitPayloadTests(unittest.TestCase):
             failover_reason("claude", _stdout(self.PAYLOAD), {"remaining_week_pct": 0}),
             "provider_reported_exhaustion",
         )
+
+
+class TypedLimitReasonTests(unittest.TestCase):
+    """`rate_limit_reached_type`, found in local Codex transcripts.
+
+    Null in 94512 records and set in 4, to `workspace_owner_credits_depleted`.
+    It matters because credits can run out while both percentage windows still
+    read healthy - the exact case the thresholds miss, and the one where a
+    failover is most obviously right.
+    """
+
+    def test_a_typed_reason_confirms_even_with_healthy_windows(self):
+        row = {
+            "remaining_5h_pct": 88,
+            "remaining_week_pct": 70,
+            "rate_limit_reached": "workspace_owner_credits_depleted",
+        }
+
+        self.assertTrue(status_confirms_exhaustion(row))
+        # Without it, the same account reads perfectly healthy, which is what
+        # the thresholds alone concluded before this field was surfaced.
+        self.assertFalse(status_confirms_exhaustion({**row, "rate_limit_reached": None}))
+
+    def test_any_typed_reason_counts_not_just_the_one_observed(self):
+        # The enum is the provider's; cdx should not need a list of its values.
+        for reason in ("usage_limit_reached", "primary", "some_future_value"):
+            self.assertTrue(status_confirms_exhaustion({"rate_limit_reached": reason}))
+
+    def test_the_normal_null_does_not_confirm(self):
+        self.assertFalse(status_confirms_exhaustion({
+            "remaining_5h_pct": 88, "remaining_week_pct": 70, "rate_limit_reached": None,
+        }))

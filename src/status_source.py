@@ -153,6 +153,13 @@ def _extract_structured_rate_limits(record):
         "reset_5h_at": _normalize_timestamp_value(_get_rate_limit_reset_at(five_hour)),
         "reset_week_at": _normalize_timestamp_value(_get_rate_limit_reset_at(weekly)),
         "reset_at": None,
+        # A typed reason the account is blocked, when the provider gives one:
+        # null in normal operation, and a value such as
+        # "workspace_owner_credits_depleted" when a limit is actually reached.
+        # Better evidence than any percentage - credits can run out while the
+        # 5-hour and weekly windows still read healthy - and better than
+        # matching prose, since it is an enum rather than a sentence.
+        "rate_limit_reached": _clean_reached_type(rate_limits.get("rate_limit_reached_type")),
         "raw_status_text": json.dumps(rate_limits, sort_keys=True),
     }
     if not five_hour and weekly:
@@ -170,6 +177,13 @@ def _extract_structured_rate_limits(record):
     if result["usage_pct"] is None and result["remaining_5h_pct"] is None and result["remaining_week_pct"] is None:
         return None
     return result
+
+
+def _clean_reached_type(value):
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text or None
 
 
 def _collect_structured_rate_limit_statuses(value, output=None):

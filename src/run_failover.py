@@ -10,7 +10,9 @@ resolves to "not rate limited".
 Signal one is the provider's own structured output, which both headless paths
 already produce - `codex exec --json` emits JSONL events, and the claude spec
 passes `--print --output-format json`. Signal two is the account's rate-limit
-status, refreshed once and read through the existing status pipeline.
+status, refreshed once and read through the existing status pipeline - where
+`rate_limit_reached` is the strongest evidence available, being the provider's
+own typed reason rather than a threshold or a sentence.
 
 The matchers below are deliberately the only place that knows what exhaustion
 looks like on the wire. That shape is version-specific and is the part most
@@ -169,6 +171,12 @@ def status_confirms_exhaustion(row):
     """
     if not row:
         return False
+    # The provider's own typed reason, when it gives one. Authoritative and
+    # language-free: `workspace_owner_credits_depleted` says the account cannot
+    # serve the task even when both percentage windows still read healthy,
+    # which is a case the thresholds below would miss entirely.
+    if row.get("rate_limit_reached"):
+        return True
     if row.get("blocking"):
         return True
     for key in ("remaining_5h_pct", "remaining_week_pct"):

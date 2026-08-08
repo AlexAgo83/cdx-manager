@@ -79,6 +79,7 @@ def _normalize_status_payload(payload=None):
         "reset_5h_at": payload.get("reset_5h_at"),
         "reset_week_at": payload.get("reset_week_at"),
         "reset_at": payload.get("reset_at") or payload.get("reset_week_at") or payload.get("reset_5h_at"),
+        "rate_limit_reached": payload.get("rate_limit_reached"),
         "updated_at": _to_local_iso(payload.get("updated_at") or payload.get("captured_at") or now),
         "raw_status_text": payload.get("raw_status_text"),
         "source_ref": payload.get("source_ref"),
