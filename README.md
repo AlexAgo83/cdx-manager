@@ -6,8 +6,7 @@
 
 If you pay for several AI coding subscriptions, you know the dance: you hit a 5-hour limit mid-task, guess which other account still has room, re-authenticate, and lose your context on the way. `cdx` turns that into `cdx next`.
 
-<img width="213" height="227" alt="image" src="https://github.com/user-attachments/assets/f15f449c-d23e-47fe-a455-17c7386f9be2" />
-<img width="645" height="129" alt="image" src="https://github.com/user-attachments/assets/34bcb395-f832-4da6-9247-3e5022e75e56" />
+![cdx status: remaining 5-hour and weekly quota for fifteen accounts, with the recommended one first](docs/assets/status.png)
 
 ---
 
@@ -23,6 +22,10 @@ cdx next                # which account should I use right now?
 ```
 
 Supported providers: `codex`, `claude`, `antigravity`, `ollama`.
+
+`cdx next` answers the question you actually have, and prints the command to run:
+
+![cdx next: work1 selected at 100% quota, with the reason and the command to run](docs/assets/next.png)
 
 ---
 
@@ -73,6 +76,8 @@ The reason `cdx` exists: knowing, across every account you own, which one you ca
 
 ### Isolated multi-account sessions
 
+![cdx: every registered session with its provider, state, pinned launch settings and age](docs/assets/list.png)
+
 - **Multiple providers, one tool.** Register as many Codex, Claude, Antigravity, or Ollama sessions as you need. Codex and Claude get isolated auth environments; Antigravity is launchable through `agy` with OS-keyring auth; Ollama runs local models through `ollama run`.
 - **Instant launch.** `cdx work` opens your "work" session. `cdx personal` opens another. No config files to edit mid-flow.
 - **Quick relaunch.** `cdx last` reopens the most recently launched assistant profile.
@@ -97,6 +102,10 @@ The reason `cdx` exists: knowing, across every account you own, which one you ca
 ### Maintenance
 
 - **Launch history.** Inspect recent launches with provider, result, duration, working directory, launch settings, and transcript path.
+- **Aggregate usage.** `cdx stats` totals runs, token usage, and time spent per session over any period.
+
+![cdx stats: runs, input and output tokens, total time and last use per session](docs/assets/stats.png)
+
 - **Disk usage and cleanup.** `cdx disk` reports `CDX_HOME` usage, `cdx disk profiles --candidates` identifies reclaimable profile caches/logs with evidence, and `cdx clean profiles ...` applies explicit cleanup actions.
 - **Health and repair.** `cdx doctor` inspects dependencies, permissions, and orphan profiles; `cdx repair` plans or applies safe fixes.
 - **Portable bundles.** `cdx export` / `cdx import` move sessions between machines, with passphrase-encrypted auth data when you ask for it.
