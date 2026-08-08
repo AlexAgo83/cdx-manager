@@ -1,13 +1,14 @@
 ## item_071_make_an_incomplete_option_declaration_impossible - Make an incomplete option declaration impossible
 > From version: 0.15.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 40%
 > Complexity: Medium
 > Theme: CLI surface
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Owner: claude
 
 # Problem
 - A flag can currently be declared in the parser table and omitted from the returned dict, which parses and validates and does nothing. That happened during 0.15.0 and only an integration test caught it.
