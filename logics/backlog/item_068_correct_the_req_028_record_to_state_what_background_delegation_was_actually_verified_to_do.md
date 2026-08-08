@@ -1,13 +1,15 @@
 ## item_068_correct_the_req_028_record_to_state_what_background_delegation_was_actually_verified_to_do - Correct the req_028 record to state what background delegation was actually verified to do
 > From version: 0.15.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
 > Progress: 0%
 > Complexity: Low
 > Theme: Release hygiene
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Owner: claude
+> Indicators reviewed: 2026-08-09
 
 # Problem
 - `req_028`'s closeout records AC11 as `unverified` and describes background delegation as disabled rather than shipped broken. Both were true when written and neither is true now.
