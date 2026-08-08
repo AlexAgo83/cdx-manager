@@ -7,6 +7,7 @@
 > Complexity: High
 > Theme: Quota-aware execution
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-08-08
 
 # Needs
 - cdx knows, across every registered account, which one has quota left. That knowledge is applied exactly once - before the work starts - and never again at the moment it matters, which is when a run hits the wall mid-task. `cdx status` reports, `cdx next` recommends, and then the user is on their own.
@@ -28,10 +29,10 @@
 # Acceptance criteria
 - AC1: `cdx set <name> --budget <amount>` persists a per-session spend ceiling, `cdx configs` displays it, `cdx unset <name> --budget` clears it, and a non-positive or non-numeric amount is rejected with a specific error rather than being silently stored.
 - AC2: `cdx set <name> --fallback-model <model>` persists a per-session fallback model, validated with the same character and length rules as `--model`, and both settings survive a launch/relaunch cycle exactly as `power` and `permission` do.
-- AC3: For a Claude session carrying either setting, the launch command includes `--max-budget-usd` and `--fallback-model` respectively; for a Codex session the settings are accepted and stored but produce no provider argument, and this asymmetry is reported by `cdx configs` rather than failing the launch.
-- AC4: cdx records a provider-native session identifier for each session that supports one, and `cdx resume <name>` uses that identifier instead of the recency heuristics `codex resume --last` and `claude --continue`, so resuming is unaffected by the working directory or by other sessions having run more recently.
+- AC3: For a Claude session carrying either setting, a **headless** run includes `--max-budget-usd` and `--fallback-model` respectively, while interactive launches, resume, and every Codex launch include neither; both flags are `--print`-only in Claude Code 2.1.226, so this is a provider constraint rather than a cdx choice, and `cdx configs` reports where each setting applies rather than failing a launch.
+- AC4: cdx records a provider-native session identifier, and its provenance, for each session that supports one - imposed for Claude through `--session-id`, observed for Codex by reading the rollout's `session_id` after a run - and `cdx resume <name>` uses that identifier instead of the recency heuristics `codex resume --last` and `claude --continue`, so resuming is unaffected by the working directory or by other sessions having run more recently.
 - AC5: `cdx can-resume <name> --json` reports which resume strategy will actually be used (identity-based or recency-based) and why, so a caller can tell a reliable resume from a best-effort one before relying on it.
-- AC6: `cdx run --failover` detects that a run has terminated because of a provider rate limit, distinguishes that cause from every other failure, re-ranks the remaining sessions, transfers the working context, and continues the task on the next eligible session without user intervention.
+- AC6: `cdx run --failover` detects that a run has terminated because of a provider rate limit, distinguishes that cause from every other failure, corroborates it against the account's own refreshed status before acting, re-ranks the remaining sessions, transfers the working context, and continues the task on the next eligible session without user intervention; every ambiguous case is biased towards not failing over, because a false positive migrates a healthy run off a working account.
 - AC7: A run that failed over is fully traceable: `cdx run-report <run_id> --json` names every session the run occupied, in order, with the reason for each transition, and `cdx runs` shows the run as one run rather than as several unrelated ones.
 - AC8: When no eligible session remains, a failover run terminates with a specific error code that distinguishes 'exhausted every account' from 'the task itself failed', and reports what was attempted.
 - AC9: A user can pass provider arguments cdx does not model, per session (`cdx set --extra-args`) and per run, and those arguments reach the provider command line unmodified.

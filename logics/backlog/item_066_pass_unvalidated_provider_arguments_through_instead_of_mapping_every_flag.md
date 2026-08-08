@@ -8,11 +8,19 @@
 > Complexity: Medium
 > Theme: Provider surface
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-08
 
 # Problem
 - Both provider CLIs ship flags faster than cdx can map them: `--add-dir`, `--search`, `--image`, `--allowedTools`, `--sandbox`, `--approve-for-me`, `--profile` and `--agents` are all unmapped today, and the list grows every release.
 - There is no escape hatch, so a user who needs any unmapped flag must abandon cdx and lose the account isolation that is the reason to use it.
 - Adding these one at a time is a treadmill with no end state, and each addition enlarges a validated surface cdx then has to keep true.
+
+# Preparation findings
+- cdx already executes providers through argv lists, never through a shell: every spec in `src/provider_runtime.py` is `{"command": ..., "args": [...]}`. The shell-metacharacter criterion is therefore about *preserving* that property while parsing a user-supplied string into argv, not about adding escaping.
+- Splitting the stored string into argv is the one real decision. `shlex.split` gives POSIX quoting semantics and would behave differently on Windows, which CI covers (`ci.yml` runs `windows-latest`). Choose deliberately and state the choice, rather than inheriting it.
+- The insertion order matters for precedence: providers generally let the last occurrence of a flag win, so appending passthrough after cdx's mapped arguments makes the user's value take effect. That is a defensible default, but it silently overrides `cdx set`, which is why the collision behaviour has to be observable rather than implicit.
+- Three specs would need the passthrough independently - interactive (`:486`), resume (`:598`), headless (`:654`). Deciding whether passthrough applies to all three or to the headless path alone is a scoping question to settle before implementation, not during.
+- The exclusions have concrete homes: `cdx schema --json` is built in `src/commands/runs.py`, and `--check-provider-flags` lives in the doctor path. Both must be changed in the same commit that introduces the feature, not after.
 
 # Scope
 - In:

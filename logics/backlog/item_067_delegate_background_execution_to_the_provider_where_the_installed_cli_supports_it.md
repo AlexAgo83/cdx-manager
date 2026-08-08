@@ -8,11 +8,19 @@
 > Complexity: Medium
 > Theme: Provider surface
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-08
 
 # Problem
 - `_spawn_detached_run` reimplements detached execution with PID tracking, `start_new_session`, and a child argv rebuilt by `_detached_child_argv`, while Claude Code now ships `--bg` with `claude agents` and codex-cli ships `cloud` and `exec-server`.
 - Deepening the in-house mechanism spends effort on the part of the problem the providers are solving themselves, rather than on cross-account routing, which neither provider can do.
 - The in-house path works and is covered by tests, so the answer is delegation where the installed CLI supports it, not removal.
+
+# Preparation findings
+- The two providers offer different shapes, and the asymmetry decides how far this slice can go. Claude Code 2.1.226 has `--bg/--background` ("start the session as a background agent and return immediately, manage with `claude agents`") plus a `claude agents` subcommand - a managed lifecycle cdx can query. codex-cli 0.147.0 has `cloud` and `exec-server`, both marked EXPERIMENTAL in `codex --help`.
+- Delegating to an experimental Codex surface would trade a working in-house path for one the provider may change without notice. The realistic first target is Claude only, with Codex staying on the in-house path until its surface stabilises - which keeps the slice honest rather than symmetric.
+- Capability detection must not be a version comparison. `cdx doctor --check-provider-flags` already establishes the pattern of asking the installed CLI what it accepts; reuse it rather than inventing a second mechanism.
+- The hard constraint is the identity boundary: `cdx run --detach` must keep returning cdx's own `run_id`, and `run-status`/`run-tail`/`runs` must keep their shape, while the process is owned by the provider's agent manager rather than by cdx. Mapping the provider's agent handle to the cdx `run_id` is the real work of this slice.
+- `_refresh_stale_runs` and `_is_pid_alive` in `src/run_registry.py` reach terminal status by checking a PID cdx owns. A provider-managed agent has no such PID, so reaching a terminal status has to come from querying the provider instead - this is the part most likely to be underestimated.
 
 # Scope
 - In:
