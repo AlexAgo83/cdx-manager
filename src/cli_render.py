@@ -120,8 +120,25 @@ def format_error(error, env=None, stderr=None):
     return _style(str(error), "31", _should_use_color(env or os.environ, stderr or sys.stderr))
 
 
+def _format_onboarding(use_color=False):
+    return "\n".join([
+        _style("No sessions yet.", "1", use_color),
+        "",
+        "A session is an isolated account profile for a provider CLI.",
+        "Register your first one, then launch it by name:",
+        "",
+        f"  {_style('cdx add codex work', '36', use_color)}     {_dim('register a Codex session named work', use_color)}",
+        f"  {_style('cdx work', '36', use_color)}               {_dim('log in if needed, then launch it', use_color)}",
+        "",
+        f"{_dim('Providers: codex, claude, antigravity, ollama (ollama needs --model).', use_color)}",
+        f"{_dim('Run cdx help for the full command list.', use_color)}",
+    ])
+
+
 def _format_sessions(service, use_color=False):
     rows = service["format_list_rows"]()
+    if not rows:
+        return _format_onboarding(use_color=use_color)
     has_provider = any(r.get("provider") for r in rows)
     has_label = any(r.get("label") for r in rows)
     has_launch = any(r.get("launch") for r in rows)

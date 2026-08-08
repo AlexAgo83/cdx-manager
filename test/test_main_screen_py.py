@@ -76,6 +76,23 @@ class MainScreenTests(CliTestBase):
         self.assertNotIn("  cdx login <name>", lines[start:])
         self.assertNotIn("  cdx handoff <name>", lines[start:])
 
+    def test_main_screen_without_sessions_points_at_the_first_add(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+
+        list_io = self.make_io()
+        self.assertEqual(main([], {
+            **list_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+        }), 0)
+
+        output = list_io["stdout"].getvalue()
+        self.assertIn("No sessions yet.", output)
+        self.assertIn("cdx add codex work", output)
+        self.assertNotIn("Known sessions:", output)
+        self.assertNotIn("Next actions:", output)
+
     def test_main_screen_surfaces_update_notice(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
