@@ -19,6 +19,7 @@ comparison goes stale the moment either side ships.
 """
 
 import json
+import os
 import subprocess
 
 from .config import PROVIDER_CLAUDE
@@ -33,13 +34,36 @@ _CAPABILITY_PROBE_TIMEOUT_SECONDS = 10
 _TERMINAL_STATUSES = {"completed", "failed", "cancelled", "canceled", "error"}
 
 
+EXPERIMENTAL_ENV = "CDX_EXPERIMENTAL_NATIVE_BG"
+
+
 def supports_native_background(provider, env=None, spawn_sync=None):
     """Whether the installed provider CLI can run and report background agents.
 
-    Both halves are required: starting an agent cdx cannot then observe would
-    leave runs stuck at "running" forever, which is worse than not delegating.
+    Off unless `CDX_EXPERIMENTAL_NATIVE_BG=1`, because a live trial against
+    Claude Code 2.1.226 broke three assumptions this module was built on:
+
+    1. `--session-id` is not honoured under `--bg`. cdx asked for
+       `6e8e9e0b-...` and the agent came back as `373c3949-...`, so looking the
+       agent up by the id cdx requested finds nothing.
+    2. The `pid` in `claude agents --json` is not the run. It pointed at a
+       `claude bg-spare` daemon helper, and became `null` a minute later, so it
+       cannot drive `_refresh_stale_runs`.
+    3. `status` can be absent entirely (`null`), alongside an undocumented
+       `state: "blocked"`, so terminal detection has nothing dependable to read.
+
+    Consequence when it was enabled: the agent started, cdx failed to identify
+    it, fell back to the in-house launcher, and the same task ran twice - once
+    untracked. Duplicate execution on a user's account is worse than not
+    delegating at all, so the default is off until the surface is understood.
+
+    Both halves are still required when opted in: starting an agent cdx cannot
+    observe would leave runs stuck at "running" forever.
     """
     if provider != PROVIDER_CLAUDE:
+        return False
+    environment = env if env is not None else os.environ
+    if str(environment.get(EXPERIMENTAL_ENV, "")).strip() not in ("1", "true", "on", "yes"):
         return False
     runner = spawn_sync or _default_spawn_sync
     try:

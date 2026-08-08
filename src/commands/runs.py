@@ -24,13 +24,11 @@ from ..errors import CdxError
 from ..provider_background import (
     BACKGROUND_PATH_CDX,
     BACKGROUND_PATH_PROVIDER,
-    find_agent,
     list_background_agents,
     supports_native_background,
 )
 from ..provider_runtime import (
     _build_launch_spec,
-    _conversation_id,
     _ensure_session_authentication,
     _headless_artifact_paths,
     _run_headless_provider_command,
@@ -293,13 +291,21 @@ def _spawn_provider_background_run(run_session, prompt, artifacts, ctx, cwd):
 
     # The provider owns the agent, so its identity and pid come from asking it,
     # not from the process cdx just spawned.
-    agents = list_background_agents(env=env, cwd=cwd, spawn_sync=ctx.get("spawn_text"))
-    agent = None
-    conversation_id = _conversation_id(run_session)
-    if conversation_id:
-        agent = find_agent(agents, conversation_id)
+    # Identify by "newest background agent in this cwd", never by the id cdx
+    # asked for: the provider assigns its own under --bg and ignores
+    # --session-id, so a lookup by the requested id always misses.
+    agents = [a for a in list_background_agents(env=env, cwd=cwd, spawn_sync=ctx.get("spawn_text"))
+              if isinstance(a, dict) and a.get("kind") == "background"]
+    agent = max(agents, key=lambda a: a.get("startedAt") or 0, default=None)
     if agent is None:
-        return None
+        # The agent may nonetheless be running. Falling back to the in-house
+        # launcher here would run the same task twice, once untracked, on the
+        # user's account - so this fails loudly instead.
+        raise CdxError(
+            "Started a provider background agent but could not identify it; "
+            "refusing to launch a second run for the same task.",
+            126,
+        )
     return {
         "pid": agent.get("pid"),
         "launch_log_path": launch_log_path,

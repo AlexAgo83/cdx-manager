@@ -11,6 +11,8 @@ from src.provider_background import (
     supports_native_background,
 )
 
+ON = {"CDX_EXPERIMENTAL_NATIVE_BG": "1"}
+
 
 def _runner(responses):
     def run(argv, env=None):
@@ -24,7 +26,7 @@ class CapabilityDetectionTests(unittest.TestCase):
             "claude --help": "  --bg, --background  Start the session as a background agent",
             "claude agents --help": "  --json  Print active sessions as a JSON array",
         })
-        self.assertTrue(supports_native_background("claude", spawn_sync=both))
+        self.assertTrue(supports_native_background("claude", env=ON, spawn_sync=both))
 
         # An agent cdx can start but never observe would leave runs stuck at
         # "running" forever, which is worse than not delegating at all.
@@ -32,17 +34,30 @@ class CapabilityDetectionTests(unittest.TestCase):
             "claude --help": "  --bg  Start the session as a background agent",
             "claude agents --help": "  --cwd <path>  Filter by directory",
         })
-        self.assertFalse(supports_native_background("claude", spawn_sync=start_only))
+        self.assertFalse(supports_native_background("claude", env=ON, spawn_sync=start_only))
 
     def test_codex_is_not_delegated_to_while_its_surface_is_experimental(self):
         anything = _runner({
             "codex --help": "--bg",
             "codex agents --help": "--json",
         })
-        self.assertFalse(supports_native_background("codex", spawn_sync=anything))
+        self.assertFalse(supports_native_background("codex", env=ON, spawn_sync=anything))
 
     def test_an_unreadable_cli_is_not_a_capability(self):
-        self.assertFalse(supports_native_background("claude", spawn_sync=_runner({})))
+        self.assertFalse(supports_native_background("claude", env=ON, spawn_sync=_runner({})))
+
+
+    def test_delegation_is_off_unless_explicitly_opted_in(self):
+        """Live trial showed the provider assigns its own id under --bg, so cdx
+        could not identify the agent it had just started, fell back, and ran the
+        task twice. Off by default until that is understood."""
+        capable = _runner({
+            "claude --help": "  --bg  Start the session as a background agent",
+            "claude agents --help": "  --json  Print active sessions as a JSON array",
+        })
+
+        self.assertFalse(supports_native_background("claude", env={}, spawn_sync=capable))
+        self.assertTrue(supports_native_background("claude", env=ON, spawn_sync=capable))
 
 
 class AgentListingTests(unittest.TestCase):
