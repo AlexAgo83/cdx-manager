@@ -108,6 +108,7 @@ from .session_status import (  # noqa: F401  (re-exported for callers and tests)
     record_status,
 )
 from .session_store import create_session_store
+from .status_source import find_latest_codex_conversation_id
 
 MAX_SESSION_LABEL_LENGTH = 64
 # Each live Codex probe spawns app-server, which can refresh+rotate the OAuth
@@ -627,7 +628,37 @@ def record_launch_history(store, name, payload):
         **payload,
     }
     store["append_launch_history"](entry)
+    _observe_codex_conversation(store, session)
     return entry
+
+
+def _observe_codex_conversation(store, session):
+    """Read Codex's conversation id back after a run, if it wrote one.
+
+    Codex mints the id itself, so unlike Claude this can only be observed once
+    the rollout exists. Failing to find one is normal and leaves the session on
+    the recency resume path; it is never an error worth surfacing to a launch
+    that otherwise succeeded.
+    """
+    if session.get("provider") != PROVIDER_CODEX:
+        return
+    auth_home = session.get("authHome")
+    if not auth_home:
+        return
+    try:
+        identifier = find_latest_codex_conversation_id(auth_home)
+    except OSError:
+        return
+    if not identifier or identifier == (session.get("conversation") or {}).get("id"):
+        return
+    store["update_session"](session["name"], lambda s: {
+        **s,
+        "conversation": {
+            "id": identifier,
+            "provenance": "observed",
+            "recordedAt": _local_now_iso(),
+        },
+    })
 
 
 def get_launch_history(store, name=None, limit=20):
@@ -711,9 +742,38 @@ def launch_session(store, name):
         return {**state, "rehydratedAt": now}
 
     store["update_session_state"](name, state_updater)
-    return store["update_session"](name, lambda s: {
-        **s, "updatedAt": now, "lastLaunchedAt": now
-    })
+
+    def session_updater(s):
+        updated = {**s, "updatedAt": now, "lastLaunchedAt": now}
+        conversation = _conversation_identity_for_launch(s)
+        if conversation:
+            updated["conversation"] = conversation
+        return updated
+
+    return store["update_session"](name, session_updater)
+
+
+def _conversation_identity_for_launch(session):
+    """The conversation id this launch will carry, or None to leave it alone.
+
+    Claude accepts a caller-supplied `--session-id`, so cdx mints one here,
+    before the launch spec is built, and knows the conversation's identity
+    without having to find it afterwards. A fresh id per launch rather than one
+    reused forever: a launch starts a new conversation, and `cdx resume` should
+    mean the last one, so the stored value is always the newest. Reusing a
+    single id across launches would also depend on how the provider treats a
+    repeated `--session-id`, which is a behaviour cdx does not need to rely on.
+
+    Codex has no equivalent flag; its identity is read back from the rollout
+    after the run, so nothing is minted here.
+    """
+    if session.get("provider") != PROVIDER_CLAUDE:
+        return None
+    return {
+        "id": str(uuid.uuid4()),
+        "provenance": "imposed",
+        "recordedAt": _local_now_iso(),
+    }
 
 
 def get_session_root(base_dir, name):

@@ -9,6 +9,7 @@ from src.session_service import _safe_relpath
 from src.status_source import (
     _format_local_reset_timestamp,
     extract_named_statuses_from_text,
+    find_latest_codex_conversation_id,
     find_latest_status_artifact,
 )
 from src.status_view import _parse_reset_timestamp
@@ -36,6 +37,40 @@ def _write_rollout(path, timestamp, primary_used, secondary_used=None, mtime=Non
         }) + "\n")
     if mtime is not None:
         os.utime(path, (mtime, mtime))
+
+
+class CodexConversationIdTests(unittest.TestCase):
+    def _rollout(self, root, name, payload_line, mtime=None):
+        path = os.path.join(root, "sessions", "2026", "08", "08", name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(payload_line + "\n")
+        if mtime is not None:
+            os.utime(path, (mtime, mtime))
+        return path
+
+    def test_reads_the_session_id_from_the_newest_rollout(self):
+        root = tempfile.mkdtemp()
+        old = "aaaaaaaa-1111-2222-3333-444444444444"
+        new = "bbbbbbbb-1111-2222-3333-444444444444"
+        self._rollout(root, f"rollout-2026-08-08T07-00-00-{old}.jsonl",
+                      json.dumps({"type": "session_meta", "payload": {"session_id": old}}), mtime=1000)
+        self._rollout(root, f"rollout-2026-08-08T09-00-00-{new}.jsonl",
+                      json.dumps({"type": "session_meta", "payload": {"session_id": new}}), mtime=2000)
+
+        self.assertEqual(find_latest_codex_conversation_id(root), new)
+
+    def test_falls_back_to_the_filename_when_the_first_line_is_unusable(self):
+        root = tempfile.mkdtemp()
+        identifier = "cccccccc-1111-2222-3333-444444444444"
+        self._rollout(root, f"rollout-2026-08-08T09-00-00-{identifier}.jsonl", '{"type": "session_meta"')
+
+        self.assertEqual(find_latest_codex_conversation_id(root), identifier)
+
+    def test_returns_none_rather_than_guessing_when_there_is_no_rollout(self):
+        root = tempfile.mkdtemp()
+        self.assertIsNone(find_latest_codex_conversation_id(root))
+        self.assertIsNone(find_latest_codex_conversation_id(os.path.join(root, "missing")))
 
 
 class StatusSourcePythonTests(unittest.TestCase):

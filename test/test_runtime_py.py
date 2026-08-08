@@ -1124,6 +1124,50 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertNotIn("--max-budget-usd", spec["args"])
         self.assertNotIn("--fallback-model", spec["args"])
 
+    def test_resume_capability_reports_recency_until_a_conversation_is_known(self):
+        for provider, strategy in (("codex", "provider_last"), ("claude", "provider_continue")):
+            capability = provider_runtime.get_resume_capability(
+                {"name": "s", "provider": provider}, cwd="/tmp/repo"
+            )
+            self.assertEqual(capability["strategy"], strategy)
+            self.assertIsNone(capability["identity"])
+            self.assertEqual(capability["reason"], "no_recorded_conversation")
+
+    def test_resume_capability_names_the_conversation_once_recorded(self):
+        session = {
+            "name": "s",
+            "provider": "claude",
+            "conversation": {"id": "11111111-2222-3333-4444-555555555555", "provenance": "imposed"},
+        }
+
+        capability = provider_runtime.get_resume_capability(session, cwd="/tmp/repo")
+
+        self.assertEqual(capability["strategy"], "provider_conversation_id")
+        self.assertEqual(capability["provenance"], "imposed")
+        self.assertEqual(
+            capability["command_preview"],
+            ["claude", "--resume", "11111111-2222-3333-4444-555555555555"],
+        )
+
+    def test_resume_specs_name_the_conversation_for_both_providers(self):
+        identifier = "11111111-2222-3333-4444-555555555555"
+        for provider, expected in (
+            ("claude", ["--resume", identifier]),
+            ("codex", ["resume", identifier]),
+        ):
+            session = {
+                "name": "s",
+                "provider": provider,
+                "authHome": "/tmp/home",
+                "conversation": {"id": identifier, "provenance": "observed"},
+            }
+
+            spec = provider_runtime._build_resume_spec(session, cwd="/tmp/repo", capture_transcript=False)
+
+            self.assertEqual(spec["args"][:2], expected)
+            self.assertNotIn("--continue", spec["args"])
+            self.assertNotIn("--last", spec["args"])
+
     def test_budget_argument_drops_float_artefacts(self):
         self.assertEqual(provider_runtime._format_budget_arg(5.0), "5")
         self.assertEqual(provider_runtime._format_budget_arg(2.50), "2.5")

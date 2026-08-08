@@ -354,6 +354,12 @@ def _claude_cli_model(model):
     return raw
 
 
+def _conversation_id(session):
+    conversation = session.get("conversation") or {}
+    identifier = conversation.get("id")
+    return identifier if identifier else None
+
+
 def _claude_fallback_model(value):
     """Normalize each element of the comma-separated fallback list.
 
@@ -504,6 +510,9 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     if session["provider"] == PROVIDER_CLAUDE:
         launch = session.get("launch") or {}
         args = ["--name", session["name"]]
+        conversation_id = _conversation_id(session)
+        if conversation_id:
+            args += ["--session-id", conversation_id]
         if launch.get("model"):
             args += ["--model", _claude_cli_model(launch["model"])]
         args += _launch_config_args(session)
@@ -577,20 +586,48 @@ def _redacted_resume_command_preview(session, cwd=None):
 def get_resume_capability(session, cwd=None):
     provider = session.get("provider")
     cwd = cwd or os.getcwd()
+    conversation = session.get("conversation") or {}
+    conversation_id = _conversation_id(session)
     if provider == PROVIDER_CODEX:
+        if conversation_id:
+            return {
+                "resumable": True,
+                "provider": provider,
+                "strategy": "provider_conversation_id",
+                "identity": conversation_id,
+                "provenance": conversation.get("provenance"),
+                "reason": "supported",
+                "command_preview": ["codex", "resume", conversation_id, "--cd", cwd],
+            }
         return {
             "resumable": True,
             "provider": provider,
             "strategy": "provider_last",
-            "reason": "supported",
+            "identity": None,
+            "provenance": None,
+            # Codex only reveals a conversation id once a run has written its
+            # rollout, so a session that has never run legitimately has none.
+            "reason": "no_recorded_conversation",
             "command_preview": ["codex", "resume", "--last", "--cd", cwd],
         }
     if provider == PROVIDER_CLAUDE:
+        if conversation_id:
+            return {
+                "resumable": True,
+                "provider": provider,
+                "strategy": "provider_conversation_id",
+                "identity": conversation_id,
+                "provenance": conversation.get("provenance"),
+                "reason": "supported",
+                "command_preview": ["claude", "--resume", conversation_id],
+            }
         return {
             "resumable": True,
             "provider": provider,
             "strategy": "provider_continue",
-            "reason": "supported",
+            "identity": None,
+            "provenance": None,
+            "reason": "no_recorded_conversation",
             "command_preview": ["claude", "--continue"],
         }
     return {
@@ -615,7 +652,12 @@ def _build_resume_spec(session, cwd=None, env_override=None, capture_transcript=
 
     if session["provider"] == PROVIDER_CLAUDE:
         launch = session.get("launch") or {}
-        args = ["--continue", "--name", session["name"]]
+        # Resuming by id targets the conversation this session actually last
+        # opened; --continue only means "the most recent one in this directory",
+        # which another session or another cwd can silently change.
+        conversation_id = _conversation_id(session)
+        args = ["--resume", conversation_id] if conversation_id else ["--continue"]
+        args += ["--name", session["name"]]
         if launch.get("model"):
             args += ["--model", _claude_cli_model(launch["model"])]
         args += _launch_config_args(session)
@@ -637,7 +679,9 @@ def _build_resume_spec(session, cwd=None, env_override=None, capture_transcript=
         }, capture_transcript=capture_transcript, env=env)
 
     launch = session.get("launch") or {}
-    args = ["resume", "--last", "--cd", cwd]
+    conversation_id = _conversation_id(session)
+    args = ["resume", conversation_id] if conversation_id else ["resume", "--last"]
+    args += ["--cd", cwd]
     if launch.get("model"):
         args += ["--model", launch["model"]]
     args += _launch_config_args(session)

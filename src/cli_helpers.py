@@ -541,6 +541,12 @@ def _resume_capability_for_session(session, ctx):
         "provider": session["provider"],
         "resumable": bool(capability.get("resumable")),
         "strategy": capability.get("strategy"),
+        # A caller deciding whether to trust a resume needs to tell a named
+        # conversation from "whatever ran here last", and where that name came
+        # from: Claude's is imposed at launch, Codex's is observed afterwards
+        # and is legitimately absent until the session has run once.
+        "identity": capability.get("identity"),
+        "provenance": capability.get("provenance"),
         "reason": capability.get("reason"),
         "command_preview": capability.get("command_preview") or [],
     }

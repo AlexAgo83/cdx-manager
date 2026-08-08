@@ -597,6 +597,51 @@ def extract_named_statuses_from_text(text):
     }
 
 
+_ROLLOUT_NAME = re.compile(r"^rollout-.*-([0-9a-fA-F-]{36})\.jsonl$")
+
+
+def find_latest_codex_conversation_id(root_dir):
+    """The conversation id of the newest rollout under a Codex home, or None.
+
+    Codex exposes no flag that imposes a conversation id, so the only way to
+    learn one is to read it back after the run. Each rollout opens with a
+    session-meta record carrying `payload.session_id`, and the filename repeats
+    it; the record is preferred and the filename is the fallback for a file
+    whose first line is truncated.
+
+    Returns None rather than guessing whenever the newest rollout yields
+    nothing usable: a session left on the recency path behaves as it does
+    today, while a wrong id would resume somebody else's conversation.
+    """
+    sessions_dir = os.path.join(root_dir, "sessions")
+    if not os.path.isdir(sessions_dir):
+        return None
+    newest = None
+    for dirpath, _dirnames, filenames in os.walk(sessions_dir):
+        for fname in filenames:
+            if not _ROLLOUT_NAME.match(fname):
+                continue
+            fp = os.path.join(dirpath, fname)
+            stat = _safe_stat(fp)
+            if stat and (newest is None or stat.st_mtime > newest[0]):
+                newest = (stat.st_mtime, fp)
+    if not newest:
+        return None
+
+    path = newest[1]
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            record = json.loads(handle.readline())
+        identifier = (record.get("payload") or {}).get("session_id")
+        if isinstance(identifier, str) and identifier.strip():
+            return identifier.strip()
+    except (OSError, ValueError):
+        pass
+
+    match = _ROLLOUT_NAME.match(os.path.basename(path))
+    return match.group(1) if match else None
+
+
 def _collect_candidate_files(root_dir):
     priority_candidates = []
     history_candidates = []

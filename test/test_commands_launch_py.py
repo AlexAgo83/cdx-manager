@@ -6,6 +6,7 @@ Moved verbatim from test_cli_py.py; see test/cli_test_support.py for fixtures.
 import json
 import os
 import subprocess
+import uuid
 
 from cli_test_support import (  # noqa: F401
     CRYPTOGRAPHY_REQUIRED,
@@ -335,11 +336,17 @@ class LaunchCommandTests(CliTestBase):
 
         payload = json.loads(resume_io["stdout"].getvalue())
         self.assertEqual(payload["action"], "resume")
-        self.assertEqual(payload["resume"]["strategy"], "provider_continue")
+        # The session was launched above, so it carries a conversation id and
+        # resume names it rather than falling back to --continue.
+        self.assertEqual(payload["resume"]["strategy"], "provider_conversation_id")
+        self.assertEqual(payload["resume"]["provenance"], "imposed")
         resume_call = harness.calls[-1]
         self.assertEqual(resume_call["command"], "script")
         self.assertTrue(_script_launch_invokes(resume_call, "claude"))
-        self.assertEqual(_script_launch_args(resume_call)[:3], ["--continue", "--name", "work"])
+        resume_args = _script_launch_args(resume_call)
+        self.assertEqual(resume_args[0], "--resume")
+        self.assertEqual(resume_args[1], payload["resume"]["identity"])
+        self.assertEqual(resume_args[2:4], ["--name", "work"])
 
     def test_can_resume_reports_json_without_launching_provider(self):
         temp_dir = self.make_temp_dir()
@@ -749,10 +756,18 @@ class LaunchCommandTests(CliTestBase):
             call for call in harness.calls
             if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "claude")
         ][-1]
-        self.assertEqual(
-            _script_launch_args(launch_call)[:8],
-            ["--name", "work1", "--model", "sonnet", "--effort", "high", "--permission-mode", "plan"],
-        )
+        launch_args = _script_launch_args(launch_call)
+        self.assertEqual(launch_args[:2], ["--name", "work1"])
+        for flag, value in [
+            ("--model", "sonnet"),
+            ("--effort", "high"),
+            ("--permission-mode", "plan"),
+        ]:
+            self.assertEqual(launch_args[launch_args.index(flag) + 1], value)
+        # The launch mints the conversation id it will carry, so resume can name
+        # it later instead of asking for "the most recent conversation here".
+        conversation_id = launch_args[launch_args.index("--session-id") + 1]
+        self.assertEqual(str(uuid.UUID(conversation_id)), conversation_id)
 
     def test_persisted_claude_api_model_is_normalized_for_cli_launch(self):
         temp_dir = self.make_temp_dir()
