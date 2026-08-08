@@ -29,16 +29,27 @@ MAX_FAILOVER_TRANSITIONS = 4
 # and a long transcript should not be loaded whole to find it.
 _MAX_TAIL_BYTES = 64 * 1024
 
-# Matched against a lowercased payload. Kept narrow on purpose: a phrase that
-# also appears in ordinary assistant prose would make the model's own words
-# able to trigger a failover.
+# Observed against codex-cli 0.147.0 on an exhausted account:
+#   {"type":"error","message":"Your workspace is out of credits. Add credits to continue."}
+#   {"type":"turn.failed","error":{"message":"Your workspace is out of credits..."}}
+# "out of credits" was missing from the first version of this list, which is why
+# it never matched anything real. Credit exhaustion and a rate limit are the
+# same thing for this decision: the account cannot serve the task, try another.
 _RATE_LIMIT_MARKERS = (
+    "out of credits",
     "rate_limit",
-    "rate limit reached",
-    "usage limit reached",
+    "rate limit",
+    "usage limit",
     "quota exceeded",
     "insufficient_quota",
 )
+
+# Records the provider itself labelled as failures. Scoping the search to these
+# is what keeps assistant prose out of the decision - the model's own words are
+# never inside a record of this shape. The first version instead excluded the
+# `message` key everywhere, which also excluded the field codex actually puts
+# its error text in, so nothing could ever match.
+_CODEX_ERROR_TYPES = ("error", "turn.failed", "thread.failed")
 
 
 def _read_tail(path):
@@ -54,26 +65,42 @@ def _read_tail(path):
         return ""
 
 
-def _payload_mentions_rate_limit(value):
-    """True when a decoded structured payload carries an exhaustion marker.
+def _error_texts(provider, record):
+    """Message strings from a record the provider marked as a failure.
 
-    Only strings that the provider itself emitted as structured fields are
-    considered; free assistant text is not searched, so a run that merely
-    discusses rate limits cannot classify itself as rate limited.
+    Returns nothing for any other record, which is what keeps the assistant's
+    own words out of the decision: prose lives in successful results, never in
+    an error record.
     """
-    if isinstance(value, str):
-        lowered = value.lower()
-        return any(marker in lowered for marker in _RATE_LIMIT_MARKERS)
-    if isinstance(value, dict):
-        return any(
-            _payload_mentions_rate_limit(item)
-            for key, item in value.items()
-            # `result` and `message` hold the assistant's own words.
-            if key not in ("result", "message", "content", "text")
-        )
-    if isinstance(value, list):
-        return any(_payload_mentions_rate_limit(item) for item in value)
-    return False
+    if not isinstance(record, dict):
+        return []
+    texts = []
+    if provider == PROVIDER_CODEX:
+        if str(record.get("type") or "") not in _CODEX_ERROR_TYPES:
+            return []
+        texts.append(record.get("message"))
+        error = record.get("error")
+        if isinstance(error, dict):
+            texts.append(error.get("message"))
+    elif provider == PROVIDER_CLAUDE:
+        # `--print --output-format json` returns one result object; its own
+        # is_error flag says whether `result` holds an error or an answer.
+        if record.get("is_error") is not True:
+            return []
+        texts.append(record.get("result"))
+        texts.append(record.get("subtype"))
+        error = record.get("error")
+        if isinstance(error, dict):
+            texts.append(error.get("message"))
+    return [text for text in texts if isinstance(text, str)]
+
+
+def _mentions_exhaustion(texts):
+    return any(
+        marker in text.lower()
+        for text in texts
+        for marker in _RATE_LIMIT_MARKERS
+    )
 
 
 def _structured_records(provider, text):
@@ -121,7 +148,7 @@ def looks_rate_limited(provider, run_info):
     if run_info.get("returncode") == 0:
         return False
     for record in _structured_records(provider, _read_tail(run_info.get("stdout_path"))):
-        if _payload_mentions_rate_limit(record):
+        if _mentions_exhaustion(_error_texts(provider, record)):
             return True
     return False
 

@@ -1334,7 +1334,7 @@ class RunsCommandTests(CliTestBase):
             seen.append(running["session"])
             if running["session"] == "work1":
                 kwargs["stdout"].write(json.dumps(
-                    {"type": "error", "payload": {"kind": "rate_limit"}}
+                    {"type": "error", "message": "Your workspace is out of credits. Add credits to continue."}
                 ) + "\n")
                 return _HeadlessChild(1)
             return _HeadlessChild(0)
@@ -1362,7 +1362,9 @@ class RunsCommandTests(CliTestBase):
         service["record_status"]("only", {"remaining_5h_pct": 0, "remaining_week_pct": 0})
 
         def spawn(_argv, **kwargs):
-            kwargs["stdout"].write(json.dumps({"type": "error", "payload": {"kind": "rate_limit"}}) + "\n")
+            kwargs["stdout"].write(json.dumps(
+                {"type": "error", "message": "Your workspace is out of credits. Add credits to continue."}
+            ) + "\n")
             return _HeadlessChild(1)
 
         io_obj = self.make_io()
@@ -1385,7 +1387,9 @@ class RunsCommandTests(CliTestBase):
 
         def spawn(_argv, **kwargs):
             attempts.append(1)
-            kwargs["stdout"].write(json.dumps({"type": "error", "payload": {"kind": "rate_limit"}}) + "\n")
+            kwargs["stdout"].write(json.dumps(
+                {"type": "error", "message": "Your workspace is out of credits. Add credits to continue."}
+            ) + "\n")
             return _HeadlessChild(1)
 
         io_obj = self.make_io()

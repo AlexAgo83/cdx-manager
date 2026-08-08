@@ -24,37 +24,54 @@ def _stdout(text):
 
 
 class LooksRateLimitedTests(unittest.TestCase):
-    def test_codex_jsonl_event_carrying_the_marker_is_classified(self):
+    def test_the_real_codex_exhaustion_output_is_classified(self):
+        """Captured verbatim from codex-cli 0.147.0 on an exhausted account.
+
+        The first version of the matcher missed this on both counts: it had no
+        marker for "out of credits", and it excluded the `message` key that
+        codex actually puts the text in.
+        """
         run_info = _stdout("\n".join([
-            json.dumps({"type": "item.completed", "payload": {"text": "working"}}),
-            json.dumps({"type": "error", "payload": {"kind": "rate_limit", "retry_after": 3600}}),
+            json.dumps({"type": "thread.started", "thread_id": "019fe305-b9dd-7c42-b688-e37bdaae5626"}),
+            json.dumps({"type": "turn.started"}),
+            json.dumps({"type": "error", "message": "Your workspace is out of credits. Add credits to continue."}),
+            json.dumps({"type": "turn.failed", "error": {"message": "Your workspace is out of credits. Add credits to continue."}}),
         ]))
         self.assertTrue(looks_rate_limited("codex", run_info))
 
-    def test_claude_result_object_carrying_the_marker_is_classified(self):
-        run_info = _stdout(json.dumps({"type": "result", "subtype": "usage limit reached", "is_error": True}))
+    def test_codex_rate_limit_wording_is_classified(self):
+        run_info = _stdout(json.dumps({"type": "error", "message": "Rate limit reached. Try again later."}))
+        self.assertTrue(looks_rate_limited("codex", run_info))
+
+    def test_claude_error_result_carrying_the_marker_is_classified(self):
+        run_info = _stdout(json.dumps({
+            "type": "result", "is_error": True, "result": "Usage limit reached for this account.",
+        }))
         self.assertTrue(looks_rate_limited("claude", run_info))
 
     def test_assistant_prose_about_rate_limits_is_not_classified(self):
         # The model discussing rate limits must never be able to trigger a
         # migration, so the fields holding its own words are not searched.
         run_info = _stdout(json.dumps({
-            "type": "result",
-            "result": "I added retry handling for when the API returns rate_limit errors.",
+            "type": "result", "is_error": False,
+            "result": "I added retry handling for when the workspace is out of credits.",
         }))
         self.assertFalse(looks_rate_limited("claude", run_info))
 
     def test_a_plain_failure_is_not_classified(self):
-        run_info = _stdout(json.dumps({"type": "result", "subtype": "error_during_execution"}))
+        run_info = _stdout(json.dumps({"type": "result", "is_error": True, "result": "Tool call failed."}))
         self.assertFalse(looks_rate_limited("claude", run_info))
+        self.assertFalse(looks_rate_limited("codex", _stdout(json.dumps(
+            {"type": "error", "message": "Not inside a trusted directory."}
+        ))))
 
     def test_a_timeout_is_cdx_own_deadline_not_the_provider_verdict(self):
-        run_info = _stdout(json.dumps({"type": "error", "payload": {"kind": "rate_limit"}}))
+        run_info = _stdout(json.dumps({"type": "error", "message": "Your workspace is out of credits."}))
         run_info["timed_out"] = True
         self.assertFalse(looks_rate_limited("codex", run_info))
 
     def test_a_successful_run_is_never_classified(self):
-        run_info = _stdout(json.dumps({"type": "error", "payload": {"kind": "rate_limit"}}))
+        run_info = _stdout(json.dumps({"type": "error", "message": "Your workspace is out of credits."}))
         run_info["returncode"] = 0
         self.assertFalse(looks_rate_limited("codex", run_info))
 
@@ -66,7 +83,7 @@ class LooksRateLimitedTests(unittest.TestCase):
         self.assertFalse(looks_rate_limited("codex", {"returncode": 1}))
 
     def test_providers_without_a_matcher_are_never_classified(self):
-        run_info = _stdout(json.dumps({"type": "error", "payload": {"kind": "rate_limit"}}))
+        run_info = _stdout(json.dumps({"type": "error", "message": "Your workspace is out of credits."}))
         for provider in ("ollama", "antigravity", None):
             self.assertFalse(looks_rate_limited(provider, run_info))
 
@@ -89,8 +106,8 @@ class StatusCorroborationTests(unittest.TestCase):
 
 class ShouldFailOverTests(unittest.TestCase):
     def test_both_signals_are_required(self):
-        limited = _stdout(json.dumps({"type": "error", "payload": {"kind": "rate_limit"}}))
-        healthy = _stdout(json.dumps({"type": "result", "subtype": "error_during_execution"}))
+        limited = _stdout(json.dumps({"type": "error", "message": "Your workspace is out of credits."}))
+        healthy = _stdout(json.dumps({"type": "error", "message": "Not inside a trusted directory."}))
         spent = {"remaining_week_pct": 0}
         fine = {"remaining_5h_pct": 90, "remaining_week_pct": 90}
 
