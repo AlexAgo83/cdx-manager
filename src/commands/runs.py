@@ -29,7 +29,7 @@ from ..provider_background import (
     supports_native_background,
 )
 from ..provider_runtime import (
-    _build_headless_launch_spec,
+    _build_launch_spec,
     _conversation_id,
     _ensure_session_authentication,
     _headless_artifact_paths,
@@ -262,8 +262,17 @@ def _spawn_provider_background_run(run_session, prompt, artifacts, ctx, cwd):
     later. Returns None when the provider declines to start one, which sends
     the caller back to the in-house path rather than failing the run.
     """
-    spec = _build_headless_launch_spec(run_session, cwd=cwd, initial_prompt=prompt)
-    argv = [spec["command"], "--bg"] + [arg for arg in spec["args"] if arg != "--print"]
+    # Derived from the interactive spec, not the headless one. `--bg` starts a
+    # session; it does not pass `--print`, and the headless spec is built around
+    # flags the provider accepts only alongside `--print` - `--output-format`,
+    # `--max-budget-usd`, `--fallback-model`. Reusing it and stripping `--print`
+    # would hand the CLI print-only flags without `--print` and have the launch
+    # rejected.
+    spec = _build_launch_spec(
+        run_session, cwd=cwd, env_override=ctx.get("env"),
+        initial_prompt=prompt, capture_transcript=False,
+    )
+    argv = [spec["command"], "--bg"] + list(spec["args"])
     env = (spec.get("options") or {}).get("env")
     spawn = ctx.get("spawn_detached") or subprocess.Popen
     prefix = os.path.splitext(artifacts["transcript_path"])[0]

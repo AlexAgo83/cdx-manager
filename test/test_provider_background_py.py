@@ -1,6 +1,7 @@
 """Tests for delegating detached runs to a provider's own background agents."""
 
 import json
+import tempfile
 import unittest
 
 from src.provider_background import (
@@ -78,3 +79,43 @@ class TerminalStatusTests(unittest.TestCase):
         # Its outcome was never observed, and success is the one answer that
         # must not be guessed.
         self.assertEqual(agent_terminal_status(None), "failed")
+
+
+class BackgroundArgvTests(unittest.TestCase):
+    def test_background_argv_never_carries_print_only_flags(self):
+        """`--bg` does not pass `--print`, so print-only flags must not ride along.
+
+        Regression: the first implementation reused the headless spec and
+        stripped `--print`, which left `--output-format`, `--max-budget-usd` and
+        `--fallback-model` on a command line that no longer had `--print`.
+        """
+        from src.commands.runs import _spawn_provider_background_run
+
+        session = {
+            "name": "s",
+            "provider": "claude",
+            "authHome": "/tmp/home",
+            "conversation": {"id": "11111111-2222-3333-4444-555555555555", "provenance": "imposed"},
+            "launch": {"budget": 5.0, "fallback_model": "haiku", "model": "sonnet"},
+        }
+        captured = {}
+
+        def spawn(argv, **_kwargs):
+            captured["argv"] = argv
+            raise OSError("stop after capturing argv")
+
+        _spawn_provider_background_run(
+            session,
+            "do it",
+            {"transcript_path": tempfile.mktemp(suffix=".log")},
+            {"spawn_detached": spawn},
+            "/tmp/repo",
+        )
+
+        argv = captured["argv"]
+        self.assertEqual(argv[:2], ["claude", "--bg"])
+        for flag in ("--print", "--output-format", "--max-budget-usd", "--fallback-model"):
+            self.assertNotIn(flag, argv, f"{flag} is print-only and must not reach a --bg launch")
+        # The settings that do apply to a session still travel.
+        self.assertIn("--session-id", argv)
+        self.assertIn("--model", argv)
