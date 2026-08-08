@@ -1,10 +1,10 @@
 ## item_071_make_an_incomplete_option_declaration_impossible - Make an incomplete option declaration impossible
 > From version: 0.15.0
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 80%
+> Progress: 100%
 > Complexity: Medium
 > Theme: CLI surface
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -41,6 +41,9 @@
 - request-AC8 -> This backlog slice. Proof: AC2: A declaration missing any derived site fails at import or in the suite, with a message naming what is missing.
 - request-AC9 -> This backlog slice. Proof: AC3: A flag present in the parser table but absent from the returned dict is no longer expressible, and a test demonstrates the failure mode is caught.
 - request-AC10 -> This backlog slice. Proof: AC4: `cdx schema --json` returns the same payload as before the migration for every existing option.
+- request-AC5 -> This backlog slice. Evidence needed: A caller that cannot acquire the lock within a bounded time receives a specific, actionable error rather than a raw `OSError`, so an exhausted wait is distinguishable from a bug.
+- request-AC6 -> This backlog slice. Evidence needed: The option layer's touch points are measured and published - which declarations are independent decisions and which are mechanical restatements of the same fact - before any consolidation design is chosen.
+- request-AC11 -> This backlog slice. Evidence needed: 0.15.1 ships with the `rate_limit_reached` fix, the registry lock fix, and a changelog that says which of 0.15.0's stated gaps have closed.
 
 # Decision framing
 - Product framing: Not needed
@@ -61,3 +64,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_040_settle_0_15_0_s_remainder_and_cut_0_15_1`
+
+# Notes
+- Task `task_040_settle_0_15_0_s_remainder_and_cut_0_15_1` was finished via `logics-manager flow finish task` on 2026-08-09.

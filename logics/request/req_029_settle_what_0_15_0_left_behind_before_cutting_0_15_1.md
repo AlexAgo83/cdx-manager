@@ -1,7 +1,7 @@
 ## req_029_settle_what_0_15_0_left_behind_before_cutting_0_15_1 - Settle what 0.15.0 left behind before cutting 0.15.1
 > From version: 0.15.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium

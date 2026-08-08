@@ -1,10 +1,10 @@
 ## item_072_cut_0_15_1_once_the_rest_has_settled - Cut 0.15.1 once the rest has settled
 > From version: 0.15.0
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 80%
+> Progress: 100%
 > Complexity: Low
 > Theme: Release hygiene
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -33,6 +33,15 @@
 
 # AC Traceability
 - request-AC11 -> This backlog slice. Proof: AC1: 0.15.1 carries both the `rate_limit_reached` fix and the registry lock fix.
+- request-AC2 -> This backlog slice. Evidence needed: The claim in `CHANGELOGS_0_15_0.md` that background delegation is off because it 'has been exercised far less' remains accurate, or is corrected if the closeout revision contradicts it.
+- request-AC3 -> This backlog slice. Evidence needed: Twenty concurrent writers to the run registry all succeed on Windows, with no `OSError` reaching the caller, and `test_concurrent_starts_do_not_lose_records` passes on a real Windows machine rather than only in CI.
+- request-AC4 -> This backlog slice. Evidence needed: Lock acquisition behaves equivalently on both platforms under contention - a waiter waits rather than failing - and the difference between `LK_LOCK`'s bounded retry and `flock`'s indefinite block is either removed or documented as deliberate.
+- request-AC5 -> This backlog slice. Evidence needed: A caller that cannot acquire the lock within a bounded time receives a specific, actionable error rather than a raw `OSError`, so an exhausted wait is distinguishable from a bug.
+- request-AC6 -> This backlog slice. Evidence needed: The option layer's touch points are measured and published - which declarations are independent decisions and which are mechanical restatements of the same fact - before any consolidation design is chosen.
+- request-AC7 -> This backlog slice. Evidence needed: Adding one option to `cdx set` requires one declaration, and a declaration that is incomplete fails loudly at import or test time rather than producing a flag that parses and does nothing.
+- request-AC8 -> This backlog slice. Evidence needed: `cdx schema --json` still derives its enums, mutually-exclusive groups and error codes from the same definitions the parser uses, with no second description of the same facts.
+- request-AC9 -> This backlog slice. Evidence needed: No runtime dependency is added.
+- request-AC10 -> This backlog slice. Evidence needed: The regression that motivated this - a flag present in the parser table but absent from the returned dict - is impossible to express, and a test demonstrates that the failure mode is now caught.
 
 # Decision framing
 - Product framing: Not needed
@@ -53,3 +62,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_040_settle_0_15_0_s_remainder_and_cut_0_15_1`
+
+# Notes
+- Task `task_040_settle_0_15_0_s_remainder_and_cut_0_15_1` was finished via `logics-manager flow finish task` on 2026-08-09.
