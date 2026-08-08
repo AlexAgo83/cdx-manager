@@ -18,6 +18,7 @@ from .config import (
     PROVIDER_CODEX,
     PROVIDER_OLLAMA,
     REASONING_EFFORT_VALUES,
+    split_extra_args,
 )
 from .errors import CdxError
 
@@ -382,6 +383,17 @@ def _format_budget_arg(value):
     return f"{number:g}"
 
 
+def _extra_args(session):
+    """Unvalidated provider arguments, appended after everything cdx maps.
+
+    Last wins in both provider CLIs, so a passthrough value overrides the
+    mapped setting it duplicates. That is the useful default - the escape hatch
+    would be pointless if `cdx set` always won - but it is why `cdx configs`
+    shows the raw string: the override has to be visible somewhere.
+    """
+    return split_extra_args((session.get("launch") or {}).get("extra_args")) or []
+
+
 def _launch_config_args(session):
     launch = session.get("launch") or {}
     args = []
@@ -516,6 +528,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
         if launch.get("model"):
             args += ["--model", _claude_cli_model(launch["model"])]
         args += _launch_config_args(session)
+        args += _extra_args(session)
         if initial_prompt:
             args.append(initial_prompt)
         auth_home = _get_auth_home(session)
@@ -661,6 +674,7 @@ def _build_resume_spec(session, cwd=None, env_override=None, capture_transcript=
         if launch.get("model"):
             args += ["--model", _claude_cli_model(launch["model"])]
         args += _launch_config_args(session)
+        args += _extra_args(session)
         if resume_prompt:
             args.append(resume_prompt)
         auth_home = _get_auth_home(session)
@@ -685,6 +699,7 @@ def _build_resume_spec(session, cwd=None, env_override=None, capture_transcript=
     if launch.get("model"):
         args += ["--model", launch["model"]]
     args += _launch_config_args(session)
+    args += _extra_args(session)
     if resume_prompt:
         args.append(resume_prompt)
     return _wrap_launch_with_transcript(session, {
@@ -728,6 +743,7 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
         if launch.get("fallback_model"):
             args += ["--fallback-model", _claude_fallback_model(launch["fallback_model"])]
         args += _launch_config_args(session)
+        args += _extra_args(session)
         if initial_prompt:
             args.append(initial_prompt)
         auth_home = _get_auth_home(session)

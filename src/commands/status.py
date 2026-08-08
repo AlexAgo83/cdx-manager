@@ -125,9 +125,12 @@ def _format_launch_configs(sessions, use_color=False):
         for session in sessions
         for key in ("fallback_model", "budget")
     )
+    has_extra = any((session.get("launch") or {}).get("extra_args") for session in sessions)
     headers = ["SESSION", "PROVIDER", "POWER", "PERMISSION", "FAST", "RTK", "LOGICS", "MODEL"]
     if has_headless:
         headers += ["FALLBACK", "BUDGET"]
+    if has_extra:
+        headers.append("EXTRA ARGS")
     headers.append("PRIORITY")
     rows = [[_style(value, "1", use_color) for value in headers]]
     for session in sessions:
@@ -145,6 +148,8 @@ def _format_launch_configs(sessions, use_color=False):
         if has_headless:
             row.append(_format_launch_setting_value(launch, "fallback_model", use_color))
             row.append(_format_launch_setting_value(launch, "budget", use_color))
+        if has_extra:
+            row.append(_format_launch_setting_value(launch, "extra_args", use_color))
         row.append(_format_launch_setting_value(launch, "priority", use_color))
         rows.append(row)
     lines = [
@@ -156,6 +161,12 @@ def _format_launch_configs(sessions, use_color=False):
         lines.append(_dim(
             "FALLBACK and BUDGET apply to headless Claude runs only "
             "(cdx run); the provider accepts them with --print alone.",
+            use_color,
+        ))
+    if has_extra:
+        lines.append(_dim(
+            "EXTRA ARGS are passed to the provider unchanged and unvalidated. "
+            "cdx does not check them, and cdx schema does not describe them.",
             use_color,
         ))
     lines.append(_dim(_format_launch_settings_hint(), use_color))

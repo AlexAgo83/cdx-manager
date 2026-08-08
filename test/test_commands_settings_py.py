@@ -398,3 +398,53 @@ class SettingsCommandTests(CliTestBase):
             _normalize_launch_settings({"power": effort})
             _normalize_launch_settings({"reasoning_effort": effort})
 
+
+    def test_extra_args_reach_every_spec_unchanged_and_never_via_a_shell(self):
+        from src import provider_runtime
+
+        session = {
+            "name": "s",
+            "provider": "claude",
+            "authHome": "/tmp/home",
+            "launch": {"extra_args": "--add-dir '../shared dir' --allowedTools 'Bash(git *)'"},
+        }
+
+        specs = [
+            provider_runtime._build_launch_spec(session, cwd="/tmp/repo", capture_transcript=False),
+            provider_runtime._build_resume_spec(session, cwd="/tmp/repo", capture_transcript=False),
+            provider_runtime._build_headless_launch_spec(session, cwd="/tmp/repo", initial_prompt="go"),
+        ]
+
+        for spec in specs:
+            args = spec["args"]
+            # Split into literal argv entries: the quoted values survive whole,
+            # and nothing is ever handed to a shell to re-interpret.
+            self.assertIn("../shared dir", args)
+            self.assertIn("Bash(git *)", args)
+            self.assertEqual(args[args.index("--add-dir") + 1], "../shared dir")
+
+    def test_extra_args_are_rejected_when_they_are_not_an_argument_list(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("solo", "claude")
+
+        with self.assertRaises(CdxError):
+            main(["set", "solo", "--extra-args", "--add-dir 'unbalanced"], {**self.make_io(), "service": service})
+
+        self.assertIsNone((service["get_session"]("solo").get("launch") or {}).get("extra_args"))
+
+    def test_extra_args_land_after_the_settings_cdx_maps(self):
+        from src import provider_runtime
+
+        session = {
+            "name": "s",
+            "provider": "claude",
+            "authHome": "/tmp/home",
+            "launch": {"model": "sonnet", "extra_args": "--model opus"},
+        }
+
+        args = provider_runtime._build_launch_spec(session, cwd="/tmp/repo", capture_transcript=False)["args"]
+
+        # Last occurrence wins in the provider CLI, so the passthrough overrides
+        # the mapped setting. That is the point of the escape hatch.
+        self.assertGreater(args.index("opus"), args.index("sonnet"))

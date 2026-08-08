@@ -95,6 +95,7 @@ The reason `cdx` exists: knowing, across every account you own, which one you ca
 - **Survives a rate limit.** `cdx run --failover` notices that a run stopped because its account ran out, moves the task to the next account the ranking allows, and carries on — one `run_id` for the whole task, with every account it occupied listed in `cdx run-report`. Migration needs two independent signals to agree, the provider's own structured output *and* the account's refreshed quota, because a false positive would move a healthy run off a working account. Exhausting every account reports `failover_exhausted`, which a caller can tell apart from the task itself failing.
 - **Observable runs.** `cdx run-status`, `cdx run-tail`, `cdx run-report`, and `cdx runs --since` follow a run while it happens and after it ends.
 - **Selection without launching.** `cdx select --provider ... --require-ready --json` answers "which session should this job use?" for orchestrators.
+- **Escape hatch for unmapped flags.** `cdx set <name> --extra-args "--add-dir ../shared"` passes provider arguments cdx does not model straight through, so a flag your provider shipped last week never forces you to abandon cdx. These arguments are explicitly unvalidated: cdx does not parse or verify them, `cdx schema --json` lists them under `unvalidated` rather than describing them, and `cdx doctor --check-provider-flags` ignores them. They are split into literal argv entries and never passed through a shell.
 - **Validated contract.** `cdx schema --json` publishes the enums, mutually-exclusive argument groups, and error codes programmatic callers should validate against.
 
 ### Context handoff
@@ -421,8 +422,8 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx config <name> [--json]` | Show persistent launch settings for a session |
 | `cdx configs [--json]` | Show persistent launch settings for all sessions in one table |
 | `cdx power\|perm\|fast\|model <name\|all\|provider:PROVIDER\|a,b> <value\|default> [--json]` | Shortcut commands for setting or clearing one launch setting |
-| `cdx set <name>\|--sessions all\|a,b\|--provider PROVIDER [--power minimal\|low\|medium\|high\|xhigh] [--permission review\|default\|auto\|full] [--fast on\|off] [--rtk on\|off] [--logics on\|off] [--model MODEL] [--fallback-model MODEL[,MODEL...]] [--budget USD] [--priority 0..100] [--json]` | Persist launch settings for one or more sessions |
-| `cdx unset <name>\|--sessions all\|a,b\|--provider PROVIDER (--power\|--permission\|--fast\|--rtk\|--logics\|--model\|--fallback-model\|--budget\|--priority\|--all) [--json]` | Remove persisted launch settings and fall back to provider defaults |
+| `cdx set <name>\|--sessions all\|a,b\|--provider PROVIDER [--power minimal\|low\|medium\|high\|xhigh] [--permission review\|default\|auto\|full] [--fast on\|off] [--rtk on\|off] [--logics on\|off] [--model MODEL] [--fallback-model MODEL[,MODEL...]] [--budget USD] [--extra-args 'ARGS'] [--priority 0..100] [--json]` | Persist launch settings for one or more sessions |
+| `cdx unset <name>\|--sessions all\|a,b\|--provider PROVIDER (--power\|--permission\|--fast\|--rtk\|--logics\|--model\|--fallback-model\|--budget\|--extra-args\|--priority\|--all) [--json]` | Remove persisted launch settings and fall back to provider defaults |
 | `cdx history [name] [--limit N] [--summary] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Show recent launch history or aggregate total launch time per assistant, optionally filtered by period |
 | `cdx last [--json]` | Launch the most recent existing session from launch history |
 | `cdx resume <name> [--json]` | Resume the provider-native conversation for a session using the named command form |

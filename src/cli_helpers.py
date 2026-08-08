@@ -489,6 +489,7 @@ def _format_launch_config(session, use_color=False):
         ("model", "Model"),
         ("fallback_model", "Fallback"),
         ("budget", "Budget"),
+        ("extra_args", "Extra args"),
         ("priority", "Priority"),
     ]:
         rows.append([

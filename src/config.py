@@ -41,6 +41,28 @@ PERMISSION_INPUT_VALUES = PERMISSION_VALUES + tuple(PERMISSION_ALIASES)
 # separate literals is how they came to disagree before.
 MAX_LAUNCH_BUDGET_USD = 10000
 
+MAX_LAUNCH_EXTRA_ARGS_LENGTH = 512
+
+
+def split_extra_args(value):
+    """Passthrough arguments as an argv list, or None if the string is malformed.
+
+    POSIX splitting on every platform, deliberately. The alternative - following
+    the host's own quoting rules - would make the same `cdx set` mean different
+    things on Windows and on macOS, and these strings travel between machines
+    through `cdx export`. One rule everywhere is worth more than matching the
+    local shell, especially since cdx never invokes a shell: the result is
+    passed as argv, so nothing here is ever re-interpreted.
+    """
+    import shlex
+
+    if value is None:
+        return None
+    try:
+        return shlex.split(str(value), posix=True)
+    except ValueError:
+        return None
+
 
 def normalize_permission(value):
     """Canonical form of a permission input, or None if it is not one.

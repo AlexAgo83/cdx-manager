@@ -36,6 +36,7 @@ from functools import partial
 from .codex_usage import fetch_codex_rate_limits
 from .config import (
     MAX_LAUNCH_BUDGET_USD,
+    MAX_LAUNCH_EXTRA_ARGS_LENGTH,
     PERMISSION_INPUT_VALUES,
     PERMISSION_VALUES,
     PROVIDER_CLAUDE,
@@ -43,6 +44,7 @@ from .config import (
     REASONING_EFFORT_VALUES,
     get_cdx_home,
     normalize_permission,
+    split_extra_args,
 )
 from .errors import CdxError
 from .fs_utils import atomic_write, remove_tree
@@ -229,6 +231,17 @@ def _normalize_launch_settings(settings, mark_fast_service_tier=True):
             if len(element) > MAX_LAUNCH_MODEL_LENGTH or any(ord(ch) < 32 or ord(ch) == 127 for ch in element):
                 raise CdxError("Fallback model contains unsupported characters.")
         normalized["fallback_model"] = ",".join(elements)
+    if "extra_args" in settings and settings["extra_args"] is not None:
+        extra = str(settings["extra_args"]).strip()
+        if not extra:
+            raise CdxError("Extra args cannot be empty.")
+        if len(extra) > MAX_LAUNCH_EXTRA_ARGS_LENGTH or any(ord(ch) < 32 or ord(ch) == 127 for ch in extra):
+            raise CdxError("Extra args contain unsupported characters.")
+        # Parsed here, not at launch: a string that cannot be split into argv
+        # should be rejected when it is set, not when a run fails days later.
+        if split_extra_args(extra) is None:
+            raise CdxError("Extra args are not a valid argument list (unbalanced quotes).")
+        normalized["extra_args"] = extra
     if "budget" in settings and settings["budget"] is not None:
         try:
             budget = float(settings["budget"])
@@ -337,7 +350,7 @@ def unset_launch_settings(store, name, keys):
         raise CdxError("At least one launch setting is required.")
     allowed = {
         "power", "reasoning_effort", "reasoningEffort", "permission", "fast", "rtk", "logics",
-        "model", "fallback_model", "budget", "priority",
+        "model", "fallback_model", "budget", "extra_args", "priority",
     }
     unknown = [key for key in keys if key not in allowed]
     if unknown:
