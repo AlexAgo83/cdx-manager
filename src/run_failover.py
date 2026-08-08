@@ -170,6 +170,52 @@ def status_confirms_exhaustion(row):
     return False
 
 
+def provider_reported_failure(provider, run_info):
+    """A failure the provider itself emitted, whatever it says.
+
+    Deliberately wording-free. A timeout is cdx's own deadline, and a zero exit
+    is not a failure; everything else that produced a provider error record
+    counts.
+    """
+    if provider not in (PROVIDER_CODEX, PROVIDER_CLAUDE):
+        return False
+    if run_info.get("timed_out") or run_info.get("returncode") == 0:
+        return False
+    for record in _structured_records(provider, _read_tail(run_info.get("stdout_path"))):
+        if _error_texts(provider, record):
+            return True
+    return False
+
+
+def failover_reason(provider, run_info, status_row):
+    """Why this run should move, or None to stay put.
+
+    Two independent routes, because relying on either alone has been shown to
+    fail:
+
+    `provider_reported_exhaustion` - the provider said so in words cdx
+    recognises. Precise, but the wording is not one thing: an enterprise
+    workspace out of credits, a personal plan hitting its 5-hour window, and
+    Claude's own phrasing are all different sentences, and only the first has
+    ever been observed. Matching prose alone would silently miss the rest.
+
+    `account_status_exhausted` - the account's own rate-limit status says it has
+    nothing left, and the run failed. This is the authoritative route: it comes
+    from the provider's rate-limit API rather than from English, so it holds for
+    plans and providers whose wording nobody has seen. An account at zero cannot
+    serve the task no matter which sentence it used to say so.
+
+    Status confirmation is required either way, so a healthy account is never
+    abandoned on the strength of a matched phrase.
+    """
+    if not status_confirms_exhaustion(status_row):
+        return None
+    if looks_rate_limited(provider, run_info):
+        return "provider_reported_exhaustion"
+    if provider_reported_failure(provider, run_info):
+        return "account_status_exhausted"
+    return None
+
+
 def should_fail_over(provider, run_info, status_row):
-    """The conjunction both signals have to satisfy before a task migrates."""
-    return looks_rate_limited(provider, run_info) and status_confirms_exhaustion(status_row)
+    return failover_reason(provider, run_info, status_row) is not None

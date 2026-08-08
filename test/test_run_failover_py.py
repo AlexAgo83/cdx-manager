@@ -10,6 +10,7 @@ import tempfile
 import unittest
 
 from src.run_failover import (
+    failover_reason,
     looks_rate_limited,
     should_fail_over,
     status_confirms_exhaustion,
@@ -104,6 +105,61 @@ class StatusCorroborationTests(unittest.TestCase):
         self.assertFalse(status_confirms_exhaustion({"remaining_5h_pct": None}))
 
 
+class UnknownWordingTests(unittest.TestCase):
+    """The wording is not one thing, so it cannot be the only gate.
+
+    Only the enterprise "out of credits" sentence has ever been observed. A
+    personal plan hitting its 5-hour window, and Claude's own phrasing, are
+    different sentences nobody has captured - and a matcher that needs the right
+    phrase would silently never fire for them.
+    """
+
+    def test_an_unrecognised_failure_still_migrates_when_the_account_is_spent(self):
+        unknown = _stdout(json.dumps({
+            "type": "error",
+            "message": "You have hit your 5-hour usage window for this plan; it resets at 18:00.",
+        }))
+
+        self.assertEqual(
+            failover_reason("codex", unknown, {"remaining_5h_pct": 0}),
+            "account_status_exhausted",
+        )
+
+    def test_claude_wording_nobody_has_captured_still_migrates(self):
+        unknown = _stdout(json.dumps({
+            "type": "result", "is_error": True, "result": "Some phrasing cdx has never seen.",
+        }))
+
+        self.assertEqual(
+            failover_reason("claude", unknown, {"blocking": "WEEK"}),
+            "account_status_exhausted",
+        )
+
+    def test_recognised_wording_is_still_reported_as_the_precise_route(self):
+        known = _stdout(json.dumps({
+            "type": "error", "message": "Your workspace is out of credits.",
+        }))
+
+        self.assertEqual(
+            failover_reason("codex", known, {"remaining_week_pct": 0}),
+            "provider_reported_exhaustion",
+        )
+
+    def test_a_healthy_account_is_never_abandoned_whatever_the_run_said(self):
+        for payload in (
+            {"type": "error", "message": "Your workspace is out of credits."},
+            {"type": "error", "message": "Some unrecognised failure."},
+        ):
+            self.assertIsNone(failover_reason(
+                "codex", _stdout(json.dumps(payload)), {"remaining_5h_pct": 90, "remaining_week_pct": 90},
+            ))
+
+    def test_a_successful_run_on_a_spent_account_does_not_migrate(self):
+        run_info = _stdout(json.dumps({"type": "error", "message": "Your workspace is out of credits."}))
+        run_info["returncode"] = 0
+        self.assertIsNone(failover_reason("codex", run_info, {"remaining_week_pct": 0}))
+
+
 class ShouldFailOverTests(unittest.TestCase):
     def test_both_signals_are_required(self):
         limited = _stdout(json.dumps({"type": "error", "message": "Your workspace is out of credits."}))
@@ -113,5 +169,8 @@ class ShouldFailOverTests(unittest.TestCase):
 
         self.assertTrue(should_fail_over("codex", limited, spent))
         self.assertFalse(should_fail_over("codex", limited, fine))
-        self.assertFalse(should_fail_over("codex", healthy, spent))
+        # `healthy` is a provider error on a spent account, which the status
+        # route now migrates on: the account cannot serve the task regardless of
+        # what the message said.
+        self.assertTrue(should_fail_over("codex", healthy, spent))
         self.assertFalse(should_fail_over("codex", healthy, fine))

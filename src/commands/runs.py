@@ -36,7 +36,7 @@ from ..provider_runtime import (
     _run_headless_provider_command,
 )
 from ..run_command import read_run_prompt, run_cdx_error_code, run_launch_payload, run_result_payload
-from ..run_failover import MAX_FAILOVER_TRANSITIONS, should_fail_over
+from ..run_failover import MAX_FAILOVER_TRANSITIONS, failover_reason
 from ..run_registry import RunRegistry, build_code_review_report
 from ..run_usage import extract_run_usage
 from ..session_ranking import FACTOR_DESCRIPTIONS, rank_sessions, selection_policy
@@ -554,11 +554,12 @@ def handle_run(rest, ctx):
             run_info = {**run_info, "usage": usage}
             if run_info.get("returncode") == 0 or not parsed.get("failover"):
                 break
-            if not should_fail_over(
+            reason = failover_reason(
                 run_session.get("provider"),
                 run_info,
                 _status_row_for(ctx, run_session["name"]),
-            ):
+            )
+            if not reason:
                 break
             if len(attempted) > MAX_FAILOVER_TRANSITIONS:
                 # A systematic misclassification must not be able to walk one
@@ -599,7 +600,7 @@ def handle_run(rest, ctx):
                 run_id,
                 session=run_session["name"],
                 provider=run_session.get("provider"),
-                reason="rate_limited",
+                reason=reason,
             )
             # The successor is a different account with its own auth, so the
             # context the task built so far travels with it as the prompt.
