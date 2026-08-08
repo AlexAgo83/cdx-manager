@@ -8,6 +8,7 @@ from src.provider_background import (
     agent_terminal_status,
     find_agent,
     list_background_agents,
+    parse_backgrounded_id,
     supports_native_background,
 )
 
@@ -60,6 +61,18 @@ class CapabilityDetectionTests(unittest.TestCase):
         self.assertTrue(supports_native_background("claude", env=ON, spawn_sync=capable))
 
 
+class BackgroundedIdTests(unittest.TestCase):
+    def test_reads_the_id_claude_prints_at_launch(self):
+        # The provider assigns the id and ignores --session-id, so this line is
+        # the only reliable way to name the agent just started.
+        output = "backgrounded \u00b7 8a93f198\n  claude agents             list sessions\n"
+        self.assertEqual(parse_backgrounded_id(output), "8a93f198")
+
+    def test_returns_none_when_no_id_was_reported(self):
+        for text in ("", None, "some unrelated output"):
+            self.assertIsNone(parse_backgrounded_id(text))
+
+
 class AgentListingTests(unittest.TestCase):
     def test_parses_the_agent_array(self):
         agents = [{"pid": 1, "sessionId": "abc", "status": "busy"}]
@@ -69,6 +82,7 @@ class AgentListingTests(unittest.TestCase):
 
         self.assertEqual(found, agents)
         self.assertEqual(find_agent(found, "abc")["pid"], 1)
+        self.assertEqual(find_agent([{"id": "8a93f198"}], "8a93f198")["id"], "8a93f198")
         self.assertIsNone(find_agent(found, "missing"))
 
     def test_any_failure_yields_an_empty_list_rather_than_raising(self):
@@ -81,14 +95,20 @@ class AgentListingTests(unittest.TestCase):
 
 
 class TerminalStatusTests(unittest.TestCase):
-    def test_a_running_agent_has_no_terminal_status(self):
-        for status in ("busy", "idle", "starting"):
-            self.assertIsNone(agent_terminal_status({"status": status}))
+    def test_completion_is_read_from_state_not_status(self):
+        """Observed by watching one agent from launch to finish.
 
-    def test_completion_maps_to_succeeded_and_everything_else_to_failed(self):
-        self.assertEqual(agent_terminal_status({"status": "completed"}), "succeeded")
-        for status in ("failed", "cancelled", "error"):
-            self.assertEqual(agent_terminal_status({"status": status}), "failed")
+        `status` alternates idle/busy - it describes activity, not outcome - so
+        a waiting agent (`state: blocked`, `status: idle`) reads exactly like a
+        finished one if you look at `status`. The first implementation did.
+        """
+        self.assertEqual(agent_terminal_status({"state": "done", "status": "idle"}), "succeeded")
+        self.assertIsNone(agent_terminal_status({"state": "blocked", "status": "idle"}))
+        self.assertIsNone(agent_terminal_status({"status": "completed"}))
+
+    def test_non_success_terminal_states_map_to_failed(self):
+        for state in ("failed", "cancelled", "error", "stopped"):
+            self.assertEqual(agent_terminal_status({"state": state}), "failed")
 
     def test_an_agent_the_provider_no_longer_lists_is_never_called_a_success(self):
         # Its outcome was never observed, and success is the one answer that

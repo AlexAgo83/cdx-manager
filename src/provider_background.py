@@ -20,6 +20,7 @@ comparison goes stale the moment either side ships.
 
 import json
 import os
+import re
 import subprocess
 
 from .config import PROVIDER_CLAUDE
@@ -29,9 +30,26 @@ BACKGROUND_PATH_CDX = "cdx_detached"
 
 _CAPABILITY_PROBE_TIMEOUT_SECONDS = 10
 
-# `claude agents --json` reports these; anything else is treated as still
-# running, because ending a run early is worse than reporting it late.
-_TERMINAL_STATUSES = {"completed", "failed", "cancelled", "canceled", "error"}
+# Observed on Claude Code 2.1.226 by watching one agent from launch to finish:
+# completion is carried by `state`, not by `status`. `status` alternates
+# idle/busy - it describes activity, not outcome - and an agent waiting on
+# something sits at `state: "blocked"` with `status: "idle"`, which reads
+# exactly like a finished one if you look at `status`.
+_TERMINAL_STATES = {"done", "failed", "cancelled", "canceled", "error", "stopped"}
+_SUCCESS_STATE = "done"
+
+# `claude --bg` prints `backgrounded · <id>` on stdout. That is the authoritative
+# handle: the provider assigns the id itself and ignores --session-id, so this
+# line is the only thing that reliably names the agent just started.
+_BACKGROUNDED = re.compile(r"backgrounded\s*[^\w]?\s*([0-9a-fA-F]{6,})")
+
+
+def parse_backgrounded_id(output):
+    """The agent id `claude --bg` reported, or None."""
+    if not output:
+        return None
+    match = _BACKGROUNDED.search(output)
+    return match.group(1) if match else None
 
 
 EXPERIMENTAL_ENV = "CDX_EXPERIMENTAL_NATIVE_BG"
@@ -40,25 +58,32 @@ EXPERIMENTAL_ENV = "CDX_EXPERIMENTAL_NATIVE_BG"
 def supports_native_background(provider, env=None, spawn_sync=None):
     """Whether the installed provider CLI can run and report background agents.
 
-    Off unless `CDX_EXPERIMENTAL_NATIVE_BG=1`, because a live trial against
-    Claude Code 2.1.226 broke three assumptions this module was built on:
+    Off unless `CDX_EXPERIMENTAL_NATIVE_BG=1`. Two live trials against Claude
+    Code 2.1.226 fixed the identification problems and exposed a deeper one.
 
-    1. `--session-id` is not honoured under `--bg`. cdx asked for
-       `6e8e9e0b-...` and the agent came back as `373c3949-...`, so looking the
-       agent up by the id cdx requested finds nothing.
-    2. The `pid` in `claude agents --json` is not the run. It pointed at a
-       `claude bg-spare` daemon helper, and became `null` a minute later, so it
-       cannot drive `_refresh_stale_runs`.
-    3. `status` can be absent entirely (`null`), alongside an undocumented
-       `state: "blocked"`, so terminal detection has nothing dependable to read.
+    Fixed: the provider assigns its own id and ignores `--session-id`, so the
+    agent is now named from the `backgrounded - <id>` line `--bg` prints, and
+    completion is read from `state` rather than `status` (which alternates
+    idle/busy and says nothing about outcome).
 
-    Consequence when it was enabled: the agent started, cdx failed to identify
-    it, fell back to the in-house launcher, and the same task ran twice - once
-    untracked. Duplicate execution on a user's account is worse than not
-    delegating at all, so the default is off until the surface is understood.
+    Not fixed, and the reason this stays off:
 
-    Both halves are still required when opted in: starting an agent cdx cannot
-    observe would leave runs stuck at "running" forever.
+    1. A delegated run cannot honour the `cdx run --json` contract. The
+       in-house path runs `claude --print --output-format json` and gets a
+       structured result, token usage, and a final payload. `--bg` runs the
+       interactive TUI; `claude logs <id>` returns an ANSI screen dump. So
+       usage accounting, the final payload, and the rate-limit classification
+       that `--failover` depends on all have no source.
+    2. Nothing yet drives a delegated run to a terminal status. `agent_terminal_status`
+       exists but no caller consults the provider, so the record relies on pid
+       liveness and a blocked agent reads as running indefinitely.
+    3. cdx's own launch spec makes the agent block. A hand-run
+       `claude --bg --permission-mode bypassPermissions "..."` reaches
+       `state: done`; the same task launched through cdx sits at
+       `state: blocked`, most likely because the spec passes a `--session-id`
+       that already exists.
+
+    Delegation therefore needs its own request, not a flag flip.
     """
     if provider != PROVIDER_CLAUDE:
         return False
@@ -114,9 +139,12 @@ def list_background_agents(env=None, cwd=None, spawn_sync=None):
     return agents if isinstance(agents, list) else []
 
 
-def find_agent(agents, session_id):
+def find_agent(agents, identifier):
+    """The agent with this id, matching either the short id or the session id."""
     for agent in agents:
-        if isinstance(agent, dict) and agent.get("sessionId") == session_id:
+        if not isinstance(agent, dict):
+            continue
+        if identifier in (agent.get("id"), agent.get("sessionId")):
             return agent
     return None
 
@@ -131,7 +159,7 @@ def agent_terminal_status(agent):
     """
     if agent is None:
         return "failed"
-    status = str(agent.get("status") or "").strip().lower()
-    if status not in _TERMINAL_STATUSES:
+    state = str(agent.get("state") or "").strip().lower()
+    if state not in _TERMINAL_STATES:
         return None
-    return "succeeded" if status == "completed" else "failed"
+    return "succeeded" if state == _SUCCESS_STATE else "failed"

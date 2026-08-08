@@ -24,7 +24,9 @@ from ..errors import CdxError
 from ..provider_background import (
     BACKGROUND_PATH_CDX,
     BACKGROUND_PATH_PROVIDER,
+    find_agent,
     list_background_agents,
+    parse_backgrounded_id,
     supports_native_background,
 )
 from ..provider_runtime import (
@@ -277,7 +279,7 @@ def _spawn_provider_background_run(run_session, prompt, artifacts, ctx, cwd):
     launch_log_path = f"{prefix}.launch.log"
     try:
         with open(launch_log_path, "w", encoding="utf-8", errors="replace") as log_file:
-            spawn(
+            child = spawn(
                 argv,
                 stdout=log_file,
                 stderr=subprocess.STDOUT,
@@ -286,31 +288,33 @@ def _spawn_provider_background_run(run_session, prompt, artifacts, ctx, cwd):
                 env=env,
                 **_detached_spawn_options(),
             )
+        # --bg returns immediately, so this waits for the launcher itself, not
+        # for the task: the id line is printed before it exits.
+        if hasattr(child, "wait"):
+            child.wait()
     except OSError:
         return None
 
-    # The provider owns the agent, so its identity and pid come from asking it,
-    # not from the process cdx just spawned.
-    # Identify by "newest background agent in this cwd", never by the id cdx
-    # asked for: the provider assigns its own under --bg and ignores
-    # --session-id, so a lookup by the requested id always misses.
-    agents = [a for a in list_background_agents(env=env, cwd=cwd, spawn_sync=ctx.get("spawn_text"))
-              if isinstance(a, dict) and a.get("kind") == "background"]
-    agent = max(agents, key=lambda a: a.get("startedAt") or 0, default=None)
-    if agent is None:
+    with open(launch_log_path, encoding="utf-8", errors="replace") as handle:
+        identifier = parse_backgrounded_id(handle.read())
+    if not identifier:
         # The agent may nonetheless be running. Falling back to the in-house
         # launcher here would run the same task twice, once untracked, on the
         # user's account - so this fails loudly instead.
         raise CdxError(
-            "Started a provider background agent but could not identify it; "
+            "Started a provider background agent but it did not report an id; "
             "refusing to launch a second run for the same task.",
             126,
         )
+    agent = find_agent(
+        list_background_agents(env=env, cwd=cwd, spawn_sync=ctx.get("spawn_text")),
+        identifier,
+    ) or {}
     return {
         "pid": agent.get("pid"),
         "launch_log_path": launch_log_path,
         "background_path": BACKGROUND_PATH_PROVIDER,
-        "provider_session_id": agent.get("sessionId"),
+        "provider_session_id": agent.get("sessionId") or identifier,
     }
 
 def handle_schema(rest, ctx):
