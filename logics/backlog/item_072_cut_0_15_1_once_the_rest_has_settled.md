@@ -4,10 +4,11 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 40%
+> Progress: 80%
 > Complexity: Low
 > Theme: Release hygiene
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Owner: claude
 
 # Problem
 - The `rate_limit_reached` fix is on main and unreleased. It corrects a false negative in `--failover`: an account with depleted credits but healthy percentage windows was reported as not exhausted, so a run that could not succeed was never migrated.

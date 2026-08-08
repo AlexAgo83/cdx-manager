@@ -4,11 +4,12 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 40%
+> Progress: 80%
 > Complexity: Medium
 > Theme: CLI surface
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
 > Owner: claude
+> Indicators reviewed: 2026-08-09
 
 # Problem
 - A flag can currently be declared in the parser table and omitted from the returned dict, which parses and validates and does nothing. That happened during 0.15.0 and only an integration test caught it.
