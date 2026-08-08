@@ -1,14 +1,30 @@
 ## prod_018_executable_quota_routing - Executable quota routing
 > Date: 2026-08-08
-> Status: Proposed
+> Status: Settled
 > Related request: `req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers`
-> Related backlog: `item_063_add_budget_and_fallback_model_as_pinnable_launch_settings`, `item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity`, `item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit`, `item_066_pass_unvalidated_provider_arguments_through_instead_of_mapping_every_flag`, `item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it`
+> Related backlog: `item_063_add_budget_and_fallback_model_as_pinnable_launch_settings`
 > Related task: `task_039_orchestrate_executable_quota_routing_across_accounts_and_providers`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-08
 
 # Overview
 cdx already knows which of a user's accounts has quota. This turns that knowledge from a recommendation the user has to act on into execution cdx performs: budgets and fallbacks pinned per session, resume anchored to a provider-native session identity rather than to recency, and headless runs that survive a rate limit by moving to the next eligible account and carrying their context with them. Supporting it are an escape hatch for provider flags cdx does not model, and a decision to route to native background execution instead of deepening the in-house one.
+
+```mermaid
+%% logics-kind: product
+%% logics-signature: product|executable-quota-routing|advice-becomes-execution
+flowchart TD
+    Task[Headless task] --> Rank[rank_sessions]
+    Rank --> Account[Selected account]
+    Account --> Run[Provider run]
+    Run -->|succeeds| Done[Result]
+    Run -->|fails| Classify{Account spent?}
+    Classify -->|status confirms| Next[Re-rank, exclude tried]
+    Classify -->|no| Fail[Report failure]
+    Next --> Account
+    Next --> Report[One run, occupancies recorded]
+```
 
 # Goals
 - Make a long unattended task survive hitting a rate limit, by moving it to an account that has quota instead of failing.
@@ -37,5 +53,5 @@ cdx already knows which of a user's accounts has quota. This turns that knowledg
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers`
+- Product back-reference: `item_063_add_budget_and_fallback_model_as_pinnable_launch_settings`
 - Task back-reference: `task_039_orchestrate_executable_quota_routing_across_accounts_and_providers`

@@ -1,7 +1,7 @@
 ## item_063_add_budget_and_fallback_model_as_pinnable_launch_settings - Add budget and fallback-model as pinnable launch settings
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Progress: 100%
@@ -57,6 +57,11 @@ contradict the request's first reading and narrow this slice.
 - request-AC2 -> This backlog slice. Proof: AC2: `--budget 0`, `--budget -1`, `--budget abc` and a value above the accepted maximum are each rejected with an error naming the setting, and nothing is written to the store.
 - request-AC3 -> This backlog slice. Proof: AC4, AC5 and AC6 together: the flags appear on a headless Claude run and on nothing else, which is the provider's `--print`-only constraint made observable; AC7 covers reporting it in `cdx configs`.
 - request-AC13 -> This backlog slice. Proof: the ollama provider is listed out of scope, and no scope-in item touches provider dispatch for it.
+- request-AC8 -> This backlog slice. Evidence needed: When no eligible session remains, a failover run terminates with a specific error code that distinguishes 'exhausted every account' from 'the task itself failed', and reports what was attempted.
+- request-AC9 -> This backlog slice. Evidence needed: A user can pass provider arguments cdx does not model, per session (`cdx set --extra-args`) and per run, and those arguments reach the provider command line unmodified.
+- request-AC10 -> This backlog slice. Evidence needed: Passthrough arguments are documented and reported as unvalidated: they are excluded from the `cdx schema --json` contract and from `cdx doctor --check-provider-flags`, and cdx never claims to have verified them.
+- request-AC11 -> This backlog slice. Evidence needed: Where the installed provider CLI offers native background execution, `cdx run --detach` delegates to it rather than to the in-house detached launcher, decided by capability detection against the installed CLI rather than by a version assumption.
+- request-AC12 -> This backlog slice. Evidence needed: When the installed CLI offers no native background execution, the existing in-house detached path continues to work exactly as it does today, and which path was taken is visible in the run record.
 
 # Decision framing
 - Product framing: Not needed
@@ -77,3 +82,9 @@ contradict the request's first reading and narrow this slice.
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_039_orchestrate_executable_quota_routing_across_accounts_and_providers`
+
+# Notes
+- Task `task_039_orchestrate_executable_quota_routing_across_accounts_and_providers` was finished via `logics-manager flow finish task` on 2026-08-08.

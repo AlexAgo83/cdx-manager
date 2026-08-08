@@ -1,7 +1,7 @@
 ## req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers - Turn quota awareness from advice into execution across accounts and providers
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: High

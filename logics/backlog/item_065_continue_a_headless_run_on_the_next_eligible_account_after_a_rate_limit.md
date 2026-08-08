@@ -1,7 +1,7 @@
 ## item_065_continue_a_headless_run_on_the_next_eligible_account_after_a_rate_limit - Continue a headless run on the next eligible account after a rate limit
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Progress: 100%
@@ -62,6 +62,11 @@ uses, and because cdx holds a second, independent signal.
 - request-AC7 -> This backlog slice. Proof: AC4 and AC5: one `run_id` for the whole task, each occupied session listed in order with its transition reason, and one row in `cdx runs`.
 - request-AC8 -> This backlog slice. Proof: AC6 and AC10: exhausting the eligible sessions and hitting the transition bound each terminate with their own code, both distinct from a task failure.
 - request-AC13 -> This backlog slice. Proof: the ollama provider is listed out of scope; failover selection runs through `rank_sessions` over Codex and Claude sessions only.
+- request-AC2 -> This backlog slice. Evidence needed: `cdx set <name> --fallback-model <model>` persists a per-session fallback model, validated with the same character and length rules as `--model`, and both settings survive a launch/relaunch cycle exactly as `power` and `permission` do.
+- request-AC3 -> This backlog slice. Evidence needed: For a Claude session carrying either setting, a **headless** run includes `--max-budget-usd` and `--fallback-model` respectively, while interactive launches, resume, and every Codex launch include neither; both flags are `--print`-only in Claude Code 2.1.226, so this is a provider constraint rather than a cdx choice, and `cdx configs` reports where each setting applies rather than failing a launch.
+- request-AC9 -> This backlog slice. Evidence needed: A user can pass provider arguments cdx does not model, per session (`cdx set --extra-args`) and per run, and those arguments reach the provider command line unmodified.
+- request-AC11 -> This backlog slice. Evidence needed: Where the installed provider CLI offers native background execution, `cdx run --detach` delegates to it rather than to the in-house detached launcher, decided by capability detection against the installed CLI rather than by a version assumption.
+- request-AC12 -> This backlog slice. Evidence needed: When the installed CLI offers no native background execution, the existing in-house detached path continues to work exactly as it does today, and which path was taken is visible in the run record.
 
 # Decision framing
 - Product framing: Not needed
@@ -82,3 +87,9 @@ uses, and because cdx holds a second, independent signal.
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_039_orchestrate_executable_quota_routing_across_accounts_and_providers`
+
+# Notes
+- Task `task_039_orchestrate_executable_quota_routing_across_accounts_and_providers` was finished via `logics-manager flow finish task` on 2026-08-08.

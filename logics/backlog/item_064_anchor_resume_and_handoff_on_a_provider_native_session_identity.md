@@ -1,7 +1,7 @@
 ## item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity - Anchor resume and handoff on a provider-native session identity
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Progress: 100%
@@ -57,6 +57,11 @@ written.
 - request-AC4 -> This backlog slice. Proof: AC1, AC2 and AC3 record the identifier and its provenance for each provider; AC4 and AC7 show resume following the identifier rather than recency.
 - request-AC5 -> This backlog slice. Proof: AC6: `cdx can-resume <name> --json` names the strategy, distinguishes identity-based from recency-based, and reports the provenance.
 - request-AC13 -> This backlog slice. Proof: the ollama provider is listed out of scope, and identity is recorded for Codex and Claude only.
+- request-AC8 -> This backlog slice. Evidence needed: When no eligible session remains, a failover run terminates with a specific error code that distinguishes 'exhausted every account' from 'the task itself failed', and reports what was attempted.
+- request-AC9 -> This backlog slice. Evidence needed: A user can pass provider arguments cdx does not model, per session (`cdx set --extra-args`) and per run, and those arguments reach the provider command line unmodified.
+- request-AC10 -> This backlog slice. Evidence needed: Passthrough arguments are documented and reported as unvalidated: they are excluded from the `cdx schema --json` contract and from `cdx doctor --check-provider-flags`, and cdx never claims to have verified them.
+- request-AC11 -> This backlog slice. Evidence needed: Where the installed provider CLI offers native background execution, `cdx run --detach` delegates to it rather than to the in-house detached launcher, decided by capability detection against the installed CLI rather than by a version assumption.
+- request-AC12 -> This backlog slice. Evidence needed: When the installed CLI offers no native background execution, the existing in-house detached path continues to work exactly as it does today, and which path was taken is visible in the run record.
 
 # Decision framing
 - Product framing: Not needed
@@ -77,3 +82,9 @@ written.
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_039_orchestrate_executable_quota_routing_across_accounts_and_providers`
+
+# Notes
+- Task `task_039_orchestrate_executable_quota_routing_across_accounts_and_providers` was finished via `logics-manager flow finish task` on 2026-08-08.

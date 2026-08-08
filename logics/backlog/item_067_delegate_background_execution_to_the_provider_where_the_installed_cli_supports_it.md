@@ -1,7 +1,7 @@
 ## item_067_delegate_background_execution_to_the_provider_where_the_installed_cli_supports_it - Delegate background execution to the provider where the installed CLI supports it
 > From version: 0.14.0
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Progress: 100%
@@ -46,6 +46,13 @@
 - request-AC11 -> This backlog slice. Proof: AC1: Capability detection reports whether the installed provider CLI offers native background execution, without assuming a version number.
 - request-AC12 -> This backlog slice. Proof: AC2: With native capability present, `cdx run --detach` uses it and still returns the cdx `run_id` at launch.
 - request-AC13 -> This backlog slice. Proof: AC3: With no native capability, the existing in-house path runs unchanged and its tests still pass.
+- request-AC4 -> This backlog slice. Evidence needed: cdx records a provider-native session identifier, and its provenance, for each session that supports one - imposed for Claude through `--session-id`, observed for Codex by reading the rollout's `session_id` after a run - and `cdx resume <name>` uses that identifier instead of the recency heuristics `codex resume --last` and `claude --continue`, so resuming is unaffected by the working directory or by other sessions having run more recently.
+- request-AC5 -> This backlog slice. Evidence needed: `cdx can-resume <name> --json` reports which resume strategy will actually be used (identity-based or recency-based) and why, so a caller can tell a reliable resume from a best-effort one before relying on it.
+- request-AC6 -> This backlog slice. Evidence needed: `cdx run --failover` detects that a run has terminated because of a provider rate limit, distinguishes that cause from every other failure, corroborates it against the account's own refreshed status before acting, re-ranks the remaining sessions, transfers the working context, and continues the task on the next eligible session without user intervention; every ambiguous case is biased towards not failing over, because a false positive migrates a healthy run off a working account.
+- request-AC7 -> This backlog slice. Evidence needed: A run that failed over is fully traceable: `cdx run-report <run_id> --json` names every session the run occupied, in order, with the reason for each transition, and `cdx runs` shows the run as one run rather than as several unrelated ones.
+- request-AC8 -> This backlog slice. Evidence needed: When no eligible session remains, a failover run terminates with a specific error code that distinguishes 'exhausted every account' from 'the task itself failed', and reports what was attempted.
+- request-AC9 -> This backlog slice. Evidence needed: A user can pass provider arguments cdx does not model, per session (`cdx set --extra-args`) and per run, and those arguments reach the provider command line unmodified.
+- request-AC10 -> This backlog slice. Evidence needed: Passthrough arguments are documented and reported as unvalidated: they are excluded from the `cdx schema --json` contract and from `cdx doctor --check-provider-flags`, and cdx never claims to have verified them.
 
 # Decision framing
 - Product framing: Not needed
@@ -66,3 +73,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_039_orchestrate_executable_quota_routing_across_accounts_and_providers`
+
+# Notes
+- Task `task_039_orchestrate_executable_quota_routing_across_accounts_and_providers` was finished via `logics-manager flow finish task` on 2026-08-08.
