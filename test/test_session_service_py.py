@@ -644,6 +644,39 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertTrue(merged["structured"])
         self.assertFalse(_is_low_confidence_status_source(merged))
 
+    def test_merged_status_keeps_the_newer_timestamp_when_the_candidate_is_stale(self):
+        from src.session_service import _merge_status_payload
+
+        merged = _merge_status_payload(
+            {"remaining_week_pct": 75, "updated_at": "2026-08-08T18:33:00+02:00"},
+            {"credits": "464.73", "updated_at": "2026-07-11T07:53:12+02:00"},
+        )
+
+        self.assertEqual(merged["credits"], "464.73")
+        self.assertEqual(merged["updated_at"], "2026-08-08T18:33:00+02:00")
+
+    def test_merged_status_adopts_the_candidate_timestamp_when_it_is_newer(self):
+        from src.session_service import _merge_status_payload
+
+        merged = _merge_status_payload(
+            {"remaining_week_pct": 75, "updated_at": "2026-07-11T07:53:12+02:00"},
+            {"credits": "464.73", "updated_at": "2026-08-08T18:33:00+02:00"},
+        )
+
+        self.assertEqual(merged["updated_at"], "2026-08-08T18:33:00+02:00")
+
+    def test_stale_merge_leaves_the_status_cache_fresh(self):
+        from src.session_service import _merge_status_payload
+        from src.session_status import _is_status_cache_fresh, _local_now_iso
+
+        current = {"remaining_week_pct": 75, "updated_at": _local_now_iso()}
+        merged = _merge_status_payload(current, {
+            "credits": "464.73",
+            "updated_at": "2026-07-11T07:53:12+02:00",
+        })
+
+        self.assertTrue(_is_status_cache_fresh({"provider": "codex", "lastStatus": merged}))
+
     def test_codex_status_can_be_derived_from_structured_rollout_rate_limits(self):
         temp_dir = self.make_temp_dir()
         global_home = os.path.join(temp_dir, "global-codex-home")

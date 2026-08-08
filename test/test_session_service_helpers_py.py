@@ -121,7 +121,7 @@ class StatusMergeTests(unittest.TestCase):
         merged = _merge_status_payload(current, candidate)
         self.assertEqual(merged["usage_pct"], 10)  # current kept
         self.assertEqual(merged["credits"], 7)  # missing filled from candidate
-        self.assertEqual(merged["updated_at"], "2021-01-01T00:00:00Z")  # candidate's wins
+        self.assertEqual(merged["updated_at"], "2022-01-01T00:00:00Z")  # the later stamp wins
 
     def test_merge_handles_empty_sides(self):
         self.assertEqual(_merge_status_payload(None, {"a": 1}), {"a": 1})

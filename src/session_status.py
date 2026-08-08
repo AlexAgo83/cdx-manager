@@ -146,6 +146,18 @@ def _status_has_more_detail(candidate, current):
     ]
     return any(current.get(field) is None and candidate.get(field) is not None for field in fields)
 
+def _later_status_timestamp(current_at, candidate_at):
+    if not candidate_at:
+        return current_at
+    if not current_at:
+        return candidate_at
+    parsed_current = _parse_status_timestamp(current_at)
+    parsed_candidate = _parse_status_timestamp(candidate_at)
+    if not parsed_current or not parsed_candidate:
+        return current_at
+    return candidate_at if parsed_candidate > parsed_current else current_at
+
+
 def _merge_status_payload(current, candidate):
     if not current:
         return candidate
@@ -175,7 +187,11 @@ def _merge_status_payload(current, candidate):
     if merged.get("source_ref") is not None and merged["source_ref"] == candidate.get("source_ref"):
         merged["structured"] = bool(candidate.get("structured"))
 
-    merged["updated_at"] = candidate.get("updated_at") or current.get("updated_at")
+    # The merge is only reached when the candidate is not newer, so adopting its
+    # timestamp would date the record by its stalest contributor. That is not
+    # cosmetic: updated_at drives the freshness check, so a regressed stamp
+    # makes a just-resolved status read as expired and re-probes every call.
+    merged["updated_at"] = _later_status_timestamp(current.get("updated_at"), candidate.get("updated_at"))
     return merged
 
 def _compute_available_pct(status):
