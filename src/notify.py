@@ -166,22 +166,70 @@ def _event(ready, title, message, session_name, target_timestamp=None):
     }
 
 
-def send_desktop_notification(title, message, spawn_sync=None, env=None):
+def notification_channel(env=None):
+    """Name the delivery mechanism usable on this host, or None if there is none.
+
+    Two callers depend on this answer: `cdx notify` decides whether to bother
+    delivering, and launch provisioning decides whether to install hooks at all.
+    A host with no channel gets no hooks, so the user is never asked to approve
+    a hook that could not have shown them anything.
+    """
     import sys
+    env = env or os.environ
+    path = env.get("PATH")
+    if sys.platform == "win32":
+        return "powershell" if shutil.which("powershell", path=path) else None
+    if _is_wsl(env):
+        # WSL has no notification daemon of its own; delivery crosses to Windows
+        # through interop, which /etc/wsl.conf can disable.
+        return "wsl" if shutil.which("powershell.exe", path=path) else None
+    if shutil.which("osascript", path=path):
+        return "osascript" if _has_desktop_session(env) else None
+    if shutil.which("notify-send", path=path):
+        return "notify-send" if _has_desktop_session(env) else None
+    return None
+
+
+def _is_wsl(env):
+    if env.get("WSL_DISTRO_NAME") or env.get("WSL_INTEROP"):
+        return True
+    try:
+        with open("/proc/version", encoding="utf-8") as handle:
+            return "microsoft" in handle.read().lower()
+    except OSError:
+        return False
+
+
+def _has_desktop_session(env):
+    """Whether anything is around to render a notification.
+
+    Over SSH or in a container there is no session bus and no display, so
+    notify-send is delivered nowhere and osascript has no session to talk to.
+    """
+    import sys
+    if sys.platform == "darwin":
+        return not env.get("SSH_CONNECTION")
+    return bool(env.get("DISPLAY") or env.get("WAYLAND_DISPLAY") or env.get("DBUS_SESSION_BUS_ADDRESS"))
+
+
+def send_desktop_notification(title, message, spawn_sync=None, env=None):
     spawn_sync = spawn_sync or subprocess.run
     env = env or os.environ
-    if sys.platform == "win32":
-        _send_windows_notification(title, message, spawn_sync, env)
-    elif shutil.which("osascript", path=env.get("PATH")):
+    channel = notification_channel(env)
+    if channel == "powershell":
+        _send_windows_notification(title, message, spawn_sync, env, ["powershell"])
+    elif channel == "wsl":
+        _send_windows_notification(title, message, spawn_sync, env, ["powershell.exe"])
+    elif channel == "osascript":
         script = f'display notification "{_escape_applescript(message)}" with title "{_escape_applescript(title)}"'
         _run_notification_command(
             ["osascript", "-e", script],
             spawn_sync,
             env,
         )
-    elif shutil.which("notify-send", path=env.get("PATH")):
+    elif channel == "notify-send":
         _run_notification_command(
-            ["notify-send", str(title), str(message)],
+            ["notify-send", "-a", "cdx", str(title), str(message)],
             spawn_sync,
             env,
         )
@@ -190,26 +238,45 @@ def send_desktop_notification(title, message, spawn_sync=None, env=None):
 def _run_notification_command(argv, spawn_sync, env):
     try:
         spawn_sync(argv, env=env, capture_output=True, text=True, timeout=5)
-    except (FileNotFoundError, OSError):
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
         pass
 
 
-def _send_windows_notification(title, message, spawn_sync, env):
-    title_escaped = _escape_powershell(title)
-    message_escaped = _escape_powershell(message)
-    script = (
-        "Add-Type -AssemblyName System.Windows.Forms; "
-        f"[System.Windows.Forms.MessageBox]::Show('{message_escaped}', '{title_escaped}')"
+# Windows only shows a toast on behalf of an application it knows. Registering our
+# own identifier would mean installing a Start Menu shortcut, so we borrow the one
+# PowerShell already ships with; an unknown identifier is dropped in silence.
+_POWERSHELL_AUMID = "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe"
+
+_TOAST_SCRIPT = """
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime] > $null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType=WindowsRuntime] > $null
+$template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+$nodes = $template.GetElementsByTagName('text')
+$nodes.Item(0).AppendChild($template.CreateTextNode('{title}')) > $null
+$nodes.Item(1).AppendChild($template.CreateTextNode('{message}')) > $null
+$toast = [Windows.UI.Notifications.ToastNotification]::new($template)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{aumid}').Show($toast)
+"""
+
+
+def _send_windows_notification(title, message, spawn_sync, env, launcher):
+    """Raise a toast rather than a dialog.
+
+    The dialog this replaced blocked with no timeout, which was survivable for a
+    once-a-day quota alert and not for a hook that fires on every agent turn: an
+    undismissed window holds the turn open, and one that steals focus every turn
+    is worse than no notification at all.
+    """
+    script = _TOAST_SCRIPT.format(
+        title=_escape_powershell(title),
+        message=_escape_powershell(message),
+        aumid=_POWERSHELL_AUMID,
     )
-    try:
-        spawn_sync(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-            env=env,
-            capture_output=True,
-            text=True,
-        )
-    except (FileNotFoundError, OSError):
-        pass
+    _run_notification_command(
+        [*launcher, "-NoProfile", "-NonInteractive", "-Command", script],
+        spawn_sync,
+        env,
+    )
 
 
 def _escape_powershell(value):

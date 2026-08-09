@@ -5,6 +5,7 @@ import os
 import sys
 from datetime import datetime, timezone
 
+from .agent_notify import handle_notify
 from .cli_commands import (
     API_SCHEMA_VERSION,
     STATUS_USAGE,
@@ -34,7 +35,7 @@ from .cli_commands import (
     handle_logout,
     handle_memory,
     handle_next,
-    handle_notify,
+    handle_ready,
     handle_remove,
     handle_rename,
     handle_repair,
@@ -578,7 +579,7 @@ def main(argv, options=None):
     if resolved_command == "ready":
         if any(arg not in ("--refresh", "--json") for arg in rest):
             raise CdxError("Usage: cdx ready [--refresh] [--json]")
-        return handle_notify(["--next-ready", "--schedule", *rest], ctx)
+        return handle_ready(["--next-ready", "--schedule", *rest], ctx)
 
     if resolved_command in ("power", "perm", "fast", "model"):
         return handle_launch_setting_alias(resolved_command, rest, ctx)

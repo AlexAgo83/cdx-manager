@@ -48,7 +48,7 @@ from .commands.auth import (
     handle_logout as handle_logout,
 )
 from .commands.auth import (
-    handle_notify as handle_notify,
+    handle_ready as handle_ready,
 )
 from .commands.auth import (
     handle_reset as handle_reset,

@@ -1,4 +1,4 @@
-"""Authentication domain commands: login, logout, reset, notify.
+"""Authentication domain commands: login, logout, reset, ready.
 
 Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 """
@@ -35,7 +35,10 @@ def _confirm_reset(name):
     answer = input(f"Consume one banked Codex reset for {name}? [y/N] ")
     return answer.strip().lower() in ("y", "yes")
 
-def handle_notify(rest, ctx):
+def handle_ready(rest, ctx):
+    # ponytail: the quota-reset flow kept its logic but lost its CLI surface; `cdx notify`
+    # now means agent notifications. Only `cdx ready` reaches this. Delete the scheduling
+    # backends in notify.py if `cdx ready` also turns out to be unused.
     parsed = parse_notify_args(rest)
 
     def notifier(title, message):

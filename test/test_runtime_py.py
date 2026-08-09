@@ -502,18 +502,60 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertEqual(result["HOMEDRIVE"], "C:")
         self.assertEqual(result["HOMEPATH"], r"\Users\Test\AppData\Local\cdx\claude-home")
 
-    def test_send_windows_notification_uses_powershell(self):
+    def test_send_windows_notification_raises_a_toast_not_a_dialog(self):
         calls = []
 
         def spawn_sync(argv, **kwargs):
             calls.append((argv, kwargs))
 
-        with mock.patch("sys.platform", "win32"):
+        with mock.patch("sys.platform", "win32"), mock.patch.object(notify.shutil, "which", return_value="powershell"):
             notify.send_desktop_notification("Title", "Hello 'World'", spawn_sync=spawn_sync, env={"PATH": ""})
 
-        self.assertEqual(calls[0][0][:3], ["powershell", "-NoProfile", "-NonInteractive"])
-        self.assertIn("System.Windows.Forms", calls[0][0][4])
-        self.assertIn("Hello ''World''", calls[0][0][4])
+        argv, kwargs = calls[0]
+        self.assertEqual(argv[:3], ["powershell", "-NoProfile", "-NonInteractive"])
+        self.assertIn("ToastNotificationManager", argv[4])
+        # A dialog blocks the agent turn until someone dismisses it.
+        self.assertNotIn("MessageBox", argv[4])
+        self.assertIn("Hello ''World''", argv[4])
+        self.assertEqual(kwargs.get("timeout"), 5)
+
+    def test_wsl_delivers_through_windows_interop(self):
+        calls = []
+
+        with mock.patch("sys.platform", "linux"), mock.patch.object(
+            notify.shutil, "which", side_effect=lambda name, path=None: "/mnt/c/powershell.exe" if name == "powershell.exe" else None
+        ):
+            notify.send_desktop_notification(
+                "Title", "Message",
+                spawn_sync=lambda argv, **kwargs: calls.append(argv),
+                env={"PATH": "", "WSL_DISTRO_NAME": "Ubuntu"},
+            )
+
+        self.assertEqual(calls[0][0], "powershell.exe")
+        self.assertIn("ToastNotificationManager", calls[0][4])
+
+    def test_no_channel_when_wsl_interop_is_disabled(self):
+        with mock.patch("sys.platform", "linux"), mock.patch.object(notify.shutil, "which", return_value=None):
+            self.assertIsNone(notify.notification_channel({"PATH": "", "WSL_DISTRO_NAME": "Ubuntu"}))
+
+    def test_no_channel_on_headless_linux(self):
+        with mock.patch("sys.platform", "linux"), mock.patch.object(
+            notify.shutil, "which", side_effect=lambda name, path=None: "/usr/bin/notify-send" if name == "notify-send" else None
+        ), mock.patch.object(notify, "_is_wsl", return_value=False):
+            self.assertIsNone(notify.notification_channel({"PATH": ""}))
+            self.assertEqual(notify.notification_channel({"PATH": "", "DISPLAY": ":0"}), "notify-send")
+
+    def test_linux_notification_is_attributed_to_cdx(self):
+        calls = []
+        with mock.patch("sys.platform", "linux"), mock.patch.object(
+            notify.shutil, "which", side_effect=lambda name, path=None: "/usr/bin/notify-send" if name == "notify-send" else None
+        ), mock.patch.object(notify, "_is_wsl", return_value=False):
+            notify.send_desktop_notification(
+                "Title", "Message",
+                spawn_sync=lambda argv, **kwargs: calls.append(argv),
+                env={"PATH": "", "DISPLAY": ":0"},
+            )
+        self.assertEqual(calls[0][:3], ["notify-send", "-a", "cdx"])
 
     def test_run_interactive_provider_command_reports_raw_int_signal_name(self):
         session = {
