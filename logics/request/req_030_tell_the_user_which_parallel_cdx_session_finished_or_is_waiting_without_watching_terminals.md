@@ -7,7 +7,7 @@
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-09 17:16:23
+> Indicators reviewed: 2026-08-09 17:18:42
 
 # Needs
 - Running several cdx sessions in parallel across different repositories is the normal way this tool is used, and it is the one case cdx does not support: the only way to learn that an agent finished, or that it is blocked waiting for an answer, is to keep looking at every terminal.
@@ -23,6 +23,8 @@
 - The scope decision taken with the user: `notify` is reassigned to the new hook target, the `--at-reset`/`--next-ready` CLI surface is retired from parsing and documentation, and the underlying logic stays reachable through `cdx ready`. Deleting the remaining ~250 lines of launchd/systemd/schtasks scheduling is deliberately left as a separate later decision, once there is evidence `cdx ready` is unused too.
 - Windows needs a different notifier than the one that exists. `_send_windows_notification` (`src/notify.py:186`) raises a blocking `System.Windows.Forms.MessageBox` and — unlike the macOS and Linux paths, which pass `timeout=5` — calls `spawn_sync` with no timeout at all. Fired once by a scheduled quota task that is merely ugly; fired as a hook on every agent turn it blocks the hook process until the user clicks OK, and the provider waits on its hooks. This is the one platform where the current notifier actively breaks AC8 rather than merely degrading.
 - The hook command cannot be the bare name `cdx`. Codex spawns its `notify` argv directly rather than through a shell, and on Windows npm installs a `cdx.cmd` shim rather than an executable named `cdx`; pipx and uv installs can likewise leave `cdx` off the PATH the provider inherits. `_scheduled_notify_argv` (`src/notify.py:246`) already solves this for the quota flow by resolving `CDX_BIN` or `shutil.which("cdx")` and writing the resolved path.
+- WSL is the case the current notifier silently fails. Inside WSL `sys.platform` reads `linux`, so `send_desktop_notification` takes the `notify-send` branch — but a plain WSL2 distribution has no session bus and no desktop, so nothing is delivered and nothing is reported. The repository has no WSL handling at all today (`grep -i wsl` over `src/`, `README.md` and `docs/` returns nothing), which is acceptable for a quota alert nobody depends on and not acceptable for the feature this request exists to provide. Delivery to the Windows notification centre from WSL goes through Windows interop — invoking `powershell.exe`, which WSL exposes on the PATH when interop is enabled — and WSLg on Windows 11 is a second sub-case where a session bus may in fact be present.
+- Reaching the Windows notifier through WSL interop inherits its blocking-dialog problem and worsens it: a modal on the Windows desktop would hold open an agent turn running inside the Linux distribution, across the boundary, with nothing in the WSL terminal explaining why.
 - Linux desktop notifications need a session bus. Over SSH, in a container, or on a headless box there is no D-Bus session and `notify-send` cannot deliver; the same is true of `osascript` in an SSH session on macOS. Silence is the correct outcome there, but it should be a known and stated outcome rather than a bug report.
 - Notifications are on by default, because a feature that must be discovered and enabled will not be. `cdx set <name> --notify off` turns them off, and cdx removes the hooks it wrote at the next launch of that session.
 
@@ -37,8 +39,9 @@
 - AC8: A failure in the notification path — an absent notifier binary, an unreadable or malformed hook payload, an unwritable configuration file — never fails or delays the launch or the agent turn.
 - AC9: The Windows notification path is non-blocking and bounded in time, so a notification the user never dismisses cannot hold up an agent turn.
 - AC10: The provisioned hook command resolves to cdx on each platform's supported install paths, including a Windows npm install where `cdx` is a `.cmd` shim and installs where cdx is not on the provider's inherited PATH.
-- AC11: On a host with no desktop notification channel available — a headless or SSH Linux session, or any platform whose notifier is missing — the agent turn completes normally and nothing is raised.
-- AC12: The README documents the notification behavior, how to turn it off, the new meaning of `cdx notify`, and the per-platform delivery caveats.
+- AC11: A session running inside WSL delivers its notification to the Windows notification centre, rather than taking the plain-Linux path and silently delivering nothing.
+- AC12: On a host with no desktop notification channel available — a headless or SSH Linux session, a WSL distribution with interop disabled, or any platform whose notifier is missing — the agent turn completes normally and nothing is raised.
+- AC13: The README documents the notification behavior, how to turn it off, the new meaning of `cdx notify`, and the per-platform delivery caveats including WSL.
 
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.
