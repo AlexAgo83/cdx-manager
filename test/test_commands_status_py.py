@@ -577,7 +577,7 @@ class StatusCommandTests(CliTestBase):
         self.assertIn("personal", output)
         self.assertIn("default", output)
         self.assertIn(
-            "Set a value: cdx set <name> --power medium --permission auto --fast on --rtk on --logics on --model MODEL --priority 80",
+            "Set a value: cdx set <name> --power medium --permission auto --fast on --rtk on --logics on --notify on --model MODEL --priority 80",
             output,
         )
 

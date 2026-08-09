@@ -4,7 +4,7 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 10%
+> Progress: 90%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -55,6 +55,14 @@
 - request-AC4 -> `item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch`. Proof deferred to slice closeout.
 - request-AC5 -> `item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch`. Proof deferred to slice closeout.
 - request-AC9 -> `item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch`. Proof deferred to slice closeout.
+- request-AC10 -> This task. Proof: Implemented across f5361a5, 6da3f15 and bc29f63; validated with python3 -m pytest test/ (661 passed) and ruff check src/ test/. Delivery verified live on all three platforms: macOS confirmed on screen, native Windows and WSL-over-interop toasts both confirmed on the tower. Source: `bc29f63`
+- request-AC11 -> This task. Proof: Implemented across f5361a5, 6da3f15 and bc29f63; validated with python3 -m pytest test/ (661 passed) and ruff check src/ test/. Delivery verified live on all three platforms: macOS confirmed on screen, native Windows and WSL-over-interop toasts both confirmed on the tower. Source: `bc29f63`
+- request-AC12 -> This task. Proof: Implemented across f5361a5, 6da3f15 and bc29f63; validated with python3 -m pytest test/ (661 passed) and ruff check src/ test/. Delivery verified live on all three platforms: macOS confirmed on screen, native Windows and WSL-over-interop toasts both confirmed on the tower. Source: `bc29f63`
+- request-AC13 -> This task. Proof: Implemented across f5361a5, 6da3f15 and bc29f63; validated with python3 -m pytest test/ (661 passed) and ruff check src/ test/. Delivery verified live on all three platforms: macOS confirmed on screen, native Windows and WSL-over-interop toasts both confirmed on the tower. Source: `bc29f63`
+- request-AC14 -> This task. Proof: Implemented across f5361a5, 6da3f15 and bc29f63; validated with python3 -m pytest test/ (661 passed) and ruff check src/ test/. Delivery verified live on all three platforms: macOS confirmed on screen, native Windows and WSL-over-interop toasts both confirmed on the tower. Source: `bc29f63`
+- request-AC15 -> This task. Proof: Implemented across f5361a5, 6da3f15 and bc29f63; validated with python3 -m pytest test/ (661 passed) and ruff check src/ test/. Delivery verified live on all three platforms: macOS confirmed on screen, native Windows and WSL-over-interop toasts both confirmed on the tower. Source: `bc29f63`
+- request-AC16 -> This task. Proof: Implemented across f5361a5, 6da3f15 and bc29f63; validated with python3 -m pytest test/ (661 passed) and ruff check src/ test/. Delivery verified live on all three platforms: macOS confirmed on screen, native Windows and WSL-over-interop toasts both confirmed on the tower. Source: `bc29f63`
+- request-AC17 -> This task. Proof: Implemented across f5361a5, 6da3f15 and bc29f63; validated with python3 -m pytest test/ (661 passed) and ruff check src/ test/. Delivery verified live on all three platforms: macOS confirmed on screen, native Windows and WSL-over-interop toasts both confirmed on the tower. Source: `bc29f63`
 
 # Validation
 - (no validation recorded yet)

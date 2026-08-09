@@ -509,7 +509,7 @@ def _format_launch_config(session, use_color=False):
 def _format_launch_settings_hint(name="<name>"):
     return (
         f"Set a value: cdx set {name} --power medium --permission auto "
-        "--fast on --rtk on --logics on --model MODEL --priority 80"
+        "--fast on --rtk on --logics on --notify on --model MODEL --priority 80"
     )
 
 def _format_launch_setting_value(launch, key, use_color=False):

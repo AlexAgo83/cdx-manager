@@ -14,7 +14,12 @@ from .status_view import (
     _priority_reset_timestamp,
 )
 
-NOTIFY_USAGE = "Usage: cdx notify <name> --at-reset [--poll seconds] [--once] [--schedule] [--refresh] | cdx notify --next-ready [--poll seconds] [--once] [--schedule] [--refresh]"
+# ponytail: `cdx ready` is the only caller left, and it always passes
+# --next-ready --schedule. The --at-reset branch, the polling loop, and --once
+# are therefore unreachable from the CLI; unit tests still exercise them
+# directly, so coverage will not flag them. Delete them together with the
+# scheduling backends if `cdx ready` also turns out to be unused.
+NOTIFY_USAGE = "Usage: cdx ready [--refresh] [--json]"
 
 
 def parse_notify_args(args):
@@ -55,9 +60,9 @@ def parse_notify_args(args):
     if at_reset == next_ready:
         raise CdxError(NOTIFY_USAGE)
     if at_reset and len(cleaned) != 1:
-        raise CdxError("Usage: cdx notify <name> --at-reset [--poll seconds] [--once] [--schedule] [--refresh]")
+        raise CdxError(NOTIFY_USAGE)
     if next_ready and cleaned:
-        raise CdxError("Usage: cdx notify --next-ready [--poll seconds] [--once] [--schedule] [--refresh]")
+        raise CdxError(NOTIFY_USAGE)
     return {
         "name": cleaned[0] if cleaned else None,
         "mode": "at-reset" if at_reset else "next-ready",

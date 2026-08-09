@@ -742,7 +742,7 @@ class LaunchCommandTests(CliTestBase):
         self.assertIn("Model", config_io["stdout"].getvalue())
         self.assertIn("sonnet", config_io["stdout"].getvalue())
         self.assertIn(
-            "Set a value: cdx set work1 --power medium --permission auto --fast on --rtk on --logics on --model MODEL --priority 80",
+            "Set a value: cdx set work1 --power medium --permission auto --fast on --rtk on --logics on --notify on --model MODEL --priority 80",
             config_io["stdout"].getvalue(),
         )
 
