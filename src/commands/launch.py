@@ -115,6 +115,8 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         session["provider"],
         notifications_enabled(session),
         ctx.get("env"),
+        spawn_sync=ctx.get("spawn_sync"),
+        base_dir=ctx["service"]["base_dir"],
     )
     if installed and not json_flag:
         notice = f"Notification hooks installed for {session['name']}"

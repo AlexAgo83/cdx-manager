@@ -83,10 +83,62 @@ class ProvisioningTests(unittest.TestCase):
         with mock.patch.object(agent_notify, "notification_channel", return_value=channel):
             return agent_notify.provision(self.home, provider, enabled, self.env)
 
-    def test_codex_config_sits_at_the_codex_home_root(self):
-        self.assertTrue(self._provision("codex"))
-        self.assertTrue(os.path.exists(os.path.join(self.home, "hooks.json")))
-        self.assertFalse(os.path.exists(os.path.join(self.home, ".codex", "config.toml")))
+    def test_codex_goes_through_a_plugin_because_a_hooks_file_is_never_read(self):
+        calls = []
+
+        def spawn_sync(command, args, options):
+            calls.append([command, *args])
+            # Codex records the install in its own config; that is what we read back.
+            with open(os.path.join(self.home, "config.toml"), "a", encoding="utf-8") as handle:
+                handle.write('\n[plugins."cdx-notify@cdx"]\nenabled = true\n')
+            return {"status": 0}
+
+        with mock.patch.object(agent_notify, "notification_channel", return_value="osascript"):
+            self.assertTrue(agent_notify.provision(self.home, "codex", True, self.env, spawn_sync))
+
+        self.assertEqual(calls[0][:3], ["codex", "plugin", "marketplace"])
+        self.assertEqual(calls[1], ["codex", "plugin", "add", "cdx-notify@cdx"])
+        # The "hooks" key is what makes Codex load the file at all.
+        root = agent_notify.codex_plugin_root(self.home)
+        # Outside CODEX_HOME: a marketplace rooted inside it installs and never runs.
+        self.assertFalse(root.startswith(self.home + os.sep))
+        with open(os.path.join(root, ".claude-plugin", "plugin.json"), encoding="utf-8") as handle:
+            self.assertEqual(json.load(handle)["hooks"], "./hooks/cdx-hooks.json")
+        with open(agent_notify.hook_config_path(self.home, "codex"), encoding="utf-8") as handle:
+            self.assertIn("Stop", json.load(handle)["hooks"])
+        # A free-standing hooks file at the Codex home root is never read, so we
+        # must not leave one there pretending otherwise.
+        self.assertFalse(os.path.exists(os.path.join(self.home, "hooks.json")))
+
+    def test_codex_plugin_is_installed_once(self):
+        calls = []
+
+        def spawn_sync(command, args, options):
+            calls.append(args)
+            with open(os.path.join(self.home, "config.toml"), "a", encoding="utf-8") as handle:
+                handle.write('\n[plugins."cdx-notify@cdx"]\nenabled = true\n')
+            return {"status": 0}
+
+        with mock.patch.object(agent_notify, "notification_channel", return_value="osascript"):
+            agent_notify.provision(self.home, "codex", True, self.env, spawn_sync)
+            before = len(calls)
+            self.assertFalse(agent_notify.provision(self.home, "codex", True, self.env, spawn_sync))
+        self.assertEqual(len(calls), before)
+
+    def test_codex_plugin_is_removed_when_notifications_are_turned_off(self):
+        with open(os.path.join(self.home, "config.toml"), "w", encoding="utf-8") as handle:
+            handle.write('[plugins."cdx-notify@cdx"]\nenabled = true\n')
+        calls = []
+        agent_notify.provision(self.home, "codex", False, self.env,
+                               lambda command, args, options: calls.append(args) or {"status": 0})
+        self.assertIn(["plugin", "remove", "cdx-notify@cdx"], calls)
+
+    def test_a_failing_codex_never_fails_the_launch(self):
+        def spawn_sync(command, args, options):
+            raise OSError("codex not found")
+
+        with mock.patch.object(agent_notify, "notification_channel", return_value="osascript"):
+            self.assertFalse(agent_notify.provision(self.home, "codex", True, self.env, spawn_sync))
 
     def test_installs_for_claude_under_its_own_home(self):
         self.assertTrue(self._provision("claude"))

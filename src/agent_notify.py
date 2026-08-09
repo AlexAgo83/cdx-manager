@@ -12,6 +12,7 @@ owns because it sets HOME/CODEX_HOME per session at launch.
 import json
 import os
 import shutil
+import subprocess
 
 from .notify import notification_channel, send_desktop_notification
 
@@ -106,32 +107,147 @@ def notifications_enabled(session):
     return launch.get("notify") is not False
 
 
-def provision(auth_home, provider, enabled, env=None):
-    """Install or remove cdx's hook entries in this session's own home.
+def provision(auth_home, provider, enabled, env=None, spawn_sync=None, base_dir=None):
+    """Install or remove cdx's notification hooks in this session's own home.
 
     Idempotent, so an existing session picks the hooks up on its next launch and
-    repeated launches change nothing. Returns True when entries were newly
-    installed, so the caller can tell the user they need approving once.
+    repeated launches change nothing. Returns True when they were newly
+    installed, so the caller can say so once.
+
+    The two providers need different mechanisms, which is not a stylistic
+    choice: Claude Code reads hooks straight out of `settings.json`, while Codex
+    reads them only from an installed plugin — a free-standing hooks file
+    anywhere under `CODEX_HOME` is never looked at.
     """
     env = env or os.environ
     if enabled and not notification_channel(env):
         # Nothing could be delivered on this host, so installing a hook would only
         # buy the user an approval prompt for a feature that shows nothing.
         enabled = False
-    path = hook_config_path(auth_home, provider)
-    if not path:
-        return False
-    return _apply_hooks(path, enabled, resolve_hook_command(env))
+    command = resolve_hook_command(env)
+    if provider == "claude":
+        return _apply_hooks(hook_config_path(auth_home, provider), enabled, command)
+    if provider == "codex":
+        return _provision_codex_plugin(auth_home, enabled, command, env, spawn_sync, base_dir)
+    return False
 
 
-def hook_config_path(auth_home, provider):
+def hook_config_path(auth_home, provider, base_dir=None):
     if provider == "claude":
         return os.path.join(auth_home, ".claude", "settings.json")
     if provider == "codex":
-        # CODEX_HOME is authHome itself, so this sits at its root rather than
-        # under a .codex segment.
-        return os.path.join(auth_home, "hooks.json")
+        return os.path.join(codex_plugin_root(auth_home, base_dir), "hooks", "cdx-hooks.json")
     return None
+
+
+def codex_plugin_root(auth_home, base_dir=None):
+    """Where the generated Codex plugin lives — deliberately outside CODEX_HOME.
+
+    A marketplace rooted inside Codex's own home installs without complaint and
+    then never runs: Codex registers it pointing straight at the source
+    directory instead of taking the cache copy it executes from. Moving the same
+    plugin one directory out is the whole difference between working and
+    silently doing nothing.
+    """
+    base_dir = base_dir or os.path.dirname(os.path.dirname(auth_home))
+    return os.path.join(base_dir, "state", "codex-plugins", os.path.basename(auth_home))
+
+
+# Codex only runs hooks that come from an installed plugin, identified as
+# `<plugin>@<marketplace>`. Generating one per session keeps the resolved cdx
+# path baked into it.
+CODEX_PLUGIN = "cdx-notify"
+CODEX_MARKETPLACE = "cdx"
+CODEX_PLUGIN_REF = f"{CODEX_PLUGIN}@{CODEX_MARKETPLACE}"
+
+
+def _provision_codex_plugin(auth_home, enabled, command, env, spawn_sync=None, base_dir=None):
+    installed = _codex_plugin_installed(auth_home)
+    if enabled == installed:
+        return False
+    if not enabled:
+        _run_codex(["plugin", "remove", CODEX_PLUGIN_REF], auth_home, env, spawn_sync)
+        _run_codex(["plugin", "marketplace", "remove", CODEX_MARKETPLACE], auth_home, env, spawn_sync)
+        return False
+    root = _write_codex_plugin(auth_home, command, base_dir)
+    if not root:
+        return False
+    if not _run_codex(["plugin", "marketplace", "add", root], auth_home, env, spawn_sync):
+        return False
+    return _run_codex(["plugin", "add", CODEX_PLUGIN_REF], auth_home, env, spawn_sync)
+
+
+def _codex_plugin_installed(auth_home):
+    """Whether Codex's own config already lists our plugin.
+
+    Read rather than remembered, so a plugin the user removed by hand is
+    reinstalled on the next launch instead of being assumed present.
+    """
+    try:
+        with open(os.path.join(auth_home, "config.toml"), encoding="utf-8") as handle:
+            return f'[plugins."{CODEX_PLUGIN_REF}"]' in handle.read()
+    except OSError:
+        return False
+
+
+def _write_codex_plugin(auth_home, command, base_dir=None):
+    root = codex_plugin_root(auth_home, base_dir)
+    files = {
+        os.path.join(root, ".claude-plugin", "marketplace.json"): {
+            "name": CODEX_MARKETPLACE,
+            "description": "cdx agent notifications",
+            "owner": {"name": "cdx"},
+            "plugins": [{
+                "name": CODEX_PLUGIN,
+                "description": "Notify when this cdx session finishes a turn or waits for you",
+                "source": "./",
+            }],
+        },
+        # The "hooks" key is what makes Codex load the file at all; without it
+        # the plugin installs cleanly and never runs anything.
+        os.path.join(root, ".claude-plugin", "plugin.json"): {
+            "name": CODEX_PLUGIN,
+            "version": "1.0.0",
+            "description": "Notify when this cdx session finishes a turn or waits for you",
+            "hooks": "./hooks/cdx-hooks.json",
+        },
+        os.path.join(root, "hooks", "cdx-hooks.json"): {
+            "hooks": {
+                event: [{"hooks": [{"type": "command", "command": f"{command} {HOOK_ARG}"}]}]
+                for event in ("Stop", "Notification")
+            },
+        },
+    }
+    for path, document in files.items():
+        if not _write_json(path, document):
+            return None
+    return root
+
+
+def _run_codex(args, auth_home, env, spawn_sync):
+    """Run one `codex` command, following the repo's (command, args, options)
+    spawn_sync contract rather than subprocess.run's, so the same injected
+    double serves here as everywhere else."""
+    options = {"env": {**env, "CODEX_HOME": auth_home}, "cwd": auth_home}
+    try:
+        result = (spawn_sync or _subprocess_spawn_sync)("codex", list(args), options)
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        # No codex on PATH, or it hung: a skipped provisioning step, never a
+        # failed launch.
+        return False
+    if isinstance(result, dict):
+        return not result.get("error") and result.get("status", 0) == 0
+    return getattr(result, "returncode", 0) == 0
+
+
+def _subprocess_spawn_sync(command, args, options):
+    return subprocess.run(
+        [command, *args],
+        env=options.get("env"),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
 
 
 def _apply_hooks(path, enabled, command):
