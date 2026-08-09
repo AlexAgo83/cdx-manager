@@ -8,6 +8,7 @@
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-09 17:16:24
 
 # Problem
 - The hook target is unreachable until each provider is told to call it, and that instruction lives in a configuration file per provider.
@@ -16,7 +17,8 @@
 
 # Scope
 - In:
-  - Write the Claude Code hook entries and the Codex `notify` key into the session's own home directory, resolved the same way the launch environment resolves it, on the path every interactive launch and resume already passes through.
+  - Write the Claude Code hook entries into `<authHome>/.claude/settings.json` and the Codex `notify` key into `<authHome>/config.toml` — Codex's home is `authHome` itself, since cdx sets `CODEX_HOME` to it directly, so there is no `.codex` segment on that path.
+  - Write a hook command that resolves to cdx on every supported install path rather than the bare name `cdx`, reusing the `CDX_BIN` / `shutil.which` resolution `_scheduled_notify_argv` already performs, and accounting for the Windows npm install shipping a `cdx.cmd` shim that a direct (non-shell) spawn will not find under the bare name.
   - Merge into whatever the files already contain rather than overwriting them, leaving unrelated settings and user-authored hooks intact.
   - Make the write idempotent and recognizably cdx's own, so repeated launches change nothing and cdx can later remove exactly what it added.
   - Add a `--notify on|off` launch setting following the existing `--rtk` and `--logics` pattern, defaulting to on, and clearable through `cdx unset`.
@@ -28,6 +30,7 @@
   - No migration command and no provisioning outside the launch path.
   - No global on/off switch spanning all sessions beyond what the existing bulk settings flags already give.
   - No management of hook entries cdx did not write.
+  - No addition of cdx to the user's PATH, and no installer change; the resolution happens at provisioning time and is baked into the written command.
 
 # Acceptance criteria
 - Given a session launched for the first time after this change, its own home contains the hook configuration for its provider, and no file outside that home has changed.
@@ -37,14 +40,19 @@
 - Given a new session with no notification setting, notifications are enabled.
 - Given `cdx set <name> --notify off` followed by a launch of that session, the entries cdx wrote are gone and any other content in the files remains.
 - Given a configuration file that cannot be written or cannot be parsed, the launch proceeds normally and the provider still starts.
-- The README states that notifications are on by default and shows the command that turns them off.
+- Given a Codex session, the `notify` key is written to `<authHome>/config.toml` and Codex reads it, rather than to a `.codex` subdirectory Codex never looks at.
+- Given a Windows npm install where `cdx` is a `.cmd` shim, the provisioned hook command still invokes cdx when the provider spawns it directly rather than through a shell.
+- Given an install where cdx is absent from the PATH the provider inherits, the provisioned hook command still resolves.
+- The README states that notifications are on by default, shows the command that turns them off, and states the per-platform delivery caveats.
 
 # AC Traceability
 - request-AC2 -> This backlog slice. Proof: Given a session launched for the first time after this change, its own home contains the hook configuration for its provider, and no file outside that home has changed.
 - request-AC3 -> This backlog slice. Proof: Given the same session launched again, the configuration files are byte-identical to after the first launch.
 - request-AC4 -> This backlog slice. Proof: Given a session created before this change, its next launch provisions the configuration with no separate migration step.
 - request-AC5 -> This backlog slice. Proof: Given a configuration file already holding unrelated settings or user-authored hooks, those survive provisioning unchanged.
-- request-AC9 -> This backlog slice. Proof: Given a new session with no notification setting, notifications are enabled.
+- request-AC5 -> This backlog slice. Proof: Given a new session with no notification setting, notifications are enabled.
+- request-AC10 -> This backlog slice. Proof: Given a Windows npm install where `cdx` is a `.cmd` shim, the provisioned hook command still invokes cdx when the provider spawns it directly rather than through a shell.
+- request-AC12 -> This backlog slice. Proof: The README states that notifications are on by default, shows the command that turns them off, and states the per-platform delivery caveats.
 
 # Decision framing
 - Product framing: Not needed
