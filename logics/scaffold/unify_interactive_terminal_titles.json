@@ -1,0 +1,95 @@
+{
+  "title": "Unifier les titres de terminaux des sessions interactives",
+  "references": [
+    "User request: afficher session -- repo ou dossier pour Claude, Codex et Antigravity"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "interactive-session-ergonomics",
+    "needs": [
+      "Identifier immédiatement, dans le titre de la fenêtre de terminal, la session cdx active et le dépôt ou dossier de travail.",
+      "Obtenir la même convention de titre quel que soit le fournisseur Claude, Codex ou Antigravity."
+    ],
+    "context": [
+      "Claude reçoit déjà --name <session>, tandis que Codex affiche généralement le répertoire courant dans son TUI.",
+      "Codex et Antigravity ne doivent pas dépendre d'un flag privé ou non documenté pour cette fonctionnalité.",
+      "Les lancements interactifs sont construits dans src/provider_runtime.py et peuvent être enveloppés pour la capture de transcript."
+    ],
+    "acceptance_criteria": [
+      "AC1: Un lancement interactif ou une reprise Claude via cdx affiche un titre au format session -- dossier.",
+      "AC2: Un lancement interactif ou une reprise Codex via cdx affiche un titre au format session -- dossier.",
+      "AC3: Un lancement interactif Antigravity via cdx affiche un titre au format session -- dossier.",
+      "AC4: Le dossier affiché correspond au basename du cwd effectif du lancement, sans casser les lancements non interactifs, JSON, redirigés ou les transcripts.",
+      "AC5: Les données session/cwd ne peuvent pas injecter de séquence de contrôle dans le titre du terminal.",
+      "AC6: Les tests de lancement et les tests unitaires du runtime couvrent le format, les caractères de contrôle et les cas non-TTY."
+    ]
+  },
+  "product": {
+    "title": "Titres de terminal cohérents pour les sessions cdx",
+    "overview": "cdx conserve le titre session -- dossier pendant chaque session interactive prise en charge.",
+    "goals": [
+      "Fournir une convention visible et identique pour Claude, Codex et Antigravity.",
+      "Préserver les commandes et identités natives des fournisseurs.",
+      "N'émettre aucune séquence de titre lorsque la sortie n'est pas un terminal."
+    ],
+    "non_goals": [
+      "Ajouter un réglage persistant de format ou de fréquence de titre dans cette livraison.",
+      "Modifier les titres ou le comportement d'Ollama.",
+      "Modifier les titres de terminaux après le retour au shell appelant."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Imposer le titre session -- dossier aux TUI interactifs",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "interactive-session-ergonomics",
+      "request_acs": [
+        "AC1",
+        "AC2",
+        "AC3",
+        "AC4",
+        "AC5",
+        "AC6"
+      ],
+      "problem": [
+        "Chaque fournisseur contrôle actuellement son titre de fenêtre selon ses propres conventions.",
+        "Un simple titre écrit avant le lancement peut être remplacé par le TUI du fournisseur."
+      ],
+      "scope_in": [
+        "Ajouter au runtime interactif une petite abstraction qui construit session -- basename(cwd).",
+        "Assainir les caractères de contrôle dans le nom de session et le dossier avant toute émission OSC.",
+        "Démarrer un maintien du titre seulement pour launch/resume interactifs lorsque stdout est un TTY, et l'arrêter systématiquement à la fin ou sur erreur.",
+        "Couvrir Claude, Codex et Antigravity via le chemin runtime partagé; ne pas changer les arguments natifs des fournisseurs.",
+        "Ajouter des tests unitaires ciblés et documenter la convention dans README."
+      ],
+      "scope_out": [
+        "Forcer des options non documentées de Claude, Codex ou agy.",
+        "Affecter cdx run, les exécutions détachées, les flux JSON ou les sorties redirigées.",
+        "Enregistrer ou restaurer le titre antérieur du terminal."
+      ],
+      "acceptance_criteria": [
+        "AC1: Le helper de titre produit exactement session -- dossier à partir de la session et du cwd, et supprime ESC ainsi que les contrôles C0/C1 pertinents.",
+        "AC2: Le maintien du titre n'est activé que pour launch/resume sur stdout TTY; il ne produit rien pour les contextes non-TTY, JSON et tests capturés.",
+        "AC3: Le mécanisme reste actif pendant l'exécution du fournisseur afin de reprendre la main si son TUI modifie le titre, puis s'arrête dans le bloc finally.",
+        "AC4: Les mêmes appels runtime couvrent Claude, Codex et Antigravity sans modifier leurs arguments de lancement ni la capture de transcript.",
+        "AC5: Les suites runtime et launch existantes passent, avec de nouveaux tests pour le format, l'assainissement et le garde-fou non-TTY.",
+        "AC6: README décrit le format session -- dossier et les fournisseurs concernés."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Implémenter les titres de terminal unifiés",
+    "plan": [
+      "Lire le contexte et vérifier les invariants du runtime de lancement, notamment le wrapper script et les chemins launch/resume.",
+      "Ajouter le helper de titre assaini et le garde-fou TTY au niveau partagé de provider_runtime.",
+      "Brancher le cycle de vie du titre autour du processus interactif avec arrêt garanti.",
+      "Écrire les tests ciblés, documenter la convention puis exécuter lint et les suites Python runtime/launch."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/unify_interactive_terminal_titles.json",
+    "mode": "full",
+    "profile": "normal"
+  }
+}

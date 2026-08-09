@@ -35,6 +35,7 @@
 | [prod_018_executable_quota_routing](product/prod_018_executable_quota_routing.md) | Executable quota routing | Settled |  |  | product/prod_018_executable_quota_routing.md |
 | [prod_019_settle_0_15_0_s_remainder](product/prod_019_settle_0_15_0_s_remainder.md) | Settle 0.15.0's remainder | Settled |  |  | product/prod_019_settle_0_15_0_s_remainder.md |
 | [prod_020_know_which_parallel_session_needs_you](product/prod_020_know_which_parallel_session_needs_you.md) | Know which parallel session needs you | Settled |  |  | product/prod_020_know_which_parallel_session_needs_you.md |
+| [prod_021_titres_de_terminal_coherents_pour_les_sessions_cdx](product/prod_021_titres_de_terminal_coherents_pour_les_sessions_cdx.md) | Titres de terminal cohérents pour les sessions cdx | Proposed |  |  | product/prod_021_titres_de_terminal_coherents_pour_les_sessions_cdx.md |
 
 ## Roadmaps
 
@@ -75,6 +76,7 @@ _None_
 | [req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers](request/req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers.md) | Turn quota awareness from advice into execution across accounts and providers | Done |  |  | request/req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers.md |
 | [req_029_settle_what_0_15_0_left_behind_before_cutting_0_15_1](request/req_029_settle_what_0_15_0_left_behind_before_cutting_0_15_1.md) | Settle what 0.15.0 left behind before cutting 0.15.1 | Done |  |  | request/req_029_settle_what_0_15_0_left_behind_before_cutting_0_15_1.md |
 | [req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals](request/req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals.md) | Tell the user which parallel cdx session finished or is waiting, without watching terminals | Done |  |  | request/req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals.md |
+| [req_031_unifier_les_titres_de_terminaux_des_sessions_interactives](request/req_031_unifier_les_titres_de_terminaux_des_sessions_interactives.md) | Unifier les titres de terminaux des sessions interactives | Draft |  |  | request/req_031_unifier_les_titres_de_terminaux_des_sessions_interactives.md |
 
 ## Backlog
 
@@ -155,6 +157,7 @@ _None_
 | [item_072_cut_0_15_1_once_the_rest_has_settled](backlog/item_072_cut_0_15_1_once_the_rest_has_settled.md) | Cut 0.15.1 once the rest has settled | Done | claude | 100% | backlog/item_072_cut_0_15_1_once_the_rest_has_settled.md |
 | [item_073_reassign_cdx_notify_to_the_agent_event_hook_target](backlog/item_073_reassign_cdx_notify_to_the_agent_event_hook_target.md) | Reassign cdx notify to the agent-event hook target | Done |  | 100% | backlog/item_073_reassign_cdx_notify_to_the_agent_event_hook_target.md |
 | [item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch](backlog/item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch.md) | Provision and revoke provider hooks in each session's home at launch | Done |  | 100% | backlog/item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch.md |
+| [item_075_imposer_le_titre_session_dossier_aux_tui_interactifs](backlog/item_075_imposer_le_titre_session_dossier_aux_tui_interactifs.md) | Imposer le titre session -- dossier aux TUI interactifs | Ready |  | 0% | backlog/item_075_imposer_le_titre_session_dossier_aux_tui_interactifs.md |
 
 ## Tasks
 
@@ -204,3 +207,4 @@ _None_
 | [task_039_orchestrate_executable_quota_routing_across_accounts_and_providers](tasks/task_039_orchestrate_executable_quota_routing_across_accounts_and_providers.md) | Orchestrate executable quota routing across accounts and providers | Done |  | 100% | tasks/task_039_orchestrate_executable_quota_routing_across_accounts_and_providers.md |
 | [task_040_settle_0_15_0_s_remainder_and_cut_0_15_1](tasks/task_040_settle_0_15_0_s_remainder_and_cut_0_15_1.md) | Settle 0.15.0's remainder and cut 0.15.1 | Done |  | 100% | tasks/task_040_settle_0_15_0_s_remainder_and_cut_0_15_1.md |
 | [task_041_orchestrate_agent_completion_notifications](tasks/task_041_orchestrate_agent_completion_notifications.md) | Orchestrate agent completion notifications | Done | Claude (Opus 5) | 100% | tasks/task_041_orchestrate_agent_completion_notifications.md |
+| [task_042_implementer_les_titres_de_terminal_unifies](tasks/task_042_implementer_les_titres_de_terminal_unifies.md) | Implémenter les titres de terminal unifiés | Ready |  | 0% | tasks/task_042_implementer_les_titres_de_terminal_unifies.md |
