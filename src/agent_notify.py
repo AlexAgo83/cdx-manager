@@ -76,8 +76,10 @@ def compose_notification(payload, env=None, cwd=None):
 def handle_notify(rest, ctx):
     """Hook target. Never fails: a broken notification is not a broken turn."""
     try:
+        import sys
         stdin_text = None
-        reader = ctx.get("stdin")
+        # "stdin" in ctx is the {"isTTY": ...} descriptor, not a stream.
+        reader = ctx.get("prompt_stdin") or sys.stdin
         if reader is not None and not ctx.get("stdin_is_tty"):
             stdin_text = reader.read()
         env = ctx.get("env") or os.environ

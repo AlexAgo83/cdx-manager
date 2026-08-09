@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-09 17:26:13
+> Indicators reviewed: 2026-08-09 18:08:20
 
 # Problem
 - There is no command a provider hook can call to raise a cdx notification. The providers can run an arbitrary command on a turn event, but cdx offers no target for it.
@@ -21,7 +21,7 @@
   - Compose the message from the cdx session name, the basename of the working directory the agent ran in, and the kind of event, so parallel sessions are distinguishable at a glance.
   - Resolve the session name from the launch environment, since the hook runs as a child of the launched provider and inherits it.
   - Have that same environment carry whether notifications apply at all, so the headless run path can suppress them without a second mechanism and without a new flag.
-  - Record the breaking retirement of the previous `cdx notify` surface in `VERSION` and `changelogs/`, as the repository does for other breaking changes.
+  - Record the breaking retirement of the previous `cdx notify` surface as a changelog entry, leaving the version declarations to the release that ships it.
   - Distinguish the two events the providers report — a turn that ended and an agent waiting for input — in the message text.
   - Exit successfully whatever happens, so a hook failure never surfaces to the user as a provider error.
   - Replace the Windows notifier's blocking `MessageBox` with a toast pushed through PowerShell, non-blocking and bounded in time the way the macOS and Linux paths already are, since as a per-turn hook an undismissed dialog holds the turn open indefinitely and a focus-stealing one is worse than silence.
@@ -58,11 +58,11 @@
 - Given a WSL distribution with interop disabled, `cdx notify` exits successfully, raises nothing, and the agent turn inside WSL completes normally.
 - Given a Linux host with no session bus, `cdx notify` exits successfully, raises nothing, and the agent turn completes normally.
 - Given `cdx ready`, the behavior and output are identical to before this change.
-- The retirement of the previous `cdx notify` surface appears in `VERSION` and in a changelog entry.
+- The retirement of the previous `cdx notify` surface appears in a changelog entry, and no version declaration is changed by this work.
 
 # AC Traceability
 - request-AC13 -> This backlog slice. Proof: Given a headless run, no notification is raised, while an interactive launch in the same session still raises one.
-- request-AC14 -> This backlog slice. Proof: The retirement of the previous `cdx notify` surface appears in `VERSION` and in a changelog entry.
+- request-AC14 -> This backlog slice. Proof: The retirement of the previous `cdx notify` surface appears in a changelog entry, and no version declaration is changed by this work.
 - request-AC1 -> This backlog slice. Proof: Given a hook payload on standard input naming a working directory, `cdx notify` raises a notification whose text contains the cdx session name and that directory's basename.
 - request-AC6 -> This backlog slice. Proof: Given two sessions notifying from two different repositories, the two messages differ in both the session name and the directory name.
 - request-AC7 -> This backlog slice. Proof: Given a turn-ended event and a waiting-for-input event, the two notifications are distinguishable by their text.

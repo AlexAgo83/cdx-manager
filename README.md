@@ -70,7 +70,8 @@ The reason `cdx` exists: knowing, across every account you own, which one you ca
 
 - **Usage at a glance.** `cdx status` shows token usage, 5-hour window quota, weekly quota, last-updated timestamps, priority guidance, and the last launched session in one aligned table.
 - **Pick for me.** `cdx next` selects the best available assistant from your pinned priorities and the live quota picture, shows the reason, and prints the exact command to run.
-- **Next-ready notification.** `cdx ready` schedules a native system notification for the next assistant that comes back from cooldown, then returns immediately. `cdx notify` covers reset times and scheduled wake-ups.
+- **Agent notifications.** When a session finishes a turn or blocks waiting for you, cdx raises a desktop notification naming the session and the repository — so you can run several in parallel without watching any of them. On by default; `cdx set <name> --notify off` turns it off.
+- **Next-ready notification.** `cdx ready` schedules a native system notification for the next assistant that comes back from cooldown, then returns immediately.
 - **Passive status resolution.** Codex status is read from the local Codex app-server rate-limit API when available, with legacy transcript/history parsing kept as a fallback.
 - **Banked reset visibility.** Eligible Codex accounts show the number of manually redeemable bonus resets in `cdx status` and expose reset details in JSON output.
 
@@ -342,7 +343,34 @@ cdx disk profiles --candidates
 
 ### Next-Ready Notifications
 
-Use `cdx ready` when every useful assistant is cooling down and you want your terminal back. It is shorthand for `cdx notify --schedule --next-ready`: cdx picks the next known reset, registers a native OS notification, and exits immediately. If no future reset is known, it exits successfully and explains that no notification was scheduled.
+### Agent notifications
+
+When a session's agent finishes a turn, or stops to wait for you, cdx raises a
+desktop notification naming the session and the repository:
+
+```text
+✓ work1     logics-manager · waiting for you
+✓ codex-a   cdx-manager · finished
+```
+
+Nothing to set up. cdx installs the hooks into the session's own home the first
+time it launches it, and says so once. Both providers refuse to run a hook they
+have not been told to trust, so approve it once in the provider and it stays
+approved — cdx never writes that trust on your behalf.
+
+```bash
+cdx set work1 --notify off     # stop notifying for one session
+cdx set --all --notify off     # stop notifying everywhere
+```
+
+Per platform: macOS uses `osascript`, Linux `notify-send`, Windows a toast, and
+WSL reaches the Windows notification centre through interop. On a host with no
+way to deliver one — a headless or SSH Linux session, or WSL with interop
+disabled — cdx installs no hooks at all rather than asking you to approve
+something that could show you nothing. Headless `cdx run` never notifies: its
+caller already learns of completion from the return value.
+
+Use `cdx ready` when every useful assistant is cooling down and you want your terminal back. cdx picks the next known reset, registers a native OS notification, and exits immediately. If no future reset is known, it exits successfully and explains that no notification was scheduled.
 
 ```bash
 cdx ready
@@ -446,8 +474,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx update [--check] [--yes] [--json] [--version TAG]` | Update cdx-manager using the installer that matches how it was installed |
 | `cdx update all [--yes] [--json]` | Check installed providers, RTK, and Ponytail across Codex profiles; show the plan and ask once before applying safe native/Homebrew updates and missing RTK/Ponytail setup |
 | `cdx ready [--refresh] [--json]` | Schedule an OS notification for the next cooling-down assistant that becomes ready, then return immediately |
-| `cdx notify <name> --at-reset [--poll seconds] [--once] [--schedule] [--refresh] [--json]` | Wait for a session reset time or schedule an OS wake-up notification when due |
-| `cdx notify --next-ready [--poll seconds] [--once] [--schedule] [--refresh] [--json]` | Wait until the recommended session is usable, or schedule the next known reset notification |
+| `cdx notify` | Hook target: raises the desktop notification when a session's agent finishes a turn or waits for you. Called by the provider, not by you |
 | `cdx next [--json] [--refresh]` | Select the best next assistant using the same priority logic as `cdx status` |
 | `cdx select --provider PROVIDER [--min-reasoning-effort minimal\|low\|medium\|high\|xhigh] [--min-power minimal\|low\|medium\|high\|xhigh] [--require-ready] [--refresh] --json` | Select a suitable session for headless automation |
 | `cdx run [session] --cwd PATH (--prompt-file PATH\|--prompt TEXT\|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--reasoning-effort minimal\|low\|medium\|high\|xhigh] [--power minimal\|low\|medium\|high\|xhigh] [--permission MODE] [--timeout-seconds N] [--detach] [--failover] [--refresh] --json` | Run one headless task and return a stable JSON result; `--detach` returns the `run_id` at launch without waiting, `--failover` continues the task on the next account when this one hits its rate limit, `--prompt-file -` reads the prompt from stdin |
@@ -499,7 +526,6 @@ Commands with machine-readable output:
 - `cdx view --json`
 - `cdx update --json`
 - `cdx ready --json`
-- `cdx notify ... --json`
 - `cdx select ... --json`
 - `cdx run ... --json`
 

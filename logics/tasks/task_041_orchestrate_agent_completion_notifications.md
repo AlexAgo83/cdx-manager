@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-08-09 17:35:31
+> Indicators reviewed: 2026-08-09 18:08:20
 > Owner: Claude (Opus 5)
 
 # Context
@@ -28,7 +28,7 @@
 - [ ] 11. Verify the end-to-end case the request exists for: two sessions launched in two different repositories, each producing a notification that names itself.
 - [ ] 12. Check the failure paths deliberately — no notifier binary, unreadable or unwritable configuration, malformed payload in either shape, a WSL distribution with interop disabled, an undismissed Windows notification — confirming none reaches the user as a launch or turn error, and none holds a turn open.
 - [ ] 13. Verify each delivery path on the host that can exercise it: macOS locally; native Windows and WSL on the tower, one machine reachable as `aagos@kdesktop` for the Windows side and `ssh aagos@kdesktop "wsl.exe -d Ubuntu -u aagos -- ..."` for the WSL side. Split each remote check into the part assertable over SSH — exits, exits promptly, reports no error — and the one part that is not: whether the notification appeared. That single line is the gate for the Windows and WSL acceptance criteria, since a clean exit code is exactly what a silent AUMID rejection also looks like.
-- [ ] 14. Bump `VERSION` and add a changelog entry for the breaking retirement of the previous `cdx notify` surface.
+- [ ] 14. Add a changelog entry for the breaking retirement of the previous `cdx notify` surface, without touching the version declarations: releases are their own commit here.
 - [ ] 15. Update the README's notification and command-reference sections, and reconcile the `cdx ready` description that currently refers to `cdx notify`.
 - [ ] 16. Run the notify and CLI test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.
 - [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.

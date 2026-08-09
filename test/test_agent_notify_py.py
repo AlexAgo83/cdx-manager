@@ -11,7 +11,7 @@ from src import agent_notify
 class HookTargetTests(unittest.TestCase):
     def _ctx(self, stdin_text=None, env=None, calls=None):
         return {
-            "stdin": io.StringIO(stdin_text) if stdin_text is not None else None,
+            "prompt_stdin": io.StringIO(stdin_text) if stdin_text is not None else io.StringIO(""),
             "stdin_is_tty": False,
             "env": env or {},
             "cwd": "/repos/crh-manager",
