@@ -7,7 +7,7 @@
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-09 17:23:43
+> Indicators reviewed: 2026-08-09 17:26:13
 
 # Needs
 - Running several cdx sessions in parallel across different repositories is the normal way this tool is used, and it is the one case cdx does not support: the only way to learn that an agent finished, or that it is blocked waiting for an answer, is to keep looking at every terminal.
@@ -25,6 +25,9 @@
 - The hook command cannot be the bare name `cdx`. Codex spawns its `notify` argv directly rather than through a shell, and on Windows npm installs a `cdx.cmd` shim rather than an executable named `cdx`; pipx and uv installs can likewise leave `cdx` off the PATH the provider inherits. `_scheduled_notify_argv` (`src/notify.py:246`) already solves this for the quota flow by resolving `CDX_BIN` or `shutil.which("cdx")` and writing the resolved path.
 - WSL is the case the current notifier silently fails. Inside WSL `sys.platform` reads `linux`, so `send_desktop_notification` takes the `notify-send` branch — but a plain WSL2 distribution has no session bus and no desktop, so nothing is delivered and nothing is reported. The repository has no WSL handling at all today (`grep -i wsl` over `src/`, `README.md` and `docs/` returns nothing), which is acceptable for a quota alert nobody depends on and not acceptable for the feature this request exists to provide. Delivery to the Windows notification centre from WSL goes through Windows interop — invoking `powershell.exe`, which WSL exposes on the PATH when interop is enabled — and WSLg on Windows 11 is a second sub-case where a session bus may in fact be present.
 - Reaching the Windows notifier through WSL interop inherits its blocking-dialog problem and worsens it: a modal on the Windows desktop would hold open an agent turn running inside the Linux distribution, across the boundary, with nothing in the WSL terminal explaining why.
+- The two providers hand their payload over differently: Claude Code writes the hook JSON to the hook process's standard input, while Codex passes it to the `notify` program as a command-line argument. A hook target that reads only one of the two works for one provider and silently does nothing for the other.
+- The headless path shares the same home as the interactive one. `_run_headless_provider_command` (`src/provider_runtime.py:887`) sets the same `HOME` and `CODEX_HOME` as an interactive launch, so it reads the same configuration files and fires the same hooks. Left alone, a script issuing fifty `cdx run --json` calls would raise fifty desktop notifications. The decision taken is that headless runs do not notify: their caller already learns of completion from the return value, and a caller who wants more can add it in one line at its own call site. Since the session name has to reach the hook through the environment anyway, the same variable carries the suppression, and no new flag is needed.
+- Retiring the `--at-reset` and `--next-ready` surface is a breaking change to a documented command, so it needs a version bump and a changelog entry alongside the code, following the repository's existing `VERSION` and `changelogs/` convention.
 - The delivery mechanism chosen for Windows is a toast pushed through PowerShell, not a dialog. A modal that steals focus on every agent turn is worse than no notification, which rules out both the current `MessageBox` and the cheaper fix of keeping it with a `Wscript.Shell.Popup` timeout. The known trap is that a toast requires a registered `AppUserModelID` or Windows silently drops it; borrowing PowerShell's own identifier avoids both registering one and asking the user to install a module such as BurntToast.
 - WSL is then not a third implementation but the Windows one reached differently: the same PowerShell snippet, invoked through `powershell.exe` over interop instead of directly. This is what keeps the per-platform surface to one snippet plus a detection, and it is the reason this request does not need a separate always-running process to centralise platform logic.
 - Linux needs almost nothing: `notify-send` is already the right mechanism, already bounded at five seconds, and present wherever libnotify is. Passing an application name so cdx's notifications are attributed to cdx is the only change worth making.
@@ -32,7 +35,7 @@
 - Notifications are on by default, because a feature that must be discovered and enabled will not be. `cdx set <name> --notify off` turns them off, and cdx removes the hooks it wrote at the next launch of that session.
 
 # Acceptance criteria
-- AC1: `cdx notify` is a hook target that reads a hook payload on standard input and raises a desktop notification identifying the cdx session name and the working directory the agent was running in.
+- AC1: `cdx notify` is a hook target that accepts a hook payload in either of the forms its two providers use — Claude Code's on standard input, Codex's as a command-line argument — and raises a desktop notification identifying the cdx session name and the working directory the agent was running in.
 - AC2: Launching a session provisions the hook configuration into that session's own home directory, for both Claude Code and Codex, without modifying any configuration outside the session's home.
 - AC3: Provisioning is idempotent: launching the same session repeatedly leaves the configuration unchanged, and a session created before this change is provisioned on its next launch with no migration step.
 - AC4: Provisioning preserves any other content already present in the session's `settings.json` or `config.toml`, including hooks the user added themselves.
@@ -44,7 +47,9 @@
 - AC10: The provisioned hook command resolves to cdx on each platform's supported install paths, including a Windows npm install where `cdx` is a `.cmd` shim and installs where cdx is not on the provider's inherited PATH.
 - AC11: A session running inside WSL delivers its notification to the Windows notification centre, rather than taking the plain-Linux path and silently delivering nothing.
 - AC12: On a host with no desktop notification channel available — a headless or SSH Linux session, a WSL distribution with interop disabled, or any platform whose notifier is missing — the agent turn completes normally and nothing is raised.
-- AC13: The README documents the notification behavior, how to turn it off, the new meaning of `cdx notify`, and the per-platform delivery caveats including WSL.
+- AC13: A headless run does not raise notifications, so a script issuing many runs stays silent, while interactive launches are unaffected.
+- AC14: The breaking retirement of the previous `cdx notify` surface is reflected in the version and the changelog.
+- AC15: The README documents the notification behavior, how to turn it off, the new meaning of `cdx notify`, and the per-platform delivery caveats including WSL.
 
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.

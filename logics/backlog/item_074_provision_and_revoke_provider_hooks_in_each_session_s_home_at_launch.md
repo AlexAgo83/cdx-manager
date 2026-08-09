@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-09 17:18:42
+> Indicators reviewed: 2026-08-09 17:26:14
 
 # Problem
 - The hook target is unreachable until each provider is told to call it, and that instruction lives in a configuration file per provider.
@@ -40,6 +40,7 @@
 - Given a new session with no notification setting, notifications are enabled.
 - Given `cdx set <name> --notify off` followed by a launch of that session, the entries cdx wrote are gone and any other content in the files remains.
 - Given a configuration file that cannot be written or cannot be parsed, the launch proceeds normally and the provider still starts.
+- Given a Claude Code session started against a freshly provisioned `settings.json`, the hooks are actually honoured rather than held pending an approval the user never sees.
 - Given a Codex session, the `notify` key is written to `<authHome>/config.toml` and Codex reads it, rather than to a `.codex` subdirectory Codex never looks at.
 - Given a Windows npm install where `cdx` is a `.cmd` shim, the provisioned hook command still invokes cdx when the provider spawns it directly rather than through a shell.
 - Given an install where cdx is absent from the PATH the provider inherits, the provisioned hook command still resolves.
@@ -52,7 +53,7 @@
 - request-AC5 -> This backlog slice. Proof: Given a configuration file already holding unrelated settings or user-authored hooks, those survive provisioning unchanged.
 - request-AC5 -> This backlog slice. Proof: Given a new session with no notification setting, notifications are enabled.
 - request-AC10 -> This backlog slice. Proof: Given a Windows npm install where `cdx` is a `.cmd` shim, the provisioned hook command still invokes cdx when the provider spawns it directly rather than through a shell.
-- request-AC13 -> This backlog slice. Proof: The README states that notifications are on by default, shows the command that turns them off, and states the per-platform delivery caveats including WSL.
+- request-AC15 -> This backlog slice. Proof: The README states that notifications are on by default, shows the command that turns them off, and states the per-platform delivery caveats including WSL.
 
 # Decision framing
 - Product framing: Not needed
