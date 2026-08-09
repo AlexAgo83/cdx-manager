@@ -8,21 +8,28 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-08-09 17:33:18
+> Indicators reviewed: 2026-08-09 17:35:31
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
 
 # Plan
-- [ ] 1. Confirm which events each provider actually reports and what payload it passes — Claude Code's `Stop` and `Notification` hooks, Codex's `notify` key — since the message wording and the event distinction depend on what is really available rather than on what is documented.
-- [ ] 2. Retire the `--at-reset`/`--next-ready` parsing and README rows first, checking that `cdx ready` and its scheduling path are untouched, so the name is free before anything is built on it.
-- [ ] 3. Build `cdx notify` as the hook target over the existing `send_desktop_notification`, including the resolution of the session name from the launch environment and the swallow-everything failure behavior.
-- [ ] 4. Add the idempotent provisioning and revocation into the launch path, marking cdx's own entries so they can be recognized and removed without touching user-authored ones.
-- [ ] 5. Add the `--notify on|off` launch setting alongside the existing on/off settings, defaulting to on.
-- [ ] 6. Verify the end-to-end case the request exists for: two sessions launched in two different repositories, each producing a notification that names itself.
-- [ ] 7. Check the failure paths deliberately — no notifier binary, unreadable configuration, malformed payload — confirming none of them reaches the user as a launch or turn error.
-- [ ] 8. Update the README's notification and command-reference sections, and reconcile the `cdx ready` description that currently refers to `cdx notify`.
-- [ ] 9. Run the notify and CLI test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.
+- [ ] 1. Confirm what each provider actually reports and how it hands the payload over: Claude Code's `Stop` and `Notification` hooks write JSON to standard input, Codex's `notify` passes it as a command-line argument. Supporting one shape looks like working code while covering half the providers.
+- [ ] 2. Confirm the two paths before writing to them: Codex's config is `<authHome>/config.toml` because `CODEX_HOME` is `authHome` itself, and the hook command must be a resolved cdx path rather than the bare name, since Codex spawns it without a shell and a Windows npm install ships a `.cmd` shim.
+- [ ] 3. Verify that Claude Code honours hooks found in a `settings.json` written by something other than itself, rather than holding them pending an approval the user never sees. If an approval is involved, provisioning is not done until that is handled.
+- [ ] 4. Retire the `--at-reset`/`--next-ready` parsing and README rows, checking that `cdx ready` and its scheduling path are untouched, so the name is free before anything is built on it.
+- [ ] 5. Write the PowerShell toast snippet and confirm it surfaces in the notification centre, since a toast without a valid `AppUserModelID` is dropped silently and would otherwise look like working code. Reach it from both native Windows and WSL as one snippet with two entry points rather than writing the platform logic twice.
+- [ ] 6. Leave the Linux path alone beyond attributing notifications to cdx; `notify-send` is already correct and already bounded at five seconds.
+- [ ] 7. Build `cdx notify` as the hook target over the existing `send_desktop_notification`, reading the session name from the launch environment and swallowing every failure.
+- [ ] 8. Suppress notifications on the headless run path through the same environment variable that carries the session name, and confirm a scripted sequence of runs stays silent while an interactive launch still notifies.
+- [ ] 9. Add the idempotent provisioning and revocation into the launch path, marking cdx's own entries so they can be recognized and removed without touching user-authored ones.
+- [ ] 10. Add the `--notify on|off` launch setting alongside the existing on/off settings, defaulting to on.
+- [ ] 11. Verify the end-to-end case the request exists for: two sessions launched in two different repositories, each producing a notification that names itself.
+- [ ] 12. Check the failure paths deliberately — no notifier binary, unreadable or unwritable configuration, malformed payload in either shape, a WSL distribution with interop disabled, an undismissed Windows notification — confirming none reaches the user as a launch or turn error, and none holds a turn open.
+- [ ] 13. Verify each delivery path on the host that can exercise it: macOS locally; native Windows and WSL on the tower, one machine reachable as `aagos@kdesktop` for the Windows side and `ssh aagos@kdesktop "wsl.exe -d Ubuntu -u aagos -- ..."` for the WSL side. Split each remote check into the part assertable over SSH — exits, exits promptly, reports no error — and the one part that is not: whether the notification appeared. That single line is the gate for the Windows and WSL acceptance criteria, since a clean exit code is exactly what a silent AUMID rejection also looks like.
+- [ ] 14. Bump `VERSION` and add a changelog entry for the breaking retirement of the previous `cdx notify` surface.
+- [ ] 15. Update the README's notification and command-reference sections, and reconcile the `cdx ready` description that currently refers to `cdx notify`.
+- [ ] 16. Run the notify and CLI test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.
 - [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
 - [ ] Keep commit creation under operator control; do not force one commit per micro-step.
 - [ ] GATE: do not close until lint, audit, and scaffold validation pass.
