@@ -188,10 +188,13 @@ class ProvisioningTests(unittest.TestCase):
         with open(path, encoding="utf-8") as handle:
             self.assertEqual(handle.read(), "{ not json")
 
-    def test_notifications_are_on_unless_turned_off(self):
-        self.assertTrue(agent_notify.notifications_enabled({"name": "a"}))
-        self.assertTrue(agent_notify.notifications_enabled({"name": "a", "launch": {}}))
+    def test_notifications_are_off_until_asked_for(self):
+        # Provisioning writes into the provider's own config and, on Codex, asks
+        # the user to approve a hook: not something to do unrequested.
+        self.assertFalse(agent_notify.notifications_enabled({"name": "a"}))
+        self.assertFalse(agent_notify.notifications_enabled({"name": "a", "launch": {}}))
         self.assertFalse(agent_notify.notifications_enabled({"name": "a", "launch": {"notify": False}}))
+        self.assertTrue(agent_notify.notifications_enabled({"name": "a", "launch": {"notify": True}}))
 
     def test_launch_env_carries_the_session_and_the_suppression(self):
         session = {"name": "work1"}

@@ -1,6 +1,6 @@
 # CDX Manager
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.15.1-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.16.0-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
 **Stop guessing which AI account still has quota.** `cdx` tracks the rate-limit window of every Codex and Claude account you own, tells you which one is usable right now, and launches it with isolated auth — in one command.
 
@@ -70,7 +70,7 @@ The reason `cdx` exists: knowing, across every account you own, which one you ca
 
 - **Usage at a glance.** `cdx status` shows token usage, 5-hour window quota, weekly quota, last-updated timestamps, priority guidance, and the last launched session in one aligned table.
 - **Pick for me.** `cdx next` selects the best available assistant from your pinned priorities and the live quota picture, shows the reason, and prints the exact command to run.
-- **Agent notifications.** When a session finishes a turn or blocks waiting for you, cdx raises a desktop notification naming the session and the repository — so you can run several in parallel without watching any of them. On by default; `cdx set <name> --notify off` turns it off.
+- **Agent notifications.** When a session finishes a turn or blocks waiting for you, cdx raises a desktop notification naming the session and the repository — so you can run several in parallel without watching any of them. Opt in per session with `cdx set <name> --notify on`.
 - **Next-ready notification.** `cdx ready` schedules a native system notification for the next assistant that comes back from cooldown, then returns immediately.
 - **Passive status resolution.** Codex status is read from the local Codex app-server rate-limit API when available, with legacy transcript/history parsing kept as a fallback.
 - **Banked reset visibility.** Eligible Codex accounts show the number of manually redeemable bonus resets in `cdx status` and expose reset details in JSON output.
@@ -353,17 +353,24 @@ desktop notification naming the session and the repository:
 ✓ codex-a   cdx-manager · finished
 ```
 
-Nothing to set up. cdx wires it the first time it launches a session, and says
-so once. Claude Code reads hooks from the session's own settings and honours
-them straight away. Codex only runs hooks that come from an installed plugin,
-so cdx generates one per session and installs it — and Codex asks you to
-approve it once, which cdx leaves to you rather than writing that trust on your
-behalf.
+Off until you ask for it, per session:
 
 ```bash
-cdx set work1 --notify off     # stop notifying for one session
-cdx set --all --notify off     # stop notifying everywhere
+cdx set work1 --notify on      # turn it on for one session
+cdx set --all --notify on      # turn it on everywhere
+cdx set work1 --notify off     # and back off; cdx removes what it installed
 ```
+
+Turning it on records the setting. The wiring happens at that session's **next
+launch**: cdx writes the hook into the session's own home and says so once.
+Claude Code honours it straight away. Codex only runs hooks that come from an
+installed plugin, so cdx generates one per session and installs it — and Codex
+asks you to approve it once, which cdx leaves to you rather than writing that
+trust on your behalf.
+
+It is off by default because turning it on writes into the provider's own
+configuration and, on Codex, puts an approval prompt in front of you. That is
+not something to do to sessions you already own without being asked.
 
 Per platform: macOS uses `osascript`, Linux `notify-send`, Windows a toast, and
 WSL reaches the Windows notification centre through interop. On a host with no

@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-09 18:45:54
+> Indicators reviewed: 2026-08-09 18:56:47
 
 # Problem
 - The hook target is unreachable until each provider is told to call it, and that instruction lives in a configuration file per provider.
@@ -23,7 +23,7 @@
   - Write a hook command that resolves to cdx on every supported install path rather than the bare name `cdx`, reusing the `CDX_BIN` / `shutil.which` resolution `_scheduled_notify_argv` already performs, and accounting for the Windows npm install shipping a `cdx.cmd` shim that a direct (non-shell) spawn will not find under the bare name.
   - Merge into whatever the files already contain rather than overwriting them, leaving unrelated settings and user-authored hooks intact.
   - Make the write idempotent and recognizably cdx's own, so repeated launches change nothing and cdx can later remove exactly what it added.
-  - Add a `--notify on|off` launch setting following the existing `--rtk` and `--logics` pattern, defaulting to on, and clearable through `cdx unset`.
+  - Add a `--notify on|off` launch setting following the existing `--rtk` and `--logics` pattern, defaulting to off, and clearable through `cdx unset`.
   - When notifications are off for a session, remove the entries cdx wrote at that session's next launch, leaving everything else in place.
   - Skip provisioning entirely on a host with no usable notification channel, reusing the same predicate `cdx notify` uses to decide whether it can deliver, so nothing is written and no approval is requested for a feature that could not show anything.
   - Tell the user, at the launch that installs them, that notification hooks were added and need a one-time approval in the provider before they take effect; say it once per profile rather than on every launch.
@@ -42,7 +42,7 @@
 - Given the same session launched again, the configuration files are byte-identical to after the first launch.
 - Given a session created before this change, its next launch provisions the configuration with no separate migration step.
 - Given a configuration file already holding unrelated settings or user-authored hooks, those survive provisioning unchanged.
-- Given a new session with no notification setting, notifications are enabled.
+- Given a new session with no notification setting, notifications are off and nothing is written to the provider's configuration.
 - Given `cdx set <name> --notify off` followed by a launch of that session, the entries cdx wrote are gone and any other content in the files remains.
 - Given a configuration file that cannot be written or cannot be parsed, the launch proceeds normally and the provider still starts.
 - Given a host with no usable notification channel, a launch writes no hook configuration and requests no approval.
@@ -54,7 +54,7 @@
 - Given a host where the provider's CLI cannot run at all, provisioning is skipped and the launch proceeds.
 - Given a Windows npm install where `cdx` is a `.cmd` shim, the provisioned hook command still invokes cdx when the provider spawns it directly rather than through a shell.
 - Given an install where cdx is absent from the PATH the provider inherits, the provisioned hook command still resolves.
-- The README states that notifications are on by default, shows the command that turns them off, and states the per-platform delivery caveats including WSL.
+- The README shows the command that turns notifications on, states that the wiring happens at the next launch, and states the per-platform delivery caveats including WSL.
 
 # AC Traceability
 - request-AC2 -> This backlog slice. Proof: Given a session launched for the first time after this change, its own home contains the hook configuration for its provider, and no file outside that home has changed.

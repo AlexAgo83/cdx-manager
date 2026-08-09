@@ -34,13 +34,21 @@ exists for is several of them at once — a notification that cannot tell you
 which one is not worth raising. Only cdx knows the session name, which is why
 this lives here rather than in a hook you write by hand.
 
-Nothing to set up. cdx already owns each session's home directory, so it
-installs the hooks there on the next launch and says so once. Existing
-sessions pick them up with no migration.
+Off until you ask for it:
 
-On by default. `cdx set <name> --notify off` turns it off for one session,
-`cdx set --all --notify off` everywhere, and cdx removes what it installed at
-that session's next launch — leaving any hooks you wrote yourself alone.
+```bash
+cdx set work1 --notify on      # one session
+cdx set --all --notify on      # all of them
+```
+
+The setting is recorded straight away; the wiring happens at that session's
+next launch, into the home directory cdx already owns, and cdx says so once.
+Turning it back off removes what cdx installed and leaves any hooks you wrote
+yourself alone.
+
+It is opt-in rather than on by default because enabling it writes into the
+provider's own configuration and, on Codex, puts an approval prompt in front of
+you — not something to do unrequested to sessions you already own.
 
 ### Codex goes through a generated plugin
 

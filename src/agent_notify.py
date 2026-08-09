@@ -102,9 +102,15 @@ def launch_notify_env(session, enabled, env=None):
 
 
 def notifications_enabled(session):
-    """On unless this session was explicitly turned off."""
+    """Off unless this session explicitly turned it on.
+
+    Opt-in rather than on-by-default: provisioning writes into the provider's
+    own configuration and, on Codex, asks the user to approve a hook. Doing
+    that to every session someone already owns, without being asked, is not a
+    default worth having.
+    """
     launch = session.get("launch") or {}
-    return launch.get("notify") is not False
+    return launch.get("notify") is True
 
 
 def provision(auth_home, provider, enabled, env=None, spawn_sync=None, base_dir=None):

@@ -7,7 +7,7 @@
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-09 18:49:08
+> Indicators reviewed: 2026-08-09 18:56:47
 
 # Needs
 - Running several cdx sessions in parallel across different repositories is the normal way this tool is used, and it is the one case cdx does not support: the only way to learn that an agent finished, or that it is blocked waiting for an answer, is to keep looking at every terminal.
@@ -38,14 +38,14 @@
 - WSL is then not a third implementation but the Windows one reached differently: the same PowerShell snippet, invoked through `powershell.exe` over interop instead of directly. This is what keeps the per-platform surface to one snippet plus a detection, and it is the reason this request does not need a separate always-running process to centralise platform logic.
 - Linux needs almost nothing: `notify-send` is already the right mechanism, already bounded at five seconds, and present wherever libnotify is. Passing an application name so cdx's notifications are attributed to cdx is the only change worth making.
 - Linux desktop notifications need a session bus. Over SSH, in a container, or on a headless box there is no D-Bus session and `notify-send` cannot deliver; the same is true of `osascript` in an SSH session on macOS. Silence is the correct outcome there, but it should be a known and stated outcome rather than a bug report.
-- Notifications are on by default, because a feature that must be discovered and enabled will not be. `cdx set <name> --notify off` turns them off, and cdx removes the hooks it wrote at the next launch of that session.
+- Notifications are opt-in, per session, through `cdx set <name> --notify on`. On-by-default was considered and rejected once the mechanism was known: enabling them writes into the provider's own configuration and, under Codex, puts an approval prompt in front of the user. Doing that unrequested to every session someone already owns is a worse default than making them ask. Turning it back off removes what cdx installed.
 
 # Acceptance criteria
 - AC1: `cdx notify` is a hook target that reads the hook payload — on standard input as both providers send it, or as an argument for Codex's older `notify` key — and raises a desktop notification identifying the cdx session name and the working directory the agent was running in.
 - AC2: Launching a session provisions notifications for its provider by the mechanism that provider actually honours — settings for Claude Code, an installed plugin for Codex — and the Codex plugin is rooted outside `CODEX_HOME` so that it runs rather than merely installing.
 - AC3: Provisioning is idempotent: launching the same session repeatedly leaves the configuration unchanged, and a session created before this change is provisioned on its next launch with no migration step.
 - AC4: Provisioning preserves any other content already present in the session's `settings.json` or `config.toml`, including hooks the user added themselves.
-- AC5: Notifications are enabled by default and can be turned off per session through the existing launch settings commands; turning them off removes the hooks cdx wrote, at the next launch of that session.
+- AC5: Notifications are off until turned on per session through the existing launch settings commands, and turning them back off removes the hooks cdx wrote, at the next launch of that session.
 - AC6: A notification raised while several sessions run in parallel distinguishes them, naming both the session and the repository directory.
 - AC7: The quota-reset `cdx notify --at-reset` and `cdx notify --next-ready` command surface is retired from the CLI and the README, while `cdx ready` keeps working exactly as it does today.
 - AC8: A failure in the notification path — an absent notifier binary, an unreadable or malformed hook payload, an unwritable configuration file — never fails or delays the launch or the agent turn.

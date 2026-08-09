@@ -521,7 +521,7 @@ def _format_launch_setting_value(launch, key, use_color=False):
         if key == "logics":
             return _dim("auto", use_color)
         if key == "notify":
-            return _style("on", "32", use_color)
+            return _style("off", "2", use_color)
         return _dim("default", use_color)
     value = launch.get(key)
     if value is None or value == "":
