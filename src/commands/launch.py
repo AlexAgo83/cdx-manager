@@ -6,6 +6,7 @@ Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 import os
 import shlex
 
+from ..agent_notify import notifications_enabled, provision
 from ..cli_args import CAN_RESUME_USAGE, HANDOFF_USAGE, RESUME_USAGE, _parse_json_flag
 from ..cli_helpers import (
     API_SCHEMA_VERSION,
@@ -23,7 +24,7 @@ from ..cli_helpers import (
 from ..cli_render import _dim, _info, _success, _warn
 from ..context_store import install_context_for_session, write_context
 from ..errors import CdxError
-from ..provider_runtime import _ensure_session_authentication, _run_interactive_provider_command
+from ..provider_runtime import _ensure_session_authentication, _get_auth_home, _run_interactive_provider_command
 
 
 def _format_resume_capability(capability, use_color=False):
@@ -108,6 +109,18 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
     if not json_flag:
         ctx["out"](f"{_info(message, ctx['use_color'])}\n")
         _write_update_notice(ctx)
+    installed = provision(
+        _get_auth_home(session),
+        session["provider"],
+        notifications_enabled(session),
+        ctx.get("env"),
+    )
+    if installed and not json_flag:
+        # Said once, at the launch that writes them: both providers refuse to run
+        # a hook they have not been told to trust, so silence here would leave the
+        # user with a feature that quietly does nothing.
+        notice = f"Notification hooks installed for {session['name']} — approve them once in {session['provider']} to enable"
+        ctx["out"](f"{_info(notice, ctx['use_color'])}\n")
     cwd = ctx.get("cwd") or os.getcwd()
     runtime_run_id = None
 

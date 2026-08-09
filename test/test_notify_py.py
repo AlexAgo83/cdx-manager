@@ -46,9 +46,14 @@ class NotifyPythonTests(unittest.TestCase):
 
         with mock.patch("sys.platform", "linux"):
             with mock.patch("src.notify.shutil.which", side_effect=lambda command, path=None: command == "notify-send"):
-                send_desktop_notification("Title; rm -rf /", "Body $(bad)", spawn_sync=spawn_sync, env={"PATH": "/usr/bin"})
+                with mock.patch("src.notify._is_wsl", return_value=False):
+                    send_desktop_notification(
+                        "Title; rm -rf /", "Body $(bad)",
+                        spawn_sync=spawn_sync,
+                        env={"PATH": "/usr/bin", "DISPLAY": ":0"},
+                    )
 
-        self.assertEqual(calls[0][0], ["notify-send", "Title; rm -rf /", "Body $(bad)"])
+        self.assertEqual(calls[0][0], ["notify-send", "-a", "cdx", "Title; rm -rf /", "Body $(bad)"])
         self.assertEqual(calls[0][1]["timeout"], 5)
 
     def test_parse_notify_args_supports_poll_equals(self):

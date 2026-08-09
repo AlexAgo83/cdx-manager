@@ -100,7 +100,7 @@ def launch_notify_env(session, enabled, env=None):
 def notifications_enabled(session):
     """On unless this session was explicitly turned off."""
     launch = session.get("launch") or {}
-    return launch.get("notify", "on") != "off"
+    return launch.get("notify") is not False
 
 
 def provision(auth_home, provider, enabled, env=None):
@@ -115,43 +115,23 @@ def provision(auth_home, provider, enabled, env=None):
         # Nothing could be delivered on this host, so installing a hook would only
         # buy the user an approval prompt for a feature that shows nothing.
         enabled = False
-    command = resolve_hook_command(env)
+    path = hook_config_path(auth_home, provider)
+    if not path:
+        return False
+    return _apply_hooks(path, enabled, resolve_hook_command(env))
+
+
+def hook_config_path(auth_home, provider):
     if provider == "claude":
-        return _provision_claude(auth_home, enabled, command)
+        return os.path.join(auth_home, ".claude", "settings.json")
     if provider == "codex":
-        return _provision_codex(auth_home, enabled, command)
-    return False
+        # CODEX_HOME is authHome itself, so this sits at its root rather than
+        # under a .codex segment.
+        return os.path.join(auth_home, "hooks.json")
+    return None
 
 
-def _provision_claude(auth_home, enabled, command):
-    path = os.path.join(auth_home, ".claude", "settings.json")
-    settings = _read_json(path)
-    if settings is None:
-        return False
-    hooks = settings.get("hooks")
-    hooks = hooks if isinstance(hooks, dict) else {}
-    before = json.dumps(hooks, sort_keys=True)
-    for event in ("Stop", "Notification"):
-        entries = [entry for entry in hooks.get(event, []) if not _is_ours(entry)]
-        if enabled:
-            entries.append({
-                "_source": MARKER,
-                "hooks": [{"type": "command", "command": f"{command} notify"}],
-            })
-        if entries:
-            hooks[event] = entries
-        else:
-            hooks.pop(event, None)
-    if json.dumps(hooks, sort_keys=True) == before:
-        return False
-    settings["hooks"] = hooks
-    return _write_json(path, settings) and enabled
-
-
-def _provision_codex(auth_home, enabled, command):
-    # CODEX_HOME is authHome itself, so the file sits at its root rather than
-    # under a .codex segment.
-    path = os.path.join(auth_home, "hooks.json")
+def _apply_hooks(path, enabled, command):
     document = _read_json(path)
     if document is None:
         return False
@@ -159,6 +139,8 @@ def _provision_codex(auth_home, enabled, command):
     hooks = hooks if isinstance(hooks, dict) else {}
     before = json.dumps(hooks, sort_keys=True)
     for event in ("Stop", "Notification"):
+        # Rebuilt from whatever is there minus our own entry, so user-authored
+        # hooks on the same event survive both installing and removing.
         entries = [entry for entry in hooks.get(event, []) if not _is_ours(entry)]
         if enabled:
             entries.append({

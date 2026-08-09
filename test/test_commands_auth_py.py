@@ -304,7 +304,7 @@ class AuthCommandTests(CliTestBase):
                 })
         self.assertIn("Failed to check login status", str(ctx.exception))
 
-    def test_notify_at_reset_once_and_next_ready(self):
+    def test_ready_reports_the_session_whose_reset_is_due(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
         service["create_session"]("main")
@@ -321,19 +321,8 @@ class AuthCommandTests(CliTestBase):
             notifications.append(argv)
             return subprocess.CompletedProcess(argv, 0, "", "")
 
-        notify_io = self.make_io()
-        self.assertEqual(main(["notify", "main", "--at-reset", "--once"], {
-            **notify_io,
-            "service": service,
-            "env": {"CDX_HOME": temp_dir},
-            "spawn_sync": spawn_sync,
-        }), 0)
-        self.assertIn("Checking notification target: main", notify_io["stdout"].getvalue())
-        self.assertIn("Loading status for 1 session(s)", notify_io["stdout"].getvalue())
-        self.assertIn("main reset is due", notify_io["stdout"].getvalue())
-
         next_io = self.make_io()
-        self.assertEqual(main(["notify", "--next-ready", "--once", "--json"], {
+        self.assertEqual(main(["ready", "--json"], {
             **next_io,
             "service": service,
             "env": {"CDX_HOME": temp_dir},
@@ -343,9 +332,23 @@ class AuthCommandTests(CliTestBase):
         self.assertEqual(payload["schema_version"], 1)
         self.assertTrue(payload["event"]["ready"])
         self.assertEqual(payload["event"]["session"], "main")
-        self.assertNotIn("Checking notification target", next_io["stdout"].getvalue())
 
-    def test_notify_next_ready_ignores_currently_available_sessions(self):
+    def test_notify_no_longer_exposes_the_quota_reset_surface(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        io = self.make_io()
+        # `cdx notify` now belongs to agent notifications: the old flags must not
+        # reach the quota flow, and the hook target must never fail its caller.
+        self.assertEqual(main(["notify", "main", "--at-reset", "--once"], {
+            **io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn_sync": lambda *_a, **_k: subprocess.CompletedProcess([], 0, "", ""),
+        }), 0)
+        self.assertNotIn("reset is due", io["stdout"].getvalue())
+
+    def test_ready_ignores_currently_available_sessions(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
         service["create_session"]("active")
@@ -356,7 +359,7 @@ class AuthCommandTests(CliTestBase):
         })
 
         next_io = self.make_io()
-        self.assertEqual(main(["notify", "--next-ready", "--once", "--json"], {
+        self.assertEqual(main(["ready", "--json"], {
             **next_io,
             "service": service,
             "env": {"CDX_HOME": temp_dir},
@@ -368,7 +371,7 @@ class AuthCommandTests(CliTestBase):
         self.assertIsNone(payload["event"]["session"])
         self.assertEqual(payload["event"]["message"], "No upcoming session reset available")
 
-    def test_notify_schedule_next_ready_registers_os_job(self):
+    def test_ready_registers_an_os_job(self):
         temp_dir = self.make_temp_dir()
         reset = datetime.now().astimezone() + timedelta(minutes=30)
         service = {
@@ -393,7 +396,7 @@ class AuthCommandTests(CliTestBase):
         with mock.patch("sys.platform", "linux"):
             with mock.patch("src.notify.shutil.which", side_effect=lambda command, path=None: command == "systemd-run"):
                 notify_io = self.make_io()
-                self.assertEqual(main(["notify", "--next-ready", "--schedule", "--json"], {
+                self.assertEqual(main(["ready", "--json"], {
                     **notify_io,
                     "service": service,
                     "env": {"CDX_HOME": temp_dir, "PATH": "/usr/bin", "CDX_BIN": "/usr/local/bin/cdx"},
@@ -416,7 +419,7 @@ class AuthCommandTests(CliTestBase):
         # `cdx select` without --require-ready used to be able to return one.
         self.assertEqual(names, ["in"])
 
-    def test_notify_next_ready_ignores_disabled_sessions(self):
+    def test_ready_ignores_disabled_sessions(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
         service["create_session"]("disabled")
@@ -437,7 +440,7 @@ class AuthCommandTests(CliTestBase):
         })
 
         next_io = self.make_io()
-        self.assertEqual(main(["notify", "--next-ready", "--once", "--json"], {
+        self.assertEqual(main(["ready", "--json"], {
             **next_io,
             "service": service,
             "env": {"CDX_HOME": temp_dir},

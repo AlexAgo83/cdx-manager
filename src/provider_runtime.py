@@ -10,6 +10,7 @@ import sys
 import uuid
 from datetime import datetime, timezone
 
+from .agent_notify import launch_notify_env, notifications_enabled
 from .claude_usage import _clean_oauth_token, _decode_jwt_claims
 from .codex_usage import codex_auth_lock
 from .config import (
@@ -517,6 +518,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     cwd = cwd or os.getcwd()
     env_override = env_override or {}
     env = {**os.environ, **env_override}
+    env.update(launch_notify_env(session, notifications_enabled(session)))
     initial_prompt = _with_launch_preferences(session, initial_prompt, env=env)
     _validate_initial_prompt(initial_prompt)
     if session["provider"] == PROVIDER_CLAUDE:
@@ -724,6 +726,9 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
     _validate_initial_prompt(initial_prompt)
     cwd = cwd or os.getcwd()
     env = {**os.environ, **(env_override or {})}
+    # Headless runs read the same home, and so the same hooks, as an interactive
+    # launch. Their caller already learns of completion from the return value.
+    env.update(launch_notify_env(session, enabled=False))
     initial_prompt = _with_launch_preferences(session, initial_prompt, env=env)
     _validate_initial_prompt(initial_prompt)
     launch = session.get("launch") or {}
