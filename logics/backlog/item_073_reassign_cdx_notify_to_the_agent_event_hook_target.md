@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-09 17:18:42
+> Indicators reviewed: 2026-08-09 17:23:43
 
 # Problem
 - There is no command a provider hook can call to raise a cdx notification. The providers can run an arbitrary command on a turn event, but cdx offers no target for it.
@@ -22,8 +22,11 @@
   - Resolve the session name from the launch environment, since the hook runs as a child of the launched provider and inherits it.
   - Distinguish the two events the providers report — a turn that ended and an agent waiting for input — in the message text.
   - Exit successfully whatever happens, so a hook failure never surfaces to the user as a provider error.
-  - Replace the Windows notifier's blocking `MessageBox` with a non-blocking delivery, and bound it in time the way the macOS and Linux paths already are, since as a per-turn hook an undismissed dialog holds the turn open indefinitely.
+  - Replace the Windows notifier's blocking `MessageBox` with a toast pushed through PowerShell, non-blocking and bounded in time the way the macOS and Linux paths already are, since as a per-turn hook an undismissed dialog holds the turn open indefinitely and a focus-stealing one is worse than silence.
+  - Supply the `AppUserModelID` the toast needs rather than letting Windows drop it silently, without registering an identifier or requiring the user to install a notification module.
   - Detect WSL rather than treating it as plain Linux, and deliver through Windows interop so the notification reaches the Windows notification centre; cover both plain WSL2, which has no session bus, and WSLg, which may.
+  - Reach Windows and WSL through the same PowerShell snippet, invoked directly on one and through `powershell.exe` on the other, so there is one implementation and two entry points rather than two implementations.
+  - Attribute Linux notifications to cdx by passing an application name to `notify-send`; nothing else on that path changes.
   - Treat a host with no usable notification channel — a headless or SSH Linux session with no D-Bus, an SSH macOS session — as silence rather than as an error, and state it in the README so it is a known outcome.
   - Retire the `--at-reset` and `--next-ready` argument parsing and its usage string, and remove the corresponding README rows.
   - Keep `cdx ready` and the scheduling internals it depends on working unchanged.
@@ -34,6 +37,8 @@
   - No message customization.
   - No fallback delivery channel when the desktop channel is unavailable; silence is the accepted outcome.
   - No attempt to enable WSL interop, install a notifier, or otherwise change the host's configuration.
+  - No third-party PowerShell notification module as a dependency.
+  - No always-running helper process or tray application; the hook target stays a short-lived command.
 
 # Acceptance criteria
 - Given a hook payload on standard input naming a working directory, `cdx notify` raises a notification whose text contains the cdx session name and that directory's basename.
@@ -42,7 +47,9 @@
 - Given empty, truncated, or non-JSON input, `cdx notify` exits successfully without raising an error to the caller.
 - Given no notifier binary available on the platform, `cdx notify` exits successfully and raises nothing.
 - Given `cdx notify --at-reset` or `cdx notify --next-ready`, the command no longer offers that behavior, and the README no longer documents it.
+- Given a notification on Windows, it appears as a toast in the notification centre rather than as a window that takes focus.
 - Given a notification on Windows that the user never dismisses, the hook process still exits and the agent turn is not held open.
+- Given a Linux notification, it is attributed to cdx rather than to a generic sender.
 - Given a session running inside WSL, the notification appears in the Windows notification centre rather than being silently dropped by the plain-Linux path.
 - Given a WSL distribution with interop disabled, `cdx notify` exits successfully, raises nothing, and the agent turn inside WSL completes normally.
 - Given a Linux host with no session bus, `cdx notify` exits successfully, raises nothing, and the agent turn completes normally.

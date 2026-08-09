@@ -7,7 +7,7 @@
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-09 17:18:42
+> Indicators reviewed: 2026-08-09 17:23:43
 
 # Needs
 - Running several cdx sessions in parallel across different repositories is the normal way this tool is used, and it is the one case cdx does not support: the only way to learn that an agent finished, or that it is blocked waiting for an answer, is to keep looking at every terminal.
@@ -25,6 +25,9 @@
 - The hook command cannot be the bare name `cdx`. Codex spawns its `notify` argv directly rather than through a shell, and on Windows npm installs a `cdx.cmd` shim rather than an executable named `cdx`; pipx and uv installs can likewise leave `cdx` off the PATH the provider inherits. `_scheduled_notify_argv` (`src/notify.py:246`) already solves this for the quota flow by resolving `CDX_BIN` or `shutil.which("cdx")` and writing the resolved path.
 - WSL is the case the current notifier silently fails. Inside WSL `sys.platform` reads `linux`, so `send_desktop_notification` takes the `notify-send` branch — but a plain WSL2 distribution has no session bus and no desktop, so nothing is delivered and nothing is reported. The repository has no WSL handling at all today (`grep -i wsl` over `src/`, `README.md` and `docs/` returns nothing), which is acceptable for a quota alert nobody depends on and not acceptable for the feature this request exists to provide. Delivery to the Windows notification centre from WSL goes through Windows interop — invoking `powershell.exe`, which WSL exposes on the PATH when interop is enabled — and WSLg on Windows 11 is a second sub-case where a session bus may in fact be present.
 - Reaching the Windows notifier through WSL interop inherits its blocking-dialog problem and worsens it: a modal on the Windows desktop would hold open an agent turn running inside the Linux distribution, across the boundary, with nothing in the WSL terminal explaining why.
+- The delivery mechanism chosen for Windows is a toast pushed through PowerShell, not a dialog. A modal that steals focus on every agent turn is worse than no notification, which rules out both the current `MessageBox` and the cheaper fix of keeping it with a `Wscript.Shell.Popup` timeout. The known trap is that a toast requires a registered `AppUserModelID` or Windows silently drops it; borrowing PowerShell's own identifier avoids both registering one and asking the user to install a module such as BurntToast.
+- WSL is then not a third implementation but the Windows one reached differently: the same PowerShell snippet, invoked through `powershell.exe` over interop instead of directly. This is what keeps the per-platform surface to one snippet plus a detection, and it is the reason this request does not need a separate always-running process to centralise platform logic.
+- Linux needs almost nothing: `notify-send` is already the right mechanism, already bounded at five seconds, and present wherever libnotify is. Passing an application name so cdx's notifications are attributed to cdx is the only change worth making.
 - Linux desktop notifications need a session bus. Over SSH, in a container, or on a headless box there is no D-Bus session and `notify-send` cannot deliver; the same is true of `osascript` in an SSH session on macOS. Silence is the correct outcome there, but it should be a known and stated outcome rather than a bug report.
 - Notifications are on by default, because a feature that must be discovered and enabled will not be. `cdx set <name> --notify off` turns them off, and cdx removes the hooks it wrote at the next launch of that session.
 
