@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-09 17:55:04
+> Indicators reviewed: 2026-08-09 18:45:54
 
 # Problem
 - The hook target is unreachable until each provider is told to call it, and that instruction lives in a configuration file per provider.
@@ -17,7 +17,9 @@
 
 # Scope
 - In:
-  - Write the Claude Code hook entries into `<authHome>/.claude/settings.json` and the Codex `notify` key into `<authHome>/config.toml` — Codex's home is `authHome` itself, since cdx sets `CODEX_HOME` to it directly, so there is no `.codex` segment on that path.
+  - Write the Claude Code hook entries into `<authHome>/.claude/settings.json`.
+  - For Codex, generate a plugin and install it with `codex plugin marketplace add` followed by `codex plugin add`, since Codex loads hooks only from installed plugins and never from a hooks file. Root the generated plugin outside `CODEX_HOME`, because a marketplace rooted inside it installs cleanly and then never runs.
+  - Bake the resolved cdx path into the generated plugin, and read Codex's own config to decide whether it is already installed, so a plugin the user removed by hand comes back on the next launch.
   - Write a hook command that resolves to cdx on every supported install path rather than the bare name `cdx`, reusing the `CDX_BIN` / `shutil.which` resolution `_scheduled_notify_argv` already performs, and accounting for the Windows npm install shipping a `cdx.cmd` shim that a direct (non-shell) spawn will not find under the bare name.
   - Merge into whatever the files already contain rather than overwriting them, leaving unrelated settings and user-authored hooks intact.
   - Make the write idempotent and recognizably cdx's own, so repeated launches change nothing and cdx can later remove exactly what it added.
@@ -48,7 +50,8 @@
 - Given a launch that installs notification hooks for the first time, cdx states that they were installed and that they need approving in the provider before they work.
 - Given a subsequent launch of the same profile, that message is not repeated.
 - Given any launch, cdx has written no hook trust state and passed no trust-bypass flag.
-- Given a Codex session, the `notify` key is written to `<authHome>/config.toml` and Codex reads it, rather than to a `.codex` subdirectory Codex never looks at.
+- Given a Codex session, a plugin is generated and installed, and its root is outside `CODEX_HOME` so Codex executes it rather than only registering it.
+- Given a host where the provider's CLI cannot run at all, provisioning is skipped and the launch proceeds.
 - Given a Windows npm install where `cdx` is a `.cmd` shim, the provisioned hook command still invokes cdx when the provider spawns it directly rather than through a shell.
 - Given an install where cdx is absent from the PATH the provider inherits, the provisioned hook command still resolves.
 - The README states that notifications are on by default, shows the command that turns them off, and states the per-platform delivery caveats including WSL.
@@ -62,7 +65,8 @@
 - request-AC10 -> This backlog slice. Proof: Given a Windows npm install where `cdx` is a `.cmd` shim, the provisioned hook command still invokes cdx when the provider spawns it directly rather than through a shell.
 - request-AC15 -> This backlog slice. Proof: Given a launch that installs notification hooks for the first time, cdx states that they were installed and that they need approving in the provider before they work.
 - request-AC16 -> This backlog slice. Proof: Given a host with no usable notification channel, a launch writes no hook configuration and requests no approval.
-- request-AC17 -> This backlog slice. Proof: The README states that notifications are on by default, shows the command that turns them off, and states the per-platform delivery caveats including WSL.
+- request-AC17 -> This backlog slice. Proof: Given a host where the provider's CLI cannot run at all, provisioning is skipped and the launch proceeds.
+- request-AC18 -> This backlog slice. Proof: The README states that notifications are on by default, shows the command that turns them off, and states the per-platform delivery caveats including WSL.
 
 # Decision framing
 - Product framing: Not needed

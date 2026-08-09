@@ -42,6 +42,23 @@ On by default. `cdx set <name> --notify off` turns it off for one session,
 `cdx set --all --notify off` everywhere, and cdx removes what it installed at
 that session's next launch — leaving any hooks you wrote yourself alone.
 
+### Codex goes through a generated plugin
+
+Codex does not read hooks from a file. Not at its home root, not under a
+`hooks/` directory, not from a project `.codex/` — all three were tried and
+none is ever loaded. It runs only hooks that come from an installed plugin, so
+cdx generates one per session and installs it with `codex plugin marketplace
+add`.
+
+The generated plugin lives outside `CODEX_HOME` on purpose. Rooted inside it,
+the marketplace installs without an error and reports `installed, enabled`, and
+then never runs a thing: Codex registers it pointing at the source directory
+rather than the cache copy it executes from. Everything looks right and nothing
+happens.
+
+Codex also refuses to run a hook it has not been told to trust, so it asks you
+once per session. cdx does not answer that for you.
+
 ### Delivery on every platform, and silence where there is none
 
 macOS uses `osascript`, Linux `notify-send`, native Windows a toast, and WSL
@@ -67,6 +84,6 @@ turn it would have held the turn open until someone dismissed the dialog, and
 a window stealing focus every turn is worse than no notification at all. It is
 now a toast, which needs no dismissing.
 
-Both providers refuse to run a hook they have not been told to trust, so the
-first launch asks you to approve it once. cdx does not write that trust for
-you and passes no bypass flag: the guard is there on purpose.
+Claude Code honours the hooks it finds immediately. Codex is the one that
+gates them behind trust, so only Codex asks — cdx passes no bypass flag, the
+guard is there on purpose.

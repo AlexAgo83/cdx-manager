@@ -353,10 +353,12 @@ desktop notification naming the session and the repository:
 ✓ codex-a   cdx-manager · finished
 ```
 
-Nothing to set up. cdx installs the hooks into the session's own home the first
-time it launches it, and says so once. Both providers refuse to run a hook they
-have not been told to trust, so approve it once in the provider and it stays
-approved — cdx never writes that trust on your behalf.
+Nothing to set up. cdx wires it the first time it launches a session, and says
+so once. Claude Code reads hooks from the session's own settings and honours
+them straight away. Codex only runs hooks that come from an installed plugin,
+so cdx generates one per session and installs it — and Codex asks you to
+approve it once, which cdx leaves to you rather than writing that trust on your
+behalf.
 
 ```bash
 cdx set work1 --notify off     # stop notifying for one session
