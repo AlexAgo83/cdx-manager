@@ -7,7 +7,7 @@
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-09 17:54:37
+> Indicators reviewed: 2026-08-09 17:55:04
 
 # Needs
 - Running several cdx sessions in parallel across different repositories is the normal way this tool is used, and it is the one case cdx does not support: the only way to learn that an agent finished, or that it is blocked waiting for an answer, is to keep looking at every terminal.
@@ -27,6 +27,7 @@
 - Reaching the Windows notifier through WSL interop inherits its blocking-dialog problem and worsens it: a modal on the Windows desktop would hold open an agent turn running inside the Linux distribution, across the boundary, with nothing in the WSL terminal explaining why.
 - Codex 0.147 has replaced the `notify` key with a hooks system whose events and payload match Claude Code's — `hooks.json`, `Stop`, `Notification`, `session_end` — and refers to the old key internally as `legacy_notify`. Both providers therefore share one contract, and there is no need to support two payload shapes on current versions.
 - Codex will not run a hook it has not been told to trust. The binary carries a `HookTrustStatus`, a persisted `hooks.state`, and a `--dangerously-bypass-hook-trust` flag described as running "enabled hooks without requiring persisted hook trust". A `hooks.json` that cdx writes on its own therefore produces blocked hooks: no notification, no error, no trace. This is the same silent-success failure mode as an unregistered toast identifier, one step earlier in the chain, and it would affect every platform.
+- Installing a hook on a host that cannot deliver a notification buys nothing and costs something: a configuration write, and under Codex an approval prompt for a feature that would show nothing either way. Provisioning is therefore conditional on the host having a usable delivery channel, which is the same question `cdx notify` has to answer at delivery time — one predicate, two callers. Because provisioning re-runs on every launch and is idempotent, the answer is re-evaluated for free: a host that gains a channel later is provisioned at its next launch with no action from the user.
 - The decision taken is that cdx writes the hook and the user approves it once per session profile, rather than cdx writing the provider's trust state on the user's behalf. Trust is a guard the provider put there deliberately; cdx owning the directory is not a reason to answer that question for the user. The cost is a one-time approval per profile, and the consequence for this request is that provisioning is not silent: cdx has to say what it installed and what remains to be approved, or the feature appears broken to someone who was promised it needed no setup.
 - The two providers hand their payload over differently: Claude Code writes the hook JSON to the hook process's standard input, while Codex passes it to the `notify` program as a command-line argument. A hook target that reads only one of the two works for one provider and silently does nothing for the other.
 - The headless path shares the same home as the interactive one. `_run_headless_provider_command` (`src/provider_runtime.py:887`) sets the same `HOME` and `CODEX_HOME` as an interactive launch, so it reads the same configuration files and fires the same hooks. Left alone, a script issuing fifty `cdx run --json` calls would raise fifty desktop notifications. The decision taken is that headless runs do not notify: their caller already learns of completion from the return value, and a caller who wants more can add it in one line at its own call site. Since the session name has to reach the hook through the environment anyway, the same variable carries the suppression, and no new flag is needed.
@@ -53,7 +54,8 @@
 - AC13: A headless run does not raise notifications, so a script issuing many runs stays silent, while interactive launches are unaffected.
 - AC14: The breaking retirement of the previous `cdx notify` surface is reflected in the version and the changelog.
 - AC15: When cdx installs notification hooks that the provider will not run until the user approves them, cdx says so at launch, naming what to approve, rather than leaving the user with a feature that silently does nothing.
-- AC16: The README documents the notification behavior, how to turn it off, the new meaning of `cdx notify`, and the per-platform delivery caveats including WSL.
+- AC16: On a host with no usable notification channel, no hooks are installed and no approval is requested; if that host later gains one, its next launch installs them.
+- AC17: The README documents the notification behavior, how to turn it off, the new meaning of `cdx notify`, and the per-platform delivery caveats including WSL.
 
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.

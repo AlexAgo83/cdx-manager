@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-09 17:54:37
+> Indicators reviewed: 2026-08-09 17:55:04
 
 # Problem
 - The hook target is unreachable until each provider is told to call it, and that instruction lives in a configuration file per provider.
@@ -23,6 +23,7 @@
   - Make the write idempotent and recognizably cdx's own, so repeated launches change nothing and cdx can later remove exactly what it added.
   - Add a `--notify on|off` launch setting following the existing `--rtk` and `--logics` pattern, defaulting to on, and clearable through `cdx unset`.
   - When notifications are off for a session, remove the entries cdx wrote at that session's next launch, leaving everything else in place.
+  - Skip provisioning entirely on a host with no usable notification channel, reusing the same predicate `cdx notify` uses to decide whether it can deliver, so nothing is written and no approval is requested for a feature that could not show anything.
   - Tell the user, at the launch that installs them, that notification hooks were added and need a one-time approval in the provider before they take effect; say it once per profile rather than on every launch.
   - Do not write the provider's hook trust state on the user's behalf, and do not pass any bypass flag; approving a hook stays the user's decision.
   - Treat an unwritable or malformed configuration file as a skipped provisioning step, never as a launch failure.
@@ -42,6 +43,8 @@
 - Given a new session with no notification setting, notifications are enabled.
 - Given `cdx set <name> --notify off` followed by a launch of that session, the entries cdx wrote are gone and any other content in the files remains.
 - Given a configuration file that cannot be written or cannot be parsed, the launch proceeds normally and the provider still starts.
+- Given a host with no usable notification channel, a launch writes no hook configuration and requests no approval.
+- Given a host that gains a notification channel after an earlier launch skipped provisioning, its next launch installs the hooks.
 - Given a launch that installs notification hooks for the first time, cdx states that they were installed and that they need approving in the provider before they work.
 - Given a subsequent launch of the same profile, that message is not repeated.
 - Given any launch, cdx has written no hook trust state and passed no trust-bypass flag.
@@ -58,7 +61,8 @@
 - request-AC5 -> This backlog slice. Proof: Given a new session with no notification setting, notifications are enabled.
 - request-AC10 -> This backlog slice. Proof: Given a Windows npm install where `cdx` is a `.cmd` shim, the provisioned hook command still invokes cdx when the provider spawns it directly rather than through a shell.
 - request-AC15 -> This backlog slice. Proof: Given a launch that installs notification hooks for the first time, cdx states that they were installed and that they need approving in the provider before they work.
-- request-AC16 -> This backlog slice. Proof: The README states that notifications are on by default, shows the command that turns them off, and states the per-platform delivery caveats including WSL.
+- request-AC16 -> This backlog slice. Proof: Given a host with no usable notification channel, a launch writes no hook configuration and requests no approval.
+- request-AC17 -> This backlog slice. Proof: The README states that notifications are on by default, shows the command that turns them off, and states the per-platform delivery caveats including WSL.
 
 # Decision framing
 - Product framing: Not needed
