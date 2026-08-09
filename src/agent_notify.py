@@ -155,8 +155,12 @@ def codex_plugin_root(auth_home, base_dir=None):
     plugin one directory out is the whole difference between working and
     silently doing nothing.
     """
-    base_dir = base_dir or os.path.dirname(os.path.dirname(auth_home))
-    return os.path.join(base_dir, "state", "codex-plugins", os.path.basename(auth_home))
+    if base_dir:
+        return os.path.join(base_dir, "state", "codex-plugins", os.path.basename(auth_home))
+    # Without a base directory, sit beside the home rather than guessing at cdx's
+    # layout by walking up from it: two levels above a home is `/` for anything
+    # not laid out as `<base>/profiles/<name>`, and writing there fails.
+    return os.path.join(os.path.dirname(auth_home), ".cdx-codex-plugins", os.path.basename(auth_home))
 
 
 # Codex only runs hooks that come from an installed plugin, identified as

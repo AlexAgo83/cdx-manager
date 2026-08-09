@@ -96,6 +96,10 @@ class ProvisioningTests(unittest.TestCase):
         with mock.patch.object(agent_notify, "notification_channel", return_value="osascript"):
             self.assertTrue(agent_notify.provision(self.home, "codex", True, self.env, spawn_sync))
 
+        # The plugin root has to be somewhere writable. Deriving it by walking two
+        # levels up from the home lands on `/` for anything not laid out as
+        # `<base>/profiles/<name>`, which is how this first failed on Linux.
+        self.assertTrue(os.access(os.path.dirname(agent_notify.codex_plugin_root(self.home)), os.W_OK))
         self.assertEqual(calls[0][:3], ["codex", "plugin", "marketplace"])
         self.assertEqual(calls[1], ["codex", "plugin", "add", "cdx-notify@cdx"])
         # The "hooks" key is what makes Codex load the file at all.
