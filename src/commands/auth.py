@@ -20,13 +20,11 @@ from ..codex_usage import consume_codex_rate_limit_reset_credit
 from ..config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
 from ..errors import CdxError
 from ..notify import (
-    format_notify_event,
     format_scheduled_notification,
-    parse_notify_args,
+    parse_ready_args,
     resolve_notify_event,
     schedule_notification_event,
     send_desktop_notification,
-    wait_for_notification_event,
 )
 from ..provider_runtime import _ensure_session_authentication, _run_interactive_provider_command
 
@@ -36,63 +34,45 @@ def _confirm_reset(name):
     return answer.strip().lower() in ("y", "yes")
 
 def handle_ready(rest, ctx):
-    # ponytail: the quota-reset flow kept its logic but lost its CLI surface; `cdx notify`
-    # now means agent notifications. Only `cdx ready` reaches this. Delete the scheduling
-    # backends in notify.py if `cdx ready` also turns out to be unused.
-    parsed = parse_notify_args(rest)
+    """`cdx ready`: schedule an OS notification for the next session to come back.
 
-    def notifier(title, message):
+    This is all that remains of the quota-reset flow: `cdx notify` now means
+    agent notifications, and the wait-and-poll surface that used to sit here was
+    unreachable once `cdx ready` became the only entry point.
+    """
+    parsed = parse_ready_args(rest)
+    event = resolve_notify_event(
+        ctx["service"]["get_status_rows"](
+            progress_callback=None if parsed["json"] else _make_notify_progress(ctx),
+            force_refresh=parsed["refresh"],
+        ),
+        parsed,
+        (ctx["options"].get("now") or time.time)(),
+    )
+    if event["ready"]:
         send_desktop_notification(
-            title,
-            message,
+            event["title"], event["message"],
+            spawn_sync=ctx.get("spawn_sync"), env=ctx.get("env"),
+        )
+        schedule = {
+            "scheduled": False,
+            "backend": "immediate",
+            "message": event["message"],
+            "target_timestamp": event.get("target_timestamp"),
+        }
+    else:
+        schedule = schedule_notification_event(
+            ctx["service"]["base_dir"],
+            parsed,
+            event,
             spawn_sync=ctx.get("spawn_sync"),
             env=ctx.get("env"),
+            now_fn=ctx["options"].get("now"),
         )
-
-    if parsed["schedule"]:
-        event = resolve_notify_event(
-            ctx["service"]["get_status_rows"](
-                progress_callback=None if parsed["json"] else _make_notify_progress(ctx),
-                force_refresh=parsed.get("refresh", False),
-            ),
-            parsed,
-            (ctx["options"].get("now") or time.time)(),
-        )
-        if event["ready"]:
-            notifier(event["title"], event["message"])
-            schedule = {
-                "scheduled": False,
-                "backend": "immediate",
-                "message": event["message"],
-                "target_timestamp": event.get("target_timestamp"),
-            }
-        else:
-            schedule = schedule_notification_event(
-                ctx["service"]["base_dir"],
-                parsed,
-                event,
-                spawn_sync=ctx.get("spawn_sync"),
-                env=ctx.get("env"),
-                now_fn=ctx["options"].get("now"),
-            )
-        if parsed["json"]:
-            _write_json(ctx, _json_success("notify", "Scheduled notification event", event=event, schedule=schedule))
-        else:
-            ctx["out"](f"{format_scheduled_notification(schedule)}\n")
-        return 0
-
-    event = wait_for_notification_event(
-        ctx["service"],
-        parsed,
-        notifier=notifier,
-        sleep_fn=ctx["options"].get("sleep"),
-        now_fn=ctx["options"].get("now"),
-        progress_callback=None if parsed["json"] else _make_notify_progress(ctx),
-    )
     if parsed["json"]:
-        _write_json(ctx, _json_success("notify", "Resolved notification event", event=event))
+        _write_json(ctx, _json_success("notify", "Scheduled notification event", event=event, schedule=schedule))
     else:
-        ctx["out"](f"{format_notify_event(event)}\n")
+        ctx["out"](f"{format_scheduled_notification(schedule)}\n")
     return 0
 
 def handle_reset(rest, ctx):

@@ -19,9 +19,10 @@ from .notify import notification_channel, send_desktop_notification
 SESSION_ENV = "CDX_SESSION_NAME"
 ENABLED_ENV = "CDX_NOTIFY"
 
-# Marks the entries cdx wrote, so revocation removes exactly those and leaves
-# anything the user added by hand alone.
-MARKER = "cdx-agent-notify"
+# Our entries are recognised by the command they run, not by a marker key of our
+# own: both providers validate this file against their own schema, and an extra
+# key they do not know is a rejection risk for no gain.
+HOOK_ARG = "notify"
 
 _WAITING_EVENTS = {"notification", "permissionrequest", "userpromptsubmit"}
 
@@ -146,8 +147,7 @@ def _apply_hooks(path, enabled, command):
         entries = [entry for entry in hooks.get(event, []) if not _is_ours(entry)]
         if enabled:
             entries.append({
-                "_source": MARKER,
-                "hooks": [{"type": "command", "command": f"{command} notify"}],
+                "hooks": [{"type": "command", "command": f"{command} {HOOK_ARG}"}],
             })
         if entries:
             hooks[event] = entries
@@ -160,7 +160,14 @@ def _apply_hooks(path, enabled, command):
 
 
 def _is_ours(entry):
-    return isinstance(entry, dict) and entry.get("_source") == MARKER
+    """Ours if any of its commands is a cdx notify invocation."""
+    if not isinstance(entry, dict):
+        return False
+    for hook in entry.get("hooks") or []:
+        command = str((hook or {}).get("command") or "")
+        if command.endswith(f" {HOOK_ARG}") and "cdx" in command:
+            return True
+    return False
 
 
 def _read_json(path):

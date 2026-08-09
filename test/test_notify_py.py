@@ -4,7 +4,7 @@ import unittest
 from unittest import mock
 
 from src.errors import CdxError
-from src.notify import parse_notify_args, schedule_notification_event, send_desktop_notification
+from src.notify import parse_ready_args, schedule_notification_event, send_desktop_notification
 
 
 class NotifyPythonTests(unittest.TestCase):
@@ -56,32 +56,33 @@ class NotifyPythonTests(unittest.TestCase):
         self.assertEqual(calls[0][0], ["notify-send", "-a", "cdx", "Title; rm -rf /", "Body $(bad)"])
         self.assertEqual(calls[0][1]["timeout"], 5)
 
-    def test_parse_notify_args_supports_poll_equals(self):
-        parsed = parse_notify_args(["--next-ready", "--poll=5", "--once", "--json"])
+    def test_parse_ready_args_rejects_the_retired_flags(self):
+        for retired in (["--at-reset"], ["--next-ready"], ["--once"], ["--poll", "5"]):
+            with self.assertRaises(CdxError):
+                parse_ready_args(retired)
+        parsed = parse_ready_args(["--json"])
 
         self.assertEqual(parsed["mode"], "next-ready")
-        self.assertEqual(parsed["poll"], 5)
-        self.assertTrue(parsed["once"])
         self.assertTrue(parsed["json"])
         self.assertFalse(parsed["refresh"])
 
-    def test_parse_notify_args_supports_refresh(self):
-        parsed = parse_notify_args(["--next-ready", "--refresh"])
+    def test_parse_ready_args_supports_refresh(self):
+        parsed = parse_ready_args(["--refresh"])
 
         self.assertEqual(parsed["mode"], "next-ready")
         self.assertTrue(parsed["refresh"])
 
-    def test_parse_notify_args_supports_schedule(self):
-        parsed = parse_notify_args(["main", "--at-reset", "--schedule"])
+    def test_parse_ready_args_always_schedules(self):
+        parsed = parse_ready_args([])
 
-        self.assertEqual(parsed["mode"], "at-reset")
-        self.assertEqual(parsed["name"], "main")
+        self.assertEqual(parsed["mode"], "next-ready")
+        self.assertIsNone(parsed["name"])
         self.assertTrue(parsed["schedule"])
 
     def test_schedule_next_ready_without_target_returns_unscheduled_result(self):
         schedule = schedule_notification_event(
             "/tmp/cdx",
-            parse_notify_args(["--next-ready", "--schedule"]),
+            parse_ready_args([]),
             {
                 "ready": False,
                 "title": "cdx",
@@ -98,20 +99,6 @@ class NotifyPythonTests(unittest.TestCase):
             "target_timestamp": None,
         })
 
-    def test_schedule_named_reset_without_target_remains_an_error(self):
-        with self.assertRaisesRegex(CdxError, "Cannot schedule notification: No reset time known for main"):
-            schedule_notification_event(
-                "/tmp/cdx",
-                parse_notify_args(["main", "--at-reset", "--schedule"]),
-                {
-                    "ready": False,
-                    "title": "cdx",
-                    "message": "No reset time known for main",
-                    "session": "main",
-                    "target_timestamp": None,
-                },
-            )
-
     def test_schedule_notification_event_uses_systemd_run_on_linux(self):
         calls = []
 
@@ -119,7 +106,7 @@ class NotifyPythonTests(unittest.TestCase):
             calls.append((argv, kwargs))
             return subprocess.CompletedProcess(argv, 0, "", "")
 
-        parsed = parse_notify_args(["main", "--at-reset", "--schedule"])
+        parsed = parse_ready_args([])
         event = {
             "ready": False,
             "title": "cdx",
@@ -151,7 +138,7 @@ class NotifyPythonTests(unittest.TestCase):
         def spawn_sync(argv, **kwargs):
             return subprocess.CompletedProcess(argv, 1, "", "Unit already exists")
 
-        parsed = parse_notify_args(["main", "--at-reset", "--schedule"])
+        parsed = parse_ready_args([])
         event = {
             "ready": False,
             "title": "cdx",
@@ -182,7 +169,7 @@ class NotifyPythonTests(unittest.TestCase):
             calls.append((argv, kwargs))
             return subprocess.CompletedProcess(argv, 0, "", "")
 
-        parsed = parse_notify_args(["main", "--at-reset", "--schedule"])
+        parsed = parse_ready_args([])
         event = {
             "ready": False,
             "title": "cdx",
@@ -215,7 +202,7 @@ class NotifyPythonTests(unittest.TestCase):
             calls.append((argv, kwargs))
             return subprocess.CompletedProcess(argv, 5, "", "Bootstrap failed: 5: Input/output error")
 
-        parsed = parse_notify_args(["main", "--at-reset", "--schedule"])
+        parsed = parse_ready_args([])
         event = {
             "ready": False,
             "title": "cdx",
