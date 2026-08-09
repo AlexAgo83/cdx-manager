@@ -1,10 +1,10 @@
 ## item_073_reassign_cdx_notify_to_the_agent_event_hook_target - Reassign cdx notify to the agent-event hook target
 > From version: 0.15.1
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
