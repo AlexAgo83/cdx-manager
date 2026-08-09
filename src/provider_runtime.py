@@ -7,6 +7,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import uuid
 from datetime import datetime, timezone
 
@@ -24,6 +25,18 @@ from .config import (
 from .errors import CdxError
 
 LOG_ROTATE_BYTES = 10 * 1024 * 1024  # 10 MB
+TERMINAL_TITLE_SEPARATOR = " — "
+# Providers redraw their own title while their TUI runs, so a single write at
+# launch does not survive. Re-asserting on this interval takes the title back
+# without being frequent enough to matter to the terminal.
+TERMINAL_TITLE_REFRESH_SECONDS = 5.0
+TERMINAL_TITLE_ACTIONS = ("launch", "resume")
+# Ollama is deliberately absent: it is a local model runner, not a cdx-managed
+# coding session, and its window title is left to it.
+TERMINAL_TITLE_PROVIDERS = (PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_ANTIGRAVITY)
+# ESC plus the C0/C1 control ranges: anything that could close the OSC string
+# early or start a new escape sequence from session or directory names.
+_TERMINAL_TITLE_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 AUTH_PROBE_TIMEOUT_SECONDS = 15
 CODEX_INTERACTIVE_AUTH_LOCK_TIMEOUT_SECONDS = 10
 AUTH_PROBE_AUTHENTICATED = "authenticated"
@@ -1120,12 +1133,112 @@ def _signal_name(sig):
         return str(sig)
 
 
+def _sanitize_terminal_title_component(value):
+    """Strip anything that could escape the OSC title string.
+
+    Session names and directories are user data, so they are the injection
+    vector here: a raw ESC or BEL inside either would end the title string and
+    let the rest be read as terminal commands.
+    """
+    if value is None:
+        return ""
+    return _TERMINAL_TITLE_CONTROL_CHARS.sub("", str(value)).strip()
+
+
+def format_terminal_title(session_name, cwd=None):
+    """Build the `session -- folder` title shared by every interactive provider.
+
+    The folder is the basename of the effective launch cwd, which is what
+    identifies the work; the full path would not fit a title bar. Missing parts
+    are dropped rather than rendered as an empty half.
+    """
+    session_part = _sanitize_terminal_title_component(session_name)
+    directory = os.path.abspath(cwd or os.getcwd())
+    folder_part = _sanitize_terminal_title_component(os.path.basename(directory) or directory)
+    parts = [part for part in (session_part, folder_part) if part]
+    return TERMINAL_TITLE_SEPARATOR.join(parts)
+
+
+def _stream_is_tty(stream):
+    try:
+        return bool(stream is not None and stream.isatty())
+    except (AttributeError, ValueError, OSError):
+        return False
+
+
+class _TerminalTitleKeeper:
+    """Holds the terminal title for as long as the provider process runs.
+
+    A provider TUI sets its own title whenever it repaints, so this rewrites the
+    OSC sequence on an interval instead of once. Every write is best-effort: a
+    closed or unwritable stream ends the loop rather than the session.
+    """
+
+    def __init__(self, title, stream, interval=None):
+        self.title = title
+        self._sequence = f"\033]0;{title}\007"
+        self._stream = stream
+        self._interval = TERMINAL_TITLE_REFRESH_SECONDS if interval is None else interval
+        self._stop_event = threading.Event()
+        self._thread = None
+
+    def _write(self):
+        try:
+            self._stream.write(self._sequence)
+            self._stream.flush()
+        except Exception:
+            return False
+        return True
+
+    def start(self):
+        if not self._write():
+            return self
+        if self._interval and self._interval > 0:
+            self._thread = threading.Thread(target=self._refresh_loop, daemon=True)
+            self._thread.start()
+        return self
+
+    def _refresh_loop(self):
+        while not self._stop_event.wait(self._interval):
+            if not self._write():
+                return
+
+    def stop(self):
+        self._stop_event.set()
+        thread = self._thread
+        self._thread = None
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=1)
+
+
+def _start_terminal_title(session, action, cwd=None, stream=None, enabled=True):
+    """Start title upkeep for an interactive launch/resume, or return None.
+
+    Returns None for every case that has no terminal to write to - auth
+    actions, non-TTY stdout, JSON output, captured test streams - so callers can
+    stop() unconditionally.
+    """
+    if not enabled or action not in TERMINAL_TITLE_ACTIONS:
+        return None
+    if session.get("provider") not in TERMINAL_TITLE_PROVIDERS:
+        return None
+    stream = sys.stdout if stream is None else stream
+    if not _stream_is_tty(stream):
+        return None
+    title = format_terminal_title(session.get("name"), cwd)
+    if not title:
+        return None
+    return _TerminalTitleKeeper(title, stream).start()
+
+
 def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
                                       env_override=None, signal_emitter=None,
-                                      initial_prompt=None, lifecycle_callback=None):
+                                      initial_prompt=None, lifecycle_callback=None,
+                                      title_stream=None, title_enabled=True):
     kwargs = dict(spawn=spawn, cwd=cwd, env_override=env_override,
                   signal_emitter=signal_emitter, initial_prompt=initial_prompt,
-                  lifecycle_callback=lifecycle_callback)
+                  lifecycle_callback=lifecycle_callback, title_stream=title_stream,
+                  title_enabled=title_enabled)
     if session.get("provider") != PROVIDER_CODEX:
         return _run_interactive_provider_command_impl(session, action, **kwargs)
     # Hold the per-CODEX_HOME lock for the whole session so concurrent Codex
@@ -1142,7 +1255,28 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
 
 def _run_interactive_provider_command_impl(session, action, spawn=None, cwd=None,
                                            env_override=None, signal_emitter=None,
-                                           initial_prompt=None, lifecycle_callback=None):
+                                           initial_prompt=None, lifecycle_callback=None,
+                                           title_stream=None, title_enabled=True):
+    # The title lives exactly as long as the provider process, including the
+    # error and signal paths below, which is why it is held here rather than
+    # inside the run itself.
+    title_keeper = _start_terminal_title(
+        session, action, cwd=cwd, stream=title_stream, enabled=title_enabled
+    )
+    try:
+        return _run_interactive_provider_process(
+            session, action, spawn=spawn, cwd=cwd, env_override=env_override,
+            signal_emitter=signal_emitter, initial_prompt=initial_prompt,
+            lifecycle_callback=lifecycle_callback,
+        )
+    finally:
+        if title_keeper is not None:
+            title_keeper.stop()
+
+
+def _run_interactive_provider_process(session, action, spawn=None, cwd=None,
+                                      env_override=None, signal_emitter=None,
+                                      initial_prompt=None, lifecycle_callback=None):
     spawn = spawn or subprocess.Popen
     if action == "launch":
         spec = _build_launch_spec(session, cwd=cwd, env_override=env_override, initial_prompt=initial_prompt)

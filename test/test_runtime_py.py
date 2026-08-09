@@ -662,6 +662,54 @@ class RuntimePythonTests(unittest.TestCase):
             with mock.patch("src.provider_runtime.subprocess.run", side_effect=AssertionError("should not probe")):
                 self.assertTrue(provider_runtime._probe_provider_auth(session))
 
+    def test_interactive_launch_holds_the_title_and_releases_it_on_failure(self):
+        import threading
+        import time
+
+        session = {
+            "name": "main",
+            "provider": "claude",
+            "authHome": "/tmp/claude-home",
+        }
+
+        class TitleStream:
+            def __init__(self):
+                self.writes = []
+
+            def isatty(self):
+                return True
+
+            def write(self, value):
+                self.writes.append(value)
+
+            def flush(self):
+                pass
+
+        class FailingChild:
+            returncode = 3
+
+            def wait(self):
+                return self.returncode
+
+        stream = TitleStream()
+        before = threading.active_count()
+        with mock.patch.object(provider_runtime, "TERMINAL_TITLE_REFRESH_SECONDS", 0.01):
+            with self.assertRaises(CdxError):
+                _run_interactive_provider_command(
+                    session,
+                    "launch",
+                    spawn=lambda _argv, **_kwargs: FailingChild(),
+                    cwd="/home/dev/repo",
+                    title_stream=stream,
+                )
+
+        self.assertEqual(stream.writes[0], "\033]0;main — repo\007")
+        written = len(stream.writes)
+        time.sleep(0.05)
+        # The refresh loop is stopped in the finally block, failure included.
+        self.assertEqual(len(stream.writes), written)
+        self.assertLessEqual(threading.active_count(), before)
+
     def test_interactive_codex_command_fails_when_auth_lock_times_out(self):
         session = {
             "name": "main",
