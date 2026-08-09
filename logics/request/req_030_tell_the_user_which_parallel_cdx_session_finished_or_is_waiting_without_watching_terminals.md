@@ -1,13 +1,13 @@
 ## req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals - Tell the user which parallel cdx session finished or is waiting, without watching terminals
 > From version: 0.15.1
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-09 18:45:54
+> Indicators reviewed: 2026-08-09 18:49:08
 
 # Needs
 - Running several cdx sessions in parallel across different repositories is the normal way this tool is used, and it is the one case cdx does not support: the only way to learn that an agent finished, or that it is blocked waiting for an answer, is to keep looking at every terminal.

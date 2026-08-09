@@ -1,14 +1,35 @@
 ## prod_020_know_which_parallel_session_needs_you - Know which parallel session needs you
 > Date: 2026-08-09
-> Status: Proposed
+> Status: Settled
 > Related request: `req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals`
-> Related backlog: `item_073_reassign_cdx_notify_to_the_agent_event_hook_target`, `item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch`
+> Related backlog: `item_073_reassign_cdx_notify_to_the_agent_event_hook_target`
 > Related task: `task_041_orchestrate_agent_completion_notifications`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-09 18:51:14
 
 # Overview
 Make cdx raise a native desktop notification when one of its sessions finishes a turn or blocks waiting for input, wiring the providers' own hook mechanisms into each session's isolated home so the notification can say which session, in which repository.
+
+```mermaid
+%% logics-kind: product
+%% logics-signature: product|know-which-parallel-session-needs-you|hook-then-deliver
+flowchart TD
+    Many[Several sessions, several repos] --> Blind[No way to know which needs you]
+    Blind --> Hook[Provider fires a hook at turn end]
+    Hook --> Claude[Claude Code: settings.json]
+    Hook --> Codex[Codex: installed plugin only]
+    Codex --> Outside[Plugin rooted outside CODEX_HOME]
+    Claude --> Target[cdx notify]
+    Outside --> Target
+    Target --> Named[Names the session and the repo]
+    Named --> Deliver{Host has a channel?}
+    Deliver -->|macOS| Osa[osascript]
+    Deliver -->|Linux| Send[notify-send]
+    Deliver -->|Windows| Toast[toast]
+    Deliver -->|WSL| Interop[interop to Windows]
+    Deliver -->|none| Skip[Install nothing, ask nothing]
+```
 
 # Goals
 - Answer 'which of my running sessions needs me' without looking at any terminal.
@@ -36,5 +57,5 @@ Make cdx raise a native desktop notification when one of its sessions finishes a
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals`
+- Product back-reference: `item_073_reassign_cdx_notify_to_the_agent_event_hook_target`
 - Task back-reference: `task_041_orchestrate_agent_completion_notifications`

@@ -1,10 +1,10 @@
 ## item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch - Provision and revoke provider hooks in each session's home at launch
 > From version: 0.15.1
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 75%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -87,3 +87,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_041_orchestrate_agent_completion_notifications`
+
+# Notes
+- Task `task_041_orchestrate_agent_completion_notifications` was finished via `logics-manager flow finish task` on 2026-08-09.

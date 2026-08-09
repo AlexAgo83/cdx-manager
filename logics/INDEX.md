@@ -34,7 +34,7 @@
 | [prod_017_a_session_service_whose_file_boundaries_match_its_real_seams](product/prod_017_a_session_service_whose_file_boundaries_match_its_real_seams.md) | A session service whose file boundaries match its real seams | Settled |  |  | product/prod_017_a_session_service_whose_file_boundaries_match_its_real_seams.md |
 | [prod_018_executable_quota_routing](product/prod_018_executable_quota_routing.md) | Executable quota routing | Settled |  |  | product/prod_018_executable_quota_routing.md |
 | [prod_019_settle_0_15_0_s_remainder](product/prod_019_settle_0_15_0_s_remainder.md) | Settle 0.15.0's remainder | Settled |  |  | product/prod_019_settle_0_15_0_s_remainder.md |
-| [prod_020_know_which_parallel_session_needs_you](product/prod_020_know_which_parallel_session_needs_you.md) | Know which parallel session needs you | Proposed |  |  | product/prod_020_know_which_parallel_session_needs_you.md |
+| [prod_020_know_which_parallel_session_needs_you](product/prod_020_know_which_parallel_session_needs_you.md) | Know which parallel session needs you | Settled |  |  | product/prod_020_know_which_parallel_session_needs_you.md |
 
 ## Roadmaps
 
@@ -74,7 +74,7 @@ _None_
 | [req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports](request/req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports.md) | Split session_service along the two seams the coupling measurement supports | Done |  |  | request/req_027_split_session_service_along_the_two_seams_the_coupling_measurement_supports.md |
 | [req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers](request/req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers.md) | Turn quota awareness from advice into execution across accounts and providers | Done |  |  | request/req_028_turn_quota_awareness_from_advice_into_execution_across_accounts_and_providers.md |
 | [req_029_settle_what_0_15_0_left_behind_before_cutting_0_15_1](request/req_029_settle_what_0_15_0_left_behind_before_cutting_0_15_1.md) | Settle what 0.15.0 left behind before cutting 0.15.1 | Done |  |  | request/req_029_settle_what_0_15_0_left_behind_before_cutting_0_15_1.md |
-| [req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals](request/req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals.md) | Tell the user which parallel cdx session finished or is waiting, without watching terminals | Draft |  |  | request/req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals.md |
+| [req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals](request/req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals.md) | Tell the user which parallel cdx session finished or is waiting, without watching terminals | Done |  |  | request/req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals.md |
 
 ## Backlog
 
@@ -153,8 +153,8 @@ _None_
 | [item_070_measure_what_a_single_option_actually_costs_before_designing_anything](backlog/item_070_measure_what_a_single_option_actually_costs_before_designing_anything.md) | Measure what a single option actually costs before designing anything | Done | claude | 100% | backlog/item_070_measure_what_a_single_option_actually_costs_before_designing_anything.md |
 | [item_071_make_an_incomplete_option_declaration_impossible](backlog/item_071_make_an_incomplete_option_declaration_impossible.md) | Make an incomplete option declaration impossible | Done | claude | 100% | backlog/item_071_make_an_incomplete_option_declaration_impossible.md |
 | [item_072_cut_0_15_1_once_the_rest_has_settled](backlog/item_072_cut_0_15_1_once_the_rest_has_settled.md) | Cut 0.15.1 once the rest has settled | Done | claude | 100% | backlog/item_072_cut_0_15_1_once_the_rest_has_settled.md |
-| [item_073_reassign_cdx_notify_to_the_agent_event_hook_target](backlog/item_073_reassign_cdx_notify_to_the_agent_event_hook_target.md) | Reassign cdx notify to the agent-event hook target | In progress |  | 10% | backlog/item_073_reassign_cdx_notify_to_the_agent_event_hook_target.md |
-| [item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch](backlog/item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch.md) | Provision and revoke provider hooks in each session's home at launch | In progress |  | 10% | backlog/item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch.md |
+| [item_073_reassign_cdx_notify_to_the_agent_event_hook_target](backlog/item_073_reassign_cdx_notify_to_the_agent_event_hook_target.md) | Reassign cdx notify to the agent-event hook target | Done |  | 100% | backlog/item_073_reassign_cdx_notify_to_the_agent_event_hook_target.md |
+| [item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch](backlog/item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch.md) | Provision and revoke provider hooks in each session's home at launch | Done |  | 100% | backlog/item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch.md |
 
 ## Tasks
 
@@ -203,4 +203,4 @@ _None_
 | [task_038_orchestrate_the_measured_session_service_file_split](tasks/task_038_orchestrate_the_measured_session_service_file_split.md) | Orchestrate the measured session service file split | Done |  | 100% | tasks/task_038_orchestrate_the_measured_session_service_file_split.md |
 | [task_039_orchestrate_executable_quota_routing_across_accounts_and_providers](tasks/task_039_orchestrate_executable_quota_routing_across_accounts_and_providers.md) | Orchestrate executable quota routing across accounts and providers | Done |  | 100% | tasks/task_039_orchestrate_executable_quota_routing_across_accounts_and_providers.md |
 | [task_040_settle_0_15_0_s_remainder_and_cut_0_15_1](tasks/task_040_settle_0_15_0_s_remainder_and_cut_0_15_1.md) | Settle 0.15.0's remainder and cut 0.15.1 | Done |  | 100% | tasks/task_040_settle_0_15_0_s_remainder_and_cut_0_15_1.md |
-| [task_041_orchestrate_agent_completion_notifications](tasks/task_041_orchestrate_agent_completion_notifications.md) | Orchestrate agent completion notifications | In progress | Claude (Opus 5) | 10% | tasks/task_041_orchestrate_agent_completion_notifications.md |
+| [task_041_orchestrate_agent_completion_notifications](tasks/task_041_orchestrate_agent_completion_notifications.md) | Orchestrate agent completion notifications | Done | Claude (Opus 5) | 100% | tasks/task_041_orchestrate_agent_completion_notifications.md |
