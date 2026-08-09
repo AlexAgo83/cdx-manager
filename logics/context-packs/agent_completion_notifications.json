@@ -1,0 +1,392 @@
+{
+  "budgets": {
+    "max_docs": 16,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_073_reassign_cdx_notify_to_the_agent_event_hook_target.md",
+    "logics/backlog/item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch.md",
+    "logics/product/prod_020_know_which_parallel_session_needs_you.md",
+    "logics/request/req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals.md",
+    "logics/scaffold/agent_completion_notifications.json",
+    "logics/tasks/task_041_orchestrate_agent_completion_notifications.md"
+  ],
+  "command": "logics-manager sync context-pack req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals item_073_reassign_cdx_notify_to_the_agent_event_hook_target item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch task_041_orchestrate_agent_completion_notifications --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_073_reassign_cdx_notify_to_the_agent_event_hook_target",
+          "item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch"
+        ],
+        "prod": [
+          "prod_020_know_which_parallel_session_needs_you"
+        ],
+        "req": [
+          "req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals"
+        ],
+        "task": [
+          "task_041_orchestrate_agent_completion_notifications"
+        ]
+      },
+      "path": "logics/product/prod_020_know_which_parallel_session_needs_you.md",
+      "ref": "prod_020_know_which_parallel_session_needs_you",
+      "sections": {
+        "Goals": [
+          "- Answer 'which of my running sessions needs me' without looking at any terminal.",
+          "- Work identically for Codex and Claude Code through one command.",
+          "- Cost the user nothing to set up, and one command to turn off.",
+          "- Reuse the cross-platform notifier and the per-session home isolation cdx already has."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Make cdx raise a native desktop notification when one of its sessions finishes a turn or blocks waiting for input, wiring the providers' own hook mechanisms into each session's isolated home so the notification can say which session, in which repository."
+        ],
+        "References": [
+          "- Product back-reference: `req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals`",
+          "- Task back-reference: `task_041_orchestrate_agent_completion_notifications`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Know which parallel session needs you"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, tell the user which parallel cdx session finished or is waiting, without watching terminals, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Tell the user which parallel cdx session finished or is waiting, without watching terminals",
+        "use when": "You need to implement or review the scaffolded workflow for Tell the user which parallel cdx session finished or is waiting, without watching terminals."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_073_reassign_cdx_notify_to_the_agent_event_hook_target",
+          "item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch"
+        ],
+        "prod": [
+          "prod_020_know_which_parallel_session_needs_you"
+        ],
+        "req": [
+          "req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals"
+        ]
+      },
+      "path": "logics/request/req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals.md",
+      "ref": "req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: `cdx notify` is a hook target that reads a hook payload on standard input and raises a desktop notification identifying the cdx session name and the working directory the agent was running in.",
+          "- AC2: Launching a session provisions the hook configuration into that session's own home directory, for both Claude Code and Codex, without modifying any configuration outside the session's home.",
+          "- AC3: Provisioning is idempotent: launching the same session repeatedly leaves the configuration unchanged, and a session created before this change is provisioned on its next launch with no migration step.",
+          "- AC4: Provisioning preserves any other content already present in the session's `settings.json` or `config.toml`, including hooks the user added themselves.",
+          "- AC5: Notifications are enabled by default and can be turned off per session through the existing launch settings commands; turning them off removes the hooks cdx wrote, at the next launch of that session.",
+          "- AC6: A notification raised while several sessions run in parallel distinguishes them, naming both the session and the repository directory."
+        ],
+        "Needs": [
+          "- Running several cdx sessions in parallel across different repositories is the normal way this tool is used, and it is the one case cdx does not support: the only way to learn that an agent finished, or that it is blocked waiting for an answer, is to keep looking at every terminal.",
+          "- Both underlying CLIs already emit that event \u2014 Claude Code through its `Stop` and `Notification` hooks, Codex through the `notify` key in `config.toml` \u2014 and cdx already owns the home directory those settings live in, so it is the only component that can wire them per session without touching the user's personal configuration.",
+          "- A notification is only useful here if it says *which* session and *which* repository, and cdx is the only party that knows the session name. A hand-written hook cannot supply it."
+        ]
+      },
+      "status": "Draft",
+      "title": "Tell the user which parallel cdx session finished or is waiting, without watching terminals"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, reassign cdx notify to the agent-event hook target, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Reassign cdx notify to the agent-event hook target",
+        "use when": "Implementing the scaffolded slice for Reassign cdx notify to the agent-event hook target."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_073_reassign_cdx_notify_to_the_agent_event_hook_target"
+        ],
+        "prod": [
+          "prod_020_know_which_parallel_session_needs_you"
+        ],
+        "req": [
+          "req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals"
+        ],
+        "task": [
+          "task_041_orchestrate_agent_completion_notifications"
+        ]
+      },
+      "path": "logics/backlog/item_073_reassign_cdx_notify_to_the_agent_event_hook_target.md",
+      "ref": "item_073_reassign_cdx_notify_to_the_agent_event_hook_target",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Given a hook payload on standard input naming a working directory, `cdx notify` raises a notification whose text contains the cdx session name and that directory's basename.",
+          "- Given two sessions notifying from two different repositories, the two messages differ in both the session name and the directory name.",
+          "- Given a turn-ended event and a waiting-for-input event, the two notifications are distinguishable by their text.",
+          "- Given empty, truncated, or non-JSON input, `cdx notify` exits successfully without raising an error to the caller.",
+          "- Given no notifier binary available on the platform, `cdx notify` exits successfully and raises nothing.",
+          "- Given `cdx notify --at-reset` or `cdx notify --next-ready`, the command no longer offers that behavior, and the README no longer documents it."
+        ],
+        "Problem": [
+          "- There is no command a provider hook can call to raise a cdx notification. The providers can run an arbitrary command on a turn event, but cdx offers no target for it.",
+          "- The name `cdx notify` is held by the quota-reset flow, whose question \u2014 when does my quota come back \u2014 is already answered by `cdx status`, and whose only form anyone types is `cdx ready`.",
+          "- A notification that does not name the session and the repository is useless in the case that motivates the feature, and only cdx knows the session name."
+        ]
+      },
+      "status": "Ready",
+      "title": "Reassign cdx notify to the agent-event hook target"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, provision and revoke provider hooks in each session's home at launch, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Provision and revoke provider hooks in each session's home at launch",
+        "use when": "Implementing the scaffolded slice for Provision and revoke provider hooks in each session's home at launch."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch"
+        ],
+        "prod": [
+          "prod_020_know_which_parallel_session_needs_you"
+        ],
+        "req": [
+          "req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals"
+        ],
+        "task": [
+          "task_041_orchestrate_agent_completion_notifications"
+        ]
+      },
+      "path": "logics/backlog/item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch.md",
+      "ref": "item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Given a session launched for the first time after this change, its own home contains the hook configuration for its provider, and no file outside that home has changed.",
+          "- Given the same session launched again, the configuration files are byte-identical to after the first launch.",
+          "- Given a session created before this change, its next launch provisions the configuration with no separate migration step.",
+          "- Given a configuration file already holding unrelated settings or user-authored hooks, those survive provisioning unchanged.",
+          "- Given a new session with no notification setting, notifications are enabled.",
+          "- Given `cdx set <name> --notify off` followed by a launch of that session, the entries cdx wrote are gone and any other content in the files remains."
+        ],
+        "Problem": [
+          "- The hook target is unreachable until each provider is told to call it, and that instruction lives in a configuration file per provider.",
+          "- Writing it into the user's real home would leak cdx's behavior into sessions cdx does not run, and would be a single global switch rather than a per-session one.",
+          "- Accounts created before this change must gain the behavior without the user running a migration, and a session whose notifications are turned off must lose it again."
+        ]
+      },
+      "status": "Ready",
+      "title": "Provision and revoke provider hooks in each session's home at launch"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_073_reassign_cdx_notify_to_the_agent_event_hook_target",
+          "item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch"
+        ],
+        "prod": [
+          "prod_020_know_which_parallel_session_needs_you"
+        ],
+        "req": [
+          "req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals"
+        ],
+        "task": [
+          "task_041_orchestrate_agent_completion_notifications"
+        ]
+      },
+      "path": "logics/product/prod_020_know_which_parallel_session_needs_you.md",
+      "ref": "prod_020_know_which_parallel_session_needs_you",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Know which parallel session needs you"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate agent completion notifications",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_073_reassign_cdx_notify_to_the_agent_event_hook_target",
+          "item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch"
+        ],
+        "prod": [
+          "prod_020_know_which_parallel_session_needs_you"
+        ],
+        "req": [
+          "req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals"
+        ],
+        "task": [
+          "task_041_orchestrate_agent_completion_notifications"
+        ]
+      },
+      "path": "logics/tasks/task_041_orchestrate_agent_completion_notifications.md",
+      "ref": "task_041_orchestrate_agent_completion_notifications",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate agent completion notifications"
+    }
+  ],
+  "estimates": {
+    "char_count": 11437,
+    "companion_doc_count": 1,
+    "doc_count": 5
+  },
+  "generated_at": "2026-08-09T15:14:00Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals",
+      "item_073_reassign_cdx_notify_to_the_agent_event_hook_target",
+      "item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch",
+      "task_041_orchestrate_agent_completion_notifications"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals,item_073_reassign_cdx_notify_to_the_agent_event_hook_target,item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch,task_041_orchestrate_agent_completion_notifications",
+  "refs": [
+    "req_030_tell_the_user_which_parallel_cdx_session_finished_or_is_waiting_without_watching_terminals",
+    "item_073_reassign_cdx_notify_to_the_agent_event_hook_target",
+    "item_074_provision_and_revoke_provider_hooks_in_each_session_s_home_at_launch",
+    "task_041_orchestrate_agent_completion_notifications"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different commit (release)",
+      "changelog: evidence targets a different commit (release)",
+      "release_checksums: evidence targets a different commit (release)",
+      "local_validation: evidence targets a different commit (release)",
+      "git_push: evidence targets a different commit (release)",
+      "ci: evidence targets a different commit (release)"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different commit (release)",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different commit (release)",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit (release)",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit (release)",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit (release)",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit (release)",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit (release)",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.15.1"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_041_orchestrate_agent_completion_notifications.md",
+      "ref": "task_041_orchestrate_agent_completion_notifications"
+    }
+  ]
+}

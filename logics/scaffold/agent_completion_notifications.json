@@ -1,0 +1,164 @@
+{
+  "title": "Tell the user which parallel cdx session finished or is waiting, without watching terminals",
+  "references": [
+    "src/notify.py",
+    "src/provider_runtime.py",
+    "src/commands/launch.py",
+    "src/commands/settings.py",
+    "src/cli_args.py",
+    "src/cli.py",
+    "test/test_notify_py.py",
+    "README.md"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Notifications",
+    "needs": [
+      "Running several cdx sessions in parallel across different repositories is the normal way this tool is used, and it is the one case cdx does not support: the only way to learn that an agent finished, or that it is blocked waiting for an answer, is to keep looking at every terminal.",
+      "Both underlying CLIs already emit that event — Claude Code through its `Stop` and `Notification` hooks, Codex through the `notify` key in `config.toml` — and cdx already owns the home directory those settings live in, so it is the only component that can wire them per session without touching the user's personal configuration.",
+      "A notification is only useful here if it says *which* session and *which* repository, and cdx is the only party that knows the session name. A hand-written hook cannot supply it."
+    ],
+    "context": [
+      "`send_desktop_notification` (`src/notify.py:158`) already dispatches across platforms: `osascript` on macOS, `notify-send` on Linux, a PowerShell message box on Windows, with escaping helpers for each. It is reached today only by the quota-reset flow and is reusable as-is.",
+      "`_home_env_overrides` (`src/provider_runtime.py:107`) sets `HOME` — plus `USERPROFILE`/`HOMEDRIVE`/`HOMEPATH` on Windows — to the session's `authHome` for every launch. So `<authHome>/.claude/settings.json` and `<authHome>/.codex/config.toml` are files cdx owns per session; writing hooks there cannot collide with the user's own `~/.claude` or `~/.codex`.",
+      "`handle_launch` (`src/commands/launch.py:80`) is the single point every interactive launch and resume passes through before `_run_interactive_provider_command`, which makes it the natural place for an idempotent write: existing sessions pick the hooks up on their next launch, so no migration step is needed.",
+      "The launch settings machinery already supports exactly this shape of toggle: `--rtk` and `--logics` are on/off values parsed by `_parse_fast_value` (`src/cli_args.py:247`), stored per session through `set_launch_settings`, and clearable through `cdx unset`. A `--notify` flag is the same pattern with no new infrastructure.",
+      "The name `cdx notify` is currently taken by quota-reset notifications: `cdx notify <name> --at-reset` and `cdx notify --next-ready` (`src/notify.py:19`, dispatched at `src/cli.py:156`). That surface answers 'when does my quota come back', which `cdx status` already answers directly, and in practice the only form anyone types is `cdx ready` — documented at `README.md:345` as shorthand for `cdx notify --schedule --next-ready`.",
+      "The scope decision taken with the user: `notify` is reassigned to the new hook target, the `--at-reset`/`--next-ready` CLI surface is retired from parsing and documentation, and the underlying logic stays reachable through `cdx ready`. Deleting the remaining ~250 lines of launchd/systemd/schtasks scheduling is deliberately left as a separate later decision, once there is evidence `cdx ready` is unused too.",
+      "Notifications are on by default, because a feature that must be discovered and enabled will not be. `cdx set <name> --notify off` turns them off, and cdx removes the hooks it wrote at the next launch of that session."
+    ],
+    "acceptance_criteria": [
+      "AC1: `cdx notify` is a hook target that reads a hook payload on standard input and raises a desktop notification identifying the cdx session name and the working directory the agent was running in.",
+      "AC2: Launching a session provisions the hook configuration into that session's own home directory, for both Claude Code and Codex, without modifying any configuration outside the session's home.",
+      "AC3: Provisioning is idempotent: launching the same session repeatedly leaves the configuration unchanged, and a session created before this change is provisioned on its next launch with no migration step.",
+      "AC4: Provisioning preserves any other content already present in the session's `settings.json` or `config.toml`, including hooks the user added themselves.",
+      "AC5: Notifications are enabled by default and can be turned off per session through the existing launch settings commands; turning them off removes the hooks cdx wrote, at the next launch of that session.",
+      "AC6: A notification raised while several sessions run in parallel distinguishes them, naming both the session and the repository directory.",
+      "AC7: The quota-reset `cdx notify --at-reset` and `cdx notify --next-ready` command surface is retired from the CLI and the README, while `cdx ready` keeps working exactly as it does today.",
+      "AC8: A failure in the notification path — an absent notifier binary, an unreadable or malformed hook payload, an unwritable configuration file — never fails or delays the launch or the agent turn.",
+      "AC9: The README documents the notification behavior, how to turn it off, and the new meaning of `cdx notify`."
+    ]
+  },
+  "product": {
+    "title": "Know which parallel session needs you",
+    "overview": "Make cdx raise a native desktop notification when one of its sessions finishes a turn or blocks waiting for input, wiring the providers' own hook mechanisms into each session's isolated home so the notification can say which session, in which repository.",
+    "goals": [
+      "Answer 'which of my running sessions needs me' without looking at any terminal.",
+      "Work identically for Codex and Claude Code through one command.",
+      "Cost the user nothing to set up, and one command to turn off.",
+      "Reuse the cross-platform notifier and the per-session home isolation cdx already has."
+    ],
+    "non_goals": [
+      "No routing to Discord, Slack, or a phone; the hook target is the single point to extend when that day comes.",
+      "No third-party shell script shared between the two CLIs.",
+      "No notification templating or message configuration.",
+      "No change to how the providers themselves are launched or authenticated.",
+      "No removal of the quota-reset scheduling internals in this request; only its command surface is retired."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Reassign cdx notify to the agent-event hook target",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Notifications",
+      "request_acs": [
+        "AC1",
+        "AC6",
+        "AC7",
+        "AC8"
+      ],
+      "problem": [
+        "There is no command a provider hook can call to raise a cdx notification. The providers can run an arbitrary command on a turn event, but cdx offers no target for it.",
+        "The name `cdx notify` is held by the quota-reset flow, whose question — when does my quota come back — is already answered by `cdx status`, and whose only form anyone types is `cdx ready`.",
+        "A notification that does not name the session and the repository is useless in the case that motivates the feature, and only cdx knows the session name."
+      ],
+      "scope_in": [
+        "Make `cdx notify` read a hook payload from standard input, tolerate an absent, empty, or malformed payload, and raise a notification through the existing `send_desktop_notification`.",
+        "Compose the message from the cdx session name, the basename of the working directory the agent ran in, and the kind of event, so parallel sessions are distinguishable at a glance.",
+        "Resolve the session name from the launch environment, since the hook runs as a child of the launched provider and inherits it.",
+        "Distinguish the two events the providers report — a turn that ended and an agent waiting for input — in the message text.",
+        "Exit successfully whatever happens, so a hook failure never surfaces to the user as a provider error.",
+        "Retire the `--at-reset` and `--next-ready` argument parsing and its usage string, and remove the corresponding README rows.",
+        "Keep `cdx ready` and the scheduling internals it depends on working unchanged."
+      ],
+      "scope_out": [
+        "No deletion of the quota-reset scheduling backends.",
+        "No change to `cdx ready`'s behavior or output.",
+        "No delivery channel other than the desktop notifier already present.",
+        "No message customization."
+      ],
+      "acceptance_criteria": [
+        "Given a hook payload on standard input naming a working directory, `cdx notify` raises a notification whose text contains the cdx session name and that directory's basename.",
+        "Given two sessions notifying from two different repositories, the two messages differ in both the session name and the directory name.",
+        "Given a turn-ended event and a waiting-for-input event, the two notifications are distinguishable by their text.",
+        "Given empty, truncated, or non-JSON input, `cdx notify` exits successfully without raising an error to the caller.",
+        "Given no notifier binary available on the platform, `cdx notify` exits successfully and raises nothing.",
+        "Given `cdx notify --at-reset` or `cdx notify --next-ready`, the command no longer offers that behavior, and the README no longer documents it.",
+        "Given `cdx ready`, the behavior and output are identical to before this change."
+      ]
+    },
+    {
+      "title": "Provision and revoke provider hooks in each session's home at launch",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Notifications",
+      "request_acs": [
+        "AC2",
+        "AC3",
+        "AC4",
+        "AC5",
+        "AC9"
+      ],
+      "problem": [
+        "The hook target is unreachable until each provider is told to call it, and that instruction lives in a configuration file per provider.",
+        "Writing it into the user's real home would leak cdx's behavior into sessions cdx does not run, and would be a single global switch rather than a per-session one.",
+        "Accounts created before this change must gain the behavior without the user running a migration, and a session whose notifications are turned off must lose it again."
+      ],
+      "scope_in": [
+        "Write the Claude Code hook entries and the Codex `notify` key into the session's own home directory, resolved the same way the launch environment resolves it, on the path every interactive launch and resume already passes through.",
+        "Merge into whatever the files already contain rather than overwriting them, leaving unrelated settings and user-authored hooks intact.",
+        "Make the write idempotent and recognizably cdx's own, so repeated launches change nothing and cdx can later remove exactly what it added.",
+        "Add a `--notify on|off` launch setting following the existing `--rtk` and `--logics` pattern, defaulting to on, and clearable through `cdx unset`.",
+        "When notifications are off for a session, remove the entries cdx wrote at that session's next launch, leaving everything else in place.",
+        "Treat an unwritable or malformed configuration file as a skipped provisioning step, never as a launch failure.",
+        "Document the behavior, the default, and the off switch in the README."
+      ],
+      "scope_out": [
+        "No write to any path outside the session's own home directory.",
+        "No migration command and no provisioning outside the launch path.",
+        "No global on/off switch spanning all sessions beyond what the existing bulk settings flags already give.",
+        "No management of hook entries cdx did not write."
+      ],
+      "acceptance_criteria": [
+        "Given a session launched for the first time after this change, its own home contains the hook configuration for its provider, and no file outside that home has changed.",
+        "Given the same session launched again, the configuration files are byte-identical to after the first launch.",
+        "Given a session created before this change, its next launch provisions the configuration with no separate migration step.",
+        "Given a configuration file already holding unrelated settings or user-authored hooks, those survive provisioning unchanged.",
+        "Given a new session with no notification setting, notifications are enabled.",
+        "Given `cdx set <name> --notify off` followed by a launch of that session, the entries cdx wrote are gone and any other content in the files remains.",
+        "Given a configuration file that cannot be written or cannot be parsed, the launch proceeds normally and the provider still starts.",
+        "The README states that notifications are on by default and shows the command that turns them off."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate agent completion notifications",
+    "plan": [
+      "Confirm which events each provider actually reports and what payload it passes — Claude Code's `Stop` and `Notification` hooks, Codex's `notify` key — since the message wording and the event distinction depend on what is really available rather than on what is documented.",
+      "Retire the `--at-reset`/`--next-ready` parsing and README rows first, checking that `cdx ready` and its scheduling path are untouched, so the name is free before anything is built on it.",
+      "Build `cdx notify` as the hook target over the existing `send_desktop_notification`, including the resolution of the session name from the launch environment and the swallow-everything failure behavior.",
+      "Add the idempotent provisioning and revocation into the launch path, marking cdx's own entries so they can be recognized and removed without touching user-authored ones.",
+      "Add the `--notify on|off` launch setting alongside the existing on/off settings, defaulting to on.",
+      "Verify the end-to-end case the request exists for: two sessions launched in two different repositories, each producing a notification that names itself.",
+      "Check the failure paths deliberately — no notifier binary, unreadable configuration, malformed payload — confirming none of them reaches the user as a launch or turn error.",
+      "Update the README's notification and command-reference sections, and reconcile the `cdx ready` description that currently refers to `cdx notify`.",
+      "Run the notify and CLI test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/agent_completion_notifications.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}
