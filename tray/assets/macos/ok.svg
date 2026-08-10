@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18">
+  <!-- Capacity ok: the ring nearly closed, one small gap at the right. -->
+  <path d="M 14.80 6.30 A 6.4 6.4 0 1 0 14.80 11.70"
+        fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

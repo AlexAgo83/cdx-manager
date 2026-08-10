@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18">
+  <!-- Capacity low: the same ring drained to its upper arc. -->
+  <path d="M 14.80 6.30 A 6.4 6.4 0 0 0 2.99 11.19"
+        fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

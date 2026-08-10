@@ -8,7 +8,7 @@
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-10 20:25:00
+> Indicators reviewed: 2026-08-10 20:43:18
 
 # AI Context
 - Summary: Build native tray companions for macOS and Windows plus WSL
@@ -31,7 +31,7 @@
   - Package the macOS companion as a CDX.app bundle with LSUIElement set, a stable bundle identifier, and the CDX icon, signed at build time with the self-signed identity from adr_005 rather than ad-hoc.
   - Register the Windows AppUserModelID during cdx tray install and create the per-user Start Menu shortcut that carries it plus a stub CLSID, without which a toast is silently dropped; record both so uninstall removes them, and require no administrator rights.
   - Produce the icon assets each surface actually needs, since the existing set in logics/external/icones is application artwork and only covers part of them:
-    - macOS menu bar: a monochrome template glyph, black plus alpha with no background, named with the Template suffix so AppKit inverts it per theme, at 18 px and 36 px, with one distinguishable glyph per capacity state rather than a tint.
+    - macOS menu bar: done. tray/assets/macos holds four template glyphs plus their @2x pairs, drawn as SVG on one shared circle so the set does not jitter between states. Verify any change at 18 px: a generated set with four different circle diameters and a sub-pixel stroke collapsed at that size, making ok and unknown indistinguishable.
     - macOS bundle: an .icns built from the existing 1024 px source, for Finder and the Login Items list.
     - Windows notification area: a multi-size .ico at 16, 20, 24, 32, and 48 px, in colour, legible on both a light and a dark taskbar.
     - Linux tray: colour PNGs at the usual StatusNotifierItem sizes.
