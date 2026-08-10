@@ -55,7 +55,7 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$BINARY" "$APP_DIR/Contents/MacOS/cdx-tray"
 # The menu bar glyphs are compiled into the binary; this icon is what Finder,
 # Login Items and the notification banner show for the app itself.
-cp "$CRATE_DIR/assets/macos/CDX.icns" "$APP_DIR/Contents/Resources/CDX.icns"
+cp "$CRATE_DIR/assets/icons/CDX.icns" "$APP_DIR/Contents/Resources/CDX.icns"
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

@@ -15,24 +15,64 @@ use crate::menu::{ActionId, Entry};
 /// The glyphs, compiled in. They are a few hundred bytes each and the companion
 /// must render an icon before it can report that anything is wrong, so a
 /// missing file on disk is not a failure mode worth having.
-const GLYPH_OK: &[u8] = include_bytes!("../assets/macos/CDXTemplate-ok.png");
-const GLYPH_LOW: &[u8] = include_bytes!("../assets/macos/CDXTemplate-low.png");
-const GLYPH_CRITICAL: &[u8] = include_bytes!("../assets/macos/CDXTemplate-critical.png");
-const GLYPH_UNKNOWN: &[u8] = include_bytes!("../assets/macos/CDXTemplate-unknown.png");
+const DARK_OK: &[u8] = include_bytes!("../assets/icons/CDXTemplate-ok.png");
+const DARK_LOW: &[u8] = include_bytes!("../assets/icons/CDXTemplate-low.png");
+const DARK_CRITICAL: &[u8] = include_bytes!("../assets/icons/CDXTemplate-critical.png");
+const DARK_UNKNOWN: &[u8] = include_bytes!("../assets/icons/CDXTemplate-unknown.png");
+const LIGHT_OK: &[u8] = include_bytes!("../assets/icons/CDXLight-ok.png");
+const LIGHT_LOW: &[u8] = include_bytes!("../assets/icons/CDXLight-low.png");
+const LIGHT_CRITICAL: &[u8] = include_bytes!("../assets/icons/CDXLight-critical.png");
+const LIGHT_UNKNOWN: &[u8] = include_bytes!("../assets/icons/CDXLight-unknown.png");
 
-pub fn glyph_bytes(state: &str) -> &'static [u8] {
-    match state {
-        "ok" => GLYPH_OK,
-        "low" => GLYPH_LOW,
-        "critical" => GLYPH_CRITICAL,
+/// `light` asks for the white glyph, the one that reads on a dark background.
+pub fn glyph_bytes(state: &str, light: bool) -> &'static [u8] {
+    match (state, light) {
+        ("ok", false) => DARK_OK,
+        ("low", false) => DARK_LOW,
+        ("critical", false) => DARK_CRITICAL,
+        ("ok", true) => LIGHT_OK,
+        ("low", true) => LIGHT_LOW,
+        ("critical", true) => LIGHT_CRITICAL,
         // Anything unrecognised, including a state a newer CDX invented, shows
         // the unknown glyph rather than no icon at all.
-        _ => GLYPH_UNKNOWN,
+        (_, true) => LIGHT_UNKNOWN,
+        (_, false) => DARK_UNKNOWN,
     }
 }
 
+/// Whether the tray needs the white glyph.
+///
+/// macOS never does: it takes the black one as a template image and inverts it
+/// per theme itself. Windows has no such concept — `with_icon_as_template` is a
+/// macOS-only flag — so a black glyph on a dark taskbar is simply invisible,
+/// which is what a real Windows host showed before this existed. There the
+/// colour has to be chosen from the taskbar theme.
+#[cfg(target_os = "windows")]
+pub fn wants_light_glyph() -> bool {
+    // 0 means a dark taskbar. Absent or unreadable, assume dark: Windows 11
+    // ships dark by default, and a white glyph on a light taskbar is faint
+    // while a black one on a dark taskbar is gone entirely.
+    match std::process::Command::new("reg")
+        .args([
+            "query",
+            r"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+            "/v",
+            "SystemUsesLightTheme",
+        ])
+        .output()
+    {
+        Ok(out) => !String::from_utf8_lossy(&out.stdout).contains("0x1"),
+        Err(_) => true,
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn wants_light_glyph() -> bool {
+    false
+}
+
 fn icon_for(state: &str) -> Result<Icon, String> {
-    let bytes = glyph_bytes(state);
+    let bytes = glyph_bytes(state, wants_light_glyph());
     let decoded = image_from_png(bytes)?;
     Icon::from_rgba(decoded.0, decoded.1, decoded.2).map_err(|e| e.to_string())
 }
@@ -108,9 +148,9 @@ pub fn build_tray(
     let tray = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
         .with_icon(icon_for(state)?)
-        // The template flag is what makes macOS invert the glyph for the
-        // current menu bar theme. Without it the icon is black on black.
-        .with_icon_as_template(true)
+        // macOS-only: it is what makes macOS invert the black glyph per theme.
+        // Windows ignores it, which is why Windows picks its colour instead.
+        .with_icon_as_template(!wants_light_glyph())
         .with_tooltip("CDX")
         .build()
         .map_err(|e| e.to_string())?;
@@ -124,17 +164,27 @@ mod tests {
     #[test]
     fn every_state_has_a_glyph_and_unknown_is_the_fallback() {
         for state in ["ok", "low", "critical", "unknown"] {
-            assert!(!glyph_bytes(state).is_empty(), "{state}");
+            assert!(!glyph_bytes(state, false).is_empty(), "{state}");
+            assert!(!glyph_bytes(state, true).is_empty(), "{state} light");
         }
         // A state invented by a newer CDX must still render something.
-        assert_eq!(glyph_bytes("teleporting"), glyph_bytes("unknown"));
-        assert_ne!(glyph_bytes("ok"), glyph_bytes("critical"));
+        assert_eq!(
+            glyph_bytes("teleporting", false),
+            glyph_bytes("unknown", false)
+        );
+        assert_eq!(
+            glyph_bytes("teleporting", true),
+            glyph_bytes("unknown", true)
+        );
+        assert_ne!(glyph_bytes("ok", false), glyph_bytes("critical", false));
+        // The two colourways must differ, or Windows would show the invisible one.
+        assert_ne!(glyph_bytes("ok", false), glyph_bytes("ok", true));
     }
 
     #[test]
     fn the_glyphs_decode_at_their_intended_size() {
         for state in ["ok", "low", "critical", "unknown"] {
-            let (rgba, w, h) = image_from_png(glyph_bytes(state)).expect(state);
+            let (rgba, w, h) = image_from_png(glyph_bytes(state, false)).expect(state);
             assert_eq!((w, h), (18, 18), "{state}");
             assert_eq!(rgba.len(), (w * h * 4) as usize, "{state}");
         }
@@ -144,7 +194,7 @@ mod tests {
     fn the_glyphs_are_black_on_transparency() {
         // A template image must be black plus alpha. A stray colour or an
         // opaque background would defeat the menu bar's theme inversion.
-        let (rgba, _, _) = image_from_png(glyph_bytes("critical")).unwrap();
+        let (rgba, _, _) = image_from_png(glyph_bytes("critical", false)).unwrap();
         let mut opaque_pixels = 0;
         for px in rgba.chunks_exact(4) {
             if px[3] > 0 {

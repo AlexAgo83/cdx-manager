@@ -8,7 +8,7 @@
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-10 21:06:40
+> Indicators reviewed: 2026-08-10 21:36:00
 
 # AI Context
 - Summary: Build native tray companions for macOS and Windows plus WSL
@@ -29,6 +29,7 @@
   - Honour the adr_005 poll budget: at most every 30 seconds natively and 60 seconds across the WSL boundary, no polling when no session is enabled, and a back-off after repeated read failures so the WSL VM is not kept awake.
   - Implement Windows discovery/configuration for native CDX and one configured WSL target using wsl.exe, with clear errors for missing interop or executable.
   - Package the macOS companion as a CDX.app bundle with LSUIElement set, a stable bundle identifier, and the CDX icon, signed at build time with the self-signed identity from adr_005 rather than ad-hoc.
+  - Promote the Windows notification-area icon on first run by setting IsPromoted under HKCU Control Panel NotifyIconSettings, because Windows 11 hides every new tray icon in the overflow flyout by default and an invisible status icon defeats the feature. Per-user, no admin, and the user can still unpin it.
   - Register the Windows AppUserModelID during cdx tray install and create the per-user Start Menu shortcut that carries it plus a stub CLSID, without which a toast is silently dropped; record both so uninstall removes them, and require no administrator rights.
   - Produce the icon assets each surface actually needs, since the existing set in logics/external/icones is application artwork and only covers part of them:
     - macOS menu bar: done. tray/assets/macos holds four template glyphs plus their @2x pairs, drawn as SVG on one shared circle so the set does not jitter between states. Verify any change at 18 px: a generated set with four different circle diameters and a sub-pixel stroke collapsed at that size, making ok and unknown indistinguishable.
@@ -46,7 +47,7 @@
 - AC1: macOS and Windows artifacts display the same core usage states and session menu from the shared local status contract.
 - AC2: A Windows host can obtain status from a configured WSL CDX command without requiring an X server, and failures identify the unavailable boundary.
 - AC3: The closed icon carries no account, session, or quota detail, and the open menu lists each enabled session with provider, remaining-usage gauge, freshness or reset when known, refresh, a terminal action, and quit.
-- AC4: Each surface gets the artwork it needs and renders correctly at its required sizes: a monochrome template glyph in the macOS menu bar that stays legible under both themes without a per-theme asset, a multi-size .ico on Windows legible on a light and a dark taskbar, and colour artwork on Linux. Capacity state is distinguishable by glyph, so the macOS icon carries its meaning without any tint.
+- AC4: Each surface gets the artwork it needs and renders correctly at its required sizes: a monochrome template glyph in the macOS menu bar that stays legible under both themes without a per-theme asset, a glyph whose colour Windows chooses from the taskbar theme because Windows has no template-image concept, a multi-size .ico on Windows legible on a light and a dark taskbar, and colour artwork on Linux. Capacity state is distinguishable by glyph, so the macOS icon carries its meaning without any tint.
 - AC5b: Version drift is named in both directions: a snapshot newer than the companion renders with an update hint, and a CDX too old to expose cdx tray produces a "update CDX" message rather than a raw error, both verified against a real older CDX.
 - AC5: Polling stays inside the adr_005 budget, stops when no session is enabled, and backs off after repeated failures, verified on the Windows-to-WSL path.
 - AC6: Targeted tests and documented manual smoke checks pass on the supported host platforms.

@@ -1,6 +1,12 @@
-# macOS menu bar glyphs
+# Tray glyphs
 
-Four template images, one per capacity state, plus their `@2x` retina pairs.
+Four glyphs, one per capacity state, in two colours, plus their `@2x` pairs.
+
+`CDXTemplate-*` is black; `CDXLight-*` is white. Both come from the same SVGs.
+macOS uses the black pair as a *template image* and inverts it itself. Windows
+does not: `with_icon_as_template` is a macOS concept, and a black glyph on a dark
+taskbar is invisible, which is exactly what shipped before this was measured on
+a real Windows host. Windows therefore picks the colour from the taskbar theme.
 
 `adr_005` settles why these are monochrome: a macOS menu bar icon is a *template
 image*, black plus alpha with no background, and the system inverts it for the
@@ -27,6 +33,9 @@ build needs no rasterizer. To change a glyph, edit its SVG and re-run:
 for s in ok low critical unknown; do
   rsvg-convert -w 18 -h 18 $s.svg -o CDXTemplate-$s.png
   rsvg-convert -w 36 -h 36 $s.svg -o CDXTemplate-$s@2x.png
+  sed 's/#000/#fff/g' $s.svg > /tmp/w.svg
+  rsvg-convert -w 18 -h 18 /tmp/w.svg -o CDXLight-$s.png
+  rsvg-convert -w 36 -h 36 /tmp/w.svg -o CDXLight-$s@2x.png
 done
 ```
 
