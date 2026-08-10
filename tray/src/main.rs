@@ -7,6 +7,7 @@
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod backend;
+mod events;
 mod instance;
 #[cfg(target_os = "linux")]
 mod linux;
@@ -38,11 +39,19 @@ fn render(entries: &[Entry]) {
 
 /// One snapshot, rendered to stdout. Exits non-zero when CDX could not be
 /// reached, so a script can tell "nothing known" from "all fine".
+///
+/// It shows pending alerts but neither heartbeats nor acknowledges them, and
+/// the asymmetry is deliberate. Heartbeating would tell `cdx notify` a tray is
+/// listening when this process is about to exit, so the next alert would be
+/// spooled instead of shown. Acknowledging would consume alerts nothing
+/// durable ever displayed. Reading them is what keeps this a faithful view of
+/// what the running tray would draw.
 fn print_once(transport: &Transport) -> i32 {
+    let alerts = events::pending(transport);
     match fetch(transport) {
         Ok(snap) => {
             let tick = Tick::start().succeeded(snap.session_count);
-            render(&menu::build(&snap));
+            render(&menu::build_with_alerts(&snap, &alerts));
             match tick.next_delay(transport.is_wsl()) {
                 Some(delay) => println!("next poll in {}s", delay.as_secs()),
                 None => println!("no enabled session: polling stopped"),

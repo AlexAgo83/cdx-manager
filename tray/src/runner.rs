@@ -6,6 +6,7 @@
 
 use std::time::Duration;
 
+use crate::events::{self, Event};
 use crate::menu;
 use crate::schedule::Tick;
 use crate::snapshot::{fetch, Transport};
@@ -17,6 +18,11 @@ pub struct Render {
     /// `None` when there is no enabled session and nothing to ask about.
     pub delay: Option<Duration>,
     pub tick: Tick,
+    /// Alerts collected this poll, already acknowledged. The backend shows
+    /// these once; `history` is what stays in the menu.
+    pub fresh: Vec<Event>,
+    /// Recent alerts, oldest first, bounded.
+    pub history: Vec<Event>,
 }
 
 impl Render {
@@ -26,19 +32,31 @@ impl Render {
     pub const IDLE_WAKEUP: Duration = Duration::from_secs(3600);
 
     pub fn first(transport: &Transport) -> Self {
-        Self::next(transport, Tick::start())
+        Self::next(transport, Tick::start(), &[])
     }
 
-    pub fn next(transport: &Transport, tick: Tick) -> Self {
+    /// One poll: say we are alive, collect what CDX held for us, then draw.
+    ///
+    /// The heartbeat goes first. It is what tells `cdx notify` a tray owns the
+    /// alerts, so a companion that has not beaten yet must not be handed one it
+    /// could then fail to collect — CDX delivering it directly is the safe way
+    /// round, and the only cost is one poll of latency at startup.
+    pub fn next(transport: &Transport, tick: Tick, previous: &[Event]) -> Self {
+        events::heartbeat(transport);
+        let fresh = events::pending(transport);
+        let history = merge_history(previous, &fresh);
+
         match fetch(transport) {
             Ok(snap) => {
                 let tick = tick.succeeded(snap.session_count);
                 Render {
                     icon_state: snap.icon_state.clone(),
                     tooltip: snap.tooltip.clone(),
-                    entries: menu::build(&snap),
+                    entries: menu::build_with_alerts(&snap, &history),
                     delay: tick.next_delay(transport.is_wsl()),
                     tick,
+                    fresh,
+                    history,
                 }
             }
             Err(reason) => {
@@ -51,8 +69,66 @@ impl Render {
                     entries: menu::build_unavailable(&reason),
                     delay: tick.next_delay(transport.is_wsl()),
                     tick,
+                    fresh,
+                    history,
                 }
             }
         }
+    }
+}
+
+/// The ids drawn this poll, ready to acknowledge.
+pub fn fresh_ids(state: &Render) -> Vec<String> {
+    state.fresh.iter().map(|event| event.id.clone()).collect()
+}
+
+/// Keep the newest alerts, without letting one reappear.
+///
+/// CDX only hands over what it has not seen acknowledged, but a companion that
+/// died between drawing and acknowledging will be handed the same alert again.
+/// De-duplicating by id here means the menu never shows one twice even then.
+fn merge_history(previous: &[Event], fresh: &[Event]) -> Vec<Event> {
+    let mut history: Vec<Event> = previous.to_vec();
+    for event in fresh {
+        if !history.iter().any(|seen| seen.id == event.id) {
+            history.push(event.clone());
+        }
+    }
+    let overflow = history.len().saturating_sub(events::HISTORY_LIMIT);
+    history.drain(..overflow);
+    history
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn event(id: &str) -> Event {
+        Event {
+            id: id.into(),
+            kind: "complete".into(),
+            title: format!("✓ {id}"),
+            message: "m".into(),
+        }
+    }
+
+    #[test]
+    fn an_alert_redelivered_after_a_crash_is_not_shown_twice() {
+        let history = merge_history(&[event("a")], &[event("a"), event("b")]);
+        assert_eq!(
+            history.iter().map(|e| e.id.as_str()).collect::<Vec<_>>(),
+            vec!["a", "b"]
+        );
+    }
+
+    #[test]
+    fn the_history_is_bounded_and_keeps_the_newest() {
+        let previous: Vec<Event> = (0..events::HISTORY_LIMIT)
+            .map(|i| event(&i.to_string()))
+            .collect();
+        let history = merge_history(&previous, &[event("new")]);
+        assert_eq!(history.len(), events::HISTORY_LIMIT);
+        assert_eq!(history.last().unwrap().id, "new");
+        assert!(!history.iter().any(|e| e.id == "0"));
     }
 }

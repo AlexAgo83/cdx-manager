@@ -59,7 +59,14 @@ fn session_line(session: &Session) -> String {
     )
 }
 
-pub fn build(snapshot: &Snapshot) -> Vec<Entry> {
+/// The menu, with a bounded list of recent agent alerts above the actions.
+///
+/// Alerts sit below the sessions and above the actions on purpose: quota is
+/// what the user opened the menu for, and the actions have to stay in the same
+/// place whether or not anything happened. Pass an empty slice for no alerts —
+/// there is deliberately no second entry point, so no caller can render a menu
+/// that silently omits them.
+pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -> Vec<Entry> {
     let mut entries = Vec::new();
     if snapshot.sessions.is_empty() {
         entries.push(Entry::Info("No enabled CDX sessions".into()));
@@ -71,6 +78,13 @@ pub fn build(snapshot: &Snapshot) -> Vec<Entry> {
         entries.push(Entry::Separator);
         for session in &snapshot.sessions {
             entries.push(Entry::Info(session_line(session)));
+        }
+    }
+    if !alerts.is_empty() {
+        entries.push(Entry::Separator);
+        entries.push(Entry::Info("Recent alerts".into()));
+        for line in crate::events::history_lines(alerts) {
+            entries.push(Entry::Info(line));
         }
     }
     if let Some(hint) = &snapshot.update_hint {
@@ -173,13 +187,16 @@ mod tests {
 
     #[test]
     fn every_session_gets_a_line_with_its_figure_and_its_trust() {
-        let entries = build(&snapshot(
-            vec![
-                session("work", Some(18.0), "fresh"),
-                session("side", None, "unknown"),
-            ],
-            true,
-        ));
+        let entries = build_with_alerts(
+            &snapshot(
+                vec![
+                    session("work", Some(18.0), "fresh"),
+                    session("side", None, "unknown"),
+                ],
+                true,
+            ),
+            &[],
+        );
         let text = labels(&entries);
         assert!(text.contains("work · codex · 18% left"), "{text}");
         assert!(
@@ -190,10 +207,10 @@ mod tests {
 
     #[test]
     fn a_running_session_says_refresh_cannot_help() {
-        let entries = build(&snapshot(
-            vec![session("work", Some(40.0), "auth_locked")],
-            false,
-        ));
+        let entries = build_with_alerts(
+            &snapshot(vec![session("work", Some(40.0), "auth_locked")], false),
+            &[],
+        );
         let text = labels(&entries);
         assert!(text.contains("running, cannot refresh"), "{text}");
         // The action stays present so it is not hunted for, but disabled so it
@@ -214,7 +231,7 @@ mod tests {
 
     #[test]
     fn no_sessions_is_stated_rather_than_shown_as_an_empty_menu() {
-        let entries = build(&snapshot(vec![], true));
+        let entries = build_with_alerts(&snapshot(vec![], true), &[]);
         assert!(labels(&entries).contains("No enabled CDX sessions"));
     }
 
@@ -222,7 +239,7 @@ mod tests {
     fn an_update_hint_reaches_the_menu() {
         let mut snap = snapshot(vec![session("work", Some(50.0), "fresh")], true);
         snap.update_hint = Some("Update the tray companion.".into());
-        assert!(labels(&build(&snap)).contains("Update the tray companion."));
+        assert!(labels(&build_with_alerts(&snap, &[])).contains("Update the tray companion."));
     }
 
     #[test]
@@ -238,11 +255,11 @@ mod tests {
                 )
             })
         };
-        assert!(quits(build(&snapshot(vec![], true))));
-        assert!(quits(build(&snapshot(
-            vec![session("w", Some(1.0), "fresh")],
-            false
-        ))));
+        assert!(quits(build_with_alerts(&snapshot(vec![], true), &[])));
+        assert!(quits(build_with_alerts(
+            &snapshot(vec![session("w", Some(1.0), "fresh")], false),
+            &[]
+        )));
         assert!(quits(build_unavailable(&Unavailable::CdxTooOld)));
     }
 

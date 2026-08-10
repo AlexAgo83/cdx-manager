@@ -61,11 +61,21 @@ impl Transport {
     }
 
     fn command(&self) -> Command {
+        self.command_for(&["tray", "status", "--json"])
+    }
+
+    /// Any `cdx` subcommand, over whichever transport this companion uses.
+    ///
+    /// Events travel the same way status does, on purpose: on a Windows host
+    /// serving CDX from WSL the spool is in the Linux filesystem, so anything
+    /// that read it directly would need a path translation or a share. One
+    /// transport, one set of assumptions.
+    pub fn command_for(&self, args: &[&str]) -> Command {
         let cdx = Self::cdx_command();
         match self {
             Transport::Native => {
                 let mut cmd = Command::new(cdx);
-                cmd.args(["tray", "status", "--json"]);
+                cmd.args(args);
                 cmd
             }
             Transport::Wsl { distro } => {
@@ -73,7 +83,8 @@ impl Transport {
                 if let Some(name) = distro {
                     cmd.args(["-d", name]);
                 }
-                cmd.args(["--", &cdx, "tray", "status", "--json"]);
+                cmd.args(["--", &cdx]);
+                cmd.args(args);
                 cmd
             }
         }

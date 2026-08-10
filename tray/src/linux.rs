@@ -12,8 +12,9 @@
 
 use std::time::{Duration, Instant};
 
+use crate::events;
 use crate::menu::{ActionId, Entry};
-use crate::runner::Render;
+use crate::runner::{fresh_ids, Render};
 use crate::snapshot::Transport;
 
 const PUMP: Duration = Duration::from_millis(200);
@@ -130,6 +131,10 @@ pub fn run(transport: Transport) -> Result<(), String> {
         pending: pending.clone(),
     })
     .map_err(|error| format!("could not register the tray item: {error}"))?;
+    // The first draw happens before the loop, so the alerts it showed have to
+    // be acknowledged here too. Leaving it to the redraw block would hold them
+    // unacknowledged for a whole poll period.
+    events::acknowledge(&transport, &fresh_ids(&state));
 
     let mut due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
     loop {
@@ -139,14 +144,14 @@ pub fn run(transport: Transport) -> Result<(), String> {
         match clicked {
             Some(ActionId::Quit) => return Ok(()),
             Some(ActionId::Refresh) => {
-                state = Render::next(&transport, state.tick);
+                state = Render::next(&transport, state.tick, &state.history);
                 redraw = true;
             }
             Some(ActionId::OpenTerminal) => open_terminal(),
             None => {}
         }
         if Instant::now() >= due {
-            state = Render::next(&transport, state.tick);
+            state = Render::next(&transport, state.tick, &state.history);
             redraw = true;
         }
         if redraw {
@@ -158,6 +163,10 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 tray.tooltip = tooltip.clone();
                 tray.entries = entries.clone();
             });
+            // Acknowledged only after the alert has been drawn. A companion
+            // that dies in between is handed it again next poll and shows it
+            // twice at worst; acknowledging first would lose it outright.
+            events::acknowledge(&transport, &fresh_ids(&state));
             due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
         }
     }

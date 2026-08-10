@@ -2,9 +2,9 @@
 > From version: 0.17.1
 > Schema version: 1.0
 > Status: In progress
-> Understanding: 88%
-> Confidence: 85%
-> Progress: 50%
+> Understanding: 90%
+> Confidence: 88%
+> Progress: 70%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -46,7 +46,13 @@
 - Acknowledgement is idempotent and survives a tray that crashed between showing an event and acknowledging it. The spool is bounded at 32 and keeps the newest: a tray that was down for an hour must not flood the user on return, and an old alert is worth less than a new one.
 - The companion reads and acknowledges through `cdx tray events`, `cdx tray ack` and `cdx tray heartbeat` rather than by opening the spool, and that is what satisfies AC4 rather than a note claiming it. On a Windows host serving CDX from WSL the spool lives in the Linux filesystem while the tray runs on Windows: going through `cdx` means the existing `wsl.exe` transport carries events too, with no path translation, no share, no socket, and no assumption that either side can see the other's disk.
 - Exercised end to end from the CLI: heartbeat, a hook publishing through `cdx notify`, the event listed, acknowledged, and the list empty again.
-- Still open in this slice: the tray's own consumption loop, its icon hint and menu history, the native notification emission with its macOS authorization handling (AC7), the WSL bridge reads, and the backoff behaviour (AC6).
+- The companion's consumption loop is in place: each poll it heartbeats, collects, draws, then acknowledges. AC3's menu state is a bounded "Recent alerts" section — newest first, eight kept, `!` for attention and `·` for completion — placed below the sessions and above the actions so quota stays what the menu opens onto and the actions never move.
+- Order carries the guarantee. Acknowledgement happens *after* the draw, so a companion that dies in between is handed the alert again and shows it twice at worst; acknowledging first would lose it outright. The heartbeat goes first, before collecting, so a companion that has not yet said it is alive is never handed an alert it might then fail to collect.
+- Two defects found by running it rather than by reading it. The alerts never appeared under `--print`, because that path called `menu::build` directly and bypassed the loop — a diagnostic surface that lied about what the tray would draw. And the first draw happens *before* the loop, so its alerts stayed unacknowledged for a whole poll period; a companion quit inside that window had shown an alert CDX still considered undelivered.
+- `--print` shows alerts but neither heartbeats nor acknowledges, and the asymmetry is deliberate: heartbeating would tell `cdx notify` a tray is listening when the process is about to exit, and acknowledging would consume alerts nothing durable ever displayed.
+- `menu::build` was deleted rather than kept as a convenience wrapper. One entry point means no caller can render a menu that silently omits alerts.
+- Verified end to end on macOS with the signed bundle: a hook publishes, `--print` shows the alert and leaves it pending, and the running companion writes its heartbeat, draws, and takes the spool to empty.
+- Still open in this slice: the short-lived icon hint distinct from the menu history, the native notification emission with its macOS authorization handling (AC7), the backoff after repeated read failures (AC6), and the smoke run over the WSL bridge.
 
 # Acceptance criteria
 - AC1: A fresh active tray receives one sanitized event and becomes the sole visible notification owner; an absent or stale tray leaves the existing direct path intact.
