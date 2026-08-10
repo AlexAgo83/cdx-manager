@@ -1,10 +1,10 @@
 ## item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications - Add opt-in, bounded assistant-response previews to agent notifications
 > From version: 0.17.0
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 70%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -65,3 +65,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_043_orchestrate_privacy_aware_agent_notification_previews`
+
+# Notes
+- Task `task_043_orchestrate_privacy_aware_agent_notification_previews` was finished via `logics-manager flow finish task` on 2026-08-10.

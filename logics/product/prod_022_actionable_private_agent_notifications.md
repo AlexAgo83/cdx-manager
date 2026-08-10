@@ -1,6 +1,6 @@
 ## prod_022_actionable_private_agent_notifications - Actionable, private agent notifications
 > Date: 2026-08-10
-> Status: Proposed
+> Status: Settled
 > Related request: `req_032_show_a_privacy_aware_preview_in_agent_completion_notifications`
 > Related backlog: `item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications`
 > Related task: `task_043_orchestrate_privacy_aware_agent_notification_previews`
@@ -9,6 +9,12 @@
 
 # Overview
 Let an explicitly opted-in session include a short final-response preview in its completion notification, while preserving private-by-default lock-screen behavior and useful attention signals.
+
+```mermaid
+flowchart LR
+    A[Opt-in preview] --> B[Completion notification]
+    B --> C[User decision]
+```
 
 # Goals
 - Let the user assess a completed agent turn without immediately reopening its terminal.
@@ -35,5 +41,5 @@ Let an explicitly opted-in session include a short final-response preview in its
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_032_show_a_privacy_aware_preview_in_agent_completion_notifications`
+- Product back-reference: `item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications`
 - Task back-reference: `task_043_orchestrate_privacy_aware_agent_notification_previews`

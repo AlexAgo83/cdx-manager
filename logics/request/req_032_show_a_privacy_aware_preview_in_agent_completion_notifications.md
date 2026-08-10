@@ -1,7 +1,7 @@
 ## req_032_show_a_privacy_aware_preview_in_agent_completion_notifications - Show a privacy-aware preview in agent completion notifications
 > From version: 0.17.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
