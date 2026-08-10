@@ -4,6 +4,7 @@ import unittest
 from src.config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
 from src.errors import CdxError
 from src.provider_runtime import (
+    TERMINAL_TITLE_SEPARATOR,
     _claude_cli_model,
     _codex_fast_config_args,
     _launch_config_args,
@@ -11,6 +12,10 @@ from src.provider_runtime import (
     _legacy_fast_low_effort,
     _normalize_reasoning_effort,
     _redact_sensitive_args,
+    _sanitize_terminal_title_component,
+    _start_terminal_title,
+    _TerminalTitleKeeper,
+    format_terminal_title,
 )
 
 
@@ -154,6 +159,146 @@ class TerminateChildTreeTests(unittest.TestCase):
         else:
             os.killpg(pgid, 9)
             self.fail("process group still has live members after termination")
+
+
+class FakeTitleStream:
+    def __init__(self, tty=True):
+        self.tty = tty
+        self.writes = []
+        self.flushes = 0
+
+    def isatty(self):
+        return self.tty
+
+    def write(self, value):
+        self.writes.append(value)
+        return len(value)
+
+    def flush(self):
+        self.flushes += 1
+
+
+class TerminalTitleFormatTests(unittest.TestCase):
+    def test_format_is_session_then_folder(self):
+        self.assertEqual(
+            format_terminal_title("main", "/home/dev/cdx-manager"),
+            f"main{TERMINAL_TITLE_SEPARATOR}cdx-manager",
+        )
+
+    def test_folder_is_basename_of_effective_cwd(self):
+        self.assertEqual(
+            format_terminal_title("main", os.getcwd()),
+            f"main{TERMINAL_TITLE_SEPARATOR}{os.path.basename(os.getcwd())}",
+        )
+        self.assertEqual(format_terminal_title("main"), format_terminal_title("main", os.getcwd()))
+
+    def test_root_directory_keeps_the_path_as_folder(self):
+        root = os.path.abspath("/")
+        self.assertEqual(format_terminal_title("main", root), f"main{TERMINAL_TITLE_SEPARATOR}{root}")
+
+    def test_missing_part_does_not_leave_an_empty_half(self):
+        self.assertEqual(format_terminal_title("", "/home/dev/repo"), "repo")
+
+    def test_control_characters_are_stripped(self):
+        title = format_terminal_title("ma\x1b]0;evil\x07in\nname", "/home/dev/re\x9cpo")
+        self.assertEqual(title, f"ma]0;evilinname{TERMINAL_TITLE_SEPARATOR}repo")
+        for forbidden in ("\x1b", "\x07", "\n", "\x9c", "\x00"):
+            self.assertNotIn(forbidden, title)
+
+    def test_sanitizer_handles_missing_values(self):
+        self.assertEqual(_sanitize_terminal_title_component(None), "")
+        self.assertEqual(_sanitize_terminal_title_component("  spaced  "), "spaced")
+
+
+class TerminalTitleKeeperTests(unittest.TestCase):
+    def test_start_writes_the_osc_sequence_once(self):
+        stream = FakeTitleStream()
+        keeper = _TerminalTitleKeeper("main — repo", stream, interval=0).start()
+        try:
+            self.assertEqual(stream.writes, ["\033]0;main — repo\007"])
+            self.assertEqual(stream.flushes, 1)
+        finally:
+            keeper.stop()
+
+    def test_title_is_reasserted_while_the_provider_runs(self):
+        import time
+
+        stream = FakeTitleStream()
+        keeper = _TerminalTitleKeeper("main — repo", stream, interval=0.01).start()
+        try:
+            deadline = time.time() + 2
+            while len(stream.writes) < 3 and time.time() < deadline:
+                time.sleep(0.01)
+            self.assertGreaterEqual(len(stream.writes), 3)
+        finally:
+            keeper.stop()
+        written = len(stream.writes)
+        time.sleep(0.05)
+        self.assertEqual(len(stream.writes), written)
+
+    def test_unwritable_stream_never_raises(self):
+        class BrokenStream(FakeTitleStream):
+            def write(self, value):
+                raise ValueError("closed")
+
+        keeper = _TerminalTitleKeeper("main — repo", BrokenStream(), interval=0.01).start()
+        keeper.stop()
+
+
+class StartTerminalTitleTests(unittest.TestCase):
+    def session(self, provider=PROVIDER_CLAUDE):
+        return {"name": "main", "provider": provider}
+
+    def test_launch_and_resume_on_a_tty_hold_the_title(self):
+        for action in ("launch", "resume"):
+            stream = FakeTitleStream()
+            keeper = _start_terminal_title(self.session(), action, cwd="/home/dev/repo", stream=stream)
+            self.assertIsNotNone(keeper)
+            keeper.stop()
+            self.assertEqual(stream.writes, [f"\033]0;main{TERMINAL_TITLE_SEPARATOR}repo\007"])
+
+    def test_every_supported_provider_uses_the_same_runtime_path(self):
+        for provider in (PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_ANTIGRAVITY):
+            stream = FakeTitleStream()
+            keeper = _start_terminal_title(
+                self.session(provider), "launch", cwd="/home/dev/repo", stream=stream
+            )
+            self.assertIsNotNone(keeper, provider)
+            keeper.stop()
+            self.assertEqual(stream.writes, [f"\033]0;main{TERMINAL_TITLE_SEPARATOR}repo\007"])
+
+    def test_non_tty_stream_writes_nothing(self):
+        stream = FakeTitleStream(tty=False)
+        self.assertIsNone(_start_terminal_title(self.session(), "launch", cwd="/home/dev/repo", stream=stream))
+        self.assertEqual(stream.writes, [])
+
+    def test_stream_without_isatty_writes_nothing(self):
+        class Captured:
+            def __init__(self):
+                self.writes = []
+
+            def write(self, value):
+                self.writes.append(value)
+
+        stream = Captured()
+        self.assertIsNone(_start_terminal_title(self.session(), "launch", stream=stream))
+        self.assertEqual(stream.writes, [])
+
+    def test_disabled_json_run_writes_nothing(self):
+        stream = FakeTitleStream()
+        self.assertIsNone(
+            _start_terminal_title(self.session(), "launch", stream=stream, enabled=False)
+        )
+        self.assertEqual(stream.writes, [])
+
+    def test_auth_actions_and_ollama_are_untouched(self):
+        stream = FakeTitleStream()
+        self.assertIsNone(_start_terminal_title(self.session(), "login", stream=stream))
+        self.assertIsNone(_start_terminal_title(self.session(), "setup-token", stream=stream))
+        self.assertIsNone(
+            _start_terminal_title(self.session(PROVIDER_OLLAMA), "launch", stream=stream)
+        )
+        self.assertEqual(stream.writes, [])
 
 
 if __name__ == "__main__":

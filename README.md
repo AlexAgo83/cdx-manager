@@ -1,6 +1,6 @@
 # CDX Manager
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.16.0-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.17.0-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
 **Stop guessing which AI account still has quota.** `cdx` tracks the rate-limit window of every Codex and Claude account you own, tells you which one is usable right now, and launches it with isolated auth — in one command.
 
@@ -420,6 +420,12 @@ cdx model provider:ollama default
 ```
 
 `--model` maps to Codex `--model`, Claude `--model`, and Ollama `ollama run <model>`. `--power` maps to Codex `model_reasoning_effort` and Claude `--effort`; supported values are `minimal`, `low`, `medium`, `high`, and `xhigh`. `--permission` maps to provider-native permission flags. Codex Fast mode is separate from reasoning effort: `--fast on` opts a Codex session into the Codex Fast service tier, while new sessions, `--fast off`, and default launches force the non-Fast `flex` tier. Use `--power low` when you want low reasoning effort without enabling Codex Fast credits. Existing legacy sessions that stored `fast=on` before this split continue to behave as low effort unless the user explicitly sets `--fast on` again. `--priority` is a 0..100 selector preference used as a tie-breaker after readiness and availability. `--rtk on` injects a launch instruction that encourages assistants to use RTK (`rtk <command>`) for noisy terminal commands when RTK is available, while keeping raw commands for exact output. Logics guidance is auto-enabled when `logics-manager` is available; use `--logics off` to disable that guidance for a session, or `--logics on` to pin it explicitly.
+
+### Terminal Titles
+
+Interactive launches and resumes set the terminal window title to `session — folder`, where `folder` is the basename of the launch directory - for example `work — cdx-manager`. The convention is identical for Claude, Codex, and Antigravity: it comes from the shared launch runtime, not from provider flags, and cdx keeps re-asserting it so a provider TUI cannot take the title back mid-session.
+
+The title is only written when stdout is a terminal. Nothing is emitted for `--json` launches, redirected or piped output, `cdx run` and other headless runs, login flows, or Ollama sessions. Session names and directories are stripped of escape and control characters before the title is emitted, and cdx does not restore the previous title when the session ends.
 
 ### Launch History
 

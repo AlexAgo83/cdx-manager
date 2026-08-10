@@ -1,0 +1,341 @@
+{
+  "budgets": {
+    "max_docs": 24,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_031_unifier_les_titres_de_terminaux_des_sessions_interactives item_075_imposer_le_titre_session_dossier_aux_tui_interactifs task_042_implementer_les_titres_de_terminal_unifies --mode full --profile deep --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_075_imposer_le_titre_session_dossier_aux_tui_interactifs"
+        ],
+        "prod": [
+          "prod_021_titres_de_terminal_coherents_pour_les_sessions_cdx"
+        ],
+        "req": [
+          "req_031_unifier_les_titres_de_terminaux_des_sessions_interactives"
+        ],
+        "task": [
+          "task_042_implementer_les_titres_de_terminal_unifies"
+        ]
+      },
+      "path": "logics/product/prod_021_titres_de_terminal_coherents_pour_les_sessions_cdx.md",
+      "ref": "prod_021_titres_de_terminal_coherents_pour_les_sessions_cdx",
+      "sections": {
+        "Goals": [
+          "- Fournir une convention visible et identique pour Claude, Codex et Antigravity.",
+          "- Pr\u00e9server les commandes et identit\u00e9s natives des fournisseurs.",
+          "- N'\u00e9mettre aucune s\u00e9quence de titre lorsque la sortie n'est pas un terminal."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "cdx conserve le titre session -- dossier pendant chaque session interactive prise en charge.",
+          "```mermaid",
+          "flowchart LR",
+          "  Cdx[cdx launch or resume] --> Runtime[Shared interactive runtime]",
+          "  Runtime --> Claude[Claude]",
+          "  Runtime --> Codex[Codex]"
+        ],
+        "References": [
+          "- Product back-reference: `req_031_unifier_les_titres_de_terminaux_des_sessions_interactives`",
+          "- Task back-reference: `task_042_implementer_les_titres_de_terminal_unifies`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Titres de terminal coh\u00e9rents pour les sessions cdx"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, unifier les titres de terminaux des sessions interactives, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Unifier les titres de terminaux des sessions interactives",
+        "use when": "You need to implement or review the scaffolded workflow for Unifier les titres de terminaux des sessions interactives."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_075_imposer_le_titre_session_dossier_aux_tui_interactifs"
+        ],
+        "prod": [
+          "prod_021_titres_de_terminal_coherents_pour_les_sessions_cdx"
+        ],
+        "req": [
+          "req_031_unifier_les_titres_de_terminaux_des_sessions_interactives"
+        ]
+      },
+      "path": "logics/request/req_031_unifier_les_titres_de_terminaux_des_sessions_interactives.md",
+      "ref": "req_031_unifier_les_titres_de_terminaux_des_sessions_interactives",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Un lancement interactif ou une reprise Claude via cdx affiche un titre au format session -- dossier.",
+          "- AC2: Un lancement interactif ou une reprise Codex via cdx affiche un titre au format session -- dossier.",
+          "- AC3: Un lancement interactif Antigravity via cdx affiche un titre au format session -- dossier.",
+          "- AC4: Le dossier affich\u00e9 correspond au basename du cwd effectif du lancement, sans casser les lancements non interactifs, JSON, redirig\u00e9s ou les transcripts.",
+          "- AC5: Les donn\u00e9es session/cwd ne peuvent pas injecter de s\u00e9quence de contr\u00f4le dans le titre du terminal.",
+          "- AC6: Les tests de lancement et les tests unitaires du runtime couvrent le format, les caract\u00e8res de contr\u00f4le et les cas non-TTY."
+        ],
+        "Needs": [
+          "- Identifier imm\u00e9diatement, dans le titre de la fen\u00eatre de terminal, la session cdx active et le d\u00e9p\u00f4t ou dossier de travail.",
+          "- Obtenir la m\u00eame convention de titre quel que soit le fournisseur Claude, Codex ou Antigravity."
+        ]
+      },
+      "status": "Draft",
+      "title": "Unifier les titres de terminaux des sessions interactives"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, imposer le titre session -- dossier aux tui interactifs, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Imposer le titre session -- dossier aux TUI interactifs",
+        "use when": "Implementing the scaffolded slice for Imposer le titre session -- dossier aux TUI interactifs."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_075_imposer_le_titre_session_dossier_aux_tui_interactifs"
+        ],
+        "prod": [
+          "prod_021_titres_de_terminal_coherents_pour_les_sessions_cdx"
+        ],
+        "req": [
+          "req_031_unifier_les_titres_de_terminaux_des_sessions_interactives"
+        ],
+        "task": [
+          "task_042_implementer_les_titres_de_terminal_unifies"
+        ]
+      },
+      "path": "logics/backlog/item_075_imposer_le_titre_session_dossier_aux_tui_interactifs.md",
+      "ref": "item_075_imposer_le_titre_session_dossier_aux_tui_interactifs",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Le helper de titre produit exactement session -- dossier \u00e0 partir de la session et du cwd, et supprime ESC ainsi que les contr\u00f4les C0/C1 pertinents.",
+          "- AC2: Le maintien du titre n'est activ\u00e9 que pour launch/resume sur stdout TTY; il ne produit rien pour les contextes non-TTY, JSON et tests captur\u00e9s.",
+          "- AC3: Le m\u00e9canisme reste actif pendant l'ex\u00e9cution du fournisseur afin de reprendre la main si son TUI modifie le titre, puis s'arr\u00eate dans le bloc finally.",
+          "- AC4: Les m\u00eames appels runtime couvrent Claude, Codex et Antigravity sans modifier leurs arguments de lancement ni la capture de transcript.",
+          "- AC5: Les suites runtime et launch existantes passent, avec de nouveaux tests pour le format, l'assainissement et le garde-fou non-TTY.",
+          "- AC6: README d\u00e9crit le format session -- dossier et les fournisseurs concern\u00e9s."
+        ],
+        "Problem": [
+          "- Chaque fournisseur contr\u00f4le actuellement son titre de fen\u00eatre selon ses propres conventions.",
+          "- Un simple titre \u00e9crit avant le lancement peut \u00eatre remplac\u00e9 par le TUI du fournisseur."
+        ]
+      },
+      "status": "Ready",
+      "title": "Imposer le titre session -- dossier aux TUI interactifs"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_075_imposer_le_titre_session_dossier_aux_tui_interactifs"
+        ],
+        "prod": [
+          "prod_021_titres_de_terminal_coherents_pour_les_sessions_cdx"
+        ],
+        "req": [
+          "req_031_unifier_les_titres_de_terminaux_des_sessions_interactives"
+        ],
+        "task": [
+          "task_042_implementer_les_titres_de_terminal_unifies"
+        ]
+      },
+      "path": "logics/product/prod_021_titres_de_terminal_coherents_pour_les_sessions_cdx.md",
+      "ref": "prod_021_titres_de_terminal_coherents_pour_les_sessions_cdx",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Titres de terminal coh\u00e9rents pour les sessions cdx"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Impl\u00e9menter les titres de terminal unifi\u00e9s",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_075_imposer_le_titre_session_dossier_aux_tui_interactifs"
+        ],
+        "prod": [
+          "prod_021_titres_de_terminal_coherents_pour_les_sessions_cdx"
+        ],
+        "req": [
+          "req_031_unifier_les_titres_de_terminaux_des_sessions_interactives"
+        ],
+        "task": [
+          "task_042_implementer_les_titres_de_terminal_unifies"
+        ]
+      },
+      "path": "logics/tasks/task_042_implementer_les_titres_de_terminal_unifies.md",
+      "ref": "task_042_implementer_les_titres_de_terminal_unifies",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Impl\u00e9menter les titres de terminal unifi\u00e9s"
+    }
+  ],
+  "estimates": {
+    "char_count": 7290,
+    "companion_doc_count": 1,
+    "doc_count": 4
+  },
+  "generated_at": "2026-08-09T20:17:16Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_031_unifier_les_titres_de_terminaux_des_sessions_interactives",
+      "item_075_imposer_le_titre_session_dossier_aux_tui_interactifs",
+      "task_042_implementer_les_titres_de_terminal_unifies"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "full",
+  "profile": "deep",
+  "ref": "req_031_unifier_les_titres_de_terminaux_des_sessions_interactives,item_075_imposer_le_titre_session_dossier_aux_tui_interactifs,task_042_implementer_les_titres_de_terminal_unifies",
+  "refs": [
+    "req_031_unifier_les_titres_de_terminaux_des_sessions_interactives",
+    "item_075_imposer_le_titre_session_dossier_aux_tui_interactifs",
+    "task_042_implementer_les_titres_de_terminal_unifies"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: missing required evidence",
+      "changelog: missing required evidence",
+      "release_checksums: missing required evidence",
+      "local_validation: missing required evidence",
+      "git_push: missing required evidence",
+      "ci: missing required evidence",
+      "github_release: missing required evidence",
+      "npm_publication: missing required evidence",
+      "pypi_publication: missing required evidence"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: missing required evidence",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "preparing",
+    "target_version": "0.16.0"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_042_implementer_les_titres_de_terminal_unifies.md",
+      "ref": "task_042_implementer_les_titres_de_terminal_unifies"
+    }
+  ]
+}
