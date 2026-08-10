@@ -18,6 +18,7 @@ mod schedule;
 mod snapshot;
 #[cfg(target_os = "windows")]
 mod win;
+mod wsl;
 
 use menu::Entry;
 use schedule::Tick;

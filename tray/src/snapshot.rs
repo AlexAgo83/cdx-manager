@@ -100,6 +100,10 @@ impl Transport {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Unavailable {
     CdxNotFound(String),
+    /// A configured WSL distribution that does not exist. Distinct from a
+    /// missing CDX: the distribution is the thing that is wrong, and reporting
+    /// "CDX not found" would send the user looking in the wrong place.
+    WslDistro(String),
     /// CDX is installed but predates `cdx tray`. This is version drift in the
     /// other direction from an unknown snapshot major, and it is what a user
     /// hits after installing the companion without updating CDX.
@@ -118,6 +122,7 @@ impl std::fmt::Display for Unavailable {
             Unavailable::CdxNotFound(how) => {
                 write!(f, "cannot run `{how}`: CDX not found on this host")
             }
+            Unavailable::WslDistro(problem) => write!(f, "{problem}"),
             Unavailable::CdxTooOld => write!(
                 f,
                 "this CDX does not have `cdx tray`. Update CDX to use the tray companion."
@@ -154,6 +159,13 @@ pub struct Snapshot {
 }
 
 pub fn fetch(transport: &Transport) -> Result<Snapshot, Unavailable> {
+    // Check the distribution before blaming CDX for being absent from it.
+    if let Transport::Wsl { distro: Some(name) } = transport {
+        let resolution = crate::wsl::resolve(Some(name), crate::wsl::installed());
+        if let Some(problem) = resolution.problem() {
+            return Err(Unavailable::WslDistro(problem));
+        }
+    }
     let output = transport
         .command()
         .output()

@@ -4,11 +4,11 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 55%
+> Progress: 70%
 > Complexity: Medium
 > Theme: Platform support
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-10 21:26:47
+> Indicators reviewed: 2026-08-10 22:38:25
 
 # AI Context
 - Summary: Constrain WSL and Linux tray support and validate it on real hosts
@@ -29,7 +29,7 @@
   - Multiple-distribution aggregation, WSL GUI, network relays, universal Linux support, or production changes to managed hosts.
 
 # Acceptance criteria
-- AC1: Default and configured WSL distribution selection are deterministic and diagnose bad configuration.
+- AC1: Default and configured WSL distribution selection are deterministic and diagnose bad configuration. A configured name that is not installed is named as such, with the installed distributions listed, and never silently falls back to the default.
 - AC2: Linux tray capability is resolved at runtime through the StatusNotifierItem watcher, an absent watcher is reported safely, and the verified desktops are documented as tested rather than as supported by name.
 - AC3: The managed Windows plus Ubuntu WSL smoke run measures the observed alert latency and the wsl.exe poll cost, confirms the tray stops polling when no session is enabled, verifies that a toast reaches Action Center through the installed Start Menu shortcut, and records whether the fetched asset carries a Zone.Identifier stream.
 - AC4: Automated checks and the managed Windows plus Ubuntu WSL smoke validation pass.
