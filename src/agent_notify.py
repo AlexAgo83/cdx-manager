@@ -15,6 +15,7 @@ import shutil
 import subprocess
 
 from .notify import notification_channel, send_desktop_notification
+from .tray_events import publish
 
 # Set on the provider process at launch; the hook runs as its child and inherits both.
 SESSION_ENV = "CDX_SESSION_NAME"
@@ -116,9 +117,16 @@ def handle_notify(rest, ctx):
             return 0
         if reader is not None and not ctx.get("stdin_is_tty"):
             stdin_text = reader.read()
-        composed = compose_notification(read_hook_payload(rest, stdin_text), env, ctx.get("cwd"))
+        payload = read_hook_payload(rest, stdin_text)
+        composed = compose_notification(payload, env, ctx.get("cwd"))
         if composed:
-            send_desktop_notification(*composed, spawn_sync=ctx.get("spawn_sync"), env=env)
+            # A live tray becomes the sole owner of this alert, so the user sees
+            # one notification rather than two. Publication happens below the
+            # composition boundary on purpose: the tray receives the same
+            # already-sanitized title and message the direct path would send,
+            # and cannot be handed anything the privacy rules removed.
+            if not _published_to_tray(ctx, composed, payload):
+                send_desktop_notification(*composed, spawn_sync=ctx.get("spawn_sync"), env=env)
     except Exception:  # noqa: BLE001 - deliberate: the caller is an agent turn
         pass
     return 0
@@ -357,3 +365,24 @@ def _write_json(path, document):
         # An unwritable home is a skipped provisioning step, not a failed launch.
         return False
     return True
+
+
+def _published_to_tray(ctx, composed, payload):
+    """Hand the alert to a live tray, or say we did not.
+
+    False is the safe answer to everything: no base directory, no heartbeat, a
+    stale one, a schema mismatch, or an unwritable spool all mean the direct
+    path still runs. The only way to lose a notification here would be to
+    return True without having written it.
+    """
+    try:
+        base_dir = (ctx.get("service") or {}).get("base_dir")
+        if not base_dir:
+            return False
+        event = str(
+            payload.get("hook_event_name") or payload.get("eventName") or payload.get("type") or ""
+        ).lower().replace("_", "").replace("-", "")
+        kind = "attention" if event in _WAITING_EVENTS else "complete"
+        return publish(base_dir, composed[0], composed[1], kind=kind)
+    except Exception:  # noqa: BLE001 - the caller is an agent turn
+        return False
