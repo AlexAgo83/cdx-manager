@@ -19,13 +19,15 @@ from .notify import notification_channel, send_desktop_notification
 # Set on the provider process at launch; the hook runs as its child and inherits both.
 SESSION_ENV = "CDX_SESSION_NAME"
 ENABLED_ENV = "CDX_NOTIFY"
+PREVIEW_ENV = "CDX_NOTIFY_PREVIEW"
 
 # Our entries are recognised by the command they run, not by a marker key of our
 # own: both providers validate this file against their own schema, and an extra
 # key they do not know is a rejection risk for no gain.
 HOOK_ARG = "notify"
 
-_WAITING_EVENTS = {"notification", "permissionrequest", "userpromptsubmit"}
+_WAITING_EVENTS = {"notification", "permissionrequest"}
+_PREVIEW_LIMIT = 180
 
 
 def resolve_hook_command(env=None):
@@ -70,9 +72,25 @@ def compose_notification(payload, env=None, cwd=None):
         return None
     directory = payload.get("cwd") or payload.get("workspace") or cwd or os.getcwd()
     event = str(payload.get("hook_event_name") or payload.get("eventName") or payload.get("type") or "").lower()
-    state = "waiting for you" if event.replace("_", "") in _WAITING_EVENTS else "finished"
+    event = event.replace("_", "").replace("-", "")
+    state = "needs your attention" if event in _WAITING_EVENTS else "turn complete"
+    if event == "permissionrequest" and payload.get("tool_name"):
+        state += f" ({payload['tool_name']})"
     where = os.path.basename(str(directory).rstrip("/\\")) or directory
-    return f"✓ {session}", f"{where} · {state}"
+    preview = _notification_preview(payload, event, env)
+    return f"✓ {session}", f"{where} · {state}" + (f" — {preview}" if preview else "")
+
+
+def _notification_preview(payload, event, env):
+    if event != "stop" or env.get(PREVIEW_ENV) != "1":
+        return ""
+    message = payload.get("last_assistant_message")
+    if not isinstance(message, str):
+        return ""
+    message = " ".join("".join(char if char.isprintable() else " " for char in message).split())
+    if len(message) <= _PREVIEW_LIMIT:
+        return message
+    return message[:_PREVIEW_LIMIT - 1].rstrip() + "…"
 
 
 def handle_notify(rest, ctx):
@@ -98,6 +116,8 @@ def launch_notify_env(session, enabled, env=None):
     values = {SESSION_ENV: session["name"]}
     if not enabled:
         values[ENABLED_ENV] = "0"
+    elif (session.get("launch") or {}).get("notify_preview") is True:
+        values[PREVIEW_ENV] = "1"
     return values
 
 
@@ -224,7 +244,7 @@ def _write_codex_plugin(auth_home, command, base_dir=None):
         os.path.join(root, "hooks", "cdx-hooks.json"): {
             "hooks": {
                 event: [{"hooks": [{"type": "command", "command": f"{command} {HOOK_ARG}"}]}]
-                for event in ("Stop", "Notification")
+                for event in ("Stop", "PermissionRequest")
             },
         },
     }

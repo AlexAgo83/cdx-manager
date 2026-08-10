@@ -359,6 +359,7 @@ Off until you ask for it, per session:
 cdx set work1 --notify on      # turn it on for one session
 cdx set --all --notify on      # turn it on everywhere
 cdx set work1 --notify off     # and back off; cdx removes what it installed
+cdx set work1 --notify-preview on  # include a short final-response preview
 ```
 
 Turning it on records the setting. The wiring happens at that session's **next
@@ -371,6 +372,12 @@ trust on your behalf.
 It is off by default because turning it on writes into the provider's own
 configuration and, on Codex, puts an approval prompt in front of you. That is
 not something to do to sessions you already own without being asked.
+
+Response previews are separately off by default. When enabled, a completion
+notification includes at most 180 characters of the agent's final response.
+That text can be visible on a lock screen, so enable it only for sessions whose
+output is safe to expose. Previews never read transcripts and are not shown for
+permission requests.
 
 Per platform: macOS uses `osascript`, Linux `notify-send`, Windows a toast, and
 WSL reaches the Windows notification centre through interop. On a host with no

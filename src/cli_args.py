@@ -249,6 +249,7 @@ def _parse_set_args(args):
         "--rtk": {"key": "rtk", "type": "str", "default": None, "transform": _parse_fast_value},
         "--logics": {"key": "logics", "type": "str", "default": None, "transform": _parse_fast_value},
         "--notify": {"key": "notify", "type": "str", "default": None, "transform": _parse_fast_value},
+        "--notify-preview": {"key": "notify_preview", "type": "str", "default": None, "transform": _parse_fast_value},
         "--model": {"key": "model", "type": "str", "default": None},
         "--fallback-model": {"key": "fallback_model", "type": "str", "default": None},
         "--budget": {"key": "budget", "type": "str", "default": None, "transform": _parse_budget_value},
@@ -270,7 +271,7 @@ def _parse_set_args(args):
         raise CdxError(SET_USAGE)
     settings = {
         key: parsed[key]
-        for key in ("power", "permission", "fast", "rtk", "logics", "notify", "model", "fallback_model", "budget", "extra_args", "priority")
+        for key in ("power", "permission", "fast", "rtk", "logics", "notify", "notify_preview", "model", "fallback_model", "budget", "extra_args", "priority")
         if parsed[key] is not None
     }
     if not settings:
@@ -293,6 +294,7 @@ def _parse_unset_args(args):
         "--rtk": {"key": "rtk", "type": "bool", "default": False},
         "--logics": {"key": "logics", "type": "bool", "default": False},
         "--notify": {"key": "notify", "type": "bool", "default": False},
+        "--notify-preview": {"key": "notify_preview", "type": "bool", "default": False},
         "--model": {"key": "model", "type": "bool", "default": False},
         "--fallback-model": {"key": "fallback_model", "type": "bool", "default": False},
         "--budget": {"key": "budget", "type": "bool", "default": False},
@@ -314,7 +316,7 @@ def _parse_unset_args(args):
     if not parsed["names"] and not parsed["sessions"] and not parsed["provider"]:
         raise CdxError(UNSET_USAGE)
     _UNSET_KEYS = (
-        "power", "reasoning_effort", "permission", "fast", "rtk", "logics", "notify",
+        "power", "reasoning_effort", "permission", "fast", "rtk", "logics", "notify", "notify_preview",
         "model", "fallback_model", "budget", "extra_args", "priority",
     )
     keys = list(_UNSET_KEYS) if parsed["all"] else [key for key in _UNSET_KEYS if parsed[key]]

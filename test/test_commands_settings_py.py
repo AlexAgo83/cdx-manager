@@ -35,6 +35,17 @@ from src.session_service import create_session_service
 
 class SettingsCommandTests(CliTestBase):
 
+    def test_notify_preview_is_explicit_and_clearable(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main")
+        set_io = self.make_io()
+        self.assertEqual(main(["set", "main", "--notify-preview", "on", "--json"], {**set_io, "service": service}), 0)
+        self.assertTrue(json.loads(set_io["stdout"].getvalue())["launch"]["notify_preview"])
+        unset_io = self.make_io()
+        self.assertEqual(main(["unset", "main", "--notify-preview", "--json"], {**unset_io, "service": service}), 0)
+        self.assertNotIn("notify_preview", json.loads(unset_io["stdout"].getvalue())["launch"])
+
     def test_unset_reasoning_effort_is_supported(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

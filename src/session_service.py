@@ -223,6 +223,18 @@ def _normalize_launch_settings(settings, mark_fast_service_tier=True):
                 normalized["notify"] = False
             else:
                 raise CdxError(f"Unsupported notify value: {settings['notify']}")
+    if "notify_preview" in settings and settings["notify_preview"] is not None:
+        value = settings["notify_preview"]
+        if isinstance(value, bool):
+            normalized["notify_preview"] = value
+        else:
+            text = str(value).strip().lower()
+            if text in ("on", "true", "1", "yes"):
+                normalized["notify_preview"] = True
+            elif text in ("off", "false", "0", "no"):
+                normalized["notify_preview"] = False
+            else:
+                raise CdxError(f"Unsupported notify preview value: {settings['notify_preview']}")
     if "model" in settings and settings["model"] is not None:
         model = str(settings["model"]).strip()
         if not model:
@@ -361,7 +373,7 @@ def unset_launch_settings(store, name, keys):
     if not keys:
         raise CdxError("At least one launch setting is required.")
     allowed = {
-        "power", "reasoning_effort", "reasoningEffort", "permission", "fast", "rtk", "logics", "notify",
+        "power", "reasoning_effort", "reasoningEffort", "permission", "fast", "rtk", "logics", "notify", "notify_preview",
         "model", "fallback_model", "budget", "extra_args", "priority",
     }
     unknown = [key for key in keys if key not in allowed]

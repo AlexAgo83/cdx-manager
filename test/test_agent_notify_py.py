@@ -26,7 +26,7 @@ class HookTargetTests(unittest.TestCase):
         )
         self.assertEqual(title, "✓ work1")
         self.assertIn("logics-manager", message)
-        self.assertIn("finished", message)
+        self.assertIn("turn complete", message)
 
     def test_reads_codex_legacy_payload_from_argv(self):
         payload = json.dumps({"type": "agent-turn-complete", "cwd": "/repos/cdx-manager"})
@@ -42,7 +42,23 @@ class HookTargetTests(unittest.TestCase):
         _, waiting = agent_notify.compose_notification({"hook_event_name": "Notification", "cwd": "/r/a"}, env)
         _, done = agent_notify.compose_notification({"hook_event_name": "Stop", "cwd": "/r/a"}, env)
         self.assertNotEqual(waiting, done)
-        self.assertIn("waiting", waiting)
+        self.assertIn("needs your attention", waiting)
+
+    def test_stop_preview_is_opt_in_and_sanitized(self):
+        payload = {"hook_event_name": "Stop", "cwd": "/r/a", "last_assistant_message": "Done\nwith\x00 control"}
+        env = {agent_notify.SESSION_ENV: "work1", agent_notify.PREVIEW_ENV: "1"}
+        self.assertIn("Done with control", agent_notify.compose_notification(payload, env)[1])
+        self.assertNotIn("Done with control", agent_notify.compose_notification(payload, {agent_notify.SESSION_ENV: "work1"})[1])
+
+    def test_preview_is_bounded_and_attention_never_includes_it(self):
+        text = "x" * 500
+        env = {agent_notify.SESSION_ENV: "work1", agent_notify.PREVIEW_ENV: "1"}
+        _, completed = agent_notify.compose_notification({"hook_event_name": "Stop", "last_assistant_message": text}, env)
+        _, attention = agent_notify.compose_notification({"hook_event_name": "PermissionRequest", "tool_name": "Bash", "last_assistant_message": text}, env)
+        self.assertTrue(completed.endswith("…"))
+        self.assertLessEqual(len(completed.rsplit(" — ", 1)[1]), agent_notify._PREVIEW_LIMIT)
+        self.assertIn("Bash", attention)
+        self.assertNotIn(text[:20], attention)
 
     def test_parallel_sessions_are_distinguishable(self):
         one = agent_notify.compose_notification({"cwd": "/repos/alpha"}, {agent_notify.SESSION_ENV: "work1"})
@@ -109,7 +125,9 @@ class ProvisioningTests(unittest.TestCase):
         with open(os.path.join(root, ".claude-plugin", "plugin.json"), encoding="utf-8") as handle:
             self.assertEqual(json.load(handle)["hooks"], "./hooks/cdx-hooks.json")
         with open(agent_notify.hook_config_path(self.home, "codex"), encoding="utf-8") as handle:
-            self.assertIn("Stop", json.load(handle)["hooks"])
+            hooks = json.load(handle)["hooks"]
+        self.assertIn("Stop", hooks)
+        self.assertIn("PermissionRequest", hooks)
         # A free-standing hooks file at the Codex home root is never read, so we
         # must not leave one there pretending otherwise.
         self.assertFalse(os.path.exists(os.path.join(self.home, "hooks.json")))
@@ -201,8 +219,8 @@ class ProvisioningTests(unittest.TestCase):
         self.assertTrue(agent_notify.notifications_enabled({"name": "a", "launch": {"notify": True}}))
 
     def test_launch_env_carries_the_session_and_the_suppression(self):
-        session = {"name": "work1"}
-        self.assertEqual(agent_notify.launch_notify_env(session, True), {agent_notify.SESSION_ENV: "work1"})
+        session = {"name": "work1", "launch": {"notify_preview": True}}
+        self.assertEqual(agent_notify.launch_notify_env(session, True), {agent_notify.SESSION_ENV: "work1", agent_notify.PREVIEW_ENV: "1"})
         self.assertEqual(
             agent_notify.launch_notify_env(session, False),
             {agent_notify.SESSION_ENV: "work1", agent_notify.ENABLED_ENV: "0"},

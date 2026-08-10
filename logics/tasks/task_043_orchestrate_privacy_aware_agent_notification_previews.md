@@ -1,13 +1,14 @@
 ## task_043_orchestrate_privacy_aware_agent_notification_previews - Orchestrate privacy-aware agent notification previews
 > From version: 0.17.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 70%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Owner: Codex
 
 # AI Context
 - Summary: Orchestrate privacy-aware agent notification previews
