@@ -35,6 +35,7 @@ from ..cli_helpers import (
     _write_json,
     _write_update_notice,
 )
+from ..cli_hints import write_hint
 from ..cli_render import _dim, _info, _pad_table, _style, _warn
 from ..commands.launch import handle_launch
 from ..config import PROVIDER_CLAUDE
@@ -600,6 +601,7 @@ def handle_status(rest, ctx):
         ctx["out"](f"{_format_status_detail(row, use_color=ctx['use_color'])}\n")
         _write_refresh_warnings(refresh_errors, ctx, rows=[row])
         _write_update_notice(ctx)
+        write_hint(ctx)
         return 0
 
     rows = ctx["service"]["get_status_rows"](
@@ -619,6 +621,7 @@ def handle_status(rest, ctx):
     ctx["out"](f"{_format_status_rows(rows, use_color=ctx['use_color'], small=parsed['small'])}\n")
     _write_refresh_warnings(refresh_errors, ctx, rows=rows)
     _write_update_notice(ctx)
+    write_hint(ctx)
     return 0
 
 def _refresh_claude_auth_states(service, target_names=None, spawn_sync=None, env_override=None):

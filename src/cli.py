@@ -60,6 +60,7 @@ from .cli_commands import (
     _format_bytes as _format_disk_bytes,
 )
 from .cli_helpers import _update_notice_warnings
+from .cli_hints import write_hint
 from .cli_render import (
     _format_sessions,
     _pad_table,
@@ -556,6 +557,8 @@ def main(argv, options=None):
         warning_text = _update_warning_text(notices)
         if warning_text:
             out(f"{_style(warning_text, '33', use_color)}\n")
+        # Last line, after anything the user actually asked for.
+        write_hint({"env": env, "out": out, "service": service, "use_color": use_color, "update_notices": notices})
         return 0
 
     command, *rest = argv

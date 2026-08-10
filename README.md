@@ -547,6 +547,12 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 
 Icon states are `ok` at 25% remaining and above, `low` below 25%, `critical` below 5%, and `unknown` when nothing was ever reported. The closed icon shows the most urgent session, and a session that never reported never outranks one with real news.
 
+### Setup hints
+
+`cdx` and `cdx status` may end with one dim line pointing at an optional surface you have not set up yet — the tray companion, or agent alerts. They exist because neither is discoverable from the output of the commands you already run.
+
+They are deliberately hard to become noise. One hint per invocation at most, not again for six hours, and each one retires for good after three showings: if you saw it three times and did not act, that is an answer. A hint never appears in `--json`, never appears alongside an update notice, and is answered entirely from local state — nothing here probes a provider or the network. `CDX_NO_HINTS=1` turns them off outright.
+
 ### Tray companion: what vouches for it
 
 The companion is a native binary distributed as a release asset, not part of the pip package. Its trust model is worth stating plainly rather than leaving you to assume the usual one.
