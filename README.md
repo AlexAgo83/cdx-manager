@@ -547,6 +547,17 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 
 Icon states are `ok` at 25% remaining and above, `low` below 25%, `critical` below 5%, and `unknown` when nothing was ever reported. The closed icon shows the most urgent session, and a session that never reported never outranks one with real news.
 
+### Tray companion: what vouches for it
+
+The companion is a native binary distributed as a release asset, not part of the pip package. Its trust model is worth stating plainly rather than leaving you to assume the usual one.
+
+- **The checksum is the vouching, not Apple or Microsoft.** The macOS bundle is signed with a *self-signed* certificate. That signature exists because Apple Silicon refuses to execute unsigned arm64 code at all — it is not a claim that Apple reviewed anything. What actually vouches for the asset is the SHA-256 published in `checksums/release-archives.json`, verified before a single byte is unpacked. An asset with no published checksum is refused rather than installed hopefully.
+- **Install through `cdx tray install`, and no download link is offered.** This is a security property, not a convenience. A file fetched by CDX carries no macOS quarantine attribute and no Windows Mark-of-the-Web, so nothing puts Gatekeeper or SmartScreen between you and a companion you asked for. The same file fetched through a browser would carry both. That is why no direct download URL is published: it would be a worse path wearing the same clothes.
+- **Nothing is silently replaced.** An update downloads, verifies, and *proves the replacement starts* before the working companion is touched. A corrupt asset or one built for the wrong architecture costs an error message, not a tray you can no longer launch. An interrupted update is a named, recoverable state that `cdx tray doctor` reports.
+- **Uninstall removes only what install recorded**, from a record CDX wrote itself. A damaged record reads as absent rather than being guessed at, because that record drives deletion.
+- **Linux carries no C library.** The Linux asset is statically linked against musl, so there is no glibc version to match and no `gtk`, `libxdo`, or `appindicator` package to install. Tray support is resolved at runtime by looking for the `org.kde.StatusNotifierWatcher` D-Bus name — never by matching a distribution or desktop name. A session without it is told so, and nothing is registered to start at login.
+- **Version drift between CDX and the companion is normal**, since pip upgrades one and `cdx tray install` the other. Whichever is older keeps serving every field it understands and shows one update hint.
+
 ## JSON Output
 
 `cdx-manager` can be consumed by other apps through its CLI JSON contract.

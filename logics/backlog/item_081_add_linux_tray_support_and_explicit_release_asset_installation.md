@@ -2,9 +2,9 @@
 > From version: 0.17.1
 > Schema version: 1.0
 > Status: In progress
-> Understanding: 92%
-> Confidence: 88%
-> Progress: 80%
+> Understanding: 95%
+> Confidence: 90%
+> Progress: 88%
 > Complexity: High
 > Theme: Distribution
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -40,6 +40,10 @@
 - `scripts/build-tray.sh --package` writes the release asset under `dist/`, named exactly as the installer asks for it, with the payload at the archive root. On macOS it runs only after the signature verified: an asset is what a user ends up executing, so packaging an unverified one would defeat the checksum-vouches-for-a-self-signed-binary story. `--dev --package` is refused outright rather than ignored, because a dev bundle with a recorded checksum would be indistinguishable from a release asset while its identity changes every build.
 - Install verified end to end against the real Linux archive, with a temporary ledger rather than the published one: a verified asset installs and is executable, an asset with no published checksum is refused, a mismatched checksum is refused with both digests named, neither refusal writes anything, and uninstall removes the recorded path while sparing a file it did not write. Local build checksums are deliberately not recorded in `checksums/release-archives.json`: that ledger vouches for published assets, and an entry for something never published would be a lie the installer would act on.
 - A bundle now wins over the binary inside it, explicitly rather than by tar member order. The macOS asset holds both, and launching the inner binary would lose `Info.plist`, so `LSUIElement` and the signed identity the notification grant is bound to go with it. Which one an ordered scan found first depended on how the archive happened to be written; a test that fails against the previous code pins it.
+
+- AC4 is met: `schema.major` drift is read on both sides, the older reader keeps every field it understands, and one update hint reaches the menu. Tested in both directions — a companion older than CDX and a companion newer than CDX.
+- AC5 is documented in the README under "Tray companion: what vouches for it", stating the trust model rather than letting a reader assume the usual one: the self-signed macOS signature exists because Apple Silicon refuses unsigned arm64 code and is not a claim that Apple reviewed anything, the published SHA-256 is what vouches for the asset, and fetching through `cdx tray install` is what keeps macOS quarantine and Windows Mark-of-the-Web off it. No download URL is published, because the same file fetched through a browser would carry both — a worse path wearing the same clothes.
+- The macOS signing step now accepts `CDX_TRAY_SIGN_KEYCHAIN`, and its failure names the real cause. A redirected `HOME` leaves the keychain search list holding `System.keychain` alone, and `codesign` then reports "no identity found" for a certificate that is present with its private key — a message that sends you looking for a missing certificate instead of a missing search-list entry.
 
 # Acceptance criteria
 - AC1: A Linux environment exposing the StatusNotifierItem watcher renders the core CDX menu, and one without it reports an unsupported environment without a crash or a startup registration. The Linux asset starts on a system with no gtk, libxdo, or appindicator package installed.

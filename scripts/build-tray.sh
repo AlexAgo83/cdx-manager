@@ -163,8 +163,32 @@ the tray loses its own icon in notifications. See adr_005.
   CDX_TRAY_SIGN_IDENTITY='CDX Build' $0       # then re-run"
 fi
 
+# CDX_TRAY_SIGN_KEYCHAIN names the keychain holding the identity, for the case
+# where it is not in the search list: a redirected HOME leaves the search list
+# with System.keychain alone, and codesign then reports "no identity found" for
+# a certificate that is present with its private key. Naming the keychain is
+# preferred over changing the search list, which is machine-wide user state.
+SIGN_KEYCHAIN="${CDX_TRAY_SIGN_KEYCHAIN:-}"
+KEYCHAIN_ARGS=()
+if [ -n "$SIGN_KEYCHAIN" ]; then
+  [ -f "$SIGN_KEYCHAIN" ] || die "CDX_TRAY_SIGN_KEYCHAIN does not name a file: $SIGN_KEYCHAIN"
+  KEYCHAIN_ARGS=(--keychain "$SIGN_KEYCHAIN")
+fi
+
 printf 'build-tray: signing %s as %s\n' "$APP_NAME" "$IDENTITY"
-codesign --force --sign "$IDENTITY" --timestamp=none --options runtime "$APP_DIR"
+if ! codesign --force --sign "$IDENTITY" "${KEYCHAIN_ARGS[@]+"${KEYCHAIN_ARGS[@]}"}" \
+    --timestamp=none --options runtime "$APP_DIR"; then
+  die "codesign could not sign as '$IDENTITY'.
+
+If the certificate exists but is reported as not found, the keychain holding it
+is probably absent from this shell's search list:
+
+  security list-keychains                                   # what is searched
+  security find-identity -p codesigning ~/Library/Keychains/login.keychain-db
+
+Then either add that keychain to the search list, or re-run with
+CDX_TRAY_SIGN_KEYCHAIN pointing at it."
+fi
 codesign --verify --deep --strict "$APP_DIR" || die "signature did not verify"
 
 printf 'build-tray: built and signed %s\n' "$APP_DIR"
