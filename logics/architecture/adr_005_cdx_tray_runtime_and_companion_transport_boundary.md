@@ -1,5 +1,5 @@
 ## adr_005_cdx_tray_runtime_and_companion_transport_boundary - CDX tray runtime and companion transport boundary
-> Indicators reviewed: 2026-08-10 20:17:26
+> Indicators reviewed: 2026-08-10 21:15:14
 
 > Date: 2026-08-10
 > Status: Settled
@@ -95,6 +95,9 @@ flowchart TD
 - It bought even less across WSL, where reading a file through `wsl.exe cat` costs the same interop crossing as running the command. The file would have saved 80 ms inside a call that costs 100-300 ms regardless.
 - The deciding argument is not the measurement. The session store is already the persistent cache and already owns the TTLs, so a snapshot file would have been a second cache derived from the first, with its own staleness, write concurrency, and version to keep alive. Two caches that can disagree, where one suffices.
 - The objection considered and rejected: without a file, a companion that cannot execute `cdx` has no last-known state to show. `req_035` AC2 already requires an honest unavailable state, and showing a six-hour-old quota because CDX is broken is worse than saying nothing is known. The objection argues for stdout.
+- **2026-08-10, wsl.exe cost measured on the managed host.** On kdesktop (Windows 11 build 26200, default Ubuntu distribution, VM already running): the bare crossing `wsl.exe -d Ubuntu -- true` costs 132 ms steady, and a full `wsl.exe -d Ubuntu -- cdx --json` tick costs 344 ms steady. The 212 ms difference is Python startup inside WSL, roughly three times its cost on the arm64 macOS host.
+- The crossing is inside the 100-300 ms this ADR assumed; the full tick is not. At the 60 second WSL period that is 0.57% of a core, so the budget holds, but the assumption was about the crossing rather than the tick and is corrected here.
+- These are warm figures: the distribution was already running. A tick that has to cold-start a stopped WSL VM costs far more, which is the whole reason polling stops when no session is enabled.
 - Reopen this only with a number. If `item_085` measures a `wsl.exe` tick cost that actually hurts, add a disk cache then, justified by that figure.
 
 # Alternatives considered

@@ -8,6 +8,7 @@
 > Complexity: Medium
 > Theme: Platform support
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-10 21:15:14
 
 # AI Context
 - Summary: Constrain WSL and Linux tray support and validate it on real hosts
@@ -17,6 +18,7 @@
 
 # Problem
 - WSL and Linux tray assumptions vary by distribution and desktop environment, so broad claims without a configuration path and hardware smoke tests are unreliable.
+- First hardware figures, from kdesktop: the bare wsl.exe crossing costs 132 ms and a full cdx tick 344 ms, warm. Recorded in adr_005; the remaining unknown is the cold-start cost when the distribution has been idle.
 
 # Scope
 - In:
