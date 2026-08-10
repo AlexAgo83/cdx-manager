@@ -1,12 +1,13 @@
 ## req_034_review_findings_make_agent_alert_delivery_truthful_and_safe - Review findings: make agent alert delivery truthful and safe
 > From version: 0.17.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 100%
 > Confidence: 95%
 > Complexity: Medium
 > Theme: Notification reliability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-08-10 09:35:13
 
 # AI Context
 - Summary: Make agent-alert status messages match actual provider support, and constrain provider-supplied tool names before they reach desktop notification renderers.
@@ -46,3 +47,4 @@
 
 # Backlog
 - none
+- `item_078_review_findings_make_agent_alert_delivery_truthful_and_safe`
