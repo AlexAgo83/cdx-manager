@@ -3,6 +3,7 @@
 Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 """
 
+from ..agent_notify import supports_agent_alerts
 from ..cli_args import _parse_launch_setting_alias_args, _parse_set_args, _parse_unset_args
 from ..cli_helpers import _format_launch_config, _json_success, _write_json
 from ..cli_render import _success
@@ -42,11 +43,20 @@ def _format_bulk_launch_summary(sessions):
 
 
 def _notification_setting_notice(settings, sessions, action):
-    names = _format_bulk_launch_summary(sessions)
     if "notify" in settings:
-        if action == "set" and settings["notify"]:
-            return f"Agent alerts enabled for {names} — hooks install on the next interactive launch."
-        return f"Agent alerts disabled for {names} — cdx removes its hooks on the next interactive launch."
+        supported = [session for session in sessions if supports_agent_alerts(session["provider"])]
+        unsupported = [session for session in sessions if not supports_agent_alerts(session["provider"])]
+        notices = []
+        if supported:
+            names = _format_bulk_launch_summary(supported)
+            if action == "set" and settings["notify"]:
+                notices.append(f"Agent alerts enabled for {names} — hooks install on the next interactive launch.")
+            else:
+                notices.append(f"Agent alerts disabled for {names} — cdx removes its hooks on the next interactive launch.")
+        if unsupported:
+            names = _format_bulk_launch_summary(unsupported)
+            notices.append(f"Agent alerts updated for {names} — this provider does not support notification hooks.")
+        return "\n".join(notices)
     if "notify_preview" in settings:
         if action == "set" and settings["notify_preview"]:
             return f"Response previews enabled for {names} — completion text may be visible on the lock screen."

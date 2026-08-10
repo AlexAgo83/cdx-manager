@@ -60,6 +60,16 @@ class HookTargetTests(unittest.TestCase):
         self.assertIn("Bash", attention)
         self.assertNotIn(text[:20], attention)
 
+    def test_permission_tool_name_is_sanitized_and_bounded(self):
+        tool_name = "Bash\nwith\x00control " + "x" * 100
+        _, message = agent_notify.compose_notification(
+            {"hook_event_name": "PermissionRequest", "tool_name": tool_name},
+            {agent_notify.SESSION_ENV: "work1"},
+        )
+        displayed = message.rsplit("(", 1)[1][:-1]
+        self.assertEqual(displayed, "Bash with control " + "x" * 61 + "…")
+        self.assertLessEqual(len(displayed), agent_notify._TOOL_NAME_LIMIT)
+
     def test_parallel_sessions_are_distinguishable(self):
         one = agent_notify.compose_notification({"cwd": "/repos/alpha"}, {agent_notify.SESSION_ENV: "work1"})
         two = agent_notify.compose_notification({"cwd": "/repos/beta"}, {agent_notify.SESSION_ENV: "perso"})

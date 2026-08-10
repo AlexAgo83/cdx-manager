@@ -28,6 +28,12 @@ HOOK_ARG = "notify"
 
 _WAITING_EVENTS = {"notification", "permissionrequest"}
 _PREVIEW_LIMIT = 180
+_TOOL_NAME_LIMIT = 80
+
+
+def supports_agent_alerts(provider):
+    """Whether cdx can provision provider hooks for this session."""
+    return provider in {"claude", "codex"}
 
 
 def resolve_hook_command(env=None):
@@ -74,8 +80,9 @@ def compose_notification(payload, env=None, cwd=None):
     event = str(payload.get("hook_event_name") or payload.get("eventName") or payload.get("type") or "").lower()
     event = event.replace("_", "").replace("-", "")
     state = "needs your attention" if event in _WAITING_EVENTS else "turn complete"
-    if event == "permissionrequest" and payload.get("tool_name"):
-        state += f" ({payload['tool_name']})"
+    tool_name = _notification_text(payload.get("tool_name"), _TOOL_NAME_LIMIT)
+    if event == "permissionrequest" and tool_name:
+        state += f" ({tool_name})"
     where = os.path.basename(str(directory).rstrip("/\\")) or directory
     preview = _notification_preview(payload, event, env)
     return f"✓ {session}", f"{where} · {state}" + (f" — {preview}" if preview else "")
@@ -84,13 +91,16 @@ def compose_notification(payload, env=None, cwd=None):
 def _notification_preview(payload, event, env):
     if event != "stop" or env.get(PREVIEW_ENV) != "1":
         return ""
-    message = payload.get("last_assistant_message")
-    if not isinstance(message, str):
+    return _notification_text(payload.get("last_assistant_message"), _PREVIEW_LIMIT)
+
+
+def _notification_text(value, limit):
+    if not isinstance(value, str):
         return ""
-    message = " ".join("".join(char if char.isprintable() else " " for char in message).split())
-    if len(message) <= _PREVIEW_LIMIT:
-        return message
-    return message[:_PREVIEW_LIMIT - 1].rstrip() + "…"
+    value = " ".join("".join(char if char.isprintable() else " " for char in value).split())
+    if len(value) <= limit:
+        return value
+    return value[:limit - 1].rstrip() + "…"
 
 
 def handle_notify(rest, ctx):
@@ -153,6 +163,8 @@ def provision(auth_home, provider, enabled, env=None, spawn_sync=None, base_dir=
         # Nothing could be delivered on this host, so installing a hook would only
         # buy the user an approval prompt for a feature that shows nothing.
         enabled = False
+    if not supports_agent_alerts(provider):
+        return False
     command = resolve_hook_command(env)
     if provider == "claude":
         return _apply_hooks(hook_config_path(auth_home, provider), enabled, command)

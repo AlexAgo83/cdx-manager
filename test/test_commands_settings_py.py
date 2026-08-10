@@ -53,6 +53,18 @@ class SettingsCommandTests(CliTestBase):
         self.assertEqual(main(["set", "main", "--notify", "on"], {**io_obj, "service": service}), 0)
         self.assertIn("hooks install on the next interactive launch", io_obj["stdout"].getvalue())
 
+    def test_notify_setting_reports_unsupported_and_mixed_providers_truthfully(self):
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        service["create_session"]("claude", "claude")
+        service["create_session"]("local", "ollama")
+        io_obj = self.make_io()
+        self.assertEqual(main(["set", "--sessions", "claude,local", "--notify", "on"], {
+            **io_obj, "service": service,
+        }), 0)
+        output = io_obj["stdout"].getvalue()
+        self.assertIn("Agent alerts enabled for claude — hooks install", output)
+        self.assertIn("Agent alerts updated for local — this provider does not support notification hooks.", output)
+
     def test_unset_reasoning_effort_is_supported(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
