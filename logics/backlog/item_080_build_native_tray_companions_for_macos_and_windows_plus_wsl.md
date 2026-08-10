@@ -1,10 +1,10 @@
 ## item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl - Build native tray companions for macOS and Windows plus WSL
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
-> Confidence: 85%
-> Progress: 55%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -42,6 +42,16 @@
   - Any browser-download or .dmg distribution path for macOS, which would quarantine the bundle and reintroduce a Gatekeeper block.
   - Multiple WSL distribution aggregation, remote machines, or GUI operation within WSL.
   - A full desktop dashboard or account-management UI.
+
+# Delivery record
+- AC1: macOS and Windows companions render the same states and the same session menu from the one contract, because the snapshot is composed in CDX and each backend only draws it. Verified side by side on the real 11-session fleet.
+- AC2: A Windows host reads CDX through WSL with no X server, at 60 s. Two bugs only the real machine could show were fixed here: `set VAR=1 && cmd` in cmd.exe stores a trailing space, so an untrimmed comparison silently fell back to the native transport on the one platform where WSL matters; and the failure said "CDX not found on this host", true of the host and useless as a diagnosis. A misconfigured distribution is now its own state, listing what is actually installed.
+- AC3: The closed icon carries a state, a reason and a count, never a name or a figure. The tooltip added later says the same in words, and deliberately never the session name, since a tooltip appears on hover and in a screen share. The open menu lists provider, remaining usage, freshness or reset, plus refresh, terminal and quit.
+- AC4: Each surface gets artwork that works there, and the assumption that broke it was mine: `with_icon_as_template` is macOS-only. macOS inverts a black glyph per theme; Windows draws the bitmap as-is, so pure black was invisible on a dark taskbar. Every glyph now exists in both tints from one SVG, Windows reads `SystemUsesLightTheme` and picks, assuming dark when the value is missing — a white glyph on a light bar stays legible, the reverse disappears. A test asserts the two tints differ.
+- AC5b: Drift is named in both directions, and the older-CDX case is verified against a real older CDX: it reports "this CDX does not have `cdx tray`. Update CDX to use the tray companion." rather than a raw error.
+- AC5: Polling holds the adr_005 budget with measured figures rather than estimates — 371-401 ms per tick across WSL at a 60 s period, 140-145 ms native on Linux at 30 s, 88-92 ms on macOS. It stops entirely when no session is enabled, verified on a host with an empty fleet.
+- AC6: Targeted tests pass, and the manual smoke checks are a script rather than a memory: `scripts/tray-smoke.sh`, run and recorded on three hosts in `item_085`.
+- Also delivered here, found by looking at the real taskbar: Windows 11 files every new notification icon into the overflow, so a status icon nobody can see is a feature that does nothing. The companion promotes itself once, using a marker in LOCALAPPDATA rather than the registry value — Windows rewrites `IsPromoted` to 0 by itself, so that value cannot distinguish "never asked" from "the user hid it deliberately".
 
 # Acceptance criteria
 - AC1: macOS and Windows artifacts display the same core usage states and session menu from the shared local status contract.
