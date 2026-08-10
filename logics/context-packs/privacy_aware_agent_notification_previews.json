@@ -1,0 +1,335 @@
+{
+  "budgets": {
+    "max_docs": 12,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications.md",
+    "logics/product/prod_022_actionable_private_agent_notifications.md",
+    "logics/request/req_032_show_a_privacy_aware_preview_in_agent_completion_notifications.md",
+    "logics/scaffold/privacy_aware_agent_notification_previews.json",
+    "logics/tasks/task_043_orchestrate_privacy_aware_agent_notification_previews.md"
+  ],
+  "command": "logics-manager sync context-pack req_032_show_a_privacy_aware_preview_in_agent_completion_notifications item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications task_043_orchestrate_privacy_aware_agent_notification_previews --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications"
+        ],
+        "prod": [
+          "prod_022_actionable_private_agent_notifications"
+        ],
+        "req": [
+          "req_032_show_a_privacy_aware_preview_in_agent_completion_notifications"
+        ],
+        "task": [
+          "task_043_orchestrate_privacy_aware_agent_notification_previews"
+        ]
+      },
+      "path": "logics/product/prod_022_actionable_private_agent_notifications.md",
+      "ref": "prod_022_actionable_private_agent_notifications",
+      "sections": {
+        "Goals": [
+          "- Let the user assess a completed agent turn without immediately reopening its terminal.",
+          "- Offer one consistent response-preview behavior across the supported hook providers.",
+          "- Keep assistant text out of notifications unless the session owner explicitly opts in.",
+          "- Use documented hook payload fields and retain the current failure isolation."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Let an explicitly opted-in session include a short final-response preview in its completion notification, while preserving private-by-default lock-screen behavior and useful attention signals."
+        ],
+        "References": [
+          "- Product back-reference: `req_032_show_a_privacy_aware_preview_in_agent_completion_notifications`",
+          "- Task back-reference: `task_043_orchestrate_privacy_aware_agent_notification_previews`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Actionable, private agent notifications"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, show a privacy-aware preview in agent completion notifications, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Show a privacy-aware preview in agent completion notifications",
+        "use when": "You need to implement or review the scaffolded workflow for Show a privacy-aware preview in agent completion notifications."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications"
+        ],
+        "prod": [
+          "prod_022_actionable_private_agent_notifications"
+        ],
+        "req": [
+          "req_032_show_a_privacy_aware_preview_in_agent_completion_notifications"
+        ]
+      },
+      "path": "logics/request/req_032_show_a_privacy_aware_preview_in_agent_completion_notifications.md",
+      "ref": "req_032_show_a_privacy_aware_preview_in_agent_completion_notifications",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A session has a distinct preview preference that is off unless explicitly enabled, can be set and unset through the existing launch-settings commands, and is documented.",
+          "- AC2: When previews are enabled, a completion notification includes a single-line, bounded preview derived from last_assistant_message; missing, non-string, or empty values preserve the existing notification body without error.",
+          "- AC3: Preview text is normalized to one line, has a documented conservative character limit, and does not introduce terminal or notification-command control characters.",
+          "- AC4: When previews are disabled, no assistant-response text is passed to the desktop notification backend.",
+          "- AC5: Attention notifications remain useful without exposing an assistant-response preview; permission requests identify the attention state and, where the payload supplies it, the requested tool rather than arbitrary tool input.",
+          "- AC6: Hook provisioning uses only documented event names for each supported provider, is idempotent, and retains the existing no-failure guarantee for notification delivery and provisioning."
+        ],
+        "Needs": [
+          "- A completion notification identifies the session and repository but does not tell the user what the agent concluded, so the user must still open the terminal to decide whether to return to it.",
+          "- Both hook-capable providers expose the final assistant message on their Stop payload. The notification target already receives that JSON and is the shared place to derive a safe, consistent preview.",
+          "- Assistant output can contain secrets or sensitive project information, and operating systems may show notification bodies on a lock screen. Response previews must therefore remain off until explicitly enabled per session."
+        ]
+      },
+      "status": "Draft",
+      "title": "Show a privacy-aware preview in agent completion notifications"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, add opt-in, bounded assistant-response previews to agent notifications, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Add opt-in, bounded assistant-response previews to agent notifications",
+        "use when": "Implementing the scaffolded slice for Add opt-in, bounded assistant-response previews to agent notifications."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications"
+        ],
+        "prod": [
+          "prod_022_actionable_private_agent_notifications"
+        ],
+        "req": [
+          "req_032_show_a_privacy_aware_preview_in_agent_completion_notifications"
+        ],
+        "task": [
+          "task_043_orchestrate_privacy_aware_agent_notification_previews"
+        ]
+      },
+      "path": "logics/backlog/item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications.md",
+      "ref": "item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A session can explicitly enable and disable response previews through cdx settings, and the default remains disabled after unset or creation.",
+          "- AC2: An enabled Stop notification appends a bounded, whitespace-normalized preview from last_assistant_message, while an empty or unavailable message leaves the ordinary completion body intact.",
+          "- AC3: The preview helper removes control characters, collapses whitespace, and truncates deterministically without splitting the notification command or producing multiple lines.",
+          "- AC4: A disabled preview preference never sends last_assistant_message to send_desktop_notification.",
+          "- AC5: Attention notifications do not include last_assistant_message and identify permission attention safely when provider metadata exists.",
+          "- AC6: Generated hook configurations contain documented supported event names for each hook-capable provider and repeated provisioning leaves them unchanged."
+        ],
+        "Problem": [
+          "- The completion toast only says that a turn completed, which leaves the user unable to distinguish a useful result from a request for follow-up without context switching.",
+          "- Sending raw response text by default would expose potentially sensitive content on the desktop or lock screen.",
+          "- The current generated provider configuration needs to match the current documented lifecycle event names before relying on it for richer notifications."
+        ]
+      },
+      "status": "Ready",
+      "title": "Add opt-in, bounded assistant-response previews to agent notifications"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications"
+        ],
+        "prod": [
+          "prod_022_actionable_private_agent_notifications"
+        ],
+        "req": [
+          "req_032_show_a_privacy_aware_preview_in_agent_completion_notifications"
+        ],
+        "task": [
+          "task_043_orchestrate_privacy_aware_agent_notification_previews"
+        ]
+      },
+      "path": "logics/product/prod_022_actionable_private_agent_notifications.md",
+      "ref": "prod_022_actionable_private_agent_notifications",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Actionable, private agent notifications"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate privacy-aware agent notification previews",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications"
+        ],
+        "prod": [
+          "prod_022_actionable_private_agent_notifications"
+        ],
+        "req": [
+          "req_032_show_a_privacy_aware_preview_in_agent_completion_notifications"
+        ],
+        "task": [
+          "task_043_orchestrate_privacy_aware_agent_notification_previews"
+        ]
+      },
+      "path": "logics/tasks/task_043_orchestrate_privacy_aware_agent_notification_previews.md",
+      "ref": "task_043_orchestrate_privacy_aware_agent_notification_previews",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate privacy-aware agent notification previews"
+    }
+  ],
+  "estimates": {
+    "char_count": 8529,
+    "companion_doc_count": 1,
+    "doc_count": 4
+  },
+  "generated_at": "2026-08-10T07:07:05Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_032_show_a_privacy_aware_preview_in_agent_completion_notifications",
+      "item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications",
+      "task_043_orchestrate_privacy_aware_agent_notification_previews"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_032_show_a_privacy_aware_preview_in_agent_completion_notifications,item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications,task_043_orchestrate_privacy_aware_agent_notification_previews",
+  "refs": [
+    "req_032_show_a_privacy_aware_preview_in_agent_completion_notifications",
+    "item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications",
+    "task_043_orchestrate_privacy_aware_agent_notification_previews"
+  ],
+  "release": {
+    "blocking_reasons": [],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Release evidence is complete.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": null,
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "ready",
+    "target_version": "0.17.0"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_043_orchestrate_privacy_aware_agent_notification_previews.md",
+      "ref": "task_043_orchestrate_privacy_aware_agent_notification_previews"
+    }
+  ]
+}

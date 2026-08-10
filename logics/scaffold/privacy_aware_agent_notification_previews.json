@@ -1,0 +1,107 @@
+{
+  "title": "Show a privacy-aware preview in agent completion notifications",
+  "references": [
+    "src/agent_notify.py",
+    "src/commands/launch.py",
+    "src/cli_args.py",
+    "src/session_service.py",
+    "test/test_agent_notify_py.py",
+    "README.md",
+    "https://learn.chatgpt.com/docs/hooks",
+    "https://code.claude.com/docs/en/hooks"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Notifications",
+    "needs": [
+      "A completion notification identifies the session and repository but does not tell the user what the agent concluded, so the user must still open the terminal to decide whether to return to it.",
+      "Both hook-capable providers expose the final assistant message on their Stop payload. The notification target already receives that JSON and is the shared place to derive a safe, consistent preview.",
+      "Assistant output can contain secrets or sensitive project information, and operating systems may show notification bodies on a lock screen. Response previews must therefore remain off until explicitly enabled per session."
+    ],
+    "context": [
+      "compose_notification in src/agent_notify.py currently derives only a repository basename and a coarse state from the hook event; it ignores provider payload fields beyond cwd and event name.",
+      "The current notification setting is an explicit per-session launch preference, persisted by the existing settings flow and provisioned on the next interactive launch. A preview preference should reuse that path rather than introduce global configuration.",
+      "The Stop payload field last_assistant_message is a supported provider interface. transcript_path is not a stable hook interface and must not be parsed to manufacture a preview.",
+      "The generated hook configuration currently subscribes to completion and attention events. The current provider hook documentation lists Stop and PermissionRequest as supported lifecycle events; provisioning must be reconciled with the documented event names while preserving the existing safe failure behavior.",
+      "Desktop notification backends already escape their platform-specific command input. Preview text still needs a provider-independent length limit and whitespace normalization before it reaches those backends."
+    ],
+    "acceptance_criteria": [
+      "AC1: A session has a distinct preview preference that is off unless explicitly enabled, can be set and unset through the existing launch-settings commands, and is documented.",
+      "AC2: When previews are enabled, a completion notification includes a single-line, bounded preview derived from last_assistant_message; missing, non-string, or empty values preserve the existing notification body without error.",
+      "AC3: Preview text is normalized to one line, has a documented conservative character limit, and does not introduce terminal or notification-command control characters.",
+      "AC4: When previews are disabled, no assistant-response text is passed to the desktop notification backend.",
+      "AC5: Attention notifications remain useful without exposing an assistant-response preview; permission requests identify the attention state and, where the payload supplies it, the requested tool rather than arbitrary tool input.",
+      "AC6: Hook provisioning uses only documented event names for each supported provider, is idempotent, and retains the existing no-failure guarantee for notification delivery and provisioning.",
+      "AC7: Targeted unit tests cover both supported Stop payload shapes, opt-in behavior, truncation and control-character handling, absent payload fields, and provider-hook configuration; the project validation suite passes."
+    ]
+  },
+  "product": {
+    "title": "Actionable, private agent notifications",
+    "overview": "Let an explicitly opted-in session include a short final-response preview in its completion notification, while preserving private-by-default lock-screen behavior and useful attention signals.",
+    "goals": [
+      "Let the user assess a completed agent turn without immediately reopening its terminal.",
+      "Offer one consistent response-preview behavior across the supported hook providers.",
+      "Keep assistant text out of notifications unless the session owner explicitly opts in.",
+      "Use documented hook payload fields and retain the current failure isolation."
+    ],
+    "non_goals": [
+      "No transcript parsing, transcript storage, or response summarization.",
+      "No previews for headless runs, unsupported providers, or attention events.",
+      "No global preview setting, custom templates, notification actions, or provider-specific configuration surface.",
+      "No attempt to expose complete assistant responses in a desktop notification."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Add opt-in, bounded assistant-response previews to agent notifications",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Notifications",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC5", "AC6", "AC7"],
+      "problem": [
+        "The completion toast only says that a turn completed, which leaves the user unable to distinguish a useful result from a request for follow-up without context switching.",
+        "Sending raw response text by default would expose potentially sensitive content on the desktop or lock screen.",
+        "The current generated provider configuration needs to match the current documented lifecycle event names before relying on it for richer notifications."
+      ],
+      "scope_in": [
+        "Add one explicit per-session preview preference using the existing launch-settings parse, persistence, unset, display, and bulk-setting patterns.",
+        "Extract last_assistant_message only from a Stop payload, normalize it to one printable line, remove control characters, and truncate it at a small documented limit with an ellipsis when needed.",
+        "Keep the existing session name, repository basename, platform dispatch, opt-in notification setting, and hook failure swallowing intact.",
+        "Keep previews absent for attention events; use a specific attention label and safe payload metadata such as tool name when available.",
+        "Update generated provider hook definitions to documented supported events, without parsing transcripts or adding a new dependency.",
+        "Add focused unit coverage and README guidance, including the lock-screen privacy tradeoff."
+      ],
+      "scope_out": [
+        "Reading transcript files or depending on their private format.",
+        "Generating a new model summary, retaining notification history, or sending text to a remote service.",
+        "Previews for headless execution or providers without the supported payload field.",
+        "Configurable preview templates, per-platform UI code, notification buttons, or notification deduplication."
+      ],
+      "acceptance_criteria": [
+        "AC1: A session can explicitly enable and disable response previews through cdx settings, and the default remains disabled after unset or creation.",
+        "AC2: An enabled Stop notification appends a bounded, whitespace-normalized preview from last_assistant_message, while an empty or unavailable message leaves the ordinary completion body intact.",
+        "AC3: The preview helper removes control characters, collapses whitespace, and truncates deterministically without splitting the notification command or producing multiple lines.",
+        "AC4: A disabled preview preference never sends last_assistant_message to send_desktop_notification.",
+        "AC5: Attention notifications do not include last_assistant_message and identify permission attention safely when provider metadata exists.",
+        "AC6: Generated hook configurations contain documented supported event names for each hook-capable provider and repeated provisioning leaves them unchanged.",
+        "AC7: The notification, settings, launch, and full project test suites pass; README explains the opt-in setting and lock-screen exposure."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate privacy-aware agent notification previews",
+    "plan": [
+      "Read the current notification, settings, launch, and provider-provisioning paths; confirm current hook schemas against provider documentation before changing generated event names.",
+      "Add the minimal explicit per-session preview preference by following the existing notify setting end to end, including unset, display, and bulk behavior.",
+      "Implement one small pure preview helper at the shared notification composition boundary; keep it Stop-only, bounded, single-line, and safe when the payload lacks a usable message.",
+      "Refine completion and permission-attention wording from documented event metadata without passing arbitrary tool input or assistant text to attention notifications.",
+      "Update provider hook provisioning only where required by documented event support, preserving idempotence, user-owned configuration, and non-failing hooks.",
+      "Add focused regression tests and README guidance, then run project validation, Logics lint, audit, and request-chain validation."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/privacy_aware_agent_notification_previews.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}
