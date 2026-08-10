@@ -2,9 +2,9 @@
 > From version: 0.17.1
 > Schema version: 1.0
 > Status: In progress
-> Understanding: 85%
-> Confidence: 80%
-> Progress: 10%
+> Understanding: 88%
+> Confidence: 85%
+> Progress: 50%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -44,6 +44,8 @@
 - The freshness window is 150 s against a 60 s WSL poll, and a test asserts it exceeds one period. A narrower window reads a healthy tray as stale, and the consequence is precisely the duplicate this slice exists to prevent — once from the tray, once from the fallback.
 - Publication sits *below* the composition boundary, so the tray receives the same already-sanitized title and message the direct path would send. It cannot be handed preview text the privacy rules removed; a test asserts a `last_assistant_message` never reaches the spool without opt-in.
 - Acknowledgement is idempotent and survives a tray that crashed between showing an event and acknowledging it. The spool is bounded at 32 and keeps the newest: a tray that was down for an hour must not flood the user on return, and an old alert is worth less than a new one.
+- The companion reads and acknowledges through `cdx tray events`, `cdx tray ack` and `cdx tray heartbeat` rather than by opening the spool, and that is what satisfies AC4 rather than a note claiming it. On a Windows host serving CDX from WSL the spool lives in the Linux filesystem while the tray runs on Windows: going through `cdx` means the existing `wsl.exe` transport carries events too, with no path translation, no share, no socket, and no assumption that either side can see the other's disk.
+- Exercised end to end from the CLI: heartbeat, a hook publishing through `cdx notify`, the event listed, acknowledged, and the list empty again.
 - Still open in this slice: the tray's own consumption loop, its icon hint and menu history, the native notification emission with its macOS authorization handling (AC7), the WSL bridge reads, and the backoff behaviour (AC6).
 
 # Acceptance criteria

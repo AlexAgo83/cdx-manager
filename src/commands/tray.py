@@ -22,6 +22,13 @@ from ..tray_contract import (
     UNKNOWN,
     build_snapshot,
 )
+from ..tray_events import (
+    acknowledge as ack_events,
+)
+from ..tray_events import (
+    read_events,
+    write_heartbeat,
+)
 from ..tray_install import (
     TrayInstallError,
     companion_path,
@@ -34,7 +41,7 @@ from ..tray_install import (
 )
 from ..tray_instance import companion_instance
 
-TRAY_ACTIONS = ("status", "install", "launch", "uninstall", "autostart", "doctor")
+TRAY_ACTIONS = ("status", "install", "launch", "uninstall", "autostart", "doctor", "events", "ack", "heartbeat")
 
 # Codes rather than prose, so a caller can branch on them.
 COMPANION_UNAVAILABLE = "tray_companion_not_available"
@@ -66,6 +73,12 @@ def handle_tray(rest, ctx):
         return _tray_autostart(args, ctx)
     if action == "doctor":
         return _tray_doctor(args, ctx)
+    if action == "events":
+        return _tray_events(args, ctx)
+    if action == "ack":
+        return _tray_ack(args, ctx)
+    if action == "heartbeat":
+        return _tray_heartbeat(args, ctx)
     return _tray_install(args, ctx)
 
 
@@ -356,3 +369,64 @@ def _format_snapshot(snapshot, use_color=False):
     if not snapshot["refreshable"]:
         lines.append(_dim("A running session holds the provider lock; refresh will not update it.", use_color))
     return "\n".join(lines)
+
+
+# The companion reads and acknowledges events through these three commands
+# rather than through the filesystem, and that is the whole point of them: on a
+# Windows host serving CDX from WSL, the spool lives in the Linux filesystem
+# while the tray runs on Windows. Going through `cdx` means the existing
+# `wsl.exe` transport carries events too — no path translation, no share, no
+# socket, and no assumption that either side can see the other's disk.
+def _tray_events(args, ctx):
+    parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, TRAY_USAGE, positionals_key="args", max_positionals=0)
+    events = read_events(ctx["service"]["base_dir"])
+    if parsed["json"]:
+        _write_json(ctx, _json_success("tray.events", f"Read {len(events)} pending event(s)", events=events))
+        return 0
+    if not events:
+        ctx["out"]("No pending tray events.\n")
+        return 0
+    rows = [["WHEN", "KIND", "TITLE", "MESSAGE"]]
+    for event in events:
+        rows.append([
+            datetime.fromtimestamp(event.get("at", 0), timezone.utc).strftime("%H:%M:%S"),
+            event.get("kind", "-"), event.get("title", "-"), event.get("message", "-"),
+        ])
+    ctx["out"](f"{_pad_table(rows)}\n")
+    return 0
+
+
+def _tray_ack(args, ctx):
+    parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, TRAY_USAGE, positionals_key="args", max_positionals=64)
+    ids = parsed["args"]
+    if not ids:
+        raise CdxError(TRAY_USAGE)
+    result = ack_events(ctx["service"]["base_dir"], ids)
+    message = f"Acknowledged {result['acknowledged']} event(s)"
+    if parsed["json"]:
+        _write_json(ctx, _json_success("tray.ack", message, **result))
+        return 0
+    ctx["out"](f"{message}\n")
+    return 0
+
+
+def _tray_heartbeat(args, ctx):
+    """The companion saying it is alive, so `cdx notify` stops delivering directly.
+
+    Written by the tray once per poll. `cdx notify` publishes only while this is
+    fresh, so a companion that stops beating hands alerts straight back to the
+    direct path rather than swallowing them.
+    """
+    parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, TRAY_USAGE, positionals_key="args", max_positionals=0)
+    write_heartbeat(ctx["service"]["base_dir"])
+    if parsed["json"]:
+        _write_json(ctx, _json_success("tray.heartbeat", "Recorded the tray heartbeat"))
+        return 0
+    ctx["out"]("Recorded the tray heartbeat.\n")
+    return 0

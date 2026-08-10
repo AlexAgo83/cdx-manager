@@ -13,6 +13,9 @@ from cli_test_support import CliTestBase
 
 from src import agent_notify
 from src.agent_notify import SESSION_ENV, handle_notify
+from src.cli import main
+from src.errors import CdxError
+from src.session_service import create_session_service
 from src.tray_events import (
     HEARTBEAT_FRESH_SECONDS,
     MAX_SPOOLED_EVENTS,
@@ -180,3 +183,50 @@ class NotifyRoutingTest(CliTestBase):
             '{"hook_event_name": "Stop", "cwd": "/tmp/repo", "last_assistant_message": "SECRET"}',
         )
         self.assertNotIn("SECRET", json.dumps(read_events(base)))
+
+
+class TrayEventCommandTest(CliTestBase):
+    """The commands the companion uses instead of touching the spool itself.
+
+    On a Windows host serving CDX from WSL, the spool is in the Linux
+    filesystem and the tray runs on Windows. Going through `cdx` means the
+    existing wsl.exe transport carries events too, with no path translation and
+    no assumption that either side can see the other's disk.
+    """
+
+    def _service(self):
+        temp_dir = self.make_temp_dir()
+        return create_session_service({"base_dir": temp_dir}), temp_dir
+
+    def _run(self, argv, service, temp_dir):
+        io_obj = self.make_io()
+        code = main(argv, {**io_obj, "service": service, "env": {"CDX_HOME": temp_dir}})
+        return code, io_obj["stdout"].getvalue()
+
+    def test_heartbeat_then_events_then_ack(self):
+        service, temp_dir = self._service()
+        self._run(["tray", "heartbeat"], service, temp_dir)
+        self.assertTrue(tray_is_listening(temp_dir))
+
+        publish(temp_dir, "✓ work", "repo · turn complete", event_id="e1")
+        code, out = self._run(["tray", "events", "--json"], service, temp_dir)
+        self.assertEqual(code, 0)
+        events = json.loads(out)["events"]
+        self.assertEqual([event["id"] for event in events], ["e1"])
+
+        self._run(["tray", "ack", "e1"], service, temp_dir)
+        _code, out = self._run(["tray", "events", "--json"], service, temp_dir)
+        self.assertEqual(json.loads(out)["events"], [])
+
+    def test_ack_without_an_id_is_refused(self):
+        """Acknowledging nothing is a caller mistake, and silently succeeding
+        would let a broken consumption loop look like a working one."""
+        service, temp_dir = self._service()
+        with self.assertRaises(CdxError):
+            self._run(["tray", "ack"], service, temp_dir)
+
+    def test_events_reads_empty_without_a_spool(self):
+        service, temp_dir = self._service()
+        code, out = self._run(["tray", "events", "--json"], service, temp_dir)
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["events"], [])

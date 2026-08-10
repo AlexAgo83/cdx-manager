@@ -518,6 +518,9 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx tray install [--json]` | Download the companion for this OS and architecture, verify its published checksum before unpacking, and record what was written. Refuses when no checksum is published for the asset |
 | `cdx tray uninstall [--json]` | Remove exactly what `install` recorded, and nothing else |
 | `cdx tray autostart [on\|off\|status] [--json]` | Start the companion at login, or stop doing so. Off until asked, idempotent, and the state is read back from the platform rather than from what CDX last intended |
+| `cdx tray events [--json]` | List agent alerts a running companion has not shown yet. The companion reads these instead of the spool file, so a Windows tray can collect events from CDX in WSL over the same interop it already uses |
+| `cdx tray ack <id>... [--json]` | Mark events as shown, idempotently |
+| `cdx tray heartbeat [--json]` | Record that a companion is alive. `cdx notify` publishes to the tray only while this is fresh, and delivers directly otherwise |
 | `cdx tray doctor [--json]` | Report companion, executable, version, running instance, autostart, and the two capabilities that fail silently — whether this desktop can draw a tray icon at all, and on Windows whether the Start Menu shortcut toasts depend on exists. Reads only; it never repairs |
 | `cdx --help` | Show usage |
 | `cdx --version` | Show version |
