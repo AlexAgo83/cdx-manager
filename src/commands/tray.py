@@ -15,6 +15,7 @@ from ..errors import CdxError
 from ..tray_autostart import disable as autostart_disable
 from ..tray_autostart import enable as autostart_enable
 from ..tray_autostart import status as autostart_status
+from ..tray_capability import desktop_capability, toast_capability
 from ..tray_contract import (
     AUTH_LOCKED,
     FRESH,
@@ -244,6 +245,11 @@ def _tray_autostart(args, ctx):
     return 0
 
 
+# `None` is a real answer here: the bus could not be asked. Reporting it as
+# "no tray" would be a claim the probe did not make.
+_DESKTOP_STATE = {True: "ready", False: "no tray", None: "unknown"}
+
+
 def _tray_doctor(args, ctx):
     """Every state I had to diagnose by hand, in one bounded report.
 
@@ -260,6 +266,8 @@ def _tray_doctor(args, ctx):
     state = read_state(base_dir)
     autostart = autostart_status(env=env)
     instance = companion_instance()
+    desktop = desktop_capability(env=env)
+    toasts = toast_capability(env=env)
 
     checks = [
         ("companion", "installed" if state else ("override" if executable else "absent"),
@@ -273,6 +281,11 @@ def _tray_doctor(args, ctx):
         ("update", "interrupted" if interrupted_update(base_dir) else "clean",
          "a staged companion was never promoted; run: cdx tray install"
          if interrupted_update(base_dir) else "-"),
+        # Both fail silently when absent, which is the only reason they are
+        # worth a line: nothing else would ever tell the user.
+        ("desktop", _DESKTOP_STATE.get(desktop.get("available")), desktop["detail"]),
+        ("toasts", "ready" if toasts["present"] else ("blocked" if toasts["gated"] else "n/a"),
+         toasts["detail"]),
     ]
     if parsed["json"]:
         _write_json(ctx, _json_success(

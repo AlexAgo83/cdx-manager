@@ -555,7 +555,8 @@ class TrayCommandTest(CliTestBase):
         checks = {c["check"]: c for c in json.loads(io_obj["stdout"].getvalue())["checks"]}
         self.assertEqual(
             set(checks),
-            {"companion", "executable", "cdx_version", "target", "running", "autostart", "update"},
+            {"companion", "executable", "cdx_version", "target", "running", "autostart", "update",
+             "desktop", "toasts"},
         )
         self.assertEqual(checks["companion"]["state"], "absent")
         self.assertEqual(checks["running"]["state"], "no")

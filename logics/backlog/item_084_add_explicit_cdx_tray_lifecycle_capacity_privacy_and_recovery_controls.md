@@ -2,9 +2,9 @@
 > From version: 0.17.1
 > Schema version: 1.0
 > Status: In progress
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 85%
+> Understanding: 92%
+> Confidence: 90%
+> Progress: 92%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -26,6 +26,15 @@
   - Add focused automated checks and managed-macOS smoke validation.
 - Out:
   - Background self-update, automatic tray activation, cross-machine monitoring, quota alerts, and rewriting the dependent alert or plugin contracts.
+
+# Delivery record
+- AC1 is met: `install` never enables startup, `autostart on|off` are explicit, idempotent and read back from the platform rather than from a recorded intention, and a second companion exits 3 naming the pid that holds the lock. Verified on macOS and on Windows.
+- AC2 is met: the tooltip names the most constrained capacity, its figure, its freshness and its reset in words rather than by shape, and never the session name, which stays one click away in the menu. Composed in CDX so no backend can say more than the rule allows.
+- AC4 is met: an update verifies, stages, proves the replacement starts, and only then retires the previous companion; a failed probe leaves the working one installed and `doctor` names the interrupted state.
+- AC5 now includes the two capabilities that decide whether the companion's output ever reaches a person, and both fail *silently* on the platform that gates them — the only reason they earn a diagnostic line at all. Windows shows a toast from a non-packaged program only when a Start Menu shortcut carrying its AppUserModelID exists; without one the notification API succeeds and nothing appears. Linux draws an icon only where something owns `org.kde.StatusNotifierWatcher`.
+- Both verified on kdesktop rather than mocked. Windows reports `missing: C:\Users\aagos\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\CDX.lnk`, and that directory is real — it holds other applications' shortcuts, so the diagnostic points somewhere that exists. Ubuntu WSL reports `no org.kde.StatusNotifierWatcher: this desktop has no system tray`, the same words the Rust backend uses, because a diagnostic that disagreed with the thing it diagnoses would be worse than none.
+- A failed probe reports `unknown`, not "no tray". Reporting absence would be a claim the probe never made, and would send someone installing an extension they may already have.
+- Known gap, named rather than left silent: nothing yet *creates* the Windows Start Menu shortcut. AC5 asks doctor to check it, and it does; creating it belongs to `cdx tray install` and is not yet written, so on Windows today the check will report `blocked` after a successful install.
 
 # Acceptance criteria
 - AC1: cdx tray install never enables startup, cdx tray autostart on and off are explicit and idempotent and report the real platform state, and one tray instance owns a user session while a duplicate launch reports the existing one.
