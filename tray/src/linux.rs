@@ -1,0 +1,165 @@
+//! The Linux run loop, on StatusNotifierItem.
+//!
+//! `ksni` rather than `tray-icon` here, and that is the whole point: `tray-icon`
+//! links gtk3, libxdo and libayatana-appindicator, so the Linux asset would
+//! refuse to start wherever those packages are absent. `ksni` speaks the same
+//! D-Bus protocol in pure Rust, so the binary carries no C prerequisite at all.
+//!
+//! Support is resolved at runtime by asking the session bus for the watcher,
+//! never by matching a distribution or desktop name. GNOME implements
+//! StatusNotifierItem only through an extension that Ubuntu ships and a stock
+//! GNOME does not, so any name-based guess is wrong on one side or the other.
+
+use std::time::{Duration, Instant};
+
+use crate::menu::{ActionId, Entry};
+use crate::runner::Render;
+use crate::snapshot::Transport;
+
+const PUMP: Duration = Duration::from_millis(200);
+
+/// Whether this session can show a tray icon at all.
+///
+/// Returns the reason when it cannot, so the caller can say what is missing
+/// instead of crashing or drawing nothing.
+pub fn tray_support() -> Result<(), String> {
+    if std::env::var("DBUS_SESSION_BUS_ADDRESS").is_err() {
+        return Err("no D-Bus session bus: this is not a desktop session".into());
+    }
+    let listed = std::process::Command::new("dbus-send")
+        .args([
+            "--session",
+            "--dest=org.freedesktop.DBus",
+            "--type=method_call",
+            "--print-reply",
+            "/org/freedesktop/DBus",
+            "org.freedesktop.DBus.ListNames",
+        ])
+        .output()
+        .map_err(|_| "dbus-send is not available to query the session bus".to_string())?;
+    if String::from_utf8_lossy(&listed.stdout).contains("org.kde.StatusNotifierWatcher") {
+        Ok(())
+    } else {
+        Err(
+            "no org.kde.StatusNotifierWatcher on the session bus: this desktop has no system tray. \
+             On GNOME, install the AppIndicator extension."
+                .into(),
+        )
+    }
+}
+
+struct CdxTray {
+    icon_state: String,
+    entries: Vec<Entry>,
+    /// Set by a menu click, drained by the loop. The menu callbacks run on
+    /// ksni's own thread, so the action has to be handed over rather than acted
+    /// on in place.
+    pending: std::sync::Arc<std::sync::Mutex<Option<ActionId>>>,
+}
+
+impl ksni::Tray for CdxTray {
+    fn id(&self) -> String {
+        "cdx-tray".into()
+    }
+
+    fn title(&self) -> String {
+        "CDX".into()
+    }
+
+    /// A themed icon name rather than pixels: SNI desktops draw their own,
+    /// which is what keeps the glyph legible on a panel whose colour we do not
+    /// control. The names are ordinary freedesktop status icons.
+    fn icon_name(&self) -> String {
+        match self.icon_state.as_str() {
+            "ok" => "user-available",
+            "low" => "user-away",
+            "critical" => "user-busy",
+            _ => "user-offline",
+        }
+        .into()
+    }
+
+    fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
+        use ksni::menu::{MenuItem, StandardItem};
+        self.entries
+            .iter()
+            .map(|entry| match entry {
+                Entry::Separator => MenuItem::Separator,
+                Entry::Info(text) => StandardItem {
+                    label: text.clone(),
+                    enabled: false,
+                    ..Default::default()
+                }
+                .into(),
+                Entry::Action { id, label, enabled } => {
+                    let action = *id;
+                    StandardItem {
+                        label: label.clone(),
+                        enabled: *enabled,
+                        activate: Box::new(move |tray: &mut CdxTray| {
+                            *tray.pending.lock().unwrap() = Some(action);
+                        }),
+                        ..Default::default()
+                    }
+                    .into()
+                }
+            })
+            .collect()
+    }
+}
+
+pub fn run(transport: Transport) -> Result<(), String> {
+    tray_support()?;
+    let mut state = Render::first(&transport);
+    let pending = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let handle = ksni::blocking::TrayMethods::spawn(CdxTray {
+        icon_state: state.icon_state.clone(),
+        entries: state.entries.clone(),
+        pending: pending.clone(),
+    })
+    .map_err(|error| format!("could not register the tray item: {error}"))?;
+
+    let mut due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
+    loop {
+        std::thread::sleep(PUMP);
+        let clicked = pending.lock().unwrap().take();
+        let mut redraw = false;
+        match clicked {
+            Some(ActionId::Quit) => return Ok(()),
+            Some(ActionId::Refresh) => {
+                state = Render::next(&transport, state.tick);
+                redraw = true;
+            }
+            Some(ActionId::OpenTerminal) => open_terminal(),
+            None => {}
+        }
+        if Instant::now() >= due {
+            state = Render::next(&transport, state.tick);
+            redraw = true;
+        }
+        if redraw {
+            let icon = state.icon_state.clone();
+            let entries = state.entries.clone();
+            handle.update(move |tray: &mut CdxTray| {
+                tray.icon_state = icon.clone();
+                tray.entries = entries.clone();
+            });
+            due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
+        }
+    }
+}
+
+/// Open a terminal on `cdx status`. Best effort, and deliberately not a search
+/// through a list of emulators: `x-terminal-emulator` is the distribution's own
+/// answer to which terminal this desktop uses.
+fn open_terminal() {
+    let cdx = Transport::cdx_command();
+    for terminal in ["x-terminal-emulator", "gnome-terminal", "konsole", "xterm"] {
+        let spawned = std::process::Command::new(terminal)
+            .args(["-e", &format!("{cdx} status")])
+            .spawn();
+        if spawned.is_ok() {
+            return;
+        }
+    }
+}

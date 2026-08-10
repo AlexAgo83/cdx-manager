@@ -8,7 +8,7 @@
 > Complexity: High
 > Theme: Distribution
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-10 13:18:24
+> Indicators reviewed: 2026-08-10 21:52:54
 
 # AI Context
 - Summary: Add Linux tray support and explicit release-asset installation
@@ -25,6 +25,7 @@
 # Scope
 - In:
   - Implement Linux support over StatusNotifierItem with ksni so the asset carries no gtk, libxdo, or libayatana-appindicator prerequisite, resolving the org.kde.StatusNotifierWatcher D-Bus name at runtime and reporting a clear unsupported-environment result when it is absent, without matching distribution or desktop names.
+  - Build the Linux asset for musl, statically: no glibc version dependency, no C toolchain to produce it, nothing to install to run it. Verified in the managed Ubuntu WSL.
   - Package per-platform, per-architecture companion release assets plus machine-readable checksums, on top of the build and signing capability item_080 established.
   - Implement explicit asset selection, checksum verification, local install-state recording, launch, uninstall, and CDX-managed update paths that keep the companion aligned with the installed CDX release.
   - Document manual distribution, explicit CDX-managed updates, first-launch security prompts, supported platforms, startup opt-in if provided, and recovery steps.

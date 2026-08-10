@@ -5,7 +5,10 @@
 //! the contract, the poll cadence, and the unavailable states get exercised on
 //! a machine with no windowing session.
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 mod backend;
+#[cfg(target_os = "linux")]
+mod linux;
 #[cfg(target_os = "macos")]
 mod mac;
 mod menu;
@@ -90,12 +93,18 @@ fn run_tray(transport: Transport) {
     }
 }
 
-/// The Linux backend lands with item_081, on ksni rather than tray-icon. Until then the
-/// companion says so rather than starting something that cannot draw.
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[cfg(target_os = "linux")]
 fn run_tray(transport: Transport) {
-    eprintln!(
-        "cdx-tray: no tray backend on this platform yet. `cdx-tray --print` works everywhere."
-    );
+    if let Err(reason) = linux::run(transport) {
+        eprintln!("cdx-tray: {reason}");
+        std::process::exit(1);
+    }
+}
+
+/// Nothing else has a backend. Saying so beats starting something that cannot
+/// draw, and `--print` still works everywhere.
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+fn run_tray(transport: Transport) {
+    eprintln!("cdx-tray: no tray backend on this platform. `cdx-tray --print` works everywhere.");
     std::process::exit(print_once(&transport));
 }

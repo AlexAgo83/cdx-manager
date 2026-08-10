@@ -1,5 +1,5 @@
 ## adr_005_cdx_tray_runtime_and_companion_transport_boundary - CDX tray runtime and companion transport boundary
-> Indicators reviewed: 2026-08-10 21:26:47
+> Indicators reviewed: 2026-08-10 21:52:53
 
 > Date: 2026-08-10
 > Status: Settled
@@ -47,6 +47,7 @@ flowchart TD
 - Use `tray-icon` and `muda` on macOS and Windows, and `ksni` on Linux behind one internal trait. Two backends cost a thin abstraction; one backend would cost gtk3, libxdo, and libayatana-appindicator3 as runtime prerequisites on every Linux machine.
 - On Windows, `cdx tray install` creates a per-user Start Menu shortcut carrying the AppUserModelID and a stub CLSID, records it in the install state, and removes it on uninstall. No administrator rights, no HKLM write, no service.
 - Register startup per platform with the plainest reversible mechanism: a `~/Library/LaunchAgents` plist on macOS, the per-user `Run` key on Windows, and an XDG autostart `.desktop` file on Linux. Each is a single recorded artifact that `cdx tray autostart off` deletes.
+- Build the Linux asset for musl, statically, linked with `rust-lld`. It then needs no glibc of a given vintage, no C toolchain to produce, and no system library to run, which is the same reason ksni was chosen over tray-icon carried through to the artifact itself.
 - Deliver one binary per OS and architecture. The companion never embeds CDX logic: it reads a snapshot and invokes `cdx` for every action.
 - Make `cdx` itself the transport, invoked as a child process. The companion never opens a socket, never listens on a port, and never calls a provider API. This is what makes the Windows-to-WSL bridge a `wsl.exe` command rather than a networking assumption.
 - Carry status on stdout: the companion runs `cdx tray status --json` natively and `wsl.exe cdx tray status --json` across the WSL boundary, and parses the result. There is no status file on disk. **Amended 2026-08-10, see Amendments.**
@@ -99,6 +100,8 @@ flowchart TD
 - The crossing is inside the 100-300 ms this ADR assumed; the full tick is not. At the 60 second WSL period that is 0.57% of a core, so the budget holds, but the assumption was about the crossing rather than the tick and is corrected here.
 - These are warm figures: the distribution was already running. A tick that has to cold-start a stopped WSL VM costs far more, which is the whole reason polling stops when no session is enabled.
 - **2026-08-10, the companion's own tick, measured on Windows against CDX in WSL.** 285-320 ms per `cdx-tray --print`, which is the full path: process start, `wsl.exe` crossing, Python start in WSL, snapshot build, parse, render. At the 60 second WSL period that is 0.48% of a core, and the 60 second alert latency budget holds with the tick two orders of magnitude below it.
+- **2026-08-10, the Linux asset built and run on a real host.** A 2.4 MB static-pie musl binary, built on macOS with `rust-lld` and no cross toolchain, ran inside the managed Ubuntu WSL against CDX there and printed all 11 sessions. Started on a system with no gtk, no appindicator and no C compiler at all.
+- The same run exercised the unsupported path: WSL has a session bus but no `org.kde.StatusNotifierWatcher`, so the companion reported the missing watcher, named the GNOME remedy, and exited 1 without crashing or registering anything.
 - Reopen this only with a number. If `item_085` measures a `wsl.exe` tick cost that actually hurts, add a disk cache then, justified by that figure.
 
 # Alternatives considered
