@@ -8,7 +8,7 @@
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-10 21:41:32
+> Indicators reviewed: 2026-08-10 22:05:55
 
 # AI Context
 - Summary: Build native tray companions for macOS and Windows plus WSL
@@ -23,6 +23,7 @@
 
 # Scope
 - In:
+  - The Windows AppUserModelID and its Start Menu shortcut moved to item_082, where the first toast makes them verifiable. Their only function is to let a toast reach Action Center, and there is no toast in this slice.
   - Stand up the minimum build capability this slice needs to be testable at all: a Rust toolchain, the per-platform target matrix, the macOS bundle layout, and the self-signed signing step from adr_005. Release-asset packaging, checksums, and the installer stay in item_081.
   - Build the companion on the runtime settled in adr_005 (tray-icon plus muda on macOS and Windows, ksni on Linux, no webview) and package it as a separate artifact.
   - Implement the shared menu, bounded periodic refresh, manual refresh, error rendering, and clean quit behaviour for macOS and Windows, reading the snapshot from cdx tray status --json rather than from a status file.
@@ -30,7 +31,6 @@
   - Implement Windows discovery/configuration for native CDX and one configured WSL target using wsl.exe, with clear errors for missing interop or executable.
   - Package the macOS companion as a CDX.app bundle with LSUIElement set, a stable bundle identifier, and the CDX icon, signed at build time with the self-signed identity from adr_005 rather than ad-hoc.
   - Promote the Windows notification-area icon once, ever, by setting IsPromoted under HKCU Control Panel NotifyIconSettings, because Windows 11 hides every new tray icon in the overflow flyout by default and an invisible status icon defeats the feature. Tracked by a marker file rather than by reading the registry value back: Windows rewrites IsPromoted to 0 itself once the icon appears, so the value cannot distinguish never-asked from user-unpinned. Per-user, no admin, and unpinning stays the user's decision.
-  - Register the Windows AppUserModelID during cdx tray install and create the per-user Start Menu shortcut that carries it plus a stub CLSID, without which a toast is silently dropped; record both so uninstall removes them, and require no administrator rights.
   - Produce the icon assets each surface actually needs, since the existing set in logics/external/icones is application artwork and only covers part of them:
     - macOS menu bar: done. tray/assets/macos holds four template glyphs plus their @2x pairs, drawn as SVG on one shared circle so the set does not jitter between states. Verify any change at 18 px: a generated set with four different circle diameters and a sub-pixel stroke collapsed at that size, making ok and unknown indistinguishable.
     - macOS bundle: an .icns built from the existing 1024 px source, for Finder and the Login Items list.

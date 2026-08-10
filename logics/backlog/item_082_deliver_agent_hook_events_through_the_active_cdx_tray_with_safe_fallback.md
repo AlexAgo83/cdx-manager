@@ -8,6 +8,7 @@
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-10 22:05:55
 
 # AI Context
 - Summary: Deliver agent hook events through the active CDX tray with safe fallback
@@ -25,6 +26,7 @@
   - Add a small versioned local event-spool and heartbeat protocol beneath the existing composed-notification boundary.
   - Have cdx notify choose tray publication only for a fresh compatible heartbeat, otherwise retain the existing direct notification dispatch unchanged.
   - Have the installed tray consume and acknowledge events once, show a temporary icon hint plus a bounded menu history, and emit one native local notification when its capability is available.
+  - Create the Windows Start Menu shortcut carrying the AppUserModelID and its stub CLSID, and register the AUMID. Moved here from item_080 on purpose: its only function is to make a toast reach Action Center, so building it before there is a toast would be work nobody could verify. It lands with the first notification, where it either works or does not.
   - Bridge Windows-hosted WSL through explicit wsl.exe reads and writes of CDX-controlled state rather than sockets, ports, or GUI forwarding.
   - Bound the consumption loop to the adr_005 poll budget, stop it when no session is enabled, back it off after repeated read failures, and size the heartbeat freshness window wider than one poll period.
   - Reuse existing privacy normalization and preference checks; add focused unit and integration-boundary coverage plus documentation.

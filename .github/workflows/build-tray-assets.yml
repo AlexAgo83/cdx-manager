@@ -1,0 +1,153 @@
+name: Build tray companion assets
+
+# One asset per OS and architecture, plus their checksums in the ledger that
+# `cdx tray install` verifies against. The companion is self-signed, so that
+# ledger is what vouches for the download; an asset with no entry is refused.
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build, for example v0.18.0
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runs-on: macos-latest
+          - target: x86_64-apple-darwin
+            runs-on: macos-latest
+          - target: x86_64-pc-windows-msvc
+            runs-on: windows-latest
+          # musl and rust-lld: no glibc of a given vintage to depend on, and
+          # nothing to install on the target machine to run it.
+          - target: x86_64-unknown-linux-musl
+            runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+
+      - name: Install the Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ matrix.target }}" == *musl* ]]; then
+            export RUSTFLAGS="-C linker=rust-lld -C link-self-contained=yes"
+          fi
+          cargo build --release --manifest-path tray/Cargo.toml --target ${{ matrix.target }}
+
+      # The identity is a self-signed certificate, exported from the build
+      # machine's keychain. adr_005 rejects ad-hoc signing outright: it changes
+      # every build, so macOS forgets the notification grant at each update.
+      # Without the secret this fails rather than shipping an unusable bundle.
+      - name: Sign the macOS bundle
+        if: contains(matrix.target, 'apple-darwin')
+        env:
+          CERT_P12_BASE64: ${{ secrets.CDX_TRAY_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.CDX_TRAY_CERT_PASSWORD }}
+          CDX_TRAY_SIGN_IDENTITY: ${{ secrets.CDX_TRAY_SIGN_IDENTITY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CERT_P12_BASE64:-}" ]; then
+            echo "CDX_TRAY_CERT_P12 is not set. Refusing to publish an unsigned or"
+            echo "ad-hoc signed macOS companion. See adr_005."
+            exit 1
+          fi
+          KEYCHAIN="$RUNNER_TEMP/cdx-tray.keychain-db"
+          security create-keychain -p actions "$KEYCHAIN"
+          security set-keychain-settings -lut 900 "$KEYCHAIN"
+          security unlock-keychain -p actions "$KEYCHAIN"
+          printf '%s' "$CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k actions "$KEYCHAIN"
+          security list-keychain -d user -s "$KEYCHAIN"
+          rm -f "$RUNNER_TEMP/cert.p12"
+          ./scripts/build-tray.sh
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${RELEASE_TAG#v}"
+          STAGE="$RUNNER_TEMP/stage"
+          mkdir -p "$STAGE"
+          if [[ "${{ matrix.target }}" == *apple-darwin* ]]; then
+            cp -R tray/target/release/CDX.app "$STAGE/"
+          elif [[ "${{ matrix.target }}" == *windows* ]]; then
+            cp tray/target/${{ matrix.target }}/release/cdx-tray.exe "$STAGE/"
+          else
+            cp tray/target/${{ matrix.target }}/release/cdx-tray "$STAGE/"
+          fi
+          tar czf "cdx-tray-$VERSION-${{ matrix.target }}.tar.gz" -C "$STAGE" .
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdx-tray-${{ matrix.target }}
+          path: cdx-tray-*.tar.gz
+
+  publish:
+    name: Publish assets and record checksums
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Collect built assets
+        uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Attach the assets to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" assets/*.tar.gz --clobber
+
+      # Written back to main for the same reason the archive ledger is: an entry
+      # that only exists in a release asset is missing from the next release's
+      # seed, and the gap is permanent. `cdx tray install` reads this file.
+      - name: Record the checksums in the ledger on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 scripts/record_tray_checksums.py assets/*.tar.gz
+          if git diff --quiet -- checksums/release-archives.json; then
+            echo "Ledger already records the tray assets for $RELEASE_TAG."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add checksums/release-archives.json
+          git commit -m "chore: record tray companion checksums for $RELEASE_TAG"
+          git push origin HEAD:main
+          gh release upload "$RELEASE_TAG" checksums/release-archives.json --clobber
