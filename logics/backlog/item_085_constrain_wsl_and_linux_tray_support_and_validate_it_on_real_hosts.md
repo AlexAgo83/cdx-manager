@@ -1,10 +1,10 @@
 ## item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts - Constrain WSL and Linux tray support and validate it on real hosts
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 15%
 > Complexity: Medium
 > Theme: Platform support
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

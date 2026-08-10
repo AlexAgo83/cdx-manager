@@ -1,13 +1,14 @@
 ## task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation - Orchestrate trustworthy CDX tray operation and platform validation
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 15%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Owner: claude
 
 # AI Context
 - Summary: Orchestrate trustworthy CDX tray operation and platform validation
@@ -50,10 +51,13 @@
 - request-AC8 -> `item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts`. Proof deferred to slice closeout.
 
 # Validation
-- (no validation recorded yet)
+- Single-instance wave: `cargo test` 24 passed, `cargo clippy -- -D warnings` clean on all three targets. Verified with the signed bundle on the arm64 macOS host: a second launch exits 3 naming the first companion's pid, and a pid file left by a killed companion is reclaimed by the next launch rather than blocking it.
 
 # Report
-- Not started.
+- Single-instance lock delivered in `tray/src/instance.rs`, taken before any backend draws. Two icons in the menu bar is the worst failure this feature has, because both are correct and the user cannot tell which to quit.
+- The lock records a pid rather than merely existing. A presence-only lock would outlive a crash and leave the tray unstartable until someone found and deleted the file, which is worse than the failure it prevents. A dead or truncated pid reads as stale and is reclaimed.
+- A recycled pid would read as alive and cost a refused launch rather than a duplicate icon. That is the safe direction to be wrong in, and it is why the check is `kill(pid, 0)` rather than something cleverer.
+- The lock lives under the per-user temporary directory, not a shared path, so one user's companion cannot block another's on a shared machine.
 
 # Links
 - Request: `req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation`

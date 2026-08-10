@@ -7,6 +7,7 @@
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod backend;
+mod instance;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "macos")]
@@ -77,8 +78,26 @@ fn main() {
     }
 }
 
-#[cfg(target_os = "macos")]
+/// Refuse a second companion before any backend draws anything.
+///
+/// Held for the whole run and released on the way out, so Quit frees it and a
+/// crash leaves a pid file that the next launch recognises as stale.
 fn run_tray(transport: Transport) {
+    let _lock = match instance::Lock::acquire() {
+        Ok(lock) => lock,
+        Err(pid) => {
+            eprintln!(
+                "cdx-tray: already running as pid {pid}. Quit it from its menu, \
+                 or stop that process, before starting another."
+            );
+            std::process::exit(3);
+        }
+    };
+    run_backend(transport);
+}
+
+#[cfg(target_os = "macos")]
+fn run_backend(transport: Transport) {
     if let Err(reason) = mac::run(transport) {
         eprintln!("cdx-tray: {reason}");
         std::process::exit(1);
@@ -86,7 +105,7 @@ fn run_tray(transport: Transport) {
 }
 
 #[cfg(target_os = "windows")]
-fn run_tray(transport: Transport) {
+fn run_backend(transport: Transport) {
     if let Err(reason) = win::run(transport) {
         eprintln!("cdx-tray: {reason}");
         std::process::exit(1);
@@ -94,7 +113,7 @@ fn run_tray(transport: Transport) {
 }
 
 #[cfg(target_os = "linux")]
-fn run_tray(transport: Transport) {
+fn run_backend(transport: Transport) {
     if let Err(reason) = linux::run(transport) {
         eprintln!("cdx-tray: {reason}");
         std::process::exit(1);
@@ -104,7 +123,7 @@ fn run_tray(transport: Transport) {
 /// Nothing else has a backend. Saying so beats starting something that cannot
 /// draw, and `--print` still works everywhere.
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-fn run_tray(transport: Transport) {
+fn run_backend(transport: Transport) {
     eprintln!("cdx-tray: no tray backend on this platform. `cdx-tray --print` works everywhere.");
     std::process::exit(print_once(&transport));
 }

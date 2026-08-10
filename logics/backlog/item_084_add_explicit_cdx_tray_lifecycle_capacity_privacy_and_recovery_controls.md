@@ -1,10 +1,10 @@
 ## item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls - Add explicit CDX tray lifecycle, capacity, privacy, and recovery controls
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 15%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
