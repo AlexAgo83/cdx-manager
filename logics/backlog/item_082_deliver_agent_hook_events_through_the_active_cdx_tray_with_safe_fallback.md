@@ -4,7 +4,7 @@
 > Status: In progress
 > Understanding: 95%
 > Confidence: 92%
-> Progress: 90%
+> Progress: 93%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -61,7 +61,10 @@
 - The fallback decision had a real defect, found by reading what the API actually promises. `addNotificationRequest` succeeds whether or not authorization was ever granted: the request is accepted and the banner silently dropped. Trusting its result would mean believing every alert was delivered and never falling back — the one failure that loses notifications outright. Authorization is therefore checked before posting, and anything short of granted goes to `osascript`. Exactly one path runs, so a fallback can never double an alert the tray was built to de-duplicate.
 - **Confirmed on screen, 2026-08-11.** After the user granted notifications to CDX in System Settings, `--notifications` reported `granted` — the third distinct value observed on the same machine, after `unavailable` for a bare binary and `denied` before the grant, which is what proves the query reads the system rather than a cache. A companion run then delivered a real alert and the user read it back verbatim: `main` / `autre · needs your attention`.
 - The native path is proven rather than inferred. An `osascript` decoy placed first on PATH was never invoked, so the banner came from the bundle and not the fallback — and therefore carried the CDX name and icon. Checking for a running `osascript` afterwards would have proved nothing, since it would have exited by then.
-- Still open in this slice: the short-lived icon hint distinct from the menu history, and Windows toast emission through the AppUserModelID, which still has no proof that a toast reaches Action Center. AC6's backoff is satisfied by construction now that alerts ride with the snapshot: one call, one cadence, and the existing `Tick` backs off after three consecutive failures.
+- AC3's short-lived hint is delivered, and it sits *beside* the glyph rather than replacing it. The glyph means remaining quota; swapping it for an alert marker would hide the one thing the icon exists to show, so a user glancing at a critical account would see a marker instead of a warning. macOS and Windows get a title next to the icon; Linux carries it on the tooltip, because StatusNotifierItem has no text beside the icon and the desktop draws the glyph itself from a themed name.
+- The marker counts rather than merely lighting up: "three agents finished" and "one did" call for different reactions, and this is the only surface that says so without a click. It expires after 45 s on its own — a marker that stayed until clicked would be permanent furniture for anyone running several agents, and permanent says nothing. New alerts restart the window rather than accumulating a total nobody asked for, and a quiet poll does not clear a marker that is still inside its window: polls are 30-60 s apart against a 45 s window, so dropping it on a quiet poll would make it flicker.
+- Set on the first draw as well as on redraws. Alerts already waiting when the companion starts would otherwise show no marker for up to a poll period, which is the icon saying nothing happened while three things had.
+- Still open in this slice: Windows toast emission through the AppUserModelID, which still has no proof that a toast reaches Action Center. AC6's backoff is satisfied by construction now that alerts ride with the snapshot: one call, one cadence, and the existing `Tick` backs off after three consecutive failures.
 
 # Acceptance criteria
 - AC1: A fresh active tray receives one sanitized event and becomes the sole visible notification owner; an absent or stale tray leaves the existing direct path intact.

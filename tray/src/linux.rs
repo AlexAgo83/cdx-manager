@@ -12,6 +12,7 @@
 
 use std::time::{Duration, Instant};
 
+use crate::hint;
 use crate::menu::{ActionId, Entry};
 use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
@@ -49,6 +50,8 @@ pub fn tray_support() -> Result<(), String> {
 }
 
 struct CdxTray {
+    /// The short-lived "something arrived" marker, or None.
+    hint: Option<String>,
     icon_state: String,
     tooltip: String,
     entries: Vec<Entry>,
@@ -71,8 +74,16 @@ impl ksni::Tray for CdxTray {
     /// here so no backend can accidentally say more than the privacy rule
     /// allows, and so the accessibility text is identical everywhere.
     fn tool_tip(&self) -> ksni::ToolTip {
+        // StatusNotifierItem has no text beside the icon, so the marker rides
+        // on the tooltip here rather than being dropped. The desktop draws the
+        // glyph itself from a themed name, which is what keeps it legible on a
+        // panel whose colour we do not control — and also why we cannot put a
+        // count on it.
         ksni::ToolTip {
-            title: self.tooltip.clone(),
+            title: match &self.hint {
+                Some(marker) => format!("{marker} · {}", self.tooltip),
+                None => self.tooltip.clone(),
+            },
             ..Default::default()
         }
     }
@@ -123,7 +134,9 @@ pub fn run(transport: Transport) -> Result<(), String> {
     tray_support()?;
     let mut state = Render::first(&transport);
     let pending = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let mut alert_hint = hint::advance(None, state.fresh.len(), Instant::now());
     let handle = ksni::blocking::TrayMethods::spawn(CdxTray {
+        hint: hint::title(alert_hint, Instant::now()),
         icon_state: state.icon_state.clone(),
         tooltip: state.tooltip.clone(),
         entries: state.entries.clone(),
@@ -154,13 +167,16 @@ pub fn run(transport: Transport) -> Result<(), String> {
             redraw = true;
         }
         if redraw {
+            alert_hint = hint::advance(alert_hint, state.fresh.len(), Instant::now());
             let icon = state.icon_state.clone();
             let tooltip = state.tooltip.clone();
             let entries = state.entries.clone();
+            let marker = hint::title(alert_hint, Instant::now());
             handle.update(move |tray: &mut CdxTray| {
                 tray.icon_state = icon.clone();
                 tray.tooltip = tooltip.clone();
                 tray.entries = entries.clone();
+                tray.hint = marker.clone();
             });
             // Acknowledged only after the alert has been drawn. A companion
             // that dies in between is handed it again next poll and shows it

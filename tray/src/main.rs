@@ -8,6 +8,7 @@
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod backend;
 mod events;
+mod hint;
 mod instance;
 #[cfg(target_os = "linux")]
 mod linux;

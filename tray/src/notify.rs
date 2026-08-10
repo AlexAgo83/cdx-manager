@@ -167,6 +167,11 @@ mod imp {
 
 #[cfg(not(target_os = "macos"))]
 mod imp {
+    /// The same shape as the macOS one, deliberately. Only `Unavailable` can be
+    /// produced here, but a platform-dependent enum would force every caller to
+    /// match differently per target — and the whole point of this module is
+    /// that the loop above it does not care which platform it is on.
+    #[allow(dead_code)]
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Authorization {
         Granted,

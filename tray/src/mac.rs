@@ -14,6 +14,7 @@ use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSEventMask};
 use objc2_foundation::{NSDate, NSDefaultRunLoopMode};
 
 use crate::backend;
+use crate::hint;
 use crate::menu::ActionId;
 use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
@@ -38,6 +39,8 @@ pub fn run(transport: Transport) -> Result<(), String> {
     // be acknowledged here too. Leaving it to the redraw block would hold them
     // unacknowledged for a whole poll period, and a companion quit inside that
     // window would have shown an alert CDX still considers undelivered.
+    let mut alert_hint = hint::advance(None, state.fresh.len(), Instant::now());
+    backend::set_title(&tray, hint::title(alert_hint, Instant::now()));
     announce(&transport, &state);
     let mut due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
 
@@ -75,14 +78,20 @@ pub fn run(transport: Transport) -> Result<(), String> {
         }
 
         if redraw {
-            actions =
-                backend::update_tray(&tray, &state.icon_state, &state.tooltip, &state.entries)?;
+            actions = backend::update_tray(
+                &tray,
+                &state.icon_state,
+                &state.tooltip,
+                hint::title(alert_hint, Instant::now()),
+                &state.entries,
+            )?;
             // No enabled session means no reason to ask again. Wake up rarely
             // rather than never, so enabling one later is eventually noticed.
             due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
             // Acknowledged only after the alert has been drawn. A companion
             // that dies in between is handed it again next poll and shows it
             // twice at worst; acknowledging first would lose it outright.
+            alert_hint = hint::advance(alert_hint, state.fresh.len(), Instant::now());
             announce(&transport, &state);
         }
         let _ = &tray;
