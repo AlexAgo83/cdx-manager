@@ -151,6 +151,9 @@ pub struct Session {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Snapshot {
     pub icon_state: String,
+    /// What the closed icon may say on hover. Built by CDX so the companion
+    /// cannot accidentally compose something the privacy rule forbids.
+    pub tooltip: String,
     pub session_count: u64,
     pub refreshable: bool,
     /// Set when the snapshot is newer than this build understands.
@@ -236,6 +239,11 @@ pub fn read_snapshot(payload: &Value) -> Result<Snapshot, Unavailable> {
         .ok_or(Unavailable::NotASnapshot)?;
     let icon = snapshot.get("icon").ok_or(Unavailable::NotASnapshot)?;
     Ok(Snapshot {
+        tooltip: icon
+            .get("tooltip")
+            .and_then(Value::as_str)
+            .unwrap_or("CDX")
+            .to_string(),
         icon_state: icon
             .get("state")
             .and_then(Value::as_str)
@@ -264,7 +272,8 @@ mod tests {
     fn snapshot_json(major: u64) -> Value {
         serde_json::json!({
             "schema": {"name": SCHEMA_NAME, "major": major, "minor": 0},
-            "icon": {"state": "low", "reason": "fresh", "session_count": 2},
+            "icon": {"state": "low", "reason": "fresh", "session_count": 2,
+                     "tooltip": "CDX · capacity low · 18% left"},
             "refreshable": false,
             "sessions": [
                 {"name": "work", "provider": "codex", "available_pct": 18,
@@ -279,6 +288,7 @@ mod tests {
     fn reads_a_current_snapshot() {
         let parsed = read_snapshot(&snapshot_json(SCHEMA_MAJOR)).expect("readable");
         assert_eq!(parsed.icon_state, "low");
+        assert_eq!(parsed.tooltip, "CDX · capacity low · 18% left");
         assert_eq!(parsed.session_count, 2);
         assert!(!parsed.refreshable);
         assert!(parsed.update_hint.is_none());

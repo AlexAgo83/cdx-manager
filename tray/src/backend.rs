@@ -131,10 +131,12 @@ pub fn build_menu(entries: &[Entry]) -> Result<(Menu, HashMap<MenuId, ActionId>)
 pub fn update_tray(
     tray: &TrayIcon,
     state: &str,
+    tooltip: &str,
     entries: &[Entry],
 ) -> Result<HashMap<MenuId, ActionId>, String> {
     let (menu, actions) = build_menu(entries).map_err(|e| e.to_string())?;
     tray.set_menu(Some(Box::new(menu)));
+    let _ = tray.set_tooltip(Some(tooltip));
     tray.set_icon(Some(icon_for(state)?))
         .map_err(|e| e.to_string())?;
     Ok(actions)
@@ -142,6 +144,7 @@ pub fn update_tray(
 
 pub fn build_tray(
     state: &str,
+    tooltip: &str,
     entries: &[Entry],
 ) -> Result<(TrayIcon, HashMap<MenuId, ActionId>), String> {
     let (menu, actions) = build_menu(entries).map_err(|e| e.to_string())?;
@@ -151,7 +154,7 @@ pub fn build_tray(
         // macOS-only: it is what makes macOS invert the black glyph per theme.
         // Windows ignores it, which is why Windows picks its colour instead.
         .with_icon_as_template(!wants_light_glyph())
-        .with_tooltip("CDX")
+        .with_tooltip(tooltip)
         .build()
         .map_err(|e| e.to_string())?;
     Ok((tray, actions))

@@ -151,6 +151,7 @@ mod tests {
     fn snapshot(sessions: Vec<Session>, refreshable: bool) -> Snapshot {
         Snapshot {
             icon_state: "low".into(),
+            tooltip: "CDX · capacity low".into(),
             session_count: sessions.len() as u64,
             refreshable,
             update_hint: None,

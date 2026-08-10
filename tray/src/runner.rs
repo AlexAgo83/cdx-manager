@@ -12,6 +12,7 @@ use crate::snapshot::{fetch, Transport};
 
 pub struct Render {
     pub icon_state: String,
+    pub tooltip: String,
     pub entries: Vec<menu::Entry>,
     /// `None` when there is no enabled session and nothing to ask about.
     pub delay: Option<Duration>,
@@ -34,6 +35,7 @@ impl Render {
                 let tick = tick.succeeded(snap.session_count);
                 Render {
                     icon_state: snap.icon_state.clone(),
+                    tooltip: snap.tooltip.clone(),
                     entries: menu::build(&snap),
                     delay: tick.next_delay(transport.is_wsl()),
                     tick,
@@ -45,6 +47,7 @@ impl Render {
                     // Unavailable is a state, not a crash. The icon stays, and
                     // it shows that nothing is known rather than a stale figure.
                     icon_state: "unknown".to_string(),
+                    tooltip: format!("CDX · unavailable · {reason}"),
                     entries: menu::build_unavailable(&reason),
                     delay: tick.next_delay(transport.is_wsl()),
                     tick,

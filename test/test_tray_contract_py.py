@@ -98,6 +98,44 @@ class TrayContractTest(CliTestBase):
         self.assertNotIn("empty", json.dumps(snapshot["icon"]))
         self.assertNotIn("2", json.dumps(snapshot["icon"]["state"]))
 
+    def test_the_tooltip_says_the_state_in_words_and_never_a_session_name(self):
+        # Two rules meet here. req_035 AC3 forbids exposing accounts before the
+        # menu is opened; req_038 AC4 wants the tooltip to name the limiting
+        # source and its reset. A tooltip appears on hover, with no click, and
+        # shows up in a screen share, so it gets the words and not the name.
+        snapshot = build_snapshot(
+            [
+                _row(name="secret-account", available_pct=3, reset_at="Aug 11 09:00", active=True,
+                     age_seconds=9999),
+                _row(name="other", available_pct=80),
+            ],
+            NOW,
+            "9.9.9",
+        )
+        tooltip = snapshot["icon"]["tooltip"]
+        self.assertIn("capacity critical", tooltip)
+        self.assertIn("3% left", tooltip)
+        self.assertIn("resets Aug 11 09:00", tooltip)
+        self.assertNotIn("secret-account", tooltip)
+        self.assertNotIn("other", tooltip)
+
+    def test_the_tooltip_carries_every_state_the_glyph_does(self):
+        # The accessibility path: nothing may depend on telling two shapes
+        # apart, so each state is spelled out.
+        for pct, word in ((90, "capacity ok"), (10, "capacity low"), (1, "capacity critical")):
+            snapshot = build_snapshot([_row(available_pct=pct)], NOW, "9.9.9")
+            self.assertIn(word, snapshot["icon"]["tooltip"])
+        never = build_snapshot([_row(available_pct=None, age_seconds=None)], NOW, "9.9.9")
+        self.assertIn("capacity unknown", never["icon"]["tooltip"])
+        self.assertIn("never reported", never["icon"]["tooltip"])
+        self.assertIn("no enabled sessions", build_snapshot([], NOW, "9.9.9")["icon"]["tooltip"])
+
+    def test_the_tooltip_says_when_a_refresh_cannot_help(self):
+        snapshot = build_snapshot(
+            [_row(available_pct=40, active=True, age_seconds=9999)], NOW, "9.9.9"
+        )
+        self.assertIn("cannot refresh while a session runs", snapshot["icon"]["tooltip"])
+
     def test_a_known_state_outranks_an_unknown_one(self):
         # One never-reporting session must not blank an icon that has real news.
         snapshot = build_snapshot(

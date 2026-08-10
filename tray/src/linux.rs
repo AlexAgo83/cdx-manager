@@ -50,6 +50,7 @@ pub fn tray_support() -> Result<(), String> {
 
 struct CdxTray {
     icon_state: String,
+    tooltip: String,
     entries: Vec<Entry>,
     /// Set by a menu click, drained by the loop. The menu callbacks run on
     /// ksni's own thread, so the action has to be handed over rather than acted
@@ -64,6 +65,16 @@ impl ksni::Tray for CdxTray {
 
     fn title(&self) -> String {
         "CDX".into()
+    }
+
+    /// The same words CDX composed for every platform. Built there rather than
+    /// here so no backend can accidentally say more than the privacy rule
+    /// allows, and so the accessibility text is identical everywhere.
+    fn tool_tip(&self) -> ksni::ToolTip {
+        ksni::ToolTip {
+            title: self.tooltip.clone(),
+            ..Default::default()
+        }
     }
 
     /// A themed icon name rather than pixels: SNI desktops draw their own,
@@ -114,6 +125,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
     let pending = std::sync::Arc::new(std::sync::Mutex::new(None));
     let handle = ksni::blocking::TrayMethods::spawn(CdxTray {
         icon_state: state.icon_state.clone(),
+        tooltip: state.tooltip.clone(),
         entries: state.entries.clone(),
         pending: pending.clone(),
     })
@@ -139,9 +151,11 @@ pub fn run(transport: Transport) -> Result<(), String> {
         }
         if redraw {
             let icon = state.icon_state.clone();
+            let tooltip = state.tooltip.clone();
             let entries = state.entries.clone();
             handle.update(move |tray: &mut CdxTray| {
                 tray.icon_state = icon.clone();
+                tray.tooltip = tooltip.clone();
                 tray.entries = entries.clone();
             });
             due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);

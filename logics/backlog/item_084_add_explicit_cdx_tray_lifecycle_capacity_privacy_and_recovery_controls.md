@@ -4,10 +4,11 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 70%
+> Progress: 85%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-10 22:49:36
 
 # AI Context
 - Summary: Add explicit CDX tray lifecycle, capacity, privacy, and recovery controls
@@ -28,7 +29,7 @@
 
 # Acceptance criteria
 - AC1: cdx tray install never enables startup, cdx tray autostart on and off are explicit and idempotent and report the real platform state, and one tray instance owns a user session while a duplicate launch reports the existing one.
-- AC2: One accessible, privacy-preserving capacity state names the most constrained usable source and its reset in the tooltip and menu, renders an explicit unknown state, and never relies on colour alone or exposes session, repository, task, or preview detail while closed.
+- AC2: One accessible, privacy-preserving capacity state names the most constrained usable capacity, its remaining figure and its reset in the tooltip, in words rather than by shape, and without the session name; the menu carries the name. renders an explicit unknown state, and never relies on colour alone or exposes session, repository, task, or preview detail while closed.
 - AC3: Completion and attention alerts respect native notification settings and Do Not Disturb, use no urgent interruption mode, and quota urgency produces an icon state rather than a new toast category.
 - AC4: A cdx-managed update verifies the matching asset, stages it, starts the replacement, and only then retires the previous companion; a failed replacement leaves the prior working version running and cdx tray doctor explains the partial state and its recovery.
 - AC5: cdx tray doctor reports instance ownership, startup state, snapshot freshness, installed version, and desktop capability as bounded diagnostics without a persistent background service, and on Windows it checks the Start Menu shortcut that toasts depend on, because a missing shortcut drops notifications silently.

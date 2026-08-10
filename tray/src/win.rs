@@ -27,7 +27,8 @@ const PUMP: Duration = Duration::from_millis(100);
 
 pub fn run(transport: Transport) -> Result<(), String> {
     let mut state = Render::first(&transport);
-    let (tray, mut actions) = backend::build_tray(&state.icon_state, &state.entries)?;
+    let (tray, mut actions) =
+        backend::build_tray(&state.icon_state, &state.tooltip, &state.entries)?;
     promote_icon();
     let mut due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
 
@@ -63,7 +64,8 @@ pub fn run(transport: Transport) -> Result<(), String> {
         }
 
         if redraw {
-            actions = backend::update_tray(&tray, &state.icon_state, &state.entries)?;
+            actions =
+                backend::update_tray(&tray, &state.icon_state, &state.tooltip, &state.entries)?;
             due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
         }
         sleep(PUMP);

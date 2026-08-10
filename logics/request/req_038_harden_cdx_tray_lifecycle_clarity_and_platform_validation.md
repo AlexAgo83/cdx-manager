@@ -7,6 +7,7 @@
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-08-10 22:49:36
 
 # AI Context
 - Summary: Harden CDX tray lifecycle, clarity, and platform validation
@@ -27,7 +28,7 @@
 - The chosen operating policy is manual launch by default; cdx tray autostart on and off are explicit opt-in controls. The installed companion must not create a startup entry merely because cdx tray install ran.
 - A single user-level tray instance owns the icon. A second launch reports the existing instance; cdx tray doctor reports instance, startup, status freshness, installed version, and supported desktop capability.
 - Windows starts from the default WSL distribution, with cdx tray configure wsl --distro NAME as an explicit override. V1 never aggregates several distributions.
-- The closed icon represents the most constrained currently usable CDX capacity, never an average. Its tooltip states the affected session, limiting window, reset when known, and an explicit unknown state. Menu text and symbols carry every state that colour also conveys.
+- The closed icon represents the most constrained currently usable CDX capacity, never an average. Its tooltip states the capacity state in words, the remaining figure, the reset when known, and an explicit unknown state — but not the session name. This resolves a conflict with req_035 AC3, which forbids exposing accounts before the menu is opened: a tooltip appears on hover with no click and shows up in a screen share, so the name stays one click away in the menu while everything else is said. Menu text and symbols carry every state that colour also conveys.
 - Native notifications retain system Focus and Do Not Disturb behaviour, use no urgent interruption mode, and quota urgency remains an icon state rather than a new toast category.
 - Tray updates remain explicit CDX-managed updates. Installation stages a verified replacement, starts it successfully, then retires the old companion; failure leaves the prior working version available.
 - The managed validation matrix is the current arm64 macOS host and a managed Windows host with an Ubuntu WSL distribution. Tests are read-only except for scoped install and uninstall fixtures, which must be cleaned up.

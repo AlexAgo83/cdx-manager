@@ -133,6 +133,46 @@ def _worst(sessions):
     )
 
 
+_STATE_WORDS = {
+    ICON_OK: "capacity ok",
+    ICON_LOW: "capacity low",
+    ICON_CRITICAL: "capacity critical",
+    ICON_UNKNOWN: "capacity unknown",
+}
+
+_FRESHNESS_WORDS = {
+    STALE: "figures are stale",
+    AUTH_LOCKED: "cannot refresh while a session runs",
+    UNKNOWN: "never reported",
+}
+
+
+def tooltip_for(worst):
+    """What the closed icon may say on hover.
+
+    Deliberately without the session name. `req_035` AC3 forbids exposing
+    accounts before the menu is opened and `req_038` AC4 asks the tooltip to
+    name the limiting source and its reset; a tooltip appears on hover, without
+    a click, and shows up in a screen share. Naming the provider and the reset
+    satisfies the second without breaking the first. The session name is one
+    click away in the menu.
+
+    It is also the accessibility path: every state the glyph conveys is written
+    here in words, so nothing depends on telling two shapes apart.
+    """
+    if worst is None:
+        return "CDX · no enabled sessions"
+    parts = [_STATE_WORDS.get(worst["state"], worst["state"])]
+    if worst["available_pct"] is not None:
+        parts.append(f"{int(worst['available_pct'])}% left")
+    note = _FRESHNESS_WORDS.get(worst["freshness"])
+    if note:
+        parts.append(note)
+    if worst.get("reset_at"):
+        parts.append(f"resets {worst['reset_at']}")
+    return "CDX · " + " · ".join(parts)
+
+
 def build_snapshot(rows, now, cdx_version, refreshable=True):
     """The whole contract, from the rows `cdx status` already returns.
 
@@ -141,13 +181,20 @@ def build_snapshot(rows, now, cdx_version, refreshable=True):
     """
     sessions = [menu_session(row, now) for row in rows if _eligible(row)]
     if not sessions:
-        icon = {"state": ICON_UNKNOWN, "reason": "no_sessions", "session_count": 0}
+        icon = {
+            "state": ICON_UNKNOWN,
+            "reason": "no_sessions",
+            "session_count": 0,
+            "tooltip": tooltip_for(None),
+        }
     else:
         worst = _worst(sessions)
         icon = {
             "state": worst["state"],
             "reason": worst["freshness"],
             "session_count": len(sessions),
+            # Everything the closed icon is allowed to say, in words.
+            "tooltip": tooltip_for(worst),
         }
     return {
         "schema": {"name": SCHEMA_NAME, "major": SCHEMA_MAJOR, "minor": SCHEMA_MINOR},
