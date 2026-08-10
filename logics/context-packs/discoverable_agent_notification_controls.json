@@ -1,0 +1,335 @@
+{
+  "budgets": {
+    "max_docs": 12,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_077_clarify_notification_setup_lifecycle_feedback_and_documentation.md",
+    "logics/product/prod_023_clear_notification_controls.md",
+    "logics/request/req_033_make_agent_notification_controls_discoverable_and_self_explanatory.md",
+    "logics/scaffold/discoverable_agent_notification_controls.json",
+    "logics/tasks/task_044_orchestrate_discoverable_agent_notification_controls.md"
+  ],
+  "command": "logics-manager sync context-pack req_033_make_agent_notification_controls_discoverable_and_self_explanatory item_077_clarify_notification_setup_lifecycle_feedback_and_documentation task_044_orchestrate_discoverable_agent_notification_controls --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_077_clarify_notification_setup_lifecycle_feedback_and_documentation"
+        ],
+        "prod": [
+          "prod_023_clear_notification_controls"
+        ],
+        "req": [
+          "req_033_make_agent_notification_controls_discoverable_and_self_explanatory"
+        ],
+        "task": [
+          "task_044_orchestrate_discoverable_agent_notification_controls"
+        ]
+      },
+      "path": "logics/product/prod_023_clear_notification_controls.md",
+      "ref": "prod_023_clear_notification_controls",
+      "sections": {
+        "Goals": [
+          "- Let a new user enable the intended notification behavior from root help or the main screen.",
+          "- Make setting changes explain their deferred launch-time effect.",
+          "- Keep internal provider-hook plumbing available but out of the ordinary user journey.",
+          "- Use the existing settings, launch, and notification paths."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Make notification setup discoverable and its lifecycle truthful, so users can distinguish agent attention alerts from next-ready alerts without learning internal hook plumbing."
+        ],
+        "References": [
+          "- Product back-reference: `req_033_make_agent_notification_controls_discoverable_and_self_explanatory`",
+          "- Task back-reference: `task_044_orchestrate_discoverable_agent_notification_controls`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Clear notification controls"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, make agent notification controls discoverable and self-explanatory, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Make agent notification controls discoverable and self-explanatory",
+        "use when": "You need to implement or review the scaffolded workflow for Make agent notification controls discoverable and self-explanatory."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_077_clarify_notification_setup_lifecycle_feedback_and_documentation"
+        ],
+        "prod": [
+          "prod_023_clear_notification_controls"
+        ],
+        "req": [
+          "req_033_make_agent_notification_controls_discoverable_and_self_explanatory"
+        ]
+      },
+      "path": "logics/request/req_033_make_agent_notification_controls_discoverable_and_self_explanatory.md",
+      "ref": "req_033_make_agent_notification_controls_discoverable_and_self_explanatory",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Root help and the main screen present a compact Notifications section that distinguishes agent attention alerts from next-ready alerts and gives the exact setup command for each user-facing action.",
+          "- AC2: The internal hook target is not presented as a normal interactive command; a direct TTY invocation explains that it is provider-called and points to the setup command, while hook invocation stays silent and exits successfully.",
+          "- AC3: Setting agent notifications on or off produces a focused confirmation that names the affected session or sessions, states that provisioning or removal occurs on the next interactive launch, and preserves the existing structured JSON contract.",
+          "- AC4: After a launch provisions hooks, user-facing output explains the resulting next action when review is required; when hooks are already present or the delivery channel is unavailable, output remains accurate without claiming an active notification state that was not verified.",
+          "- AC5: Configuration output makes the meaning of the Notify preference understandable without introducing a second notification command or a persistent hook-installation state model.",
+          "- AC6: README command reference and notification guidance use the same terminology and examples as the CLI, including the distinction between cdx set <name> --notify on, cdx ready, and the internal cdx notify target."
+        ],
+        "Needs": [
+          "- The notification feature has two user-facing intents with different meanings: per-session agent attention alerts and a one-shot next-ready alert. The current command list exposes their internal names without making that distinction easy to understand.",
+          "- Turning agent notifications on or off currently returns a generic launch-settings update. It does not clearly say when the change takes effect, that provisioning happens on the next interactive launch, or that one supported provider requires hook review before its hooks run.",
+          "- The internal hook target appears in the main CLI usage beside user commands, while running it manually produces no useful explanation. The supported setup path needs to be discoverable from the CLI, not only from the README."
+        ]
+      },
+      "status": "Draft",
+      "title": "Make agent notification controls discoverable and self-explanatory"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, clarify notification setup, lifecycle feedback, and documentation, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Clarify notification setup, lifecycle feedback, and documentation",
+        "use when": "Implementing the scaffolded slice for Clarify notification setup, lifecycle feedback, and documentation."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_077_clarify_notification_setup_lifecycle_feedback_and_documentation"
+        ],
+        "prod": [
+          "prod_023_clear_notification_controls"
+        ],
+        "req": [
+          "req_033_make_agent_notification_controls_discoverable_and_self_explanatory"
+        ],
+        "task": [
+          "task_044_orchestrate_discoverable_agent_notification_controls"
+        ]
+      },
+      "path": "logics/backlog/item_077_clarify_notification_setup_lifecycle_feedback_and_documentation.md",
+      "ref": "item_077_clarify_notification_setup_lifecycle_feedback_and_documentation",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Root help and the main screen show an agent-alert setup example and a next-ready example with distinct plain-language descriptions.",
+          "- AC2: cdx notify run from a TTY prints a short internal-command explanation and setup example, while a provider hook receives the unchanged zero-error behavior.",
+          "- AC3: cdx set and cdx unset for notify emit a concise next-launch confirmation for one or several sessions without changing JSON output semantics.",
+          "- AC4: Launch output accurately identifies installed hooks and any required review without treating an unverified hook or unavailable delivery channel as active.",
+          "- AC5: cdx config and cdx configs make Notify understandable as an agent-alert preference rather than a generic boolean.",
+          "- AC6: README mirrors the CLI vocabulary and marks cdx notify as internal."
+        ],
+        "Problem": [
+          "- The CLI exposes an implementation command next to user commands and leaves the intended setup path implicit.",
+          "- A generic settings confirmation hides the practical consequence of changing notifications: hooks are reconciled only at the next interactive launch.",
+          "- Users can confuse agent attention alerts with next-ready alerts because both are named as notifications but solve different problems."
+        ]
+      },
+      "status": "Ready",
+      "title": "Clarify notification setup, lifecycle feedback, and documentation"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_077_clarify_notification_setup_lifecycle_feedback_and_documentation"
+        ],
+        "prod": [
+          "prod_023_clear_notification_controls"
+        ],
+        "req": [
+          "req_033_make_agent_notification_controls_discoverable_and_self_explanatory"
+        ],
+        "task": [
+          "task_044_orchestrate_discoverable_agent_notification_controls"
+        ]
+      },
+      "path": "logics/product/prod_023_clear_notification_controls.md",
+      "ref": "prod_023_clear_notification_controls",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Clear notification controls"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate discoverable agent notification controls",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_077_clarify_notification_setup_lifecycle_feedback_and_documentation"
+        ],
+        "prod": [
+          "prod_023_clear_notification_controls"
+        ],
+        "req": [
+          "req_033_make_agent_notification_controls_discoverable_and_self_explanatory"
+        ],
+        "task": [
+          "task_044_orchestrate_discoverable_agent_notification_controls"
+        ]
+      },
+      "path": "logics/tasks/task_044_orchestrate_discoverable_agent_notification_controls.md",
+      "ref": "task_044_orchestrate_discoverable_agent_notification_controls",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate discoverable agent notification controls"
+    }
+  ],
+  "estimates": {
+    "char_count": 8576,
+    "companion_doc_count": 1,
+    "doc_count": 4
+  },
+  "generated_at": "2026-08-10T07:11:08Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_033_make_agent_notification_controls_discoverable_and_self_explanatory",
+      "item_077_clarify_notification_setup_lifecycle_feedback_and_documentation",
+      "task_044_orchestrate_discoverable_agent_notification_controls"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_033_make_agent_notification_controls_discoverable_and_self_explanatory,item_077_clarify_notification_setup_lifecycle_feedback_and_documentation,task_044_orchestrate_discoverable_agent_notification_controls",
+  "refs": [
+    "req_033_make_agent_notification_controls_discoverable_and_self_explanatory",
+    "item_077_clarify_notification_setup_lifecycle_feedback_and_documentation",
+    "task_044_orchestrate_discoverable_agent_notification_controls"
+  ],
+  "release": {
+    "blocking_reasons": [],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Release evidence is complete.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": null,
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "ready",
+    "target_version": "0.17.0"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_044_orchestrate_discoverable_agent_notification_controls.md",
+      "ref": "task_044_orchestrate_discoverable_agent_notification_controls"
+    }
+  ]
+}

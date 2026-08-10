@@ -1,0 +1,108 @@
+{
+  "title": "Make agent notification controls discoverable and self-explanatory",
+  "references": [
+    "src/cli.py",
+    "src/cli_render.py",
+    "src/cli_helpers.py",
+    "src/commands/settings.py",
+    "src/commands/launch.py",
+    "src/agent_notify.py",
+    "README.md",
+    "test/test_cli_contract_py.py",
+    "test/test_commands_settings_py.py",
+    "test/test_commands_launch_py.py",
+    "test/test_main_screen_py.py"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Notifications",
+    "needs": [
+      "The notification feature has two user-facing intents with different meanings: per-session agent attention alerts and a one-shot next-ready alert. The current command list exposes their internal names without making that distinction easy to understand.",
+      "Turning agent notifications on or off currently returns a generic launch-settings update. It does not clearly say when the change takes effect, that provisioning happens on the next interactive launch, or that one supported provider requires hook review before its hooks run.",
+      "The internal hook target appears in the main CLI usage beside user commands, while running it manually produces no useful explanation. The supported setup path needs to be discoverable from the CLI, not only from the README."
+    ],
+    "context": [
+      "src/cli.py lists cdx ready and cdx notify in the root usage. The latter is a provider hook target, whereas cdx set <name> --notify on is the user setup command.",
+      "src/commands/settings.py always emits the generic Updated launch settings message before the shared launch-settings table. src/cli_helpers.py renders Notify as an unqualified on/off value and supplies one broad settings example.",
+      "src/commands/launch.py already knows whether hook provisioning happened and, for one provider, tells the user to review the hook once. This is the correct lifecycle point for a completion message, not a new persistent installation-state store.",
+      "README.md documents agent notifications and next-ready notifications in separate prose, but the root help and main screen do not give a concise task-oriented route to either behavior.",
+      "cdx notify must remain a non-failing hook target when called by a provider; direct terminal invocation can be detected without changing that hook contract."
+    ],
+    "acceptance_criteria": [
+      "AC1: Root help and the main screen present a compact Notifications section that distinguishes agent attention alerts from next-ready alerts and gives the exact setup command for each user-facing action.",
+      "AC2: The internal hook target is not presented as a normal interactive command; a direct TTY invocation explains that it is provider-called and points to the setup command, while hook invocation stays silent and exits successfully.",
+      "AC3: Setting agent notifications on or off produces a focused confirmation that names the affected session or sessions, states that provisioning or removal occurs on the next interactive launch, and preserves the existing structured JSON contract.",
+      "AC4: After a launch provisions hooks, user-facing output explains the resulting next action when review is required; when hooks are already present or the delivery channel is unavailable, output remains accurate without claiming an active notification state that was not verified.",
+      "AC5: Configuration output makes the meaning of the Notify preference understandable without introducing a second notification command or a persistent hook-installation state model.",
+      "AC6: README command reference and notification guidance use the same terminology and examples as the CLI, including the distinction between cdx set <name> --notify on, cdx ready, and the internal cdx notify target.",
+      "AC7: Focused CLI, settings, launch, and documentation tests cover the new guidance and preserve the no-failure hook behavior; the full project validation suite passes."
+    ]
+  },
+  "product": {
+    "title": "Clear notification controls",
+    "overview": "Make notification setup discoverable and its lifecycle truthful, so users can distinguish agent attention alerts from next-ready alerts without learning internal hook plumbing.",
+    "goals": [
+      "Let a new user enable the intended notification behavior from root help or the main screen.",
+      "Make setting changes explain their deferred launch-time effect.",
+      "Keep internal provider-hook plumbing available but out of the ordinary user journey.",
+      "Use the existing settings, launch, and notification paths."
+    ],
+    "non_goals": [
+      "No new notification subcommand family or interactive wizard.",
+      "No new persistent record of hook installation, trust, or delivery success.",
+      "No change to notification delivery backends, response previews, or provider authentication.",
+      "No notifications enabled by default."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Clarify notification setup, lifecycle feedback, and documentation",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Notifications",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC5", "AC6", "AC7"],
+      "problem": [
+        "The CLI exposes an implementation command next to user commands and leaves the intended setup path implicit.",
+        "A generic settings confirmation hides the practical consequence of changing notifications: hooks are reconciled only at the next interactive launch.",
+        "Users can confuse agent attention alerts with next-ready alerts because both are named as notifications but solve different problems."
+      ],
+      "scope_in": [
+        "Add concise task-oriented notification guidance to root help and the main screen using the existing commands.",
+        "Make direct interactive use of the internal hook target self-explanatory while preserving silent, successful provider-hook execution.",
+        "Add targeted text feedback for notify preference changes, including the next-launch lifecycle and provider review requirement where applicable.",
+        "Improve the existing configuration rendering and README wording so all surfaces use the same names and examples.",
+        "Cover single-session and bulk settings paths plus launch output with focused tests."
+      ],
+      "scope_out": [
+        "Adding cdx notifications, cdx notify status, or another command hierarchy.",
+        "Tracking hook trust, installation, or OS delivery state across processes.",
+        "Changing the hook payload protocol or desktop notification transports.",
+        "Changing the default notification preference."
+      ],
+      "acceptance_criteria": [
+        "AC1: Root help and the main screen show an agent-alert setup example and a next-ready example with distinct plain-language descriptions.",
+        "AC2: cdx notify run from a TTY prints a short internal-command explanation and setup example, while a provider hook receives the unchanged zero-error behavior.",
+        "AC3: cdx set and cdx unset for notify emit a concise next-launch confirmation for one or several sessions without changing JSON output semantics.",
+        "AC4: Launch output accurately identifies installed hooks and any required review without treating an unverified hook or unavailable delivery channel as active.",
+        "AC5: cdx config and cdx configs make Notify understandable as an agent-alert preference rather than a generic boolean.",
+        "AC6: README mirrors the CLI vocabulary and marks cdx notify as internal.",
+        "AC7: New focused tests and the full validation suite pass."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate discoverable agent notification controls",
+    "plan": [
+      "Trace root usage, main-screen shortcuts, notify dispatch, settings rendering, and launch provisioning to retain one source of lifecycle truth.",
+      "Add the smallest task-oriented help and direct-hook guidance without introducing a new command surface.",
+      "Add focused notify preference feedback on set and unset, then make configuration labels and README examples agree with it.",
+      "Reconcile launch-time messaging with the actual provisioning result and required review path, without adding persistent state.",
+      "Add focused regression tests, run project validation, and record the implementation handoff context."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/discoverable_agent_notification_controls.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}
