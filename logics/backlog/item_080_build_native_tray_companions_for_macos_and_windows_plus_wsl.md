@@ -1,10 +1,10 @@
 ## item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl - Build native tray companions for macOS and Windows plus WSL
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 95%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 25%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

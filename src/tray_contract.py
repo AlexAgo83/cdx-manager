@@ -1,0 +1,182 @@
+"""The snapshot a tray companion reads, and the display state it renders.
+
+A tray consumer needs three things the CLI status rows do not give it: one
+urgency state for a closed icon, a per-session line short enough for a menu, and
+an honest word for "this number is old". This module derives all three from the
+rows `cdx status` already produces, so the companion never talks to a provider.
+
+The refresh policy is the load-bearing part. `src/codex_usage.py` serializes
+live probes on `codex_auth_lock` because Codex rotates its OAuth refresh token,
+and the launcher holds that lock for a whole interactive session. A background
+consumer polling for fresh quota would either be locked out or race the token,
+so the tray reads the cache and says so. `auth_locked` is a first-class state
+here, not an error.
+"""
+from datetime import datetime, timezone
+
+from .session_status import (
+    CLAUDE_STATUS_CACHE_TTL_SECONDS,
+    CODEX_STATUS_CACHE_TTL_SECONDS,
+    STATUS_CACHE_TTL_SECONDS,
+)
+
+SCHEMA_NAME = "cdx.tray.snapshot"
+SCHEMA_MAJOR = 1
+SCHEMA_MINOR = 0
+
+# Below this much remaining capacity a session cannot usefully take work. Shared
+# with the ranking's own usability threshold so the tray and `cdx next` do not
+# disagree about what "blocked" means.
+CRITICAL_PCT = 5
+LOW_PCT = 25
+
+ICON_OK = "ok"
+ICON_LOW = "low"
+ICON_CRITICAL = "critical"
+ICON_UNKNOWN = "unknown"
+
+FRESH = "fresh"
+STALE = "stale"
+AUTH_LOCKED = "auth_locked"
+UNKNOWN = "unknown"
+
+_PROVIDER_TTL = {
+    "codex": CODEX_STATUS_CACHE_TTL_SECONDS,
+    "claude": CLAUDE_STATUS_CACHE_TTL_SECONDS,
+}
+
+
+def ttl_seconds_for(provider):
+    return _PROVIDER_TTL.get(provider, STATUS_CACHE_TTL_SECONDS)
+
+
+def parse_iso(value):
+    """Rows carry local-offset ISO strings; comparison needs a real instant."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def _age_seconds(updated_at, now):
+    moment = parse_iso(updated_at)
+    if moment is None:
+        return None
+    return max(0.0, (now - moment).total_seconds())
+
+
+def session_freshness(row, now):
+    """How much this row's numbers can be trusted, and whether that is fixable.
+
+    A running session holds the provider auth lock, so its quota cannot be
+    refreshed until it exits. Reporting that as `stale` would invite the user to
+    hit refresh forever; `auth_locked` tells them why it will not help.
+    """
+    age = _age_seconds(row.get("updated_at"), now)
+    if age is None:
+        return UNKNOWN, None
+    if age <= ttl_seconds_for(row.get("provider")):
+        return FRESH, age
+    return (AUTH_LOCKED if row.get("active") else STALE), age
+
+
+def icon_state_for_pct(available_pct):
+    if available_pct is None:
+        return ICON_UNKNOWN
+    if available_pct < CRITICAL_PCT:
+        return ICON_CRITICAL
+    if available_pct < LOW_PCT:
+        return ICON_LOW
+    return ICON_OK
+
+
+def _eligible(row):
+    return row.get("enabled", True) is not False
+
+
+def menu_session(row, now):
+    """One menu line. Everything the tray shows once the user opens it."""
+    freshness, age = session_freshness(row, now)
+    return {
+        "name": row.get("session_name"),
+        "label": row.get("label"),
+        "provider": row.get("provider"),
+        "available_pct": row.get("available_pct"),
+        "remaining_5h_pct": row.get("remaining_5h_pct"),
+        "remaining_week_pct": row.get("remaining_week_pct"),
+        "reset_at": row.get("reset_at"),
+        "active": bool(row.get("active")),
+        "state": icon_state_for_pct(row.get("available_pct")),
+        "freshness": freshness,
+        "age_seconds": None if age is None else int(age),
+        "updated_at": row.get("updated_at"),
+    }
+
+
+def _worst(sessions):
+    """The session whose state the closed icon should show.
+
+    Ordered by severity, then by least remaining capacity, so a tie between two
+    critical sessions still names the one closest to empty. Unknown loses to
+    every known state: an icon that cries wolf because one session never
+    reported is worse than one that shows the worst thing it actually knows.
+    """
+    severity = {ICON_CRITICAL: 0, ICON_LOW: 1, ICON_OK: 2, ICON_UNKNOWN: 3}
+    return min(
+        sessions,
+        key=lambda s: (
+            severity[s["state"]],
+            s["available_pct"] if s["available_pct"] is not None else 101,
+        ),
+    )
+
+
+def build_snapshot(rows, now, cdx_version, refreshable=True):
+    """The whole contract, from the rows `cdx status` already returns.
+
+    `icon` carries no session name, account, or figure: it is what shows while
+    the menu is closed, and `req_035` AC3 forbids leaking anything there.
+    """
+    sessions = [menu_session(row, now) for row in rows if _eligible(row)]
+    if not sessions:
+        icon = {"state": ICON_UNKNOWN, "reason": "no_sessions", "session_count": 0}
+    else:
+        worst = _worst(sessions)
+        icon = {
+            "state": worst["state"],
+            "reason": worst["freshness"],
+            "session_count": len(sessions),
+        }
+    return {
+        "schema": {"name": SCHEMA_NAME, "major": SCHEMA_MAJOR, "minor": SCHEMA_MINOR},
+        "cdx_version": cdx_version,
+        "generated_at": now.isoformat(),
+        "icon": icon,
+        "sessions": sessions,
+        "refreshable": bool(refreshable),
+        "actions": ["refresh", "open_terminal"],
+    }
+
+
+def read_snapshot(payload):
+    """Read a snapshot that may be newer than this reader.
+
+    A companion and the CLI are updated separately, so version drift is the
+    normal state. An unknown major version keeps every field this reader
+    understands and adds one hint, rather than refusing to render.
+    """
+    schema = (payload or {}).get("schema") or {}
+    major = schema.get("major")
+    if schema.get("name") != SCHEMA_NAME or not isinstance(major, int):
+        return {"ok": False, "reason": "not_a_cdx_tray_snapshot", "snapshot": None, "update_hint": None}
+    known = {
+        key: payload.get(key)
+        for key in ("schema", "cdx_version", "generated_at", "icon", "sessions", "refreshable", "actions")
+        if key in payload
+    }
+    hint = None
+    if major > SCHEMA_MAJOR:
+        hint = f"This CDX reads tray snapshot v{SCHEMA_MAJOR}; the snapshot is v{major}. Update CDX to see everything."
+    return {"ok": True, "reason": None, "snapshot": known, "update_hint": hint}

@@ -1,10 +1,10 @@
 ## item_081_add_linux_tray_support_and_explicit_release_asset_installation - Add Linux tray support and explicit release-asset installation
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 25%
 > Complexity: High
 > Theme: Distribution
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

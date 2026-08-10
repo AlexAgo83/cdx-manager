@@ -513,10 +513,35 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx status [--json] [--refresh\|--cached] [--timeout SECONDS]` | Show token usage table for all sessions; `--cached` skips live provider probes and returns only stored status |
 | `cdx status --small [--refresh\|--cached] [--timeout SECONDS]` / `cdx status -s [--refresh\|--cached] [--timeout SECONDS]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
 | `cdx status <name> [--json] [--refresh\|--cached] [--timeout SECONDS]` | Show detailed usage breakdown for one session; `--cached` avoids live provider refreshes |
+| `cdx tray status [--json] [--refresh]` | Emit the tray snapshot: one icon state, one line per enabled session, and how fresh each figure is. Reads stored status by default; `--refresh` is the only path that probes a provider |
+| `cdx tray install\|launch\|uninstall [--json]` | Tray companion lifecycle. Declared and non-mutating until a companion ships; each reports `tray_companion_not_available` and changes nothing |
 | `cdx --help` | Show usage |
 | `cdx --version` | Show version |
 
 ---
+
+### Tray snapshot
+
+`cdx tray status --json` is the contract an optional desktop tray companion reads. It adds nothing to the quota pipeline: it interprets the status CDX already stores.
+
+- **Cached by default.** A tray polls, and a live provider probe serializes on the Codex auth lock, which the launcher holds for a whole interactive session. Polling it would be locked out at best and race a rotating OAuth refresh token at worst. Only `--refresh`, a deliberate user gesture, probes.
+- **Freshness is a value, not an error.** Each session reports `fresh`, `stale`, `auth_locked`, or `unknown`. `auth_locked` means a session is running and its quota cannot be refreshed until it exits — pressing refresh will not help, and the snapshot says so instead of ageing silently.
+- **The icon leaks nothing.** `icon` holds a state, a reason, and a count. Session names, providers, and figures live in `sessions`, which a companion shows only once the user opens the menu.
+- **Versions drift on purpose.** The payload carries `schema.major`. A reader meeting a newer major keeps every field it understands and surfaces one update hint, so upgrading CDX never breaks an installed companion.
+
+```json
+{
+  "schema": { "name": "cdx.tray.snapshot", "major": 1, "minor": 0 },
+  "icon": { "state": "low", "reason": "fresh", "session_count": 2 },
+  "sessions": [
+    { "name": "work", "provider": "codex", "available_pct": 18, "state": "low", "freshness": "fresh", "reset_at": "..." }
+  ],
+  "refreshable": true,
+  "actions": ["refresh", "open_terminal"]
+}
+```
+
+Icon states are `ok` at 25% remaining and above, `low` below 25%, `critical` below 5%, and `unknown` when nothing was ever reported. The closed icon shows the most urgent session, and a session that never reported never outranks one with real news.
 
 ## JSON Output
 

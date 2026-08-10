@@ -1,10 +1,10 @@
 ## item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface - Define the minimal tray status contract and CDX command surface
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Status: In progress
+> Understanding: 100%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

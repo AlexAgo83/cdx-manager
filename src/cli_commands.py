@@ -272,5 +272,8 @@ from .commands.status import (
 from .commands.status import (
     handle_status as handle_status,
 )
+from .commands.tray import (
+    handle_tray as handle_tray,
+)
 
 
