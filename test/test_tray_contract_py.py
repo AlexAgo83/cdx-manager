@@ -561,14 +561,23 @@ class TrayCommandTest(CliTestBase):
             })
             return json.loads(io_obj["stdout"].getvalue())
 
+        # The artifact is a file on macOS and Linux and a registry value on
+        # Windows, so only `enabled` means the same thing everywhere. Asserting
+        # a path exists is a claim about two of the three platforms, and the
+        # Windows one reported its Run key — which `os.path.exists` will always
+        # call absent. `enabled` is what the user acts on; the artifact is what
+        # they are told to look at.
         self.assertFalse(run("autostart")["enabled"], "nothing enables it on its own")
         self.assertTrue(run("autostart", "on")["enabled"])
         artifact = run("autostart")["artifact"]
-        self.assertTrue(os.path.exists(artifact))
+        self.assertTrue(artifact, "the state has to name what it wrote")
+        if not artifact.startswith("HKCU"):
+            self.assertTrue(os.path.exists(artifact))
         # Idempotent: asking twice is not an error and not a second entry.
         self.assertTrue(run("autostart", "on")["enabled"])
         self.assertFalse(run("autostart", "off")["enabled"])
-        self.assertFalse(os.path.exists(artifact))
+        if not artifact.startswith("HKCU"):
+            self.assertFalse(os.path.exists(artifact))
         # Off again on something already off is success, not a failure.
         self.assertFalse(run("autostart", "off")["enabled"])
 
