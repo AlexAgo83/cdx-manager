@@ -1,10 +1,10 @@
 ## item_077_clarify_notification_setup_lifecycle_feedback_and_documentation - Clarify notification setup, lifecycle feedback, and documentation
 > From version: 0.17.0
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 70%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -64,3 +64,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_044_orchestrate_discoverable_agent_notification_controls`
+
+# Notes
+- Task `task_044_orchestrate_discoverable_agent_notification_controls` was finished via `logics-manager flow finish task` on 2026-08-10.

@@ -1,6 +1,6 @@
 ## prod_023_clear_notification_controls - Clear notification controls
 > Date: 2026-08-10
-> Status: Proposed
+> Status: Settled
 > Related request: `req_033_make_agent_notification_controls_discoverable_and_self_explanatory`
 > Related backlog: `item_077_clarify_notification_setup_lifecycle_feedback_and_documentation`
 > Related task: `task_044_orchestrate_discoverable_agent_notification_controls`
@@ -9,6 +9,12 @@
 
 # Overview
 Make notification setup discoverable and its lifecycle truthful, so users can distinguish agent attention alerts from next-ready alerts without learning internal hook plumbing.
+
+```mermaid
+flowchart LR
+    A[Agent alerts] --> B[Set notify on]
+    C[Next-ready alert] --> D[Run ready]
+```
 
 # Goals
 - Let a new user enable the intended notification behavior from root help or the main screen.
@@ -35,5 +41,5 @@ Make notification setup discoverable and its lifecycle truthful, so users can di
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_033_make_agent_notification_controls_discoverable_and_self_explanatory`
+- Product back-reference: `item_077_clarify_notification_setup_lifecycle_feedback_and_documentation`
 - Task back-reference: `task_044_orchestrate_discoverable_agent_notification_controls`

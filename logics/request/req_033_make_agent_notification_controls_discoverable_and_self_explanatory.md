@@ -1,7 +1,7 @@
 ## req_033_make_agent_notification_controls_discoverable_and_self_explanatory - Make agent notification controls discoverable and self-explanatory
 > From version: 0.17.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
