@@ -234,7 +234,65 @@ fn fallback(title: &str, body: &str) {
         .status();
 }
 
-#[cfg(not(target_os = "macos"))]
+/// Windows shows a toast only for an application it knows, and it knows one by
+/// a Start Menu shortcut carrying its AppUserModelID. `cdx tray install` writes
+/// that shortcut; until it exists, PowerShell's own identifier is borrowed so
+/// the alert appears at all — attributed to "Windows PowerShell", which is a
+/// worse experience and far better than a toast Windows drops in silence.
+#[cfg(target_os = "windows")]
+fn fallback(title: &str, body: &str) {
+    let script = format!(
+        "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime] > $null\n\
+         [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType=WindowsRuntime] > $null\n\
+         $t = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)\n\
+         $n = $t.GetElementsByTagName('text')\n\
+         $n.Item(0).AppendChild($t.CreateTextNode('{}')) > $null\n\
+         $n.Item(1).AppendChild($t.CreateTextNode('{}')) > $null\n\
+         [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{}').Show([Windows.UI.Notifications.ToastNotification]::new($t))",
+        powershell_string(title),
+        powershell_string(body),
+        powershell_string(&windows_aumid()),
+    );
+    let _ = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .status();
+}
+
+/// CDX's own identifier when the shortcut exists, PowerShell's otherwise.
+///
+/// Resolved from disk on each send rather than cached: the shortcut can appear
+/// between two alerts, when `cdx tray install` runs, and a cached answer would
+/// keep attributing toasts to PowerShell until the companion restarted.
+#[cfg(target_os = "windows")]
+fn windows_aumid() -> String {
+    const POWERSHELL: &str =
+        "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe";
+    let Ok(appdata) = std::env::var("APPDATA") else {
+        return POWERSHELL.to_string();
+    };
+    let shortcut = std::path::Path::new(&appdata)
+        .join("Microsoft")
+        .join("Windows")
+        .join("Start Menu")
+        .join("Programs")
+        .join("CDX.lnk");
+    if shortcut.is_file() {
+        "com.cdx.tray".to_string()
+    } else {
+        POWERSHELL.to_string()
+    }
+}
+
+/// Single-quote for PowerShell, where a quote is escaped by doubling it.
+///
+/// Session and repository names reach this, and one apostrophe would otherwise
+/// end the string and turn the rest into script.
+#[cfg(target_os = "windows")]
+fn powershell_string(value: &str) -> String {
+    value.replace('\'', "''")
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn fallback(_title: &str, _body: &str) {}
 
 /// Quote for AppleScript, which understands only `\\` and `"` escapes.

@@ -4,7 +4,7 @@
 > Status: In progress
 > Understanding: 95%
 > Confidence: 92%
-> Progress: 95%
+> Progress: 97%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -67,7 +67,9 @@
 - Windows toasts now go out under CDX's own AppUserModelID once `cdx tray install` has written the Start Menu shortcut, and under PowerShell's until then. The fallback is a real compromise rather than an equivalent: a toast attributed to "Windows PowerShell" means turning CDX alerts off in Settings turns PowerShell off too. Claiming `com.cdx.tray` without the shortcut would be worse still — Windows drops an unresolvable identifier in silence, no error and no toast.
 - **Proved on kdesktop, and not by the absence of an error.** A toast sent under `com.cdx.tray` reported success, and `com.cdx.tray` then appeared in `HKCU\...\Notifications\Settings` among the 167 registered applications. Windows registers an application there only when a toast actually goes through an identifier it can resolve, so that entry is the evidence — the send call itself reports success either way, which is exactly the silent failure this slice keeps running into.
 - That closes the AC3 clause `item_085` had to defer: a toast reaches Action Center through the installed Start Menu shortcut.
-- Still open in this slice: the Windows companion emitting its own toast rather than relying on `cdx notify`'s direct path, and the stub CLSID the scope names alongside the AppUserModelID. AC6's backoff is satisfied by construction now that alerts ride with the snapshot: one call, one cadence, and the existing `Tick` backs off after three consecutive failures.
+- The Windows companion emits its own toast now, rather than leaning on `cdx notify`'s direct path, and picks the identifier the same way CDX does: `com.cdx.tray` when the Start Menu shortcut is on disk, PowerShell's otherwise. Resolved on each send rather than cached, because the shortcut can appear between two alerts when `cdx tray install` runs, and a cached answer would keep attributing toasts to PowerShell until the companion restarted.
+- Verified on kdesktop end to end through both crossings: a hook publishes in WSL, the Windows companion reads through `wsl.exe`, draws, delivers, and takes the spool from one to zero. That path only worked once `CDX_HOME` was shared in `WSLENV` without a path-translation flag — it has to stay a Linux path through WSL to Windows and back, and translating it silently pointed the second crossing at nothing.
+- Still open in this slice: the stub CLSID the scope names alongside the AppUserModelID, and a screen-level confirmation that the companion's own Windows toast is attributed to CDX rather than to PowerShell. AC6's backoff is satisfied by construction now that alerts ride with the snapshot: one call, one cadence, and the existing `Tick` backs off after three consecutive failures.
 
 # Acceptance criteria
 - AC1: A fresh active tray receives one sanitized event and becomes the sole visible notification owner; an absent or stale tray leaves the existing direct path intact.
