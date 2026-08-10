@@ -32,7 +32,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
     app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
 
     let mut state = Render::first(&transport)?;
-    let (mut tray, mut actions) = backend::build_tray(&state.icon_state, &state.entries)?;
+    let (tray, mut actions) = backend::build_tray(&state.icon_state, &state.entries)?;
     let mut due = Instant::now() + state.delay.unwrap_or(Duration::from_secs(3600));
 
     loop {
@@ -69,9 +69,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
         }
 
         if redraw {
-            let (next_tray, next_actions) = backend::build_tray(&state.icon_state, &state.entries)?;
-            tray = next_tray;
-            actions = next_actions;
+            actions = backend::update_tray(&tray, &state.icon_state, &state.entries)?;
             // No enabled session means no reason to ask again. Wake up rarely
             // rather than never, so enabling one later is eventually noticed.
             due = Instant::now() + state.delay.unwrap_or(Duration::from_secs(3600));
@@ -119,10 +117,18 @@ impl Render {
     }
 }
 
-/// Open the user's terminal on `cdx status`. Best effort: the tray never blocks
-/// on it and never reports its failure as a quota problem.
+/// Open Terminal on `cdx status`, the command this menu is a summary of.
+///
+/// Best effort by design: the tray never blocks on it, never waits for it, and
+/// never reports its failure as a quota problem. A user whose terminal does not
+/// open still has every figure in the menu they just clicked from.
 fn open_terminal() {
-    let _ = std::process::Command::new("open")
-        .args(["-a", "Terminal", "/usr/bin/env"])
+    let _ = std::process::Command::new("osascript")
+        .args([
+            "-e",
+            r#"tell application "Terminal" to do script "cdx status""#,
+            "-e",
+            r#"tell application "Terminal" to activate"#,
+        ])
         .spawn();
 }

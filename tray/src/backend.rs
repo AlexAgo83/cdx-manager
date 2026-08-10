@@ -82,6 +82,24 @@ pub fn build_menu(entries: &[Entry]) -> Result<(Menu, HashMap<MenuId, ActionId>)
     Ok((menu, actions))
 }
 
+/// Update the status item in place.
+///
+/// Rebuilding the `TrayIcon` instead would briefly own two status items, since
+/// the replacement is created before the old one drops, and the icon visibly
+/// jumps along the menu bar on every refresh. That is once every 30 seconds,
+/// forever, so it has to be a mutation rather than a rebuild.
+pub fn update_tray(
+    tray: &TrayIcon,
+    state: &str,
+    entries: &[Entry],
+) -> Result<HashMap<MenuId, ActionId>, String> {
+    let (menu, actions) = build_menu(entries).map_err(|e| e.to_string())?;
+    tray.set_menu(Some(Box::new(menu)));
+    tray.set_icon(Some(icon_for(state)?))
+        .map_err(|e| e.to_string())?;
+    Ok(actions)
+}
+
 pub fn build_tray(
     state: &str,
     entries: &[Entry],
