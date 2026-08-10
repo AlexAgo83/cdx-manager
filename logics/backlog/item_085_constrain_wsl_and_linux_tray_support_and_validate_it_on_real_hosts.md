@@ -2,9 +2,9 @@
 > From version: 0.17.1
 > Schema version: 1.0
 > Status: In progress
-> Understanding: 90%
-> Confidence: 92%
-> Progress: 98%
+> Understanding: 92%
+> Confidence: 95%
+> Progress: 99%
 > Complexity: Medium
 > Theme: Platform support
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -31,7 +31,9 @@
 - The single-instance check is skipped rather than failed on that host, and the runner says why. Where no backend can draw, the first companion exits before a second can collide with it, so the check has nothing to ask. Counting a skip as a pass would report green for behaviour never exercised; counting it as a failure would cry wolf about the one machine behaving correctly. The tally prints passed, failed and skipped separately.
 - The lock is still taken before the backend runs, which is why the reclaim check remains meaningful on that host: the companion took over the dead pid's lock on its way to discovering it had nowhere to draw.
 - Built for that host without touching it: a static `x86_64-unknown-linux-musl` binary cross-compiled from macOS through `rust-lld`, because the WSL distribution has no C toolchain and installing one needs a password that must never be handled here. ksni and zbus are pure Rust, so the asset carries no C library — the property `adr_005` asked for, now demonstrated rather than assumed. The recipe is `scripts/build-tray.sh --linux` rather than a note, so `item_081` inherits a reproducible Linux asset instead of a story about one.
-- Not yet verifiable, with the reason rather than a silent gap: the toast reaching Action Center through the installed Start Menu shortcut needs a notification to exist, which is `task_047`; the Zone.Identifier stream on a fetched asset needs `cdx tray install` to fetch a release asset, which is `item_081`. AC3 is therefore met for the two measurements and the polling rule, and blocked on those two slices for the rest.
+- Zone.Identifier, measured on kdesktop rather than deferred: the installer's fetch path is `urllib.request.urlopen` into a file, and a file fetched that way to an NTFS path carries **no** `Zone.Identifier` stream. `Get-Item -Stream *` reports only `:$DATA`. A `Invoke-WebRequest` download to the same directory behaves the same, and a witness file written with an explicit `Zone.Identifier` does show the stream, so the absence is a property of the fetch and not of the detection.
+- That matters because the mark of the web is what would put SmartScreen between the user and a companion CDX just installed on their behalf, which is the Windows counterpart of the macOS quarantine attribute `adr_005` relies on being absent. It also means the answer must be re-measured if the fetch ever moves to a mechanism that goes through the Attachment Manager.
+- Still blocked, with the reason rather than a silent gap: the toast reaching Action Center through the installed Start Menu shortcut needs a notification to exist, which is `task_047`. Every other AC3 clause is now measured.
 
 # Scope
 - In:

@@ -3,8 +3,8 @@
 > Schema version: 1.0
 > Status: In progress
 > Understanding: 90%
-> Confidence: 85%
-> Progress: 95%
+> Confidence: 88%
+> Progress: 96%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -79,7 +79,8 @@
 - Poll cost is sampled three times, not once: the first sample pays for a cold WSL VM, and reporting only that would overstate the steady-state cost the 60s period has to afford.
 - The Linux binary was cross-compiled static musl from macOS through rust-lld rather than installing a C toolchain in someone's WSL: the distribution has none, and `sudo` there wants a password that must never be handled from here. It also demonstrates the adr_005 property that the Linux asset carries no C library, since ksni and zbus are pure Rust.
 - A check that cannot be exercised is skipped with its reason, never counted as a pass. Where no backend can draw, the first companion exits before a second can collide with it, so the single-instance check has nothing to ask; calling that a failure would cry wolf about the one host behaving correctly.
-- Two AC3 clauses are blocked rather than quietly dropped. A toast reaching Action Center needs a notification to exist, which is `task_047`; a Zone.Identifier stream needs `cdx tray install` to fetch a release asset, which is `item_081`. Both are named in `item_085` with the slice that unblocks them.
+- The Zone.Identifier clause turned out not to be blocked at all: the installer's fetch path already exists, so the question could be answered rather than deferred. A file fetched by `urllib` to an NTFS path carries no such stream, verified against a witness file that does, so the absence is a property of the fetch and not of the detection. That is the Windows counterpart of the macOS quarantine attribute adr_005 relies on being absent, and it is what would otherwise put SmartScreen between the user and a companion CDX installed on their behalf.
+- One AC3 clause remains blocked rather than quietly dropped: a toast reaching Action Center needs a notification to exist, which is `task_047`. Named in `item_085` with the slice that unblocks it.
 
 # Links
 - Request: `req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation`
