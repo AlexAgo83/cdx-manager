@@ -1,0 +1,582 @@
+{
+  "budgets": {
+    "max_docs": 24,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [
+    "logics/backlog/item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface.md",
+    "logics/backlog/item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl.md",
+    "logics/backlog/item_081_add_linux_tray_support_and_explicit_release_asset_installation.md",
+    "logics/backlog/item_082_deliver_agent_hook_events_through_the_active_cdx_tray_with_safe_fallback.md",
+    "logics/backlog/item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card.md",
+    "logics/context-packs/cross_platform_cdx_tray_usage_monitor.json",
+    "logics/context-packs/tray_aware_agent_alert_delivery.json",
+    "logics/product/prod_024_cdx_tray_usage_monitor.md",
+    "logics/product/prod_025_tray_aware_agent_alerts.md",
+    "logics/product/prod_026_extensible_cdx_tray_with_a_first_party_logics_card.md",
+    "logics/request/req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor.md",
+    "logics/request/req_036_route_cdx_agent_alerts_through_an_active_tray_companion.md",
+    "logics/request/req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray.md",
+    "logics/scaffold/cross_platform_cdx_tray_usage_monitor.json",
+    "logics/scaffold/first_party_logics_tray_plugin.json",
+    "logics/scaffold/tray_aware_agent_alert_delivery.json",
+    "logics/tasks/task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor.md",
+    "logics/tasks/task_047_orchestrate_tray_aware_cdx_agent_alert_delivery.md",
+    "logics/tasks/task_048_orchestrate_the_first_party_logics_cdx_tray_plugin.md"
+  ],
+  "command": "logics-manager sync context-pack req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card task_048_orchestrate_the_first_party_logics_cdx_tray_plugin --mode diff-first --profile deep --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface",
+          "item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl",
+          "item_081_add_linux_tray_support_and_explicit_release_asset_installation"
+        ],
+        "prod": [
+          "prod_024_cdx_tray_usage_monitor"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor"
+        ],
+        "task": [
+          "task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor"
+        ]
+      },
+      "path": "logics/product/prod_024_cdx_tray_usage_monitor.md",
+      "ref": "prod_024_cdx_tray_usage_monitor",
+      "sections": {
+        "Goals": [
+          "- Make remaining CDX capacity and reset timing visible without opening a terminal.",
+          "- Reuse CDX status as the only source of usage truth.",
+          "- Support macOS, Windows, Windows plus WSL, and practical Linux tray environments.",
+          "- Keep tray installation explicit, removable, and independent from the normal CLI runtime.",
+          "- Update an installed tray companion only when the user explicitly updates CDX, keeping both components on the same release.",
+          "- Ship a useful unsigned direct-download v1 before investing in commercial distribution infrastructure."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Provide an optional native system-tray companion that turns existing CDX status data into a glanceable usage indicator across desktop operating systems.",
+          "```mermaid",
+          "%% logics-kind: product",
+          "%% logics-signature: product|cdx-tray-usage-monitor|status-to-native-tray",
+          "flowchart TD",
+          "    Status[cdx status JSON] --> State[Local display state]"
+        ],
+        "References": [
+          "- Product back-reference: `req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor`",
+          "- Task back-reference: `task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "CDX tray usage monitor"
+    },
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_082_deliver_agent_hook_events_through_the_active_cdx_tray_with_safe_fallback"
+        ],
+        "prod": [
+          "prod_025_tray_aware_agent_alerts"
+        ],
+        "req": [
+          "req_036_route_cdx_agent_alerts_through_an_active_tray_companion"
+        ],
+        "task": [
+          "task_047_orchestrate_tray_aware_cdx_agent_alert_delivery"
+        ]
+      },
+      "path": "logics/product/prod_025_tray_aware_agent_alerts.md",
+      "ref": "prod_025_tray_aware_agent_alerts",
+      "sections": {
+        "Goals": [
+          "- Give an active tray a visible, actionable hint when an agent finishes or needs attention.",
+          "- Deliver exactly one user-facing alert for each hook event.",
+          "- Preserve current hook safety, opt-in preview privacy, and direct desktop notifications when the tray is absent.",
+          "- Support Windows-hosted WSL without relying on variable cross-boundary network topology."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Let the optional CDX tray companion own visual delivery of agent completion and attention alerts while retaining the existing direct notification path as a non-blocking fallback.",
+          "```mermaid",
+          "%% logics-kind: product",
+          "%% logics-signature: product|tray-aware-agent-alerts|active-tray-or-fallback",
+          "flowchart TD",
+          "    Hook[Provider hook] --> Notify[cdx notify]"
+        ],
+        "References": [
+          "- Product back-reference: `req_036_route_cdx_agent_alerts_through_an_active_tray_companion`",
+          "- Task back-reference: `task_047_orchestrate_tray_aware_cdx_agent_alert_delivery`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Tray-aware agent alerts"
+    },
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card"
+        ],
+        "prod": [
+          "prod_026_extensible_cdx_tray_with_a_first_party_logics_card"
+        ],
+        "req": [
+          "req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray"
+        ],
+        "task": [
+          "task_048_orchestrate_the_first_party_logics_cdx_tray_plugin"
+        ]
+      },
+      "path": "logics/product/prod_026_extensible_cdx_tray_with_a_first_party_logics_card.md",
+      "ref": "prod_026_extensible_cdx_tray_with_a_first_party_logics_card",
+      "sections": {
+        "Goals": [
+          "- Show Logics workflow health at a glance from the optional CDX tray.",
+          "- Keep the native tray independent from external tool paths and plugin implementation details.",
+          "- Ship the first-party adapter with cdx-manager while making it optional and reversible.",
+          "- Establish only the minimum contract needed to add a second adapter later."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Add one narrow, CDX-owned tray-plugin contract and use it to surface Logics workflow health in the existing tray menu when the local Logics manager is available."
+        ],
+        "References": [
+          "- Product back-reference: `req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray`",
+          "- Task back-reference: `task_048_orchestrate_the_first_party_logics_cdx_tray_plugin`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Extensible CDX tray with a first-party Logics card"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, add a first-party logics plugin surface to the cdx tray, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Add a first-party Logics plugin surface to the CDX tray",
+        "use when": "You need to implement or review the scaffolded workflow for Add a first-party Logics plugin surface to the CDX tray."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card"
+        ],
+        "prod": [
+          "prod_024_cdx_tray_usage_monitor",
+          "prod_025_tray_aware_agent_alerts",
+          "prod_026_extensible_cdx_tray_with_a_first_party_logics_card"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor",
+          "req_036_route_cdx_agent_alerts_through_an_active_tray_companion",
+          "req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray"
+        ]
+      },
+      "path": "logics/request/req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray.md",
+      "ref": "req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: cdx exposes a versioned, bounded tray-plugin snapshot contract that represents plugin identity, availability, severity, short summary, a small list of display rows, and declared action ids; invalid or slow plugin output cannot break the base CDX tray status.",
+          "- AC2: The built-in Logics adapter is delivered in cdx-manager, is disabled unless explicitly enabled, and reports a clear unavailable state without an error when logics-manager is not installed or returns invalid status data.",
+          "- AC3: When enabled and available, the Logics tray card derives its information only from logics-manager status --format json and shows a concise health summary including blocked work, active work, and the next actionable item without parsing Logics markdown directly.",
+          "- AC4: The Logics card exposes only declared CDX-owned actions, including refresh and opening cdx view focused on a selected documented reference; it does not embed a viewer, execute arbitrary plugin-provided shell strings, or mutate Logics workflow state.",
+          "- AC5: The native tray companion receives the Logics card only through the shared CDX snapshot and renders it within the existing menu limits without adding a second tray icon, long-running plugin process, or independent polling loop.",
+          "- AC6: The same Logics adapter works for native CDX and Windows-hosted WSL through the base tray bridge, with CDX selecting the correct logics-manager environment rather than the Windows tray executable assuming a path."
+        ],
+        "Needs": [
+          "- The optional tray needs a safe extension point so product-specific information can appear without turning the tray companion into a copy of every command-line tool.",
+          "- Logics is the first extension: its machine-readable status already exposes active tasks, blocked documents, draft requests, counts, and next actions that are useful at a glance.",
+          "- The Logics integration should ship in cdx-manager and work only when logics-manager is available, with no separate package, remote marketplace, downloaded plugin code, or mandatory dependency.",
+          "- Future extensions need one small compatible data contract, but v1 must not over-design a general plugin ecosystem before a second real plugin exists."
+        ]
+      },
+      "status": "Draft",
+      "title": "Add a first-party Logics plugin surface to the CDX tray"
+    },
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, add an optional cross-platform cdx tray usage monitor, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Add an optional cross-platform CDX tray usage monitor",
+        "use when": "You need to implement or review the scaffolded workflow for Add an optional cross-platform CDX tray usage monitor."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface",
+          "item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl",
+          "item_081_add_linux_tray_support_and_explicit_release_asset_installation"
+        ],
+        "prod": [
+          "prod_024_cdx_tray_usage_monitor"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor"
+        ]
+      },
+      "path": "logics/request/req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor.md",
+      "ref": "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: cdx offers an explicit tray command family with install, launch, status, and uninstall operations; invoking cdx alone never installs a tray component, registers startup, or changes desktop settings.",
+          "- AC2: The tray consumes the documented cdx status --json output and shows a clear unavailable, stale, or error state instead of inventing quota values when a refresh fails.",
+          "- AC3: The active tray icon communicates the most urgent relevant usage state without exposing account names or quota details until the user opens its menu.",
+          "- AC4: Opening the tray menu shows each enabled CDX session with provider, concise remaining-usage gauge, freshness/reset information when known, and actions to refresh and open the relevant terminal command.",
+          "- AC5: macOS, native Windows, and supported Linux tray environments provide the same core status and menu behaviour from native host processes.",
+          "- AC6: On Windows with CDX installed in WSL, the Windows-hosted tray component reads status through WSL interop, reports unavailable interop or missing CDX honestly, and does not require a Linux GUI server."
+        ],
+        "Needs": [
+          "- CDX already resolves per-session usage through cdx status --json, but users must open a terminal to see remaining capacity and resets.",
+          "- A compact, always-available system tray indicator should show the most constrained active CDX session and reveal all session gauges on demand.",
+          "- The same feature must work on macOS, native Windows, Linux desktop environments with a system tray, and Windows-hosted WSL installations without making the base CLI depend on the tray runtime.",
+          "- The first release must be usable without developer-program accounts, code-signing certificates, app stores, or automatic background installation."
+        ]
+      },
+      "status": "Draft",
+      "title": "Add an optional cross-platform CDX tray usage monitor"
+    },
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, route cdx agent alerts through an active tray companion, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Route CDX agent alerts through an active tray companion",
+        "use when": "You need to implement or review the scaffolded workflow for Route CDX agent alerts through an active tray companion."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_082_deliver_agent_hook_events_through_the_active_cdx_tray_with_safe_fallback"
+        ],
+        "prod": [
+          "prod_024_cdx_tray_usage_monitor",
+          "prod_025_tray_aware_agent_alerts"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor",
+          "req_036_route_cdx_agent_alerts_through_an_active_tray_companion"
+        ]
+      },
+      "path": "logics/request/req_036_route_cdx_agent_alerts_through_an_active_tray_companion.md",
+      "ref": "req_036_route_cdx_agent_alerts_through_an_active_tray_companion",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: When a compatible tray companion has a fresh local heartbeat, cdx notify publishes one sanitized agent event for the tray and does not also send the existing direct desktop notification.",
+          "- AC2: When no fresh heartbeat exists, publishing fails, the tray is incompatible, or the tray is stopped, cdx notify preserves the current direct desktop notification fallback and still exits successfully.",
+          "- AC3: The tray renders completion and attention events as a short temporary icon hint, a bounded recent-event menu entry, and one native local notification; repeated consumption or restart does not create duplicate notifications for the same event id.",
+          "- AC4: The tray route receives only the already-normalized title/body from compose_notification. Assistant-response preview content remains absent unless the existing per-session notify-preview preference is enabled, and arbitrary provider payload or tool input is never persisted or rendered.",
+          "- AC5: The event spool is local, bounded, versioned, private to the current user, and safely recovers from malformed, partial, stale, or unacknowledged entries without growing unbounded or blocking a provider hook.",
+          "- AC6: macOS and supported Linux tray processes use the local state directly. A Windows-hosted tray serving CDX in WSL exchanges heartbeat and event data through explicit WSL interop, without requiring a Linux GUI, a LAN listener, port-forwarding, or a localhost-networking assumption."
+        ],
+        "Needs": [
+          "- Agent completion and attention hooks already compose a safe session and repository notification, but they bypass the planned tray companion when it is active.",
+          "- An active tray should become the single visible delivery owner: it can show a transient icon hint, retain the recent event in its menu, and issue the native notification without duplicate operating-system toasts.",
+          "- A missing, stopped, old, or unreachable tray must preserve the current direct desktop notification behaviour and must never delay, fail, or alter an agent turn.",
+          "- The Windows tray must receive events from CDX running in WSL without assuming bidirectional localhost networking, which varies between NAT and mirrored WSL modes."
+        ]
+      },
+      "status": "Draft",
+      "title": "Route CDX agent alerts through an active tray companion"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, add the cdx tray plugin contract and built-in logics status card, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Add the CDX tray plugin contract and built-in Logics status card",
+        "use when": "Implementing the scaffolded slice for Add the CDX tray plugin contract and built-in Logics status card."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card"
+        ],
+        "prod": [
+          "prod_026_extensible_cdx_tray_with_a_first_party_logics_card"
+        ],
+        "req": [
+          "req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray"
+        ],
+        "task": [
+          "task_048_orchestrate_the_first_party_logics_cdx_tray_plugin"
+        ]
+      },
+      "path": "logics/backlog/item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card.md",
+      "ref": "item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: CDX produces a tested versioned snapshot containing zero or more bounded plugin cards and ignores malformed, unknown, slow, or unavailable adapters without harming core tray data.",
+          "- AC2: The bundled Logics adapter is opt-in, uses only status JSON, reports concise actionable workflow state, and stays silent when Logics is unavailable.",
+          "- AC3: The tray renders the card through its shared menu and routes only refresh plus focused-view action ids through CDX.",
+          "- AC4: Native and WSL installations resolve the Logics command through CDX rather than tray-specific executable paths.",
+          "- AC5: Plugin activation, status, privacy, failure semantics, and intentionally absent marketplace are documented; focused tests and project validation pass."
+        ],
+        "Problem": [
+          "- Without a narrow adapter boundary, each future tray integration would leak tool-specific invocation and rendering logic into the native companion.",
+          "- A generic plugin platform now would add discovery, trust, packaging, and lifecycle complexity before there is evidence that it is needed."
+        ]
+      },
+      "status": "Ready",
+      "title": "Add the CDX tray plugin contract and built-in Logics status card"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface",
+          "item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl",
+          "item_081_add_linux_tray_support_and_explicit_release_asset_installation"
+        ],
+        "prod": [
+          "prod_024_cdx_tray_usage_monitor"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor"
+        ],
+        "task": [
+          "task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor"
+        ]
+      },
+      "path": "logics/product/prod_024_cdx_tray_usage_monitor.md",
+      "ref": "prod_024_cdx_tray_usage_monitor",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "CDX tray usage monitor"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_082_deliver_agent_hook_events_through_the_active_cdx_tray_with_safe_fallback"
+        ],
+        "prod": [
+          "prod_025_tray_aware_agent_alerts"
+        ],
+        "req": [
+          "req_036_route_cdx_agent_alerts_through_an_active_tray_companion"
+        ],
+        "task": [
+          "task_047_orchestrate_tray_aware_cdx_agent_alert_delivery"
+        ]
+      },
+      "path": "logics/product/prod_025_tray_aware_agent_alerts.md",
+      "ref": "prod_025_tray_aware_agent_alerts",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Tray-aware agent alerts"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card"
+        ],
+        "prod": [
+          "prod_026_extensible_cdx_tray_with_a_first_party_logics_card"
+        ],
+        "req": [
+          "req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray"
+        ],
+        "task": [
+          "task_048_orchestrate_the_first_party_logics_cdx_tray_plugin"
+        ]
+      },
+      "path": "logics/product/prod_026_extensible_cdx_tray_with_a_first_party_logics_card.md",
+      "ref": "prod_026_extensible_cdx_tray_with_a_first_party_logics_card",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Extensible CDX tray with a first-party Logics card"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate the first-party Logics CDX tray plugin",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card"
+        ],
+        "prod": [
+          "prod_026_extensible_cdx_tray_with_a_first_party_logics_card"
+        ],
+        "req": [
+          "req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray"
+        ],
+        "task": [
+          "task_048_orchestrate_the_first_party_logics_cdx_tray_plugin"
+        ]
+      },
+      "path": "logics/tasks/task_048_orchestrate_the_first_party_logics_cdx_tray_plugin.md",
+      "ref": "task_048_orchestrate_the_first_party_logics_cdx_tray_plugin",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate the first-party Logics CDX tray plugin"
+    }
+  ],
+  "estimates": {
+    "char_count": 19678,
+    "companion_doc_count": 3,
+    "doc_count": 8
+  },
+  "generated_at": "2026-08-10T11:26:47Z",
+  "handoff": {
+    "companion_doc_count": 3,
+    "enabled": true,
+    "source_refs": [
+      "req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray",
+      "item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card",
+      "task_048_orchestrate_the_first_party_logics_cdx_tray_plugin"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "deep",
+  "ref": "req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray,item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card,task_048_orchestrate_the_first_party_logics_cdx_tray_plugin",
+  "refs": [
+    "req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray",
+    "item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card",
+    "task_048_orchestrate_the_first_party_logics_cdx_tray_plugin"
+  ],
+  "release": {
+    "blocking_reasons": [],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Release evidence is complete.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": null,
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "ready",
+    "target_version": "0.17.1"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_048_orchestrate_the_first_party_logics_cdx_tray_plugin.md",
+      "ref": "task_048_orchestrate_the_first_party_logics_cdx_tray_plugin"
+    }
+  ]
+}

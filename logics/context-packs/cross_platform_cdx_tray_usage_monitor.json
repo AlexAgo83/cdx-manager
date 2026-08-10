@@ -1,0 +1,431 @@
+{
+  "budgets": {
+    "max_docs": 40,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [
+    "logics/backlog/item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface.md",
+    "logics/backlog/item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl.md",
+    "logics/backlog/item_081_add_linux_tray_support_and_explicit_release_asset_installation.md",
+    "logics/product/prod_024_cdx_tray_usage_monitor.md",
+    "logics/request/req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor.md",
+    "logics/scaffold/cross_platform_cdx_tray_usage_monitor.json",
+    "logics/tasks/task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor.md"
+  ],
+  "command": "logics-manager sync context-pack req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl item_081_add_linux_tray_support_and_explicit_release_asset_installation task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor --mode diff-first --profile deep --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface",
+          "item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl",
+          "item_081_add_linux_tray_support_and_explicit_release_asset_installation"
+        ],
+        "prod": [
+          "prod_024_cdx_tray_usage_monitor"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor"
+        ],
+        "task": [
+          "task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor"
+        ]
+      },
+      "path": "logics/product/prod_024_cdx_tray_usage_monitor.md",
+      "ref": "prod_024_cdx_tray_usage_monitor",
+      "sections": {
+        "Goals": [
+          "- Make remaining CDX capacity and reset timing visible without opening a terminal.",
+          "- Reuse CDX status as the only source of usage truth.",
+          "- Support macOS, Windows, Windows plus WSL, and practical Linux tray environments.",
+          "- Keep tray installation explicit, removable, and independent from the normal CLI runtime.",
+          "- Ship a useful unsigned direct-download v1 before investing in commercial distribution infrastructure."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Provide an optional native system-tray companion that turns existing CDX status data into a glanceable usage indicator across desktop operating systems."
+        ],
+        "References": [
+          "- Product back-reference: `req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor`",
+          "- Task back-reference: `task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "CDX tray usage monitor"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, add an optional cross-platform cdx tray usage monitor, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Add an optional cross-platform CDX tray usage monitor",
+        "use when": "You need to implement or review the scaffolded workflow for Add an optional cross-platform CDX tray usage monitor."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface",
+          "item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl",
+          "item_081_add_linux_tray_support_and_explicit_release_asset_installation"
+        ],
+        "prod": [
+          "prod_024_cdx_tray_usage_monitor"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor"
+        ]
+      },
+      "path": "logics/request/req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor.md",
+      "ref": "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: cdx offers an explicit tray command family with install, launch, status, and uninstall operations; invoking cdx alone never installs a tray component, registers startup, or changes desktop settings.",
+          "- AC2: The tray consumes the documented cdx status --json output and shows a clear unavailable, stale, or error state instead of inventing quota values when a refresh fails.",
+          "- AC3: The active tray icon communicates the most urgent relevant usage state without exposing account names or quota details until the user opens its menu.",
+          "- AC4: Opening the tray menu shows each enabled CDX session with provider, concise remaining-usage gauge, freshness/reset information when known, and actions to refresh and open the relevant terminal command.",
+          "- AC5: macOS, native Windows, and supported Linux tray environments provide the same core status and menu behaviour from native host processes.",
+          "- AC6: On Windows with CDX installed in WSL, the Windows-hosted tray component reads status through WSL interop, reports unavailable interop or missing CDX honestly, and does not require a Linux GUI server."
+        ],
+        "Needs": [
+          "- CDX already resolves per-session usage through cdx status --json, but users must open a terminal to see remaining capacity and resets.",
+          "- A compact, always-available system tray indicator should show the most constrained active CDX session and reveal all session gauges on demand.",
+          "- The same feature must work on macOS, native Windows, Linux desktop environments with a system tray, and Windows-hosted WSL installations without making the base CLI depend on the tray runtime.",
+          "- The first release must be usable without developer-program accounts, code-signing certificates, app stores, or automatic background installation."
+        ]
+      },
+      "status": "Draft",
+      "title": "Add an optional cross-platform CDX tray usage monitor"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, define the minimal tray status contract and cdx command surface, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Define the minimal tray status contract and CDX command surface",
+        "use when": "Implementing the scaffolded slice for Define the minimal tray status contract and CDX command surface."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface"
+        ],
+        "prod": [
+          "prod_024_cdx_tray_usage_monitor"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor"
+        ],
+        "task": [
+          "task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor"
+        ]
+      },
+      "path": "logics/backlog/item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface.md",
+      "ref": "item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: cdx tray help describes install, launch, status, and uninstall, and ordinary cdx commands remain behaviourally unchanged.",
+          "- AC2: The defined local status payload distinguishes fresh, stale, unavailable, and failed states without fabricating usage figures.",
+          "- AC3: One tested mapper selects a privacy-preserving icon state from the most urgent eligible session and produces concise per-session menu data.",
+          "- AC4: The command contract supports a manual refresh and a terminal-opening action without requiring an always-running daemon.",
+          "- AC5: Focused tests and the project validation suite pass."
+        ],
+        "Problem": [
+          "- The current JSON status is CLI-oriented, so a tray consumer needs a small stable interpretation layer for urgency, freshness, and action states.",
+          "- A tray feature must be discoverable and removable without surprising users of the normal CLI."
+        ]
+      },
+      "status": "Ready",
+      "title": "Define the minimal tray status contract and CDX command surface"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, build native tray companions for macos and windows plus wsl, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Build native tray companions for macOS and Windows plus WSL",
+        "use when": "Implementing the scaffolded slice for Build native tray companions for macOS and Windows plus WSL."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl"
+        ],
+        "prod": [
+          "prod_024_cdx_tray_usage_monitor"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor"
+        ],
+        "task": [
+          "task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor"
+        ]
+      },
+      "path": "logics/backlog/item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl.md",
+      "ref": "item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: macOS and Windows artifacts display the same core usage states and session menu from the shared local status contract.",
+          "- AC2: A Windows host can obtain status from a configured WSL CDX command without requiring an X server, and failures identify the unavailable boundary.",
+          "- AC3: The menu supports refresh, a terminal action, and quit while avoiding account details in the closed icon.",
+          "- AC4: The bundled icon assets render correctly at the required tray sizes.",
+          "- AC5: Targeted tests and documented manual smoke checks pass on the supported host platforms."
+        ],
+        "Problem": [
+          "- A Python CLI cannot place an icon in macOS or Windows system UI by itself.",
+          "- Windows-hosted WSL needs a host-side application and a robust bridge to the WSL CDX executable."
+        ]
+      },
+      "status": "Ready",
+      "title": "Build native tray companions for macOS and Windows plus WSL"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, add linux tray support and explicit release-asset installation, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Add Linux tray support and explicit release-asset installation",
+        "use when": "Implementing the scaffolded slice for Add Linux tray support and explicit release-asset installation."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_081_add_linux_tray_support_and_explicit_release_asset_installation"
+        ],
+        "prod": [
+          "prod_024_cdx_tray_usage_monitor"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor"
+        ],
+        "task": [
+          "task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor"
+        ]
+      },
+      "path": "logics/backlog/item_081_add_linux_tray_support_and_explicit_release_asset_installation.md",
+      "ref": "item_081_add_linux_tray_support_and_explicit_release_asset_installation",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A supported Linux tray environment renders the core CDX menu and reports unsupported environments without a crash.",
+          "- AC2: cdx tray install chooses only the current compatible release asset and rejects a missing or mismatched checksum before installation.",
+          "- AC3: cdx tray uninstall removes only files and startup entries previously recorded for the tray companion.",
+          "- AC4: Documentation accurately states unsigned direct-release distribution and its first-launch implications.",
+          "- AC5: Focused installer, Linux boundary, and end-to-end command tests plus project validation pass."
+        ],
+        "Problem": [
+          "- Linux desktop environments vary in system-tray support, and platform-specific companion artifacts need an honest, reversible installation path.",
+          "- The base CDX package should not embed every native binary or gain tray-only runtime dependencies."
+        ]
+      },
+      "status": "Ready",
+      "title": "Add Linux tray support and explicit release-asset installation"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface",
+          "item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl",
+          "item_081_add_linux_tray_support_and_explicit_release_asset_installation"
+        ],
+        "prod": [
+          "prod_024_cdx_tray_usage_monitor"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor"
+        ],
+        "task": [
+          "task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor"
+        ]
+      },
+      "path": "logics/product/prod_024_cdx_tray_usage_monitor.md",
+      "ref": "prod_024_cdx_tray_usage_monitor",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "CDX tray usage monitor"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate the optional cross-platform CDX tray usage monitor",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface",
+          "item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl",
+          "item_081_add_linux_tray_support_and_explicit_release_asset_installation"
+        ],
+        "prod": [
+          "prod_024_cdx_tray_usage_monitor"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor"
+        ],
+        "task": [
+          "task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor"
+        ]
+      },
+      "path": "logics/tasks/task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor.md",
+      "ref": "task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate the optional cross-platform CDX tray usage monitor"
+    }
+  ],
+  "estimates": {
+    "char_count": 12073,
+    "companion_doc_count": 1,
+    "doc_count": 6
+  },
+  "generated_at": "2026-08-10T11:13:31Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor",
+      "item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface",
+      "item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl",
+      "item_081_add_linux_tray_support_and_explicit_release_asset_installation",
+      "task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "deep",
+  "ref": "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor,item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface,item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl,item_081_add_linux_tray_support_and_explicit_release_asset_installation,task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor",
+  "refs": [
+    "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor",
+    "item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface",
+    "item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl",
+    "item_081_add_linux_tray_support_and_explicit_release_asset_installation",
+    "task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor"
+  ],
+  "release": {
+    "blocking_reasons": [],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Release evidence is complete.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": null,
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "ready",
+    "target_version": "0.17.1"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor.md",
+      "ref": "task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor"
+    }
+  ]
+}

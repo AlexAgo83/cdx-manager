@@ -1,0 +1,86 @@
+{
+  "title": "Harden CDX tray lifecycle, clarity, and platform validation",
+  "references": [
+    "README.md",
+    "src/notify.py",
+    "src/commands/maintenance.py",
+    "src/update_check.py",
+    "logics/request/req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor.md",
+    "logics/request/req_036_route_cdx_agent_alerts_through_an_active_tray_companion.md",
+    "logics/request/req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray.md"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Desktop integration",
+    "needs": [
+      "The tray must be quiet, transparent, and recoverable on a personal desktop: explicit startup control, one instance, useful diagnostics, and safe updates are more valuable than hidden background machinery.",
+      "Windows-hosted WSL needs a deterministic default-distribution path plus an explicit override, while Linux support must describe only desktop environments that have been tested.",
+      "A small icon must communicate actionable CDX availability without misleading averages, colour-only meaning, or revealing session and task details while closed.",
+      "Native behaviour must be validated on real managed macOS and Windows plus WSL machines in addition to deterministic local tests."
+    ],
+    "context": [
+      "The base tray companion request req_035 owns installation, status, and the native menu. Alert delivery and the Logics card are separate dependent requests and must retain their bounded event and plugin contracts.",
+      "The chosen operating policy is manual launch by default; cdx tray autostart on and off are explicit opt-in controls. The installed companion must not create a startup entry merely because cdx tray install ran.",
+      "A single user-level tray instance owns the icon. A second launch reports the existing instance; cdx tray doctor reports instance, startup, status freshness, installed version, and supported desktop capability.",
+      "Windows starts from the default WSL distribution, with cdx tray configure wsl --distro NAME as an explicit override. V1 never aggregates several distributions.",
+      "The closed icon represents the most constrained currently usable CDX capacity, never an average. Its tooltip states the affected session, limiting window, reset when known, and an explicit unknown state. Menu text and symbols carry every state that colour also conveys.",
+      "Native notifications retain system Focus and Do Not Disturb behaviour, use no urgent interruption mode, and quota urgency remains an icon state rather than a new toast category.",
+      "Tray updates remain explicit CDX-managed updates. Installation stages a verified replacement, starts it successfully, then retires the old companion; failure leaves the prior working version available.",
+      "The managed validation matrix is the current arm64 macOS host and a managed Windows host with an Ubuntu WSL distribution. Tests are read-only except for scoped install and uninstall fixtures, which must be cleaned up."
+    ],
+    "acceptance_criteria": [
+      "AC1: cdx tray install does not enable startup; cdx tray autostart on and off are explicit, idempotent, user-level operations that report the actual platform state.",
+      "AC2: Only one tray instance owns a user session; duplicate launch, crash recovery, quit, and cdx tray doctor provide clear bounded diagnostics without a persistent background service.",
+      "AC3: Windows uses the default WSL distribution unless an explicit named override is configured, reports a missing or invalid override honestly, and does not aggregate distributions in v1.",
+      "AC4: The tray state selects the most constrained usable capacity, names its source and reset in the tooltip/menu, renders an explicit unknown state, and never makes colour the sole state signal.",
+      "AC5: Completion and attention alerts respect native notification settings; quota state produces no new toast, and no tray surface exposes session, repository, task, or preview details while closed.",
+      "AC6: cdx-managed update verifies the matching asset before staging, preserves the prior working companion until replacement starts, and cdx tray doctor explains partial installation or version mismatch recovery.",
+      "AC7: Linux support is limited to a documented tested desktop matrix, while unsupported tray capability is detected and reported without startup registration or a crash.",
+      "AC8: Automated boundary tests cover lifecycle controls, single-instance handling, WSL selection, quota-state mapping, privacy, accessibility labels, update recovery, and unsupported Linux capability; manual smoke validation passes on the managed arm64 macOS host and managed Windows plus Ubuntu WSL host."
+    ]
+  },
+  "product": {
+    "title": "Trustworthy CDX tray operation",
+    "overview": "Make the CDX tray companion a quiet, explicit, accessible, and testable desktop utility across supported operating systems.",
+    "goals": [
+      "Keep launch, startup, update, and removal under direct user control.",
+      "Offer one truthful glanceable capacity signal and clear diagnostics when it cannot be resolved.",
+      "Support one configured WSL source and a documented Linux desktop matrix.",
+      "Validate native behaviour on managed macOS and Windows plus WSL machines."
+    ],
+    "non_goals": [
+      "No automatic startup at installation, auto-update daemon, multiple simultaneous tray icons, WSL distribution aggregation, or remote fleet service.",
+      "No bypass of Focus or Do Not Disturb, new quota toasts, telemetry, closed-icon sensitive details, or colour-only states.",
+      "No promise of universal Linux desktop support or change to the tray alert and plugin feature scopes."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Add explicit CDX tray lifecycle, capacity, privacy, and recovery controls",
+      "priority": "High",
+      "complexity": "High",
+      "theme": "Desktop integration",
+      "request_acs": ["AC1", "AC2", "AC4", "AC5", "AC6", "AC8"],
+      "problem": ["A desktop utility that starts unexpectedly, duplicates its icon, obscures failure, or leaks details loses trust even if its usage data is correct."],
+      "scope_in": ["Implement explicit autostart, single-instance, doctor, staged update recovery, and honest installed-state reporting.", "Map one least-available usable quota state to accessible icon, tooltip, and menu text while preserving notification and privacy boundaries.", "Add focused automated checks and managed-macOS smoke validation."],
+      "scope_out": ["Background self-update, automatic tray activation, cross-machine monitoring, quota alerts, and rewriting the dependent alert or plugin contracts."],
+      "acceptance_criteria": ["AC1: Lifecycle and recovery controls are explicit, idempotent, diagnosable, and leave a previous working companion available after a failed replacement.", "AC2: One accessible, privacy-preserving capacity state represents the correct source without colour-only semantics or closed-icon details.", "AC3: Automated checks and managed macOS smoke validation pass."]
+    },
+    {
+      "title": "Constrain WSL and Linux tray support and validate it on real hosts",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Platform support",
+      "request_acs": ["AC3", "AC7", "AC8"],
+      "problem": ["WSL and Linux tray assumptions vary by distribution and desktop environment, so broad claims without a configuration path and hardware smoke tests are unreliable."],
+      "scope_in": ["Implement default and explicitly selected WSL distribution resolution with truthful diagnostics.", "Define tested Linux desktop capability detection and unsupported behaviour.", "Run documented smoke checks on managed Windows plus Ubuntu WSL and record the results."],
+      "scope_out": ["Multiple-distribution aggregation, WSL GUI, network relays, universal Linux support, or production changes to managed hosts."],
+      "acceptance_criteria": ["AC1: Default and configured WSL distribution selection are deterministic and diagnose bad configuration.", "AC2: Unsupported Linux tray capability is reported safely and tested environments are documented.", "AC3: Automated checks and a managed Windows plus Ubuntu WSL smoke validation pass."]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate trustworthy CDX tray operation and platform validation",
+    "plan": ["Implement and test lifecycle, single-instance, capacity, privacy, and recovery controls without enabling anything by default.", "Implement WSL source selection and Linux capability boundaries, then run scoped managed-host smoke checks.", "Verify that alert and plugin integrations retain their own limits, document support and recovery, and run project plus workflow validation."]
+  },
+  "context_pack": {"out": "logics/context-packs/cdx_tray_operations_and_platform_validation.json", "mode": "diff-first", "profile": "deep"}
+}

@@ -1,0 +1,168 @@
+{
+  "title": "Add an optional cross-platform CDX tray usage monitor",
+  "references": [
+    "README.md",
+    "pyproject.toml",
+    "src/cli.py",
+    "src/cli_args.py",
+    "src/commands/status.py",
+    "src/codex_usage.py",
+    "src/status_view.py",
+    "src/notify.py",
+    "logics/external/cdx-tray-mockup-macos.png",
+    "logics/external/cdx-tray-mockup-windows-wsl.png",
+    "logics/external/cdx-tray-mockup-linux.png"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Desktop integration",
+    "needs": [
+      "CDX already resolves per-session usage through cdx status --json, but users must open a terminal to see remaining capacity and resets.",
+      "A compact, always-available system tray indicator should show the most constrained active CDX session and reveal all session gauges on demand.",
+      "The same feature must work on macOS, native Windows, Linux desktop environments with a system tray, and Windows-hosted WSL installations without making the base CLI depend on the tray runtime.",
+      "The first release must be usable without developer-program accounts, code-signing certificates, app stores, or automatic background installation."
+    ],
+    "context": [
+      "src/commands/status.py and the existing cdx status --json contract expose provider-neutral session rows, remaining quota, availability, and reset information that the tray must consume rather than reimplement.",
+      "src/notify.py already distinguishes macOS, Windows, WSL, and Linux notification channels, including the fact that WSL must cross to the Windows host through interop.",
+      "The published package is a Python CLI with only cryptography as a runtime dependency; a tray runtime must be optional so ordinary cdx installation and headless use remain unchanged.",
+      "The product mockups establish the intended interaction: a low-noise CDX status icon, colour signalling based on the most urgent usable quota, and a short session list on click.",
+      "Windows WSL cannot own a Windows notification-area icon from inside Linux. The host executable must query the configured WSL distribution through wsl.exe or consume an explicit host-readable status command.",
+      "Initial distribution may use release assets and manual first-launch confirmation. Signing, notarization, app-store publication, background tray self-update, telemetry, and account login are deliberately deferred; a tray component updates only as part of an explicit CDX update."
+    ],
+    "acceptance_criteria": [
+      "AC1: cdx offers an explicit tray command family with install, launch, status, and uninstall operations; invoking cdx alone never installs a tray component, registers startup, or changes desktop settings.",
+      "AC2: The tray consumes the documented cdx status --json output and shows a clear unavailable, stale, or error state instead of inventing quota values when a refresh fails.",
+      "AC3: The active tray icon communicates the most urgent relevant usage state without exposing account names or quota details until the user opens its menu.",
+      "AC4: Opening the tray menu shows each enabled CDX session with provider, concise remaining-usage gauge, freshness/reset information when known, and actions to refresh and open the relevant terminal command.",
+      "AC5: macOS, native Windows, and supported Linux tray environments provide the same core status and menu behaviour from native host processes.",
+      "AC6: On Windows with CDX installed in WSL, the Windows-hosted tray component reads status through WSL interop, reports unavailable interop or missing CDX honestly, and does not require a Linux GUI server.",
+      "AC7: Installation and explicit CDX update select only the matching OS and architecture release asset, verify its published checksum before use, keep an installed tray companion aligned with the installed CDX release, record only the local state needed for uninstall, and leave the base cdx runtime free of tray-only dependencies.",
+      "AC8: The initial distribution and documentation describe direct release-asset installation, explicit CDX-managed tray updates, and any first-launch OS warning truthfully; they do not claim code signing, notarization, store distribution, background self-update, or universal Linux desktop support.",
+      "AC9: Focused automated checks cover quota-state mapping, JSON/error/staleness handling, install-target selection and checksum rejection, and WSL command construction; platform integration checks and project validation pass."
+    ]
+  },
+  "product": {
+    "title": "CDX tray usage monitor",
+    "overview": "Provide an optional native system-tray companion that turns existing CDX status data into a glanceable usage indicator across desktop operating systems.",
+    "goals": [
+      "Make remaining CDX capacity and reset timing visible without opening a terminal.",
+      "Reuse CDX status as the only source of usage truth.",
+      "Support macOS, Windows, Windows plus WSL, and practical Linux tray environments.",
+      "Keep tray installation explicit, removable, and independent from the normal CLI runtime.",
+      "Update an installed tray companion only when the user explicitly updates CDX, keeping both components on the same release.",
+      "Ship a useful unsigned direct-download v1 before investing in commercial distribution infrastructure."
+    ],
+    "non_goals": [
+      "No account authentication, remote service, telemetry, cloud synchronization, or quota recalculation.",
+      "No app store publishing, code signing, macOS notarization, Windows SmartScreen reputation work, or independent background tray self-update in v1.",
+      "No replacement GUI for the CDX CLI, session launcher, or Logics viewer.",
+      "No guarantee for Linux desktops without a supported StatusNotifier or system-tray implementation.",
+      "No automatic installation, startup registration, or modification of host settings without an explicit tray install operation."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Define the minimal tray status contract and CDX command surface",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Desktop integration",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC9"],
+      "problem": [
+        "The current JSON status is CLI-oriented, so a tray consumer needs a small stable interpretation layer for urgency, freshness, and action states.",
+        "A tray feature must be discoverable and removable without surprising users of the normal CLI."
+      ],
+      "scope_in": [
+        "Trace the existing JSON status output and expose only any missing documented fields required by a local tray consumer.",
+        "Define the cdx tray install, launch, status, and uninstall contracts with non-mutating defaults.",
+        "Implement one platform-neutral status-to-display-state mapper covering known quota, no sessions, stale data, and command failure.",
+        "Add focused unit tests and concise CLI documentation."
+      ],
+      "scope_out": [
+        "Writing native tray UI code or adding a mandatory GUI dependency.",
+        "Changing quota ranking or probing provider APIs outside the existing status pipeline.",
+        "Adding persistent background services or automatic startup."
+      ],
+      "acceptance_criteria": [
+        "AC1: cdx tray help describes install, launch, status, and uninstall, and ordinary cdx commands remain behaviourally unchanged.",
+        "AC2: The defined local status payload distinguishes fresh, stale, unavailable, and failed states without fabricating usage figures.",
+        "AC3: One tested mapper selects a privacy-preserving icon state from the most urgent eligible session and produces concise per-session menu data.",
+        "AC4: The command contract supports a manual refresh and a terminal-opening action without requiring an always-running daemon.",
+        "AC5: Focused tests and the project validation suite pass."
+      ]
+    },
+    {
+      "title": "Build native tray companions for macOS and Windows plus WSL",
+      "priority": "High",
+      "complexity": "High",
+      "theme": "Desktop integration",
+      "request_acs": ["AC3", "AC4", "AC5", "AC6", "AC9"],
+      "problem": [
+        "A Python CLI cannot place an icon in macOS or Windows system UI by itself.",
+        "Windows-hosted WSL needs a host-side application and a robust bridge to the WSL CDX executable."
+      ],
+      "scope_in": [
+        "Select the smallest supported native tray implementation and package it as a separate companion artifact.",
+        "Implement the shared menu, periodic refresh, manual refresh, error rendering, and clean quit behaviour for macOS and Windows.",
+        "Implement Windows discovery/configuration for native CDX and one configured WSL target using wsl.exe, with clear errors for missing interop or executable.",
+        "Use the supplied CDX icon assets at appropriate native sizes and add focused platform-boundary tests where executable UI testing is impractical."
+      ],
+      "scope_out": [
+        "Code signing, notarization, Microsoft Store publishing, auto-update, or Windows service installation.",
+        "Multiple WSL distribution aggregation, remote machines, or GUI operation within WSL.",
+        "A full desktop dashboard or account-management UI."
+      ],
+      "acceptance_criteria": [
+        "AC1: macOS and Windows artifacts display the same core usage states and session menu from the shared local status contract.",
+        "AC2: A Windows host can obtain status from a configured WSL CDX command without requiring an X server, and failures identify the unavailable boundary.",
+        "AC3: The menu supports refresh, a terminal action, and quit while avoiding account details in the closed icon.",
+        "AC4: The bundled icon assets render correctly at the required tray sizes.",
+        "AC5: Targeted tests and documented manual smoke checks pass on the supported host platforms."
+      ]
+    },
+    {
+      "title": "Add Linux tray support and explicit release-asset installation",
+      "priority": "Medium",
+      "complexity": "High",
+      "theme": "Distribution",
+      "request_acs": ["AC1", "AC5", "AC7", "AC8", "AC9"],
+      "problem": [
+        "Linux desktop environments vary in system-tray support, and platform-specific companion artifacts need an honest, reversible installation path.",
+        "The base CDX package should not embed every native binary or gain tray-only runtime dependencies."
+      ],
+      "scope_in": [
+        "Implement Linux support for the selected documented tray protocol/environment subset, with a clear unsupported-environment result.",
+        "Package per-platform, per-architecture companion release assets plus machine-readable checksums.",
+        "Implement explicit asset selection, checksum verification, local install-state recording, launch, uninstall, and CDX-managed update paths that keep the companion aligned with the installed CDX release.",
+        "Document manual distribution, explicit CDX-managed updates, first-launch security prompts, supported platforms, startup opt-in if provided, and recovery steps."
+      ],
+      "scope_out": [
+        "Universal support for every Linux shell or panel.",
+        "Package-manager repositories, Flatpak, Snap, Homebrew casks, app stores, signing, notarization, or independent background updates.",
+        "Silent upgrades or deletion of user data during uninstall."
+      ],
+      "acceptance_criteria": [
+        "AC1: A supported Linux tray environment renders the core CDX menu and reports unsupported environments without a crash.",
+        "AC2: cdx tray install and the explicit CDX update path choose only the current compatible release asset, reject a missing or mismatched checksum, and keep an installed tray companion aligned with the installed CDX release.",
+        "AC3: cdx tray uninstall removes only files and startup entries previously recorded for the tray companion.",
+        "AC4: Documentation accurately states unsigned direct-release distribution and its first-launch implications.",
+        "AC5: Focused installer, Linux boundary, and end-to-end command tests plus project validation pass."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate the optional cross-platform CDX tray usage monitor",
+    "plan": [
+      "Confirm the existing status JSON contract and define the smallest local tray command and display-state boundary without changing provider quota logic.",
+      "Build and validate the macOS and Windows host companions first, including the Windows-to-WSL status bridge and supplied icon assets.",
+      "Add the constrained Linux implementation and release-asset installer only after the companion boundary is proven on the two primary hosts.",
+      "Document direct unsigned distribution, explicit installation, CDX-managed updates, removal, platform support, and first-launch behaviour without overstating guarantees."
+      "Run focused checks, platform smoke tests, project validation, Logics validation, lint, audit, and record the delivery context."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/cross_platform_cdx_tray_usage_monitor.json",
+    "mode": "diff-first",
+    "profile": "deep"
+  }
+}

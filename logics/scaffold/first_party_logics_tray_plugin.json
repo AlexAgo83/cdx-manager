@@ -1,0 +1,107 @@
+{
+  "title": "Add a first-party Logics plugin surface to the CDX tray",
+  "references": [
+    "src/cli.py",
+    "src/cli_args.py",
+    "src/cli_view.py",
+    "src/logics_view.py",
+    "src/commands/status.py",
+    "README.md",
+    "logics/request/req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor.md",
+    "logics/request/req_036_route_cdx_agent_alerts_through_an_active_tray_companion.md",
+    "logics/product/prod_024_cdx_tray_usage_monitor.md",
+    "logics/product/prod_025_tray_aware_agent_alerts.md"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Desktop integration",
+    "needs": [
+      "The optional tray needs a safe extension point so product-specific information can appear without turning the tray companion into a copy of every command-line tool.",
+      "Logics is the first extension: its machine-readable status already exposes active tasks, blocked documents, draft requests, counts, and next actions that are useful at a glance.",
+      "The Logics integration should ship in cdx-manager and work only when logics-manager is available, with no separate package, remote marketplace, downloaded plugin code, or mandatory dependency.",
+      "Future extensions need one small compatible data contract, but v1 must not over-design a general plugin ecosystem before a second real plugin exists."
+    ],
+    "context": [
+      "logics-manager status --format json exposes active_tasks, blocked_docs, draft_requests, counts, and next_actions. It is the only Logics data source needed for the first tray card.",
+      "cdx view already provides the user-facing browser entry point and focus workflow. The Logics tray card should open it through the CDX-owned command path rather than embed a second document viewer.",
+      "The base tray companion request req_035 owns the native icon, menu, status snapshot, installed companion lifecycle, and WSL bridge. The tray-aware alert request req_036 owns event delivery; this request must not duplicate either subsystem.",
+      "The CDX core, not the native tray executable, should own plugin discovery, availability checks, timeouts, JSON validation, and invocation in the correct native or WSL environment. The tray receives one bounded snapshot from cdx.",
+      "The v1 card is fixed: one summary line in the form Logics · blocked count · ready count, followed by at most two rows ordered as the first blocked document then the highest-priority ready task. Each row opens its focused CDX view; the general Open Logics action opens the global view. The shared tray refreshes the card every 60 seconds and on manual refresh."
+    ],
+    "acceptance_criteria": [
+      "AC1: cdx exposes a versioned, bounded tray-plugin snapshot contract that represents plugin identity, availability, severity, short summary, a small list of display rows, and declared action ids; invalid or slow plugin output cannot break the base CDX tray status.",
+      "AC2: The built-in Logics adapter is delivered in cdx-manager, is disabled unless explicitly enabled, and reports a clear unavailable state without an error when logics-manager is not installed or returns invalid status data.",
+      "AC3: When enabled and available, the Logics tray card derives its information only from logics-manager status --format json and renders one summary line with blocked and ready counts plus at most two rows: the first blocked document, then the highest-priority ready task, without parsing Logics markdown directly.",
+      "AC4: Each Logics row opens cdx view focused on its documented reference, while the declared Open Logics action opens the global view; the card also exposes refresh, but no viewer, arbitrary plugin-provided shell string, or Logics workflow mutation.",
+      "AC5: The native tray companion receives the Logics card only through the shared CDX snapshot and refreshes it at most every 60 seconds or on manual refresh, without adding a second tray icon, long-running plugin process, or independent polling loop.",
+      "AC6: The same Logics adapter works for native CDX and Windows-hosted WSL through the base tray bridge, with CDX selecting the correct logics-manager environment rather than the Windows tray executable assuming a path.",
+      "AC7: cdx tray plugin enable logics, disable logics, and status are explicit, reversible, documented operations; normal cdx and tray use do not implicitly enable the integration, but an available disabled Logics manager is identified once as activatable."
+      "AC8: Focused tests cover snapshot schema validation, timeout and malformed-output isolation, disabled/unavailable states, Logics JSON mapping, declared action routing, WSL command selection, and no-mutation behaviour; existing project validation passes."
+    ]
+  },
+  "product": {
+    "title": "Extensible CDX tray with a first-party Logics card",
+    "overview": "Add one narrow, CDX-owned tray-plugin contract and use it to surface Logics workflow health in the existing tray menu when the local Logics manager is available.",
+    "goals": [
+      "Show Logics workflow health at a glance from the optional CDX tray.",
+      "Keep the native tray independent from external tool paths and plugin implementation details.",
+      "Ship the first-party adapter with cdx-manager while making it optional and reversible.",
+      "Keep the v1 Logics menu to one count summary and two actionable rows, refreshed every 60 seconds or on demand.",
+      "Establish only the minimum contract needed to add a second adapter later."
+    ],
+    "non_goals": [
+      "No plugin marketplace, remote catalog, dynamic download, arbitrary third-party code loading, or separate Logics tray package.",
+      "No embedded Logics browser, workflow mutation, document parsing, background daemon, or persistent plugin process.",
+      "No change to tray usage gauges, tray-aware agent alerts, Logics lifecycle semantics, or normal cdx status output.",
+      "No guarantee that an unavailable or disabled Logics manager appears in the tray as an error."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Add the CDX tray plugin contract and built-in Logics status card",
+      "priority": "Medium",
+      "complexity": "High",
+      "theme": "Desktop integration",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC5", "AC6", "AC7", "AC8"],
+      "problem": [
+        "Without a narrow adapter boundary, each future tray integration would leak tool-specific invocation and rendering logic into the native companion.",
+        "A generic plugin platform now would add discovery, trust, packaging, and lifecycle complexity before there is evidence that it is needed."
+      ],
+      "scope_in": [
+        "Define a small versioned JSON card schema and one CDX-owned adapter registry with bounded invocation and validation.",
+        "Implement and ship a Logics adapter in this repository that maps only logics-manager status JSON into one blocked/ready summary and at most the first blocked document plus highest-priority ready task.",
+        "Add explicit enable, disable, and status commands plus safe action ids that route refresh, the global Open Logics view, and focused row views through CDX; identify an available disabled Logics manager once without enabling it.",
+        "Pass the resulting card only through the base tray snapshot, refresh it at most every 60 seconds or on manual refresh, preserve WSL environment selection in CDX, and document the optional integration.",
+        "Add focused contract, failure-isolation, mapping, action, and WSL-boundary tests."
+      ],
+      "scope_out": [
+        "A marketplace, automatic plugin discovery, installation from URLs, plugin auto-update, or plugin execution inside the native tray process.",
+        "Arbitrary plugin-defined shell commands, direct plugins-to-tray IPC, unrestricted menu layouts, or custom embedded web views.",
+        "Changing Logics documents or lifecycle state from the tray, including start, finish, closeout, or promotion actions.",
+        "Implementing the base tray or tray-aware hook-notification features, which remain prerequisite requests."
+      ],
+      "acceptance_criteria": [
+        "AC1: CDX produces a tested versioned snapshot containing zero or more bounded plugin cards and ignores malformed, unknown, slow, or unavailable adapters without harming core tray data.",
+        "AC2: The bundled Logics adapter is opt-in, uses only status JSON, renders one blocked/ready summary plus at most two actionable rows, and stays silent when Logics is unavailable.",
+        "AC3: The tray refreshes the card at most every 60 seconds or on demand and routes only refresh, global Open Logics, and focused-row action ids through CDX.",
+        "AC4: Native and WSL installations resolve the Logics command through CDX rather than tray-specific executable paths.",
+        "AC5: Plugin activation, status, privacy, failure semantics, and intentionally absent marketplace are documented; focused tests and project validation pass."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate the first-party Logics CDX tray plugin",
+    "plan": [
+      "Confirm the base tray snapshot boundary and implement the fixed v1 Logics menu: blocked/ready summary, at most two ordered rows, global Open Logics action, and focused row actions.",
+      "Define the smallest versioned CDX-owned plugin-card schema and registry, including strict bounds, fixed timeout, availability, and action-id validation.",
+      "Implement the Logics adapter from status JSON only, then wire explicit enable, disable, status, refresh, and focused-view routes through CDX.",
+      "Pass the card to the existing tray menu and verify native plus WSL environment selection without adding tray-side plugin execution or polling.",
+      "Add focused checks, document the first-party adapter and deferred marketplace decision, then run project and workflow validation."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/first_party_logics_tray_plugin.json",
+    "mode": "diff-first",
+    "profile": "deep"
+  }
+}

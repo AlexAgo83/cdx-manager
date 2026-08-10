@@ -5,10 +5,11 @@
 | Doc | Title | Status | Owner | Progress | Path |
 |---|---|---|---|---|---|
 | [adr_000_persist_and_restore_cdx_sessions](architecture/adr_000_persist_and_restore_cdx_sessions.md) | Persist and restore cdx sessions | Settled |  |  | architecture/adr_000_persist_and_restore_cdx_sessions.md |
-| [adr_001_code_quality_and_security_improvements](architecture/adr_001_code_quality_and_security_improvements.md) | Phase 3 — Code Quality and Performance | Settled |  |  | architecture/adr_001_code_quality_and_security_improvements.md |
+| [adr_001_code_quality_and_security_improvements](architecture/adr_001_code_quality_and_security_improvements.md) | Code Quality, Security and Performance Improvements | Settled |  |  | architecture/adr_001_code_quality_and_security_improvements.md |
 | [adr_002_provider_native_headless_run_boundary](architecture/adr_002_provider_native_headless_run_boundary.md) | Provider native headless run boundary | Settled |  |  | architecture/adr_002_provider_native_headless_run_boundary.md |
 | [adr_003_logics_and_companion_tool_launch_guidance](architecture/adr_003_logics_and_companion_tool_launch_guidance.md) | Logics and companion tool launch guidance | Settled |  |  | architecture/adr_003_logics_and_companion_tool_launch_guidance.md |
 | [adr_004_provider_native_resume_command_boundary](architecture/adr_004_provider_native_resume_command_boundary.md) | Provider-native resume command boundary | Settled |  |  | architecture/adr_004_provider_native_resume_command_boundary.md |
+| [adr_005_cdx_tray_runtime_and_companion_transport_boundary](architecture/adr_005_cdx_tray_runtime_and_companion_transport_boundary.md) | CDX tray runtime and companion transport boundary | Proposed |  |  | architecture/adr_005_cdx_tray_runtime_and_companion_transport_boundary.md |
 
 ## Product briefs
 
@@ -38,6 +39,10 @@
 | [prod_021_titres_de_terminal_coherents_pour_les_sessions_cdx](product/prod_021_titres_de_terminal_coherents_pour_les_sessions_cdx.md) | Titres de terminal cohérents pour les sessions cdx | Settled |  |  | product/prod_021_titres_de_terminal_coherents_pour_les_sessions_cdx.md |
 | [prod_022_actionable_private_agent_notifications](product/prod_022_actionable_private_agent_notifications.md) | Actionable, private agent notifications | Settled |  |  | product/prod_022_actionable_private_agent_notifications.md |
 | [prod_023_clear_notification_controls](product/prod_023_clear_notification_controls.md) | Clear notification controls | Settled |  |  | product/prod_023_clear_notification_controls.md |
+| [prod_024_cdx_tray_usage_monitor](product/prod_024_cdx_tray_usage_monitor.md) | CDX tray usage monitor | Proposed |  |  | product/prod_024_cdx_tray_usage_monitor.md |
+| [prod_025_tray_aware_agent_alerts](product/prod_025_tray_aware_agent_alerts.md) | Tray-aware agent alerts | Proposed |  |  | product/prod_025_tray_aware_agent_alerts.md |
+| [prod_026_extensible_cdx_tray_with_a_first_party_logics_card](product/prod_026_extensible_cdx_tray_with_a_first_party_logics_card.md) | Extensible CDX tray with a first-party Logics card | Proposed |  |  | product/prod_026_extensible_cdx_tray_with_a_first_party_logics_card.md |
+| [prod_027_trustworthy_cdx_tray_operation](product/prod_027_trustworthy_cdx_tray_operation.md) | Trustworthy CDX tray operation | Proposed |  |  | product/prod_027_trustworthy_cdx_tray_operation.md |
 
 ## Roadmaps
 
@@ -47,7 +52,7 @@ _None_
 
 | Doc | Title | Status | Owner | Progress | Path |
 |---|---|---|---|---|---|
-| [req_000_orchestia_headless_json_task_runner](request/req_000_orchestia_headless_json_task_runner.md) | Requested CLI surface | Done |  |  | request/req_000_orchestia_headless_json_task_runner.md |
+| [req_000_orchestia_headless_json_task_runner](request/req_000_orchestia_headless_json_task_runner.md) | Headless JSON task runner for Orchestia | Done |  |  | request/req_000_orchestia_headless_json_task_runner.md |
 | [req_001_populate_headless_run_usage_tokens_for_orchestia](request/req_001_populate_headless_run_usage_tokens_for_orchestia.md) | Populate headless run usage tokens for Orchestia | Done |  |  | request/req_001_populate_headless_run_usage_tokens_for_orchestia.md |
 | [req_002_support_logics_manager_suggestions_and_update_notices](request/req_002_support_logics_manager_suggestions_and_update_notices.md) | Support logics-manager suggestions and update notices | Done |  |  | request/req_002_support_logics_manager_suggestions_and_update_notices.md |
 | [req_003_historical_cdx_session_manager_baseline](request/req_003_historical_cdx_session_manager_baseline.md) | Historical cdx session manager baseline | Done |  |  | request/req_003_historical_cdx_session_manager_baseline.md |
@@ -81,7 +86,11 @@ _None_
 | [req_031_unifier_les_titres_de_terminaux_des_sessions_interactives](request/req_031_unifier_les_titres_de_terminaux_des_sessions_interactives.md) | Unifier les titres de terminaux des sessions interactives | Done |  |  | request/req_031_unifier_les_titres_de_terminaux_des_sessions_interactives.md |
 | [req_032_show_a_privacy_aware_preview_in_agent_completion_notifications](request/req_032_show_a_privacy_aware_preview_in_agent_completion_notifications.md) | Show a privacy-aware preview in agent completion notifications | Done |  |  | request/req_032_show_a_privacy_aware_preview_in_agent_completion_notifications.md |
 | [req_033_make_agent_notification_controls_discoverable_and_self_explanatory](request/req_033_make_agent_notification_controls_discoverable_and_self_explanatory.md) | Make agent notification controls discoverable and self-explanatory | Done |  |  | request/req_033_make_agent_notification_controls_discoverable_and_self_explanatory.md |
-| [req_034_review_findings_make_agent_alert_delivery_truthful_and_safe](request/req_034_review_findings_make_agent_alert_delivery_truthful_and_safe.md) | Review findings: make agent alert delivery truthful and safe | Draft |  |  | request/req_034_review_findings_make_agent_alert_delivery_truthful_and_safe.md |
+| [req_034_review_findings_make_agent_alert_delivery_truthful_and_safe](request/req_034_review_findings_make_agent_alert_delivery_truthful_and_safe.md) | Review findings: make agent alert delivery truthful and safe | Done |  |  | request/req_034_review_findings_make_agent_alert_delivery_truthful_and_safe.md |
+| [req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor](request/req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor.md) | Add an optional cross-platform CDX tray usage monitor | Draft |  |  | request/req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor.md |
+| [req_036_route_cdx_agent_alerts_through_an_active_tray_companion](request/req_036_route_cdx_agent_alerts_through_an_active_tray_companion.md) | Route CDX agent alerts through an active tray companion | Draft |  |  | request/req_036_route_cdx_agent_alerts_through_an_active_tray_companion.md |
+| [req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray](request/req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray.md) | Add a first-party Logics plugin surface to the CDX tray | Draft |  |  | request/req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray.md |
+| [req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation](request/req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation.md) | Harden CDX tray lifecycle, clarity, and platform validation | Draft |  |  | request/req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation.md |
 
 ## Backlog
 
@@ -165,6 +174,14 @@ _None_
 | [item_075_imposer_le_titre_session_dossier_aux_tui_interactifs](backlog/item_075_imposer_le_titre_session_dossier_aux_tui_interactifs.md) | Imposer le titre session -- dossier aux TUI interactifs | Done |  | 100% | backlog/item_075_imposer_le_titre_session_dossier_aux_tui_interactifs.md |
 | [item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications](backlog/item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications.md) | Add opt-in, bounded assistant-response previews to agent notifications | Done |  | 100% | backlog/item_076_add_opt_in_bounded_assistant_response_previews_to_agent_notifications.md |
 | [item_077_clarify_notification_setup_lifecycle_feedback_and_documentation](backlog/item_077_clarify_notification_setup_lifecycle_feedback_and_documentation.md) | Clarify notification setup, lifecycle feedback, and documentation | Done |  | 100% | backlog/item_077_clarify_notification_setup_lifecycle_feedback_and_documentation.md |
+| [item_078_review_findings_make_agent_alert_delivery_truthful_and_safe](backlog/item_078_review_findings_make_agent_alert_delivery_truthful_and_safe.md) | Review findings: make agent alert delivery truthful and safe | Done |  | 100% | backlog/item_078_review_findings_make_agent_alert_delivery_truthful_and_safe.md |
+| [item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface](backlog/item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface.md) | Define the minimal tray status contract and CDX command surface | Ready |  | 0% | backlog/item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface.md |
+| [item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl](backlog/item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl.md) | Build native tray companions for macOS and Windows plus WSL | Ready |  | 0% | backlog/item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl.md |
+| [item_081_add_linux_tray_support_and_explicit_release_asset_installation](backlog/item_081_add_linux_tray_support_and_explicit_release_asset_installation.md) | Add Linux tray support and explicit release-asset installation | Ready |  | 0% | backlog/item_081_add_linux_tray_support_and_explicit_release_asset_installation.md |
+| [item_082_deliver_agent_hook_events_through_the_active_cdx_tray_with_safe_fallback](backlog/item_082_deliver_agent_hook_events_through_the_active_cdx_tray_with_safe_fallback.md) | Deliver agent hook events through the active CDX tray with safe fallback | Ready |  | 0% | backlog/item_082_deliver_agent_hook_events_through_the_active_cdx_tray_with_safe_fallback.md |
+| [item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card](backlog/item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card.md) | Add the CDX tray plugin contract and built-in Logics status card | Ready |  | 0% | backlog/item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card.md |
+| [item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls](backlog/item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls.md) | Add explicit CDX tray lifecycle, capacity, privacy, and recovery controls | Ready |  | 0% | backlog/item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls.md |
+| [item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts](backlog/item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts.md) | Constrain WSL and Linux tray support and validate it on real hosts | Ready |  | 0% | backlog/item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts.md |
 
 ## Tasks
 
@@ -175,7 +192,7 @@ _None_
 | [task_001_cdx_core_session_manager](tasks/task_001_cdx_core_session_manager.md) | cdx core session manager | Done |  | 100% | tasks/task_001_cdx_core_session_manager.md |
 | [task_002_cdx_status_global_session_overview](tasks/task_002_cdx_status_global_session_overview.md) | cdx status global session overview | Done |  | 100% | tasks/task_002_cdx_status_global_session_overview.md |
 | [task_003_multi_provider_session_support_for_codex_and_claude](tasks/task_003_multi_provider_session_support_for_codex_and_claude.md) | multi-provider session support for Codex and Claude | Done |  | 100% | tasks/task_003_multi_provider_session_support_for_codex_and_claude.md |
-| [task_004_cdx_implementation_execution_plan](tasks/task_004_cdx_implementation_execution_plan.md) | Wave 4: Status recall and output format | Done |  | 100% | tasks/task_004_cdx_implementation_execution_plan.md |
+| [task_004_cdx_implementation_execution_plan](tasks/task_004_cdx_implementation_execution_plan.md) | cdx implementation execution plan | Done |  | 100% | tasks/task_004_cdx_implementation_execution_plan.md |
 | [task_005_cdx_session_auth_management](tasks/task_005_cdx_session_auth_management.md) | cdx session auth management | Done |  | 100% | tasks/task_005_cdx_session_auth_management.md |
 | [task_006_headless_cdx_run_json_execution_contract](tasks/task_006_headless_cdx_run_json_execution_contract.md) | Headless cdx run JSON execution contract | Done |  | 100% | tasks/task_006_headless_cdx_run_json_execution_contract.md |
 | [task_007_automatic_headless_session_selection](tasks/task_007_automatic_headless_session_selection.md) | Automatic headless session selection | Done |  | 100% | tasks/task_007_automatic_headless_session_selection.md |
@@ -217,3 +234,8 @@ _None_
 | [task_042_implementer_les_titres_de_terminal_unifies](tasks/task_042_implementer_les_titres_de_terminal_unifies.md) | Implémenter les titres de terminal unifiés | Done |  | 100% | tasks/task_042_implementer_les_titres_de_terminal_unifies.md |
 | [task_043_orchestrate_privacy_aware_agent_notification_previews](tasks/task_043_orchestrate_privacy_aware_agent_notification_previews.md) | Orchestrate privacy-aware agent notification previews | Done | Codex | 100% | tasks/task_043_orchestrate_privacy_aware_agent_notification_previews.md |
 | [task_044_orchestrate_discoverable_agent_notification_controls](tasks/task_044_orchestrate_discoverable_agent_notification_controls.md) | Orchestrate discoverable agent notification controls | Done | Codex | 100% | tasks/task_044_orchestrate_discoverable_agent_notification_controls.md |
+| [task_045_review_findings_make_agent_alert_delivery_truthful_and_safe](tasks/task_045_review_findings_make_agent_alert_delivery_truthful_and_safe.md) | Review findings: make agent alert delivery truthful and safe | Done | Codex | 100% | tasks/task_045_review_findings_make_agent_alert_delivery_truthful_and_safe.md |
+| [task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor](tasks/task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor.md) | Orchestrate the optional cross-platform CDX tray usage monitor | Ready |  | 0% | tasks/task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor.md |
+| [task_047_orchestrate_tray_aware_cdx_agent_alert_delivery](tasks/task_047_orchestrate_tray_aware_cdx_agent_alert_delivery.md) | Orchestrate tray-aware CDX agent alert delivery | Ready |  | 0% | tasks/task_047_orchestrate_tray_aware_cdx_agent_alert_delivery.md |
+| [task_048_orchestrate_the_first_party_logics_cdx_tray_plugin](tasks/task_048_orchestrate_the_first_party_logics_cdx_tray_plugin.md) | Orchestrate the first-party Logics CDX tray plugin | Ready |  | 0% | tasks/task_048_orchestrate_the_first_party_logics_cdx_tray_plugin.md |
+| [task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation](tasks/task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation.md) | Orchestrate trustworthy CDX tray operation and platform validation | Ready |  | 0% | tasks/task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation.md |

@@ -1,0 +1,110 @@
+{
+  "title": "Route CDX agent alerts through an active tray companion",
+  "references": [
+    "src/agent_notify.py",
+    "src/notify.py",
+    "src/commands/launch.py",
+    "src/commands/settings.py",
+    "src/cli_args.py",
+    "test/test_agent_notify_py.py",
+    "test/test_notify_py.py",
+    "logics/request/req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor.md",
+    "logics/product/prod_024_cdx_tray_usage_monitor.md",
+    "https://v2.tauri.app/plugin/notification/",
+    "https://learn.microsoft.com/en-us/windows/wsl/networking",
+    "https://learn.microsoft.com/en-us/windows/dev-environment/wsl-interop"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Desktop integration",
+    "needs": [
+      "Agent completion and attention hooks already compose a safe session and repository notification, but they bypass the planned tray companion when it is active.",
+      "An active tray should become the single visible delivery owner: it can show a transient icon hint, retain the recent event in its menu, and issue the native notification without duplicate operating-system toasts.",
+      "A missing, stopped, old, or unreachable tray must preserve the current direct desktop notification behaviour and must never delay, fail, or alter an agent turn.",
+      "The Windows tray must receive events from CDX running in WSL without assuming bidirectional localhost networking, which varies between NAT and mirrored WSL modes."
+    ],
+    "context": [
+      "src/agent_notify.py already normalizes provider hook payloads, derives the safe title/body through compose_notification, honours the existing notify and notify-preview opt-ins, and deliberately swallows all hook failures.",
+      "src/notify.py currently delivers direct OS notifications through osascript, notify-send, or PowerShell and already identifies WSL as a Windows-hosted delivery boundary.",
+      "The tray companion request req_035 is a prerequisite. Its installed native companion owns the system icon and can emit native notifications; the implementation must not add a second persistent tray process.",
+      "A local, bounded event spool with a short tray heartbeat avoids blocking hook execution and avoids assuming that WSL can connect to a Windows-hosted localhost endpoint. On Windows plus WSL, the host tray can read and update that state through explicit wsl.exe calls.",
+      "The tray notification capability must be exercised only from an installed companion on Windows, because the selected native tray framework documents Windows notifications as installed-app-only."
+    ],
+    "acceptance_criteria": [
+      "AC1: When a compatible tray companion has a fresh local heartbeat, cdx notify publishes one sanitized agent event for the tray and does not also send the existing direct desktop notification.",
+      "AC2: When no fresh heartbeat exists, publishing fails, the tray is incompatible, or the tray is stopped, cdx notify preserves the current direct desktop notification fallback and still exits successfully.",
+      "AC3: The tray renders completion and attention events as a short temporary icon hint, a bounded recent-event menu entry, and one native local notification; repeated consumption or restart does not create duplicate notifications for the same event id.",
+      "AC4: The tray route receives only the already-normalized title/body from compose_notification. Assistant-response preview content remains absent unless the existing per-session notify-preview preference is enabled, and arbitrary provider payload or tool input is never persisted or rendered.",
+      "AC5: The event spool is local, bounded, versioned, private to the current user, and safely recovers from malformed, partial, stale, or unacknowledged entries without growing unbounded or blocking a provider hook.",
+      "AC6: macOS and supported Linux tray processes use the local state directly. A Windows-hosted tray serving CDX in WSL exchanges heartbeat and event data through explicit WSL interop, without requiring a Linux GUI, a LAN listener, port-forwarding, or a localhost-networking assumption.",
+      "AC7: Windows tray notification delivery is enabled only after the tray companion is installed and reports native-notification capability; unavailable permission or capability leaves the event visible in the tray and never falls back into duplicate direct delivery.",
+      "AC8: Focused tests cover active-tray routing, fallback routing, stale heartbeat, duplicate-event suppression, preview privacy, malformed spool recovery, bounded eviction, and Windows-WSL command construction; existing notification tests and project validation pass."
+    ]
+  },
+  "product": {
+    "title": "Tray-aware agent alerts",
+    "overview": "Let the optional CDX tray companion own visual delivery of agent completion and attention alerts while retaining the existing direct notification path as a non-blocking fallback.",
+    "goals": [
+      "Give an active tray a visible, actionable hint when an agent finishes or needs attention.",
+      "Deliver exactly one user-facing alert for each hook event.",
+      "Preserve current hook safety, opt-in preview privacy, and direct desktop notifications when the tray is absent.",
+      "Support Windows-hosted WSL without relying on variable cross-boundary network topology."
+    ],
+    "non_goals": [
+      "No new provider hooks, remote notification service, cloud relay, account, telemetry, or LAN listener.",
+      "No tray notification when agent alerts are disabled for the CDX session.",
+      "No full assistant response, raw tool arguments, transcript content, or arbitrary hook payload stored in the event spool.",
+      "No background self-update, second tray process, WSL GUI server, or requirement to enable mirrored networking.",
+      "No replacement of the current direct-notification fallback when a usable tray is not active."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Deliver agent hook events through the active CDX tray with safe fallback",
+      "priority": "Medium",
+      "complexity": "High",
+      "theme": "Desktop integration",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC5", "AC6", "AC7", "AC8"],
+      "problem": [
+        "Direct hook notifications and an active tray would otherwise create duplicate toasts and leave no durable in-tray signal.",
+        "A cross-process notification handoff must remain best-effort: a provider hook cannot wait on a GUI, and WSL networking cannot be assumed symmetric."
+      ],
+      "scope_in": [
+        "Add a small versioned local event-spool and heartbeat protocol beneath the existing composed-notification boundary.",
+        "Have cdx notify choose tray publication only for a fresh compatible heartbeat, otherwise retain the existing direct notification dispatch unchanged.",
+        "Have the installed tray consume and acknowledge events once, show a temporary icon hint plus a bounded menu history, and emit one native local notification when its capability is available.",
+        "Bridge Windows-hosted WSL through explicit wsl.exe reads and writes of CDX-controlled state rather than sockets, ports, or GUI forwarding.",
+        "Reuse existing privacy normalization and preference checks; add focused unit and integration-boundary coverage plus documentation."
+      ],
+      "scope_out": [
+        "Changing provider hook schemas, notification opt-in defaults, quota status collection, or the normal cdx status output.",
+        "Network listeners, push-notification providers, external services, remote desktops, or cross-machine delivery.",
+        "Persistent notification archives, searchable history, custom notification templates, or automatic tray startup.",
+        "Implementing the base tray companion itself; req_035 remains the prerequisite."
+      ],
+      "acceptance_criteria": [
+        "AC1: A fresh active tray receives one sanitized event and becomes the sole visible notification owner; an absent or stale tray leaves the existing direct path intact.",
+        "AC2: Events are bounded, user-private, idempotently acknowledged, and safe under partial or malformed local state.",
+        "AC3: The tray exposes a clear short-lived hint and recent-event menu state for completion and attention without exposing preview text unless opted in.",
+        "AC4: The Windows host to WSL bridge uses explicit interop commands and has no localhost, port-forwarding, or Linux-GUI prerequisite.",
+        "AC5: Platform capability failure and user notification permission denial avoid duplicate direct notifications while retaining a tray-visible event state.",
+        "AC6: Focused tests, existing notification tests, tray-boundary smoke checks, and full project validation pass."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate tray-aware CDX agent alert delivery",
+    "plan": [
+      "Confirm the base tray companion is available and trace the existing hook, compose_notification, direct-notification, and session-preference paths end to end.",
+      "Define and test the smallest local heartbeat, event, acknowledgement, expiry, and eviction protocol, preserving hook non-failure and existing privacy boundaries.",
+      "Route cdx notify through that protocol only for a live compatible tray, retaining the current direct OS notification fallback otherwise.",
+      "Implement tray-side hint, recent-event, and native-notification behaviour, including Windows installed-capability and permission handling.",
+      "Add the explicit Windows-to-WSL interop bridge, run focused and platform smoke checks, document the fallback semantics, and validate the workflow corpus."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/tray_aware_agent_alert_delivery.json",
+    "mode": "diff-first",
+    "profile": "deep"
+  }
+}
