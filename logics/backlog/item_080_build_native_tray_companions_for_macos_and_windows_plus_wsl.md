@@ -2,12 +2,13 @@
 > From version: 0.17.1
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
+> Understanding: 95%
 > Confidence: 85%
 > Progress: 0%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-10 20:01:56
 
 # AI Context
 - Summary: Build native tray companions for macOS and Windows plus WSL
@@ -29,10 +30,15 @@
   - Implement Windows discovery/configuration for native CDX and one configured WSL target using wsl.exe, with clear errors for missing interop or executable.
   - Package the macOS companion as a CDX.app bundle with LSUIElement set, a stable bundle identifier, and the CDX icon, signed at build time with the self-signed identity from adr_005 rather than ad-hoc.
   - Register the Windows AppUserModelID during cdx tray install and create the per-user Start Menu shortcut that carries it plus a stub CLSID, without which a toast is silently dropped; record both so uninstall removes them, and require no administrator rights.
-  - Use the supplied CDX icon assets at appropriate native sizes and add focused platform-boundary tests where executable UI testing is impractical.
+  - Produce the icon assets each surface actually needs, since the existing set in logics/external/icones is application artwork and only covers part of them:
+    - macOS menu bar: a monochrome template glyph, black plus alpha with no background, named with the Template suffix so AppKit inverts it per theme, at 18 px and 36 px, with one distinguishable glyph per capacity state rather than a tint.
+    - macOS bundle: an .icns built from the existing 1024 px source, for Finder and the Login Items list.
+    - Windows notification area: a multi-size .ico at 16, 20, 24, 32, and 48 px, in colour, legible on both a light and a dark taskbar.
+    - Linux tray: colour PNGs at the usual StatusNotifierItem sizes.
+  - Add focused platform-boundary tests where executable UI testing is impractical.
 - Out:
   - Developer ID signing, notarization, Microsoft Store publishing, auto-update, or Windows service installation.
-- Any browser-download or .dmg distribution path for macOS, which would quarantine the bundle and reintroduce a Gatekeeper block.
+  - Any browser-download or .dmg distribution path for macOS, which would quarantine the bundle and reintroduce a Gatekeeper block.
   - Multiple WSL distribution aggregation, remote machines, or GUI operation within WSL.
   - A full desktop dashboard or account-management UI.
 
@@ -40,7 +46,7 @@
 - AC1: macOS and Windows artifacts display the same core usage states and session menu from the shared local status contract.
 - AC2: A Windows host can obtain status from a configured WSL CDX command without requiring an X server, and failures identify the unavailable boundary.
 - AC3: The closed icon carries no account, session, or quota detail, and the open menu lists each enabled session with provider, remaining-usage gauge, freshness or reset when known, refresh, a terminal action, and quit.
-- AC4: The bundled icon assets render correctly at the required tray sizes.
+- AC4: Each surface gets the artwork it needs and renders correctly at its required sizes: a monochrome template glyph in the macOS menu bar that stays legible under both themes without a per-theme asset, a multi-size .ico on Windows legible on a light and a dark taskbar, and colour artwork on Linux. Capacity state is distinguishable by glyph, so the macOS icon carries its meaning without any tint.
 - AC5: Polling stays inside the adr_005 budget, stops when no session is enabled, and backs off after repeated failures, verified on the Windows-to-WSL path.
 - AC6: Targeted tests and documented manual smoke checks pass on the supported host platforms.
 
@@ -48,7 +54,7 @@
 - request-AC5 -> This backlog slice. Proof: AC1: macOS and Windows artifacts display the same core usage states and session menu from the shared local status contract.
 - request-AC6 -> This backlog slice. Proof: AC2: A Windows host can obtain status from a configured WSL CDX command without requiring an X server, and failures identify the unavailable boundary.
 - request-AC3 -> This backlog slice. Proof: AC3: The closed icon carries no account, session, or quota detail.
-- request-AC4 -> This backlog slice. Proof: AC3: The open menu lists each enabled session with provider, remaining-usage gauge, freshness or reset when known, refresh, a terminal action, and quit.
+- request-AC4 -> This backlog slice. Proof: AC3: The open menu lists each enabled session with provider, remaining-usage gauge, freshness or reset when known, refresh, a terminal action, and quit. AC4: Each surface renders its own artwork at the required sizes and carries capacity state by glyph.
 - request-AC10 -> This backlog slice. Proof: AC5: Polling stays inside the adr_005 budget, stops when no session is enabled, and backs off after repeated failures, verified on the Windows-to-WSL path.
 - request-AC9 -> This backlog slice. Proof: AC6: Targeted tests and documented manual smoke checks pass on the supported host platforms.
 

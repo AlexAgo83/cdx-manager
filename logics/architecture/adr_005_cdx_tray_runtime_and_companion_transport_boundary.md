@@ -1,4 +1,5 @@
 ## adr_005_cdx_tray_runtime_and_companion_transport_boundary - CDX tray runtime and companion transport boundary
+> Indicators reviewed: 2026-08-10 20:01:56
 
 > Date: 2026-08-10
 > Status: Settled
@@ -34,7 +35,7 @@ flowchart TD
     Cache[session status cache] --> Cdx[cdx tray status --cached]
     Cdx --> Snapshot[versioned local snapshot file]
     Spool[cdx notify event spool] --> Snapshot
-    Snapshot --> Native[native companion: tray-icon + muda]
+    Snapshot --> Native[native companion: tray-icon on macOS/Windows, ksni on Linux]
     Native --> Menu[native menu and tooltip]
     Native --> Toast[platform notification]
     Native -->|Windows host| Interop[wsl.exe read/write]
@@ -54,6 +55,7 @@ flowchart TD
 - Stop polling when no CDX session is enabled and back off to 5 minutes after three consecutive read failures, so a stopped WSL distribution is not woken indefinitely.
 - Version the snapshot contract explicitly. A companion that reads a snapshot whose major version it does not know renders a single "update the tray companion" menu entry and keeps working for everything else. CDX and the companion are never required to be in lockstep.
 - Detect Linux tray capability at runtime by resolving the `org.kde.StatusNotifierWatcher` D-Bus name, never by matching a distribution or desktop name.
+- Use a monochrome template image for the macOS menu bar and carry capacity state in the glyph, not in a tint. The supplied assets are full-colour application icons on a dark rounded square, which is the wrong artwork for a menu bar: a template image is black plus alpha with no background, and the system inverts it for the current theme. Windows and Linux keep colour artwork, where their tray surfaces support it.
 - Ship the macOS companion as a `CDX.app` bundle with `LSUIElement` set, a stable bundle identifier, and the CDX icon, signed with a **self-signed certificate held on the build machine**. Do not ad-hoc sign, and do not buy a Developer ID for v1.
 - Deliver macOS notifications from that bundle so they carry the CDX icon and name. Keep the existing `osascript` path as the fallback when authorization is absent or refused.
 - Never distribute the macOS companion through a browser link, a `.dmg`, or a direct click on a release asset. `cdx tray install` fetches it, which leaves no quarantine attribute and keeps Gatekeeper out of the path.
@@ -67,6 +69,7 @@ flowchart TD
 - A self-signed certificate is the only free option that is also stable. Ad-hoc costs the same and loses the notification grant at every companion update; a Developer ID is stable but buys nothing else here, because the install path already avoids Gatekeeper.
 - Sending notifications from the CDX bundle is the only way to show the CDX icon at all, so the signing decision and the notification decision are the same decision.
 - On Linux, dropping three C libraries is worth one extra backend. A tray that will not start on a stock Fedora is a support burden that a thin trait removes permanently.
+- A template menu bar icon costs nothing to maintain and is correct on both themes for free, while a colour icon needs a light and a dark variant kept in sync forever. `req_038` AC4 already forbids colour from being the only state signal, so a distinguishable glyph per state has to exist regardless; a template image simply stops the project paying for colour twice.
 - A LaunchAgent plist works for any executable and is trivially reversible. `SMAppService` is the modern API and surfaces the entry in System Settings, which fits this request's transparency goal, but its behaviour under a self-signed identity is unverified, so it stays a candidate to evaluate on the managed macOS host rather than the v1 mechanism.
 
 # Consequences
@@ -75,6 +78,7 @@ flowchart TD
 - The managed macOS smoke run must verify that the notification grant survives a companion update, because TCC does not honour a self-signed Team ID and falls back to matching the identifier and the leaf certificate. If that proves unstable, the fallback is `osascript` delivery without the CDX icon, not a purchase.
 - The install path becomes load-bearing for security posture: a browser-downloaded companion would be quarantined and blocked, so documentation and release notes must not offer a direct download link. The same reasoning applies to Windows Mark-of-the-Web and SmartScreen, and the managed Windows host must confirm that the fetch path leaves no `Zone.Identifier` stream.
 - The Linux asset carries no C library prerequisite, so the only Linux failure mode left is an absent StatusNotifierItem watcher, which is detectable and reportable rather than a startup crash.
+- The existing icon set in `logics/external/icones` is the application-icon source, usable for the `.app` bundle, the `.ico`, and the Linux tray. A separate monochrome menu bar glyph set must be produced, and the mockups showing a tinted macOS menu bar icon no longer describe the intended rendering.
 - The Windows install state gains one Start Menu shortcut, which uninstall must remove; a missing shortcut is also the first thing `cdx tray doctor` should check when Windows toasts go missing.
 - The repository gains a Rust build toolchain and a per-platform release matrix. CI must produce and checksum those assets.
 - The tray shows cached values during active sessions. Product copy, the mockups, and `req_035` AC2 must present freshness as first-class rather than implying live gauges.
@@ -88,6 +92,7 @@ flowchart TD
 - Electron or a Python `pystray` companion: rejected on footprint and on packaging a second runtime next to the CLI.
 - `tray-icon` on Linux as well, for a single backend: rejected because it makes gtk3, libxdo, and libayatana-appindicator3 hard runtime prerequisites, turning a missing package into a companion that will not start.
 - Registering Windows startup or the AppUserModelID under HKLM: rejected because it needs administrator rights for a per-user status icon; the per-user shortcut and `Run` key achieve the same result.
+- A colour, non-template macOS menu bar icon matching the mockups: rejected because it requires a light and a dark variant maintained in parallel, reads as foreign in the menu bar, and buys a colour signal that the accessibility rule already forbids relying on.
 - A localhost socket or HTTP endpoint between CDX and the companion: rejected because WSL localhost is directional in NAT mode and mirrored mode cannot be assumed, and because it opens a listener on a developer machine for a read-only status feed.
 - Letting the companion probe providers directly: rejected because it duplicates quota logic, races `codex_auth_lock`, and can invalidate the user's OAuth refresh token.
 - Ad-hoc signing the macOS companion: rejected because the identity changes at every build, so the notification grant is lost at each update and no CDX icon survives. It costs exactly the same as a self-signed certificate.
