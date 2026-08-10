@@ -11,8 +11,46 @@ on:
         required: true
 
 jobs:
+  # Publishing is gated on the tray assets building first. They run from the
+  # same release event, so without this they run *beside* each other: a failed
+  # or half-finished asset build would leave npm and PyPI already carrying a
+  # version whose release has no companion to install. Unpublishing those is
+  # not something either registry makes easy, and `cdx tray install` would
+  # refuse an asset that never arrived.
+  wait-for-assets:
+    name: Wait for the tray assets
+    runs-on: ubuntu-latest
+    # Reading another workflow's runs needs actions:read, and this job has no
+    # checkout to infer the repository from, so gh is told explicitly.
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Wait for the tray asset build to succeed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 60); do
+            status="$(gh run list --workflow build-tray-assets.yml \
+              --branch "$RELEASE_TAG" --limit 1 \
+              --json status,conclusion -q '.[0].status + " " + (.[0].conclusion // "")' || true)"
+            case "$status" in
+              "completed success") echo "Tray assets are built."; exit 0 ;;
+              "completed "*) echo "Tray asset build did not succeed: $status"; exit 1 ;;
+              "") echo "No asset run yet; waiting." ;;
+              *) echo "Asset build $status; waiting." ;;
+            esac
+            sleep 20
+          done
+          echo "Timed out waiting for the tray asset build."
+          exit 1
+
   publish:
     name: Publish package
+    needs: wait-for-assets
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
     permissions:
