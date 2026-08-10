@@ -29,7 +29,7 @@ die() { printf 'build-tray: %s\n' "$1" >&2; exit 1; }
 # forgets the notification grant each time and the tray loses its own icon in
 # notifications. Never ship the output of --dev.
 DEV_BUILD=0
-[ "${1:-}" = "--dev" ] && DEV_BUILD=1
+for arg in "$@"; do [ "$arg" = "--dev" ] && DEV_BUILD=1; done
 
 # --linux builds the Linux asset, statically linked against musl, from any host.
 # Static musl is what makes the Linux asset a single file with no runtime
@@ -40,7 +40,27 @@ DEV_BUILD=0
 # required to produce it — verified by building this on macOS for a WSL Ubuntu
 # that has neither gcc nor libc6-dev.
 LINUX_BUILD=0
-[ "${1:-}" = "--linux" ] && LINUX_BUILD=1
+for arg in "$@"; do [ "$arg" = "--linux" ] && LINUX_BUILD=1; done
+
+# --package also writes the release asset, named exactly as `cdx tray install`
+# will ask for it. The name carries the version and the target because the
+# installer reads them back from it: a mislabelled file must not be recordable
+# under a target it cannot run on.
+PACKAGE=0
+for arg in "$@"; do [ "$arg" = "--package" ] && PACKAGE=1; done
+
+DIST_DIR="$REPO_ROOT/dist"
+
+package_asset() {
+  local target="$1" parent="$2" payload="$3"
+  local asset="cdx-tray-$VERSION-$target.tar.gz"
+  mkdir -p "$DIST_DIR"
+  # Archived from its parent so the payload sits at the archive root, which is
+  # where the installer looks. -C keeps absolute paths out of the member names.
+  tar czf "$DIST_DIR/$asset" -C "$parent" "$payload"
+  printf 'build-tray: packaged %s\n' "$DIST_DIR/$asset"
+  printf 'build-tray: record it with: python3 scripts/record_tray_checksums.py %s\n' "$DIST_DIR/$asset"
+}
 
 command -v cargo >/dev/null 2>&1 || die "cargo not found. Install Rust: https://rustup.rs"
 
@@ -69,6 +89,7 @@ if [ "$LINUX_BUILD" = "1" ]; then
   LINUX_BINARY="$CRATE_DIR/target/$TARGET/release/cdx-tray"
   [ -x "$LINUX_BINARY" ] || die "cargo did not produce $LINUX_BINARY"
   printf 'build-tray: built %s\n' "$LINUX_BINARY"
+  [ "$PACKAGE" = "1" ] && package_asset "$TARGET" "$(dirname "$LINUX_BINARY")" cdx-tray
   exit 0
 fi
 
@@ -79,6 +100,10 @@ BINARY="$CRATE_DIR/target/release/cdx-tray"
 
 if [ "$(uname -s)" != "Darwin" ]; then
   printf 'build-tray: built %s\n' "$BINARY"
+  if [ "$PACKAGE" = "1" ]; then
+    NATIVE_TARGET="$(rustc -vV | sed -n 's/^host: //p')"
+    package_asset "$NATIVE_TARGET" "$(dirname "$BINARY")" "$(basename "$BINARY")"
+  fi
   exit 0
 fi
 
@@ -114,6 +139,10 @@ PLIST
 plutil -lint "$APP_DIR/Contents/Info.plist" >/dev/null || die "generated Info.plist is malformed"
 
 if [ "$DEV_BUILD" = "1" ]; then
+  # Refused rather than ignored: a dev bundle that got packaged would be
+  # indistinguishable from a release asset once it had a checksum recorded, and
+  # its identity changes every build.
+  [ "$PACKAGE" = "1" ] && die "--dev cannot be packaged: its signature changes every build, so an asset built this way would reset the notification grant at every update. See adr_005."
   printf 'build-tray: DEV BUILD, not signed with a stable identity.\n' >&2
   printf 'build-tray: launchable locally, NOT distributable. Notification\n' >&2
   printf 'build-tray: permission will reset on every rebuild. See adr_005.\n' >&2
@@ -140,3 +169,10 @@ codesign --verify --deep --strict "$APP_DIR" || die "signature did not verify"
 
 printf 'build-tray: built and signed %s\n' "$APP_DIR"
 printf 'build-tray: bundle id %s, version %s\n' "$BUNDLE_ID" "$VERSION"
+
+# Packaged only after the signature verified. An asset is what a user ends up
+# executing, so shipping one that failed verification would defeat the whole
+# checksum-vouches-for-a-self-signed-binary story adr_005 rests on.
+if [ "$PACKAGE" = "1" ]; then
+  package_asset "$(rustc -vV | sed -n 's/^host: //p')" "$(dirname "$APP_DIR")" "$APP_NAME"
+fi

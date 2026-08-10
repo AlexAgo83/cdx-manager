@@ -223,13 +223,23 @@ def _extract(archive, destination):
 
 
 def _executable_in(destination, names):
-    """The companion inside what was unpacked, made executable."""
-    for name in names:
-        base = os.path.basename(name.rstrip("/"))
-        if base in ("cdx-tray", "cdx-tray.exe") or base.endswith(".app"):
-            path = os.path.join(destination, name.rstrip("/"))
-            if os.path.isfile(path):
-                os.chmod(path, os.stat(path).st_mode | stat.S_IXUSR)
+    """The companion inside what was unpacked, made executable.
+
+    A bundle wins over a bare binary, and deliberately not by relying on tar
+    member order. The macOS asset contains both `CDX.app` and the executable
+    inside it, and launching that inner binary directly would lose the bundle:
+    no `Info.plist`, so no `LSUIElement` and no stable identity for the
+    notification grant. Which of the two an ordered scan found first would then
+    depend on how the archive happened to be written.
+    """
+    bundles = [n for n in names if os.path.basename(n.rstrip("/")).endswith(".app")]
+    binaries = [n for n in names if os.path.basename(n.rstrip("/")) in ("cdx-tray", "cdx-tray.exe")]
+    for name in bundles + binaries:
+        path = os.path.join(destination, name.rstrip("/"))
+        if os.path.isdir(path):
+            return path
+        if os.path.isfile(path):
+            os.chmod(path, os.stat(path).st_mode | stat.S_IXUSR)
             return path
     return None
 

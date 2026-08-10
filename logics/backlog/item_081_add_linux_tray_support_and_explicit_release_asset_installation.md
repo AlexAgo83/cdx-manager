@@ -2,9 +2,9 @@
 > From version: 0.17.1
 > Schema version: 1.0
 > Status: In progress
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 55%
+> Understanding: 92%
+> Confidence: 88%
+> Progress: 80%
 > Complexity: High
 > Theme: Distribution
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -33,6 +33,13 @@
   - Universal support for every Linux shell or panel.
   - Package-manager repositories, Flatpak, Snap, Homebrew casks, app stores, signing, notarization, or independent background updates.
   - Silent upgrades or deletion of user data during uninstall.
+
+# Delivery record
+- AC1 is met and verified on hardware. The ksni backend renders the menu natively in kdesktop's Ubuntu WSL against the real 11-session fleet, and a host with no `org.kde.StatusNotifierWatcher` exits 1 naming that rather than crashing or registering anything at startup. That host has no gtk, libxdo or appindicator package, and no C toolchain either. Full record in `item_085`.
+- The Linux asset is static musl, built by `scripts/build-tray.sh --linux`, linked through `rust-lld` so producing it needs no C toolchain. ksni and zbus are pure Rust, so the asset carries no C library at all.
+- `scripts/build-tray.sh --package` writes the release asset under `dist/`, named exactly as the installer asks for it, with the payload at the archive root. On macOS it runs only after the signature verified: an asset is what a user ends up executing, so packaging an unverified one would defeat the checksum-vouches-for-a-self-signed-binary story. `--dev --package` is refused outright rather than ignored, because a dev bundle with a recorded checksum would be indistinguishable from a release asset while its identity changes every build.
+- Install verified end to end against the real Linux archive, with a temporary ledger rather than the published one: a verified asset installs and is executable, an asset with no published checksum is refused, a mismatched checksum is refused with both digests named, neither refusal writes anything, and uninstall removes the recorded path while sparing a file it did not write. Local build checksums are deliberately not recorded in `checksums/release-archives.json`: that ledger vouches for published assets, and an entry for something never published would be a lie the installer would act on.
+- A bundle now wins over the binary inside it, explicitly rather than by tar member order. The macOS asset holds both, and launching the inner binary would lose `Info.plist`, so `LSUIElement` and the signed identity the notification grant is bound to go with it. Which one an ordered scan found first depended on how the archive happened to be written; a test that fails against the previous code pins it.
 
 # Acceptance criteria
 - AC1: A Linux environment exposing the StatusNotifierItem watcher renders the core CDX menu, and one without it reports an unsupported environment without a crash or a startup registration. The Linux asset starts on a system with no gtk, libxdo, or appindicator package installed.

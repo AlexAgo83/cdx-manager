@@ -318,6 +318,36 @@ class TrayCommandTest(CliTestBase):
         self.assertTrue(os.path.isfile(state["executable"]))
         self.assertTrue(os.access(state["executable"], os.X_OK))
 
+    def test_install_prefers_the_bundle_over_the_binary_inside_it(self):
+        """The macOS asset holds both, and only the bundle carries the identity.
+
+        Launching the inner binary would lose `Info.plist`, so `LSUIElement` and
+        the signed identity the notification grant is bound to go with it. The
+        archive here lists the inner binary first, which is the order that would
+        make an ordered scan pick the wrong one.
+        """
+        scratch = self.make_temp_dir()
+        base_dir = self.make_temp_dir()
+        bundle = os.path.join(scratch, "CDX.app", "Contents", "MacOS")
+        os.makedirs(bundle)
+        inner = os.path.join(bundle, "cdx-tray")
+        with open(inner, "wb") as handle:
+            handle.write(b"#!/bin/sh\n")
+        archive = os.path.join(scratch, "bundle.tar.gz")
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.add(inner, arcname="CDX.app/Contents/MacOS/cdx-tray")
+            tar.add(os.path.join(scratch, "CDX.app"), arcname="CDX.app", recursive=False)
+        digest = hashlib.sha256(open(archive, "rb").read()).hexdigest()
+        ledger = self._ledger(scratch, "9.9.9", "test-target", digest)
+
+        state = install(
+            base_dir, "9.9.9",
+            download=lambda url, dest: shutil.copyfile(archive, dest),
+            ledger_path=ledger, target="test-target",
+        )
+        self.assertTrue(state["executable"].endswith("CDX.app"), state["executable"])
+        self.assertTrue(os.path.isdir(state["executable"]))
+
     def test_install_refuses_a_mismatched_checksum_and_writes_nothing(self):
         scratch = self.make_temp_dir()
         base_dir = self.make_temp_dir()
