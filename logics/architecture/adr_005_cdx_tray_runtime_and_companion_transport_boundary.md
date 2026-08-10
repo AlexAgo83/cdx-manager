@@ -1,5 +1,5 @@
 ## adr_005_cdx_tray_runtime_and_companion_transport_boundary - CDX tray runtime and companion transport boundary
-> Indicators reviewed: 2026-08-10 20:01:56
+> Indicators reviewed: 2026-08-10 20:17:26
 
 > Date: 2026-08-10
 > Status: Settled
@@ -32,14 +32,14 @@
 
 ```mermaid
 flowchart TD
-    Cache[session status cache] --> Cdx[cdx tray status --cached]
-    Cdx --> Snapshot[versioned local snapshot file]
-    Spool[cdx notify event spool] --> Snapshot
+    Cache[session status cache] --> Cdx[cdx tray status --json]
+    Cdx --> Snapshot[versioned snapshot on stdout]
     Snapshot --> Native[native companion: tray-icon on macOS/Windows, ksni on Linux]
+    Spool[cdx notify event spool file] --> Native
     Native --> Menu[native menu and tooltip]
     Native --> Toast[platform notification]
-    Native -->|Windows host| Interop[wsl.exe read/write]
-    Interop --> Snapshot
+    Native -->|Windows host| Interop[wsl.exe cdx tray status]
+    Interop --> Cdx
 ```
 
 # Decision
@@ -48,8 +48,10 @@ flowchart TD
 - On Windows, `cdx tray install` creates a per-user Start Menu shortcut carrying the AppUserModelID and a stub CLSID, records it in the install state, and removes it on uninstall. No administrator rights, no HKLM write, no service.
 - Register startup per platform with the plainest reversible mechanism: a `~/Library/LaunchAgents` plist on macOS, the per-user `Run` key on Windows, and an XDG autostart `.desktop` file on Linux. Each is a single recorded artifact that `cdx tray autostart off` deletes.
 - Deliver one binary per OS and architecture. The companion never embeds CDX logic: it reads a snapshot and invokes `cdx` for every action.
-- Make the local snapshot file the single transport. The companion never opens a socket, never listens on a port, and never calls a provider API. This is what makes the Windows-to-WSL bridge a file read through `wsl.exe` rather than a networking assumption.
-- The companion is a cache consumer. It calls `cdx tray status --cached` and never forces a live quota probe. Freshness comes from the existing per-provider TTLs and from whatever refreshed the cache: an interactive `cdx status`, a session launch, or an explicit manual refresh from the tray menu.
+- Make `cdx` itself the transport, invoked as a child process. The companion never opens a socket, never listens on a port, and never calls a provider API. This is what makes the Windows-to-WSL bridge a `wsl.exe` command rather than a networking assumption.
+- Carry status on stdout: the companion runs `cdx tray status --json` natively and `wsl.exe cdx tray status --json` across the WSL boundary, and parses the result. There is no status file on disk. **Amended 2026-08-10, see Amendments.**
+- Keep a file for the event spool only, because there its writer is a provider hook and its reader is the tray, two processes that never meet. Status has a reader that can invoke its writer on demand; events do not.
+- The companion is a cache consumer. It calls `cdx tray status --json`, which reads the cache by default, and never passes `--refresh` on a timer. Freshness comes from the existing per-provider TTLs and from whatever refreshed the cache: an interactive `cdx status`, a session launch, or an explicit manual refresh from the tray menu.
 - The tray menu's manual refresh is the only path that may request a live probe, and it surfaces `auth_locked` as an explicit "not refreshable while a session is running" state rather than as an error.
 - Set the poll period at 30 seconds for the native case and 60 seconds for the Windows-to-WSL case, where each tick is one `wsl.exe` call. Agent event latency is therefore bounded by one poll period; the accepted budget is 60 seconds worst case on Windows plus WSL.
 - Stop polling when no CDX session is enabled and back off to 5 minutes after three consecutive read failures, so a stopped WSL distribution is not woken indefinitely.
@@ -87,6 +89,14 @@ flowchart TD
 - Windows notification delivery still requires an installed companion with a registered AppUserModelID, so `cdx tray install` must create that registration on Windows.
 - A Developer ID and notarization stay deferred. Their only remaining benefit is browser-link distribution, so they become worth buying when v1's install-only path stops being enough.
 
+# Amendments
+- **2026-08-10, status transport: file replaced by stdout.** Settled and amended the same day, while `item_079` wired the contract and made the cost measurable.
+- Measurement: `cdx tray status --json` costs 70-80 ms end to end on the arm64 macOS host, Python startup and store read included. At one tick per 30 seconds that is 0.27% of a core, so a file bought nothing worth a second artifact.
+- It bought even less across WSL, where reading a file through `wsl.exe cat` costs the same interop crossing as running the command. The file would have saved 80 ms inside a call that costs 100-300 ms regardless.
+- The deciding argument is not the measurement. The session store is already the persistent cache and already owns the TTLs, so a snapshot file would have been a second cache derived from the first, with its own staleness, write concurrency, and version to keep alive. Two caches that can disagree, where one suffices.
+- The objection considered and rejected: without a file, a companion that cannot execute `cdx` has no last-known state to show. `req_035` AC2 already requires an honest unavailable state, and showing a six-hour-old quota because CDX is broken is worse than saying nothing is known. The objection argues for stdout.
+- Reopen this only with a number. If `item_085` measures a `wsl.exe` tick cost that actually hurts, add a disk cache then, justified by that figure.
+
 # Alternatives considered
 - Tauri v2 as the application framework: rejected for v1 because it brings a webview, a config surface, and its own updater for a UI that renders no HTML. Reconsider only if the notification or update plumbing proves more expensive to hand-roll than the framework's weight.
 - Electron or a Python `pystray` companion: rejected on footprint and on packaging a second runtime next to the CLI.
@@ -94,6 +104,7 @@ flowchart TD
 - Registering Windows startup or the AppUserModelID under HKLM: rejected because it needs administrator rights for a per-user status icon; the per-user shortcut and `Run` key achieve the same result.
 - A colour, non-template macOS menu bar icon matching the mockups: rejected because it requires a light and a dark variant maintained in parallel, reads as foreign in the menu bar, and buys a colour signal that the accessibility rule already forbids relying on.
 - A localhost socket or HTTP endpoint between CDX and the companion: rejected because WSL localhost is directional in NAT mode and mirrored mode cannot be assumed, and because it opens a listener on a developer machine for a read-only status feed.
+- A status snapshot file written by `cdx` and polled by the companion: rejected on amendment, see Amendments. It duplicates a cache that already exists for a saving that does not.
 - Letting the companion probe providers directly: rejected because it duplicates quota logic, races `codex_auth_lock`, and can invalidate the user's OAuth refresh token.
 - Ad-hoc signing the macOS companion: rejected because the identity changes at every build, so the notification grant is lost at each update and no CDX icon survives. It costs exactly the same as a self-signed certificate.
 - Buying a Developer ID for v1: rejected because the install path already keeps Gatekeeper out of the picture, so the certificate would buy only a browser-download story that v1 does not offer.

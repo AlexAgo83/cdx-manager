@@ -7,7 +7,7 @@
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-10 13:18:24
+> Indicators reviewed: 2026-08-10 20:16:59
 
 # AI Context
 - Summary: Add an optional cross-platform CDX tray usage monitor
@@ -45,7 +45,7 @@
 - AC7: Installation and explicit CDX update select only the matching OS and architecture release asset, verify its published checksum before use, keep an installed tray companion aligned with the installed CDX release, record only the local state needed for uninstall including the Windows Start Menu shortcut that toasts require, complete without administrator rights, and leave the base cdx runtime free of tray-only dependencies.
 - AC8: The initial distribution and documentation describe installation through cdx tray install, explicit CDX-managed tray updates, and the actual trust model truthfully: the macOS companion is a self-signed bundle whose integrity is guaranteed by the published checksum rather than by Apple, and it is never offered as a browser download because that would quarantine it. They do not claim Developer ID signing, notarization, store distribution, background self-update, or universal Linux desktop support.
 - AC9: Focused automated checks cover quota-state mapping, JSON/error/staleness handling, install-target selection and checksum rejection, snapshot-version compatibility, poll and back-off behaviour, and WSL command construction; platform integration checks and project validation pass.
-- AC10: The tray reads a versioned local snapshot on a bounded schedule: at most every 30 seconds natively and every 60 seconds across the Windows-to-WSL boundary, stopping when no session is enabled and backing off after repeated read failures so a WSL distribution is not woken indefinitely. A companion that meets an unknown snapshot major version keeps serving every field it understands and surfaces one update hint instead of failing, so CDX and the companion never require lockstep versions.
+- AC10: The tray reads a versioned snapshot from cdx tray status --json on a bounded schedule: at most every 30 seconds natively and every 60 seconds across the Windows-to-WSL boundary, stopping when no session is enabled and backing off after repeated read failures so a WSL distribution is not woken indefinitely. A companion that meets an unknown snapshot major version keeps serving every field it understands and surfaces one update hint instead of failing, so CDX and the companion never require lockstep versions.
 
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.

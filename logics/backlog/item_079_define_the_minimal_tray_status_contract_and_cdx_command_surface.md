@@ -8,6 +8,7 @@
 > Complexity: Medium
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-10 20:16:59
 
 # AI Context
 - Summary: Define the minimal tray status contract and CDX command surface
@@ -25,7 +26,7 @@
   - Trace the existing JSON status output and expose only any missing documented fields required by a local tray consumer.
   - Define the cdx tray install, launch, status, and uninstall contracts with non-mutating defaults.
   - Implement one platform-neutral status-to-display-state mapper covering known quota, no sessions, stale data, auth-locked non-refreshable data, and command failure.
-  - Define the snapshot as versioned, cache-backed, and read-only: the tray reads it, CDX writes it, and only an explicit menu refresh may request a live probe.
+  - Define the snapshot as versioned, cache-backed, and read-only, emitted on stdout by cdx tray status --json rather than written to a status file: only an explicit menu refresh may request a live probe.
   - Add focused unit tests and concise CLI documentation.
 - Out:
   - Writing native tray UI code or adding a mandatory GUI dependency.

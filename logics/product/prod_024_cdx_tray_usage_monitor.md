@@ -6,7 +6,7 @@
 > Related task: `task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor`
 > Related architecture: `adr_005_cdx_tray_runtime_and_companion_transport_boundary`
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
-> Indicators reviewed: 2026-08-10 20:01:56
+> Indicators reviewed: 2026-08-10 20:16:59
 
 # Overview
 Provide an optional native system-tray companion that turns existing CDX status data into a glanceable usage indicator across desktop operating systems.
@@ -44,7 +44,7 @@ flowchart TD
 - Guardrail: installing CDX must never install, start, or register the tray. Every tray effect follows an explicit cdx tray command.
 
 # Key product decisions
-- The tray is a cache consumer, not a data source. It reads the snapshot CDX already maintains and never probes a provider on its own schedule, because a background probe would race the Codex auth lock and can invalidate a rotating OAuth refresh token.
+- The tray is a cache consumer, not a data source. It asks cdx for a snapshot of the status CDX already stores, and never probes a provider on its own schedule, because a background probe would race the Codex auth lock and can invalidate a rotating OAuth refresh token.
 - Freshness is part of the product, not an error path. The tray shows cached, stale, unknown, and not-refreshable-while-a-session-runs as first-class states, because a live probe cannot succeed while an interactive session holds the auth lock.
 - The closed icon carries urgency only. Accounts, sessions, and quota figures appear only after the user opens the menu.
 - Capacity state is carried by the glyph, not by a tint. The macOS menu bar icon is a monochrome template that the system inverts per theme, so colour is not available there and must not be the mechanism anywhere; the mockups' tinted macOS icon no longer describes the intended rendering.

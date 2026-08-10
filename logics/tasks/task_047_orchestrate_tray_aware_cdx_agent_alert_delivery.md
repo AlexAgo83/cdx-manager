@@ -8,6 +8,7 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Indicators reviewed: 2026-08-10 20:16:59
 
 # AI Context
 - Summary: Orchestrate tray-aware CDX agent alert delivery
@@ -17,7 +18,8 @@
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
-- Blocked on task_046: this task consumes the companion, the local snapshot, and the WSL bridge that task_046 builds. Do not start it while task_046 is open.
+- Blocked on task_046: this task consumes the companion, the cdx tray status snapshot, and the WSL bridge that task_046 builds. Do not start it while task_046 is open.
+- The event spool remains a file, unlike the status snapshot. Its writer is a provider hook and its reader is the tray, two processes that never meet, so it cannot be a command invocation the way status is.
 - Alert latency equals the poll period fixed in adr_005, so the delivery design is bounded by that decision rather than free to choose its own cadence.
 
 # Plan
