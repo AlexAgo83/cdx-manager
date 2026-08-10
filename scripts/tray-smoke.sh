@@ -16,16 +16,18 @@ set -uo pipefail
 COMPANION="${CDX_TRAY_BIN:-}"
 PASS=0
 FAIL=0
+SKIP=0
 
+# A skipped check is never counted as a pass. A host that cannot exercise a
+# check has not demonstrated the behaviour, and a runner that blurred the two
+# would report green for something it never ran.
 check() {
   local name="$1" outcome="$2" detail="${3:-}"
-  if [ "$outcome" = "pass" ]; then
-    PASS=$((PASS + 1))
-    printf '  PASS  %-38s %s\n' "$name" "$detail"
-  else
-    FAIL=$((FAIL + 1))
-    printf '  FAIL  %-38s %s\n' "$name" "$detail"
-  fi
+  case "$outcome" in
+    pass) PASS=$((PASS + 1)); printf '  PASS  %-38s %s\n' "$name" "$detail" ;;
+    skip) SKIP=$((SKIP + 1)); printf '  SKIP  %-38s %s\n' "$name" "$detail" ;;
+    *)    FAIL=$((FAIL + 1)); printf '  FAIL  %-38s %s\n' "$name" "$detail" ;;
+  esac
 }
 
 # A Windows companion driven from WSL reports Windows paths, which this shell
@@ -120,18 +122,35 @@ else
 fi
 
 # 4. A second companion must refuse rather than draw a second icon.
-"$COMPANION" >/dev/null 2>&1 &
+#
+#    Only askable where a companion can stay up. On a host with no tray backend
+#    — a headless Linux session, or a desktop with no StatusNotifier watcher —
+#    the first companion exits as soon as it cannot draw, so there is never a
+#    holder for the second to collide with. Reporting that as a failure would be
+#    a false alarm about the one machine that is behaving correctly, and a
+#    runner that cries wolf stops being read.
+#    Whether a backend exists is discovered by starting one and seeing whether
+#    it is still up, not by running it in the foreground to read its complaint:
+#    on a host that does have a tray, the foreground run never returns.
+FIRST_OUT="$(mktemp)"
+"$COMPANION" >"$FIRST_OUT" 2>&1 &
 FIRST=$!
 sleep 2
-SECOND="$("$COMPANION" 2>&1)"
-SECOND_CODE=$?
-kill "$FIRST" 2>/dev/null
-wait "$FIRST" 2>/dev/null
-if [ "$SECOND_CODE" -eq 3 ] && printf '%s' "$SECOND" | grep -q "already running"; then
-  check "refuses a second instance" pass "exit 3, names the pid"
+if ! kill -0 "$FIRST" 2>/dev/null; then
+  REASON="$(sed 's/^cdx-tray: //' "$FIRST_OUT" | head -1 | cut -c1-58)"
+  check "refuses a second instance" skip "nothing stayed up to collide with: $REASON"
 else
-  check "refuses a second instance" fail "exit $SECOND_CODE: $(printf '%s' "$SECOND" | head -1)"
+  SECOND="$("$COMPANION" 2>&1)"
+  SECOND_CODE=$?
+  kill "$FIRST" 2>/dev/null
+  wait "$FIRST" 2>/dev/null
+  if [ "$SECOND_CODE" -eq 3 ] && printf '%s' "$SECOND" | grep -q "already running"; then
+    check "refuses a second instance" pass "exit 3, names the pid"
+  else
+    check "refuses a second instance" fail "exit $SECOND_CODE: $(printf '%s' "$SECOND" | head -1)"
+  fi
 fi
+rm -f "$FIRST_OUT"
 
 # 5. A killed companion leaves its lock behind — Drop does not run on a signal —
 #    and the next launch must reclaim it. That recovery is the point: a lock
@@ -143,7 +162,7 @@ fi
 LOCK="$("$COMPANION" --lock-path 2>/dev/null | tr -d '\r')"
 if [ -z "$LOCK" ]; then
   check "reclaims a stale lock" fail "the companion did not report a lock path"
-  printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
+  printf '\n%d passed, %d failed, %d skipped\n' "$PASS" "$FAIL" "$SKIP"
   exit 1
 fi
 LOCK="$(host_path "$LOCK")"
@@ -162,5 +181,5 @@ else
 fi
 rm -f "$LOCK"
 
-printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
+printf '\n%d passed, %d failed, %d skipped\n' "$PASS" "$FAIL" "$SKIP"
 [ "$FAIL" -eq 0 ]

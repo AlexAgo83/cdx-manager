@@ -4,7 +4,7 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 92%
+> Progress: 95%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -51,7 +51,7 @@
 - request-AC8 -> `item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts`. Proof deferred to slice closeout.
 
 # Validation
-- Hardware smoke wave: `scripts/tray-smoke.sh`, 6 of 6 on kdesktop with the real 11-session fleet through Ubuntu WSL — menu `CDX · critical · 11 session(s)`, 60s period, poll cost 387-401ms so alert latency <= 61s, second launch refused, stale lock reclaimed — and 6 of 6 on macOS arm64 native at 83-85ms with polling stopped on an empty fleet. `cargo test` 30 passed, clippy clean on all three targets, `python3 -m pytest -q` 719 passed, ruff clean, Logics lint OK. Full record in `item_085`.
+- Hardware smoke wave, three hosts: 6/6 on kdesktop with the real 11-session fleet through Ubuntu WSL (60s period, poll cost 371-401ms so alert latency <= 61s), 5 pass and 1 justified skip with the Linux ksni build running natively in that same WSL (30s period, 140-145ms, and the absent-watcher path reported as `no org.kde.StatusNotifierWatcher ... this desktop has no system tray`), and 6/6 on macOS arm64 native at 88-92ms with polling stopped on an empty fleet. `cargo test` 30 passed, clippy clean on all three targets, `python3 -m pytest -q` 719 passed, ruff clean, Logics lint OK. Full record in `item_085`.
 - Tooltip wave: `python3 -m pytest -q` 719 passed, 30 Rust tests, clippy clean on all three targets. The tooltip is composed by CDX and consumed identically by all three backends.
 - WSL resolution wave: `cargo test` 30 passed, clippy clean on all three targets. Verified on kdesktop: a configured `Debian` reports `WSL distribution \`Debian\` is not installed. Installed: Ubuntu, docker-desktop-data, docker-desktop.`, and `Ubuntu` polls normally at 60s.
 - Staged update wave: `python3 -m pytest -q` 716 passed, ruff clean. A replacement is downloaded, verified and proved to start before the working companion is touched; a probe that fails leaves the installed one running and cleans the staging away, and doctor reports an interrupted update.
@@ -77,6 +77,8 @@
 - The smoke runner asks the companion for its lock path rather than recomputing the rule, which is TMPDIR here and LOCALAPPDATA on Windows. Every bug this session that a unit test missed came from a platform assumption restated in a second place, so `--lock-path` exists to stop the script becoming the next one.
 - The runner names the companion's platform apart from the shell's, because driving a Windows companion from WSL is supported and a record reporting only `uname` would name the wrong tray under test.
 - Poll cost is sampled three times, not once: the first sample pays for a cold WSL VM, and reporting only that would overstate the steady-state cost the 60s period has to afford.
+- The Linux binary was cross-compiled static musl from macOS through rust-lld rather than installing a C toolchain in someone's WSL: the distribution has none, and `sudo` there wants a password that must never be handled from here. It also demonstrates the adr_005 property that the Linux asset carries no C library, since ksni and zbus are pure Rust.
+- A check that cannot be exercised is skipped with its reason, never counted as a pass. Where no backend can draw, the first companion exits before a second can collide with it, so the single-instance check has nothing to ask; calling that a failure would cry wolf about the one host behaving correctly.
 - Two AC3 clauses are blocked rather than quietly dropped. A toast reaching Action Center needs a notification to exist, which is `task_047`; a Zone.Identifier stream needs `cdx tray install` to fetch a release asset, which is `item_081`. Both are named in `item_085` with the slice that unblocks them.
 
 # Links

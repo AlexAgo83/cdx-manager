@@ -3,8 +3,8 @@
 > Schema version: 1.0
 > Status: In progress
 > Understanding: 90%
-> Confidence: 90%
-> Progress: 95%
+> Confidence: 92%
+> Progress: 98%
 > Complexity: Medium
 > Theme: Platform support
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -22,12 +22,15 @@
 
 # Smoke validation record
 - Runner: `scripts/tray-smoke.sh`, driven by `CDX_TRAY_BIN`. Read-only apart from starting and stopping the companion; it writes nothing outside the companion's own runtime directory.
-- kdesktop, Windows companion serving CDX through Ubuntu WSL, 2026-08-10: 6 of 6 checks pass. Menu `CDX · critical · 11 session(s)` on the real fleet, poll period 60 s across WSL, poll cost 387-401 ms over three samples, so worst-case alert latency <= 61 s. A second companion exits 3 and names the holding pid; a companion started over a dead pid's lock reclaims it.
-- The same runner on macOS arm64, native transport, 6 of 6: poll cost 83-85 ms, and the empty-fleet branch shows polling stopped with no enabled session. The two hosts together cover both branches of the polling rule, because whether a fleet is populated is a property of the host and not of the code.
+- kdesktop, Windows companion serving CDX through Ubuntu WSL, 2026-08-10: 6 of 6 checks pass. Menu `CDX · critical · 11 session(s)` on the real fleet, poll period 60 s across WSL, poll cost 371-401 ms over three samples across two runs, so worst-case alert latency <= 61 s. A second companion exits 3 and names the holding pid; a companion started over a dead pid's lock reclaims it.
+- The same runner on macOS arm64, native transport, 6 of 6: poll cost 88-92 ms, and the empty-fleet branch shows polling stopped with no enabled session. The two hosts together cover both branches of the polling rule, because whether a fleet is populated is a property of the host and not of the code.
 - The poll cost is sampled three times rather than once: the first sample pays for a cold WSL VM, and reporting only that would overstate the steady-state cost that the 60 s period has to afford.
 - The runner asks the companion for its lock path via `cdx-tray --lock-path` instead of recomputing it. The rule is TMPDIR on macOS and Linux but LOCALAPPDATA on Windows, so a script that reimplemented it would look in the wrong place on the one platform this check exists for.
-- Absent-watcher path, verified on kdesktop's Ubuntu WSL: the session bus answers `ListNames` with rc 0 and four names, and `org.kde.StatusNotifierWatcher` is not among them. The backend shells out to the same `dbus-send` call, so this host takes the "this desktop has no system tray" branch rather than the cruder "no D-Bus session bus" one. That is the interesting half of AC2: a session bus that exists and simply has no watcher is what a headless or GNOME-without-AppIndicator desktop looks like, and it must be reported rather than crashed on.
-- The Linux binary itself is not yet run on that host: WSL Ubuntu has no Rust toolchain, and installing one is a footprint change on a machine that belongs to someone. The watcher decision is verified there through the identical D-Bus query, and the branch it feeds is covered by the Rust tests; running the built binary on a real Linux desktop remains open.
+- kdesktop, Linux companion running natively in Ubuntu 26.04 WSL, 2026-08-10: 5 pass, 1 skipped, 0 fail. Same fleet at `CDX · critical · 11 session(s)`, native period 30 s, poll cost 140-145 ms so alert latency <= 31 s. This is the run that exercises the native-30s branch, which neither of the other two hosts reaches.
+- Absent-watcher path, verified there with the real binary: `cdx-tray` exits 1 with `no org.kde.StatusNotifierWatcher on the session bus: this desktop has no system tray. On GNOME, install the AppIndicator extension.` The session bus answers `ListNames` with four names and no watcher among them, so the host takes that branch rather than the cruder "no D-Bus session bus" one. That is the half of AC2 worth having: a bus that exists and simply has no watcher is what a headless session or GNOME-without-AppIndicator looks like, and it must be named rather than crashed on.
+- The single-instance check is skipped rather than failed on that host, and the runner says why. Where no backend can draw, the first companion exits before a second can collide with it, so the check has nothing to ask. Counting a skip as a pass would report green for behaviour never exercised; counting it as a failure would cry wolf about the one machine behaving correctly. The tally prints passed, failed and skipped separately.
+- The lock is still taken before the backend runs, which is why the reclaim check remains meaningful on that host: the companion took over the dead pid's lock on its way to discovering it had nowhere to draw.
+- Built for that host without touching it: a static `x86_64-unknown-linux-musl` binary cross-compiled from macOS through `rust-lld`, because the WSL distribution has no C toolchain and installing one needs a password that must never be handled here. ksni and zbus are pure Rust, so the asset carries no C library — the property `adr_005` asked for, now demonstrated rather than assumed.
 - Not yet verifiable, with the reason rather than a silent gap: the toast reaching Action Center through the installed Start Menu shortcut needs a notification to exist, which is `task_047`; the Zone.Identifier stream on a fetched asset needs `cdx tray install` to fetch a release asset, which is `item_081`. AC3 is therefore met for the two measurements and the polling rule, and blocked on those two slices for the rest.
 
 # Scope
