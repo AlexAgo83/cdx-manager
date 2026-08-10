@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Platform support
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-10 22:38:25
+> Indicators reviewed: 2026-08-10 23:20:18
 
 # AI Context
 - Summary: Constrain WSL and Linux tray support and validate it on real hosts
