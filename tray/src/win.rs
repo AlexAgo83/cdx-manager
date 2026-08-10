@@ -28,6 +28,7 @@ const PUMP: Duration = Duration::from_millis(100);
 pub fn run(transport: Transport) -> Result<(), String> {
     let mut state = Render::first(&transport);
     let (tray, mut actions) = backend::build_tray(&state.icon_state, &state.entries)?;
+    promote_icon();
     let mut due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
 
     loop {
@@ -69,21 +70,99 @@ pub fn run(transport: Transport) -> Result<(), String> {
     }
 }
 
+const NOTIFY_ICON_SETTINGS: &str = r"HKCU\Control Panel\NotifyIconSettings";
+
+/// Ask Windows to show the icon rather than bury it in the overflow flyout.
+///
+/// Windows 11 hides every newly registered notification-area icon behind the
+/// chevron. Measured on a real host: the icon was correctly registered and
+/// simply not on screen, which defeats the entire point of a status icon.
+///
+/// Deliberately once, ever, tracked by our own marker file rather than by the
+/// registry value. Windows rewrites `IsPromoted` to `0` on its own after the
+/// icon first appears, so "absent" is not a reliable "never asked" and reading
+/// it would either never promote or promote forever. Once the marker exists the
+/// companion never touches the setting again, so unpinning it stays the user's
+/// decision. Per-user, no administrator rights.
+fn promote_icon() {
+    let Some(marker) = promotion_marker() else {
+        return;
+    };
+    if marker.exists() {
+        return;
+    }
+    if let Some(key) = find_icon_key() {
+        let _ = std::process::Command::new("reg")
+            .args([
+                "add",
+                &key,
+                "/v",
+                "IsPromoted",
+                "/t",
+                "REG_DWORD",
+                "/d",
+                "1",
+                "/f",
+            ])
+            .output();
+    }
+    // Written even when the key was not found yet, so a failed attempt does not
+    // turn into an attempt on every single launch.
+    if let Some(parent) = marker.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::write(&marker, "1");
+}
+
+fn promotion_marker() -> Option<std::path::PathBuf> {
+    let base = std::env::var("LOCALAPPDATA").ok()?;
+    Some(
+        std::path::PathBuf::from(base)
+            .join("cdx-tray")
+            .join("promoted"),
+    )
+}
+
+/// The registry subkey Windows created for this executable's icon, if it has
+/// appeared yet. Matching on our own path avoids touching another app's entry.
+fn find_icon_key() -> Option<String> {
+    let exe = std::env::current_exe().ok()?;
+    let exe = exe.to_string_lossy().to_lowercase();
+    let out = std::process::Command::new("reg")
+        .args(["query", NOTIFY_ICON_SETTINGS, "/s", "/v", "ExecutablePath"])
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&out.stdout).to_string();
+    let mut current: Option<&str> = None;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("HKEY_") {
+            current = Some(trimmed);
+        } else if trimmed.contains("ExecutablePath") && trimmed.to_lowercase().contains(&exe) {
+            return current.map(str::to_string);
+        }
+    }
+    None
+}
+
 /// Open a console on `cdx status`. When CDX lives in WSL the command has to
 /// cross the same way the status poll does, or the window would open on a host
 /// that has no `cdx`.
 fn open_terminal(transport: &Transport) {
+    // The same cdx the status poll uses. Hardcoding `cdx` here would open a
+    // console on a different binary than the menu it was clicked from.
+    let cdx = Transport::cdx_command();
     let mut command = std::process::Command::new("cmd");
     command.args(["/c", "start", ""]);
     match transport {
         Transport::Wsl { distro: Some(name) } => {
-            command.args(["wsl.exe", "-d", name, "--", "cdx", "status"]);
+            command.args(["wsl.exe", "-d", name, "--", &cdx, "status"]);
         }
         Transport::Wsl { distro: None } => {
-            command.args(["wsl.exe", "--", "cdx", "status"]);
+            command.args(["wsl.exe", "--", &cdx, "status"]);
         }
         Transport::Native => {
-            command.args(["cmd", "/k", "cdx status"]);
+            command.args(["cmd", "/k", &format!("{cdx} status")]);
         }
     }
     let _ = command.spawn();
