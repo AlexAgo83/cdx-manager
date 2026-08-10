@@ -60,7 +60,7 @@ def read_hook_payload(args, stdin_text=None):
 
 def compose_notification(payload, env=None, cwd=None):
     """Title and message for this event, or None if we should stay quiet."""
-    env = env or os.environ
+    env = os.environ if env is None else env
     if env.get(ENABLED_ENV) == "0":
         # Headless runs share the session's home, so they read the same hooks.
         # Their caller already learns of completion from the return value.
@@ -84,7 +84,7 @@ def handle_notify(rest, ctx):
         reader = ctx.get("prompt_stdin") or sys.stdin
         if reader is not None and not ctx.get("stdin_is_tty"):
             stdin_text = reader.read()
-        env = ctx.get("env") or os.environ
+        env = os.environ if ctx.get("env") is None else ctx["env"]
         composed = compose_notification(read_hook_payload(rest, stdin_text), env, ctx.get("cwd"))
         if composed:
             send_desktop_notification(*composed, spawn_sync=ctx.get("spawn_sync"), env=env)

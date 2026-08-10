@@ -48,7 +48,7 @@ guessing wrong is worse than leaving the last true statement in place.
 ## Validation
 
 - `ruff check .`
-- `python3 -m pytest` — 693 tests.
+- `python3 -m pytest` — 679 tests.
 - Verified against a real pty rather than a mocked stream: the launch emits
   `\x1b]0;work — cdx-manager\x07`.
 - The non-TTY, `--json`, login and Ollama paths are each pinned by a test that
