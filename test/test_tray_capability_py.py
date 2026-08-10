@@ -10,6 +10,7 @@ import os
 from cli_test_support import CliTestBase
 
 from src.tray_capability import desktop_capability, shortcut_path, toast_capability
+from src.tray_shortcut import APP_USER_MODEL_ID, create
 
 
 class ToastCapabilityTest(CliTestBase):
@@ -86,3 +87,44 @@ class DesktopCapabilityTest(CliTestBase):
             run=explode,
         )
         self.assertIsNone(result["available"])
+
+
+class ShortcutCreationTest(CliTestBase):
+    def test_it_is_not_attempted_off_windows(self):
+        result = create("/opt/cdx-tray", env={}, system="Darwin")
+        self.assertFalse(result["created"])
+        self.assertIn("not required", result["reason"])
+
+    def test_a_shortcut_without_its_identifier_is_not_reported_as_created(self):
+        """The whole point of the shortcut is the AppUserModelID. A file that
+        exists without one is a shortcut Windows will not route a toast
+        through, so calling it created would be the silent failure this exists
+        to end."""
+        temp_dir = self.make_temp_dir()
+        result = create(
+            "C:/cdx-tray.exe", env={"APPDATA": temp_dir}, system="Windows",
+            run=lambda *_args: "",
+        )
+        self.assertFalse(result["created"])
+        self.assertIn("AppUserModelID", result["reason"])
+
+    def test_a_failure_to_write_is_reported_not_raised(self):
+        """An install that otherwise worked must not fail over a shortcut. The
+        companion runs either way; only its toasts would go nowhere."""
+        temp_dir = self.make_temp_dir()
+
+        def explode(*_args):
+            raise OSError("powershell is not here")
+
+        result = create("C:/cdx-tray.exe", env={"APPDATA": temp_dir}, system="Windows", run=explode)
+        self.assertFalse(result["created"])
+        self.assertIn("powershell", result["reason"])
+
+    def test_a_confirmed_identifier_reads_as_created(self):
+        temp_dir = self.make_temp_dir()
+        result = create(
+            "C:/cdx-tray.exe", env={"APPDATA": temp_dir}, system="Windows",
+            run=lambda *_args: APP_USER_MODEL_ID,
+        )
+        self.assertTrue(result["created"])
+        self.assertEqual(result["path"], shortcut_path({"APPDATA": temp_dir}))

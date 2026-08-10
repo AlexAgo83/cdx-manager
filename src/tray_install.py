@@ -16,6 +16,8 @@ import tarfile
 import tempfile
 import urllib.request
 
+from .tray_shortcut import create as create_shortcut
+
 STATE_VERSION = 1
 
 RELEASE_ASSET_URL = "https://github.com/AlexAgo83/cdx-manager/releases/download/v{version}/{asset}"
@@ -123,7 +125,7 @@ def companion_path(base_dir, env=None):
 
 
 def install(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, target=None,
-            destination=None, record=True):
+            destination=None, record=True, env=None):
     """Fetch, verify, unpack, record. Every step before unpack is a refusal point.
 
     The checksum is verified before a single byte is unpacked, because after
@@ -175,6 +177,11 @@ def install(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, targe
         shutil.rmtree(destination, ignore_errors=True)
         raise TrayInstallError(f"{asset} contains no cdx-tray executable. Nothing was installed.")
 
+    # Best-effort, and after the companion is known to be on disk: the shortcut
+    # points at it. A failure here does not fail the install — the tray runs
+    # either way, only its toasts would go nowhere, and doctor reports that.
+    shortcut = create_shortcut(executable, env=env)
+
     state = {
         "version": STATE_VERSION,
         "cdx_version": version,
@@ -183,8 +190,10 @@ def install(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, targe
         "sha256": expected,
         "executable": executable,
         # Uninstall removes these and nothing else. A path CDX did not write
-        # must never end up here.
-        "paths": [destination],
+        # must never end up here — which is why the shortcut is recorded only
+        # when it was actually created, and never merely because it exists.
+        "paths": [destination] + ([shortcut["path"]] if shortcut["created"] else []),
+        "shortcut": shortcut["path"] if shortcut["created"] else None,
     }
     if not record:
         # Staging: the caller promotes it and writes the record itself, so a

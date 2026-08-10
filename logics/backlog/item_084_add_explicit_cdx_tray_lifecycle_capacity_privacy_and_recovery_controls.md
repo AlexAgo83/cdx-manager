@@ -2,9 +2,9 @@
 > From version: 0.17.1
 > Schema version: 1.0
 > Status: In progress
-> Understanding: 92%
-> Confidence: 90%
-> Progress: 92%
+> Understanding: 95%
+> Confidence: 92%
+> Progress: 95%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -34,7 +34,11 @@
 - AC5 now includes the two capabilities that decide whether the companion's output ever reaches a person, and both fail *silently* on the platform that gates them — the only reason they earn a diagnostic line at all. Windows shows a toast from a non-packaged program only when a Start Menu shortcut carrying its AppUserModelID exists; without one the notification API succeeds and nothing appears. Linux draws an icon only where something owns `org.kde.StatusNotifierWatcher`.
 - Both verified on kdesktop rather than mocked. Windows reports `missing: C:\Users\aagos\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\CDX.lnk`, and that directory is real — it holds other applications' shortcuts, so the diagnostic points somewhere that exists. Ubuntu WSL reports `no org.kde.StatusNotifierWatcher: this desktop has no system tray`, the same words the Rust backend uses, because a diagnostic that disagreed with the thing it diagnoses would be worse than none.
 - A failed probe reports `unknown`, not "no tray". Reporting absence would be a claim the probe never made, and would send someone installing an extension they may already have.
-- Known gap, named rather than left silent: nothing yet *creates* the Windows Start Menu shortcut. AC5 asks doctor to check it, and it does; creating it belongs to `cdx tray install` and is not yet written, so on Windows today the check will report `blocked` after a successful install.
+- That gap is now closed: `cdx tray install` creates the shortcut on Windows, carrying the `com.cdx.tray` AppUserModelID. Verified on kdesktop with native Python — the shortcut is written to the Start Menu, targets the real companion executable, and reads its identifier back.
+- The identifier is the hard part and cannot be set through `WScript.Shell`: it lives in the shortcut's property store, reachable only through `IShellLink` plus `IPropertyStore`. One detail cost the first two attempts and is worth keeping: `PROPVARIANT` is 24 bytes on x64, and declaring it shorter lets `GetValue` write past the managed struct — the symptom is not a crash but a value that silently reads back as `VT_EMPTY`. Exactly the class of failure this whole slice is about.
+- `create` reports success only when the identifier reads back. A `.lnk` that exists without one is a shortcut Windows will not route a toast through, so calling it created would reproduce the silent failure it exists to end.
+- Failing to write the shortcut never fails the install. The companion runs either way; only its toasts would go nowhere, and doctor says so. Three tests cover the refusal paths.
+- The shortcut is recorded in the install state only when CDX created it, so `uninstall` removes it and AC3 still holds: nothing CDX did not write ends up on the removal list.
 
 # Acceptance criteria
 - AC1: cdx tray install never enables startup, cdx tray autostart on and off are explicit and idempotent and report the real platform state, and one tray instance owns a user session while a duplicate launch reports the existing one.

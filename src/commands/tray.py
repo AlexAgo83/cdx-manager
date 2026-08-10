@@ -181,6 +181,7 @@ def _tray_install(args, ctx):
             ctx["service"]["base_dir"],
             ctx["version"],
             download=ctx.get("download_asset"),
+            env=ctx.get("env"),
         )
     except TrayInstallError as error:
         # A refusal, not a crash: nothing was written, and the reason is the
