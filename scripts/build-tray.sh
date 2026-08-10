@@ -51,6 +51,19 @@ for arg in "$@"; do [ "$arg" = "--package" ] && PACKAGE=1; done
 
 DIST_DIR="$REPO_ROOT/dist"
 
+# The Windows shortcut records an absolute icon path that Windows reads long
+# after installation, so the icon has to be installed with the companion. An
+# asset without it leaves every user with a generic icon and nothing to explain
+# why.
+stage_with_icon() {
+  local binary="$1" staged
+  staged="$(mktemp -d)/cdx-tray"
+  mkdir -p "$staged"
+  cp "$binary" "$staged/"
+  cp "$REPO_ROOT/tray/assets/icons/CDX.ico" "$staged/"
+  printf '%s' "$staged"
+}
+
 package_asset() {
   local target="$1" parent="$2" payload="$3"
   local asset="cdx-tray-$VERSION-$target.tar.gz"
@@ -108,7 +121,17 @@ if [ "$(uname -s)" != "Darwin" ]; then
   printf 'build-tray: built %s\n' "$BINARY"
   if [ "$PACKAGE" = "1" ]; then
     NATIVE_TARGET="$(rustc -vV | sed -n 's/^host: //p')"
-    package_asset "$NATIVE_TARGET" "$(dirname "$BINARY")" "$(basename "$BINARY")"
+    case "$NATIVE_TARGET" in
+      *windows*)
+        # The icon travels with the binary, so the shortcut can point at
+        # something that exists on the machine that installed it.
+        STAGED="$(stage_with_icon "$BINARY")"
+        package_asset "$NATIVE_TARGET" "$(dirname "$STAGED")" "$(basename "$STAGED")"
+        ;;
+      *)
+        package_asset "$NATIVE_TARGET" "$(dirname "$BINARY")" "$(basename "$BINARY")"
+        ;;
+    esac
   fi
   exit 0
 fi

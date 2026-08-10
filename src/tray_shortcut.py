@@ -30,7 +30,7 @@ CREATE_TIMEOUT_SECONDS = 60
 # of the package, and a one-purpose script beside the code that calls it is
 # easier to keep honest than a data file that can go missing.
 _PS_SCRIPT = r"""
-param([string]$Lnk, [string]$Target, [string]$Aumid)
+param([string]$Lnk, [string]$Target, [string]$Aumid, [string]$Icon)
 $ErrorActionPreference = "Stop"
 Add-Type -TypeDefinition @"
 using System;
@@ -101,10 +101,14 @@ public static class CdxShortcut {
   const ushort VT_LPWSTR = 31;
   [DllImport("ole32.dll")] static extern int PropVariantClear(ref PropVariant pv);
 
-  public static void Write(string lnk, string target, string aumid) {
+  public static void Write(string lnk, string target, string aumid, string icon) {
     var link = (IShellLinkW)new ShellLink();
     link.SetPath(target);
     link.SetDescription("CDX quota tray");
+    // Windows takes the toast, Start Menu and taskbar icon from the shortcut.
+    // Without this it shows a generic one, which is what a user reads as "some
+    // sort of computer screen" instead of CDX.
+    if (!String.IsNullOrEmpty(icon)) { link.SetIconLocation(icon, 0); }
     var key = new PropertyKey(AppUserModel, 5);
     var pv = new PropVariant();
     pv.vt = VT_LPWSTR;
@@ -130,7 +134,7 @@ public static class CdxShortcut {
   }
 }
 "@
-[CdxShortcut]::Write($Lnk, $Target, $Aumid)
+[CdxShortcut]::Write($Lnk, $Target, $Aumid, $Icon)
 Write-Output ([CdxShortcut]::Read($Lnk))
 """
 
@@ -142,6 +146,23 @@ def shortcut_path(env=None):
     if not appdata:
         return None
     return os.path.join(appdata, "Microsoft", "Windows", "Start Menu", "Programs", SHORTCUT_NAME)
+
+
+def icon_beside(executable):
+    """The `.ico` shipped next to the companion, or None.
+
+    Resolved from the installed layout rather than from the repository: the
+    shortcut records an absolute path that Windows reads later, so pointing it
+    at a file that only exists on the build machine would leave every user with
+    the generic icon and no way to tell why.
+    """
+    for candidate in (
+        os.path.join(os.path.dirname(executable), "CDX.ico"),
+        os.path.join(os.path.dirname(os.path.dirname(executable)), "CDX.ico"),
+    ):
+        if os.path.isfile(candidate):
+            return candidate
+    return None
 
 
 def create(executable, env=None, system=None, run=None):
@@ -163,7 +184,7 @@ def create(executable, env=None, system=None, run=None):
     runner = run or _run_powershell
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        readback = runner(path, executable, APP_USER_MODEL_ID)
+        readback = runner(path, executable, APP_USER_MODEL_ID, icon_beside(executable) or "")
     except Exception as error:  # noqa: BLE001 - never fail an install over this
         return {"created": False, "path": path, "reason": str(error)}
 
@@ -179,7 +200,7 @@ def create(executable, env=None, system=None, run=None):
     return {"created": True, "path": path, "reason": None}
 
 
-def _run_powershell(path, executable, aumid):
+def _run_powershell(path, executable, aumid, icon=""):
     """Run the script from a temporary file, because `param()` needs `-File`.
 
     Passing the same text to `-Command` runs it, but the arguments after it are
@@ -193,7 +214,7 @@ def _run_powershell(path, executable, aumid):
         completed = subprocess.run(
             [
                 "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script,
-                "-Lnk", path, "-Target", executable, "-Aumid", aumid,
+                "-Lnk", path, "-Target", executable, "-Aumid", aumid, "-Icon", icon,
             ],
             capture_output=True, text=True, timeout=CREATE_TIMEOUT_SECONDS, check=False,
         )
