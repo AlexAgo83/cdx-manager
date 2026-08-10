@@ -193,7 +193,8 @@ class TerminalTitleFormatTests(unittest.TestCase):
         self.assertEqual(format_terminal_title("main"), format_terminal_title("main", os.getcwd()))
 
     def test_root_directory_keeps_the_path_as_folder(self):
-        self.assertEqual(format_terminal_title("main", "/"), f"main{TERMINAL_TITLE_SEPARATOR}/")
+        root = os.path.abspath("/")
+        self.assertEqual(format_terminal_title("main", root), f"main{TERMINAL_TITLE_SEPARATOR}{root}")
 
     def test_missing_part_does_not_leave_an_empty_half(self):
         self.assertEqual(format_terminal_title("", "/home/dev/repo"), "repo")
