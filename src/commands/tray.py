@@ -86,6 +86,7 @@ def _tray_status(args, ctx):
     parsed = _parse_flag_args(args, {
         "--json": {"key": "json", "type": "bool", "default": False},
         "--refresh": {"key": "refresh", "type": "bool", "default": False},
+        "--beat": {"key": "beat", "type": "bool", "default": False},
     }, TRAY_USAGE, positionals_key="args", max_positionals=0)
 
     # Cached by default: a tray polls, and a live probe would contend on the
@@ -101,6 +102,18 @@ def _tray_status(args, ctx):
         ctx["version"],
         refreshable=not any(row.get("active") for row in rows),
     )
+    # Pending alerts ride along with the snapshot rather than costing their own
+    # call. Across WSL every invocation is a `wsl.exe` crossing measured at
+    # 371-401 ms, so a companion asking three times per poll would triple the
+    # idle cost adr_005 fixed a budget for. One crossing, everything the tray
+    # needs.
+    base_dir = ctx["service"]["base_dir"]
+    snapshot["events"] = read_events(base_dir)
+    # `--beat` is what claims ownership of alerts, so it is opt-in: a caller
+    # that merely looks at the status must not make `cdx notify` believe a tray
+    # is listening.
+    if parsed["beat"]:
+        write_heartbeat(base_dir)
     if parsed["json"]:
         _write_json(ctx, _json_success("tray.status", "Built tray snapshot", snapshot=snapshot))
         return 0

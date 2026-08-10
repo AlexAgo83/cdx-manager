@@ -34,21 +34,6 @@ fn run(mut command: Command) -> Option<String> {
     Some(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-/// Say the companion is alive. Failure is not worth reporting: the only
-/// consequence is CDX delivering the next alert itself, which is the safe way
-/// round.
-pub fn heartbeat(transport: &Transport) {
-    let _ = run(transport.command_for(&["tray", "heartbeat", "--json"]));
-}
-
-/// Alerts CDX is holding for this companion, oldest first.
-pub fn pending(transport: &Transport) -> Vec<Event> {
-    match run(transport.command_for(&["tray", "events", "--json"])) {
-        Some(stdout) => parse(&stdout),
-        None => Vec::new(),
-    }
-}
-
 /// Mark alerts shown. Called only after they have been rendered, so a companion
 /// that dies mid-draw shows them again rather than losing them: a repeat is a
 /// smaller failure than a notification the user never sees.
@@ -62,17 +47,13 @@ pub fn acknowledge(transport: &Transport, ids: &[String]) {
     let _ = run(transport.command_for(&args));
 }
 
-/// Read the events out of a `cdx tray events --json` payload.
+/// The events array out of whatever carried it.
 ///
 /// Tolerant in the same way the snapshot reader is: a payload from a newer CDX
 /// may carry fields this build has never heard of, and refusing it would turn a
 /// version difference into silence.
-pub fn parse(stdout: &str) -> Vec<Event> {
-    let value: serde_json::Value = match serde_json::from_str(stdout) {
-        Ok(value) => value,
-        Err(_) => return Vec::new(),
-    };
-    let items = match value.get("events").and_then(|v| v.as_array()) {
+pub fn parse_array(value: Option<&serde_json::Value>) -> Vec<Event> {
+    let items = match value.and_then(|v| v.as_array()) {
         Some(items) => items,
         None => return Vec::new(),
     };
@@ -118,6 +99,15 @@ pub fn history_lines(history: &[Event]) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The tests speak in payloads; the loop reads an already-parsed value.
+    fn parse(payload: &str) -> Vec<Event> {
+        let value: serde_json::Value = match serde_json::from_str(payload) {
+            Ok(value) => value,
+            Err(_) => return Vec::new(),
+        };
+        parse_array(value.get("events"))
+    }
 
     #[test]
     fn a_payload_yields_its_events_in_order() {

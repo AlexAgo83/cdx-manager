@@ -23,7 +23,7 @@ mod wsl;
 
 use menu::Entry;
 use schedule::Tick;
-use snapshot::{fetch, Transport};
+use snapshot::Transport;
 
 fn render(entries: &[Entry]) {
     for entry in entries {
@@ -47,10 +47,10 @@ fn render(entries: &[Entry]) {
 /// durable ever displayed. Reading them is what keeps this a faithful view of
 /// what the running tray would draw.
 fn print_once(transport: &Transport) -> i32 {
-    let alerts = events::pending(transport);
-    match fetch(transport) {
+    match snapshot::fetch_read_only(transport) {
         Ok(snap) => {
             let tick = Tick::start().succeeded(snap.session_count);
+            let alerts = snap.events.clone();
             render(&menu::build_with_alerts(&snap, &alerts));
             match tick.next_delay(transport.is_wsl()) {
                 Some(delay) => println!("next poll in {}s", delay.as_secs()),

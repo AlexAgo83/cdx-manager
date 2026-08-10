@@ -61,6 +61,13 @@ impl Transport {
     }
 
     fn command(&self) -> Command {
+        self.command_for(&["tray", "status", "--json", "--beat"])
+    }
+
+    /// The same read without claiming ownership of alerts. `--print` uses this:
+    /// heartbeating from a process about to exit would tell `cdx notify` a tray
+    /// is listening when none is.
+    fn read_only_command(&self) -> Command {
         self.command_for(&["tray", "status", "--json"])
     }
 
@@ -165,6 +172,9 @@ pub struct Snapshot {
     /// What the closed icon may say on hover. Built by CDX so the companion
     /// cannot accidentally compose something the privacy rule forbids.
     pub tooltip: String,
+    /// Alerts CDX is holding, delivered with the snapshot rather than fetched
+    /// separately: across WSL each extra call is another `wsl.exe` crossing.
+    pub events: Vec<crate::events::Event>,
     pub session_count: u64,
     pub refreshable: bool,
     /// Set when the snapshot is newer than this build understands.
@@ -173,6 +183,16 @@ pub struct Snapshot {
 }
 
 pub fn fetch(transport: &Transport) -> Result<Snapshot, Unavailable> {
+    fetch_with(transport, true)
+}
+
+/// The same poll without writing a heartbeat, for callers that will not stay
+/// around to show what they collect.
+pub fn fetch_read_only(transport: &Transport) -> Result<Snapshot, Unavailable> {
+    fetch_with(transport, false)
+}
+
+fn fetch_with(transport: &Transport, beat: bool) -> Result<Snapshot, Unavailable> {
     // Check the distribution before blaming CDX for being absent from it.
     if let Transport::Wsl { distro: Some(name) } = transport {
         let resolution = crate::wsl::resolve(Some(name), crate::wsl::installed());
@@ -180,8 +200,12 @@ pub fn fetch(transport: &Transport) -> Result<Snapshot, Unavailable> {
             return Err(Unavailable::WslDistro(problem));
         }
     }
-    let output = transport
-        .command()
+    let mut command = if beat {
+        transport.command()
+    } else {
+        transport.read_only_command()
+    };
+    let output = command
         .output()
         .map_err(|_| Unavailable::CdxNotFound(transport.describe()))?;
     if !output.status.success() {
@@ -250,6 +274,7 @@ pub fn read_snapshot(payload: &Value) -> Result<Snapshot, Unavailable> {
         .ok_or(Unavailable::NotASnapshot)?;
     let icon = snapshot.get("icon").ok_or(Unavailable::NotASnapshot)?;
     Ok(Snapshot {
+        events: crate::events::parse_array(snapshot.get("events")),
         tooltip: icon
             .get("tooltip")
             .and_then(Value::as_str)

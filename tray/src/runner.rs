@@ -42,13 +42,13 @@ impl Render {
     /// could then fail to collect — CDX delivering it directly is the safe way
     /// round, and the only cost is one poll of latency at startup.
     pub fn next(transport: &Transport, tick: Tick, previous: &[Event]) -> Self {
-        events::heartbeat(transport);
-        let fresh = events::pending(transport);
-        let history = merge_history(previous, &fresh);
-
         match fetch(transport) {
             Ok(snap) => {
                 let tick = tick.succeeded(snap.session_count);
+                // The poll that wrote the heartbeat also carried the alerts, so
+                // one crossing does the whole job.
+                let fresh = snap.events.clone();
+                let history = merge_history(previous, &fresh);
                 Render {
                     icon_state: snap.icon_state.clone(),
                     tooltip: snap.tooltip.clone(),
@@ -61,6 +61,9 @@ impl Render {
             }
             Err(reason) => {
                 let tick = tick.failed();
+                // Nothing was collected, so nothing is acknowledged and the
+                // previous history stands.
+                let (fresh, history) = (Vec::new(), previous.to_vec());
                 Render {
                     // Unavailable is a state, not a crash. The icon stays, and
                     // it shows that nothing is known rather than a stale figure.

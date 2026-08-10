@@ -2,9 +2,9 @@
 > From version: 0.17.1
 > Schema version: 1.0
 > Status: In progress
-> Understanding: 90%
-> Confidence: 88%
-> Progress: 70%
+> Understanding: 92%
+> Confidence: 90%
+> Progress: 75%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -52,6 +52,9 @@
 - `--print` shows alerts but neither heartbeats nor acknowledges, and the asymmetry is deliberate: heartbeating would tell `cdx notify` a tray is listening when the process is about to exit, and acknowledging would consume alerts nothing durable ever displayed.
 - `menu::build` was deleted rather than kept as a convenience wrapper. One entry point means no caller can render a menu that silently omits alerts.
 - Verified end to end on macOS with the signed bundle: a hook publishes, `--print` shows the alert and leaves it pending, and the running companion writes its heartbeat, draws, and takes the spool to empty.
+- The alerts ride along with the snapshot rather than costing their own call, and that came from measuring instead of assuming. Three separate commands per poll cost 220 ms natively where one costs 110 ms, which across WSL — 371-401 ms per crossing — would have tripled the idle cost `adr_005` fixed a budget for. `cdx tray status --json` now carries pending events, and `--beat` writes the heartbeat in the same invocation.
+- Measured after the change, on kdesktop through WSL: **374-382 ms**, against 371-401 ms before agent alerts existed. The feature is free at the poll boundary, which is the only place its cost would have been paid forever.
+- `--beat` is opt-in rather than implied by reading status: a caller that merely looks must not make `cdx notify` believe a tray is listening. That is what lets `--print` show alerts while leaving them pending.
 - Still open in this slice: the short-lived icon hint distinct from the menu history, the native notification emission with its macOS authorization handling (AC7), the backoff after repeated read failures (AC6), and the smoke run over the WSL bridge.
 
 # Acceptance criteria
