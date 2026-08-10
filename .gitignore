@@ -12,6 +12,9 @@ logics/release/evidence.jsonl
 logics/external/*
 node_modules/
 
+# Rust tray companion build artifacts
+tray/target/
+
 # Python build artifacts
 __pycache__/
 *.py[cod]

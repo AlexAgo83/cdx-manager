@@ -4,11 +4,11 @@
 > Status: In progress
 > Understanding: 95%
 > Confidence: 85%
-> Progress: 25%
+> Progress: 35%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-10 20:16:59
+> Indicators reviewed: 2026-08-10 20:25:00
 
 # AI Context
 - Summary: Build native tray companions for macOS and Windows plus WSL
@@ -47,6 +47,7 @@
 - AC2: A Windows host can obtain status from a configured WSL CDX command without requiring an X server, and failures identify the unavailable boundary.
 - AC3: The closed icon carries no account, session, or quota detail, and the open menu lists each enabled session with provider, remaining-usage gauge, freshness or reset when known, refresh, a terminal action, and quit.
 - AC4: Each surface gets the artwork it needs and renders correctly at its required sizes: a monochrome template glyph in the macOS menu bar that stays legible under both themes without a per-theme asset, a multi-size .ico on Windows legible on a light and a dark taskbar, and colour artwork on Linux. Capacity state is distinguishable by glyph, so the macOS icon carries its meaning without any tint.
+- AC5b: Version drift is named in both directions: a snapshot newer than the companion renders with an update hint, and a CDX too old to expose cdx tray produces a "update CDX" message rather than a raw error, both verified against a real older CDX.
 - AC5: Polling stays inside the adr_005 budget, stops when no session is enabled, and backs off after repeated failures, verified on the Windows-to-WSL path.
 - AC6: Targeted tests and documented manual smoke checks pass on the supported host platforms.
 
@@ -55,7 +56,7 @@
 - request-AC6 -> This backlog slice. Proof: AC2: A Windows host can obtain status from a configured WSL CDX command without requiring an X server, and failures identify the unavailable boundary.
 - request-AC3 -> This backlog slice. Proof: AC3: The closed icon carries no account, session, or quota detail.
 - request-AC4 -> This backlog slice. Proof: AC3: The open menu lists each enabled session with provider, remaining-usage gauge, freshness or reset when known, refresh, a terminal action, and quit. AC4: Each surface renders its own artwork at the required sizes and carries capacity state by glyph.
-- request-AC10 -> This backlog slice. Proof: AC5: Polling stays inside the adr_005 budget, stops when no session is enabled, and backs off after repeated failures, verified on the Windows-to-WSL path.
+- request-AC10 -> This backlog slice. Proof: AC5: Polling stays inside the adr_005 budget, stops when no session is enabled, and backs off after repeated failures, verified on the Windows-to-WSL path. AC5b: Version drift is named in both directions, verified against a real older CDX.
 - request-AC9 -> This backlog slice. Proof: AC6: Targeted tests and documented manual smoke checks pass on the supported host platforms.
 
 # Decision framing

@@ -4,7 +4,7 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 25%
+> Progress: 35%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -25,7 +25,7 @@
 
 # Plan
 - [x] 1. Confirm the existing status JSON contract and define the smallest local tray command and display-state boundary without changing provider quota logic. The tray reads the existing session cache and never probes providers on a timer.
-- [ ] 1b. Stand up the build and signing capability before the first native slice: a Rust toolchain, the per-platform target matrix, and the self-signed macOS bundle step. Without it item_080 cannot be tested on macOS at all.
+- [x] 1b. Stand up the build and signing capability before the first native slice: a Rust toolchain, the per-platform target matrix, and the self-signed macOS bundle step. Without it item_080 cannot be tested on macOS at all.
 - [ ] 2. Build and validate the macOS and Windows host companions first, including the Windows-to-WSL status bridge and supplied icon assets.
 - [ ] 3. Add the constrained Linux implementation and release-asset installer only after the companion boundary is proven on the two primary hosts.
 - [ ] 4. Document the real trust model, installation through cdx tray install, CDX-managed updates, removal, platform support, and first-launch behaviour without overstating guarantees.
@@ -66,11 +66,15 @@
 
 # Validation
 - item_079 wave: `python3 -m pytest -q` 702 passed; `python3 -m ruff check src test` clean.
+- Build-capability wave: Rust 1.97.1 installed on the arm64 macOS host; `cargo test` 6 passed, `cargo clippy -- -D warnings` clean, `cargo fmt --check` clean; `./scripts/build-tray.sh` builds and assembles CDX.app and refuses to sign without an identity; four end-to-end runs of the release binary against a real `cdx` cover the happy path, an unknown snapshot major, a missing CDX, and a CDX too old to expose `cdx tray`.
 
 # Report
 - item_079 delivered. `src/tray_contract.py` derives the versioned snapshot, the icon state, and per-session freshness from the rows `cdx status` already returns. `src/commands/tray.py` adds `cdx tray status|install|launch|uninstall`; only `status` acts, the three companion actions are declared, non-mutating, and report `tray_companion_not_available`.
 - The refresh policy is enforced in code, not only documented: `cdx tray status` calls `get_status_rows(cache_only=True, force_refresh=False)` and a test asserts it, so no future edit can quietly turn a tray poll into a provider probe.
 - `auth_locked` is derived from a session being active rather than plumbed out of `codex_usage`, because the launcher holds the auth lock for the session's whole life. It is honest and needs no new plumbing; if a case appears where the lock is held without an active runtime, that derivation is the thing to revisit.
+- Build capability delivered. `tray/` holds the `cdx-tray` crate, one dependency (`serde_json`), and `scripts/build-tray.sh` builds it, assembles `CDX.app` with `LSUIElement`, and signs it. The script refuses to sign ad-hoc and explains why, so the signing decision cannot be lost by someone in a hurry.
+- The companion binary carries no tray UI yet, deliberately. It proves the transport instead: a separate process obtaining the snapshot, natively or across WSL, and refusing honestly when it cannot. That is the part item_080 would otherwise discover late.
+- Found by running it: a CDX older than `cdx tray` is version drift in the direction the corpus had not covered, and it surfaced as a raw error envelope. The companion now reads the published `unknown_command` error code and says "update CDX". req_035 AC10 and item_080 gained the both-directions wording.
 - Step order changed: item_079 ran before the build capability. It needed neither Rust nor a certificate, and it means the native slice will read a contract that is already written and tested rather than inventing both at once.
 
 # Links
