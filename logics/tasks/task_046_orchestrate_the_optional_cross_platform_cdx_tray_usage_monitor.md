@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-08-10 13:18:24
+> Indicators reviewed: 2026-08-10 19:58:58
 
 # AI Context
 - Summary: Orchestrate the optional cross-platform CDX tray usage monitor
@@ -20,14 +20,14 @@
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
 - This task is the root of the tray chain. task_047 (alerts), task_048 (Logics card), and task_049 (lifecycle hardening) all consume the companion, the snapshot, and the WSL bridge built here, so none of them starts before this task is Done.
 - task_049 is not an optional polish pass: no tray release ships without its single-instance, autostart, and doctor controls.
-- adr_005 settles the runtime, transport, refresh policy, and poll budget. Confirm or revise it before writing native code rather than during it.
+- adr_005 is settled and binds this chain: runtime, transport, refresh policy, poll budget, macOS signing identity, and per-user startup mechanisms. Revisit it through the ADR rather than diverging inside a slice.
 
 # Plan
-- [ ] 0. Confirm adr_005 with the operator and move it out of Proposed, since the alert, plugin, and hardening chains all rely on its runtime, transport, and poll decisions.
+- [ ] 0. Stand up the build and signing capability before the first native slice: a Rust toolchain, the per-platform target matrix, and the self-signed macOS bundle step. Without it item_080 cannot be tested on macOS at all.
 - [ ] 1. Confirm the existing status JSON contract and define the smallest local tray command and display-state boundary without changing provider quota logic. The tray reads the existing session cache and never probes providers on a timer.
 - [ ] 2. Build and validate the macOS and Windows host companions first, including the Windows-to-WSL status bridge and supplied icon assets.
 - [ ] 3. Add the constrained Linux implementation and release-asset installer only after the companion boundary is proven on the two primary hosts.
-- [ ] 4. Document direct unsigned distribution, explicit installation, CDX-managed updates, removal, platform support, and first-launch behaviour without overstating guarantees.
+- [ ] 4. Document the real trust model, installation through cdx tray install, CDX-managed updates, removal, platform support, and first-launch behaviour without overstating guarantees.
 - [ ] 5. Run focused checks, platform smoke tests, project validation, Logics validation, lint, audit, and record the delivery context.
 - [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
 - [ ] Keep commit creation under operator control; do not force one commit per micro-step.

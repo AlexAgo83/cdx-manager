@@ -1,7 +1,7 @@
 ## adr_005_cdx_tray_runtime_and_companion_transport_boundary - CDX tray runtime and companion transport boundary
 
 > Date: 2026-08-10
-> Status: Proposed
+> Status: Settled
 > Related request: `req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor`
 > Related backlog: `item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl`
 > Related task: `task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor`

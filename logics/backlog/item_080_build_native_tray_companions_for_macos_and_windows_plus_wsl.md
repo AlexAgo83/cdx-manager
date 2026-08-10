@@ -22,7 +22,8 @@
 
 # Scope
 - In:
-  - Build the companion on the runtime settled in adr_005 (tray-icon plus muda, no webview) and package it as a separate artifact.
+  - Stand up the minimum build capability this slice needs to be testable at all: a Rust toolchain, the per-platform target matrix, the macOS bundle layout, and the self-signed signing step from adr_005. Release-asset packaging, checksums, and the installer stay in item_081.
+  - Build the companion on the runtime settled in adr_005 (tray-icon plus muda on macOS and Windows, ksni on Linux, no webview) and package it as a separate artifact.
   - Implement the shared menu, bounded periodic refresh, manual refresh, error rendering, and clean quit behaviour for macOS and Windows.
   - Honour the adr_005 poll budget: at most every 30 seconds natively and 60 seconds across the WSL boundary, no polling when no session is enabled, and a back-off after repeated read failures so the WSL VM is not kept awake.
   - Implement Windows discovery/configuration for native CDX and one configured WSL target using wsl.exe, with clear errors for missing interop or executable.

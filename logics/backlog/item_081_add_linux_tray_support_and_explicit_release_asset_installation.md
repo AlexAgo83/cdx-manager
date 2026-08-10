@@ -25,7 +25,7 @@
 # Scope
 - In:
   - Implement Linux support over StatusNotifierItem with ksni so the asset carries no gtk, libxdo, or libayatana-appindicator prerequisite, resolving the org.kde.StatusNotifierWatcher D-Bus name at runtime and reporting a clear unsupported-environment result when it is absent, without matching distribution or desktop names.
-  - Package per-platform, per-architecture companion release assets plus machine-readable checksums.
+  - Package per-platform, per-architecture companion release assets plus machine-readable checksums, on top of the build and signing capability item_080 established.
   - Implement explicit asset selection, checksum verification, local install-state recording, launch, uninstall, and CDX-managed update paths that keep the companion aligned with the installed CDX release.
   - Document manual distribution, explicit CDX-managed updates, first-launch security prompts, supported platforms, startup opt-in if provided, and recovery steps.
 - Out:

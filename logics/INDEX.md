@@ -9,7 +9,7 @@
 | [adr_002_provider_native_headless_run_boundary](architecture/adr_002_provider_native_headless_run_boundary.md) | Provider native headless run boundary | Settled |  |  | architecture/adr_002_provider_native_headless_run_boundary.md |
 | [adr_003_logics_and_companion_tool_launch_guidance](architecture/adr_003_logics_and_companion_tool_launch_guidance.md) | Logics and companion tool launch guidance | Settled |  |  | architecture/adr_003_logics_and_companion_tool_launch_guidance.md |
 | [adr_004_provider_native_resume_command_boundary](architecture/adr_004_provider_native_resume_command_boundary.md) | Provider-native resume command boundary | Settled |  |  | architecture/adr_004_provider_native_resume_command_boundary.md |
-| [adr_005_cdx_tray_runtime_and_companion_transport_boundary](architecture/adr_005_cdx_tray_runtime_and_companion_transport_boundary.md) | CDX tray runtime and companion transport boundary | Proposed |  |  | architecture/adr_005_cdx_tray_runtime_and_companion_transport_boundary.md |
+| [adr_005_cdx_tray_runtime_and_companion_transport_boundary](architecture/adr_005_cdx_tray_runtime_and_companion_transport_boundary.md) | CDX tray runtime and companion transport boundary | Settled |  |  | architecture/adr_005_cdx_tray_runtime_and_companion_transport_boundary.md |
 
 ## Product briefs
 
