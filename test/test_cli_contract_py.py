@@ -67,6 +67,9 @@ class CliContractTests(CliTestBase):
         self.assertIn("--power minimal|low|medium|high|xhigh", help_io["stdout"].getvalue())
         self.assertIn("workspace-write|read-only|danger-full-access", help_io["stdout"].getvalue())
         self.assertIn("--kind assistant|code-review", help_io["stdout"].getvalue())
+        self.assertIn("Notifications:", help_io["stdout"].getvalue())
+        self.assertIn("cdx set <name> --notify on", help_io["stdout"].getvalue())
+        self.assertNotIn("  cdx notify\n", help_io["stdout"].getvalue())
 
         self.assertEqual(main(["-v"], version_io), 0)
         self.assertRegex(version_io["stdout"].getvalue().strip(), r"^\d+\.\d+\.\d+$")
@@ -362,4 +365,3 @@ class CliContractTests(CliTestBase):
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["error"]["code"], "invalid_usage")
         self.assertIn("Usage: cdx status [--json]", payload["error"]["message"])
-

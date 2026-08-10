@@ -349,8 +349,8 @@ When a session's agent finishes a turn, or stops to wait for you, cdx raises a
 desktop notification naming the session and the repository:
 
 ```text
-✓ work1     logics-manager · waiting for you
-✓ codex-a   cdx-manager · finished
+✓ work1     logics-manager · needs your attention
+✓ codex-a   cdx-manager · turn complete
 ```
 
 Off until you ask for it, per session:
@@ -378,6 +378,10 @@ notification includes at most 180 characters of the agent's final response.
 That text can be visible on a lock screen, so enable it only for sessions whose
 output is safe to expose. Previews never read transcripts and are not shown for
 permission requests.
+
+`cdx notify` is the internal hook target, called by the provider; it is not the
+setup command. `cdx ready` is separate: it notifies you when the next cooling-
+down session becomes usable.
 
 Per platform: macOS uses `osascript`, Linux `notify-send`, Windows a toast, and
 WSL reaches the Windows notification centre through interop. On a host with no
@@ -496,7 +500,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx update [--check] [--yes] [--json] [--version TAG]` | Update cdx-manager using the installer that matches how it was installed |
 | `cdx update all [--yes] [--json]` | Check installed providers, RTK, and Ponytail across Codex profiles; show the plan and ask once before applying safe native/Homebrew updates and missing RTK/Ponytail setup |
 | `cdx ready [--refresh] [--json]` | Schedule an OS notification for the next cooling-down assistant that becomes ready, then return immediately |
-| `cdx notify` | Hook target: raises the desktop notification when a session's agent finishes a turn or waits for you. Called by the provider, not by you |
+| `cdx notify` | Internal provider hook target for agent alerts; use `cdx set <name> --notify on` to enable it |
 | `cdx next [--json] [--refresh]` | Select the best next assistant using the same priority logic as `cdx status` |
 | `cdx select --provider PROVIDER [--min-reasoning-effort minimal\|low\|medium\|high\|xhigh] [--min-power minimal\|low\|medium\|high\|xhigh] [--require-ready] [--refresh] --json` | Select a suitable session for headless automation |
 | `cdx run [session] --cwd PATH (--prompt-file PATH\|--prompt TEXT\|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--reasoning-effort minimal\|low\|medium\|high\|xhigh] [--power minimal\|low\|medium\|high\|xhigh] [--permission MODE] [--timeout-seconds N] [--detach] [--failover] [--refresh] --json` | Run one headless task and return a stable JSON result; `--detach` returns the `run_id` at launch without waiting, `--failover` continues the task on the next account when this one hits its rate limit, `--prompt-file -` reads the prompt from stdin |

@@ -46,6 +46,13 @@ class SettingsCommandTests(CliTestBase):
         self.assertEqual(main(["unset", "main", "--notify-preview", "--json"], {**unset_io, "service": service}), 0)
         self.assertNotIn("notify_preview", json.loads(unset_io["stdout"].getvalue())["launch"])
 
+    def test_notify_setting_explains_the_next_launch(self):
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        service["create_session"]("main")
+        io_obj = self.make_io()
+        self.assertEqual(main(["set", "main", "--notify", "on"], {**io_obj, "service": service}), 0)
+        self.assertIn("hooks install on the next interactive launch", io_obj["stdout"].getvalue())
+
     def test_unset_reasoning_effort_is_supported(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

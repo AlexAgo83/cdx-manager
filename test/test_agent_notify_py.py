@@ -82,6 +82,11 @@ class HookTargetTests(unittest.TestCase):
         ctx["spawn_sync"] = mock.Mock(side_effect=OSError("boom"))
         self.assertEqual(agent_notify.handle_notify([], ctx), 0)
 
+    def test_direct_notify_explains_setup(self):
+        output = []
+        self.assertEqual(agent_notify.handle_notify([], {"stdin_is_tty": True, "env": {}, "out": output.append}), 0)
+        self.assertIn("cdx set <name> --notify on", "".join(output))
+
     def test_hook_command_resolves_rather_than_using_the_bare_name(self):
         self.assertEqual(agent_notify.resolve_hook_command({"CDX_BIN": "C:\\cdx.cmd"}), "C:\\cdx.cmd")
 

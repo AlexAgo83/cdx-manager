@@ -60,12 +60,13 @@ class MainScreenTests(CliTestBase):
 
         lines = list_io["stdout"].getvalue().splitlines()
         start = lines.index("Next actions:") + 1
-        self.assertEqual(lines[start:start + 10], [
+        self.assertEqual(lines[start:start + 11], [
             "  cdx status",
             "  cdx next",
             "  cdx configs",
             "  cdx stats",
             "  cdx ready",
+            "  cdx set <name> --notify on",
             "  cdx perm all default",
             "  cdx handoff <source> <target>",
             "  cdx history",
@@ -192,4 +193,3 @@ class MainScreenTests(CliTestBase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["action"], "list")
         self.assertEqual(payload["sessions"][0]["name"], "main")
-

@@ -40,6 +40,19 @@ def _format_bulk_launch_summary(sessions):
         return ", ".join(names)
     return ", ".join(names[:8]) + f", +{len(names) - 8} more"
 
+
+def _notification_setting_notice(settings, sessions, action):
+    names = _format_bulk_launch_summary(sessions)
+    if "notify" in settings:
+        if action == "set" and settings["notify"]:
+            return f"Agent alerts enabled for {names} — hooks install on the next interactive launch."
+        return f"Agent alerts disabled for {names} — cdx removes its hooks on the next interactive launch."
+    if "notify_preview" in settings:
+        if action == "set" and settings["notify_preview"]:
+            return f"Response previews enabled for {names} — completion text may be visible on the lock screen."
+        return f"Response previews disabled for {names}."
+    return None
+
 def _apply_launch_settings(parsed, ctx, action="set"):
     targets = _resolve_bulk_launch_targets(parsed, ctx["service"])
     sessions = [
@@ -63,6 +76,9 @@ def _apply_launch_settings(parsed, ctx, action="set"):
         _write_json(ctx, payload)
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    notice = _notification_setting_notice(parsed["settings"], sessions, action)
+    if notice:
+        ctx["out"](f"{notice}\n")
     if len(sessions) == 1:
         ctx["out"](f"{_format_launch_config(sessions[0], ctx['use_color'])}\n")
     return 0
@@ -90,6 +106,9 @@ def _clear_launch_settings(parsed, ctx, action="unset"):
         _write_json(ctx, payload)
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    notice = _notification_setting_notice({key: False for key in parsed["keys"]}, sessions, action)
+    if notice:
+        ctx["out"](f"{notice}\n")
     if len(sessions) == 1:
         ctx["out"](f"{_format_launch_config(sessions[0], ctx['use_color'])}\n")
     return 0

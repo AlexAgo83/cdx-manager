@@ -566,6 +566,7 @@ class StatusCommandTests(CliTestBase):
         self.assertIn("PERMISSION", output)
         self.assertIn("FAST", output)
         self.assertIn("RTK", output)
+        self.assertIn("ALERTS", output)
         self.assertIn("PRIORITY", output)
         self.assertIn("work", output)
         self.assertIn("codex", output)

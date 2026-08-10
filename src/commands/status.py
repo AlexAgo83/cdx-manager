@@ -126,7 +126,7 @@ def _format_launch_configs(sessions, use_color=False):
         for key in ("fallback_model", "budget")
     )
     has_extra = any((session.get("launch") or {}).get("extra_args") for session in sessions)
-    headers = ["SESSION", "PROVIDER", "POWER", "PERMISSION", "FAST", "RTK", "LOGICS", "MODEL"]
+    headers = ["SESSION", "PROVIDER", "POWER", "PERMISSION", "FAST", "RTK", "LOGICS", "ALERTS", "MODEL"]
     if has_headless:
         headers += ["FALLBACK", "BUDGET"]
     if has_extra:
@@ -143,6 +143,7 @@ def _format_launch_configs(sessions, use_color=False):
             _format_launch_setting_value(launch, "fast", use_color),
             _format_launch_setting_value(launch, "rtk", use_color),
             _format_launch_setting_value(launch, "logics", use_color),
+            _format_launch_setting_value(launch, "notify", use_color),
             _format_launch_setting_value(launch, "model", use_color),
         ]
         if has_headless:

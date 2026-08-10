@@ -1,10 +1,10 @@
 ## item_077_clarify_notification_setup_lifecycle_feedback_and_documentation - Clarify notification setup, lifecycle feedback, and documentation
 > From version: 0.17.0
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 70%
 > Complexity: Medium
 > Theme: Notifications
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

@@ -175,6 +175,7 @@ def _format_sessions(service, use_color=False):
         f"  {_style('cdx configs', '36', use_color)}",
         f"  {_style('cdx stats', '36', use_color)}",
         f"  {_style('cdx ready', '36', use_color)}",
+        f"  {_style('cdx set <name> --notify on', '36', use_color)}",
         f"  {_style('cdx perm all default', '36', use_color)}",
         f"  {_style('cdx handoff <source> <target>', '36', use_color)}",
         f"  {_style('cdx history', '36', use_color)}",

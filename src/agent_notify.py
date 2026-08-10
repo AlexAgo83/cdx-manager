@@ -100,9 +100,12 @@ def handle_notify(rest, ctx):
         stdin_text = None
         # "stdin" in ctx is the {"isTTY": ...} descriptor, not a stream.
         reader = ctx.get("prompt_stdin") or sys.stdin
+        env = os.environ if ctx.get("env") is None else ctx["env"]
+        if ctx.get("stdin_is_tty") and not env.get(SESSION_ENV):
+            ctx["out"]("cdx notify is called by provider hooks. Enable agent alerts with: cdx set <name> --notify on\n")
+            return 0
         if reader is not None and not ctx.get("stdin_is_tty"):
             stdin_text = reader.read()
-        env = os.environ if ctx.get("env") is None else ctx["env"]
         composed = compose_notification(read_hook_payload(rest, stdin_text), env, ctx.get("cwd"))
         if composed:
             send_desktop_notification(*composed, spawn_sync=ctx.get("spawn_sync"), env=env)
