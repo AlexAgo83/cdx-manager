@@ -1,5 +1,5 @@
 ## adr_005_cdx_tray_runtime_and_companion_transport_boundary - CDX tray runtime and companion transport boundary
-> Indicators reviewed: 2026-08-10 21:15:14
+> Indicators reviewed: 2026-08-10 21:26:47
 
 > Date: 2026-08-10
 > Status: Settled
@@ -98,6 +98,7 @@ flowchart TD
 - **2026-08-10, wsl.exe cost measured on the managed host.** On kdesktop (Windows 11 build 26200, default Ubuntu distribution, VM already running): the bare crossing `wsl.exe -d Ubuntu -- true` costs 132 ms steady, and a full `wsl.exe -d Ubuntu -- cdx --json` tick costs 344 ms steady. The 212 ms difference is Python startup inside WSL, roughly three times its cost on the arm64 macOS host.
 - The crossing is inside the 100-300 ms this ADR assumed; the full tick is not. At the 60 second WSL period that is 0.57% of a core, so the budget holds, but the assumption was about the crossing rather than the tick and is corrected here.
 - These are warm figures: the distribution was already running. A tick that has to cold-start a stopped WSL VM costs far more, which is the whole reason polling stops when no session is enabled.
+- **2026-08-10, the companion's own tick, measured on Windows against CDX in WSL.** 285-320 ms per `cdx-tray --print`, which is the full path: process start, `wsl.exe` crossing, Python start in WSL, snapshot build, parse, render. At the 60 second WSL period that is 0.48% of a core, and the 60 second alert latency budget holds with the tick two orders of magnitude below it.
 - Reopen this only with a number. If `item_085` measures a `wsl.exe` tick cost that actually hurts, add a disk cache then, justified by that figure.
 
 # Alternatives considered

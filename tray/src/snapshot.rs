@@ -16,6 +16,19 @@ pub const SCHEMA_NAME: &str = "cdx.tray.snapshot";
 /// state, so we render what we know and say an update is available.
 pub const SCHEMA_MAJOR: u64 = 1;
 
+/// One configuration value, trimmed and emptied-to-None.
+///
+/// The trimming is not cosmetic. In `cmd.exe`, `set VAR=1 && next-command`
+/// stores `"1 "` with the trailing space, so an untrimmed comparison silently
+/// falls back to the native transport on the exact platform where WSL matters.
+/// Found by running the companion on a real Windows host.
+fn setting(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
 /// How to reach `cdx`. On a Windows host serving CDX inside WSL the command is
 /// the same, wrapped in an interop call.
 pub enum Transport {
@@ -28,11 +41,9 @@ impl Transport {
     /// distribution. Environment rather than config file for now: item_085
     /// owns the real resolution, including the default-distribution rules.
     pub fn from_env() -> Self {
-        match std::env::var("CDX_TRAY_WSL").ok().as_deref() {
+        match setting("CDX_TRAY_WSL").as_deref() {
             Some("1") | Some("true") => Transport::Wsl {
-                distro: std::env::var("CDX_TRAY_WSL_DISTRO")
-                    .ok()
-                    .filter(|d| !d.is_empty()),
+                distro: setting("CDX_TRAY_WSL_DISTRO"),
             },
             _ => Transport::Native,
         }
@@ -42,10 +53,18 @@ impl Transport {
         matches!(self, Transport::Wsl { .. })
     }
 
+    /// Which `cdx` to run. `wsl.exe -- cdx` resolves against WSL's
+    /// non-interactive PATH, which often omits `~/.local/bin`, so an absolute
+    /// path has to be expressible. Measured on a real host before adding this.
+    pub fn cdx_command() -> String {
+        setting("CDX_TRAY_CDX").unwrap_or_else(|| "cdx".to_string())
+    }
+
     fn command(&self) -> Command {
+        let cdx = Self::cdx_command();
         match self {
             Transport::Native => {
-                let mut cmd = Command::new("cdx");
+                let mut cmd = Command::new(cdx);
                 cmd.args(["tray", "status", "--json"]);
                 cmd
             }
@@ -54,7 +73,7 @@ impl Transport {
                 if let Some(name) = distro {
                     cmd.args(["-d", name]);
                 }
-                cmd.args(["--", "cdx", "tray", "status", "--json"]);
+                cmd.args(["--", &cdx, "tray", "status", "--json"]);
                 cmd
             }
         }
@@ -62,11 +81,16 @@ impl Transport {
 
     pub fn describe(&self) -> String {
         match self {
-            Transport::Native => "cdx tray status --json".to_string(),
+            Transport::Native => format!("{} tray status --json", Self::cdx_command()),
             Transport::Wsl { distro: Some(d) } => {
-                format!("wsl.exe -d {d} -- cdx tray status --json")
+                format!(
+                    "wsl.exe -d {d} -- {} tray status --json",
+                    Self::cdx_command()
+                )
             }
-            Transport::Wsl { distro: None } => "wsl.exe -- cdx tray status --json".to_string(),
+            Transport::Wsl { distro: None } => {
+                format!("wsl.exe -- {} tray status --json", Self::cdx_command())
+            }
         }
     }
 }
@@ -305,6 +329,18 @@ mod tests {
         ] {
             assert!(read_snapshot(&payload).is_err(), "{payload}");
         }
+    }
+
+    #[test]
+    fn settings_survive_a_cmd_exe_trailing_space() {
+        // `set VAR=1 && ...` in cmd.exe stores "1 ". Untrimmed, that silently
+        // selected the native transport on the one platform that needs WSL.
+        std::env::set_var("CDX_TRAY_TEST_SETTING", "Ubuntu ");
+        assert_eq!(setting("CDX_TRAY_TEST_SETTING").as_deref(), Some("Ubuntu"));
+        std::env::set_var("CDX_TRAY_TEST_SETTING", "   ");
+        assert_eq!(setting("CDX_TRAY_TEST_SETTING"), None);
+        std::env::remove_var("CDX_TRAY_TEST_SETTING");
+        assert_eq!(setting("CDX_TRAY_TEST_SETTING"), None);
     }
 
     #[test]

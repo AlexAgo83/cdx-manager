@@ -64,6 +64,7 @@ fn main() {
             println!();
             println!("CDX_TRAY_WSL=1              reach CDX through WSL interop");
             println!("CDX_TRAY_WSL_DISTRO=NAME    use a named WSL distribution");
+            println!("CDX_TRAY_CDX=PATH          run this cdx instead of `cdx` on PATH");
         }
         Some(other) => {
             eprintln!("cdx-tray: unknown argument {other}. Try --help.");
