@@ -96,10 +96,21 @@ jobs:
             cp -R tray/target/release/CDX.app "$STAGE/"
           elif [[ "${{ matrix.target }}" == *windows* ]]; then
             cp tray/target/${{ matrix.target }}/release/cdx-tray.exe "$STAGE/"
+            # The Start Menu shortcut records an absolute path to this icon and
+            # Windows reads it long after installation, so it has to be
+            # installed with the companion. Without it every user gets a generic
+            # icon on their toasts, with nothing to explain why.
+            cp tray/assets/icons/CDX.ico "$STAGE/"
           else
             cp tray/target/${{ matrix.target }}/release/cdx-tray "$STAGE/"
           fi
-          tar czf "cdx-tray-$VERSION-${{ matrix.target }}.tar.gz" -C "$STAGE" .
+          # COPYFILE_DISABLE is load-bearing on the macOS runners. Without it
+          # BSD tar stores every extended attribute as a companion `._name`
+          # member, and a signed bundle has many. `tar tzf` hides them because
+          # BSD tar merges them back, so the archive looks clean while any other
+          # reader — including this project's own Python installer — sees
+          # `._CDX.app` sitting beside `CDX.app`.
+          COPYFILE_DISABLE=1 tar czf "cdx-tray-$VERSION-${{ matrix.target }}.tar.gz" -C "$STAGE" .
 
       - name: Upload
         uses: actions/upload-artifact@v4
