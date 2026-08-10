@@ -14,9 +14,9 @@ use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSEventMask};
 use objc2_foundation::{NSDate, NSDefaultRunLoopMode};
 
 use crate::backend;
-use crate::menu::{self, ActionId};
-use crate::schedule::Tick;
-use crate::snapshot::{fetch, Transport};
+use crate::menu::ActionId;
+use crate::runner::Render;
+use crate::snapshot::Transport;
 
 /// How long the pump blocks before looking at the clock again. Short enough
 /// that Quit feels instant, long enough that an idle companion is not a
@@ -31,9 +31,9 @@ pub fn run(transport: Transport) -> Result<(), String> {
     // from a terminal behaves the same way.
     app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
 
-    let mut state = Render::first(&transport)?;
+    let mut state = Render::first(&transport);
     let (tray, mut actions) = backend::build_tray(&state.icon_state, &state.entries)?;
-    let mut due = Instant::now() + state.delay.unwrap_or(Duration::from_secs(3600));
+    let mut due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
 
     loop {
         autoreleasepool(|_| {
@@ -72,48 +72,9 @@ pub fn run(transport: Transport) -> Result<(), String> {
             actions = backend::update_tray(&tray, &state.icon_state, &state.entries)?;
             // No enabled session means no reason to ask again. Wake up rarely
             // rather than never, so enabling one later is eventually noticed.
-            due = Instant::now() + state.delay.unwrap_or(Duration::from_secs(3600));
+            due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
         }
         let _ = &tray;
-    }
-}
-
-/// Everything one poll produced: what to draw, and when to poll again.
-struct Render {
-    icon_state: String,
-    entries: Vec<menu::Entry>,
-    delay: Option<Duration>,
-    tick: Tick,
-}
-
-impl Render {
-    fn first(transport: &Transport) -> Result<Self, String> {
-        Ok(Self::next(transport, Tick::start()))
-    }
-
-    fn next(transport: &Transport, tick: Tick) -> Self {
-        match fetch(transport) {
-            Ok(snap) => {
-                let tick = tick.succeeded(snap.session_count);
-                Render {
-                    icon_state: snap.icon_state.clone(),
-                    entries: menu::build(&snap),
-                    delay: tick.next_delay(transport.is_wsl()),
-                    tick,
-                }
-            }
-            Err(reason) => {
-                let tick = tick.failed();
-                Render {
-                    // Unavailable is a state, not a crash. The icon stays, and
-                    // it shows that nothing is known rather than a stale figure.
-                    icon_state: "unknown".to_string(),
-                    entries: menu::build_unavailable(&reason),
-                    delay: tick.next_delay(transport.is_wsl()),
-                    tick,
-                }
-            }
-        }
     }
 }
 

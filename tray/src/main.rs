@@ -9,8 +9,11 @@ mod backend;
 #[cfg(target_os = "macos")]
 mod mac;
 mod menu;
+mod runner;
 mod schedule;
 mod snapshot;
+#[cfg(target_os = "windows")]
+mod win;
 
 use menu::Entry;
 use schedule::Tick;
@@ -78,9 +81,17 @@ fn run_tray(transport: Transport) {
     }
 }
 
-/// Windows and Linux backends land with their own slices. Until then the
+#[cfg(target_os = "windows")]
+fn run_tray(transport: Transport) {
+    if let Err(reason) = win::run(transport) {
+        eprintln!("cdx-tray: {reason}");
+        std::process::exit(1);
+    }
+}
+
+/// The Linux backend lands with item_081, on ksni rather than tray-icon. Until then the
 /// companion says so rather than starting something that cannot draw.
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn run_tray(transport: Transport) {
     eprintln!(
         "cdx-tray: no tray backend on this platform yet. `cdx-tray --print` works everywhere."

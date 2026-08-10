@@ -91,6 +91,7 @@ dependencies = [
  "png",
  "serde_json",
  "tray-icon",
+ "windows-sys",
 ]
 
 [[package]]
