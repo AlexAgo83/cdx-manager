@@ -3,8 +3,8 @@
 > Schema version: 1.0
 > Status: In progress
 > Understanding: 95%
-> Confidence: 92%
-> Progress: 97%
+> Confidence: 93%
+> Progress: 100%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -69,7 +69,9 @@
 - That closes the AC3 clause `item_085` had to defer: a toast reaches Action Center through the installed Start Menu shortcut.
 - The Windows companion emits its own toast now, rather than leaning on `cdx notify`'s direct path, and picks the identifier the same way CDX does: `com.cdx.tray` when the Start Menu shortcut is on disk, PowerShell's otherwise. Resolved on each send rather than cached, because the shortcut can appear between two alerts when `cdx tray install` runs, and a cached answer would keep attributing toasts to PowerShell until the companion restarted.
 - Verified on kdesktop end to end through both crossings: a hook publishes in WSL, the Windows companion reads through `wsl.exe`, draws, delivers, and takes the spool from one to zero. That path only worked once `CDX_HOME` was shared in `WSLENV` without a path-translation flag — it has to stay a Linux path through WSL to Windows and back, and translating it silently pointed the second crossing at nothing.
-- Still open in this slice: the stub CLSID the scope names alongside the AppUserModelID, and a screen-level confirmation that the companion's own Windows toast is attributed to CDX rather than to PowerShell. AC6's backoff is satisfied by construction now that alerts ride with the snapshot: one call, one cadence, and the existing `Tick` backs off after three consecutive failures.
+- **Confirmed on screen, 2026-08-11.** The user compared a toast sent under PowerShell's identifier with one sent under `com.cdx.tray`: the attribution changed, and after the shortcut gained an icon the logo was right too. Both halves of AC7's Windows equivalent — the right name and the right artwork — are now verified by someone looking at the screen rather than inferred from a success code.
+- The stub CLSID named in the scope is deliberately not built. It exists so Windows can activate an application when a user clicks a toast or one of its buttons; these alerts carry neither. Registering a COM activator that nothing implements would add a moving part, and a registry entry, for a capability the feature does not have. Recorded here so the decision is visible rather than looking like an oversight, and it comes back the day a toast grows a button.
+- Still open in this slice: nothing blocking. AC1 through AC8 are met, with the CLSID consciously out of scope until a toast is interactive. AC6's backoff is satisfied by construction now that alerts ride with the snapshot: one call, one cadence, and the existing `Tick` backs off after three consecutive failures.
 
 # Acceptance criteria
 - AC1: A fresh active tray receives one sanitized event and becomes the sole visible notification owner; an absent or stale tray leaves the existing direct path intact.
