@@ -2,9 +2,9 @@
 > From version: 0.17.1
 > Schema version: 1.0
 > Status: In progress
-> Understanding: 92%
-> Confidence: 88%
-> Progress: 85%
+> Understanding: 95%
+> Confidence: 92%
+> Progress: 90%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -59,7 +59,9 @@
 - One guard is load-bearing rather than defensive: `UNUserNotificationCenter` **raises** for a process with no bundle identifier, which is exactly what a development build run as a bare binary is. Without the check the companion would die the first time an agent finished a turn. Verified on both: the bare binary reports `bundle: none (not a bundle)` and `authorization: unavailable`, the signed bundle reports `com.cdx.tray`.
 - The authorization state is queried, not assumed. An earlier version reported `granted` whenever the framework was reachable — reachability says nothing about what the user chose, and a diagnostic that guesses is worse than none. `getNotificationSettings` answers on a background queue, so the block hands the value back through a channel with a bounded wait. Observed changing from `not determined` to `denied` on a real run, which is the proof it reflects the system rather than a cache.
 - The fallback decision had a real defect, found by reading what the API actually promises. `addNotificationRequest` succeeds whether or not authorization was ever granted: the request is accepted and the banner silently dropped. Trusting its result would mean believing every alert was delivered and never falling back — the one failure that loses notifications outright. Authorization is therefore checked before posting, and anything short of granted goes to `osascript`. Exactly one path runs, so a fallback can never double an alert the tray was built to de-duplicate.
-- Still open in this slice: the short-lived icon hint distinct from the menu history, Windows toast emission through the AppUserModelID, and the visual confirmation that a banner reaches Notification Centre with the CDX name — which needs someone at the screen. AC6's backoff is satisfied by construction now that alerts ride with the snapshot: one call, one cadence, and the existing `Tick` backs off after three consecutive failures.
+- **Confirmed on screen, 2026-08-11.** After the user granted notifications to CDX in System Settings, `--notifications` reported `granted` — the third distinct value observed on the same machine, after `unavailable` for a bare binary and `denied` before the grant, which is what proves the query reads the system rather than a cache. A companion run then delivered a real alert and the user read it back verbatim: `main` / `autre · needs your attention`.
+- The native path is proven rather than inferred. An `osascript` decoy placed first on PATH was never invoked, so the banner came from the bundle and not the fallback — and therefore carried the CDX name and icon. Checking for a running `osascript` afterwards would have proved nothing, since it would have exited by then.
+- Still open in this slice: the short-lived icon hint distinct from the menu history, and Windows toast emission through the AppUserModelID, which still has no proof that a toast reaches Action Center. AC6's backoff is satisfied by construction now that alerts ride with the snapshot: one call, one cadence, and the existing `Tick` backs off after three consecutive failures.
 
 # Acceptance criteria
 - AC1: A fresh active tray receives one sanitized event and becomes the sole visible notification owner; an absent or stale tray leaves the existing direct path intact.
