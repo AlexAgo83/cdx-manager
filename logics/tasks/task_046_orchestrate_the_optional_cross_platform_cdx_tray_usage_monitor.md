@@ -4,7 +4,7 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 35%
+> Progress: 45%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -66,6 +66,7 @@
 
 # Validation
 - item_079 wave: `python3 -m pytest -q` 702 passed; `python3 -m ruff check src test` clean.
+- Menu and cadence wave: `cargo test` 18 passed, `cargo clippy -- -D warnings` clean, `cargo fmt --check` clean; the release binary renders the real menu against a live `cdx`, against a three-session snapshot covering auth-locked, fresh, and never-reported, and against a missing CDX.
 - Build-capability wave: Rust 1.97.1 installed on the arm64 macOS host; `cargo test` 6 passed, `cargo clippy -- -D warnings` clean, `cargo fmt --check` clean; `./scripts/build-tray.sh` builds and assembles CDX.app and refuses to sign without an identity; four end-to-end runs of the release binary against a real `cdx` cover the happy path, an unknown snapshot major, a missing CDX, and a CDX too old to expose `cdx tray`.
 
 # Report
@@ -75,6 +76,10 @@
 - Build capability delivered. `tray/` holds the `cdx-tray` crate, one dependency (`serde_json`), and `scripts/build-tray.sh` builds it, assembles `CDX.app` with `LSUIElement`, and signs it. The script refuses to sign ad-hoc and explains why, so the signing decision cannot be lost by someone in a hurry.
 - The companion binary carries no tray UI yet, deliberately. It proves the transport instead: a separate process obtaining the snapshot, natively or across WSL, and refusing honestly when it cannot. That is the part item_080 would otherwise discover late.
 - Found by running it: a CDX older than `cdx tray` is version drift in the direction the corpus had not covered, and it surfaced as a raw error envelope. The companion now reads the published `unknown_command` error code and says "update CDX". req_035 AC10 and item_080 gained the both-directions wording.
+- Menu model and poll cadence delivered as pure logic, in `tray/src/menu.rs` and `tray/src/schedule.rs`, deliberately separate from the tray backend so both are testable without a windowing session. The adr_005 poll budget is enforced there rather than left to whoever writes the loop: 30s native, 60s across WSL, stop entirely with no enabled session, back off to 5 minutes after three consecutive failures.
+- One decision worth recording: a failed read keeps the last known session count. Treating a transient error as "the user has no sessions" would stop polling for good on the first hiccup, exactly when something needs attention. There is a test for it.
+- The menu spells out `auth_locked` as "running, cannot refresh" and leaves the Refresh entry visible but disabled. Hiding it would send the user hunting; enabling it would promise what the auth lock forbids.
+- Still to do in this slice, and it needs a human: wiring `tray-icon` and `muda` so the glyph and menu appear in the real menu bar. Everything up to that boundary is verified; the boundary itself is a visual check on the macOS host.
 - Step order changed: item_079 ran before the build capability. It needed neither Rust nor a certificate, and it means the native slice will read a contract that is already written and tested rather than inventing both at once.
 
 # Links
