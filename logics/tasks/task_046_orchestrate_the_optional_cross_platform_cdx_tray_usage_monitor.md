@@ -4,7 +4,7 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 45%
+> Progress: 55%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -66,6 +66,7 @@
 
 # Validation
 - item_079 wave: `python3 -m pytest -q` 702 passed; `python3 -m ruff check src test` clean.
+- macOS backend wave: `cargo test` 21 passed, `cargo clippy -- -D warnings` clean, `cargo fmt --check` clean; release binary 578 KB with the full tray stack; `cdx-tray --print` and `--help` behave; the companion launches, creates its status item, and stays alive on the arm64 macOS host without crashing. NOT YET VERIFIED: what the icon and menu actually look like in the menu bar. That needs a human.
 - Menu and cadence wave: `cargo test` 18 passed, `cargo clippy -- -D warnings` clean, `cargo fmt --check` clean; the release binary renders the real menu against a live `cdx`, against a three-session snapshot covering auth-locked, fresh, and never-reported, and against a missing CDX.
 - Build-capability wave: Rust 1.97.1 installed on the arm64 macOS host; `cargo test` 6 passed, `cargo clippy -- -D warnings` clean, `cargo fmt --check` clean; `./scripts/build-tray.sh` builds and assembles CDX.app and refuses to sign without an identity; four end-to-end runs of the release binary against a real `cdx` cover the happy path, an unknown snapshot major, a missing CDX, and a CDX too old to expose `cdx tray`.
 
@@ -79,7 +80,10 @@
 - Menu model and poll cadence delivered as pure logic, in `tray/src/menu.rs` and `tray/src/schedule.rs`, deliberately separate from the tray backend so both are testable without a windowing session. The adr_005 poll budget is enforced there rather than left to whoever writes the loop: 30s native, 60s across WSL, stop entirely with no enabled session, back off to 5 minutes after three consecutive failures.
 - One decision worth recording: a failed read keeps the last known session count. Treating a transient error as "the user has no sessions" would stop polling for good on the first hiccup, exactly when something needs attention. There is a test for it.
 - The menu spells out `auth_locked` as "running, cannot refresh" and leaves the Refresh entry visible but disabled. Hiding it would send the user hunting; enabling it would promise what the auth lock forbids.
-- Still to do in this slice, and it needs a human: wiring `tray-icon` and `muda` so the glyph and menu appear in the real menu bar. Everything up to that boundary is verified; the boundary itself is a visual check on the macOS host.
+- macOS backend wired. `tray/src/backend.rs` turns menu entries into muda items and picks the glyph; `tray/src/mac.rs` runs the loop. It pumps the NSApplication event queue itself with a 200 ms timeout rather than calling `app.run()`, because `run()` never returns and every tray mutation has to happen on the main thread. One loop, on the main thread: drain clicks, refresh when due, redraw.
+- The glyphs are compiled into the binary with `include_bytes!`. The companion has to render an icon before it can report that anything is wrong, so a missing file on disk is not a failure mode worth having. Three tests assert they decode at 18px and are pure black on alpha, which is what makes the menu bar invert them per theme.
+- Dependency cost measured rather than assumed: 96 transitive crates for tray-icon, muda, and the objc2 bindings, and a 578 KB release binary, up from 354 KB. objc2 rather than winit or tao, since the companion never opens a window.
+- Remaining and it needs your eyes: whether the glyph and menu actually look right in the menu bar. The process starts, creates its status item and stays alive, but a terminal cannot judge a menu bar.
 - Step order changed: item_079 ran before the build capability. It needed neither Rust nor a certificate, and it means the native slice will read a contract that is already written and tested rather than inventing both at once.
 
 # Links

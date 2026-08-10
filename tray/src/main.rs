@@ -1,13 +1,13 @@
 //! The CDX tray companion.
 //!
-//! The tray backend is not wired yet; `item_080` adds `tray-icon` and `muda` on
-//! top of what is here. This binary already carries the parts that can be
-//! verified without a windowing session: obtaining the snapshot, deciding when
-//! it may ask again, and building the menu the backend will render.
-//!
-//! Running it prints that menu to stdout, which is also how the poll cadence
-//! and the unavailable states get exercised on a real machine.
+//! Two modes. By default it puts an icon in the menu bar and stays there. With
+//! `--print` it renders the same menu to stdout once and exits, which is how
+//! the contract, the poll cadence, and the unavailable states get exercised on
+//! a machine with no windowing session.
 
+mod backend;
+#[cfg(target_os = "macos")]
+mod mac;
 mod menu;
 mod schedule;
 mod snapshot;
@@ -28,9 +28,10 @@ fn render(entries: &[Entry]) {
     }
 }
 
-fn main() {
-    let transport = Transport::from_env();
-    match fetch(&transport) {
+/// One snapshot, rendered to stdout. Exits non-zero when CDX could not be
+/// reached, so a script can tell "nothing known" from "all fine".
+fn print_once(transport: &Transport) -> i32 {
+    match fetch(transport) {
         Ok(snap) => {
             let tick = Tick::start().succeeded(snap.session_count);
             render(&menu::build(&snap));
@@ -38,16 +39,51 @@ fn main() {
                 Some(delay) => println!("next poll in {}s", delay.as_secs()),
                 None => println!("no enabled session: polling stopped"),
             }
+            0
         }
         Err(reason) => {
-            // Unavailable is a state, not a crash: the tray must be able to
-            // show "I do not know" without inventing a quota figure.
             render(&menu::build_unavailable(&reason));
-            let tick = Tick::start().failed();
-            if let Some(delay) = tick.next_delay(transport.is_wsl()) {
-                println!("next poll in {}s", delay.as_secs());
-            }
-            std::process::exit(1);
+            eprintln!("cdx-tray: {reason}");
+            1
         }
     }
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let transport = Transport::from_env();
+
+    match args.first().map(String::as_str) {
+        Some("--print") => std::process::exit(print_once(&transport)),
+        Some("--help" | "-h") => {
+            println!("cdx-tray            run the CDX menu bar companion");
+            println!("cdx-tray --print    render the menu once and exit");
+            println!();
+            println!("CDX_TRAY_WSL=1              reach CDX through WSL interop");
+            println!("CDX_TRAY_WSL_DISTRO=NAME    use a named WSL distribution");
+        }
+        Some(other) => {
+            eprintln!("cdx-tray: unknown argument {other}. Try --help.");
+            std::process::exit(2);
+        }
+        None => run_tray(transport),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn run_tray(transport: Transport) {
+    if let Err(reason) = mac::run(transport) {
+        eprintln!("cdx-tray: {reason}");
+        std::process::exit(1);
+    }
+}
+
+/// Windows and Linux backends land with their own slices. Until then the
+/// companion says so rather than starting something that cannot draw.
+#[cfg(not(target_os = "macos"))]
+fn run_tray(transport: Transport) {
+    eprintln!(
+        "cdx-tray: no tray backend on this platform yet. `cdx-tray --print` works everywhere."
+    );
+    std::process::exit(print_once(&transport));
 }
