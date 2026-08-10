@@ -4,7 +4,7 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 85%
+> Progress: 92%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -51,6 +51,7 @@
 - request-AC8 -> `item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts`. Proof deferred to slice closeout.
 
 # Validation
+- Hardware smoke wave: `scripts/tray-smoke.sh`, 6 of 6 on kdesktop with the real 11-session fleet through Ubuntu WSL — menu `CDX · critical · 11 session(s)`, 60s period, poll cost 387-401ms so alert latency <= 61s, second launch refused, stale lock reclaimed — and 6 of 6 on macOS arm64 native at 83-85ms with polling stopped on an empty fleet. `cargo test` 30 passed, clippy clean on all three targets, `python3 -m pytest -q` 719 passed, ruff clean, Logics lint OK. Full record in `item_085`.
 - Tooltip wave: `python3 -m pytest -q` 719 passed, 30 Rust tests, clippy clean on all three targets. The tooltip is composed by CDX and consumed identically by all three backends.
 - WSL resolution wave: `cargo test` 30 passed, clippy clean on all three targets. Verified on kdesktop: a configured `Debian` reports `WSL distribution \`Debian\` is not installed. Installed: Ubuntu, docker-desktop-data, docker-desktop.`, and `Ubuntu` polls normally at 60s.
 - Staged update wave: `python3 -m pytest -q` 716 passed, ruff clean. A replacement is downloaded, verified and proved to start before the working companion is touched; a probe that fails leaves the installed one running and cleans the staging away, and doctor reports an interrupted update.
@@ -73,6 +74,10 @@
 - Proving it starts is what separates staging from hoping. Without the probe, staging would only protect against a failed download, not against an asset that downloads perfectly and cannot execute here.
 - A staged directory left behind is a recoverable state rather than corruption: doctor names it and the next install replaces it.
 - The lock lives under the per-user temporary directory, not a shared path, so one user's companion cannot block another's on a shared machine.
+- The smoke runner asks the companion for its lock path rather than recomputing the rule, which is TMPDIR here and LOCALAPPDATA on Windows. Every bug this session that a unit test missed came from a platform assumption restated in a second place, so `--lock-path` exists to stop the script becoming the next one.
+- The runner names the companion's platform apart from the shell's, because driving a Windows companion from WSL is supported and a record reporting only `uname` would name the wrong tray under test.
+- Poll cost is sampled three times, not once: the first sample pays for a cold WSL VM, and reporting only that would overstate the steady-state cost the 60s period has to afford.
+- Two AC3 clauses are blocked rather than quietly dropped. A toast reaching Action Center needs a notification to exist, which is `task_047`; a Zone.Identifier stream needs `cdx tray install` to fetch a release asset, which is `item_081`. Both are named in `item_085` with the slice that unblocks them.
 
 # Links
 - Request: `req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation`
