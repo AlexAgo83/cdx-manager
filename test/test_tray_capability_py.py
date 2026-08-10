@@ -128,3 +128,28 @@ class ShortcutCreationTest(CliTestBase):
         )
         self.assertTrue(result["created"])
         self.assertEqual(result["path"], shortcut_path({"APPDATA": temp_dir}))
+
+
+class WindowsAumidTest(CliTestBase):
+    """Which identifier a Windows toast is sent under.
+
+    Windows resolves an AppUserModelID through a Start Menu shortcut and drops
+    an unresolvable one in silence — no error, no toast. So claiming CDX's own
+    identifier before the shortcut exists would be strictly worse than a toast
+    attributed to PowerShell.
+    """
+
+    def test_powershells_identifier_is_used_until_cdx_has_a_shortcut(self):
+        from src.notify import windows_aumid
+        temp_dir = self.make_temp_dir()
+        self.assertIn("WindowsPowerShell", windows_aumid({"APPDATA": temp_dir}))
+
+    def test_cdx_claims_its_own_identifier_once_the_shortcut_exists(self):
+        from src.notify import windows_aumid
+        from src.tray_shortcut import APP_USER_MODEL_ID
+        temp_dir = self.make_temp_dir()
+        path = shortcut_path({"APPDATA": temp_dir})
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as handle:
+            handle.write(b"shortcut")
+        self.assertEqual(windows_aumid({"APPDATA": temp_dir}), APP_USER_MODEL_ID)

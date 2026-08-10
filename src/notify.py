@@ -155,9 +155,14 @@ def _run_notification_command(argv, spawn_sync, env):
         pass
 
 
-# Windows only shows a toast on behalf of an application it knows. Registering our
-# own identifier would mean installing a Start Menu shortcut, so we borrow the one
-# PowerShell already ships with; an unknown identifier is dropped in silence.
+# Windows shows a toast only on behalf of an application it knows, and it knows
+# an application by a Start Menu shortcut carrying its AppUserModelID. An
+# unknown identifier is dropped in silence — no error, no toast.
+#
+# PowerShell's own identifier is the fallback, and it is a real compromise: the
+# toast then says "Windows PowerShell", and turning CDX alerts off in Settings
+# means turning PowerShell off. It is used only while CDX has no shortcut of its
+# own, which `cdx tray install` now writes.
 _POWERSHELL_AUMID = "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe"
 
 _TOAST_SCRIPT = """
@@ -183,13 +188,28 @@ def _send_windows_notification(title, message, spawn_sync, env, launcher):
     script = _TOAST_SCRIPT.format(
         title=_escape_powershell(title),
         message=_escape_powershell(message),
-        aumid=_POWERSHELL_AUMID,
+        aumid=_escape_powershell(windows_aumid(env)),
     )
     _run_notification_command(
         [*launcher, "-NoProfile", "-NonInteractive", "-Command", script],
         spawn_sync,
         env,
     )
+
+
+def windows_aumid(env=None):
+    """CDX's own identifier when Windows can resolve it, PowerShell's otherwise.
+
+    The shortcut has to exist before the identifier means anything: Windows
+    resolves an AppUserModelID through the Start Menu, so claiming ours without
+    one would drop every toast in silence — strictly worse than a toast
+    attributed to PowerShell.
+    """
+    from .tray_shortcut import APP_USER_MODEL_ID, shortcut_path
+    path = shortcut_path(env)
+    if path and os.path.isfile(path):
+        return APP_USER_MODEL_ID
+    return _POWERSHELL_AUMID
 
 
 def _escape_powershell(value):

@@ -4,7 +4,7 @@
 > Status: In progress
 > Understanding: 95%
 > Confidence: 92%
-> Progress: 93%
+> Progress: 95%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -64,7 +64,10 @@
 - AC3's short-lived hint is delivered, and it sits *beside* the glyph rather than replacing it. The glyph means remaining quota; swapping it for an alert marker would hide the one thing the icon exists to show, so a user glancing at a critical account would see a marker instead of a warning. macOS and Windows get a title next to the icon; Linux carries it on the tooltip, because StatusNotifierItem has no text beside the icon and the desktop draws the glyph itself from a themed name.
 - The marker counts rather than merely lighting up: "three agents finished" and "one did" call for different reactions, and this is the only surface that says so without a click. It expires after 45 s on its own — a marker that stayed until clicked would be permanent furniture for anyone running several agents, and permanent says nothing. New alerts restart the window rather than accumulating a total nobody asked for, and a quiet poll does not clear a marker that is still inside its window: polls are 30-60 s apart against a 45 s window, so dropping it on a quiet poll would make it flicker.
 - Set on the first draw as well as on redraws. Alerts already waiting when the companion starts would otherwise show no marker for up to a poll period, which is the icon saying nothing happened while three things had.
-- Still open in this slice: Windows toast emission through the AppUserModelID, which still has no proof that a toast reaches Action Center. AC6's backoff is satisfied by construction now that alerts ride with the snapshot: one call, one cadence, and the existing `Tick` backs off after three consecutive failures.
+- Windows toasts now go out under CDX's own AppUserModelID once `cdx tray install` has written the Start Menu shortcut, and under PowerShell's until then. The fallback is a real compromise rather than an equivalent: a toast attributed to "Windows PowerShell" means turning CDX alerts off in Settings turns PowerShell off too. Claiming `com.cdx.tray` without the shortcut would be worse still — Windows drops an unresolvable identifier in silence, no error and no toast.
+- **Proved on kdesktop, and not by the absence of an error.** A toast sent under `com.cdx.tray` reported success, and `com.cdx.tray` then appeared in `HKCU\...\Notifications\Settings` among the 167 registered applications. Windows registers an application there only when a toast actually goes through an identifier it can resolve, so that entry is the evidence — the send call itself reports success either way, which is exactly the silent failure this slice keeps running into.
+- That closes the AC3 clause `item_085` had to defer: a toast reaches Action Center through the installed Start Menu shortcut.
+- Still open in this slice: the Windows companion emitting its own toast rather than relying on `cdx notify`'s direct path, and the stub CLSID the scope names alongside the AppUserModelID. AC6's backoff is satisfied by construction now that alerts ride with the snapshot: one call, one cadence, and the existing `Tick` backs off after three consecutive failures.
 
 # Acceptance criteria
 - AC1: A fresh active tray receives one sanitized event and becomes the sole visible notification owner; an absent or stale tray leaves the existing direct path intact.
