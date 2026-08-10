@@ -577,7 +577,7 @@ class StatusCommandTests(CliTestBase):
         self.assertIn("personal", output)
         self.assertIn("default", output)
         self.assertIn(
-            "Set a value: cdx set <name> --power medium --permission auto --fast on --rtk on --logics on --notify on --model MODEL --priority 80",
+            "Set a value: cdx set <name> --power medium --permission auto --fast on --rtk on --logics on --notify on --notify-preview on --model MODEL --priority 80",
             output,
         )
 
@@ -1584,4 +1584,3 @@ class StatusCommandTests(CliTestBase):
         # Without require_ready (cdx next, cdx status) an unverified session is
         # still worth showing; it is only excluded from being run.
         self.assertEqual(names, ["unknown"])
-
