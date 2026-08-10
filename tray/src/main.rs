@@ -14,6 +14,7 @@ mod linux;
 #[cfg(target_os = "macos")]
 mod mac;
 mod menu;
+mod notify;
 mod runner;
 mod schedule;
 mod snapshot;
@@ -73,10 +74,24 @@ fn main() {
     match args.first().map(String::as_str) {
         Some("--print") => std::process::exit(print_once(&transport)),
         Some("--lock-path") => println!("{}", instance::lock_location().display()),
+        // AC7 asks for the authorization state to be reportable. It is asked of
+        // the system rather than remembered, for the same reason `cdx tray
+        // doctor` reads the platform: a permission revoked in System Settings
+        // leaves any recorded intention wrong.
+        Some("--notifications") => {
+            println!(
+                "bundle: {}",
+                notify::bundle_identifier().unwrap_or_else(|| "none (not a bundle)".into())
+            );
+            println!("authorization: {}", notify::authorization().as_str());
+        }
         Some("--help" | "-h") => {
             println!("cdx-tray                run the CDX menu bar companion");
             println!("cdx-tray --print        render the menu once and exit");
             println!("cdx-tray --lock-path    print where the single-instance lock lives");
+            println!(
+                "cdx-tray --notifications  report bundle identity and notification authorization"
+            );
             println!();
             println!("CDX_TRAY_WSL=1              reach CDX through WSL interop");
             println!("CDX_TRAY_WSL_DISTRO=NAME    use a named WSL distribution");
@@ -105,6 +120,11 @@ fn run_tray(transport: Transport) {
             std::process::exit(3);
         }
     };
+    // Asked once, at startup. The answer arrives asynchronously, so the first
+    // alert of a fresh install may fall back to osascript and every one after
+    // it comes from the bundle. Blocking a menu bar app on a permission dialog
+    // would be the worse trade.
+    notify::request_authorization();
     run_backend(transport);
 }
 

@@ -12,9 +12,8 @@
 
 use std::time::{Duration, Instant};
 
-use crate::events;
 use crate::menu::{ActionId, Entry};
-use crate::runner::{fresh_ids, Render};
+use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
 
 const PUMP: Duration = Duration::from_millis(200);
@@ -134,7 +133,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
     // The first draw happens before the loop, so the alerts it showed have to
     // be acknowledged here too. Leaving it to the redraw block would hold them
     // unacknowledged for a whole poll period.
-    events::acknowledge(&transport, &fresh_ids(&state));
+    announce(&transport, &state);
 
     let mut due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
     loop {
@@ -166,7 +165,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
             // Acknowledged only after the alert has been drawn. A companion
             // that dies in between is handed it again next poll and shows it
             // twice at worst; acknowledging first would lose it outright.
-            events::acknowledge(&transport, &fresh_ids(&state));
+            announce(&transport, &state);
             due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
         }
     }

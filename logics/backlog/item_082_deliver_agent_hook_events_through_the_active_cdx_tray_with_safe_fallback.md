@@ -3,8 +3,8 @@
 > Schema version: 1.0
 > Status: In progress
 > Understanding: 92%
-> Confidence: 90%
-> Progress: 75%
+> Confidence: 88%
+> Progress: 85%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -55,7 +55,11 @@
 - The alerts ride along with the snapshot rather than costing their own call, and that came from measuring instead of assuming. Three separate commands per poll cost 220 ms natively where one costs 110 ms, which across WSL — 371-401 ms per crossing — would have tripled the idle cost `adr_005` fixed a budget for. `cdx tray status --json` now carries pending events, and `--beat` writes the heartbeat in the same invocation.
 - Measured after the change, on kdesktop through WSL: **374-382 ms**, against 371-401 ms before agent alerts existed. The feature is free at the poll boundary, which is the only place its cost would have been paid forever.
 - `--beat` is opt-in rather than implied by reading status: a caller that merely looks must not make `cdx notify` believe a tray is listening. That is what lets `--print` show alerts while leaving them pending.
-- Still open in this slice: the short-lived icon hint distinct from the menu history, the native notification emission with its macOS authorization handling (AC7), the backoff after repeated read failures (AC6), and the smoke run over the WSL bridge.
+- AC7's native path is delivered: the companion posts through `UNUserNotificationCenter` from the signed bundle, so an alert carries the CDX name and icon and can be turned off under CDX in System Settings rather than under whatever script delivered it. `block2`, `objc2` and `objc2-foundation` are named as direct dependencies but were already in the tree through `tray-icon`, so the `adr_005` dependency budget is unchanged.
+- One guard is load-bearing rather than defensive: `UNUserNotificationCenter` **raises** for a process with no bundle identifier, which is exactly what a development build run as a bare binary is. Without the check the companion would die the first time an agent finished a turn. Verified on both: the bare binary reports `bundle: none (not a bundle)` and `authorization: unavailable`, the signed bundle reports `com.cdx.tray`.
+- The authorization state is queried, not assumed. An earlier version reported `granted` whenever the framework was reachable — reachability says nothing about what the user chose, and a diagnostic that guesses is worse than none. `getNotificationSettings` answers on a background queue, so the block hands the value back through a channel with a bounded wait. Observed changing from `not determined` to `denied` on a real run, which is the proof it reflects the system rather than a cache.
+- The fallback decision had a real defect, found by reading what the API actually promises. `addNotificationRequest` succeeds whether or not authorization was ever granted: the request is accepted and the banner silently dropped. Trusting its result would mean believing every alert was delivered and never falling back — the one failure that loses notifications outright. Authorization is therefore checked before posting, and anything short of granted goes to `osascript`. Exactly one path runs, so a fallback can never double an alert the tray was built to de-duplicate.
+- Still open in this slice: the short-lived icon hint distinct from the menu history, Windows toast emission through the AppUserModelID, and the visual confirmation that a banner reaches Notification Centre with the CDX name — which needs someone at the screen. AC6's backoff is satisfied by construction now that alerts ride with the snapshot: one call, one cadence, and the existing `Tick` backs off after three consecutive failures.
 
 # Acceptance criteria
 - AC1: A fresh active tray receives one sanitized event and becomes the sole visible notification owner; an absent or stale tray leaves the existing direct path intact.

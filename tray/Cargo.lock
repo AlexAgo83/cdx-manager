@@ -130,6 +130,7 @@ dependencies = [
 name = "cdx-tray"
 version = "0.17.1"
 dependencies = [
+ "block2",
  "ksni",
  "muda",
  "objc2",

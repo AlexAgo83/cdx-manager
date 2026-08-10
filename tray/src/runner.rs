@@ -81,8 +81,21 @@ impl Render {
 }
 
 /// The ids drawn this poll, ready to acknowledge.
-pub fn fresh_ids(state: &Render) -> Vec<String> {
+fn fresh_ids(state: &Render) -> Vec<String> {
     state.fresh.iter().map(|event| event.id.clone()).collect()
+}
+
+/// Raise a notification for each alert drawn this poll, then acknowledge them.
+///
+/// Delivery comes first and acknowledgement second, so a companion that dies in
+/// between shows an alert twice rather than losing it. The event id is reused
+/// as the notification identifier: macOS then replaces rather than stacks if
+/// the same alert is ever delivered again.
+pub fn announce(transport: &Transport, state: &Render) {
+    for event in &state.fresh {
+        crate::notify::deliver(&event.title, &event.message, &event.id);
+    }
+    events::acknowledge(transport, &fresh_ids(state));
 }
 
 /// Keep the newest alerts, without letting one reappear.

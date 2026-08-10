@@ -14,9 +14,8 @@ use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSEventMask};
 use objc2_foundation::{NSDate, NSDefaultRunLoopMode};
 
 use crate::backend;
-use crate::events;
 use crate::menu::ActionId;
-use crate::runner::{fresh_ids, Render};
+use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
 
 /// How long the pump blocks before looking at the clock again. Short enough
@@ -39,7 +38,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
     // be acknowledged here too. Leaving it to the redraw block would hold them
     // unacknowledged for a whole poll period, and a companion quit inside that
     // window would have shown an alert CDX still considers undelivered.
-    events::acknowledge(&transport, &fresh_ids(&state));
+    announce(&transport, &state);
     let mut due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
 
     loop {
@@ -84,7 +83,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
             // Acknowledged only after the alert has been drawn. A companion
             // that dies in between is handed it again next poll and shows it
             // twice at worst; acknowledging first would lose it outright.
-            events::acknowledge(&transport, &fresh_ids(&state));
+            announce(&transport, &state);
         }
         let _ = &tray;
     }
