@@ -1,6 +1,7 @@
 """Tests for delegating detached runs to a provider's own background agents."""
 
 import json
+import os
 import tempfile
 import unittest
 
@@ -142,13 +143,18 @@ class BackgroundArgvTests(unittest.TestCase):
             captured["argv"] = argv
             raise OSError("stop after capturing argv")
 
-        _spawn_provider_background_run(
-            session,
-            "do it",
-            {"transcript_path": tempfile.mktemp(suffix=".log")},
-            {"spawn_detached": spawn},
-            "/tmp/repo",
-        )
+        fd, transcript_path = tempfile.mkstemp(suffix=".log")
+        os.close(fd)
+        try:
+            _spawn_provider_background_run(
+                session,
+                "do it",
+                {"transcript_path": transcript_path},
+                {"spawn_detached": spawn},
+                "/tmp/repo",
+            )
+        finally:
+            os.unlink(transcript_path)
 
         argv = captured["argv"]
         self.assertEqual(argv[:2], ["claude", "--bg"])
