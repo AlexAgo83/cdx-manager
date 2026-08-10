@@ -63,13 +63,15 @@ fn main() {
 
     match args.first().map(String::as_str) {
         Some("--print") => std::process::exit(print_once(&transport)),
+        Some("--lock-path") => println!("{}", instance::lock_location().display()),
         Some("--help" | "-h") => {
-            println!("cdx-tray            run the CDX menu bar companion");
-            println!("cdx-tray --print    render the menu once and exit");
+            println!("cdx-tray                run the CDX menu bar companion");
+            println!("cdx-tray --print        render the menu once and exit");
+            println!("cdx-tray --lock-path    print where the single-instance lock lives");
             println!();
             println!("CDX_TRAY_WSL=1              reach CDX through WSL interop");
             println!("CDX_TRAY_WSL_DISTRO=NAME    use a named WSL distribution");
-            println!("CDX_TRAY_CDX=PATH          run this cdx instead of `cdx` on PATH");
+            println!("CDX_TRAY_CDX=PATH           run this cdx instead of `cdx` on PATH");
         }
         Some(other) => {
             eprintln!("cdx-tray: unknown argument {other}. Try --help.");

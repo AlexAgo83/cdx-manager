@@ -45,6 +45,14 @@ fn lock_path() -> PathBuf {
     runtime_dir().join("companion.pid")
 }
 
+/// Where the lock lives, for a caller that needs to find it without knowing the
+/// rule. The rule differs per platform, and a script or a support conversation
+/// that reimplements it would look in the wrong place on exactly the platform
+/// where it matters.
+pub fn lock_location() -> PathBuf {
+    lock_path()
+}
+
 /// Is a process with this pid alive?
 ///
 /// On Unix, signal 0 asks exactly that without touching the process. A pid that
