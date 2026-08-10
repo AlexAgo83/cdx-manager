@@ -8,7 +8,7 @@
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-10 20:43:18
+> Indicators reviewed: 2026-08-10 21:06:40
 
 # AI Context
 - Summary: Build native tray companions for macOS and Windows plus WSL

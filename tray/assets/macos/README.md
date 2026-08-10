@@ -15,6 +15,11 @@ filenames is load-bearing — it is what makes AppKit treat them as templates.
 | `critical` | below 5% | the ring open, urgency in the solid centre |
 | `unknown` | nothing ever reported | the ring present but broken, never an empty gauge |
 
+`CDX.icns` is the application icon, distinct from these glyphs: it is what
+Finder, Login Items and notification banners show for the app itself, and it
+keeps the full-colour brand artwork. The menu bar is the only surface that
+cannot use colour.
+
 The SVGs are the source; the PNGs are committed rather than generated so the
 build needs no rasterizer. To change a glyph, edit its SVG and re-run:
 

@@ -24,6 +24,13 @@ APP_NAME="CDX.app"
 
 die() { printf 'build-tray: %s\n' "$1" >&2; exit 1; }
 
+# --dev builds a bundle you can launch locally without a certificate. It is not
+# distributable: the linker's ad-hoc signature changes every build, so macOS
+# forgets the notification grant each time and the tray loses its own icon in
+# notifications. Never ship the output of --dev.
+DEV_BUILD=0
+[ "${1:-}" = "--dev" ] && DEV_BUILD=1
+
 command -v cargo >/dev/null 2>&1 || die "cargo not found. Install Rust: https://rustup.rs"
 
 VERSION="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")"
@@ -46,6 +53,9 @@ APP_DIR="$CRATE_DIR/target/release/$APP_NAME"
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$BINARY" "$APP_DIR/Contents/MacOS/cdx-tray"
+# The menu bar glyphs are compiled into the binary; this icon is what Finder,
+# Login Items and the notification banner show for the app itself.
+cp "$CRATE_DIR/assets/macos/CDX.icns" "$APP_DIR/Contents/Resources/CDX.icns"
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -54,6 +64,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 	<key>CFBundleName</key><string>CDX</string>
 	<key>CFBundleDisplayName</key><string>CDX</string>
 	<key>CFBundleExecutable</key><string>cdx-tray</string>
+	<key>CFBundleIconFile</key><string>CDX</string>
 	<key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
 	<key>CFBundlePackageType</key><string>APPL</string>
 	<key>CFBundleShortVersionString</key><string>$VERSION</string>
@@ -65,6 +76,14 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 plutil -lint "$APP_DIR/Contents/Info.plist" >/dev/null || die "generated Info.plist is malformed"
+
+if [ "$DEV_BUILD" = "1" ]; then
+  printf 'build-tray: DEV BUILD, not signed with a stable identity.\n' >&2
+  printf 'build-tray: launchable locally, NOT distributable. Notification\n' >&2
+  printf 'build-tray: permission will reset on every rebuild. See adr_005.\n' >&2
+  printf 'build-tray: built %s\n' "$APP_DIR"
+  exit 0
+fi
 
 IDENTITY="${CDX_TRAY_SIGN_IDENTITY:-}"
 if [ -z "$IDENTITY" ]; then
