@@ -11,9 +11,9 @@ filenames is load-bearing — it is what makes AppKit treat them as templates.
 | Glyph | State | Reads as |
 |---|---|---|
 | `ok` | 25% remaining and above | the ring nearly closed |
-| `low` | below 25% | the same ring drained to its upper arc |
+| `low` | below 25% | the same ring drained to a symmetric arch |
 | `critical` | below 5% | the ring open, urgency in the solid centre |
-| `unknown` | nothing ever reported | the ring present but broken, never an empty gauge |
+| `unknown` | nothing ever reported | eight dots on the ring, present but broken, never an empty gauge |
 
 `CDX.icns` is the application icon, distinct from these glyphs: it is what
 Finder, Login Items and notification banners show for the app itself, and it
@@ -31,7 +31,9 @@ done
 ```
 
 Geometry is shared on purpose: one centre, one radius, one stroke weight across
-all four. An earlier generated set had four different circle diameters and a
+all four. `low` is symmetric about the top and `unknown` uses eight dots rather
+than six, both because fewer or off-centre marks read as scattered rather than
+as one ring. An earlier generated set had four different circle diameters and a
 sub-pixel stroke, and at 18px it collapsed — `ok` and `unknown` became
 indistinguishable, which is the one thing these glyphs exist to avoid. Keep the
 circle constant when editing, and check the result at 18px rather than zoomed
