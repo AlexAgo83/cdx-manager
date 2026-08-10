@@ -34,7 +34,14 @@ from src.tray_contract import (
     read_snapshot,
     session_freshness,
 )
-from src.tray_install import TrayInstallError, install, read_state, uninstall
+from src.tray_install import (
+    TrayInstallError,
+    install,
+    interrupted_update,
+    read_state,
+    uninstall,
+    update,
+)
 
 NOW = datetime(2026, 8, 10, 12, 0, tzinfo=timezone.utc)
 
@@ -318,6 +325,66 @@ class TrayCommandTest(CliTestBase):
         self.assertIn("outside its install directory", str(caught.exception))
         self.assertIsNone(read_state(base_dir))
 
+    def _installed(self, base_dir, scratch, version="9.9.9", body=b"#!/bin/sh\n"):
+        archive, digest = self._asset(scratch, body=body)
+        ledger = self._ledger(scratch, version, "test-target", digest)
+        state = install(
+            base_dir, version,
+            download=lambda url, dest: shutil.copyfile(archive, dest),
+            ledger_path=ledger, target="test-target",
+        )
+        return state, ledger, archive
+
+    def test_update_replaces_only_after_the_replacement_starts(self):
+        scratch = self.make_temp_dir()
+        base_dir = self.make_temp_dir()
+        old, _ledger, _archive = self._installed(base_dir, scratch)
+
+        newer = self.make_temp_dir()
+        archive, digest = self._asset(newer, body=b"#!/bin/sh\n# v2\n")
+        ledger = self._ledger(newer, "9.9.10", "test-target", digest)
+        started = []
+        result = update(
+            base_dir, "9.9.10",
+            download=lambda url, dest: shutil.copyfile(archive, dest),
+            ledger_path=ledger, target="test-target",
+            probe=lambda executable: started.append(executable) or True,
+        )
+        self.assertEqual(result["replaced"], old["cdx_version"])
+        self.assertEqual(read_state(base_dir)["cdx_version"], "9.9.10")
+        self.assertTrue(os.path.isfile(read_state(base_dir)["executable"]))
+        # The probe ran against the staged copy, before the swap.
+        self.assertEqual(len(started), 1)
+        self.assertFalse(interrupted_update(base_dir), "nothing left staged")
+
+    def test_a_replacement_that_cannot_start_leaves_the_working_one(self):
+        # The whole reason for staging: a bad asset costs an error message, not
+        # a tray the user can no longer start.
+        scratch = self.make_temp_dir()
+        base_dir = self.make_temp_dir()
+        old, _ledger, _archive = self._installed(base_dir, scratch)
+
+        newer = self.make_temp_dir()
+        archive, digest = self._asset(newer, body=b"broken\n")
+        ledger = self._ledger(newer, "9.9.10", "test-target", digest)
+        with self.assertRaises(TrayInstallError) as caught:
+            update(
+                base_dir, "9.9.10",
+                download=lambda url, dest: shutil.copyfile(archive, dest),
+                ledger_path=ledger, target="test-target",
+                probe=lambda executable: False,
+            )
+        self.assertIn("did not start", str(caught.exception))
+        still = read_state(base_dir)
+        self.assertEqual(still["cdx_version"], old["cdx_version"])
+        self.assertTrue(os.path.isfile(still["executable"]), "the working one survives")
+        self.assertFalse(interrupted_update(base_dir), "the failed staging is cleaned up")
+
+    def test_update_refuses_when_nothing_is_installed(self):
+        with self.assertRaises(TrayInstallError) as caught:
+            update(self.make_temp_dir(), "9.9.9", target="test-target")
+        self.assertIn("nothing to update", str(caught.exception))
+
     def test_uninstall_removes_only_what_install_recorded(self):
         scratch = self.make_temp_dir()
         base_dir = self.make_temp_dir()
@@ -385,7 +452,8 @@ class TrayCommandTest(CliTestBase):
         self.assertEqual(code, 0)
         checks = {c["check"]: c for c in json.loads(io_obj["stdout"].getvalue())["checks"]}
         self.assertEqual(
-            set(checks), {"companion", "executable", "cdx_version", "target", "running", "autostart"}
+            set(checks),
+            {"companion", "executable", "cdx_version", "target", "running", "autostart", "update"},
         )
         self.assertEqual(checks["companion"]["state"], "absent")
         self.assertEqual(checks["running"]["state"], "no")

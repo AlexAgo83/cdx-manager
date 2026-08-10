@@ -11,6 +11,7 @@ import os
 import platform
 import shutil
 import stat
+import subprocess
 import tarfile
 import tempfile
 import urllib.request
@@ -121,7 +122,8 @@ def companion_path(base_dir, env=None):
     return None, "absent"
 
 
-def install(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, target=None):
+def install(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, target=None,
+            destination=None, record=True):
     """Fetch, verify, unpack, record. Every step before unpack is a refusal point.
 
     The checksum is verified before a single byte is unpacked, because after
@@ -163,7 +165,7 @@ def install(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, targe
                 "Nothing was installed."
             )
 
-        destination = os.path.join(state_dir(base_dir), "companion")
+        destination = destination or os.path.join(state_dir(base_dir), "companion")
         shutil.rmtree(destination, ignore_errors=True)
         os.makedirs(destination, exist_ok=True)
         installed = _extract(archive, destination)
@@ -184,6 +186,10 @@ def install(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, targe
         # must never end up here.
         "paths": [destination],
     }
+    if not record:
+        # Staging: the caller promotes it and writes the record itself, so a
+        # staged install never claims to be the installed one.
+        return state
     os.makedirs(state_dir(base_dir), exist_ok=True)
     with open(state_path(base_dir), "w", encoding="utf-8") as handle:
         json.dump(state, handle, indent=2)
@@ -226,6 +232,81 @@ def _executable_in(destination, names):
                 os.chmod(path, os.stat(path).st_mode | stat.S_IXUSR)
             return path
     return None
+
+
+def staged_dir(base_dir):
+    return os.path.join(state_dir(base_dir), "companion.staged")
+
+
+def update(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, target=None, probe=None):
+    """Replace an installed companion without ever being left with none.
+
+    The order is the whole point. The replacement is downloaded, verified and
+    proved to start *before* the working one is touched, so a bad asset, a
+    truncated download or a binary that cannot execute on this machine costs an
+    error message rather than a tray the user can no longer start.
+
+    A staged directory left behind is a recoverable state, not corruption:
+    `cdx tray doctor` reports it and the next update replaces it.
+    """
+    previous = read_state(base_dir)
+    if not previous:
+        raise TrayInstallError("No tray companion is installed, so there is nothing to update.")
+
+    staged = staged_dir(base_dir)
+    shutil.rmtree(staged, ignore_errors=True)
+    fresh = install(
+        base_dir, version,
+        download=download, ledger_path=ledger_path, target=target,
+        destination=staged, record=False,
+    )
+
+    # Proving it starts is what separates staging from hoping. A binary for the
+    # wrong architecture, or one missing a library, fails here rather than after
+    # the working companion is gone.
+    runner = probe or _probe
+    if not runner(fresh["executable"]):
+        shutil.rmtree(staged, ignore_errors=True)
+        raise TrayInstallError(
+            f"The staged tray companion for CDX {version} did not start. "
+            "The installed one was left untouched."
+        )
+
+    live = os.path.join(state_dir(base_dir), "companion")
+    retired = os.path.join(state_dir(base_dir), "companion.previous")
+    shutil.rmtree(retired, ignore_errors=True)
+    if os.path.isdir(live):
+        os.rename(live, retired)
+    os.rename(staged, live)
+    # Only now is the previous one retired.
+    shutil.rmtree(retired, ignore_errors=True)
+
+    state = {
+        **fresh,
+        "executable": fresh["executable"].replace(staged, live, 1),
+        "paths": [live],
+    }
+    with open(state_path(base_dir), "w", encoding="utf-8") as handle:
+        json.dump(state, handle, indent=2)
+    return {"state": state, "replaced": previous.get("cdx_version")}
+
+
+def _probe(executable):
+    """Does this companion start at all? `--print` exits non-zero when CDX is
+    unavailable, which is not the question here, so any completed run counts."""
+    try:
+        subprocess.run(  # noqa: S603  (path comes from our own install state)
+            launch_command(executable) + ["--print"],
+            capture_output=True, timeout=20, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return True
+
+
+def interrupted_update(base_dir):
+    """A staged directory nobody promoted: an update that died mid-flight."""
+    return os.path.isdir(staged_dir(base_dir))
 
 
 def uninstall(base_dir):

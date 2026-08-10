@@ -1,10 +1,8 @@
 """Tray domain commands: the `cdx tray` surface a companion talks to.
 
-This slice owns the contract, not the companion. `status` is fully implemented
-because it is what the native process reads; `launch` and `uninstall` act on
-whatever `cdx tray install` recorded, and say plainly when nothing is recorded.
-`install` itself belongs to item_081, and until it lands it reports that rather
-than pretending to do something.
+`status` is what the native companion reads. `install`, `launch`, `uninstall`
+and `autostart` act on recorded state and say plainly when there is none, and
+`doctor` reads all of it without changing any of it.
 """
 import os
 import subprocess
@@ -28,6 +26,7 @@ from ..tray_install import (
     companion_path,
     current_target,
     install,
+    interrupted_update,
     launch_command,
     read_state,
     uninstall,
@@ -271,6 +270,9 @@ def _tray_doctor(args, ctx):
         ("target", (state or {}).get("target") or "-", (state or {}).get("sha256") or "-"),
         ("running", "yes" if instance.get("pid") else "no", str(instance.get("pid") or "-")),
         ("autostart", "on" if autostart["enabled"] else "off", autostart["artifact"] or "unsupported"),
+        ("update", "interrupted" if interrupted_update(base_dir) else "clean",
+         "a staged companion was never promoted; run: cdx tray install"
+         if interrupted_update(base_dir) else "-"),
     ]
     if parsed["json"]:
         _write_json(ctx, _json_success(

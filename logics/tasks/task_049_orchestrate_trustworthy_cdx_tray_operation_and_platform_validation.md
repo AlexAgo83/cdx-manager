@@ -4,7 +4,7 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 35%
+> Progress: 55%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -51,6 +51,7 @@
 - request-AC8 -> `item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts`. Proof deferred to slice closeout.
 
 # Validation
+- Staged update wave: `python3 -m pytest -q` 716 passed, ruff clean. A replacement is downloaded, verified and proved to start before the working companion is touched; a probe that fails leaves the installed one running and cleans the staging away, and doctor reports an interrupted update.
 - Autostart and doctor wave: `python3 -m pytest -q` 713 passed, ruff clean. Exercised for real on macOS: the on/off/idempotence cycle writes and removes a LaunchAgent plist, and `cdx tray doctor` reports companion, executable, version, instance and autostart in one table.
 - Single-instance wave: `cargo test` 24 passed, `cargo clippy -- -D warnings` clean on all three targets. Verified with the signed bundle on the arm64 macOS host: a second launch exits 3 naming the first companion's pid, and a pid file left by a killed companion is reclaimed by the next launch rather than blocking it.
 
@@ -61,6 +62,9 @@
 - Autostart is off until asked, and its state is read back from the platform rather than remembered. A recorded intention that drifted from the system is exactly the confusion doctor exists to end, so doctor must not consult the same memory that could be wrong.
 - No `KeepAlive` in the LaunchAgent: quitting the tray from its own menu has to mean quit, not be restarted by launchd a second later.
 - `cdx tray doctor` reads and never repairs. A doctor that also acted would have to be trusted with the machine; this one only has to be trusted to tell the truth, and a test asserts it creates nothing it reported as absent.
+- Update ordering is the whole design: download, verify, prove it starts, then swap, then retire. A bad asset, a truncated download or a binary for the wrong architecture costs an error message rather than a tray the user can no longer start.
+- Proving it starts is what separates staging from hoping. Without the probe, staging would only protect against a failed download, not against an asset that downloads perfectly and cannot execute here.
+- A staged directory left behind is a recoverable state rather than corruption: doctor names it and the next install replaces it.
 - The lock lives under the per-user temporary directory, not a shared path, so one user's companion cannot block another's on a shared machine.
 
 # Links
