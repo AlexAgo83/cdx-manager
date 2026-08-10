@@ -20,7 +20,14 @@ from ..tray_contract import (
     UNKNOWN,
     build_snapshot,
 )
-from ..tray_install import companion_path, launch_command, read_state
+from ..tray_install import (
+    TrayInstallError,
+    companion_path,
+    current_target,
+    install,
+    launch_command,
+    uninstall,
+)
 
 TRAY_ACTIONS = ("status", "install", "launch", "uninstall")
 
@@ -49,7 +56,7 @@ def handle_tray(rest, ctx):
         return _tray_launch(args, ctx)
     if action == "uninstall":
         return _tray_uninstall(args, ctx)
-    return _companion_action(action, args, ctx)
+    return _tray_install(args, ctx)
 
 
 def _tray_status(args, ctx):
@@ -131,15 +138,55 @@ def _tray_uninstall(args, ctx):
     parsed = _parse_flag_args(args, {
         "--json": {"key": "json", "type": "bool", "default": False},
     }, TRAY_USAGE, positionals_key="args", max_positionals=0)
-    state = read_state(ctx["service"]["base_dir"])
-    if not state:
+    result = uninstall(ctx["service"]["base_dir"])
+    if not result:
         # Nothing recorded means nothing to remove. Deleting on a guess is how
         # an uninstaller takes a file it did not put there.
         return _refuse(
             ctx, parsed["json"], "tray.uninstall", COMPANION_NOT_INSTALLED,
             "No tray companion install is recorded, so nothing was removed.",
         )
-    return _companion_action("uninstall", args, ctx)
+    message = f"Removed the tray companion ({len(result['removed'])} path(s))"
+    if parsed["json"]:
+        _write_json(ctx, _json_success(
+            "tray.uninstall", message, removed=result["removed"], applied=True,
+        ))
+        return 0
+    ctx["out"](f"{message}\n")
+    return 0
+
+
+def _tray_install(args, ctx):
+    parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, TRAY_USAGE, positionals_key="args", max_positionals=0)
+    target = current_target()
+    if not target:
+        return _refuse(
+            ctx, parsed["json"], "tray.install", COMPANION_UNAVAILABLE,
+            "No tray companion is published for this operating system and architecture.",
+        )
+    try:
+        state = install(
+            ctx["service"]["base_dir"],
+            ctx["version"],
+            download=ctx.get("download_asset"),
+        )
+    except TrayInstallError as error:
+        # A refusal, not a crash: nothing was written, and the reason is the
+        # useful part. Raising keeps the non-zero exit a caller expects.
+        raise CdxError(str(error)) from error
+
+    message = f"Installed the {state['target']} tray companion for CDX {state['cdx_version']}"
+    if parsed["json"]:
+        _write_json(ctx, _json_success(
+            "tray.install", message,
+            target=state["target"], executable=state["executable"],
+            sha256=state["sha256"], applied=True,
+        ))
+        return 0
+    ctx["out"](f"{message}\n{_dim(state['executable'], ctx['use_color'])}\n")
+    return 0
 
 
 def _refuse(ctx, as_json, action, code, message):

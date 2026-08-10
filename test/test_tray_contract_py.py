@@ -6,8 +6,11 @@ the closed-icon state, telling `stale` apart from `cannot refresh right now`,
 and staying readable when the snapshot is newer than the reader.
 """
 
+import hashlib
 import json
 import os
+import shutil
+import tarfile
 from datetime import datetime, timedelta, timezone
 
 from cli_test_support import CliTestBase
@@ -31,7 +34,7 @@ from src.tray_contract import (
     read_snapshot,
     session_freshness,
 )
-from src.tray_install import read_state
+from src.tray_install import TrayInstallError, install, read_state, uninstall
 
 NOW = datetime(2026, 8, 10, 12, 0, tzinfo=timezone.utc)
 
@@ -182,21 +185,16 @@ class TrayCommandTest(CliTestBase):
         self.assertFalse(seen["cache_only"])
         self.assertTrue(seen["force_refresh"])
 
-    def test_companion_actions_change_nothing_and_say_so(self):
-        # Each refusal names its own reason: install has no implementation yet,
-        # while launch and uninstall have one and simply have nothing recorded.
+    def test_launch_and_uninstall_refuse_when_nothing_is_recorded(self):
         service, temp_dir = self._service()
-        expected = {
-            "install": "tray_companion_not_available",
-            "launch": "tray_companion_not_installed",
-            "uninstall": "tray_companion_not_installed",
-        }
-        for action, code_name in expected.items():
+        for action in ("launch", "uninstall"):
             code, out = self._run(["tray", action, "--json"], service, temp_dir)
             self.assertEqual(code, 0, action)
             payload = json.loads(out)
             self.assertFalse(payload["applied"], action)
-            self.assertEqual(payload["warnings"][0]["code"], code_name, action)
+            self.assertEqual(
+                payload["warnings"][0]["code"], "tray_companion_not_installed", action
+            )
 
     def test_launch_starts_the_companion_it_was_pointed_at(self):
         service, temp_dir = self._service()
@@ -242,6 +240,104 @@ class TrayCommandTest(CliTestBase):
         code, out = self._run(["tray", "uninstall", "--json"], service, temp_dir)
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(out)["warnings"][0]["code"], "tray_companion_not_installed")
+
+    def _asset(self, directory, name="cdx-tray", body=b"#!/bin/sh\n", extra=None):
+        """A tar.gz shaped like a real release asset, and its checksum."""
+        payload = os.path.join(directory, name)
+        with open(payload, "wb") as handle:
+            handle.write(body)
+        archive = os.path.join(directory, "asset.tar.gz")
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.add(payload, arcname=name)
+            for member_name, member_path in (extra or []):
+                tar.add(member_path, arcname=member_name)
+        return archive, hashlib.sha256(open(archive, "rb").read()).hexdigest()
+
+    def _ledger(self, directory, version, target, digest):
+        path = os.path.join(directory, "ledger.json")
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"releases": {f"v{version}": {"tray_assets": {target: digest}}}}, handle)
+        return path
+
+    def test_install_verifies_the_checksum_before_unpacking(self):
+        scratch = self.make_temp_dir()
+        base_dir = self.make_temp_dir()
+        archive, digest = self._asset(scratch)
+        ledger = self._ledger(scratch, "9.9.9", "test-target", digest)
+        state = install(
+            base_dir, "9.9.9",
+            download=lambda url, dest: shutil.copyfile(archive, dest),
+            ledger_path=ledger, target="test-target",
+        )
+        self.assertEqual(state["sha256"], digest)
+        self.assertTrue(os.path.isfile(state["executable"]))
+        self.assertTrue(os.access(state["executable"], os.X_OK))
+
+    def test_install_refuses_a_mismatched_checksum_and_writes_nothing(self):
+        scratch = self.make_temp_dir()
+        base_dir = self.make_temp_dir()
+        archive, _digest = self._asset(scratch)
+        ledger = self._ledger(scratch, "9.9.9", "test-target", "0" * 64)
+        with self.assertRaises(TrayInstallError) as caught:
+            install(
+                base_dir, "9.9.9",
+                download=lambda url, dest: shutil.copyfile(archive, dest),
+                ledger_path=ledger, target="test-target",
+            )
+        self.assertIn("Checksum mismatch", str(caught.exception))
+        self.assertIsNone(read_state(base_dir))
+
+    def test_install_refuses_an_asset_nothing_vouches_for(self):
+        # No published checksum is exactly the case the gate exists for.
+        scratch = self.make_temp_dir()
+        base_dir = self.make_temp_dir()
+        ledger = self._ledger(scratch, "0.0.1", "other-target", "0" * 64)
+        with self.assertRaises(TrayInstallError) as caught:
+            install(base_dir, "9.9.9", ledger_path=ledger, target="test-target")
+        self.assertIn("No published checksum", str(caught.exception))
+
+    def test_install_refuses_an_archive_that_escapes_its_directory(self):
+        # A verified checksum says the asset is the published one, not that the
+        # published one is well behaved.
+        scratch = self.make_temp_dir()
+        base_dir = self.make_temp_dir()
+        outside = os.path.join(scratch, "escape")
+        with open(outside, "w", encoding="utf-8") as handle:
+            handle.write("nope")
+        archive = os.path.join(scratch, "asset.tar.gz")
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.add(outside, arcname="../escaped")
+        digest = hashlib.sha256(open(archive, "rb").read()).hexdigest()
+        ledger = self._ledger(scratch, "9.9.9", "test-target", digest)
+        with self.assertRaises(TrayInstallError) as caught:
+            install(
+                base_dir, "9.9.9",
+                download=lambda url, dest: shutil.copyfile(archive, dest),
+                ledger_path=ledger, target="test-target",
+            )
+        self.assertIn("outside its install directory", str(caught.exception))
+        self.assertIsNone(read_state(base_dir))
+
+    def test_uninstall_removes_only_what_install_recorded(self):
+        scratch = self.make_temp_dir()
+        base_dir = self.make_temp_dir()
+        archive, digest = self._asset(scratch)
+        ledger = self._ledger(scratch, "9.9.9", "test-target", digest)
+        state = install(
+            base_dir, "9.9.9",
+            download=lambda url, dest: shutil.copyfile(archive, dest),
+            ledger_path=ledger, target="test-target",
+        )
+        bystander = os.path.join(base_dir, "tray", "not-ours.txt")
+        with open(bystander, "w", encoding="utf-8") as handle:
+            handle.write("keep me")
+
+        result = uninstall(base_dir)
+        self.assertEqual(result["removed"], state["paths"])
+        self.assertFalse(os.path.exists(state["executable"]))
+        self.assertIsNone(read_state(base_dir))
+        # A file CDX never recorded survives, which is the whole contract.
+        self.assertTrue(os.path.exists(bystander))
 
     def test_an_unknown_action_is_refused(self):
         service, temp_dir = self._service()
