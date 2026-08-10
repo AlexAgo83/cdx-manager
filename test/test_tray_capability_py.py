@@ -153,3 +153,55 @@ class WindowsAumidTest(CliTestBase):
         with open(path, "wb") as handle:
             handle.write(b"shortcut")
         self.assertEqual(windows_aumid({"APPDATA": temp_dir}), APP_USER_MODEL_ID)
+
+
+class WindowsAutostartTest(CliTestBase):
+    """The Windows autostart branch, exercised on every platform.
+
+    On Windows the artifact is the HKCU Run key rather than a file, so the
+    behaviour cannot be covered by the file-based path the other platforms take
+    — and it went through CI unexercised until a Windows runner failed on it.
+    Driving it through the injected runner covers it everywhere, and without
+    writing to any real registry.
+    """
+
+    def _registry(self):
+        keys = {}
+
+        class Result:
+            def __init__(self, returncode):
+                self.returncode = returncode
+
+        def run(argv, **_kwargs):
+            action, name = argv[1], argv[argv.index("/v") + 1]
+            if action == "add":
+                keys[name] = argv[-2]
+                return Result(0)
+            if action == "delete":
+                return Result(0 if keys.pop(name, None) is not None else 1)
+            return Result(0 if name in keys else 1)
+
+        return run, keys
+
+    def test_it_is_off_until_asked_then_reversible(self):
+        from src.tray_autostart import disable, enable, status
+        run, keys = self._registry()
+        env = {"APPDATA": self.make_temp_dir()}
+
+        self.assertFalse(status(env=env, system="Windows", run=run)["enabled"])
+        enable(r"C:\cdx-tray.exe", env=env, system="Windows", run=run)
+        self.assertTrue(status(env=env, system="Windows", run=run)["enabled"])
+        # Idempotent: asking twice is not an error and not a second entry.
+        enable(r"C:\cdx-tray.exe", env=env, system="Windows", run=run)
+        self.assertEqual(len(keys), 1)
+        disable(env=env, system="Windows", run=run)
+        self.assertFalse(status(env=env, system="Windows", run=run)["enabled"])
+
+    def test_the_artifact_names_the_registry_value_it_writes(self):
+        """Reported so a user can find and remove it by hand, which a path they
+        cannot see would not allow."""
+        from src.tray_autostart import status
+        run, _keys = self._registry()
+        artifact = status(env={}, system="Windows", run=run)["artifact"]
+        self.assertIn("CurrentVersion\\Run", artifact)
+        self.assertTrue(artifact.endswith("CDXTray"))

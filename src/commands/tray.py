@@ -244,9 +244,9 @@ def _tray_autostart(args, ctx):
             )
         try:
             if mode == "on":
-                autostart_enable(executable, env=env)
+                autostart_enable(executable, env=env, run=ctx.get("spawn_sync"))
             else:
-                autostart_disable(env=env)
+                autostart_disable(env=env, run=ctx.get("spawn_sync"))
         except NotImplementedError as error:
             return _refuse(
                 ctx, parsed["json"], "tray.autostart", AUTOSTART_UNSUPPORTED, str(error),
@@ -255,7 +255,7 @@ def _tray_autostart(args, ctx):
     # Read the platform back rather than reporting what we just intended: a
     # recorded intention that drifted from the system is the confusion doctor
     # exists to end.
-    state = autostart_status(env=env)
+    state = autostart_status(env=env, run=ctx.get("spawn_sync"))
     if not state["supported"]:
         return _refuse(
             ctx, parsed["json"], "tray.autostart", AUTOSTART_UNSUPPORTED,
@@ -291,7 +291,7 @@ def _tray_doctor(args, ctx):
     env = ctx.get("env")
     executable, source = companion_path(base_dir, env=env)
     state = read_state(base_dir)
-    autostart = autostart_status(env=env)
+    autostart = autostart_status(env=env, run=ctx.get("spawn_sync"))
     instance = companion_instance()
     desktop = desktop_capability(env=env)
     toasts = toast_capability(env=env)

@@ -185,8 +185,42 @@ class TrayCommandTest(CliTestBase):
 
     def _run(self, argv, service, temp_dir):
         io_obj = self.make_io()
-        code = main(argv, {**io_obj, "service": service, "env": {"CDX_HOME": temp_dir}})
+        code = main(argv, {
+            **io_obj, "service": service, "env": {"CDX_HOME": temp_dir},
+            "spawn_sync": self._fake_registry(),
+        })
         return code, io_obj["stdout"].getvalue()
+
+    def _fake_registry(self):
+        """A stand-in for `reg`, so a test never writes to the real machine.
+
+        On Windows the autostart artifact *is* the HKCU Run key, so a test that
+        called through would add a startup entry to whoever ran it — and leak
+        that state into the next test. The seam exists in `tray_autostart`;
+        this is what fills it.
+        """
+        keys = {}
+
+        class Result:
+            def __init__(self, returncode):
+                self.returncode = returncode
+                self.stdout = ""
+                self.stderr = ""
+
+        def run(argv, **_kwargs):
+            if not argv or argv[0] != "reg":
+                return Result(0)
+            action, value = argv[1], argv[-1]
+            name = argv[argv.index("/v") + 1] if "/v" in argv else ""
+            if action == "add":
+                keys[name] = value
+                return Result(0)
+            if action == "delete":
+                return Result(0 if keys.pop(name, None) is not None else 1)
+            return Result(0 if name in keys else 1)
+
+        return run
+
 
     def test_help_lists_every_action(self):
         service, temp_dir = self._service()
@@ -515,10 +549,16 @@ class TrayCommandTest(CliTestBase):
         service, temp_dir = self._service()
         home = self.make_temp_dir()
         env = {"HOME": home, "CDX_HOME": temp_dir, "CDX_TRAY_BIN": "/usr/bin/true"}
+        # One registry for the whole test: on Windows the artifact is the HKCU
+        # Run key, so calling through would add a startup entry to whoever ran
+        # the suite and carry it into the next test.
+        registry = self._fake_registry()
 
         def run(*argv):
             io_obj = self.make_io()
-            main(["tray", *argv, "--json"], {**io_obj, "service": service, "env": env})
+            main(["tray", *argv, "--json"], {
+                **io_obj, "service": service, "env": env, "spawn_sync": registry,
+            })
             return json.loads(io_obj["stdout"].getvalue())
 
         self.assertFalse(run("autostart")["enabled"], "nothing enables it on its own")
@@ -550,6 +590,7 @@ class TrayCommandTest(CliTestBase):
         code = main(["tray", "doctor", "--json"], {
             **io_obj, "service": service,
             "env": {"HOME": home, "CDX_HOME": temp_dir},
+            "spawn_sync": self._fake_registry(),
         })
         self.assertEqual(code, 0)
         checks = {c["check"]: c for c in json.loads(io_obj["stdout"].getvalue())["checks"]}
