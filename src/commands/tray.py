@@ -1,11 +1,13 @@
 """Tray domain commands: the `cdx tray` surface a companion talks to.
 
 This slice owns the contract, not the companion. `status` is fully implemented
-because it is what the native process reads; `install`, `launch`, and
-`uninstall` are declared here with non-mutating behaviour so the surface is
-stable and discoverable before any binary exists. They report that honestly
-rather than pretending to do something.
+because it is what the native process reads; `launch` and `uninstall` act on
+whatever `cdx tray install` recorded, and say plainly when nothing is recorded.
+`install` itself belongs to item_081, and until it lands it reports that rather
+than pretending to do something.
 """
+import os
+import subprocess
 from datetime import datetime, timezone
 
 from ..cli_args import TRAY_USAGE, _parse_flag_args
@@ -18,12 +20,14 @@ from ..tray_contract import (
     UNKNOWN,
     build_snapshot,
 )
+from ..tray_install import companion_path, launch_command, read_state
 
 TRAY_ACTIONS = ("status", "install", "launch", "uninstall")
 
-# Reported by install/launch/uninstall until item_080 ships a companion. A code
-# rather than prose so a caller can branch on it.
+# Codes rather than prose, so a caller can branch on them.
 COMPANION_UNAVAILABLE = "tray_companion_not_available"
+COMPANION_NOT_INSTALLED = "tray_companion_not_installed"
+COMPANION_MISSING_FILE = "tray_companion_missing"
 
 _FRESHNESS_TEXT = {
     FRESH: "fresh",
@@ -41,6 +45,10 @@ def handle_tray(rest, ctx):
         raise CdxError(TRAY_USAGE)
     if action == "status":
         return _tray_status(args, ctx)
+    if action == "launch":
+        return _tray_launch(args, ctx)
+    if action == "uninstall":
+        return _tray_uninstall(args, ctx)
     return _companion_action(action, args, ctx)
 
 
@@ -67,6 +75,85 @@ def _tray_status(args, ctx):
         _write_json(ctx, _json_success("tray.status", "Built tray snapshot", snapshot=snapshot))
         return 0
     ctx["out"](f"{_format_snapshot(snapshot, use_color=ctx['use_color'])}\n")
+    return 0
+
+
+def _tray_launch(args, ctx):
+    parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, TRAY_USAGE, positionals_key="args", max_positionals=0)
+    base_dir = ctx["service"]["base_dir"]
+    executable, source = companion_path(base_dir, env=ctx.get("env"))
+
+    if not executable:
+        return _refuse(
+            ctx, parsed["json"], "tray.launch", COMPANION_NOT_INSTALLED,
+            "No tray companion is installed. Run: cdx tray install",
+        )
+    if not os.path.exists(executable):
+        # A recorded path that no longer exists is worth naming: the companion
+        # was removed behind CDX's back, and reinstalling is the fix.
+        return _refuse(
+            ctx, parsed["json"], "tray.launch", COMPANION_MISSING_FILE,
+            f"The recorded tray companion is gone: {executable}. Run: cdx tray install",
+        )
+
+    command = launch_command(executable)
+    try:
+        # Detached on purpose: the tray outlives the command that started it,
+        # and cdx must not wait on a process that only exits when the user quits.
+        spawn = ctx.get("spawn_detached") or _spawn_detached
+        spawn(command)
+    except OSError as error:
+        raise CdxError(f"Could not start the tray companion: {error}") from error
+
+    message = f"Started the tray companion from {executable}"
+    if parsed["json"]:
+        _write_json(ctx, _json_success(
+            "tray.launch", message, executable=executable, source=source, command=command,
+        ))
+        return 0
+    ctx["out"](f"{message}\n")
+    return 0
+
+
+def _spawn_detached(command):
+    subprocess.Popen(  # noqa: S603  (command is CDX-controlled, never user text)
+        command,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+
+def _tray_uninstall(args, ctx):
+    parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, TRAY_USAGE, positionals_key="args", max_positionals=0)
+    state = read_state(ctx["service"]["base_dir"])
+    if not state:
+        # Nothing recorded means nothing to remove. Deleting on a guess is how
+        # an uninstaller takes a file it did not put there.
+        return _refuse(
+            ctx, parsed["json"], "tray.uninstall", COMPANION_NOT_INSTALLED,
+            "No tray companion install is recorded, so nothing was removed.",
+        )
+    return _companion_action("uninstall", args, ctx)
+
+
+def _refuse(ctx, as_json, action, code, message):
+    """Report that nothing happened, and why, without failing the command.
+
+    Not an error: asking to launch a tray that is not installed is a reasonable
+    thing to do, and the answer is a state rather than a fault.
+    """
+    if as_json:
+        _write_json(ctx, _json_success(
+            action, message, warnings=[{"code": code, "message": message}], applied=False,
+        ))
+        return 0
+    ctx["out"](f"{_warn(message, ctx['use_color'])}\n")
     return 0
 
 

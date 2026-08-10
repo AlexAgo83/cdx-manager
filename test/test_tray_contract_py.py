@@ -7,6 +7,7 @@ and staying readable when the snapshot is newer than the reader.
 """
 
 import json
+import os
 from datetime import datetime, timedelta, timezone
 
 from cli_test_support import CliTestBase
@@ -30,6 +31,7 @@ from src.tray_contract import (
     read_snapshot,
     session_freshness,
 )
+from src.tray_install import read_state
 
 NOW = datetime(2026, 8, 10, 12, 0, tzinfo=timezone.utc)
 
@@ -181,13 +183,65 @@ class TrayCommandTest(CliTestBase):
         self.assertTrue(seen["force_refresh"])
 
     def test_companion_actions_change_nothing_and_say_so(self):
+        # Each refusal names its own reason: install has no implementation yet,
+        # while launch and uninstall have one and simply have nothing recorded.
         service, temp_dir = self._service()
-        for action in ("install", "launch", "uninstall"):
+        expected = {
+            "install": "tray_companion_not_available",
+            "launch": "tray_companion_not_installed",
+            "uninstall": "tray_companion_not_installed",
+        }
+        for action, code_name in expected.items():
             code, out = self._run(["tray", action, "--json"], service, temp_dir)
-            self.assertEqual(code, 0)
+            self.assertEqual(code, 0, action)
             payload = json.loads(out)
-            self.assertFalse(payload["applied"])
-            self.assertEqual(payload["warnings"][0]["code"], "tray_companion_not_available")
+            self.assertFalse(payload["applied"], action)
+            self.assertEqual(payload["warnings"][0]["code"], code_name, action)
+
+    def test_launch_starts_the_companion_it_was_pointed_at(self):
+        service, temp_dir = self._service()
+        companion = os.path.join(temp_dir, "cdx-tray")
+        with open(companion, "w", encoding="utf-8") as handle:
+            handle.write("#!/bin/sh\n")
+        started = []
+        io_obj = self.make_io()
+        code = main(["tray", "launch", "--json"], {
+            **io_obj,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir, "CDX_TRAY_BIN": companion},
+            "spawn_detached": started.append,
+        })
+        self.assertEqual(code, 0)
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertEqual(payload["executable"], companion)
+        self.assertEqual(payload["source"], "override")
+        self.assertEqual(started, [[companion]])
+
+    def test_launch_names_a_companion_that_vanished(self):
+        # A recorded path that no longer exists is a different problem from
+        # never having installed, and the remedy differs too.
+        service, temp_dir = self._service()
+        io_obj = self.make_io()
+        code = main(["tray", "launch", "--json"], {
+            **io_obj,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir, "CDX_TRAY_BIN": os.path.join(temp_dir, "gone")},
+            "spawn_detached": lambda command: self.fail("must not spawn a missing file"),
+        })
+        self.assertEqual(code, 0)
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertEqual(payload["warnings"][0]["code"], "tray_companion_missing")
+
+    def test_a_damaged_install_record_reads_as_absent(self):
+        # The record drives deletion, so a half-understood one must not be used.
+        service, temp_dir = self._service()
+        os.makedirs(os.path.join(temp_dir, "tray"), exist_ok=True)
+        with open(os.path.join(temp_dir, "tray", "install.json"), "w", encoding="utf-8") as handle:
+            handle.write("{not json")
+        self.assertIsNone(read_state(temp_dir))
+        code, out = self._run(["tray", "uninstall", "--json"], service, temp_dir)
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["warnings"][0]["code"], "tray_companion_not_installed")
 
     def test_an_unknown_action_is_refused(self):
         service, temp_dir = self._service()

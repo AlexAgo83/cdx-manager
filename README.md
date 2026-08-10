@@ -514,7 +514,8 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx status --small [--refresh\|--cached] [--timeout SECONDS]` / `cdx status -s [--refresh\|--cached] [--timeout SECONDS]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
 | `cdx status <name> [--json] [--refresh\|--cached] [--timeout SECONDS]` | Show detailed usage breakdown for one session; `--cached` avoids live provider refreshes |
 | `cdx tray status [--json] [--refresh]` | Emit the tray snapshot: one icon state, one line per enabled session, and how fresh each figure is. Reads stored status by default; `--refresh` is the only path that probes a provider |
-| `cdx tray install\|launch\|uninstall [--json]` | Tray companion lifecycle. Declared and non-mutating until a companion ships; each reports `tray_companion_not_available` and changes nothing |
+| `cdx tray launch [--json]` | Start the installed tray companion, detached. Reports `tray_companion_not_installed` when nothing is recorded, or `tray_companion_missing` when the recorded companion is gone. `CDX_TRAY_BIN` points it at a locally built one |
+| `cdx tray install\|uninstall [--json]` | Tray companion install lifecycle. `uninstall` removes only what `install` recorded and says so when nothing is; `install` itself is not implemented yet and changes nothing |
 | `cdx --help` | Show usage |
 | `cdx --version` | Show version |
 
