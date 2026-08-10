@@ -31,10 +31,46 @@ die() { printf 'build-tray: %s\n' "$1" >&2; exit 1; }
 DEV_BUILD=0
 [ "${1:-}" = "--dev" ] && DEV_BUILD=1
 
+# --linux builds the Linux asset, statically linked against musl, from any host.
+# Static musl is what makes the Linux asset a single file with no runtime
+# prerequisite, which is the property adr_005 asked for when it chose ksni over
+# tray-icon: ksni and zbus are pure Rust, so nothing here needs a C library.
+#
+# It links through rust-lld rather than the host `cc`, so no C toolchain is
+# required to produce it — verified by building this on macOS for a WSL Ubuntu
+# that has neither gcc nor libc6-dev.
+LINUX_BUILD=0
+[ "${1:-}" = "--linux" ] && LINUX_BUILD=1
+
 command -v cargo >/dev/null 2>&1 || die "cargo not found. Install Rust: https://rustup.rs"
 
 VERSION="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")"
 [ -n "$VERSION" ] || die "VERSION is empty"
+
+if [ "$LINUX_BUILD" = "1" ]; then
+  TARGET=x86_64-unknown-linux-musl
+  rustup target list --installed 2>/dev/null | grep -qx "$TARGET" \
+    || die "target $TARGET is not installed. Run: rustup target add $TARGET"
+
+  # rust-lld is a generic driver and refuses to guess which linker it is, so it
+  # is reached through a wrapper that names the GNU flavour.
+  RUST_LLD="$(rustc --print sysroot)/lib/rustlib/$(rustc -vV | sed -n 's/^host: //p')/bin/rust-lld"
+  [ -x "$RUST_LLD" ] || die "rust-lld not found at $RUST_LLD"
+  LLD_DIR="$(mktemp -d)"
+  trap 'rm -rf "$LLD_DIR"' EXIT
+  printf '#!/bin/sh\nexec %s -flavor gnu "$@"\n' "$RUST_LLD" > "$LLD_DIR/ld.lld"
+  chmod +x "$LLD_DIR/ld.lld"
+
+  printf 'build-tray: building cdx-tray %s for %s\n' "$VERSION" "$TARGET"
+  CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER="$LLD_DIR/ld.lld" \
+  CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-C linker-flavor=ld -C link-self-contained=yes" \
+    cargo build --release --target "$TARGET" --manifest-path "$CRATE_DIR/Cargo.toml"
+
+  LINUX_BINARY="$CRATE_DIR/target/$TARGET/release/cdx-tray"
+  [ -x "$LINUX_BINARY" ] || die "cargo did not produce $LINUX_BINARY"
+  printf 'build-tray: built %s\n' "$LINUX_BINARY"
+  exit 0
+fi
 
 printf 'build-tray: building cdx-tray %s\n' "$VERSION"
 cargo build --release --manifest-path "$CRATE_DIR/Cargo.toml"
