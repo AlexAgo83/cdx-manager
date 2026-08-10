@@ -339,6 +339,60 @@ class TrayCommandTest(CliTestBase):
         # A file CDX never recorded survives, which is the whole contract.
         self.assertTrue(os.path.exists(bystander))
 
+    def test_autostart_is_off_until_asked_and_reversible(self):
+        # req_038 AC1 in one test: installing never enables startup, on and off
+        # are explicit and idempotent, and the state is read back from the
+        # platform rather than from what CDX last intended.
+        service, temp_dir = self._service()
+        home = self.make_temp_dir()
+        env = {"HOME": home, "CDX_HOME": temp_dir, "CDX_TRAY_BIN": "/usr/bin/true"}
+
+        def run(*argv):
+            io_obj = self.make_io()
+            main(["tray", *argv, "--json"], {**io_obj, "service": service, "env": env})
+            return json.loads(io_obj["stdout"].getvalue())
+
+        self.assertFalse(run("autostart")["enabled"], "nothing enables it on its own")
+        self.assertTrue(run("autostart", "on")["enabled"])
+        artifact = run("autostart")["artifact"]
+        self.assertTrue(os.path.exists(artifact))
+        # Idempotent: asking twice is not an error and not a second entry.
+        self.assertTrue(run("autostart", "on")["enabled"])
+        self.assertFalse(run("autostart", "off")["enabled"])
+        self.assertFalse(os.path.exists(artifact))
+        # Off again on something already off is success, not a failure.
+        self.assertFalse(run("autostart", "off")["enabled"])
+
+    def test_autostart_on_refuses_without_a_companion(self):
+        service, temp_dir = self._service()
+        io_obj = self.make_io()
+        code = main(["tray", "autostart", "on", "--json"], {
+            **io_obj, "service": service,
+            "env": {"HOME": self.make_temp_dir(), "CDX_HOME": temp_dir},
+        })
+        self.assertEqual(code, 0)
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertEqual(payload["warnings"][0]["code"], "tray_companion_not_installed")
+
+    def test_doctor_reports_every_state_without_changing_any(self):
+        service, temp_dir = self._service()
+        home = self.make_temp_dir()
+        io_obj = self.make_io()
+        code = main(["tray", "doctor", "--json"], {
+            **io_obj, "service": service,
+            "env": {"HOME": home, "CDX_HOME": temp_dir},
+        })
+        self.assertEqual(code, 0)
+        checks = {c["check"]: c for c in json.loads(io_obj["stdout"].getvalue())["checks"]}
+        self.assertEqual(
+            set(checks), {"companion", "executable", "cdx_version", "target", "running", "autostart"}
+        )
+        self.assertEqual(checks["companion"]["state"], "absent")
+        self.assertEqual(checks["running"]["state"], "no")
+        self.assertEqual(checks["autostart"]["state"], "off")
+        # It reads; it never fixes. Nothing it reported as absent got created.
+        self.assertIsNone(read_state(temp_dir))
+
     def test_an_unknown_action_is_refused(self):
         service, temp_dir = self._service()
         io_obj = self.make_io()

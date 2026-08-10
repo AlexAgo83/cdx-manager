@@ -517,6 +517,8 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx tray launch [--json]` | Start the installed tray companion, detached. Reports `tray_companion_not_installed` when nothing is recorded, or `tray_companion_missing` when the recorded companion is gone. `CDX_TRAY_BIN` points it at a locally built one |
 | `cdx tray install [--json]` | Download the companion for this OS and architecture, verify its published checksum before unpacking, and record what was written. Refuses when no checksum is published for the asset |
 | `cdx tray uninstall [--json]` | Remove exactly what `install` recorded, and nothing else |
+| `cdx tray autostart [on\|off\|status] [--json]` | Start the companion at login, or stop doing so. Off until asked, idempotent, and the state is read back from the platform rather than from what CDX last intended |
+| `cdx tray doctor [--json]` | Report companion, executable, version, running instance and autostart state in one bounded diagnostic. Reads only; it never repairs |
 | `cdx --help` | Show usage |
 | `cdx --version` | Show version |
 

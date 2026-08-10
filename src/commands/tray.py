@@ -14,6 +14,9 @@ from ..cli_args import TRAY_USAGE, _parse_flag_args
 from ..cli_helpers import _json_success, _write_json
 from ..cli_render import _dim, _pad_table, _style, _warn
 from ..errors import CdxError
+from ..tray_autostart import disable as autostart_disable
+from ..tray_autostart import enable as autostart_enable
+from ..tray_autostart import status as autostart_status
 from ..tray_contract import (
     AUTH_LOCKED,
     FRESH,
@@ -26,15 +29,18 @@ from ..tray_install import (
     current_target,
     install,
     launch_command,
+    read_state,
     uninstall,
 )
+from ..tray_instance import companion_instance
 
-TRAY_ACTIONS = ("status", "install", "launch", "uninstall")
+TRAY_ACTIONS = ("status", "install", "launch", "uninstall", "autostart", "doctor")
 
 # Codes rather than prose, so a caller can branch on them.
 COMPANION_UNAVAILABLE = "tray_companion_not_available"
 COMPANION_NOT_INSTALLED = "tray_companion_not_installed"
 COMPANION_MISSING_FILE = "tray_companion_missing"
+AUTOSTART_UNSUPPORTED = "tray_autostart_unsupported"
 
 _FRESHNESS_TEXT = {
     FRESH: "fresh",
@@ -56,6 +62,10 @@ def handle_tray(rest, ctx):
         return _tray_launch(args, ctx)
     if action == "uninstall":
         return _tray_uninstall(args, ctx)
+    if action == "autostart":
+        return _tray_autostart(args, ctx)
+    if action == "doctor":
+        return _tray_doctor(args, ctx)
     return _tray_install(args, ctx)
 
 
@@ -186,6 +196,90 @@ def _tray_install(args, ctx):
         ))
         return 0
     ctx["out"](f"{message}\n{_dim(state['executable'], ctx['use_color'])}\n")
+    return 0
+
+
+def _tray_autostart(args, ctx):
+    parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, TRAY_USAGE, positionals_key="args", max_positionals=1)
+    mode = (parsed["args"] or ["status"])[0]
+    if mode not in ("on", "off", "status"):
+        raise CdxError(TRAY_USAGE)
+    env = ctx.get("env")
+
+    if mode != "status":
+        executable, _source = companion_path(ctx["service"]["base_dir"], env=env)
+        if mode == "on" and not executable:
+            return _refuse(
+                ctx, parsed["json"], "tray.autostart", COMPANION_NOT_INSTALLED,
+                "No tray companion is installed, so there is nothing to start at login.",
+            )
+        try:
+            if mode == "on":
+                autostart_enable(executable, env=env)
+            else:
+                autostart_disable(env=env)
+        except NotImplementedError as error:
+            return _refuse(
+                ctx, parsed["json"], "tray.autostart", AUTOSTART_UNSUPPORTED, str(error),
+            )
+
+    # Read the platform back rather than reporting what we just intended: a
+    # recorded intention that drifted from the system is the confusion doctor
+    # exists to end.
+    state = autostart_status(env=env)
+    if not state["supported"]:
+        return _refuse(
+            ctx, parsed["json"], "tray.autostart", AUTOSTART_UNSUPPORTED,
+            "This platform has no autostart mechanism CDX knows how to manage.",
+        )
+    message = f"Tray autostart is {'on' if state['enabled'] else 'off'}"
+    if parsed["json"]:
+        _write_json(ctx, _json_success(
+            "tray.autostart", message,
+            enabled=state["enabled"], artifact=state["artifact"], applied=mode != "status",
+        ))
+        return 0
+    ctx["out"](f"{message}\n{_dim(state['artifact'], ctx['use_color'])}\n")
+    return 0
+
+
+def _tray_doctor(args, ctx):
+    """Every state I had to diagnose by hand, in one bounded report.
+
+    No background service and no repair: it reads, it never fixes. A doctor that
+    also acted would have to be trusted with the machine, and this one only has
+    to be trusted to tell the truth.
+    """
+    parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, TRAY_USAGE, positionals_key="args", max_positionals=0)
+    base_dir = ctx["service"]["base_dir"]
+    env = ctx.get("env")
+    executable, source = companion_path(base_dir, env=env)
+    state = read_state(base_dir)
+    autostart = autostart_status(env=env)
+    instance = companion_instance()
+
+    checks = [
+        ("companion", "installed" if state else ("override" if executable else "absent"),
+         executable or "run: cdx tray install"),
+        ("executable", "present" if executable and os.path.exists(executable) else "missing",
+         executable or "-"),
+        ("cdx_version", ctx["version"], (state or {}).get("cdx_version") or "-"),
+        ("target", (state or {}).get("target") or "-", (state or {}).get("sha256") or "-"),
+        ("running", "yes" if instance.get("pid") else "no", str(instance.get("pid") or "-")),
+        ("autostart", "on" if autostart["enabled"] else "off", autostart["artifact"] or "unsupported"),
+    ]
+    if parsed["json"]:
+        _write_json(ctx, _json_success(
+            "tray.doctor", "Collected tray diagnostics",
+            checks=[{"check": c, "state": s, "detail": d} for c, s, d in checks],
+        ))
+        return 0
+    rows = [["CHECK", "STATE", "DETAIL"], *[[c, s, d] for c, s, d in checks]]
+    ctx["out"](f"{_pad_table(rows)}\n")
     return 0
 
 
