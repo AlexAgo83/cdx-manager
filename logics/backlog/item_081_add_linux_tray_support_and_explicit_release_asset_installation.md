@@ -3,8 +3,8 @@
 > Schema version: 1.0
 > Status: In progress
 > Understanding: 95%
-> Confidence: 90%
-> Progress: 88%
+> Confidence: 92%
+> Progress: 92%
 > Complexity: High
 > Theme: Distribution
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -44,6 +44,10 @@
 - AC4 is met: `schema.major` drift is read on both sides, the older reader keeps every field it understands, and one update hint reaches the menu. Tested in both directions — a companion older than CDX and a companion newer than CDX.
 - AC5 is documented in the README under "Tray companion: what vouches for it", stating the trust model rather than letting a reader assume the usual one: the self-signed macOS signature exists because Apple Silicon refuses unsigned arm64 code and is not a claim that Apple reviewed anything, the published SHA-256 is what vouches for the asset, and fetching through `cdx tray install` is what keeps macOS quarantine and Windows Mark-of-the-Web off it. No download URL is published, because the same file fetched through a browser would carry both — a worse path wearing the same clothes.
 - The macOS signing step now accepts `CDX_TRAY_SIGN_KEYCHAIN`, and its failure names the real cause. A redirected `HOME` leaves the keychain search list holding `System.keychain` alone, and `codesign` then reports "no identity found" for a certificate that is present with its private key — a message that sends you looking for a missing certificate instead of a missing search-list entry.
+
+- The macOS asset is signed by the stable `CDX Build` identity and verified end to end after installation, which is what AC2 needs on that platform: the signature survives the archive round trip and `codesign --verify --strict` passes on the installed bundle, with `Authority=CDX Build` and no ad-hoc flag.
+- Packaging the signed bundle found a defect that only a real signed asset could expose. macOS tar stores every extended attribute as a companion `._name` member, and a signed bundle has many. `tar tzf` hides them, because BSD tar merges them back on the way out, so the archive looked clean while Python's `tarfile` saw `._CDX.app` beside `CDX.app` — and `._CDX.app` ends in `.app`. The installer picked the metadata file: a few hundred bytes, nothing runnable, no `Info.plist`, no signature. Packaging now sets `COPYFILE_DISABLE=1`, and `_executable_in` refuses AppleDouble names regardless of how an asset was built. A test that fails against the previous code pins it.
+- Signing from a redirected `HOME` needs the keychain search list set in the same invocation, because that list is per security session: a value set in another shell never reaches this one. `codesign` then signs happily even though `security find-identity -v` reports zero valid identities, since `-v` filters on trust evaluation and a self-signed root is legitimately untrusted.
 
 # Acceptance criteria
 - AC1: A Linux environment exposing the StatusNotifierItem watcher renders the core CDX menu, and one without it reports an unsupported environment without a crash or a startup registration. The Linux asset starts on a system with no gtk, libxdo, or appindicator package installed.

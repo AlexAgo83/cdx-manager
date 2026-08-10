@@ -57,7 +57,13 @@ package_asset() {
   mkdir -p "$DIST_DIR"
   # Archived from its parent so the payload sits at the archive root, which is
   # where the installer looks. -C keeps absolute paths out of the member names.
-  tar czf "$DIST_DIR/$asset" -C "$parent" "$payload"
+  #
+  # COPYFILE_DISABLE is not cosmetic. Without it, BSD tar stores every extended
+  # attribute as a companion `._name` member, and a signed bundle has plenty.
+  # `tar tzf` then hides them, because BSD tar merges them back on the way out —
+  # so the archive looks clean while any other reader, including this project's
+  # own Python installer, sees `._CDX.app` sitting next to `CDX.app`.
+  COPYFILE_DISABLE=1 tar czf "$DIST_DIR/$asset" -C "$parent" "$payload"
   printf 'build-tray: packaged %s\n' "$DIST_DIR/$asset"
   printf 'build-tray: record it with: python3 scripts/record_tray_checksums.py %s\n' "$DIST_DIR/$asset"
 }

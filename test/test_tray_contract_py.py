@@ -348,6 +348,40 @@ class TrayCommandTest(CliTestBase):
         self.assertTrue(state["executable"].endswith("CDX.app"), state["executable"])
         self.assertTrue(os.path.isdir(state["executable"]))
 
+    def test_install_ignores_an_appledouble_companion_file(self):
+        """`._CDX.app` is metadata, not a bundle, and it sorts first.
+
+        macOS tar stores extended attributes as a `._name` member beside the
+        real one, and a signed bundle has plenty. BSD tar hides them on listing
+        because it merges them back, so the archive looks clean while any other
+        reader sees `._CDX.app` — which ends in `.app` and is a few hundred
+        bytes of metadata. Installing that leaves nothing runnable.
+        """
+        scratch = self.make_temp_dir()
+        base_dir = self.make_temp_dir()
+        bundle = os.path.join(scratch, "CDX.app", "Contents", "MacOS")
+        os.makedirs(bundle)
+        with open(os.path.join(bundle, "cdx-tray"), "wb") as handle:
+            handle.write(b"#!/bin/sh\n")
+        double = os.path.join(scratch, "._CDX.app")
+        with open(double, "wb") as handle:
+            handle.write(b"\x00\x05\x16\x07")
+
+        archive = os.path.join(scratch, "double.tar.gz")
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.add(double, arcname="._CDX.app")
+            tar.add(os.path.join(scratch, "CDX.app"), arcname="CDX.app", recursive=True)
+        digest = hashlib.sha256(open(archive, "rb").read()).hexdigest()
+        ledger = self._ledger(scratch, "9.9.9", "test-target", digest)
+
+        state = install(
+            base_dir, "9.9.9",
+            download=lambda url, dest: shutil.copyfile(archive, dest),
+            ledger_path=ledger, target="test-target",
+        )
+        self.assertTrue(os.path.isdir(state["executable"]), state["executable"])
+        self.assertFalse(os.path.basename(state["executable"]).startswith("._"))
+
     def test_install_refuses_a_mismatched_checksum_and_writes_nothing(self):
         scratch = self.make_temp_dir()
         base_dir = self.make_temp_dir()

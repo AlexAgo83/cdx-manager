@@ -231,9 +231,19 @@ def _executable_in(destination, names):
     no `Info.plist`, so no `LSUIElement` and no stable identity for the
     notification grant. Which of the two an ordered scan found first would then
     depend on how the archive happened to be written.
+
+    An AppleDouble companion is not a candidate. macOS tar stores extended
+    attributes as a `._name` member beside the real one, and `._CDX.app` ends in
+    `.app` while being a few hundred bytes of metadata. BSD tar hides those
+    members on listing because it merges them back, so an archive can look clean
+    and still install one over the real bundle.
     """
-    bundles = [n for n in names if os.path.basename(n.rstrip("/")).endswith(".app")]
-    binaries = [n for n in names if os.path.basename(n.rstrip("/")) in ("cdx-tray", "cdx-tray.exe")]
+    def candidate(name):
+        base = os.path.basename(name.rstrip("/"))
+        return base if not base.startswith("._") else ""
+
+    bundles = [n for n in names if candidate(n).endswith(".app")]
+    binaries = [n for n in names if candidate(n) in ("cdx-tray", "cdx-tray.exe")]
     for name in bundles + binaries:
         path = os.path.join(destination, name.rstrip("/"))
         if os.path.isdir(path):
