@@ -4,7 +4,7 @@
 
 <br clear="left"/>
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.18.4-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.18.5-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
 **Stop guessing which AI account still has quota.** `cdx` tracks the rate-limit window of every Codex and Claude account you own, tells you which one is usable right now, and launches it with isolated auth — in one command.
 
