@@ -60,19 +60,61 @@ def asset_name(version, target):
     return f"cdx-tray-{version}-{target}.tar.gz"
 
 
-def expected_checksum(version, target, ledger_path=CHECKSUM_LEDGER):
+RELEASE_LEDGER_URL = (
+    "https://github.com/AlexAgo83/cdx-manager/releases/download/v{version}/release-archives.json"
+)
+
+
+def _ledger_entry(ledger, version, target):
+    release = (ledger.get("releases") or {}).get(f"v{version}") or {}
+    return (release.get("tray_assets") or {}).get(target)
+
+
+def expected_checksum(version, target, ledger_path=CHECKSUM_LEDGER, download=None):
     """The published sha256 for this asset, or None when none is recorded.
 
     None is a refusal, not a fallback. An asset with no published checksum is
     exactly the case this gate exists for.
+
+    The shipped ledger cannot contain the entry for its own release, and that is
+    structural rather than an oversight: the tray assets are built after the tag
+    exists, so their checksums are recorded afterwards. A package built at tag
+    time therefore ships a ledger that stops at the previous release, and
+    `cdx tray install` would refuse the companion for the very version the user
+    is running.
+
+    So a missing local entry falls through to the ledger the release publishes
+    alongside the assets. Be clear about what that is worth: it is the
+    publisher's own assertion, fetched over the same HTTPS channel as the asset,
+    so it does not defend against someone who can rewrite the release. It does
+    defend against a truncated or corrupted download and against an asset built
+    for another architecture, which are the failures that actually happen. The
+    strong guarantee — a checksum committed before the asset existed — is what
+    the local ledger gives for every release older than this one.
     """
     try:
         with open(ledger_path, encoding="utf-8") as handle:
             ledger = json.load(handle)
     except (OSError, ValueError):
-        return None
-    release = (ledger.get("releases") or {}).get(f"v{version}") or {}
-    return (release.get("tray_assets") or {}).get(target)
+        ledger = {}
+    local = _ledger_entry(ledger, version, target)
+    if local:
+        return local
+    return _published_checksum(version, target, download=download)
+
+
+def _published_checksum(version, target, download=None):
+    """The entry from the ledger attached to the release, or None."""
+    fetch = download or _download
+    with tempfile.TemporaryDirectory(prefix="cdx-tray-ledger-") as scratch:
+        destination = os.path.join(scratch, "release-archives.json")
+        try:
+            fetch(RELEASE_LEDGER_URL.format(version=version), destination)
+            with open(destination, encoding="utf-8") as handle:
+                published = json.load(handle)
+        except (OSError, ValueError):
+            return None
+    return _ledger_entry(published, version, target)
 
 
 def _sha256(path):
@@ -147,7 +189,7 @@ def install(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, targe
         raise TrayInstallError(
             f"No tray companion is published for {platform.system()} {platform.machine()}."
         )
-    expected = expected_checksum(version, target, ledger_path=ledger_path)
+    expected = expected_checksum(version, target, ledger_path=ledger_path, download=download)
     if not expected:
         raise TrayInstallError(
             f"No published checksum for the {target} tray companion of CDX {version}. "

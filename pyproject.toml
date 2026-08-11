@@ -45,10 +45,17 @@ Changelog = "https://github.com/AlexAgo83/cdx-manager/tree/main/changelogs"
 cdx = "cdx_manager.cli:cli_entry"
 
 [tool.setuptools]
-packages = ["cdx_manager"]
+# Every package under src/, not just the root. Subpackages have to be named
+# explicitly here, and one that is missing is not a build error: the wheel is
+# produced happily and fails at import on the user's machine. src/commands has
+# been absent from every wheel since it was extracted, so `pip install
+# cdx-manager` gave an unusable CLI while the npm and standalone installs — both
+# of which ship the source tree wholesale — worked fine.
+packages = ["cdx_manager", "cdx_manager.commands"]
 
 [tool.setuptools.package-dir]
 cdx_manager = "src"
+"cdx_manager.commands" = "src/commands"
 
 [tool.pytest.ini_options]
 testpaths = ["test"]

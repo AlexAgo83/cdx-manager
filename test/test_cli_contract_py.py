@@ -365,3 +365,40 @@ class CliContractTests(CliTestBase):
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["error"]["code"], "invalid_usage")
         self.assertIn("Usage: cdx status [--json]", payload["error"]["message"])
+
+
+class PackagingDeclarationTests(CliTestBase):
+    """Every package under src/ has to be declared for the wheel.
+
+    setuptools does not warn about a subpackage it was never told about: the
+    wheel builds cleanly and fails at import on the user's machine. src/commands
+    was missing from every wheel from the release that extracted it onward, so
+    `pip install cdx-manager` produced a CLI that could not start, while the npm
+    and standalone installs — which ship the source tree wholesale — worked.
+    """
+
+    def _root(self):
+        import os
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def test_every_source_package_is_declared_in_pyproject(self):
+        import os
+        import re
+
+        root = self._root()
+        declared = set(re.findall(
+            r'"(cdx_manager(?:\.[a-z_]+)*)"',
+            open(os.path.join(root, "pyproject.toml"), encoding="utf-8").read(),
+        ))
+        src = os.path.join(root, "src")
+        for entry in sorted(os.listdir(src)):
+            path = os.path.join(src, entry)
+            if not os.path.isdir(path) or entry.startswith((".", "__")):
+                continue
+            if not os.path.isfile(os.path.join(path, "__init__.py")):
+                continue
+            with self.subTest(package=entry):
+                self.assertIn(
+                    f"cdx_manager.{entry}", declared,
+                    f"src/{entry} is a package but no wheel would contain it",
+                )

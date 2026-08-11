@@ -277,3 +277,64 @@ class ArchiveShapeTest(CliTestBase):
         archive = self._archive(scratch, ["../escaped"])
         with self.assertRaises(TrayInstallError):
             _extract(archive, destination)
+
+
+class PublishedLedgerFallbackTest(CliTestBase):
+    """A package cannot ship the checksums for its own release.
+
+    The tray assets are built after the tag exists, so their checksums are
+    recorded afterwards and a package built at tag time ships a ledger that
+    stops at the previous release. Without a fallback, `cdx tray install`
+    refuses the companion for the very version the user is running — which is
+    what a real install of 0.18.1 did.
+    """
+
+    def _ledger(self, directory, releases):
+        import json
+        path = os.path.join(directory, "ledger.json")
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"releases": releases}, handle)
+        return path
+
+    def test_the_published_ledger_answers_when_the_local_one_cannot(self):
+        import json
+        from src.tray_install import expected_checksum
+        scratch = self.make_temp_dir()
+        local = self._ledger(scratch, {"v9.9.8": {"tray_assets": {"t": "old"}}})
+
+        def download(url, destination):
+            self.assertIn("v9.9.9", url)
+            with open(destination, "w", encoding="utf-8") as handle:
+                json.dump({"releases": {"v9.9.9": {"tray_assets": {"t": "fetched"}}}}, handle)
+
+        self.assertEqual(
+            expected_checksum("9.9.9", "t", ledger_path=local, download=download),
+            "fetched",
+        )
+
+    def test_a_local_entry_wins_and_fetches_nothing(self):
+        """The committed checksum is the stronger claim — written before the
+        asset existed — so it is never traded for one fetched beside the asset."""
+        from src.tray_install import expected_checksum
+        scratch = self.make_temp_dir()
+        local = self._ledger(scratch, {"v9.9.9": {"tray_assets": {"t": "committed"}}})
+
+        def download(_url, _destination):
+            raise AssertionError("the local entry should have answered")
+
+        self.assertEqual(
+            expected_checksum("9.9.9", "t", ledger_path=local, download=download),
+            "committed",
+        )
+
+    def test_an_unreachable_published_ledger_is_still_a_refusal(self):
+        from src.tray_install import expected_checksum
+        scratch = self.make_temp_dir()
+        local = self._ledger(scratch, {})
+
+        def download(_url, _destination):
+            raise OSError("no network")
+
+        self.assertIsNone(
+            expected_checksum("9.9.9", "t", ledger_path=local, download=download)
+        )
