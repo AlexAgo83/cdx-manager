@@ -2,8 +2,8 @@
 > From version: 0.18.4
 > Schema version: 1.0
 > Status: Draft
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 92%
 > Complexity: Medium
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
@@ -25,6 +25,8 @@
 - src/tray_events.py stores a versioned, bounded, append-only JSONL event with id, timestamp, kind, title, and message. tray/src/events.rs intentionally accepts forward-compatible extra fields but currently discards them.
 - CDX knows the session name through its launch environment and can derive the project basename from cwd. These values should become structured event fields rather than being recovered from a localized title or message.
 - The current Codex plugin provisions Stop and PermissionRequest. The current Claude configuration provisions Stop and an unfiltered Notification hook. Claude documents PermissionRequest as immediate and carrying tool_name and tool_input, while its permission_prompt Notification is delayed when the user appears away; subscribing to both for the same permission would duplicate alerts.
+- Claude's Notification hook also carries the waiting states idle_prompt and agent_needs_input, which no other hook reports. The duplicate is therefore removed by filtering notification_type down to those states, not by dropping the subscription.
+- Claude's PermissionRequest is a decision hook: whatever the hook writes to stdout is read as an allow or deny for the tool call. A notification hook must exit 0 with an empty stdout on every path, including failures.
 - Provider transcripts are explicitly not a stable hook interface. Raw tool_input can contain commands, arguments, or secrets, so it must never be persisted or rendered. tool_name is safe metadata; an optional human-readable description must follow the same explicit preview preference, normalization, and length limit as assistant text.
 
 # Acceptance criteria

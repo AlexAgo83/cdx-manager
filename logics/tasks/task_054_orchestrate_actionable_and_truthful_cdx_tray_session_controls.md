@@ -2,8 +2,8 @@
 > From version: 0.18.4
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 90%
 > Progress: 0%
 > Complexity: Medium
 > Theme: Implementation delivery
@@ -17,11 +17,15 @@
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
+- Blocked on task_051: it replaces the positional `ActionId::Session(index)` with a stable session identifier, and this task binds every row action to that identity. Starting first would bind actions to a rank task_051 makes volatile.
+- An `NSMenuItem` carrying a view draws none of the standard furniture — no title, no state, no highlight, and no submenu chevron — and session rows are already drawn cells (`backend.rs:113` -> `mac_cell::Cell`). A row that gains a submenu therefore shows nothing indicating it can be opened.
+- adr_006 keeps the drawn cell and makes the chevron and the highlight part of it. The highlight is driven by the same menu-open signal task_053 installs, so the two tasks share that plumbing.
+- Since Big Sur the parent item's highlighted property stays true when the drawn row is no longer visually highlighted, so it cannot be the drawing signal.
 
 # Plan
 - [ ] 1. Trace a session row from the capacity-sorted snapshot through the shared menu model, macOS custom cell, each native backend, and native/WSL terminal routing.
-- [ ] 2. Define the smallest declarative session-action contract and submenu representation that retains stable session identity without turning the tray into a configuration editor.
-- [ ] 3. Implement explicit open and configuration-view actions, capability-gated extension routing, and clear next-launch wording while preserving the existing global actions and alert behaviour.
+- [ ] 2. Define the smallest declarative session-action contract and submenu representation, bound to the stable session identity from task_051, without turning the tray into a configuration editor.
+- [ ] 3. Implement explicit open and configuration-view actions, capability-gated extension routing, and clear next-launch wording while preserving the existing global actions and alert behaviour; draw the submenu chevron and the highlight inside the macOS cell.
 - [ ] 4. Add focused identity, action-routing, unavailable-capability, and platform fallback tests; validate the tray and CDX command paths, then record the interaction boundary for the later Logics plugin work.
 - [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
 - [ ] Keep commit creation under operator control; do not force one commit per micro-step.
@@ -53,4 +57,4 @@
 # Links
 - Request: `req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings`
 - Product brief(s): `prod_032_actionable_cdx_tray_session_controls`
-- Architecture decision(s): (none yet)
+- Architecture decision(s): `adr_006_tray_menu_lifecycle_observation_boundary`

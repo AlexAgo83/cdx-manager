@@ -2,8 +2,8 @@
 > From version: 0.18.4
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 92%
+> Confidence: 78%
 > Progress: 0%
 > Complexity: High
 > Theme: Desktop integration
@@ -18,6 +18,8 @@
 # Problem
 - A user must currently perform separate lifecycle and per-session notification setup, then manually restart a running tray after every companion update.
 - Naively killing and relaunching a process after replacement risks stopping an unrelated process or losing a known-working tray when the new build cannot start.
+- The existing promotion order in `src/tray_install.py` is already the Windows-safe one, but it has only ever run against a stopped companion; a directory holding a running executable is expected to refuse the rename.
+- No graceful shutdown channel exists: `tray/src/instance.rs` records a pid and proves liveness, and nothing more.
 
 # Scope
 - In:
@@ -48,7 +50,7 @@
 
 # Decision framing
 - Product framing: Not needed
-- Architecture framing: Not needed
+- Architecture framing: Not needed, but constrained by `adr_006_tray_menu_lifecycle_observation_boundary`: a Windows companion showing its menu processes nothing, so the bounded shutdown wait must survive an open menu without escalating to a kill.
 
 # Links
 - Product brief(s): `prod_030_accepted_automatic_cdx_tray_experience`

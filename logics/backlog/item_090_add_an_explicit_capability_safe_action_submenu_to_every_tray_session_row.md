@@ -2,8 +2,8 @@
 > From version: 0.18.4
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 90%
 > Progress: 0%
 > Complexity: Medium
 > Theme: Tray usability
@@ -47,11 +47,11 @@
 
 # Decision framing
 - Product framing: Not needed
-- Architecture framing: Not needed
+- Architecture framing: Constrained by `adr_006_tray_menu_lifecycle_observation_boundary`: the drawn macOS cell is kept, so a row carrying a submenu draws its own chevron and highlight from the menu-open signal.
 
 # Links
 - Product brief(s): `prod_032_actionable_cdx_tray_session_controls`
-- Architecture decision(s): (none yet)
+- Architecture decision(s): `adr_006_tray_menu_lifecycle_observation_boundary`
 - Request: `req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings`
 - Primary task(s): `task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls`
 

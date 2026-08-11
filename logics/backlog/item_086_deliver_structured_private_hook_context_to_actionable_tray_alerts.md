@@ -2,8 +2,8 @@
 > From version: 0.18.4
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 92%
 > Progress: 0%
 > Complexity: Medium
 > Theme: Desktop integration
@@ -18,12 +18,16 @@
 # Problem
 - Rendered notification text is a presentation boundary, not a reliable transport contract for a tray that needs an action target and event-specific display.
 - Claude's broad delayed Notification hook cannot provide the same immediate, exact permission context as Codex PermissionRequest without risking duplicate alerts.
+- Claude Code publishes its own `PermissionRequest` hook with `tool_name`, `tool_input`, `tool_use_id` and `permission_category`, so provider parity is a provisioning change rather than a modelling problem.
+- `Notification` still owns the waiting states `idle_prompt` and `agent_needs_input`, which no other hook reports, so it is filtered rather than dropped.
+- Claude's `PermissionRequest` is a decision hook: anything written to stdout becomes an allow or deny for the tool call it describes.
 
 # Scope
 - In:
   - Extend the existing tray event schema and Rust event parser with a compact forward-compatible structured envelope.
   - Derive session and project from CDX-owned context; map only documented safe Stop and PermissionRequest fields from each provider.
-  - Provision Stop and PermissionRequest for both providers, replacing Claude's unfiltered Notification subscription for agent-alert delivery.
+  - Provision Stop and PermissionRequest for both providers, and narrow Claude's Notification subscription to the waiting states it alone reports.
+  - Keep `cdx notify` silent on stdout for every PermissionRequest outcome, so a notification can never decide a permission.
   - Render structured completion and permission items in the existing tray notification and bounded history, with an action that reuses the existing session-launch path.
   - Apply the existing response-preview opt-in, normalization, and bound to all assistant text and optional permission descriptions.
   - Add focused Python and Rust coverage plus concise user-facing documentation.
@@ -40,6 +44,7 @@
 - AC4: Raw tool input and transcript paths are absent from persisted and rendered data; assistant and reason text require the existing explicit preview preference.
 - AC5: Selecting a recent alert opens the matching session through the current tray session action path, while a malformed or old event remains harmless.
 - AC6: Focused tests and the project validation suite pass.
+- AC7: `cdx notify` exits 0 with an empty stdout on every PermissionRequest path, including malformed payloads and internal failures, so it never alters a permission decision.
 
 # AC Traceability
 - request-AC1 -> This backlog slice. Proof: AC1: The tray event schema carries structured session, project, provider event, safe optional preview, tool name, model, and permission reason data without making older readers fail.

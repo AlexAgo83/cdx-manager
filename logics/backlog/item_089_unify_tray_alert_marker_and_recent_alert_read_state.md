@@ -2,8 +2,8 @@
 > From version: 0.18.4
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 96%
+> Confidence: 92%
 > Progress: 0%
 > Complexity: Medium
 > Theme: Tray usability
@@ -44,11 +44,11 @@
 
 # Decision framing
 - Product framing: Not needed
-- Architecture framing: Not needed
+- Architecture framing: Settled in `adr_006_tray_menu_lifecycle_observation_boundary`: opening is the only reading event, closing is not modelled, and an unavailable signal never clears.
 
 # Links
 - Product brief(s): `prod_031_coherent_cdx_tray_unread_alerts`
-- Architecture decision(s): (none yet)
+- Architecture decision(s): `adr_006_tray_menu_lifecycle_observation_boundary`
 - Request: `req_042_synchronize_cdx_tray_alert_badges_with_menu_reading`
 - Primary task(s): `task_053_orchestrate_coherent_cdx_tray_alert_read_state`
 

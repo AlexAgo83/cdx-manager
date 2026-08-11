@@ -2,8 +2,8 @@
 > From version: 0.18.4
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 92%
 > Progress: 0%
 > Complexity: Low
 > Theme: Tray usability
@@ -18,6 +18,7 @@
 # Problem
 - Provider grouping obscures the capacity-first priority order and causes graphical macOS rows to bind to an unrelated original snapshot index when providers interleave.
 - Removing headings without adding provider text would make a multi-provider list ambiguous.
+- Flattening dissolves the two competing numbering schemes, but leaves a positional session action bound to a rank this slice makes depend on capacity, so a snapshot that reorders between the draw and the click opens the wrong session.
 
 # Scope
 - In:
