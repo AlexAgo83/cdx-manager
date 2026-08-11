@@ -144,6 +144,12 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     redraw = true;
                 }
                 Some(ActionId::Session(name)) => open_terminal(&transport, name),
+                // A view, not an edit: `cdx config` prints the settings that
+                // will apply to the next launch, through the same native or
+                // WSL routing every other tray command uses.
+                Some(ActionId::SessionConfig(name)) => {
+                    open_terminal(&transport, &format!("config {name}"))
+                }
                 None => {}
             }
         }

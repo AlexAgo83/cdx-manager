@@ -146,13 +146,14 @@ pub fn announce(transport: &Transport, state: &Render) {
 ///
 /// The menu carries a summary line and separators, so a session's rank is not
 /// its menu index. Reading the positions back from the entries keeps the two in
-/// step without the menu builder having to report them, and resolving by name
-/// means a cell can only ever be drawn onto the row that carries that name.
+/// step without the menu builder having to report them, and resolving by the
+/// name the submenu is about means a cell can only ever be drawn onto the row
+/// that carries that name.
 fn rows_for(entries: &[menu::Entry], sessions: &[crate::snapshot::Session]) -> Vec<Row> {
     let mut rows = Vec::new();
     for (menu_index, entry) in entries.iter().enumerate() {
-        if let menu::Entry::Action {
-            id: menu::ActionId::Session(name),
+        if let menu::Entry::Submenu {
+            about: menu::ActionId::Session(name),
             ..
         } = entry
         {

@@ -118,8 +118,16 @@ impl ksni::Tray for CdxTray {
     }
 
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
+        self.menu_items(&self.entries)
+    }
+}
+
+impl CdxTray {
+    /// One level of entries, so a submenu's contents go through exactly the
+    /// same conversion as the root.
+    fn menu_items(&self, entries: &[Entry]) -> Vec<ksni::MenuItem<Self>> {
         use ksni::menu::{MenuItem, StandardItem};
-        self.entries
+        entries
             .iter()
             .map(|entry| match entry {
                 Entry::Separator => MenuItem::Separator,
@@ -156,6 +164,14 @@ impl ksni::Tray for CdxTray {
                     }
                     .into()
                 }
+                // dbusmenu nests natively, so the same rows reach a Linux user
+                // through the same structure and no fallback is needed.
+                Entry::Submenu { label, items, .. } => ksni::menu::SubMenu {
+                    label: label.clone(),
+                    submenu: self.menu_items(items),
+                    ..Default::default()
+                }
+                .into(),
             })
             .collect()
     }
@@ -207,6 +223,9 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 redraw = true;
             }
             Some(ActionId::Session(name)) => open_terminal(&name),
+            // A view, not an edit: `cdx config` prints the settings that will
+            // apply to the next launch.
+            Some(ActionId::SessionConfig(name)) => open_terminal(&format!("config {name}")),
             None => {}
         }
         // An alert lands in the spool the moment a hook writes it. Polling for

@@ -95,6 +95,10 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     redraw = true;
                 }
                 Some(ActionId::Session(name)) => open_terminal(&format!("cdx {name}")),
+                // A view, not an edit: `cdx config` prints the settings that
+                // will apply to the next launch, and the tray never claims to
+                // change an assistant already running.
+                Some(ActionId::SessionConfig(name)) => open_terminal(&format!("cdx config {name}")),
                 None => {}
             }
         }

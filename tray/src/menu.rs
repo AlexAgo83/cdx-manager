@@ -25,6 +25,16 @@ pub enum Entry {
         label: String,
         checked: bool,
     },
+    /// A row that opens into its own actions.
+    ///
+    /// `about` says what the submenu is for, and it is not decoration: the
+    /// drawn macOS cell is bound to a row by it, so the cell, the label and
+    /// every action inside cannot come apart from the session they describe.
+    Submenu {
+        about: ActionId,
+        label: String,
+        items: Vec<Entry>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,6 +52,45 @@ pub enum ActionId {
     /// renumbers the list, and a rank would open whichever session had taken
     /// that place. The name is what the user clicked and stays what gets opened.
     Session(String),
+    /// Show this session's persistent launch settings, by name.
+    ///
+    /// A view, never an edit, and the wording says so: these settings apply to
+    /// the next launch. A tray that let you change the model of an assistant
+    /// already mid-turn would be lying about what it can do — CDX writes them
+    /// for the next launch, and no provider accepts them for a running process.
+    SessionConfig(String),
+}
+
+/// Whether a session action can be offered, and why not when it cannot.
+///
+/// An unavailable action is drawn disabled with its reason rather than hidden,
+/// because a control that vanishes silently reads as a bug; only an action this
+/// build knows nothing about is absent entirely.
+///
+/// `Unavailable` is the half of the contract nothing declares yet: the two
+/// built-in actions are always offered, and the first extension to arrive is
+/// what will construct it. Kept and tested rather than deferred, so an action
+/// that cannot run has a defined rendering the day one exists.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Availability {
+    Available,
+    #[allow(dead_code)]
+    Unavailable(String),
+}
+
+/// One action a session row offers, declared rather than hard-coded into the
+/// menu builder.
+///
+/// This is the seam `req_043` AC4 asks for: an extension — a Logics action, say
+/// — becomes another declared entry here once the plugin contract validates it,
+/// and nothing else in the menu has to learn about it. Until something declares
+/// one, the list is exactly the two built-ins, and no empty "Extensions"
+/// heading is rendered to advertise a feature that is not there.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionAction {
+    pub id: ActionId,
+    pub label: String,
+    pub availability: Availability,
 }
 
 /// Eight blocks of remaining capacity.
@@ -131,6 +180,55 @@ fn session_line(session: &Session) -> String {
     )
 }
 
+/// What one session row offers, as declared actions.
+///
+/// Two built-ins today. Opening keeps exactly the behaviour the row used to
+/// have on click, so nothing was taken away by making it explicit. Viewing the
+/// launch settings names the next launch in the label itself: CDX stores them
+/// for the next start, no provider accepts them for a process already running,
+/// and a tray that implied otherwise would be the misleading surface this work
+/// exists to avoid.
+pub fn session_actions(session: &Session) -> Vec<SessionAction> {
+    vec![
+        SessionAction {
+            id: ActionId::Session(session.name.clone()),
+            label: "Open session".into(),
+            availability: Availability::Available,
+        },
+        SessionAction {
+            id: ActionId::SessionConfig(session.name.clone()),
+            label: "Launch settings (next launch)".into(),
+            availability: Availability::Available,
+        },
+    ]
+}
+
+/// The declared actions as menu entries.
+///
+/// An unavailable action stays visible and disabled, carrying its reason, so
+/// the user learns why rather than wondering where it went.
+fn session_entries(session: &Session) -> Vec<Entry> {
+    session_entries_from(session_actions(session))
+}
+
+fn session_entries_from(actions: Vec<SessionAction>) -> Vec<Entry> {
+    actions
+        .into_iter()
+        .map(|action| match action.availability {
+            Availability::Available => Entry::Action {
+                id: action.id,
+                label: action.label,
+                enabled: true,
+            },
+            Availability::Unavailable(reason) => Entry::Action {
+                id: action.id,
+                label: format!("{} — {reason}", action.label),
+                enabled: false,
+            },
+        })
+        .collect()
+}
+
 /// The menu, with the unread agent alerts above the actions.
 ///
 /// Alerts sit below the sessions and above the actions on purpose: quota is
@@ -154,15 +252,16 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
         )));
         entries.push(Entry::Separator);
         for session in &snapshot.sessions {
-            // An action rather than a label, and that is a readability fix
-            // before it is a feature: macOS greys every disabled item, so a
-            // dozen informational rows arrive as a wall of grey text. Making
-            // them selectable gives them full contrast, and clicking one opens
-            // a terminal on that session — which is what the list is for.
-            entries.push(Entry::Action {
-                id: ActionId::Session(session.name.clone()),
+            // A submenu rather than a direct launch, and that is a truthfulness
+            // fix before it is a feature: a row that launched on click had no
+            // room to offer anything else, so every other thing a user might
+            // want from a session had nowhere to live. Opening is now one named
+            // action among the row's actions rather than the only thing a click
+            // can mean.
+            entries.push(Entry::Submenu {
+                about: ActionId::Session(session.name.clone()),
                 label: session_line(session),
-                enabled: true,
+                items: session_entries(session),
             });
         }
     }
@@ -273,6 +372,8 @@ mod tests {
         }
     }
 
+    /// Every label the menu can show, submenu contents included: an action the
+    /// user can only reach by opening a row is still an action the menu offers.
     fn labels(entries: &[Entry]) -> String {
         entries
             .iter()
@@ -280,9 +381,39 @@ mod tests {
                 Entry::Info(text) => text.clone(),
                 Entry::Separator => "---".into(),
                 Entry::Action { label, .. } | Entry::Check { label, .. } => label.clone(),
+                Entry::Submenu { label, items, .. } => format!("{label}\n{}", labels(items)),
             })
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    /// The sessions a menu lists, in order, by the name their row is about.
+    fn listed(entries: &[Entry]) -> Vec<String> {
+        entries
+            .iter()
+            .filter_map(|e| match e {
+                Entry::Submenu {
+                    about: ActionId::Session(name),
+                    ..
+                } => Some(name.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The actions inside one session's row.
+    fn actions_for<'a>(entries: &'a [Entry], session: &str) -> &'a [Entry] {
+        entries
+            .iter()
+            .find_map(|e| match e {
+                Entry::Submenu {
+                    about: ActionId::Session(name),
+                    items,
+                    ..
+                } if name == session => Some(items.as_slice()),
+                _ => None,
+            })
+            .expect("a row for that session")
     }
 
     #[test]
@@ -321,17 +452,7 @@ mod tests {
             ),
             &[],
         );
-        let clicked: Vec<String> = entries
-            .iter()
-            .filter_map(|e| match e {
-                Entry::Action {
-                    id: ActionId::Session(name),
-                    ..
-                } => Some(name.clone()),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(clicked, vec!["alpha", "beta", "gamma"]);
+        assert_eq!(listed(&entries), vec!["alpha", "beta", "gamma"]);
         // No heading survives, so nothing separates a provider from the next.
         let text = labels(&entries);
         assert!(!text.lines().any(|line| line.trim() == "claude"), "{text}");
@@ -368,16 +489,104 @@ mod tests {
             ),
             &[],
         );
-        let id_at = |entries: &[Entry], wanted: &str| {
-            entries.iter().any(|e| {
-                matches!(e, Entry::Action { id: ActionId::Session(name), label, .. }
-                    if name == wanted && label.contains(wanted))
+        let bound = |entries: &[Entry], wanted: &str| {
+            entries.iter().any(|e| match e {
+                Entry::Submenu {
+                    about: ActionId::Session(name),
+                    label,
+                    items,
+                } => {
+                    name == wanted
+                        && label.contains(wanted)
+                        // Every action inside names the same session as the row.
+                        && items.iter().all(|item| match item {
+                            Entry::Action {
+                                id: ActionId::Session(inner) | ActionId::SessionConfig(inner),
+                                ..
+                            } => inner == wanted,
+                            _ => false,
+                        })
+                }
+                _ => false,
             })
         };
         for entries in [&before, &after] {
             for name in ["codex-work", "claude-main", "claude-side"] {
-                assert!(id_at(entries, name), "{name} is bound to its own row");
+                assert!(bound(entries, name), "{name} is bound to its own row");
             }
+        }
+    }
+
+    /// Opening is one named action now, not the only thing a click can mean.
+    #[test]
+    fn a_session_row_offers_opening_and_its_next_launch_settings() {
+        let entries = build_with_alerts(
+            &snapshot(vec![session("work", Some(50.0), "fresh")], true),
+            &[],
+        );
+        let actions = actions_for(&entries, "work");
+        assert_eq!(
+            actions
+                .iter()
+                .map(|e| match e {
+                    Entry::Action { id, label, enabled } => (id.clone(), label.clone(), *enabled),
+                    other => panic!("unexpected entry in a session row: {other:?}"),
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    ActionId::Session("work".into()),
+                    "Open session".to_string(),
+                    true
+                ),
+                (
+                    ActionId::SessionConfig("work".into()),
+                    "Launch settings (next launch)".to_string(),
+                    true
+                ),
+            ]
+        );
+    }
+
+    /// `req_043` AC3: nothing in the tray may read as changing a running
+    /// assistant. The label is the whole guarantee, so it is asserted.
+    #[test]
+    fn the_settings_action_says_it_applies_to_the_next_launch() {
+        let entries = build_with_alerts(
+            &snapshot(vec![session("work", Some(50.0), "fresh")], true),
+            &[],
+        );
+        let text = labels(&entries);
+        assert!(text.contains("Launch settings (next launch)"), "{text}");
+    }
+
+    /// `req_043` AC4: no heading advertises an extension point that has nothing
+    /// in it yet.
+    #[test]
+    fn no_empty_extension_placeholder_is_rendered() {
+        let entries = build_with_alerts(
+            &snapshot(vec![session("work", Some(50.0), "fresh")], true),
+            &[],
+        );
+        let text = labels(&entries).to_lowercase();
+        assert!(!text.contains("extension"), "{text}");
+        assert!(!text.contains("logics"), "{text}");
+    }
+
+    /// `req_043` AC5: an action that cannot run says why instead of vanishing.
+    #[test]
+    fn an_unavailable_action_is_disabled_and_carries_its_reason() {
+        let entries = session_entries_from(vec![SessionAction {
+            id: ActionId::SessionConfig("work".into()),
+            label: "Launch settings (next launch)".into(),
+            availability: Availability::Unavailable("this CDX is too old".into()),
+        }]);
+        match &entries[0] {
+            Entry::Action { label, enabled, .. } => {
+                assert!(!enabled);
+                assert!(label.contains("this CDX is too old"), "{label}");
+            }
+            other => panic!("expected a disabled action, got {other:?}"),
         }
     }
 

@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use muda::{CheckMenuItem, Menu, MenuId, MenuItem, PredefinedMenuItem};
+use muda::{CheckMenuItem, Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 use crate::menu::{ActionId, Entry};
@@ -135,26 +135,66 @@ fn style_rows(_menu: &Menu, _rows: &[crate::runner::Row]) {}
 pub fn build_menu(entries: &[Entry]) -> Result<(Menu, HashMap<MenuId, ActionId>), muda::Error> {
     let menu = Menu::new();
     let mut actions = HashMap::new();
+    append_entries(&menu, entries, &mut actions)?;
+    Ok((menu, actions))
+}
+
+/// Append entries to any menu, root or submenu.
+///
+/// One level of nesting is all the model can express, so this recurses without
+/// a depth guard: a `Submenu` containing a `Submenu` is not something the menu
+/// builder can produce.
+fn append_entries(
+    menu: &dyn Appendable,
+    entries: &[Entry],
+    actions: &mut HashMap<MenuId, ActionId>,
+) -> Result<(), muda::Error> {
     for entry in entries {
         match entry {
             Entry::Info(text) => {
                 let item = MenuItem::new(text, false, None);
-                menu.append(&item)?;
+                menu.add(&item)?;
             }
             Entry::Check { id, label, checked } => {
                 let item = CheckMenuItem::new(label, true, *checked, None);
                 actions.insert(item.id().clone(), id.clone());
-                menu.append(&item)?;
+                menu.add(&item)?;
             }
-            Entry::Separator => menu.append(&PredefinedMenuItem::separator())?,
+            Entry::Separator => menu.add(&PredefinedMenuItem::separator())?,
             Entry::Action { id, label, enabled } => {
                 let item = MenuItem::new(label, *enabled, None);
                 actions.insert(item.id().clone(), id.clone());
-                menu.append(&item)?;
+                menu.add(&item)?;
+            }
+            Entry::Submenu { label, items, .. } => {
+                // The parent carries no action of its own: opening it is the
+                // click, and every action lives inside. `about` is what binds
+                // the drawn macOS cell to it, not something muda needs.
+                let submenu = Submenu::new(label, true);
+                append_entries(&submenu, items, actions)?;
+                menu.add(&submenu)?;
             }
         }
     }
-    Ok((menu, actions))
+    Ok(())
+}
+
+/// Appending is the only thing this needs from a menu, and `Menu` and `Submenu`
+/// do not share a trait that offers it.
+trait Appendable {
+    fn add(&self, item: &dyn muda::IsMenuItem) -> Result<(), muda::Error>;
+}
+
+impl Appendable for Menu {
+    fn add(&self, item: &dyn muda::IsMenuItem) -> Result<(), muda::Error> {
+        self.append(item)
+    }
+}
+
+impl Appendable for Submenu {
+    fn add(&self, item: &dyn muda::IsMenuItem) -> Result<(), muda::Error> {
+        self.append(item)
+    }
 }
 
 /// Update the status item in place.

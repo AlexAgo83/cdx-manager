@@ -33,15 +33,26 @@ use schedule::Tick;
 use snapshot::Transport;
 
 fn render(entries: &[Entry]) {
+    render_at(entries, "  ");
+}
+
+/// Indented per level, so `--print` shows what a submenu contains rather than
+/// hiding it: this output is how the menu gets exercised where there is no
+/// windowing session, and an action it cannot show is an action nothing tests.
+fn render_at(entries: &[Entry], indent: &str) {
     for entry in entries {
         match entry {
-            Entry::Info(text) => println!("  {text}"),
-            Entry::Separator => println!("  ---"),
+            Entry::Info(text) => println!("{indent}{text}"),
+            Entry::Separator => println!("{indent}---"),
             Entry::Action { label, enabled, .. } => {
-                println!("  [{}] {label}", if *enabled { "x" } else { " " })
+                println!("{indent}[{}] {label}", if *enabled { "x" } else { " " })
             }
             Entry::Check { label, checked, .. } => {
-                println!("  ({}) {label}", if *checked { "•" } else { " " })
+                println!("{indent}({}) {label}", if *checked { "•" } else { " " })
+            }
+            Entry::Submenu { label, items, .. } => {
+                println!("{indent}> {label}");
+                render_at(items, &format!("{indent}    "));
             }
         }
     }

@@ -53,6 +53,13 @@ const GAUGE_HEIGHT: f64 = 4.0;
 const FIGURE_WIDTH: f64 = 38.0;
 const INSET_LEFT: f64 = 14.0;
 const INSET_RIGHT: f64 = 12.0;
+/// Room for the submenu chevron at the right edge.
+///
+/// Drawn by hand because it has to be: an `NSMenuItem` carrying a view draws
+/// none of its standard furniture — no title, no state, no highlight and no
+/// submenu arrow — so a row that opens into actions would otherwise look
+/// exactly like one that does nothing.
+const CHEVRON_WIDTH: f64 = 14.0;
 /// How much of the text column the session name takes, leaving the rest to the
 /// provider. Session names are what the user reads first and are the longer of
 /// the two; a provider is one short word from a set of two.
@@ -101,7 +108,8 @@ pub fn build_cell(cell: &Cell, mtm: MainThreadMarker) -> Retained<NSView> {
     );
     container.setAutoresizingMask(NSAutoresizingMaskOptions::ViewWidthSizable);
 
-    let gauge_x = ROW_WIDTH - INSET_RIGHT - FIGURE_WIDTH - 8.0 - GAUGE_WIDTH;
+    let figure_x = ROW_WIDTH - INSET_RIGHT - CHEVRON_WIDTH - FIGURE_WIDTH;
+    let gauge_x = figure_x - 8.0 - GAUGE_WIDTH;
 
     // Name, on the left, in the menu's own weight. The provider follows it in
     // the secondary colour and a smaller size: it is what distinguishes two
@@ -152,10 +160,19 @@ pub fn build_cell(cell: &Cell, mtm: MainThreadMarker) -> Retained<NSView> {
     let figure = label(&cell.figure, 12.0, NSColor::secondaryLabelColor(), mtm);
     figure.setAlignment(NSTextAlignment::Right);
     figure.setFrame(NSRect::new(
-        NSPoint::new(ROW_WIDTH - INSET_RIGHT - FIGURE_WIDTH, 1.0),
+        NSPoint::new(figure_x, 1.0),
         NSSize::new(FIGURE_WIDTH, ROW_HEIGHT - 2.0),
     ));
     container.addSubview(&figure);
+
+    // The chevron AppKit would have drawn if this row had kept its label.
+    let chevron = label("\u{203a}", 13.0, NSColor::tertiaryLabelColor(), mtm);
+    chevron.setAlignment(NSTextAlignment::Right);
+    chevron.setFrame(NSRect::new(
+        NSPoint::new(ROW_WIDTH - INSET_RIGHT - CHEVRON_WIDTH, 1.0),
+        NSSize::new(CHEVRON_WIDTH, ROW_HEIGHT - 2.0),
+    ));
+    container.addSubview(&chevron);
 
     container
 }
