@@ -45,6 +45,8 @@ pub struct Details {
     /// `notification`.
     pub event: Option<String>,
     pub tool: Option<String>,
+    /// The provider's error class on a failed turn, from its closed vocabulary.
+    pub error_type: Option<String>,
     pub reason: Option<String>,
     pub preview: Option<String>,
 }
@@ -115,6 +117,7 @@ pub fn parse_array(value: Option<&serde_json::Value>) -> Vec<Event> {
                     project: field("project"),
                     event: field("event"),
                     tool: field("tool"),
+                    error_type: field("error_type"),
                     reason: field("reason"),
                     preview: field("preview"),
                 },
@@ -154,7 +157,15 @@ pub fn recent(history: &[Event]) -> impl Iterator<Item = &Event> {
 /// event is shown as it arrived rather than picked apart, because a display
 /// string is a presentation, not a contract.
 pub fn alert_line(event: &Event) -> String {
-    let mark = if event.kind == "attention" { "!" } else { "·" };
+    // Three shapes, three marks. A failed turn is not an attention request and
+    // certainly not a completion: it is the one a user scanning the list has to
+    // be able to find without reading. A kind this build does not know falls
+    // back to the neutral mark rather than being hidden.
+    let mark = match event.kind.as_str() {
+        "attention" => "!",
+        "failed" => "✕",
+        _ => "·",
+    };
     let Some(session) = &event.details.session else {
         return format!("{mark} {} — {}", event.title, event.message);
     };
@@ -165,12 +176,20 @@ pub fn alert_line(event: &Event) -> String {
     line.push_str(match event.details.event.as_deref() {
         Some("permissionrequest") => " · permission",
         Some("stop") => " · done",
+        Some("stopfailure") => " · failed",
         Some("notification") => " · waiting",
         // An event this build has not heard of still gets a line, because a
         // newer CDX inventing one must not make its alerts invisible.
         Some(_) | None => " · alert",
     });
-    if let Some(tool) = &event.details.tool {
+    // The tool for a permission request, the error class for a failure: the one
+    // word that says which of its kind this is.
+    if let Some(tool) = event
+        .details
+        .tool
+        .as_ref()
+        .or(event.details.error_type.as_ref())
+    {
         line.push_str(&format!(" ({tool})"));
     }
     // The reason and the preview are the same slot: an alert has one thing to
@@ -286,6 +305,29 @@ mod tests {
     }
 
     /// A field this build has never heard of must not make the alert vanish.
+    #[test]
+    fn a_failed_turn_is_marked_apart_from_both_completion_and_attention() {
+        let events = parse(
+            r#"{"events":[{"id":"a","kind":"failed","title":"✕ work","message":"repo · turn failed (rate_limit)",
+                "details":{"session":"work","project":"repo","event":"stopfailure","error_type":"rate_limit"}}]}"#,
+        );
+        assert_eq!(
+            alert_line(&events[0]),
+            "✕ work · repo · failed (rate_limit)"
+        );
+    }
+
+    /// A companion older than the failure kind shows the neutral mark, and the
+    /// sentence CDX rendered still says the turn failed.
+    #[test]
+    fn an_unknown_kind_falls_back_to_the_neutral_mark() {
+        let events = parse(
+            r#"{"events":[{"id":"a","kind":"somethingnew","title":"✕ work","message":"repo · turn failed"}]}"#,
+        );
+        assert!(alert_line(&events[0]).starts_with('·'));
+        assert!(alert_line(&events[0]).contains("turn failed"));
+    }
+
     #[test]
     fn an_unknown_event_name_still_produces_a_line() {
         let events = parse(

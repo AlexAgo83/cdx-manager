@@ -141,6 +141,66 @@ class HookTargetTests(unittest.TestCase):
         self.assertEqual(details["preview"], "Here it is")
         self.assertNotIn("preview", agent_notify.structured_details(payload, {agent_notify.SESSION_ENV: "work1"}))
 
+    def test_a_failed_turn_never_reads_as_a_completed_one(self):
+        env = {agent_notify.SESSION_ENV: "work1"}
+        title, message = agent_notify.compose_notification(
+            {"hook_event_name": "StopFailure", "cwd": "/repos/logics-manager",
+             "error_type": "billing_error", "error_message": "Credit exhausted"},
+            env,
+        )
+        # The mark is read before the words are.
+        self.assertTrue(title.startswith("✕"), title)
+        self.assertNotIn("complete", message)
+        self.assertIn("billing_error", message)
+        self.assertIn("needs you", message)
+
+    def test_a_transient_failure_reads_differently_from_one_needing_action(self):
+        env = {agent_notify.SESSION_ENV: "work1"}
+        transient = agent_notify.compose_notification(
+            {"hook_event_name": "StopFailure", "error_type": "rate_limit"}, env,
+        )[1]
+        actionable = agent_notify.compose_notification(
+            {"hook_event_name": "StopFailure", "error_type": "authentication_failed"}, env,
+        )[1]
+        self.assertIn("interrupted", transient)
+        self.assertNotIn("needs you", transient)
+        self.assertIn("needs you", actionable)
+
+    def test_an_unknown_error_class_is_treated_as_needing_attention(self):
+        """A failure this build has never seen is not one to reassure about."""
+        message = agent_notify.compose_notification(
+            {"hook_event_name": "StopFailure", "error_type": "something_new"},
+            {agent_notify.SESSION_ENV: "work1"},
+        )[1]
+        self.assertIn("needs you", message)
+
+    def test_a_failure_message_follows_the_preview_opt_in(self):
+        payload = {"hook_event_name": "StopFailure", "error_type": "rate_limit",
+                   "error_message": "Try again in 5 minutes"}
+        env = {agent_notify.SESSION_ENV: "work1"}
+        self.assertNotIn("Try again", agent_notify.compose_notification(payload, env)[1])
+        opted = agent_notify.compose_notification(payload, {**env, agent_notify.PREVIEW_ENV: "1"})[1]
+        self.assertIn("Try again in 5 minutes", opted)
+        details = agent_notify.structured_details(payload, {**env, agent_notify.PREVIEW_ENV: "1"})
+        self.assertEqual(details["error_type"], "rate_limit")
+        self.assertEqual(details["preview"], "Try again in 5 minutes")
+        # The class is safe metadata and crosses whatever the preview says.
+        self.assertEqual(
+            agent_notify.structured_details(payload, env)["error_type"], "rate_limit",
+        )
+
+    def test_each_event_produces_exactly_one_kind(self):
+        """A failed turn produces no completion alert and a completed turn no
+        failure alert, including when a provider fires both for one turn."""
+        kinds = {
+            "Stop": "complete",
+            "StopFailure": "failed",
+            "PermissionRequest": "attention",
+            "Notification": "attention",
+        }
+        for event, expected in kinds.items():
+            self.assertEqual(agent_notify.alert_kind({"hook_event_name": event}), expected, event)
+
     def test_a_permission_request_never_writes_to_stdout(self):
         # Claude Code reads this process's stdout as the decision for the tool
         # call. Anything printed here allows or denies it.
@@ -286,10 +346,10 @@ class ProvisioningTests(unittest.TestCase):
     def test_both_providers_subscribe_the_same_two_events(self):
         # The contract Codex has always used and Claude Code now publishes too.
         # Claude keeps Notification on top, for the waiting states nothing else
-        # reports; the duplicate that used to cause is filtered in cdx notify.
+        # reports, and StopFailure, which Codex documents no equivalent of.
         self.assertTrue(self._provision("claude"))
         claude = set(self._read("claude")["hooks"])
-        self.assertEqual(claude, {"Stop", "Notification", "PermissionRequest"})
+        self.assertEqual(claude, {"Stop", "StopFailure", "Notification", "PermissionRequest"})
 
         calls = []
         with mock.patch.object(agent_notify, "notification_channel", return_value="osascript"):
@@ -300,7 +360,7 @@ class ProvisioningTests(unittest.TestCase):
         with open(plugin, encoding="utf-8") as handle:
             codex = set(json.load(handle)["hooks"])
         self.assertEqual(codex, {"Stop", "PermissionRequest"})
-        self.assertTrue(codex <= claude)
+        self.assertTrue(codex <= claude, "the shared contract is the smaller of the two")
 
     def test_second_launch_changes_nothing(self):
         self.assertTrue(self._provision("claude"))

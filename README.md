@@ -391,6 +391,14 @@ other hook reports; the permission notifications it also sends are dropped,
 because `PermissionRequest` already reported the same call immediately and by
 name.
 
+Claude Code additionally reports a turn that ended on a provider error rather
+than on an answer — a rate limit, an overload, an authentication or billing
+problem. Those alerts are marked apart from completions, name the error class,
+and say whether the failure is one that usually clears on its own or one that
+needs you. Codex documents no equivalent hook, so a Codex turn killed by its
+provider stays silent; that is a gap in what the provider publishes, not a
+setting.
+
 A running tray companion receives each alert as fields rather than as a
 sentence, so its menu can name the session, the project and the tool, and
 clicking a recent alert opens the session it came from. The tool's arguments,

@@ -42,6 +42,17 @@ _WAITING_NOTIFICATIONS = {"idle_prompt", "agent_needs_input"}
 # one of these is read by Claude Code as an allow or a deny for the tool call,
 # so `cdx notify` has to stay silent on them whatever happens.
 _DECIDING_EVENTS = {"permissionrequest"}
+# A turn that ended on a provider error rather than on an answer.
+#
+# Claude Code publishes this; Codex documents no equivalent, so this is a
+# Claude-only alert and the documentation says so rather than implying parity.
+_FAILURE_EVENTS = {"stopfailure"}
+# Error classes that usually clear on their own. The distinction is the whole
+# point of the alert: an overloaded model and a billing error both stop the
+# turn, and reacting to them the same way is what trains someone to ignore
+# both. Anything unrecognised is treated as needing attention — a failure this
+# build has never seen is not one to reassure the user about.
+_TRANSIENT_ERRORS = {"rate_limit", "overloaded", "server_error", "max_output_tokens"}
 _PREVIEW_LIMIT = 180
 _TOOL_NAME_LIMIT = 80
 
@@ -127,13 +138,48 @@ def compose_notification(payload, env=None, cwd=None):
     if not _is_reportable(payload, event):
         return None
     directory = payload.get("cwd") or payload.get("workspace") or cwd or os.getcwd()
+    where = os.path.basename(str(directory).rstrip("/\\")) or directory
+    if event in _FAILURE_EVENTS:
+        # A different mark, because the word alone is not enough: a glance at a
+        # notification centre reads the symbol first, and a failed turn that
+        # carries the completion tick is a turn the user believes finished.
+        state = _failure_state(payload)
+        detail = _failure_detail(payload, env)
+        return f"✕ {session}", f"{where} · {state}" + (f" — {detail}" if detail else "")
     state = "needs your attention" if event in _WAITING_EVENTS else "turn complete"
     tool_name = _notification_text(payload.get("tool_name"), _TOOL_NAME_LIMIT)
     if event == "permissionrequest" and tool_name:
         state += f" ({tool_name})"
-    where = os.path.basename(str(directory).rstrip("/\\")) or directory
     preview = _notification_preview(payload, event, env)
     return f"✓ {session}", f"{where} · {state}" + (f" — {preview}" if preview else "")
+
+
+def error_class(payload):
+    """The provider's error class, normalised. Empty when it sent none."""
+    return _notification_text(payload.get("error_type"), _TOOL_NAME_LIMIT).lower().replace(" ", "_")
+
+
+def _failure_state(payload):
+    """What a failed turn says it is, in words that suggest what to do.
+
+    The class itself is included rather than translated: `rate_limit` and
+    `billing_error` mean different things to whoever reads them, and inventing
+    friendlier wording for a closed vocabulary loses the part that identifies
+    the problem.
+    """
+    kind = error_class(payload)
+    if not kind:
+        return "turn failed"
+    if kind in _TRANSIENT_ERRORS:
+        return f"turn interrupted ({kind})"
+    return f"turn failed ({kind}) — needs you"
+
+
+def _failure_detail(payload, env):
+    """The provider's own message, under the same opt-in as any other free text."""
+    if env.get(PREVIEW_ENV) != "1":
+        return ""
+    return _notification_text(payload.get("error_message"), _PREVIEW_LIMIT)
 
 
 def structured_details(payload, env=None, cwd=None):
@@ -157,6 +203,7 @@ def structured_details(payload, env=None, cwd=None):
     }
     for key, source, limit in (
         ("tool", "tool_name", _TOOL_NAME_LIMIT),
+        ("error_type", "error_type", _TOOL_NAME_LIMIT),
         ("model", "model", _TOOL_NAME_LIMIT),
         ("category", "permission_category", _TOOL_NAME_LIMIT),
         ("stop_reason", "stop_reason", _TOOL_NAME_LIMIT),
@@ -170,7 +217,23 @@ def structured_details(payload, env=None, cwd=None):
     reason = _permission_reason(payload, event, env)
     if reason:
         details["reason"] = reason
+    failure = _failure_detail(payload, env) if event in _FAILURE_EVENTS else ""
+    if failure:
+        details["preview"] = failure
     return details
+
+
+def alert_kind(payload):
+    """Which of the three shapes this event is, for the tray's marker.
+
+    A failure is its own kind rather than borrowing `attention`: they call for
+    different reactions, and a companion that predates this shows the neutral
+    marker with a message that still says the turn failed.
+    """
+    event = hook_event(payload)
+    if event in _FAILURE_EVENTS:
+        return "failed"
+    return "attention" if event in _WAITING_EVENTS else "complete"
 
 
 def _permission_reason(payload, event, env):
@@ -438,7 +501,10 @@ def _apply_hooks(path, enabled, command):
     # is delayed and does not. Notification stays subscribed for the waiting
     # states nothing else reports; the duplicate it used to cause is filtered in
     # `cdx notify` rather than avoided by unsubscribing.
-    for event in ("Stop", "Notification", "PermissionRequest"):
+    # StopFailure is Claude-only: Codex documents no equivalent, so a turn its
+    # provider kills stays silent there and the documentation says so rather
+    # than implying a parity that does not exist.
+    for event in ("Stop", "StopFailure", "Notification", "PermissionRequest"):
         # Rebuilt from whatever is there minus our own entry, so user-authored
         # hooks on the same event survive both installing and removing.
         entries = [entry for entry in hooks.get(event, []) if not _is_ours(entry)]
@@ -511,12 +577,11 @@ def _published_to_tray(ctx, composed, payload, env=None, cwd=None):
         base_dir = (ctx.get("service") or {}).get("base_dir")
         if not base_dir:
             return False
-        kind = "attention" if hook_event(payload) in _WAITING_EVENTS else "complete"
         return publish(
             base_dir,
             composed[0],
             composed[1],
-            kind=kind,
+            kind=alert_kind(payload),
             details=structured_details(payload, env, cwd),
         )
     except Exception:  # noqa: BLE001 - the caller is an agent turn
