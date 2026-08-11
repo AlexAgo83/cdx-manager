@@ -1,7 +1,7 @@
 ## req_047_let_the_operator_choose_which_terminal_the_tray_opens - Let the operator choose which terminal the tray opens
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium

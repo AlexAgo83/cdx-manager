@@ -1,10 +1,10 @@
 ## item_095_add_a_cdx_owned_terminal_preference_the_tray_honours - Add a CDX-owned terminal preference the tray honours
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -58,3 +58,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_058_orchestrate_the_preferred_tray_terminal`
+
+# Notes
+- Task `task_058_orchestrate_the_preferred_tray_terminal` was finished via `logics-manager flow finish task` on 2026-08-11.

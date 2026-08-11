@@ -1,6 +1,6 @@
 ## prod_034_the_tray_opens_the_terminal_you_actually_use - The tray opens the terminal you actually use
 > Date: 2026-08-11
-> Status: Proposed
+> Status: Settled
 > Related request: `req_047_let_the_operator_choose_which_terminal_the_tray_opens`
 > Related backlog: `item_095_add_a_cdx_owned_terminal_preference_the_tray_honours`
 > Related task: `task_058_orchestrate_the_preferred_tray_terminal`
@@ -9,6 +9,20 @@
 
 # Overview
 Let one CDX-owned preference decide which terminal a session row opens, with a safe fallback and no way to smuggle a command through it.
+
+```mermaid
+flowchart LR
+    Set[cdx tray terminal set] --> Check{an application name?}
+    Check -->|no| Refuse[refused, nothing stored]
+    Check -->|yes| Store[CDX state]
+    Store --> Snapshot[the snapshot the tray already polls]
+    Snapshot --> Mac[macOS: open -a]
+    Snapshot --> Linux[Linux: named emulator, then the list]
+    Snapshot --> Win[Windows: wt, the one with a documented flag]
+    Mac -.->|not installed| Default[platform default opens]
+    Linux -.-> Default
+    Win -.-> Default
+```
 
 # Goals
 - Open the terminal the operator works in, rather than the one the platform happens to ship.
@@ -33,5 +47,5 @@ Let one CDX-owned preference decide which terminal a session row opens, with a s
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_047_let_the_operator_choose_which_terminal_the_tray_opens`
+- Product back-reference: `item_095_add_a_cdx_owned_terminal_preference_the_tray_honours`
 - Task back-reference: `task_058_orchestrate_the_preferred_tray_terminal`
