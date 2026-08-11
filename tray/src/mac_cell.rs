@@ -137,7 +137,15 @@ const TOP_LINE_Y: f64 = 17.0;
 const TOP_LINE_HEIGHT: f64 = 15.0;
 const DETAIL_Y: f64 = 3.0;
 const DETAIL_HEIGHT: f64 = 13.0;
-const ROW_WIDTH: f64 = 260.0;
+/// Wide enough for what the row actually says.
+///
+/// 260 was the width of a row carrying a name and a figure. It now carries a
+/// name, a provider, an age, a reset and two named windows, and at 260 the
+/// first screenshot of it showed "claud", "antigr" and a reset cut mid-word.
+/// A menu sizes itself to its widest item, so this costs nothing on a menu that
+/// already holds a sentence like "Refresh unavailable while a session is
+/// running".
+const ROW_WIDTH: f64 = 340.0;
 const GAUGE_WIDTH: f64 = 46.0;
 const GAUGE_HEIGHT: f64 = 4.0;
 /// Wide enough for "5h 100%", because the window's name travels with its
@@ -155,7 +163,7 @@ const CHEVRON_WIDTH: f64 = 14.0;
 /// How much of the text column the session name takes, leaving the rest to the
 /// provider. Session names are what the user reads first and are the longer of
 /// the two; a provider is one short word from a set of two.
-const NAME_SHARE: f64 = 0.68;
+const NAME_SHARE: f64 = 0.62;
 
 /// A percentage, or the same em dash the text rows use for a session that has
 /// never reported: an empty column would read as a rendering fault.
@@ -187,6 +195,14 @@ fn label(
     let field = NSTextField::labelWithString(&NSString::from_str(text), mtm);
     field.setFont(Some(&NSFont::systemFontOfSize(size)));
     field.setTextColor(Some(&colour));
+    // An ellipsis rather than a clean cut. A label that runs out of room ends
+    // in "claud" and reads as a bug in the data; ending in "clau…" reads as a
+    // narrow column, which is what it is. Belt and braces behind the width
+    // above: a long session name is the user's to choose, not ours to bound.
+    if let Some(cell) = field.cell() {
+        cell.setUsesSingleLineMode(true);
+        cell.setLineBreakMode(objc2_app_kit::NSLineBreakMode::ByTruncatingTail);
+    }
     field
 }
 
