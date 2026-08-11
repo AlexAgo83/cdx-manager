@@ -316,3 +316,25 @@ class AlertMuteTest(CliTestBase):
         set_alerts(base, False)
         set_alerts(base, True)
         self.assertTrue(self._notify(base))
+
+
+class SpoolPathTest(CliTestBase):
+    """The snapshot says where alerts land, so a companion can watch the file.
+
+    Polling for an alert costs up to a full period of latency on the one event
+    the user is actively waiting for — a turn finishing. The companion's loop
+    already wakes five times a second, so knowing the path turns thirty seconds
+    into a fifth of one.
+    """
+
+    def test_the_snapshot_names_the_spool(self):
+        from src.tray_events import events_path
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("work")
+        io_obj = self.make_io()
+        main(["tray", "status", "--json"], {
+            **io_obj, "service": service, "env": {"CDX_HOME": temp_dir},
+        })
+        snapshot = json.loads(io_obj["stdout"].getvalue())["snapshot"]
+        self.assertEqual(snapshot["spool_path"], events_path(temp_dir))

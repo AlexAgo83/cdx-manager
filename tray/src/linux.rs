@@ -17,6 +17,7 @@ use crate::hint;
 use crate::menu::{ActionId, Entry};
 use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
+use crate::spool;
 
 const PUMP: Duration = Duration::from_millis(200);
 
@@ -150,6 +151,8 @@ pub fn run(transport: Transport) -> Result<(), String> {
     tray_support()?;
     let mut state = Render::first(&transport);
     let pending = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let mut spool = spool::Spool::idle();
+    spool.watch(state.spool_path.as_deref(), transport.is_wsl());
     let mut alert_hint = hint::advance(None, state.fresh.len(), Instant::now());
     let handle = ksni::blocking::TrayMethods::spawn(CdxTray {
         hint: hint::title(alert_hint, Instant::now()),
@@ -188,11 +191,19 @@ pub fn run(transport: Transport) -> Result<(), String> {
             }
             None => {}
         }
+        // An alert lands in the spool the moment a hook writes it. Polling for
+        // it would cost up to a full period of latency on the one event the
+        // user is actually waiting for, so a change pulls the next poll forward
+        // instead.
+        if spool.changed() {
+            due = Instant::now();
+        }
         if Instant::now() >= due {
             state = Render::next(&transport, state.tick, &state.history);
             redraw = true;
         }
         if redraw {
+            spool.watch(state.spool_path.as_deref(), transport.is_wsl());
             alert_hint = hint::advance(alert_hint, state.fresh.len(), Instant::now());
             let icon = state.icon_state.clone();
             let tooltip = state.tooltip.clone();

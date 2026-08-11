@@ -45,6 +45,8 @@ pub struct Render {
     /// once here so the three backends never disagree about what a row says.
     #[allow(dead_code)]
     pub rows: Vec<Row>,
+    /// Where the spool lives, so the loop can notice an alert between polls.
+    pub spool_path: Option<String>,
     /// Whether alerts may raise a banner, so the switch draws its real state.
     pub alerts_enabled: bool,
     /// Session names in menu order, so a clicked row resolves to the session it
@@ -82,6 +84,7 @@ impl Render {
                     icon_state: snap.icon_state.clone(),
                     tooltip: snap.tooltip.clone(),
                     rows: rows_for(&entries_for_rows, &snap.sessions),
+                    spool_path: snap.spool_path.clone(),
                     alerts_enabled: snap.alerts_enabled,
                     session_names: snap.sessions.iter().map(|s| s.name.clone()).collect(),
                     entries: entries_for_rows.clone(),
@@ -101,6 +104,9 @@ impl Render {
                     // it shows that nothing is known rather than a stale figure.
                     icon_state: "unknown".to_string(),
                     tooltip: format!("CDX · unavailable · {reason}"),
+                    // Nothing to watch while CDX is unreachable; the next
+                    // successful poll says where the spool is again.
+                    spool_path: None,
                     // Unknown reads as on: a CDX we cannot reach must not look
                     // like a mute nobody set.
                     alerts_enabled: true,

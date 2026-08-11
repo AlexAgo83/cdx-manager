@@ -21,6 +21,7 @@ mod notify;
 mod runner;
 mod schedule;
 mod snapshot;
+mod spool;
 #[cfg(target_os = "windows")]
 mod win;
 mod wsl;

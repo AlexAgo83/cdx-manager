@@ -27,6 +27,7 @@ from ..tray_events import (
     acknowledge as ack_events,
 )
 from ..tray_events import (
+    events_path,
     read_events,
     write_heartbeat,
 )
@@ -116,6 +117,11 @@ def _tray_status(args, ctx):
     base_dir = ctx["service"]["base_dir"]
     snapshot["events"] = read_events(base_dir)
     snapshot["alerts_enabled"] = alerts_enabled(base_dir)
+    # Where the alerts land, so a companion on this machine can watch the file
+    # instead of waiting for its next poll. Meaningless across WSL — a Windows
+    # process cannot stat a path in the Linux filesystem — and the companion
+    # ignores it there rather than CDX pretending otherwise.
+    snapshot["spool_path"] = events_path(base_dir)
     # `--beat` is what claims ownership of alerts, so it is opt-in: a caller
     # that merely looks at the status must not make `cdx notify` believe a tray
     # is listening.

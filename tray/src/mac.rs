@@ -19,6 +19,7 @@ use crate::hint;
 use crate::menu::ActionId;
 use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
+use crate::spool;
 
 /// How long the pump blocks before looking at the clock again. Short enough
 /// that Quit feels instant, long enough that an idle companion is not a
@@ -44,6 +45,8 @@ pub fn run(transport: Transport) -> Result<(), String> {
     // be acknowledged here too. Leaving it to the redraw block would hold them
     // unacknowledged for a whole poll period, and a companion quit inside that
     // window would have shown an alert CDX still considers undelivered.
+    let mut spool = spool::Spool::idle();
+    spool.watch(state.spool_path.as_deref(), transport.is_wsl());
     let mut alert_hint = hint::advance(None, state.fresh.len(), Instant::now());
     backend::set_title(&tray, hint::title(alert_hint, Instant::now()));
     announce(&transport, &state);
@@ -92,6 +95,13 @@ pub fn run(transport: Transport) -> Result<(), String> {
             }
         }
 
+        // An alert lands in the spool the moment a hook writes it. Polling for
+        // it would cost up to a full period of latency on the one event the
+        // user is actually waiting for, so a change pulls the next poll forward
+        // instead.
+        if spool.changed() {
+            due = Instant::now();
+        }
         if Instant::now() >= due {
             state = Render::next(&transport, state.tick, &state.history);
             redraw = true;
@@ -112,6 +122,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
             // Acknowledged only after the alert has been drawn. A companion
             // that dies in between is handed it again next poll and shows it
             // twice at worst; acknowledging first would lose it outright.
+            spool.watch(state.spool_path.as_deref(), transport.is_wsl());
             alert_hint = hint::advance(alert_hint, state.fresh.len(), Instant::now());
             announce(&transport, &state);
         }

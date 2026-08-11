@@ -181,6 +181,9 @@ pub struct Snapshot {
     /// Alerts CDX is holding, delivered with the snapshot rather than fetched
     /// separately: across WSL each extra call is another `wsl.exe` crossing.
     pub events: Vec<crate::events::Event>,
+    /// Where the alert spool lives, so a companion sharing the filesystem can
+    /// notice an alert between polls instead of waiting for the next one.
+    pub spool_path: Option<String>,
     /// Whether an alert may raise a banner. Read from CDX rather than kept by
     /// the companion: the hook is what obeys it, and the hook is not the tray.
     pub alerts_enabled: bool,
@@ -297,6 +300,11 @@ pub fn read_snapshot(payload: &Value) -> Result<Snapshot, Unavailable> {
         events: crate::events::parse_array(snapshot.get("events")),
         // Absent means on: an older CDX has no mute, and defaulting to muted
         // would silence someone who never asked for it.
+        spool_path: snapshot
+            .get("spool_path")
+            .and_then(Value::as_str)
+            .filter(|v| !v.is_empty())
+            .map(str::to_string),
         alerts_enabled: snapshot
             .get("alerts_enabled")
             .and_then(|v| v.as_bool())

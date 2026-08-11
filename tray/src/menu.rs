@@ -272,6 +272,7 @@ mod tests {
     fn snapshot(sessions: Vec<Session>, refreshable: bool) -> Snapshot {
         Snapshot {
             events: Vec::new(),
+            spool_path: None,
             alerts_enabled: true,
             icon_state: "low".into(),
             tooltip: "CDX · capacity low".into(),
