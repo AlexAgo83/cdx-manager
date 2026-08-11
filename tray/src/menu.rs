@@ -131,13 +131,18 @@ fn session_line(session: &Session) -> String {
     )
 }
 
-/// The menu, with a bounded list of recent agent alerts above the actions.
+/// The menu, with the unread agent alerts above the actions.
 ///
 /// Alerts sit below the sessions and above the actions on purpose: quota is
 /// what the user opened the menu for, and the actions have to stay in the same
 /// place whether or not anything happened. Pass an empty slice for no alerts —
 /// there is deliberately no second entry point, so no caller can render a menu
 /// that silently omits them.
+///
+/// What arrives here is the unread list, not a history: showing this menu is
+/// what marks these read, so the section is empty the next time it is opened
+/// unless something new arrived. That is the point of `req_042` — the count
+/// beside the icon and this list are the same thing said twice.
 pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -> Vec<Entry> {
     let mut entries = Vec::new();
     if snapshot.sessions.is_empty() {
@@ -163,7 +168,7 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
     }
     if !alerts.is_empty() {
         entries.push(Entry::Separator);
-        entries.push(Entry::Info("Recent alerts".into()));
+        entries.push(Entry::Info("Unread alerts".into()));
         for line in crate::events::history_lines(alerts) {
             entries.push(Entry::Info(line));
         }

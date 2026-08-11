@@ -9,27 +9,82 @@
 //! `Transport` already turns the poll into a `wsl.exe` call, which is the whole
 //! reason the transport is a command rather than a socket.
 
+use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
+use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE, WM_QUIT,
+    CallWindowProcW, DispatchMessageW, PeekMessageW, SetWindowLongPtrW, TranslateMessage,
+    GWLP_WNDPROC, MSG, PM_REMOVE, WM_INITMENUPOPUP, WM_QUIT, WNDPROC,
 };
 
 use crate::backend;
 use crate::events::set_alerts;
-use crate::hint;
 use crate::menu::ActionId;
 use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
 use crate::spool;
+use crate::unread::Unread;
 
 /// How long the loop sleeps between pumps. Short enough that a click feels
 /// immediate, long enough that an idle companion is not a spinning loop.
 const PUMP: Duration = Duration::from_millis(100);
 
+/// Raised by the subclassed window procedure, drained by the loop.
+static MENU_OPENED: AtomicBool = AtomicBool::new(false);
+/// The window procedure `tray-icon` installed, which ours must still call.
+static PREVIOUS_PROC: AtomicIsize = AtomicIsize::new(0);
+
+/// See the menu open.
+///
+/// `tray-icon` shows the menu itself, with `TrackPopupMenu` on a window it owns
+/// and exposes, and it handles none of the menu messages — so `WM_INITMENUPOPUP`
+/// on that window is free to take, and it is the reading signal `adr_006` asks
+/// for. Nothing is cleared here: `TrackPopupMenu` is modal, so this runs inside
+/// a loop that owns the thread until the menu closes. The flag is drained when
+/// the pump resumes, which is the earliest moment the loop exists again.
+unsafe extern "system" fn observe_menu(
+    hwnd: HWND,
+    message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    if message == WM_INITMENUPOPUP {
+        MENU_OPENED.store(true, Ordering::Relaxed);
+    }
+    let previous: WNDPROC = std::mem::transmute(PREVIOUS_PROC.load(Ordering::Relaxed));
+    CallWindowProcW(previous, hwnd, message, wparam, lparam)
+}
+
+/// Install the observer, reporting whether it took.
+///
+/// A false here is not an error to surface: the companion works without the
+/// signal, it simply never marks anything read, which is the failing-closed
+/// behaviour `adr_006` requires.
+fn observe_menu_openings(tray: &tray_icon::TrayIcon) -> bool {
+    let hwnd = tray.window_handle();
+    if hwnd.is_null() {
+        return false;
+    }
+    // SAFETY: the hwnd belongs to the tray icon and outlives it; the previous
+    // procedure is stored before ours can be called, because the window has no
+    // messages to dispatch until this thread pumps again.
+    // Through a typed function pointer rather than casting the function item
+    // straight to an integer, which clippy rightly refuses: the item's type is
+    // not the pointer Windows is being handed.
+    let ours: unsafe extern "system" fn(HWND, u32, WPARAM, LPARAM) -> LRESULT = observe_menu;
+    let previous = unsafe { SetWindowLongPtrW(hwnd, GWLP_WNDPROC, ours as usize as isize) };
+    if previous == 0 {
+        return false;
+    }
+    PREVIOUS_PROC.store(previous, Ordering::Relaxed);
+    true
+}
+
 pub fn run(transport: Transport) -> Result<(), String> {
-    let mut state = Render::first(&transport);
+    let mut unread = Unread::new();
+    let mut state = Render::first(&transport, &mut unread);
     let (tray, mut actions) = backend::build_tray(
         &state.icon_state,
         &state.tooltip,
@@ -42,8 +97,8 @@ pub fn run(transport: Transport) -> Result<(), String> {
     // window would have shown an alert CDX still considers undelivered.
     let mut spool = spool::Spool::idle();
     spool.watch(state.spool_path.as_deref(), transport.is_wsl());
-    let mut alert_hint = hint::advance(None, state.fresh.len(), Instant::now());
-    backend::set_title(&tray, hint::title(alert_hint, Instant::now()));
+    let observing = observe_menu_openings(&tray);
+    backend::set_title(&tray, unread.marker());
     announce(&transport, &state);
     promote_icon();
     let mut due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
@@ -62,11 +117,19 @@ pub fn run(transport: Transport) -> Result<(), String> {
         }
 
         let mut redraw = false;
+        // Drained after the pump, because the pump is where the modal menu
+        // loop ran: nothing else on this thread could have observed it. The
+        // menu that was open is the one drawn at the last redraw, so what it
+        // showed is what has been read, and an alert that landed while it was
+        // open is not in that set.
+        if observing && MENU_OPENED.swap(false, Ordering::Relaxed) && unread.consulted() {
+            redraw = true;
+        }
         while let Ok(event) = muda::MenuEvent::receiver().try_recv() {
             match actions.get(&event.id) {
                 Some(ActionId::Quit) => return Ok(()),
                 Some(ActionId::Refresh) => {
-                    state = Render::next(&transport, state.tick, &state.history);
+                    state = Render::next(&transport, state.tick, &mut unread);
                     redraw = true;
                 }
                 Some(ActionId::OpenTerminal) => open_terminal(&transport, "status"),
@@ -77,7 +140,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     // reflects what was actually recorded rather than what was
                     // clicked.
                     set_alerts(&transport, !state.alerts_enabled);
-                    state = Render::next(&transport, state.tick, &state.history);
+                    state = Render::next(&transport, state.tick, &mut unread);
                     redraw = true;
                 }
                 Some(ActionId::Session(name)) => open_terminal(&transport, name),
@@ -93,7 +156,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
             due = Instant::now();
         }
         if Instant::now() >= due {
-            state = Render::next(&transport, state.tick, &state.history);
+            state = Render::next(&transport, state.tick, &mut unread);
             redraw = true;
         }
 
@@ -102,7 +165,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 &tray,
                 &state.icon_state,
                 &state.tooltip,
-                hint::title(alert_hint, Instant::now()),
+                unread.marker(),
                 &state.entries,
                 &state.rows,
             )?;
@@ -111,7 +174,6 @@ pub fn run(transport: Transport) -> Result<(), String> {
             // that dies in between is handed it again next poll and shows it
             // twice at worst; acknowledging first would lose it outright.
             spool.watch(state.spool_path.as_deref(), transport.is_wsl());
-            alert_hint = hint::advance(alert_hint, state.fresh.len(), Instant::now());
             announce(&transport, &state);
         }
         sleep(PUMP);

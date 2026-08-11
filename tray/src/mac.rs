@@ -15,11 +15,12 @@ use objc2_foundation::{NSDate, NSDefaultRunLoopMode};
 
 use crate::backend;
 use crate::events::set_alerts;
-use crate::hint;
+use crate::mac_menu_open;
 use crate::menu::ActionId;
 use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
 use crate::spool;
+use crate::unread::Unread;
 
 /// How long the pump blocks before looking at the clock again. Short enough
 /// that Quit feels instant, long enough that an idle companion is not a
@@ -34,7 +35,8 @@ pub fn run(transport: Transport) -> Result<(), String> {
     // from a terminal behaves the same way.
     app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
 
-    let mut state = Render::first(&transport);
+    let mut unread = Unread::new();
+    let mut state = Render::first(&transport, &mut unread);
     let (tray, mut actions) = backend::build_tray(
         &state.icon_state,
         &state.tooltip,
@@ -47,8 +49,8 @@ pub fn run(transport: Transport) -> Result<(), String> {
     // window would have shown an alert CDX still considers undelivered.
     let mut spool = spool::Spool::idle();
     spool.watch(state.spool_path.as_deref(), transport.is_wsl());
-    let mut alert_hint = hint::advance(None, state.fresh.len(), Instant::now());
-    backend::set_title(&tray, hint::title(alert_hint, Instant::now()));
+    let mut observing = mac_menu_open::installed();
+    backend::set_title(&tray, unread.marker());
     announce(&transport, &state);
     let mut due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
 
@@ -68,11 +70,17 @@ pub fn run(transport: Transport) -> Result<(), String> {
         });
 
         let mut redraw = false;
+        // The menu the user opened is the one drawn at the last redraw, so what
+        // it showed is what has been read. Anything that arrived since is not
+        // in that set and stays unread.
+        if observing && mac_menu_open::opened() && unread.consulted() {
+            redraw = true;
+        }
         while let Ok(event) = muda::MenuEvent::receiver().try_recv() {
             match actions.get(&event.id) {
                 Some(ActionId::Quit) => return Ok(()),
                 Some(ActionId::Refresh) => {
-                    state = Render::next(&transport, state.tick, &state.history);
+                    state = Render::next(&transport, state.tick, &mut unread);
                     redraw = true;
                 }
                 Some(ActionId::OpenTerminal) => open_terminal("cdx status"),
@@ -83,7 +91,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     // reflects what was actually recorded rather than what was
                     // clicked.
                     set_alerts(&transport, !state.alerts_enabled);
-                    state = Render::next(&transport, state.tick, &state.history);
+                    state = Render::next(&transport, state.tick, &mut unread);
                     redraw = true;
                 }
                 Some(ActionId::Session(name)) => open_terminal(&format!("cdx {name}")),
@@ -99,7 +107,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
             due = Instant::now();
         }
         if Instant::now() >= due {
-            state = Render::next(&transport, state.tick, &state.history);
+            state = Render::next(&transport, state.tick, &mut unread);
             redraw = true;
         }
 
@@ -108,7 +116,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 &tray,
                 &state.icon_state,
                 &state.tooltip,
-                hint::title(alert_hint, Instant::now()),
+                unread.marker(),
                 &state.entries,
                 &state.rows,
             )?;
@@ -119,7 +127,10 @@ pub fn run(transport: Transport) -> Result<(), String> {
             // that dies in between is handed it again next poll and shows it
             // twice at worst; acknowledging first would lose it outright.
             spool.watch(state.spool_path.as_deref(), transport.is_wsl());
-            alert_hint = hint::advance(alert_hint, state.fresh.len(), Instant::now());
+            // The menu was rebuilt, so the delegate has to be set on the new
+            // one. A draw that could not install it stops the clearing rather
+            // than clearing against a menu nobody is watching.
+            observing = mac_menu_open::installed();
             announce(&transport, &state);
         }
         let _ = &tray;

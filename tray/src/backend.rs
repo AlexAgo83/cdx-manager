@@ -112,6 +112,9 @@ fn image_from_png(bytes: &[u8]) -> Result<(Vec<u8>, u32, u32), String> {
 #[cfg(target_os = "macos")]
 fn style_rows(menu: &Menu, rows: &[crate::runner::Row]) {
     use muda::ContextMenu;
+    // Same pointer, same moment: the menu is rebuilt on every redraw, so the
+    // delegate that reports it being opened has to be re-set with it.
+    crate::mac_menu_open::observe(menu.ns_menu());
     let cells: Vec<crate::mac_cell::Cell> = rows
         .iter()
         .map(|row| crate::mac_cell::Cell {

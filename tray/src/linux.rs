@@ -12,12 +12,14 @@
 
 use std::time::{Duration, Instant};
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use crate::events::set_alerts;
-use crate::hint;
 use crate::menu::{ActionId, Entry};
 use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
 use crate::spool;
+use crate::unread::Unread;
 
 const PUMP: Duration = Duration::from_millis(200);
 
@@ -52,7 +54,7 @@ pub fn tray_support() -> Result<(), String> {
 }
 
 struct CdxTray {
-    /// The short-lived "something arrived" marker, or None.
+    /// The unread marker, or None.
     hint: Option<String>,
     icon_state: String,
     tooltip: String,
@@ -61,11 +63,23 @@ struct CdxTray {
     /// ksni's own thread, so the action has to be handed over rather than acted
     /// on in place.
     pending: std::sync::Arc<std::sync::Mutex<Option<ActionId>>>,
+    /// Raised when the root menu is about to be shown, drained by the loop.
+    ///
+    /// This is the reading signal on Linux, and the only one the protocol
+    /// offers: dbusmenu has no closing counterpart, which is why `adr_006`
+    /// models opening alone.
+    opened: std::sync::Arc<AtomicBool>,
 }
 
 impl ksni::Tray for CdxTray {
     fn id(&self) -> String {
         "cdx-tray".into()
+    }
+
+    /// Called before the root menu is shown. Nothing is cleared here: the loop
+    /// owns the unread state, and this callback runs on ksni's own thread.
+    fn menu_about_to_show(&mut self) {
+        self.opened.store(true, Ordering::Relaxed);
     }
 
     fn title(&self) -> String {
@@ -149,17 +163,19 @@ impl ksni::Tray for CdxTray {
 
 pub fn run(transport: Transport) -> Result<(), String> {
     tray_support()?;
-    let mut state = Render::first(&transport);
+    let mut unread = Unread::new();
+    let mut state = Render::first(&transport, &mut unread);
     let pending = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let opened = std::sync::Arc::new(AtomicBool::new(false));
     let mut spool = spool::Spool::idle();
     spool.watch(state.spool_path.as_deref(), transport.is_wsl());
-    let mut alert_hint = hint::advance(None, state.fresh.len(), Instant::now());
     let handle = ksni::blocking::TrayMethods::spawn(CdxTray {
-        hint: hint::title(alert_hint, Instant::now()),
+        hint: unread.marker(),
         icon_state: state.icon_state.clone(),
         tooltip: state.tooltip.clone(),
         entries: state.entries.clone(),
         pending: pending.clone(),
+        opened: opened.clone(),
     })
     .map_err(|error| format!("could not register the tray item: {error}"))?;
     // The first draw happens before the loop, so the alerts it showed have to
@@ -172,16 +188,22 @@ pub fn run(transport: Transport) -> Result<(), String> {
         std::thread::sleep(PUMP);
         let clicked = pending.lock().unwrap().take();
         let mut redraw = false;
+        // The menu the user just opened is the one drawn at the last redraw, so
+        // what it showed is what has now been read. Anything that arrived since
+        // is not in that set and stays unread.
+        if opened.swap(false, Ordering::Relaxed) && unread.consulted() {
+            redraw = true;
+        }
         match clicked {
             Some(ActionId::Quit) => return Ok(()),
             Some(ActionId::Refresh) => {
-                state = Render::next(&transport, state.tick, &state.history);
+                state = Render::next(&transport, state.tick, &mut unread);
                 redraw = true;
             }
             Some(ActionId::OpenTerminal) => open_terminal("status"),
             Some(ActionId::ToggleAlerts) => {
                 set_alerts(&transport, !state.alerts_enabled);
-                state = Render::next(&transport, state.tick, &state.history);
+                state = Render::next(&transport, state.tick, &mut unread);
                 redraw = true;
             }
             Some(ActionId::Session(name)) => open_terminal(&name),
@@ -195,16 +217,15 @@ pub fn run(transport: Transport) -> Result<(), String> {
             due = Instant::now();
         }
         if Instant::now() >= due {
-            state = Render::next(&transport, state.tick, &state.history);
+            state = Render::next(&transport, state.tick, &mut unread);
             redraw = true;
         }
         if redraw {
             spool.watch(state.spool_path.as_deref(), transport.is_wsl());
-            alert_hint = hint::advance(alert_hint, state.fresh.len(), Instant::now());
             let icon = state.icon_state.clone();
             let tooltip = state.tooltip.clone();
             let entries = state.entries.clone();
-            let marker = hint::title(alert_hint, Instant::now());
+            let marker = unread.marker();
             handle.update(move |tray: &mut CdxTray| {
                 tray.icon_state = icon.clone();
                 tray.tooltip = tooltip.clone();

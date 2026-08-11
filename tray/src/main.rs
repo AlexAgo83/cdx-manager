@@ -8,7 +8,6 @@
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod backend;
 mod events;
-mod hint;
 mod instance;
 #[cfg(target_os = "linux")]
 mod linux;
@@ -16,12 +15,15 @@ mod linux;
 mod mac;
 #[cfg(target_os = "macos")]
 mod mac_cell;
+#[cfg(target_os = "macos")]
+mod mac_menu_open;
 mod menu;
 mod notify;
 mod runner;
 mod schedule;
 mod snapshot;
 mod spool;
+mod unread;
 #[cfg(target_os = "windows")]
 mod win;
 mod wsl;
