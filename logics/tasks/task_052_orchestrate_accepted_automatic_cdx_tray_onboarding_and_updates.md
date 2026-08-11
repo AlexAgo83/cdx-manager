@@ -9,6 +9,7 @@
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 > Owner: corvus
+> Indicators reviewed: 2026-08-11 12:48:55
 
 # AI Context
 - Summary: Orchestrate accepted automatic CDX tray onboarding and updates
@@ -19,7 +20,7 @@
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
 - `src/tray_install.py:391` already performs the rename-live-to-retired then promote-staged sequence, which is the documented Windows-safe order. What it has never faced is a companion that is running.
-- Open question to settle before anything else is written: the rename-to-delete pattern is documented for the executable file, but here it is the directory containing a running executable that moves. Windows holds an image section on that binary, so the directory rename is expected to fail with ERROR_ACCESS_DENIED. If it does, the shape of the transaction changes, so step 3 starts by reproducing it rather than by designing around it.
+- Settled by measurement after delivery, on Windows 11 26200: renaming a directory that holds a running executable **succeeds**. The expectation recorded here — that an image section would lock the parent directory and fail with ERROR_ACCESS_DENIED — was wrong. What Windows refuses is deleting or overwriting a running executable, which is why the rename-to-delete pattern exists at all. Nothing was built on the wrong expectation, because the transaction stops the companion first regardless; but the reason it holds is not the one written here, and adr_005 now carries the measured version.
 - MoveFileEx with MOVEFILE_DELAY_UNTIL_REBOOT is the last-resort disposal for a retired directory that still cannot be removed. Ordinary cleanup happens at the next start, not inside the transaction.
 - There is no shutdown channel to use. `tray/src/instance.rs` holds a pid file and a liveness probe only, so "request a bounded graceful shutdown" is a mechanism this task introduces.
 - A flag file under `runtime_dir()`, polled by the loop that already wakes every 100 ms, is preferred to a signal: it behaves identically on the three platforms and avoids Windows thread-message and handle ownership questions.

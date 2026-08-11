@@ -1,5 +1,5 @@
 ## adr_005_cdx_tray_runtime_and_companion_transport_boundary - CDX tray runtime and companion transport boundary
-> Indicators reviewed: 2026-08-10 21:52:53
+> Indicators reviewed: 2026-08-11 12:48:31
 
 > Date: 2026-08-10
 > Status: Settled
@@ -24,6 +24,8 @@
 - `tray-icon` dynamically links gtk3, libxdo, and libayatana-appindicator3 on Linux, so a companion built on it refuses to start wherever those packages are absent. `ksni` speaks the same StatusNotifierItem protocol over D-Bus in pure Rust with no C library at all.
 - Windows toast notifications require an installed application with a registered AppUserModelID. This is a platform constraint, not a framework one.
 - A registered AppUserModelID is not sufficient on Windows: without a Start Menu shortcut carrying `System.AppUserModel.ID`, the toast is silently dropped. That shortcut lives in `%APPDATA%\Microsoft\Windows\Start Menu\Programs` and needs no administrator rights, and a stub CLSID on it is what lets Action Center persist the notification.
+- A running Windows executable cannot be deleted or overwritten, but it can be renamed, and so can the directory holding it. Measured on Windows 11 26200 with the companion running from the directory being renamed: the rename succeeded. That is the whole reason the rename-to-delete pattern exists, and it contradicts the expectation `item_088` was written on — which assumed an image section locks the parent directory. It does not.
+- The update transaction still stops the companion before touching its files, and now for the reason that survives measurement rather than the one that did not: promoting a replacement under a live process leaves that process running code from a directory that no longer describes what is installed, and the replacement cannot be started while the old one holds the single-instance lock.
 - Windows Mark-of-the-Web behaves like macOS quarantine: the downloading application writes the `Zone.Identifier` stream, browsers and mail clients do so, and command-line fetchers generally do not.
 - Apple Silicon refuses to execute arm64 code that is not at least ad-hoc signed, so signing is a build step rather than a distribution option.
 - Gatekeeper only evaluates files carrying `com.apple.quarantine`, and that attribute is set by the downloading application. Browsers set it; `curl` and `scp` do not.
