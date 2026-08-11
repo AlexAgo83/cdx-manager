@@ -1,0 +1,341 @@
+{
+  "budgets": {
+    "max_docs": 24,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [
+    "logics/backlog/item_089_unify_tray_alert_marker_and_recent_alert_read_state.md",
+    "logics/product/prod_031_coherent_cdx_tray_unread_alerts.md",
+    "logics/request/req_042_synchronize_cdx_tray_alert_badges_with_menu_reading.md",
+    "logics/scaffold/tray_alert_read_state.json",
+    "logics/tasks/task_053_orchestrate_coherent_cdx_tray_alert_read_state.md"
+  ],
+  "command": "logics-manager sync context-pack req_042_synchronize_cdx_tray_alert_badges_with_menu_reading item_089_unify_tray_alert_marker_and_recent_alert_read_state task_053_orchestrate_coherent_cdx_tray_alert_read_state --mode diff-first --profile deep --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_089_unify_tray_alert_marker_and_recent_alert_read_state"
+        ],
+        "prod": [
+          "prod_031_coherent_cdx_tray_unread_alerts"
+        ],
+        "req": [
+          "req_042_synchronize_cdx_tray_alert_badges_with_menu_reading"
+        ],
+        "task": [
+          "task_053_orchestrate_coherent_cdx_tray_alert_read_state"
+        ]
+      },
+      "path": "logics/product/prod_031_coherent_cdx_tray_unread_alerts.md",
+      "ref": "prod_031_coherent_cdx_tray_unread_alerts",
+      "sections": {
+        "Goals": [
+          "- Make the tray marker and recent-alert list agree on what remains unread.",
+          "- Let a user read alerts once from the menu without accumulating a permanent notification log.",
+          "- Preserve alerts that arrive during a consultation for the next one.",
+          "- Keep reliable delivery and crash recovery separate from ephemeral UI read state."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Make one lightweight unread state drive the tray badge and recent-alert menu, with opening the tray as the sole read action."
+        ],
+        "References": [
+          "- Product back-reference: `req_042_synchronize_cdx_tray_alert_badges_with_menu_reading`",
+          "- Task back-reference: `task_053_orchestrate_coherent_cdx_tray_alert_read_state`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Coherent CDX tray unread alerts"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, synchronize cdx tray alert badges with menu reading, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Synchronize CDX tray alert badges with menu reading",
+        "use when": "You need to implement or review the scaffolded workflow for Synchronize CDX tray alert badges with menu reading."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_089_unify_tray_alert_marker_and_recent_alert_read_state"
+        ],
+        "prod": [
+          "prod_031_coherent_cdx_tray_unread_alerts"
+        ],
+        "req": [
+          "req_042_synchronize_cdx_tray_alert_badges_with_menu_reading"
+        ]
+      },
+      "path": "logics/request/req_042_synchronize_cdx_tray_alert_badges_with_menu_reading.md",
+      "ref": "req_042_synchronize_cdx_tray_alert_badges_with_menu_reading",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: The tray has one explicit unread-alert state. An incoming alert adds one unread item, shows its marker, and makes it available in the current unread-alert menu section.",
+          "- AC2: Opening the tray menu marks the alerts already visible in that consultation as read and clears the badge immediately. Those alerts remain visible for that open menu, then are absent on the next menu opening.",
+          "- AC3: An alert that arrives after the menu opens remains unread, retains or raises the badge, and appears on the next consultation rather than being accidentally cleared with older alerts.",
+          "- AC4: Native OS-toast delivery and spool acknowledgement do not mark an alert read. Existing crash replay, idempotent acknowledgement, bounded history, mute behavior, and direct fallback semantics remain unchanged.",
+          "- AC5: macOS, Windows, and supported Linux provide the same read-state result through their native menu lifecycle; unavailable or unexpected menu lifecycle events fail safe by retaining alerts rather than silently discarding them.",
+          "- AC6: Focused Rust tests cover initial unread count, opening and closing a menu, post-open arrival, repeated opening, badge clearing, history clearing, and preservation of spool acknowledgement behavior."
+        ],
+        "Needs": [
+          "- The tray's temporary +N marker, native notification delivery, spool acknowledgement, and Recent alerts menu history currently have independent lifetimes, so they do not communicate one coherent unread state.",
+          "- Opening the tray is the user's explicit reading action. It should clear the unread badge and make the alerts visible in that consultation disappear before the next consultation.",
+          "- A native operating-system notification must not count as read because it can be missed; an alert arriving while the tray menu is open must remain unread for the next consultation."
+        ]
+      },
+      "status": "Draft",
+      "title": "Synchronize CDX tray alert badges with menu reading"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, unify tray alert marker and recent-alert read state, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Unify tray alert marker and recent-alert read state",
+        "use when": "Implementing the scaffolded slice for Unify tray alert marker and recent-alert read state."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_089_unify_tray_alert_marker_and_recent_alert_read_state"
+        ],
+        "prod": [
+          "prod_031_coherent_cdx_tray_unread_alerts"
+        ],
+        "req": [
+          "req_042_synchronize_cdx_tray_alert_badges_with_menu_reading"
+        ],
+        "task": [
+          "task_053_orchestrate_coherent_cdx_tray_alert_read_state"
+        ]
+      },
+      "path": "logics/backlog/item_089_unify_tray_alert_marker_and_recent_alert_read_state.md",
+      "ref": "item_089_unify_tray_alert_marker_and_recent_alert_read_state",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Badge and menu derive from exactly the same unread items before, during, and after a consultation.",
+          "- AC2: A menu consultation clears only the alerts present at open time; later arrivals remain unread.",
+          "- AC3: Delivery durability remains unchanged and all relevant Rust tests pass."
+        ],
+        "Problem": [
+          "- A 45-second marker and process-lifetime history represent separate concepts, so users cannot tell whether a badge means new information or merely a recently delivered event.",
+          "- Clearing history when an OS toast is delivered would lose alerts the user never saw, while clearing it at menu construction would make the current consultation empty."
+        ]
+      },
+      "status": "Ready",
+      "title": "Unify tray alert marker and recent-alert read state"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_089_unify_tray_alert_marker_and_recent_alert_read_state"
+        ],
+        "prod": [
+          "prod_031_coherent_cdx_tray_unread_alerts"
+        ],
+        "req": [
+          "req_042_synchronize_cdx_tray_alert_badges_with_menu_reading"
+        ],
+        "task": [
+          "task_053_orchestrate_coherent_cdx_tray_alert_read_state"
+        ]
+      },
+      "path": "logics/product/prod_031_coherent_cdx_tray_unread_alerts.md",
+      "ref": "prod_031_coherent_cdx_tray_unread_alerts",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Coherent CDX tray unread alerts"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate coherent CDX tray alert read state",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_089_unify_tray_alert_marker_and_recent_alert_read_state"
+        ],
+        "prod": [
+          "prod_031_coherent_cdx_tray_unread_alerts"
+        ],
+        "req": [
+          "req_042_synchronize_cdx_tray_alert_badges_with_menu_reading"
+        ],
+        "task": [
+          "task_053_orchestrate_coherent_cdx_tray_alert_read_state"
+        ]
+      },
+      "path": "logics/tasks/task_053_orchestrate_coherent_cdx_tray_alert_read_state.md",
+      "ref": "task_053_orchestrate_coherent_cdx_tray_alert_read_state",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate coherent CDX tray alert read state"
+    }
+  ],
+  "estimates": {
+    "char_count": 7298,
+    "companion_doc_count": 1,
+    "doc_count": 4
+  },
+  "generated_at": "2026-08-11T07:22:15Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_042_synchronize_cdx_tray_alert_badges_with_menu_reading",
+      "item_089_unify_tray_alert_marker_and_recent_alert_read_state",
+      "task_053_orchestrate_coherent_cdx_tray_alert_read_state"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "deep",
+  "ref": "req_042_synchronize_cdx_tray_alert_badges_with_menu_reading,item_089_unify_tray_alert_marker_and_recent_alert_read_state,task_053_orchestrate_coherent_cdx_tray_alert_read_state",
+  "refs": [
+    "req_042_synchronize_cdx_tray_alert_badges_with_menu_reading",
+    "item_089_unify_tray_alert_marker_and_recent_alert_read_state",
+    "task_053_orchestrate_coherent_cdx_tray_alert_read_state"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.18.4"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_053_orchestrate_coherent_cdx_tray_alert_read_state.md",
+      "ref": "task_053_orchestrate_coherent_cdx_tray_alert_read_state"
+    }
+  ]
+}

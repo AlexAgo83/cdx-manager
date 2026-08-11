@@ -1,0 +1,96 @@
+{
+  "title": "Synchronize CDX tray alert badges with menu reading",
+  "references": [
+    "src/tray_events.py",
+    "tray/src/events.rs",
+    "tray/src/hint.rs",
+    "tray/src/runner.rs",
+    "tray/src/menu.rs",
+    "tray/src/mac.rs",
+    "tray/src/win.rs",
+    "tray/src/linux.rs",
+    "tray/src/backend.rs",
+    "test/test_tray_events_py.py",
+    "tray/Cargo.toml"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Tray usability",
+    "needs": [
+      "The tray's temporary +N marker, native notification delivery, spool acknowledgement, and Recent alerts menu history currently have independent lifetimes, so they do not communicate one coherent unread state.",
+      "Opening the tray is the user's explicit reading action. It should clear the unread badge and make the alerts visible in that consultation disappear before the next consultation.",
+      "A native operating-system notification must not count as read because it can be missed; an alert arriving while the tray menu is open must remain unread for the next consultation."
+    ],
+    "context": [
+      "A tray event is currently acknowledged to CDX after it has been drawn and delivered, which is the correct delivery guarantee but is not a user-read signal.",
+      "tray/src/hint.rs shows a count marker for 45 seconds based on freshly collected events. tray/src/runner.rs retains a bounded in-memory history for the companion lifetime, and menu.rs displays it on every later menu build.",
+      "macOS, Windows, and Linux have different native menu loops. The implementation must use each backend's actual menu-open and menu-close lifecycle signals, but expose one identical read-state behavior rather than relying on a timeout or a platform-specific click convention.",
+      "The event spool remains the delivery and crash-recovery boundary. Read state is local volatile tray UI state only; it must not alter acknowledgement, replay safety, event persistence, or the existing bounded spool behavior."
+    ],
+    "acceptance_criteria": [
+      "AC1: The tray has one explicit unread-alert state. An incoming alert adds one unread item, shows its marker, and makes it available in the current unread-alert menu section.",
+      "AC2: Opening the tray menu marks the alerts already visible in that consultation as read and clears the badge immediately. Those alerts remain visible for that open menu, then are absent on the next menu opening.",
+      "AC3: An alert that arrives after the menu opens remains unread, retains or raises the badge, and appears on the next consultation rather than being accidentally cleared with older alerts.",
+      "AC4: Native OS-toast delivery and spool acknowledgement do not mark an alert read. Existing crash replay, idempotent acknowledgement, bounded history, mute behavior, and direct fallback semantics remain unchanged.",
+      "AC5: macOS, Windows, and supported Linux provide the same read-state result through their native menu lifecycle; unavailable or unexpected menu lifecycle events fail safe by retaining alerts rather than silently discarding them.",
+      "AC6: Focused Rust tests cover initial unread count, opening and closing a menu, post-open arrival, repeated opening, badge clearing, history clearing, and preservation of spool acknowledgement behavior."
+    ]
+  },
+  "product": {
+    "title": "Coherent CDX tray unread alerts",
+    "overview": "Make one lightweight unread state drive the tray badge and recent-alert menu, with opening the tray as the sole read action.",
+    "goals": [
+      "Make the tray marker and recent-alert list agree on what remains unread.",
+      "Let a user read alerts once from the menu without accumulating a permanent notification log.",
+      "Preserve alerts that arrive during a consultation for the next one.",
+      "Keep reliable delivery and crash recovery separate from ephemeral UI read state."
+    ],
+    "non_goals": [
+      "No persistent read archive, unread counter in CDX state, clear-history button, custom toast action, or OS-notification read receipt.",
+      "No changes to provider hooks, alert payloads, tray spool format, acknowledgement protocol, mute preference, or direct notification fallback.",
+      "No timeout-based approximation of reading and no automatic clearing merely because a toast was sent."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Unify tray alert marker and recent-alert read state",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Tray usability",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC5", "AC6"],
+      "problem": [
+        "A 45-second marker and process-lifetime history represent separate concepts, so users cannot tell whether a badge means new information or merely a recently delivered event.",
+        "Clearing history when an OS toast is delivered would lose alerts the user never saw, while clearing it at menu construction would make the current consultation empty."
+      ],
+      "scope_in": [
+        "Introduce one volatile unread-alert state in the tray runner and derive the marker and recent-alert section from it.",
+        "Capture the menu consultation boundary in every native backend: preserve the currently rendered unread list during the open menu, clear it for the next opening, and retain events arriving after the boundary.",
+        "Keep spool delivery acknowledgement and UI read acknowledgement distinct, with no new CDX command or persisted read marker.",
+        "Add focused platform-neutral state tests and backend lifecycle coverage where native callback handling differs."
+      ],
+      "scope_out": [
+        "Persistent notification history, manual clear controls, badge preferences, toast interaction tracking, or changes to event delivery and acknowledgement.",
+        "Provider-specific hooks, remote notifications, telemetry, tray update behavior, or capacity-menu changes."
+      ],
+      "acceptance_criteria": [
+        "AC1: Badge and menu derive from exactly the same unread items before, during, and after a consultation.",
+        "AC2: A menu consultation clears only the alerts present at open time; later arrivals remain unread.",
+        "AC3: Delivery durability remains unchanged and all relevant Rust tests pass."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate coherent CDX tray alert read state",
+    "plan": [
+      "Trace fresh event collection, spool acknowledgement, history merging, marker rendering, and the native menu lifecycle available on macOS, Windows, and Linux.",
+      "Model the smallest volatile unread state with an explicit consultation boundary; prove that delivery acknowledgement and reading remain separate.",
+      "Wire each backend's menu-open and menu-close handling to the shared state, retaining late-arriving events and failing safe when lifecycle observation is unavailable.",
+      "Add focused state and backend regression tests, update concise tray behavior documentation, and run Rust, project, and Logics validation."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/tray_alert_read_state.json",
+    "mode": "diff-first",
+    "profile": "deep"
+  }
+}
