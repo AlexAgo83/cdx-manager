@@ -302,6 +302,44 @@ class CliContractTests(CliTestBase):
         self.assertEqual(pyproject, declared)
         self.assertEqual(badge, declared)
 
+    def test_the_published_npm_package_carries_its_version(self):
+        import pathlib
+
+        root = pathlib.Path(".")
+        files = json.loads((root / "package.json").read_text())["files"]
+
+        # An npm install has no Python distribution metadata, so VERSION is the
+        # only thing that tells it which release it is. Leaving it out of the
+        # published file list made every npm install report 0.0.0, which reads
+        # as permanently out of date and survives `cdx update`.
+        self.assertIn("VERSION", files)
+
+    def test_version_falls_back_to_package_json_when_nothing_else_answers(self):
+        from src.cli import _resolve_version
+
+        def no_distribution(_name):
+            raise LookupError("not installed as a Python distribution")
+
+        temp_dir = self.make_temp_dir()
+        with open(os.path.join(temp_dir, "package.json"), "w", encoding="utf-8") as handle:
+            json.dump({"version": "9.9.9"}, handle)
+
+        self.assertEqual(
+            _resolve_version(package_root=temp_dir, metadata_lookup=no_distribution),
+            "9.9.9",
+        )
+
+    def test_version_is_zero_only_when_the_package_root_says_nothing(self):
+        from src.cli import _resolve_version
+
+        def no_distribution(_name):
+            raise LookupError("not installed as a Python distribution")
+
+        self.assertEqual(
+            _resolve_version(package_root=self.make_temp_dir(), metadata_lookup=no_distribution),
+            "0.0.0",
+        )
+
     def test_bin_cdx_runs_as_real_subprocess(self):
         temp_dir = self.make_temp_dir()
         env = {**os.environ, "CDX_HOME": temp_dir}

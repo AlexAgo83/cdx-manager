@@ -24,6 +24,7 @@
     "node": ">=18"
   },
   "files": [
+    "VERSION",
     "bin",
     "!bin/__pycache__",
     "!bin/**/*.pyc",

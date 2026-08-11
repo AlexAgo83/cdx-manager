@@ -84,7 +84,7 @@ from .status_view import (
 from .update_check import check_for_update, check_logics_manager_for_update
 
 
-def _resolve_version():
+def _resolve_version(package_root=None, metadata_lookup=None):
     """The version, resolved rather than restated.
 
     This was a hardcoded string, a fourth copy alongside VERSION, package.json,
@@ -95,23 +95,38 @@ def _resolve_version():
     happens in a checkout, where it is the thing being edited and the installed
     metadata is whatever was last `pip install`ed. Installed packages have no
     such file and fall through to their own metadata.
+
+    An npm install has neither: no Python distribution metadata, and — until
+    VERSION was added to the published `files` list — no VERSION either. That
+    combination reported 0.0.0, which reads as permanently out of date and makes
+    `cdx update` succeed without ever silencing itself. package.json ships in
+    every npm tarball by construction, so reading it is the branch that cannot
+    go missing again.
     """
-    version_file = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION"
-    )
+    if package_root is None:
+        package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     try:
-        with open(version_file, encoding="utf-8") as handle:
+        with open(os.path.join(package_root, "VERSION"), encoding="utf-8") as handle:
             text = handle.read().strip()
         if text:
             return text
     except OSError:
         pass
     try:
-        from importlib.metadata import version
+        if metadata_lookup is None:
+            from importlib.metadata import version as metadata_lookup
 
-        return version("cdx-manager")
-    except Exception:  # noqa: BLE001 - any resolution failure falls back below
-        return "0.0.0"
+        return metadata_lookup("cdx-manager")
+    except Exception:  # noqa: BLE001 - not installed as a Python distribution
+        pass
+    try:
+        with open(os.path.join(package_root, "package.json"), encoding="utf-8") as handle:
+            text = str(json.load(handle).get("version") or "").strip()
+        if text:
+            return text
+    except (OSError, ValueError):
+        pass
+    return "0.0.0"
 
 
 VERSION = _resolve_version()
