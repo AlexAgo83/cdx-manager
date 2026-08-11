@@ -7,7 +7,7 @@
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-10 22:49:36
+> Indicators reviewed: 2026-08-11 04:17:45
 
 # AI Context
 - Summary: Harden CDX tray lifecycle, clarity, and platform validation
@@ -34,7 +34,7 @@
 - The managed validation matrix is the current arm64 macOS host and a managed Windows host with an Ubuntu WSL distribution. Tests are read-only except for scoped install and uninstall fixtures, which must be cleaned up.
 
 # Acceptance criteria
-- AC1: cdx tray install does not enable startup; cdx tray autostart on and off are explicit, idempotent, user-level operations that report the actual platform state, implemented as one recorded artifact per platform (a LaunchAgent plist, the per-user Run key, or an XDG autostart entry) that off deletes, and requiring no administrator rights.
+- AC1 (revised 2026-08-11, at the product owner's decision): cdx tray install starts the companion it just installed, and offers startup rather than adding it silently — interactively it asks, non-interactively it declines and names the command. The original wording forbade startup outright; the reason behind it was that an install must not quietly add a login item, and a confirmation keeps that reason while dropping the friction of a second command. `--yes` and `--no-autostart` answer it without a prompt. The rest stands: cdx tray autostart on and off are explicit, idempotent, user-level operations that report the actual platform state, implemented as one recorded artifact per platform (a LaunchAgent plist, the per-user Run key, or an XDG autostart entry) that off deletes, and requiring no administrator rights.
 - AC2: Only one tray instance owns a user session; duplicate launch, crash recovery, quit, and cdx tray doctor provide clear bounded diagnostics without a persistent background service.
 - AC3: Windows uses the default WSL distribution unless an explicit named override is configured, reports a missing or invalid override honestly, and does not aggregate distributions in v1.
 - AC4: The tray state selects the most constrained usable capacity, names its source and reset in the tooltip/menu, renders an explicit unknown state, and never makes colour the sole state signal.

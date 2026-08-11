@@ -1,4 +1,8 @@
+<img src="docs/assets/icon.png" alt="CDX Manager icon" width="64" align="left" />
+
 # CDX Manager
+
+<br clear="left"/>
 
 [![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.18.3-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
@@ -515,7 +519,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx status <name> [--json] [--refresh\|--cached] [--timeout SECONDS]` | Show detailed usage breakdown for one session; `--cached` avoids live provider refreshes |
 | `cdx tray status [--json] [--refresh]` | Emit the tray snapshot: one icon state, one line per enabled session, and how fresh each figure is. Reads stored status by default; `--refresh` is the only path that probes a provider |
 | `cdx tray launch [--json]` | Start the installed tray companion, detached. Reports `tray_companion_not_installed` when nothing is recorded, or `tray_companion_missing` when the recorded companion is gone. `CDX_TRAY_BIN` points it at a locally built one |
-| `cdx tray install [--json]` | Download the companion for this OS and architecture, verify its published checksum before unpacking, and record what was written. Refuses when no checksum is published for the asset |
+| `cdx tray install [--json] [--yes] [--no-autostart]` | Download the companion for this OS and architecture, verify its published checksum before unpacking, record what was written, and start it. Asks whether to launch it at login — `--yes` answers without a prompt, `--no-autostart` declines, and a non-interactive run declines rather than acquiring a login item by accident. Refuses when no checksum is published for the asset |
 | `cdx tray uninstall [--json]` | Remove exactly what `install` recorded, and nothing else |
 | — | `cdx update` also moves an installed companion to the new release, and says so. A companion already running keeps executing the build it started with, so it reports that too rather than leaving you to wonder why the menu looks unchanged |
 | `cdx tray autostart [on\|off\|status] [--json]` | Start the companion at login, or stop doing so. Off until asked, idempotent, and the state is read back from the platform rather than from what CDX last intended |

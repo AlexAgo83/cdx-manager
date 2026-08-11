@@ -205,10 +205,18 @@ def _tray_uninstall(args, ctx):
     return 0
 
 
+def _confirm_autostart():
+    answer = input("Start the CDX tray automatically at login? [Y/n] ")
+    return answer.strip().lower() in ("", "y", "yes")
+
+
 def _tray_install(args, ctx):
     parsed = _parse_flag_args(args, {
         "--json": {"key": "json", "type": "bool", "default": False},
+        "--yes": {"key": "yes", "type": "bool", "default": False},
+        "--no-autostart": {"key": "no_autostart", "type": "bool", "default": False},
     }, TRAY_USAGE, positionals_key="args", max_positionals=0)
+    env = ctx.get("env")
     target = current_target()
     if not target:
         return _refuse(
@@ -228,14 +236,50 @@ def _tray_install(args, ctx):
         raise CdxError(str(error)) from error
 
     message = f"Installed the {state['target']} tray companion for CDX {state['cdx_version']}"
+
+    # Installing something you asked for should show you the thing. The tray is
+    # started here rather than left for a second command, and a failure to start
+    # is reported without undoing an install that worked.
+    started = False
+    try:
+        spawn = ctx.get("spawn_detached") or _spawn_detached
+        spawn(launch_command(state["executable"]))
+        started = True
+    except Exception as error:  # noqa: BLE001 - the install itself succeeded
+        ctx_error = str(error)
+    else:
+        ctx_error = None
+
+    # Startup is asked for, never assumed. `req_038` AC1 originally forbade it
+    # outright, for a good reason — an install that quietly adds a login item is
+    # what people resent about desktop software. Asking keeps the reason and
+    # drops the friction; a non-interactive run declines rather than deciding.
+    autostart_on = False
+    autostart_reason = None
+    if parsed["no_autostart"]:
+        autostart_reason = "skipped with --no-autostart"
+    elif parsed["yes"] or (ctx["stdin_is_tty"] and not parsed["json"] and _confirm_autostart()):
+        try:
+            autostart_enable(state["executable"], env=env, run=ctx.get("spawn_sync"))
+            autostart_on = True
+        except Exception as error:  # noqa: BLE001
+            autostart_reason = str(error)
+    else:
+        autostart_reason = "not enabled; run: cdx tray autostart on"
+
     if parsed["json"]:
         _write_json(ctx, _json_success(
             "tray.install", message,
             target=state["target"], executable=state["executable"],
             sha256=state["sha256"], applied=True,
+            started=started, autostart=autostart_on,
         ))
         return 0
     ctx["out"](f"{message}\n{_dim(state['executable'], ctx['use_color'])}\n")
+    ctx["out"](f"{'Started it.' if started else f'It is installed but did not start: {ctx_error}'}\n")
+    ctx["out"](
+        f"{'It will start at login.' if autostart_on else f'Startup: {autostart_reason}'}\n"
+    )
     return 0
 
 

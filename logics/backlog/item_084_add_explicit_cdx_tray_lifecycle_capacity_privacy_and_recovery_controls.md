@@ -8,7 +8,7 @@
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-10 22:49:36
+> Indicators reviewed: 2026-08-11 04:17:24
 
 # AI Context
 - Summary: Add explicit CDX tray lifecycle, capacity, privacy, and recovery controls
@@ -46,7 +46,7 @@
 - AC3 is met through `item_082`: completion and attention alerts go out through the platform's own notification path and honour its settings — on macOS the authorization is checked before posting, and anything short of granted falls back rather than silently dropping. Quota urgency changes the icon and raises no toast, so there is no second alert category competing with agent alerts.
 
 # Acceptance criteria
-- AC1: cdx tray install never enables startup, cdx tray autostart on and off are explicit and idempotent and report the real platform state, and one tray instance owns a user session while a duplicate launch reports the existing one.
+- AC1 (revised 2026-08-11): cdx tray install starts the companion and asks about startup rather than never enabling it — the objection was silence, not startup itself, and a prompt answers the objection. Non-interactive runs decline and name the command, so a script cannot acquire a login item by accident. Otherwise unchanged: cdx tray autostart on and off are explicit and idempotent and report the real platform state, and one tray instance owns a user session while a duplicate launch reports the existing one.
 - AC2: One accessible, privacy-preserving capacity state names the most constrained usable capacity, its remaining figure and its reset in the tooltip, in words rather than by shape, and without the session name; the menu carries the name. renders an explicit unknown state, and never relies on colour alone or exposes session, repository, task, or preview detail while closed.
 - AC3: Completion and attention alerts respect native notification settings and Do Not Disturb, use no urgent interruption mode, and quota urgency produces an icon state rather than a new toast category.
 - AC4: A cdx-managed update verifies the matching asset, stages it, starts the replacement, and only then retires the previous companion; a failed replacement leaves the prior working version running and cdx tray doctor explains the partial state and its recovery.

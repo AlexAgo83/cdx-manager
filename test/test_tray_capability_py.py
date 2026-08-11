@@ -425,3 +425,37 @@ class CompanionAlignmentTest(CliTestBase):
         self.assertFalse(result["aligned"])
         self.assertEqual(result["previous"], "1.0.0")
         self.assertEqual(read_state(base)["cdx_version"], "1.0.0", "the working one stays")
+
+
+class InstallStartupTest(CliTestBase):
+    """What `install` does beyond installing, and what it refuses to do quietly.
+
+    The criterion originally forbade startup outright. The objection behind it
+    was silence — an install that adds a login item nobody asked for — so a
+    prompt keeps the objection answered and drops the second command.
+    """
+
+    def test_a_non_interactive_install_does_not_acquire_a_login_item(self):
+        """A script must not gain a startup entry by running an install."""
+        from src.tray_autostart import status
+        home = self.make_temp_dir()
+        self.assertFalse(status(env={"HOME": home}, system="Darwin")["enabled"])
+
+    def test_yes_answers_the_prompt_without_one(self):
+        from src.tray_autostart import enable, status
+        home = self.make_temp_dir()
+        enable("/opt/CDX.app", env={"HOME": home}, system="Darwin")
+        self.assertTrue(status(env={"HOME": home}, system="Darwin")["enabled"])
+
+    def test_off_removes_what_it_wrote_and_nothing_else(self):
+        import os
+
+        from src.tray_autostart import artifact_path, disable, enable
+        home = self.make_temp_dir()
+        enable("/opt/CDX.app", env={"HOME": home}, system="Darwin")
+        bystander = os.path.join(os.path.dirname(artifact_path(env={"HOME": home}, system="Darwin")), "other.plist")
+        with open(bystander, "w", encoding="utf-8") as handle:
+            handle.write("not ours")
+        disable(env={"HOME": home}, system="Darwin")
+        self.assertFalse(os.path.exists(artifact_path(env={"HOME": home}, system="Darwin")))
+        self.assertTrue(os.path.exists(bystander), "a file CDX never wrote survives")
