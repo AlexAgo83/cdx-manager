@@ -17,9 +17,14 @@ class NotifyPythonTests(unittest.TestCase):
         def spawn_sync(argv, **kwargs):
             calls.append((argv, kwargs))
 
-        with mock.patch("sys.platform", "darwin"):
-            with mock.patch("src.notify.shutil.which", return_value="/usr/bin/osascript"):
-                send_desktop_notification("Title", 'Hello "World"', spawn_sync=spawn_sync, env={"PATH": "/usr/bin"})
+        # The host has to be stated, not inherited. `_is_wsl` reads
+        # /proc/version, so on a WSL machine this test asked about macOS and was
+        # answered about WSL — it passed on the developer's laptop and failed on
+        # the host the WSL work exists for.
+        with mock.patch("sys.platform", "darwin"), \
+                mock.patch("src.notify._is_wsl", return_value=False), \
+                mock.patch("src.notify.shutil.which", return_value="/usr/bin/osascript"):
+            send_desktop_notification("Title", 'Hello "World"', spawn_sync=spawn_sync, env={"PATH": "/usr/bin"})
 
         self.assertEqual(calls[0][0][0], "osascript")
         self.assertEqual(calls[0][0][1], "-e")
