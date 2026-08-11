@@ -216,6 +216,9 @@ pub fn run(transport: Transport) -> Result<(), String> {
         // what it showed is what has now been read. Anything that arrived since
         // is not in that set and stays unread.
         if opened.swap(false, Ordering::Relaxed) && unread.consulted() {
+            // Rebuild from the same poll, so the list and the badge
+            // stop saying different things the moment one changes.
+            state.redrawn(&mut unread);
             redraw = true;
         }
         match clicked {

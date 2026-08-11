@@ -89,6 +89,9 @@ pub fn run(transport: Transport) -> Result<(), String> {
             ));
         }
         if observing && was_opened && unread.consulted() {
+            // Rebuild from the same poll, so the list and the badge
+            // stop saying different things the moment one changes.
+            state.redrawn(&mut unread);
             redraw = true;
         }
         while let Ok(event) = muda::MenuEvent::receiver().try_recv() {

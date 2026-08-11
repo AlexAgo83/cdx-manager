@@ -131,6 +131,9 @@ pub fn run(transport: Transport) -> Result<(), String> {
         // showed is what has been read, and an alert that landed while it was
         // open is not in that set.
         if observing && MENU_OPENED.swap(false, Ordering::Relaxed) && unread.consulted() {
+            // Rebuild from the same poll, so the list and the badge
+            // stop saying different things the moment one changes.
+            state.redrawn(&mut unread);
             redraw = true;
         }
         while let Ok(event) = muda::MenuEvent::receiver().try_recv() {

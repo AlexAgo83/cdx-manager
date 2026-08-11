@@ -177,6 +177,23 @@ mod tests {
         assert_eq!(unread.marker().as_deref(), Some("●1"));
     }
 
+    /// The badge is read live and the menu is built at poll time, so a
+    /// consultation that only cleared the state left the list saying what the
+    /// icon had stopped saying — for a whole poll period. Redrawing is what
+    /// keeps the two from disagreeing, and this pins the state half of it.
+    #[test]
+    fn a_consultation_leaves_nothing_for_the_menu_to_list() {
+        let mut unread = Unread::new();
+        unread.record(&[event("a"), event("b")]);
+        unread.mark_drawn();
+        assert!(unread.consulted());
+        assert!(
+            unread.items().is_empty(),
+            "the list the menu renders is empty"
+        );
+        assert!(unread.marker().is_none(), "and the badge agrees");
+    }
+
     #[test]
     fn a_redelivered_alert_is_not_listed_twice() {
         let mut unread = Unread::new();

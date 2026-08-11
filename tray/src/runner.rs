@@ -59,6 +59,11 @@ pub struct Render {
     pub alerts_enabled: bool,
     /// The terminal a row should open, or None for this platform's own.
     pub terminal: Option<String>,
+    /// The poll this was drawn from, kept so the menu can be rebuilt without
+    /// asking CDX again. Reading a consultation cost a full poll otherwise —
+    /// or, worse, did not rebuild at all and left the list saying something the
+    /// badge had stopped saying.
+    snapshot: Option<crate::snapshot::Snapshot>,
 }
 
 impl Render {
@@ -100,6 +105,7 @@ impl Render {
                     alerts_enabled: snap.alerts_enabled,
                     terminal: snap.terminal.clone(),
                     entries: entries_for_rows.clone(),
+                    snapshot: Some(snap),
                     delay: tick.next_delay(transport.is_wsl()),
                     tick,
                     fresh,
@@ -124,6 +130,7 @@ impl Render {
                     // Unreachable CDX means no preference to honour; the
                     // platform default is the only thing still knowable.
                     terminal: None,
+                    snapshot: None,
                     rows: Vec::new(),
                     entries: menu::build_unavailable(&reason),
                     delay: tick.next_delay(transport.is_wsl()),
@@ -132,6 +139,25 @@ impl Render {
                 }
             }
         }
+    }
+}
+
+impl Render {
+    /// Rebuild the menu from the poll it already has, after reading changed
+    /// what is unread.
+    ///
+    /// Without this the badge and the list disagreed for a whole poll period:
+    /// the marker is read live from the unread state, while the entries were
+    /// built when the poll happened. A menu still listing what the icon had
+    /// stopped counting is precisely the incoherence `req_042` exists to end,
+    /// and it survived into the fix for it.
+    pub fn redrawn(&mut self, unread: &mut Unread) {
+        let Some(snapshot) = &self.snapshot else {
+            return;
+        };
+        self.entries = menu::build_with_alerts(snapshot, unread.items());
+        self.rows = rows_for(&self.entries, &snapshot.sessions);
+        unread.mark_drawn();
     }
 }
 
