@@ -14,6 +14,8 @@ Use the canonical `logics-manager` CLI to create, promote, start, and finish Log
 - `python3 -m logics_manager lint --require-status`
 - `python3 -m logics_manager audit --legacy-cutoff-version 1.1.0 --group-by-doc`
 
+Operational runbooks live in `logics/runbook/` (`run_*.md`, Draft/Active/Archived). Before repeating an investigation or operational procedure, check for a matching one with `logics-manager sync search-docs --kind runbook "<symptom or task>"`; record a new one with `logics-manager flow companion runbook --title "..."` once you have verified it is reusable.
+
 Bundled agent skills (e.g. `/corpus` for scaffolding a full request chain) can be installed once per machine with `logics-manager skills install`.
 
 Claude runtime artifacts are generated outside the repository from the integrated runtime.
