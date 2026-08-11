@@ -1,7 +1,7 @@
 ## req_051_launch_a_session_in_the_directory_it_belongs_to - Know and choose where a session is being launched
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 80%
 > Complexity: Medium

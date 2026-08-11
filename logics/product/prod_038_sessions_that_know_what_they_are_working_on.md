@@ -1,6 +1,6 @@
 ## prod_038_sessions_that_know_what_they_are_working_on - Sessions that know what they are working on
 > Date: 2026-08-11
-> Status: Proposed
+> Status: Settled
 > Related request: `req_051_launch_a_session_in_the_directory_it_belongs_to`
 > Related backlog: `item_100_record_and_honour_a_per_session_working_directory`
 > Related task: `task_062_orchestrate_the_per_session_working_directory`
@@ -33,5 +33,5 @@ Make the working directory a property of the session rather than of the shell th
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_051_launch_a_session_in_the_directory_it_belongs_to`
+- Product back-reference: `item_100_record_and_honour_a_per_session_working_directory`
 - Task back-reference: `task_062_orchestrate_the_per_session_working_directory`
