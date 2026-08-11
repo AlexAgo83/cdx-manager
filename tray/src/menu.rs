@@ -110,6 +110,20 @@ pub struct SessionAction {
 /// only signal.
 const GAUGE_WIDTH: usize = 8;
 
+/// A heavy line for what is left, a light one for what is gone.
+///
+/// It was `█` and `░`. Both are the right width — that is why blocks were
+/// chosen, since a proportional menu font makes spaces useless for alignment —
+/// but the light shade is a dither pattern, and on a dark Windows menu a row of
+/// them reads as corrupted text rather than as an empty gauge. Measured on a
+/// real host, which is the only place it could have been noticed: macOS draws
+/// its own cell and never renders these at all.
+///
+/// The box-drawing pair keeps the property that mattered and drops the one that
+/// did not: same advance width, no dithering.
+const FILLED: &str = "━";
+const EMPTY: &str = "─";
+
 fn gauge(value: Option<f64>) -> String {
     let filled = match value {
         // Never reported draws empty rather than full: an unknown session must
@@ -119,8 +133,8 @@ fn gauge(value: Option<f64>) -> String {
     };
     format!(
         "{}{}",
-        "█".repeat(filled),
-        "░".repeat(GAUGE_WIDTH - filled.min(GAUGE_WIDTH))
+        FILLED.repeat(filled),
+        EMPTY.repeat(GAUGE_WIDTH - filled.min(GAUGE_WIDTH))
     )
 }
 
