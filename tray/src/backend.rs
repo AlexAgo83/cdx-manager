@@ -153,6 +153,12 @@ pub fn update_tray(
     tray.set_title(title);
     tray.set_icon(Some(icon_for(state)?))
         .map_err(|e| e.to_string())?;
+    // Re-asserted after every set_icon, and this is not belt-and-braces.
+    // tray-icon's macOS set_icon passes is_template: false unconditionally, so
+    // it silently clears what the builder was told. The symptom is an icon that
+    // starts white and turns black at the first poll — invisible on a dark menu
+    // bar, thirty seconds after launch, which is why it looked fine in testing.
+    tray.set_icon_as_template(!wants_light_glyph());
     Ok(actions)
 }
 
