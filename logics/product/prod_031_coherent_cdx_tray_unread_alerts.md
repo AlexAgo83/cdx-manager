@@ -1,6 +1,6 @@
 ## prod_031_coherent_cdx_tray_unread_alerts - Coherent CDX tray unread alerts
 > Date: 2026-08-11
-> Status: Proposed
+> Status: Settled
 > Related request: `req_042_synchronize_cdx_tray_alert_badges_with_menu_reading`
 > Related backlog: `item_089_unify_tray_alert_marker_and_recent_alert_read_state`
 > Related task: `task_053_orchestrate_coherent_cdx_tray_alert_read_state`
@@ -9,6 +9,18 @@
 
 # Overview
 Make one lightweight unread state drive the tray badge and recent-alert menu, with opening the tray as the sole read action.
+
+```mermaid
+flowchart LR
+    Hook[agent alert] --> Spool[spool delivery]
+    Spool -->|acknowledged, still unread| State[one volatile unread list]
+    State --> Badge[count beside the glyph]
+    State --> Section[unread section in the menu]
+    Draw[menu drawn] -->|captures what it shows| State
+    Open[menu opened] -->|clears only what was drawn| State
+    Later[alert arriving while open] -.->|stays unread| State
+    Blind[signal unavailable] -.->|never clears| State
+```
 
 # Goals
 - Make the tray marker and recent-alert list agree on what remains unread.
@@ -34,5 +46,5 @@ Make one lightweight unread state drive the tray badge and recent-alert menu, wi
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_042_synchronize_cdx_tray_alert_badges_with_menu_reading`
+- Product back-reference: `item_089_unify_tray_alert_marker_and_recent_alert_read_state`
 - Task back-reference: `task_053_orchestrate_coherent_cdx_tray_alert_read_state`

@@ -1,7 +1,7 @@
 ## req_042_synchronize_cdx_tray_alert_badges_with_menu_reading - Synchronize CDX tray alert badges with menu reading
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium

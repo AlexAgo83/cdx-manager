@@ -1,10 +1,10 @@
 ## item_089_unify_tray_alert_marker_and_recent_alert_read_state - Unify tray alert marker and recent-alert read state
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 96%
 > Confidence: 92%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -55,3 +55,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_053_orchestrate_coherent_cdx_tray_alert_read_state`
+
+# Notes
+- Task `task_053_orchestrate_coherent_cdx_tray_alert_read_state` was finished via `logics-manager flow finish task` on 2026-08-11.
