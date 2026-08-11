@@ -440,15 +440,15 @@ class AuthCommandTests(CliTestBase):
         })
 
         next_io = self.make_io()
-        self.assertEqual(main(["ready", "--json"], {
-            **next_io,
-            "service": service,
-            "env": {"CDX_HOME": temp_dir},
-            "spawn_sync": lambda *_args, **_kwargs: subprocess.CompletedProcess([], 0, "", ""),
-        }), 0)
+        with mock.patch("src.notify.os.path.expanduser", return_value=temp_dir):
+            self.assertEqual(main(["ready", "--json"], {
+                **next_io,
+                "service": service,
+                "env": {"CDX_HOME": temp_dir},
+                "spawn_sync": lambda *_args, **_kwargs: subprocess.CompletedProcess([], 0, "", ""),
+            }), 0)
 
         payload = json.loads(next_io["stdout"].getvalue())
         self.assertFalse(payload["event"]["ready"])
         self.assertEqual(payload["event"]["session"], "blocked")
         self.assertEqual(payload["event"]["message"], "Waiting for blocked")
-
