@@ -1,13 +1,14 @@
 ## task_056_orchestrate_the_drawn_macos_row_highlight - Orchestrate the drawn macOS row highlight
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Draft
-> Understanding: 90
-> Confidence: 85
-> Progress: 0
+> Status: In progress
+> Understanding: 95
+> Confidence: 80
+> Progress: 85%
 > Complexity: Low
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Owner: corvus
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)
@@ -45,7 +46,14 @@
 - backlog-AC2 -> This task. Proof: task provides the executable implementation surface.
 
 # Validation
-- (no validation recorded yet)
+- cargo test (77 passed), cargo fmt --check, cargo clippy --all-targets clean on aarch64-apple-darwin, x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu (c6ebf45).
+- OUTSTANDING: the drawing itself is unverified. Highlighting is what a pointer
+  does to a menu on screen, and no headless test observes it — the tray tests
+  cover the menu model, not AppKit. A release binary is built at
+  `tray/target/release/cdx-tray`; the check is to quit the running companion
+  from its menu, start that binary, open the menu and move the pointer down the
+  session rows. Until someone has done that on a real macOS session, AC1 to AC3
+  are implemented but not proven, and this task is not closeable.
 
 # Report
 - Not started.
