@@ -1,7 +1,7 @@
 ## req_046_show_the_whole_session_row_on_macos_including_both_limit_windows - Show the whole session row on macOS, including both limit windows
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium

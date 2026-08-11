@@ -1,10 +1,10 @@
 ## item_094_publish_and_draw_both_limit_windows_per_session - Publish and draw both limit windows per session
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 45%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -55,3 +55,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_057_orchestrate_the_fuller_tray_session_row`
+
+# Notes
+- Task `task_057_orchestrate_the_fuller_tray_session_row` was finished via `logics-manager flow finish task` on 2026-08-11.

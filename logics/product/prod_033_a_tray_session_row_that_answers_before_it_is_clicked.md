@@ -1,14 +1,25 @@
 ## prod_033_a_tray_session_row_that_answers_before_it_is_clicked - A tray session row that answers before it is clicked
 > Date: 2026-08-11
-> Status: Proposed
+> Status: Settled
 > Related request: `req_046_show_the_whole_session_row_on_macos_including_both_limit_windows`
-> Related backlog: `item_093_draw_freshness_and_reset_on_the_macos_session_row`, `item_094_publish_and_draw_both_limit_windows_per_session`
+> Related backlog: `item_093_draw_freshness_and_reset_on_the_macos_session_row`
 > Related task: `task_057_orchestrate_the_fuller_tray_session_row`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
 
 # Overview
 Make the drawn macOS row carry everything the text rows carry, and let both limit windows be visible at once so the constrained one cannot hide behind the other.
+
+```mermaid
+flowchart LR
+    Provider[provider reports two windows] --> Cdx[CDX keeps both, and their minimum]
+    Cdx --> Worst[minimum drives the icon and the order]
+    Cdx --> Row[session row]
+    Row --> Line1[name · provider — 5h bar, 5h %]
+    Row --> Line2[age · reset — week bar, week %]
+    Line1 -.->|same words| Text[text rows on Windows and Linux]
+    Line2 -.->|same words| Text
+```
 
 # Goals
 - Let a user judge a percentage without opening anything: how old it is, and when it resets.
@@ -33,5 +44,5 @@ Make the drawn macOS row carry everything the text rows carry, and let both limi
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_046_show_the_whole_session_row_on_macos_including_both_limit_windows`
+- Product back-reference: `item_093_draw_freshness_and_reset_on_the_macos_session_row`
 - Task back-reference: `task_057_orchestrate_the_fuller_tray_session_row`
