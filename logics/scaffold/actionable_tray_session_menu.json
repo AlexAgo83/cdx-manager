@@ -1,0 +1,106 @@
+{
+  "title": "Make CDX tray session rows actionable without misleading live settings",
+  "references": [
+    "src/tray_contract.py",
+    "src/cli.py",
+    "src/cli_args.py",
+    "src/commands/status.py",
+    "src/commands/settings.py",
+    "src/session_service.py",
+    "tray/src/menu.rs",
+    "tray/src/runner.rs",
+    "tray/src/backend.rs",
+    "tray/src/mac.rs",
+    "tray/src/win.rs",
+    "tray/src/linux.rs",
+    "tray/src/mac_cell.rs",
+    "logics/request/req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray.md",
+    "logics/request/req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity.md",
+    "tray/Cargo.toml"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Tray usability",
+    "needs": [
+      "The compact, capacity-first session row is becoming the natural control point for each CDX session, not merely a status label.",
+      "A native tray row cannot safely mean both 'launch immediately' and 'choose one of several actions'. The current direct launch must therefore become an explicit session action menu.",
+      "CDX model, reasoning, permission, working-directory, and terminal-launch choices are launch settings. Presenting them as live edits for an already running session would promise a retroactive effect that does not exist.",
+      "The future Logics tray integration needs a clear place for declared session-aware actions, without hard-coded placeholders or arbitrary plugin shell commands."
+    ],
+    "context": [
+      "tray/src/menu.rs currently makes every session row ActionId::Session(index), and macOS, Windows, and Linux all resolve it by opening a terminal on cdx <session>.",
+      "The shared tray model already owns text labels and action identifiers, while macOS custom cells draw the capacity gauge but must retain an accessible native text fallback for Windows and Linux.",
+      "cdx config <name> reports a session's pinned launch configuration. The cdx set aliases update persistent launch settings for a later launch; they do not mutate an existing provider process in place.",
+      "req_040 owns the globally capacity-sorted row order and provider context. req_037 owns the versioned Logics plugin snapshot, declared action ids, and safe plugin routing; this request must compose with both rather than duplicate them."
+    ],
+    "acceptance_criteria": [
+      "AC1: Selecting a rendered session row opens one native per-session action submenu on macOS, Windows, and supported Linux instead of launching ambiguously from the summary row; the displayed row, submenu, and target session retain the same stable identity after capacity reordering.",
+      "AC2: Every available session submenu contains an explicit Open session action that preserves today's best-effort terminal launch behavior, plus a View launch configuration action that opens cdx config <session> through the same native or WSL command path as the tray status command.",
+      "AC3: The tray never presents model, reasoning, permission, working-directory, terminal-title, or similar launch settings as a live change to a running session. Any future-launch configuration entry is explicitly labelled as applying to the next launch and does not silently restart, stop, or reconfigure a provider process.",
+      "AC4: The shared menu/action contract can carry a bounded set of declared session extension actions, but the base tray renders no empty Extensions or Logics placeholder. Logics actions appear only when the existing plugin contract declares supported, validated actions and remain subject to its no-arbitrary-shell-routing boundary.",
+      "AC5: Unsupported, unavailable, stale, disabled, or malformed session and extension actions are omitted or visibly disabled with a reason; they cannot launch a different session, run an arbitrary command, or break the base status and alert menu.",
+      "AC6: Focused tests cover row-to-submenu identity across interleaved providers and reorders, explicit Open session routing, native/WSL configuration-view routing, omission of retroactive settings and absent extensions, and preservation of existing gauges, alert history, global actions, and accessible fallback text."
+    ]
+  },
+  "product": {
+    "title": "Actionable CDX tray session controls",
+    "overview": "Turn each capacity-first CDX tray row into a compact, explicit session control surface while preserving truthful boundaries between current-session actions and next-launch configuration.",
+    "goals": [
+      "Let users open the intended session or inspect its launch configuration from one unambiguous session submenu.",
+      "Keep the capacity gauge, provider context, and global capacity ordering as the fast-scanning surface.",
+      "Make action availability capability-driven and safely extensible for the existing Logics tray plugin contract.",
+      "Prevent a tray menu from implying that launch-time settings can mutate a running assistant."
+    ],
+    "non_goals": [
+      "No custom cross-platform configuration editor, inline model picker, in-place working-directory change, terminal-title change, or automatic restart.",
+      "No stop, kill, restart, rename, delete, authentication, or provider-account mutation from the first session submenu.",
+      "No generic plugin marketplace, arbitrary plugin command strings, empty extension placeholders, or duplicate implementation of the Logics card owned by req_037.",
+      "No change to quota collection, capacity ranking, alert delivery/read state, tray installation, or provider launch semantics."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Add an explicit, capability-safe action submenu to every tray session row",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Tray usability",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC5", "AC6"],
+      "problem": [
+        "A row that launches directly cannot also reveal future controls without hidden gestures or ambiguous clicks.",
+        "Exposing all persistent CDX launch settings as session controls would wrongly imply that they alter an assistant already running.",
+        "Future Logics actions need a bounded and validated extension seam rather than hard-coded tray entries."
+      ],
+      "scope_in": [
+        "Extend the shared menu model and every native backend with one per-session submenu whose identity stays bound to the rendered snapshot session.",
+        "Ship explicit Open session and View launch configuration actions using the existing terminal and WSL command-routing patterns.",
+        "Represent supported session and plugin actions declaratively, display only available actions, and preserve accessible text plus macOS custom-cell behaviour.",
+        "Document and test the boundary between current-session actions and next-launch configuration, including failure-safe action omission."
+      ],
+      "scope_out": [
+        "A graphical configuration editor, mutation controls for launch settings, provider-process control, or automatic restarts.",
+        "New Logics plugin data, workflow mutations, remote plugins, arbitrary shell execution, or changes to the existing plugin security contract.",
+        "Changes to capacity ranking, alert unread state, status polling cadence, or tray onboarding."
+      ],
+      "acceptance_criteria": [
+        "AC1: A session row has one explicit submenu with stable identity and Open session remains available as an intentional action.",
+        "AC2: View launch configuration is truthful about next-launch settings and reaches the correct CDX environment on native and WSL hosts.",
+        "AC3: No action claims to mutate an already-running session unless a future capability explicitly proves that it can do so.",
+        "AC4: Focused Rust and relevant CDX command-routing tests pass with no regression to the capacity-first rows or global tray actions."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate actionable and truthful CDX tray session controls",
+    "plan": [
+      "Trace a session row from the capacity-sorted snapshot through the shared menu model, macOS custom cell, each native backend, and native/WSL terminal routing.",
+      "Define the smallest declarative session-action contract and submenu representation that retains stable session identity without turning the tray into a configuration editor.",
+      "Implement explicit open and configuration-view actions, capability-gated extension routing, and clear next-launch wording while preserving the existing global actions and alert behaviour.",
+      "Add focused identity, action-routing, unavailable-capability, and platform fallback tests; validate the tray and CDX command paths, then record the interaction boundary for the later Logics plugin work."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/actionable_tray_session_menu.json",
+    "mode": "diff-first",
+    "profile": "deep"
+  }
+}

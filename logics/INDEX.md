@@ -47,6 +47,7 @@
 | [prod_029_capacity_first_cdx_tray_menu](product/prod_029_capacity_first_cdx_tray_menu.md) | Capacity-first CDX tray menu | Proposed |  |  | product/prod_029_capacity_first_cdx_tray_menu.md |
 | [prod_030_accepted_automatic_cdx_tray_experience](product/prod_030_accepted_automatic_cdx_tray_experience.md) | Accepted automatic CDX tray experience | Proposed |  |  | product/prod_030_accepted_automatic_cdx_tray_experience.md |
 | [prod_031_coherent_cdx_tray_unread_alerts](product/prod_031_coherent_cdx_tray_unread_alerts.md) | Coherent CDX tray unread alerts | Proposed |  |  | product/prod_031_coherent_cdx_tray_unread_alerts.md |
+| [prod_032_actionable_cdx_tray_session_controls](product/prod_032_actionable_cdx_tray_session_controls.md) | Actionable CDX tray session controls | Proposed |  |  | product/prod_032_actionable_cdx_tray_session_controls.md |
 
 ## Roadmaps
 
@@ -99,6 +100,7 @@ _None_
 | [req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity](request/req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity.md) | Keep the CDX tray menu globally ordered by remaining capacity | Draft |  |  | request/req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity.md |
 | [req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic](request/req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic.md) | Make accepted CDX tray onboarding and updates automatic | Draft |  |  | request/req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic.md |
 | [req_042_synchronize_cdx_tray_alert_badges_with_menu_reading](request/req_042_synchronize_cdx_tray_alert_badges_with_menu_reading.md) | Synchronize CDX tray alert badges with menu reading | Draft |  |  | request/req_042_synchronize_cdx_tray_alert_badges_with_menu_reading.md |
+| [req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings](request/req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings.md) | Make CDX tray session rows actionable without misleading live settings | Draft |  |  | request/req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings.md |
 
 ## Backlog
 
@@ -194,6 +196,7 @@ _None_
 | [item_087_flatten_the_tray_session_menu_while_preserving_provider_context](backlog/item_087_flatten_the_tray_session_menu_while_preserving_provider_context.md) | Flatten the tray session menu while preserving provider context | Ready |  | 0% | backlog/item_087_flatten_the_tray_session_menu_while_preserving_provider_context.md |
 | [item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart](backlog/item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart.md) | Add consented tray onboarding defaults and safe running-companion restart | Ready |  | 0% | backlog/item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart.md |
 | [item_089_unify_tray_alert_marker_and_recent_alert_read_state](backlog/item_089_unify_tray_alert_marker_and_recent_alert_read_state.md) | Unify tray alert marker and recent-alert read state | Ready |  | 0% | backlog/item_089_unify_tray_alert_marker_and_recent_alert_read_state.md |
+| [item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row](backlog/item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row.md) | Add an explicit, capability-safe action submenu to every tray session row | Ready |  | 0% | backlog/item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row.md |
 
 ## Tasks
 
@@ -255,6 +258,7 @@ _None_
 | [task_051_orchestrate_the_capacity_first_cdx_tray_session_menu](tasks/task_051_orchestrate_the_capacity_first_cdx_tray_session_menu.md) | Orchestrate the capacity-first CDX tray session menu | Ready |  | 0% | tasks/task_051_orchestrate_the_capacity_first_cdx_tray_session_menu.md |
 | [task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates](tasks/task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates.md) | Orchestrate accepted automatic CDX tray onboarding and updates | Ready |  | 0% | tasks/task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates.md |
 | [task_053_orchestrate_coherent_cdx_tray_alert_read_state](tasks/task_053_orchestrate_coherent_cdx_tray_alert_read_state.md) | Orchestrate coherent CDX tray alert read state | Ready |  | 0% | tasks/task_053_orchestrate_coherent_cdx_tray_alert_read_state.md |
+| [task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls](tasks/task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls.md) | Orchestrate actionable and truthful CDX tray session controls | Ready |  | 0% | tasks/task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls.md |
 
 ## Runbooks
 

@@ -1,0 +1,655 @@
+{
+  "budgets": {
+    "max_docs": 24,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [
+    "logics/backlog/item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row.md",
+    "logics/product/prod_032_actionable_cdx_tray_session_controls.md",
+    "logics/request/req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings.md",
+    "logics/scaffold/actionable_tray_session_menu.json",
+    "logics/tasks/task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls.md"
+  ],
+  "command": "logics-manager sync context-pack req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls --mode diff-first --profile deep --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row"
+        ],
+        "prod": [
+          "prod_032_actionable_cdx_tray_session_controls"
+        ],
+        "req": [
+          "req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings"
+        ],
+        "task": [
+          "task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls"
+        ]
+      },
+      "path": "logics/product/prod_032_actionable_cdx_tray_session_controls.md",
+      "ref": "prod_032_actionable_cdx_tray_session_controls",
+      "sections": {
+        "Goals": [
+          "- Let users open the intended session or inspect its launch configuration from one unambiguous session submenu.",
+          "- Keep the capacity gauge, provider context, and global capacity ordering as the fast-scanning surface.",
+          "- Make action availability capability-driven and safely extensible for the existing Logics tray plugin contract.",
+          "- Prevent a tray menu from implying that launch-time settings can mutate a running assistant."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Turn each capacity-first CDX tray row into a compact, explicit session control surface while preserving truthful boundaries between current-session actions and next-launch configuration."
+        ],
+        "References": [
+          "- Product back-reference: `req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings`",
+          "- Task back-reference: `task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Actionable CDX tray session controls"
+    },
+    {
+      "kind": "product",
+      "linked_refs": {
+        "adr": [
+          "adr_005_cdx_tray_runtime_and_companion_transport_boundary"
+        ],
+        "item": [
+          "item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface"
+        ],
+        "prod": [
+          "prod_024_cdx_tray_usage_monitor"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor"
+        ],
+        "task": [
+          "task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor"
+        ]
+      },
+      "path": "logics/product/prod_024_cdx_tray_usage_monitor.md",
+      "ref": "prod_024_cdx_tray_usage_monitor",
+      "sections": {
+        "Goals": [
+          "- Make remaining CDX capacity and reset timing visible without opening a terminal.",
+          "- Reuse CDX status as the only source of usage truth.",
+          "- Support macOS, Windows, Windows plus WSL, and practical Linux tray environments.",
+          "- Keep tray installation explicit, removable, and independent from the normal CLI runtime.",
+          "- Update an installed tray companion only when the user explicitly updates CDX, keeping both components on the same release.",
+          "- Ship a useful v1 with a free self-signed identity before investing in commercial distribution infrastructure."
+        ],
+        "Key product decisions": [
+          "- The tray is a cache consumer, not a data source. It asks cdx for a snapshot of the status CDX already stores, and never probes a provider on its own schedule, because a background probe would race the Codex auth lock and can invalidate a rotating OAuth refresh token.",
+          "- Freshness is part of the product, not an error path. The tray shows cached, stale, unknown, and not-refreshable-while-a-session-runs as first-class states, because a live probe cannot succeed while an interactive session holds the auth lock.",
+          "- The closed icon carries urgency only. Accounts, sessions, and quota figures appear only after the user opens the menu.",
+          "- Capacity state is carried by the glyph, not by a tint. The macOS menu bar icon is a monochrome template that the system inverts per theme, so colour is not available there and must not be the mechanism anywhere; the mockups' tinted macOS icon no longer describes the intended rendering.",
+          "- The companion is a separate artifact with its own release asset. The CLI keeps its single runtime dependency, and a version difference between the two degrades gracefully instead of forcing a lockstep upgrade."
+        ],
+        "Overview": [
+          "Provide an optional native system-tray companion that turns existing CDX status data into a glanceable usage indicator across desktop operating systems.",
+          "```mermaid",
+          "%% logics-kind: product",
+          "%% logics-signature: product|cdx-tray-usage-monitor|status-to-native-tray",
+          "flowchart TD",
+          "    Status[cdx status JSON] --> State[Local display state]"
+        ],
+        "References": [
+          "- Product back-reference: `item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface`",
+          "- Task back-reference: `task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor`"
+        ]
+      },
+      "status": "Settled",
+      "title": "CDX tray usage monitor"
+    },
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_082_deliver_agent_hook_events_through_the_active_cdx_tray_with_safe_fallback"
+        ],
+        "prod": [
+          "prod_025_tray_aware_agent_alerts"
+        ],
+        "req": [
+          "req_036_route_cdx_agent_alerts_through_an_active_tray_companion"
+        ],
+        "task": [
+          "task_047_orchestrate_tray_aware_cdx_agent_alert_delivery"
+        ]
+      },
+      "path": "logics/product/prod_025_tray_aware_agent_alerts.md",
+      "ref": "prod_025_tray_aware_agent_alerts",
+      "sections": {
+        "Goals": [
+          "- Give an active tray a visible, actionable hint when an agent finishes or needs attention.",
+          "- Deliver exactly one user-facing alert for each hook event.",
+          "- Preserve current hook safety, opt-in preview privacy, and direct desktop notifications when the tray is absent.",
+          "- Support Windows-hosted WSL without relying on variable cross-boundary network topology."
+        ],
+        "Key product decisions": [
+          "- One event, one visible notification. When a fresh tray heartbeat exists the tray owns delivery; otherwise the existing direct path runs unchanged. There is no state in which both fire.",
+          "- Delivery is polled through a local spool, not pushed over a socket, because WSL localhost is directional in NAT mode and mirrored mode cannot be assumed on a user machine.",
+          "- Latency is a stated product property, not an accident: at most one poll period, 30 seconds natively and 60 seconds across the Windows-to-WSL boundary.",
+          "- The tray receives only the already-composed title and body. Preview text stays governed by the existing per-session opt-in, and raw provider payload never reaches the spool."
+        ],
+        "Overview": [
+          "Let the optional CDX tray companion own visual delivery of agent completion and attention alerts while retaining the existing direct notification path as a non-blocking fallback.",
+          "```mermaid",
+          "%% logics-kind: product",
+          "%% logics-signature: product|tray-aware-agent-alerts|active-tray-or-fallback",
+          "flowchart TD",
+          "    Hook[Provider hook] --> Notify[cdx notify]"
+        ],
+        "References": [
+          "- Product back-reference: `item_082_deliver_agent_hook_events_through_the_active_cdx_tray_with_safe_fallback`",
+          "- Task back-reference: `task_047_orchestrate_tray_aware_cdx_agent_alert_delivery`"
+        ]
+      },
+      "status": "Settled",
+      "title": "Tray-aware agent alerts"
+    },
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card"
+        ],
+        "prod": [
+          "prod_026_extensible_cdx_tray_with_a_first_party_logics_card"
+        ],
+        "req": [
+          "req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray"
+        ],
+        "task": [
+          "task_048_orchestrate_the_first_party_logics_cdx_tray_plugin"
+        ]
+      },
+      "path": "logics/product/prod_026_extensible_cdx_tray_with_a_first_party_logics_card.md",
+      "ref": "prod_026_extensible_cdx_tray_with_a_first_party_logics_card",
+      "sections": {
+        "Goals": [
+          "- Show Logics workflow health at a glance from the optional CDX tray.",
+          "- Keep the native tray independent from external tool paths and plugin implementation details.",
+          "- Ship the first-party adapter with cdx-manager while making it optional and reversible.",
+          "- Keep the v1 Logics menu to one count summary and two actionable rows, refreshed every 60 seconds or on demand.",
+          "- Establish only the minimum contract needed to add a second adapter later."
+        ],
+        "Key product decisions": [
+          "- One real plugin before a plugin platform. The contract stays deliberately small until a second adapter proves what generality is actually needed.",
+          "- The card is fixed in v1: one summary line, at most two rows, the first blocked document then the highest-priority ready task. No configurable layout.",
+          "- Read-only by construction. Rows open cdx view; nothing in the tray starts, finishes, or promotes a Logics doc.",
+          "- The adapter is opt-in and silent when logics-manager is absent, so the tray is never degraded by a tool the user does not have.",
+          "- The card rides the base tray snapshot and its existing refresh cadence, adding no second polling loop and no extra WSL interop call."
+        ],
+        "Overview": [
+          "Add one narrow, CDX-owned tray-plugin contract and use it to surface Logics workflow health in the existing tray menu when the local Logics manager is available.",
+          "```mermaid",
+          "%% logics-kind: product",
+          "%% logics-signature: product|extensible-cdx-tray|cdx-owned-logics-card",
+          "flowchart TD",
+          "    Tray[Native tray] --> Snapshot[cdx tray snapshot]"
+        ],
+        "References": [
+          "- Product back-reference: `req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray`",
+          "- Task back-reference: `task_048_orchestrate_the_first_party_logics_cdx_tray_plugin`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Extensible CDX tray with a first-party Logics card"
+    },
+    {
+      "kind": "architecture",
+      "linked_refs": {
+        "adr": [
+          "adr_005_cdx_tray_runtime_and_companion_transport_boundary"
+        ],
+        "item": [
+          "item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor"
+        ],
+        "task": [
+          "task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor"
+        ]
+      },
+      "path": "logics/architecture/adr_005_cdx_tray_runtime_and_companion_transport_boundary.md",
+      "ref": "adr_005_cdx_tray_runtime_and_companion_transport_boundary",
+      "sections": {
+        "Overview": [
+          "- Fix the tray companion's runtime, its transport to CDX, and its refresh policy before any native code is written, because `req_036`, `req_037`, and `req_038` already depend on properties of that choice."
+        ],
+        "References": [
+          "- Related request: `req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor`",
+          "- Related backlog: `item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl`",
+          "- Related task: `task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor`",
+          "- `src/session_status.py`",
+          "- `src/codex_usage.py`",
+          "- https://learn.microsoft.com/en-us/windows/wsl/networking"
+        ]
+      },
+      "status": "Settled",
+      "title": "CDX tray runtime and companion transport boundary"
+    },
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_087_flatten_the_tray_session_menu_while_preserving_provider_context"
+        ],
+        "prod": [
+          "prod_029_capacity_first_cdx_tray_menu"
+        ],
+        "req": [
+          "req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity"
+        ],
+        "task": [
+          "task_051_orchestrate_the_capacity_first_cdx_tray_session_menu"
+        ]
+      },
+      "path": "logics/product/prod_029_capacity_first_cdx_tray_menu.md",
+      "ref": "prod_029_capacity_first_cdx_tray_menu",
+      "sections": {
+        "Goals": [
+          "- Make the most constrained session the first actionable row regardless of provider.",
+          "- Keep every rendered row and its session action correctly bound as capacity changes.",
+          "- Preserve provider identification in an accessible, compact form."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Show one stable, globally capacity-sorted session list in the CDX tray and retain provider context within each row."
+        ],
+        "References": [
+          "- Product back-reference: `req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity`",
+          "- Task back-reference: `task_051_orchestrate_the_capacity_first_cdx_tray_session_menu`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Capacity-first CDX tray menu"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, make cdx tray session rows actionable without misleading live settings, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Make CDX tray session rows actionable without misleading live settings",
+        "use when": "You need to implement or review the scaffolded workflow for Make CDX tray session rows actionable without misleading live settings."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row"
+        ],
+        "prod": [
+          "prod_032_actionable_cdx_tray_session_controls"
+        ],
+        "req": [
+          "req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray",
+          "req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity",
+          "req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings"
+        ]
+      },
+      "path": "logics/request/req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings.md",
+      "ref": "req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Selecting a rendered session row opens one native per-session action submenu on macOS, Windows, and supported Linux instead of launching ambiguously from the summary row; the displayed row, submenu, and target session retain the same stable identity after capacity reordering.",
+          "- AC2: Every available session submenu contains an explicit Open session action that preserves today's best-effort terminal launch behavior, plus a View launch configuration action that opens cdx config <session> through the same native or WSL command path as the tray status command.",
+          "- AC3: The tray never presents model, reasoning, permission, working-directory, terminal-title, or similar launch settings as a live change to a running session. Any future-launch configuration entry is explicitly labelled as applying to the next launch and does not silently restart, stop, or reconfigure a provider process.",
+          "- AC4: The shared menu/action contract can carry a bounded set of declared session extension actions, but the base tray renders no empty Extensions or Logics placeholder. Logics actions appear only when the existing plugin contract declares supported, validated actions and remain subject to its no-arbitrary-shell-routing boundary.",
+          "- AC5: Unsupported, unavailable, stale, disabled, or malformed session and extension actions are omitted or visibly disabled with a reason; they cannot launch a different session, run an arbitrary command, or break the base status and alert menu.",
+          "- AC6: Focused tests cover row-to-submenu identity across interleaved providers and reorders, explicit Open session routing, native/WSL configuration-view routing, omission of retroactive settings and absent extensions, and preservation of existing gauges, alert history, global actions, and accessible fallback text."
+        ],
+        "Needs": [
+          "- The compact, capacity-first session row is becoming the natural control point for each CDX session, not merely a status label.",
+          "- A native tray row cannot safely mean both 'launch immediately' and 'choose one of several actions'. The current direct launch must therefore become an explicit session action menu.",
+          "- CDX model, reasoning, permission, working-directory, and terminal-launch choices are launch settings. Presenting them as live edits for an already running session would promise a retroactive effect that does not exist.",
+          "- The future Logics tray integration needs a clear place for declared session-aware actions, without hard-coded placeholders or arbitrary plugin shell commands."
+        ]
+      },
+      "status": "Draft",
+      "title": "Make CDX tray session rows actionable without misleading live settings"
+    },
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, add a first-party logics plugin surface to the cdx tray, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Add a first-party Logics plugin surface to the CDX tray",
+        "use when": "You need to implement or review the scaffolded workflow for Add a first-party Logics plugin surface to the CDX tray."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "adr": [
+          "adr_005_cdx_tray_runtime_and_companion_transport_boundary"
+        ],
+        "item": [
+          "item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card"
+        ],
+        "prod": [
+          "prod_024_cdx_tray_usage_monitor",
+          "prod_025_tray_aware_agent_alerts",
+          "prod_026_extensible_cdx_tray_with_a_first_party_logics_card"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor",
+          "req_036_route_cdx_agent_alerts_through_an_active_tray_companion",
+          "req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray"
+        ]
+      },
+      "path": "logics/request/req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray.md",
+      "ref": "req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: cdx exposes a versioned, bounded tray-plugin snapshot contract that represents plugin identity, availability, severity, short summary, a small list of display rows, and declared action ids; invalid or slow plugin output cannot break the base CDX tray status.",
+          "- AC2: The built-in Logics adapter is delivered in cdx-manager, is disabled unless explicitly enabled, and reports a clear unavailable state without an error when logics-manager is not installed or returns invalid status data.",
+          "- AC3: When enabled and available, the Logics tray card derives its information only from logics-manager status --format json and renders one summary line with blocked and ready counts plus at most two rows: the first blocked document, then the highest-priority ready task, without parsing Logics markdown directly.",
+          "- AC4: Each Logics row opens cdx view focused on its documented reference, while the declared Open Logics action opens the global view; the card also exposes refresh, but no viewer, arbitrary plugin-provided shell string, or Logics workflow mutation.",
+          "- AC5: The native tray companion receives the Logics card only through the shared CDX snapshot and refreshes it at most every 60 seconds or on manual refresh, without adding a second tray icon, long-running plugin process, or independent polling loop.",
+          "- AC6: The same Logics adapter works for native CDX and Windows-hosted WSL through the base tray bridge, with CDX selecting the correct logics-manager environment rather than the Windows tray executable assuming a path."
+        ],
+        "Needs": [
+          "- The optional tray needs a safe extension point so product-specific information can appear without turning the tray companion into a copy of every command-line tool.",
+          "- Logics is the first extension: its machine-readable status already exposes active tasks, blocked documents, draft requests, counts, and next actions that are useful at a glance.",
+          "- The Logics integration should ship in cdx-manager and work only when logics-manager is available, with no separate package, remote marketplace, downloaded plugin code, or mandatory dependency.",
+          "- Future extensions need one small compatible data contract, but v1 must not over-design a general plugin ecosystem before a second real plugin exists."
+        ]
+      },
+      "status": "Draft",
+      "title": "Add a first-party Logics plugin surface to the CDX tray"
+    },
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, keep the cdx tray menu globally ordered by remaining capacity, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Keep the CDX tray menu globally ordered by remaining capacity",
+        "use when": "You need to implement or review the scaffolded workflow for Keep the CDX tray menu globally ordered by remaining capacity."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_087_flatten_the_tray_session_menu_while_preserving_provider_context"
+        ],
+        "prod": [
+          "prod_029_capacity_first_cdx_tray_menu"
+        ],
+        "req": [
+          "req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity"
+        ]
+      },
+      "path": "logics/request/req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity.md",
+      "ref": "req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: The tray menu displays every enabled session in the same global urgency and remaining-capacity order supplied by the snapshot, with no provider group headings or provider-driven reordering.",
+          "- AC2: Every session row states its provider in the native text fallback and the macOS custom row, so provider identity remains available without relying on a group heading or colour.",
+          "- AC3: A rendered row, its action identifier, and its session-launch target always refer to the same session when Codex, Claude, and other providers are interleaved and one session's percentage changes.",
+          "- AC4: The existing gauges, capacity figures, freshness, reset text, alert history, refresh action, and no-enabled-session state remain unchanged.",
+          "- AC5: Focused Rust tests cover an interleaved multi-provider snapshot, a capacity reorder, row/provider rendering, and click-target identity; the tray validation suite passes."
+        ],
+        "Needs": [
+          "- The tray already receives sessions globally sorted by urgency and remaining capacity, which directly answers which session needs attention first.",
+          "- Grouping those rows by provider reorders the menu, hides the global capacity ranking, and creates an index mismatch in the macOS custom row renderer when sessions from providers interleave.",
+          "- Users still need to identify a session's provider, but that information belongs on the row rather than in a grouping that changes the reading order."
+        ]
+      },
+      "status": "Draft",
+      "title": "Keep the CDX tray menu globally ordered by remaining capacity"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, add an explicit, capability-safe action submenu to every tray session row, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Add an explicit, capability-safe action submenu to every tray session row",
+        "use when": "Implementing the scaffolded slice for Add an explicit, capability-safe action submenu to every tray session row."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row"
+        ],
+        "prod": [
+          "prod_032_actionable_cdx_tray_session_controls"
+        ],
+        "req": [
+          "req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings"
+        ],
+        "task": [
+          "task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls"
+        ]
+      },
+      "path": "logics/backlog/item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row.md",
+      "ref": "item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A session row has one explicit submenu with stable identity and Open session remains available as an intentional action.",
+          "- AC2: View launch configuration is truthful about next-launch settings and reaches the correct CDX environment on native and WSL hosts.",
+          "- AC3: No action claims to mutate an already-running session unless a future capability explicitly proves that it can do so.",
+          "- AC4: Focused Rust and relevant CDX command-routing tests pass with no regression to the capacity-first rows or global tray actions."
+        ],
+        "Problem": [
+          "- A row that launches directly cannot also reveal future controls without hidden gestures or ambiguous clicks.",
+          "- Exposing all persistent CDX launch settings as session controls would wrongly imply that they alter an assistant already running.",
+          "- Future Logics actions need a bounded and validated extension seam rather than hard-coded tray entries."
+        ]
+      },
+      "status": "Ready",
+      "title": "Add an explicit, capability-safe action submenu to every tray session row"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row"
+        ],
+        "prod": [
+          "prod_032_actionable_cdx_tray_session_controls"
+        ],
+        "req": [
+          "req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings"
+        ],
+        "task": [
+          "task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls"
+        ]
+      },
+      "path": "logics/product/prod_032_actionable_cdx_tray_session_controls.md",
+      "ref": "prod_032_actionable_cdx_tray_session_controls",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Actionable CDX tray session controls"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate actionable and truthful CDX tray session controls",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row"
+        ],
+        "prod": [
+          "prod_032_actionable_cdx_tray_session_controls"
+        ],
+        "req": [
+          "req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings"
+        ],
+        "task": [
+          "task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls"
+        ]
+      },
+      "path": "logics/tasks/task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls.md",
+      "ref": "task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate actionable and truthful CDX tray session controls"
+    }
+  ],
+  "estimates": {
+    "char_count": 25150,
+    "companion_doc_count": 6,
+    "doc_count": 6
+  },
+  "generated_at": "2026-08-11T07:30:52Z",
+  "handoff": {
+    "companion_doc_count": 6,
+    "enabled": true,
+    "source_refs": [
+      "req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings",
+      "item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row",
+      "task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "deep",
+  "ref": "req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings,item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row,task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls",
+  "refs": [
+    "req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings",
+    "item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row",
+    "task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.18.4"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls.md",
+      "ref": "task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls"
+    }
+  ]
+}
