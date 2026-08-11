@@ -110,19 +110,24 @@ pub struct SessionAction {
 /// only signal.
 const GAUGE_WIDTH: usize = 8;
 
-/// A heavy line for what is left, a light one for what is gone.
+/// A full block for what is left, a thin one for what is gone.
 ///
-/// It was `█` and `░`. Both are the right width — that is why blocks were
-/// chosen, since a proportional menu font makes spaces useless for alignment —
-/// but the light shade is a dither pattern, and on a dark Windows menu a row of
-/// them reads as corrupted text rather than as an empty gauge. Measured on a
-/// real host, which is the only place it could have been noticed: macOS draws
-/// its own cell and never renders these at all.
+/// Two attempts got here. It was `█` and `░`: the right widths, but the light
+/// shade is a dither pattern, and on a dark Windows menu a row of them reads as
+/// corrupted text. Then `━` and `─`, which fixed that and lost the point — at
+/// menu font size the heavy and light box-drawing lines are indistinguishable,
+/// so every session showed the same flat line and the gauge said nothing.
 ///
-/// The box-drawing pair keeps the property that mattered and drops the one that
-/// did not: same advance width, no dithering.
-const FILLED: &str = "━";
-const EMPTY: &str = "─";
+/// Both characters stay inside Block Elements, which is what guarantees the
+/// identical advance width the column depends on: a proportional menu font
+/// makes spaces useless for alignment, and a mixed-block pair would leave the
+/// right edge ragged. The eighth-height block draws a thin rule rather than a
+/// texture, so the contrast is unmistakable and nothing dithers.
+///
+/// None of this was visible from the machine it was written on: macOS draws its
+/// own cell and never renders these at all.
+const FILLED: &str = "█";
+const EMPTY: &str = "▁";
 
 fn gauge(value: Option<f64>) -> String {
     let filled = match value {
