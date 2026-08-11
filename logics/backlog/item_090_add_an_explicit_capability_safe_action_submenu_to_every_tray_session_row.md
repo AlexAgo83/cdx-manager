@@ -1,10 +1,10 @@
 ## item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row - Add an explicit, capability-safe action submenu to every tray session row
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -58,3 +58,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls`
+
+# Notes
+- Task `task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls` was finished via `logics-manager flow finish task` on 2026-08-11.

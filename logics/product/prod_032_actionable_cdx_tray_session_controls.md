@@ -1,6 +1,6 @@
 ## prod_032_actionable_cdx_tray_session_controls - Actionable CDX tray session controls
 > Date: 2026-08-11
-> Status: Proposed
+> Status: Settled
 > Related request: `req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings`
 > Related backlog: `item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row`
 > Related task: `task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls`
@@ -9,6 +9,17 @@
 
 # Overview
 Turn each capacity-first CDX tray row into a compact, explicit session control surface while preserving truthful boundaries between current-session actions and next-launch configuration.
+
+```mermaid
+flowchart LR
+    Row[session row, about one session name] --> Submenu[declared actions]
+    Submenu --> Open[Open session — today's launch]
+    Submenu --> Config[Launch settings, next launch — a view of cdx config]
+    Submenu -.->|when a plugin declares one| Ext[validated extension action]
+    Unavailable[undeclarable action] -.->|disabled, with its reason| Submenu
+    Running[a running assistant] -.->|never mutated| Config
+```
+
 
 # Goals
 - Let users open the intended session or inspect its launch configuration from one unambiguous session submenu.
@@ -35,5 +46,5 @@ Turn each capacity-first CDX tray row into a compact, explicit session control s
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings`
+- Product back-reference: `item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row`
 - Task back-reference: `task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls`

@@ -1,7 +1,7 @@
 ## req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings - Make CDX tray session rows actionable without misleading live settings
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium

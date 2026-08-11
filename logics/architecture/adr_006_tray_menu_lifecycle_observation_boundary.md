@@ -53,7 +53,7 @@ flowchart LR
 - The macOS path is the fragile one: it depends on `muda` internals that no public contract protects, and a `muda` upgrade is a review point rather than a version bump.
 - The Windows subclass must be removed before the tray icon is dropped, or the process tears down through a dangling window procedure.
 - Nothing refreshes while a Windows menu is open, so a bounded graceful-shutdown request from `req_041` can wait up to the time the user leaves the menu open. Its timeout has to survive that, and must not escalate to a kill.
-- Session rows that gain a submenu in `req_043` must draw their own chevron and highlight on macOS, or drop the drawn cell for those rows. The drawn cell is kept.
+- Session rows that gain a submenu in `req_043` must draw their own chevron and highlight on macOS, or drop the drawn cell for those rows. The drawn cell is kept. task_054 drew the chevron; the highlight needs `menu:willHighlightItem:` rather than the opening signal this ADR installs, and is tracked separately in req_045.
 
 # Alternatives considered
 - Model opening and closing where both exist: rejected because Linux would need a third behaviour and the marker would mean different things per platform.
