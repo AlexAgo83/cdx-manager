@@ -14,7 +14,7 @@ use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSEventMask};
 use objc2_foundation::{NSDate, NSDefaultRunLoopMode};
 
 use crate::backend;
-use crate::events::set_alerts;
+use crate::events::{run_plugin_action, set_alerts};
 use crate::mac_menu_open;
 use crate::menu::ActionId;
 use crate::runner::{announce, Render};
@@ -107,6 +107,10 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 // will apply to the next launch, and the tray never claims to
                 // change an assistant already running.
                 Some(ActionId::SessionConfig(name)) => open_terminal(&format!("cdx config {name}")),
+                // Handed back exactly as it arrived. The companion knows no
+                // card action and can compose none, so CDX decides what, if
+                // anything, an id means.
+                Some(ActionId::Plugin(action)) => run_plugin_action(&transport, action),
                 None => {}
             }
         }

@@ -20,7 +20,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::backend;
-use crate::events::set_alerts;
+use crate::events::{run_plugin_action, set_alerts};
 use crate::menu::ActionId;
 use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
@@ -158,6 +158,10 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 Some(ActionId::SessionConfig(name)) => {
                     open_terminal(&transport, &format!("config {name}"))
                 }
+                // Handed back exactly as it arrived. The companion knows no
+                // card action and can compose none, so CDX decides what, if
+                // anything, an id means.
+                Some(ActionId::Plugin(action)) => run_plugin_action(&transport, action),
                 None => {}
             }
         }

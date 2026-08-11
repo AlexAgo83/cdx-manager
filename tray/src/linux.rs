@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::events::set_alerts;
+use crate::events::{run_plugin_action, set_alerts};
 use crate::menu::{ActionId, Entry};
 use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
@@ -234,6 +234,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
             // A view, not an edit: `cdx config` prints the settings that will
             // apply to the next launch.
             Some(ActionId::SessionConfig(name)) => open_terminal(&format!("config {name}")),
+            Some(ActionId::Plugin(action)) => run_plugin_action(&transport, &action),
             None => {}
         }
         // An alert lands in the spool the moment a hook writes it. Polling for

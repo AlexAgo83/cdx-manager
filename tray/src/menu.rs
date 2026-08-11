@@ -52,6 +52,12 @@ pub enum ActionId {
     /// renumbers the list, and a rank would open whichever session had taken
     /// that place. The name is what the user clicked and stays what gets opened.
     Session(String),
+    /// One card action, named by the id CDX published for it.
+    ///
+    /// Carried verbatim and handed straight back: the companion does not know
+    /// what any of them do, and cannot compose one, which is what keeps an
+    /// integration from reaching the machine through the tray.
+    Plugin(String),
     /// Show this session's persistent launch settings, by name.
     ///
     /// A view, never an edit, and the wording says so: these settings apply to
@@ -180,6 +186,16 @@ fn session_line(session: &Session) -> String {
     )
 }
 
+/// The wording for a card-wide action, or None when this build has no name for
+/// it. The verb is the part that matters; the plugin prefix is routing.
+fn plugin_action_label(action: &str) -> Option<String> {
+    match action.split_once('.') {
+        Some(("logics", "open")) => Some("  Open Logics".to_string()),
+        Some(("logics", "refresh")) => Some("  Refresh Logics".to_string()),
+        _ => None,
+    }
+}
+
 /// What one session row offers, as declared actions.
 ///
 /// Two built-ins today. Opening keeps exactly the behaviour the row used to
@@ -263,6 +279,32 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
                 label: session_line(session),
                 items: session_entries(session),
             });
+        }
+    }
+    // Integration cards sit below the sessions and above the alerts: quota is
+    // what the menu is for, alerts are what just happened, and a card is
+    // standing context that should not push either of them down the menu.
+    for card in &snapshot.plugins {
+        entries.push(Entry::Separator);
+        entries.push(Entry::Info(format!("{} · {}", card.title, card.summary)));
+        for row in &card.rows {
+            entries.push(Entry::Action {
+                id: ActionId::Plugin(row.action.clone()),
+                label: format!("  {}", row.label),
+                enabled: true,
+            });
+        }
+        for action in &card.actions {
+            // Only the actions a build knows how to name are drawn. An id from
+            // a newer CDX is carried in the snapshot and simply not offered,
+            // which is quieter than a menu row nobody can read.
+            if let Some(label) = plugin_action_label(action) {
+                entries.push(Entry::Action {
+                    id: ActionId::Plugin(action.clone()),
+                    label,
+                    enabled: true,
+                });
+            }
         }
     }
     if !alerts.is_empty() {
@@ -382,6 +424,7 @@ mod tests {
             session_count: sessions.len() as u64,
             refreshable,
             update_hint: None,
+            plugins: Vec::new(),
             sessions,
         }
     }
@@ -585,6 +628,95 @@ mod tests {
         let text = labels(&entries).to_lowercase();
         assert!(!text.contains("extension"), "{text}");
         assert!(!text.contains("logics"), "{text}");
+    }
+
+    fn card(rows: Vec<(&str, &str)>, actions: Vec<&str>) -> crate::snapshot::PluginCard {
+        crate::snapshot::PluginCard {
+            title: "Logics".into(),
+            summary: "1 blocked · 2 in progress".into(),
+            rows: rows
+                .into_iter()
+                .map(|(label, action)| crate::snapshot::PluginRow {
+                    label: label.into(),
+                    action: action.into(),
+                })
+                .collect(),
+            actions: actions.into_iter().map(str::to_string).collect(),
+        }
+    }
+
+    /// `req_037` AC1: a card is a summary, at most two rows, and named actions.
+    #[test]
+    fn a_card_shows_its_summary_its_rows_and_the_actions_this_build_knows() {
+        let mut snap = snapshot(vec![session("work", Some(50.0), "fresh")], true);
+        snap.plugins = vec![card(
+            vec![
+                ("blocked: one", "logics.focus:task_010"),
+                ("next: two", "logics.focus:task_020"),
+            ],
+            vec!["logics.open", "logics.refresh"],
+        )];
+        let entries = build_with_alerts(&snap, &[]);
+        let text = labels(&entries);
+        assert!(
+            text.contains("Logics · 1 blocked · 2 in progress"),
+            "{text}"
+        );
+        assert!(text.contains("blocked: one"), "{text}");
+        assert!(text.contains("Open Logics"), "{text}");
+        assert!(text.contains("Refresh Logics"), "{text}");
+
+        let ids: Vec<String> = entries
+            .iter()
+            .filter_map(|e| match e {
+                Entry::Action {
+                    id: ActionId::Plugin(action),
+                    ..
+                } => Some(action.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            ids,
+            vec![
+                "logics.focus:task_010",
+                "logics.focus:task_020",
+                "logics.open",
+                "logics.refresh"
+            ]
+        );
+    }
+
+    /// An id from a newer CDX is carried and simply not offered: a menu row
+    /// nobody can read is worse than one that is absent.
+    #[test]
+    fn an_action_this_build_has_no_name_for_is_not_drawn() {
+        let mut snap = snapshot(vec![], true);
+        snap.plugins = vec![card(vec![], vec!["logics.somethingnew"])];
+        let entries = build_with_alerts(&snap, &[]);
+        assert!(!entries.iter().any(|e| matches!(
+            e,
+            Entry::Action {
+                id: ActionId::Plugin(_),
+                ..
+            }
+        )));
+        // The card itself still appears: the summary is the part that matters.
+        assert!(
+            labels(&entries).contains("Logics · 1 blocked"),
+            "{}",
+            labels(&entries)
+        );
+    }
+
+    /// No enabled integration is the normal case, and it adds nothing at all.
+    #[test]
+    fn no_card_means_no_section() {
+        let entries = build_with_alerts(
+            &snapshot(vec![session("w", Some(50.0), "fresh")], true),
+            &[],
+        );
+        assert!(!labels(&entries).to_lowercase().contains("logics"));
     }
 
     /// `req_039` AC5: the alert is where the user already is when they want

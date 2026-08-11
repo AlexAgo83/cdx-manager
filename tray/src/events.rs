@@ -70,6 +70,16 @@ pub fn acknowledge(transport: &Transport, ids: &[String]) {
     let _ = run(transport.command_for(&args));
 }
 
+/// Perform one plugin card action, by handing its id back to CDX.
+///
+/// The companion never interprets the id and never builds a command from it:
+/// CDX matches it against the fixed vocabulary it published and refuses
+/// anything else. That is the whole reason a card can offer an action at all
+/// without an integration gaining a way to run something on this machine.
+pub fn run_plugin_action(transport: &Transport, action: &str) {
+    let _ = run(transport.command_for(&["tray", "plugin", "run", action, "--json"]));
+}
+
 /// Mute or unmute agent alerts, through CDX rather than in the companion.
 pub fn set_alerts(transport: &Transport, enabled: bool) {
     let mode = if enabled { "on" } else { "off" };

@@ -192,7 +192,35 @@ pub struct Snapshot {
     /// Set when the snapshot is newer than this build understands.
     pub update_hint: Option<String>,
     pub sessions: Vec<Session>,
+    /// Cards from integrations the user enabled in CDX. Empty is the normal
+    /// case and an older CDX sends none at all.
+    pub plugins: Vec<PluginCard>,
 }
+
+/// One integration's card, already bounded by CDX.
+///
+/// The companion re-reads the bounds anyway — two rows, and an action id it
+/// hands straight back to CDX. Not distrust of CDX so much as the same rule
+/// everywhere else here: what arrives over the transport is checked, because a
+/// version mismatch is a normal state and a crash is not.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginCard {
+    pub title: String,
+    pub summary: String,
+    pub rows: Vec<PluginRow>,
+    /// The card-wide actions, in the order CDX listed them.
+    pub actions: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginRow {
+    pub label: String,
+    pub action: String,
+}
+
+/// The most rows a card may contribute, mirroring CDX's own bound. A menu that
+/// grew with an integration would stop being a quota menu.
+const MAX_PLUGIN_ROWS: usize = 2;
 
 pub fn fetch(transport: &Transport) -> Result<Snapshot, Unavailable> {
     fetch_with(transport, true)
@@ -244,6 +272,58 @@ fn error_code(stderr: &str) -> Option<String> {
         .get("code")?
         .as_str()
         .map(str::to_string)
+}
+
+/// A card, or nothing. A malformed one is dropped rather than drawn empty: a
+/// menu section with a title and no meaning is worse than no section.
+fn plugin_card_from(value: &Value) -> Option<PluginCard> {
+    let text = |key: &str| {
+        value
+            .get(key)
+            .and_then(Value::as_str)
+            .filter(|v| !v.is_empty())
+            .map(str::to_string)
+    };
+    let action_of = |item: &Value| {
+        item.get("action")
+            .and_then(Value::as_str)
+            .filter(|a| !a.is_empty())
+            .map(str::to_string)
+    };
+    Some(PluginCard {
+        title: text("title")?,
+        summary: text("summary")?,
+        rows: value
+            .get("rows")
+            .and_then(Value::as_array)
+            .map(|rows| {
+                rows.iter()
+                    .filter_map(|row| {
+                        Some(PluginRow {
+                            label: row
+                                .get("label")
+                                .and_then(Value::as_str)
+                                .filter(|l| !l.is_empty())?
+                                .to_string(),
+                            action: action_of(row)?,
+                        })
+                    })
+                    .take(MAX_PLUGIN_ROWS)
+                    .collect()
+            })
+            .unwrap_or_default(),
+        actions: value
+            .get("actions")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| item.as_str().filter(|a| !a.is_empty()).map(str::to_string))
+                    .take(MAX_PLUGIN_ROWS)
+                    .collect()
+            })
+            .unwrap_or_default(),
+    })
 }
 
 fn session_from(value: &Value) -> Session {
@@ -327,6 +407,11 @@ pub fn read_snapshot(payload: &Value) -> Result<Snapshot, Unavailable> {
         update_hint: (major > SCHEMA_MAJOR).then(|| {
             format!("This companion reads tray snapshot v{SCHEMA_MAJOR}; CDX emits v{major}. Update the tray companion.")
         }),
+        plugins: snapshot
+            .get("plugins")
+            .and_then(Value::as_array)
+            .map(|cards| cards.iter().filter_map(plugin_card_from).collect())
+            .unwrap_or_default(),
         sessions: snapshot
             .get("sessions")
             .and_then(Value::as_array)
@@ -338,6 +423,74 @@ pub fn read_snapshot(payload: &Value) -> Result<Snapshot, Unavailable> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn cards(payload: &str) -> Vec<PluginCard> {
+        let value: Value = serde_json::from_str(payload).expect("valid json");
+        read_snapshot(&value).expect("a snapshot").plugins
+    }
+
+    fn wrap(plugins: &str) -> String {
+        format!(
+            r#"{{"schema":{{"name":"{SCHEMA_NAME}","major":{SCHEMA_MAJOR},"minor":1}},
+                "icon":{{"state":"ok","tooltip":"CDX","session_count":0}},
+                "sessions":[],"plugins":{plugins}}}"#
+        )
+    }
+
+    /// An older CDX sends no cards at all, and that is the normal case.
+    #[test]
+    fn a_snapshot_without_plugins_has_none() {
+        assert!(cards(&wrap("[]")).is_empty());
+        let value: Value = serde_json::from_str(&format!(
+            r#"{{"schema":{{"name":"{SCHEMA_NAME}","major":{SCHEMA_MAJOR},"minor":0}},
+                "icon":{{"state":"ok","tooltip":"CDX","session_count":0}},"sessions":[]}}"#
+        ))
+        .expect("valid json");
+        assert!(read_snapshot(&value)
+            .expect("a snapshot")
+            .plugins
+            .is_empty());
+    }
+
+    #[test]
+    fn a_card_carries_its_rows_and_actions() {
+        let parsed = cards(&wrap(
+            r#"[{"title":"Logics","summary":"1 blocked","rows":[{"label":"blocked: x","action":"logics.focus:t1"}],"actions":["logics.open"]}]"#,
+        ));
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].rows[0].action, "logics.focus:t1");
+        assert_eq!(parsed[0].actions, vec!["logics.open".to_string()]);
+    }
+
+    /// A section with a title and no meaning is worse than no section.
+    #[test]
+    fn a_card_without_a_title_or_summary_is_dropped() {
+        assert!(cards(&wrap(r#"[{"summary":"1 blocked"}]"#)).is_empty());
+        assert!(cards(&wrap(r#"[{"title":"Logics"}]"#)).is_empty());
+        assert!(cards(&wrap(r#"["nonsense", 7, null]"#)).is_empty());
+    }
+
+    /// The companion re-reads CDX's own bound rather than trusting it: a menu
+    /// that grew with an integration would stop being a quota menu.
+    #[test]
+    fn a_card_cannot_contribute_more_than_two_rows() {
+        let rows = (0..6)
+            .map(|i| format!(r#"{{"label":"row {i}","action":"logics.focus:t{i}"}}"#))
+            .collect::<Vec<_>>()
+            .join(",");
+        let parsed = cards(&wrap(&format!(
+            r#"[{{"title":"Logics","summary":"s","rows":[{rows}]}}]"#
+        )));
+        assert_eq!(parsed[0].rows.len(), MAX_PLUGIN_ROWS);
+    }
+
+    #[test]
+    fn a_row_without_a_usable_action_is_dropped() {
+        let parsed = cards(&wrap(
+            r#"[{"title":"Logics","summary":"s","rows":[{"label":"no action"},{"label":"","action":"logics.open"}]}]"#,
+        ));
+        assert!(parsed[0].rows.is_empty());
+    }
 
     fn snapshot_json(major: u64) -> Value {
         serde_json::json!({
