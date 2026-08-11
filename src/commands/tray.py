@@ -210,11 +210,63 @@ def _confirm_autostart():
     return answer.strip().lower() in ("", "y", "yes")
 
 
+def _confirm_alerts():
+    answer = input("Notify you when an agent finishes a turn or waits for you? [Y/n] ")
+    return answer.strip().lower() in ("", "y", "yes")
+
+
+def _accepted(parsed, ctx, on_flag, off_flag, confirm):
+    """One consent, resolved the same way for each question.
+
+    Two rules make it predictable. An explicit flag always wins, so a script
+    gets what it asked for and never a prompt. And in the absence of one, only
+    an interactive human-readable run asks — a piped or `--json` invocation
+    declines rather than deciding on someone's behalf.
+    """
+    if parsed[off_flag]:
+        return False, f"skipped with --{off_flag.replace('_', '-')}"
+    if parsed[on_flag] or parsed["yes"]:
+        return True, None
+    if ctx["stdin_is_tty"] and not parsed["json"] and confirm():
+        return True, None
+    return False, None
+
+
+def _enable_alerts_everywhere(ctx):
+    """Turn alerts on for every session that can have them, and for future ones.
+
+    The two halves are one promise: a user who accepted alerts means the tray
+    tells them when an agent needs them, not that it does so for the sessions
+    that happened to exist at the moment they answered.
+
+    Providers with no hook mechanism are left alone rather than written to with
+    a setting they will ignore.
+    """
+    from ..agent_notify import supports_agent_alerts
+    from ..tray_defaults import set_alerts_default
+
+    service = ctx["service"]
+    set_alerts_default(service["base_dir"], True)
+    enabled, codex = [], False
+    for session in service["list_sessions"]():
+        if not supports_agent_alerts(session["provider"]):
+            continue
+        if (session.get("launch") or {}).get("notify") is True:
+            continue
+        service["set_launch_settings"](session["name"], {"notify": True})
+        enabled.append(session["name"])
+        codex = codex or session["provider"] == "codex"
+    return {"sessions": enabled, "codex_trust_required": codex}
+
+
 def _tray_install(args, ctx):
     parsed = _parse_flag_args(args, {
         "--json": {"key": "json", "type": "bool", "default": False},
         "--yes": {"key": "yes", "type": "bool", "default": False},
+        "--autostart": {"key": "autostart", "type": "bool", "default": False},
         "--no-autostart": {"key": "no_autostart", "type": "bool", "default": False},
+        "--alerts": {"key": "alerts", "type": "bool", "default": False},
+        "--no-alerts": {"key": "no_alerts", "type": "bool", "default": False},
     }, TRAY_USAGE, positionals_key="args", max_positionals=0)
     env = ctx.get("env")
     target = current_target()
@@ -255,17 +307,31 @@ def _tray_install(args, ctx):
     # what people resent about desktop software. Asking keeps the reason and
     # drops the friction; a non-interactive run declines rather than deciding.
     autostart_on = False
-    autostart_reason = None
-    if parsed["no_autostart"]:
-        autostart_reason = "skipped with --no-autostart"
-    elif parsed["yes"] or (ctx["stdin_is_tty"] and not parsed["json"] and _confirm_autostart()):
+    wanted, autostart_reason = _accepted(parsed, ctx, "autostart", "no_autostart", _confirm_autostart)
+    if wanted:
         try:
             autostart_enable(state["executable"], env=env, run=ctx.get("spawn_sync"))
             autostart_on = True
         except Exception as error:  # noqa: BLE001
             autostart_reason = str(error)
-    else:
+    elif autostart_reason is None:
         autostart_reason = "not enabled; run: cdx tray autostart on"
+
+    # The second question, asked separately because it is a different decision
+    # with a different cost: one adds a login item, the other writes hooks into
+    # each provider's own configuration.
+    alerts_on = False
+    alerts_reason = None
+    alerts_result = {"sessions": [], "codex_trust_required": False}
+    wanted, alerts_reason = _accepted(parsed, ctx, "alerts", "no_alerts", _confirm_alerts)
+    if wanted:
+        try:
+            alerts_result = _enable_alerts_everywhere(ctx)
+            alerts_on = True
+        except Exception as error:  # noqa: BLE001 - the install itself succeeded
+            alerts_reason = str(error)
+    elif alerts_reason is None:
+        alerts_reason = "not enabled; run: cdx set --all --notify on"
 
     if parsed["json"]:
         _write_json(ctx, _json_success(
@@ -273,6 +339,9 @@ def _tray_install(args, ctx):
             target=state["target"], executable=state["executable"],
             sha256=state["sha256"], applied=True,
             started=started, autostart=autostart_on,
+            alerts=alerts_on,
+            alerts_sessions=alerts_result["sessions"],
+            codex_trust_required=alerts_result["codex_trust_required"],
         ))
         return 0
     ctx["out"](f"{message}\n{_dim(state['executable'], ctx['use_color'])}\n")
@@ -280,6 +349,20 @@ def _tray_install(args, ctx):
     ctx["out"](
         f"{'It will start at login.' if autostart_on else f'Startup: {autostart_reason}'}\n"
     )
+    if alerts_on:
+        count = len(alerts_result["sessions"])
+        covered = f"{count} session(s)" if count else "no existing session"
+        ctx["out"](
+            f"Agent alerts: on for {covered}, and for new ones — "
+            "hooks install at each session's next launch.\n"
+        )
+        if alerts_result["codex_trust_required"]:
+            # Said here rather than discovered later: Codex puts an approval
+            # prompt in front of the user at the next launch, and cdx will not
+            # write that trust on their behalf.
+            ctx["out"]("Codex will ask you once to approve the cdx hook plugin.\n")
+    else:
+        ctx["out"](f"Agent alerts: {alerts_reason}\n")
     return 0
 
 

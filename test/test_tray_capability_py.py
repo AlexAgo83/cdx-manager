@@ -693,3 +693,139 @@ class CompanionStopTest(CliTestBase):
         result = start_companion("/nowhere/cdx-tray", spawn=refuse, settle=lambda _s: None)
         self.assertFalse(result["started"])
         self.assertIn("permission denied", result["reason"])
+
+
+class InstallConsentTest(CliTestBase):
+    """The two questions `cdx tray install` asks, and what each answer means.
+
+    They are separate because their costs are: one adds a login item, the other
+    writes hooks into each provider's own configuration and, on Codex, puts an
+    approval prompt in front of the user.
+    """
+
+    def _ctx(self, tty=False, json_mode=False, sessions=None):
+        base = self.make_temp_dir()
+        written = []
+        sessions = sessions if sessions is not None else []
+
+        def set_launch_settings(name, settings):
+            for session in sessions:
+                if session["name"] == name:
+                    session.setdefault("launch", {}).update(settings)
+                    written.append((name, dict(settings)))
+                    return session
+            raise AssertionError(f"unknown session {name}")
+
+        return {
+            "service": {
+                "base_dir": base,
+                "list_sessions": lambda: sessions,
+                "set_launch_settings": set_launch_settings,
+            },
+            "stdin_is_tty": tty,
+            "written": written,
+        }, base
+
+    def _parsed(self, **overrides):
+        parsed = {
+            "json": False, "yes": False,
+            "autostart": False, "no_autostart": False,
+            "alerts": False, "no_alerts": False,
+        }
+        parsed.update(overrides)
+        return parsed
+
+    def test_an_explicit_flag_is_never_a_prompt(self):
+        from src.commands.tray import _accepted
+
+        def refuse():
+            raise AssertionError("a flag must not be followed by a question")
+
+        ctx = {"stdin_is_tty": True}
+        self.assertEqual(_accepted(self._parsed(alerts=True), ctx, "alerts", "no_alerts", refuse), (True, None))
+        accepted, reason = _accepted(self._parsed(no_alerts=True), ctx, "alerts", "no_alerts", refuse)
+        self.assertFalse(accepted)
+        self.assertIn("--no-alerts", reason)
+
+    def test_a_non_interactive_or_json_run_declines_rather_than_deciding(self):
+        from src.commands.tray import _accepted
+
+        def refuse():
+            raise AssertionError("a script must never be asked")
+
+        piped = {"stdin_is_tty": False}
+        self.assertEqual(_accepted(self._parsed(), piped, "alerts", "no_alerts", refuse), (False, None))
+        interactive_json = {"stdin_is_tty": True}
+        self.assertEqual(
+            _accepted(self._parsed(json=True), interactive_json, "alerts", "no_alerts", refuse),
+            (False, None),
+        )
+
+    def test_yes_answers_both_questions(self):
+        from src.commands.tray import _accepted
+
+        def refuse():
+            raise AssertionError("--yes is an answer, not a reason to ask")
+
+        ctx = {"stdin_is_tty": False}
+        for on, off in (("autostart", "no_autostart"), ("alerts", "no_alerts")):
+            self.assertEqual(_accepted(self._parsed(yes=True), ctx, on, off, refuse), (True, None))
+
+    def test_declining_one_question_leaves_the_other_untouched(self):
+        from src.commands.tray import _accepted
+
+        ctx = {"stdin_is_tty": True}
+        parsed = self._parsed(no_alerts=True)
+        self.assertTrue(_accepted(parsed, ctx, "autostart", "no_autostart", lambda: True)[0])
+        self.assertFalse(_accepted(parsed, ctx, "alerts", "no_alerts", lambda: True)[0])
+
+    def test_accepting_alerts_covers_every_supported_session_and_leaves_others_alone(self):
+        from src.commands.tray import _enable_alerts_everywhere
+        from src.tray_defaults import alerts_default
+        sessions = [
+            {"name": "work", "provider": "codex", "launch": {}},
+            {"name": "side", "provider": "claude", "launch": {}},
+            {"name": "local", "provider": "ollama", "launch": {}},
+            {"name": "already", "provider": "claude", "launch": {"notify": True}},
+        ]
+        ctx, base = self._ctx(sessions=sessions)
+        result = _enable_alerts_everywhere(ctx)
+        self.assertEqual(sorted(result["sessions"]), ["side", "work"])
+        self.assertTrue(result["codex_trust_required"], "Codex asks the user to approve the plugin")
+        # A provider with no hook mechanism is left alone rather than written to
+        # with a setting it will ignore.
+        self.assertEqual(ctx["service"]["list_sessions"]()[2]["launch"], {})
+        # And the answer outlives the sessions that existed when it was given.
+        self.assertTrue(alerts_default(base))
+
+    def test_a_session_created_later_inherits_the_accepted_default(self):
+        from src.session_service import _launch_defaults_for
+        from src.tray_defaults import set_alerts_default
+        base = self.make_temp_dir()
+        self.assertNotIn("notify", _launch_defaults_for(base, "codex"))
+        set_alerts_default(base, True)
+        self.assertTrue(_launch_defaults_for(base, "codex")["notify"])
+        # Unsupported providers inherit nothing, because there is no hook to
+        # install for them.
+        self.assertNotIn("notify", _launch_defaults_for(base, "ollama"))
+
+    def test_no_accepted_default_means_no_inheritance(self):
+        from src.session_service import _launch_defaults_for
+        from src.tray_defaults import alerts_default, set_alerts_default
+        base = self.make_temp_dir()
+        set_alerts_default(base, False)
+        self.assertFalse(alerts_default(base))
+        self.assertNotIn("notify", _launch_defaults_for(base, "claude"))
+
+    def test_an_unreadable_default_is_no_default(self):
+        """Inheriting an opt-in from a file we cannot understand would enable
+        provider hooks nobody agreed to."""
+        import os
+
+        from src.tray_defaults import alerts_default, state_path
+        base = self.make_temp_dir()
+        path = state_path(base)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("{ not json")
+        self.assertFalse(alerts_default(base))

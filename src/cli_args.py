@@ -63,7 +63,7 @@ RUN_STATUS_USAGE = "Usage: cdx run-status <run_id> --json"
 RUN_REPORT_USAGE = "Usage: cdx run-report <run_id> --json"
 RUN_TAIL_USAGE = "Usage: cdx run-tail <run_id> [--lines N] --json"
 SCHEMA_USAGE = "Usage: cdx schema --json"
-TRAY_USAGE = "Usage: cdx tray status [--json] [--refresh] [--beat] | cdx tray install|launch|uninstall|doctor [--json] | cdx tray autostart [on|off|status] [--json] | cdx tray events [--json] | cdx tray ack <id>... [--json] | cdx tray heartbeat [--json] | cdx tray alerts [on|off|status] [--json]"
+TRAY_USAGE = "Usage: cdx tray status [--json] [--refresh] [--beat] | cdx tray install [--json] [--yes] [--autostart|--no-autostart] [--alerts|--no-alerts] | cdx tray launch|uninstall|doctor [--json] | cdx tray autostart [on|off|status] [--json] | cdx tray events [--json] | cdx tray ack <id>... [--json] | cdx tray heartbeat [--json] | cdx tray alerts [on|off|status] [--json]"
 
 RUN_TAIL_DEFAULT_LINES = 50
 RUN_TAIL_MAX_LINES = 2000

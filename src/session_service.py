@@ -614,6 +614,28 @@ def rename_session(base_dir, store, source_name, dest_name):
     return result["session"]
 
 
+def _launch_defaults_for(base_dir, provider):
+    """The launch settings a new session starts with.
+
+    Agent alerts are the one setting that can be inherited, and only from an
+    explicit answer given during `cdx tray install`. Without this, accepting
+    alerts once covered the sessions that existed at that moment and silently
+    excluded every session created afterwards.
+    """
+    from .agent_notify import supports_agent_alerts
+    from .tray_defaults import alerts_default
+
+    launch = dict(DEFAULT_LAUNCH_SETTINGS)
+    try:
+        if supports_agent_alerts(provider) and alerts_default(base_dir):
+            launch["notify"] = True
+    except OSError:
+        # An unreadable default is no default. Creating the session matters
+        # more than inheriting a preference.
+        pass
+    return launch
+
+
 def create_session(base_dir, env, store, name, provider=DEFAULT_PROVIDER):
     _validate_new_session_name(name)
     normalized_provider = _normalize_provider(provider)
@@ -639,7 +661,7 @@ def create_session(base_dir, env, store, name, provider=DEFAULT_PROVIDER):
         "lastLaunchedAt": None,
         "lastStatusAt": None,
         "lastStatus": None,
-        "launch": dict(DEFAULT_LAUNCH_SETTINGS),
+        "launch": _launch_defaults_for(base_dir, normalized_provider),
         "auth": {
             "status": "unknown",
             "lastCheckedAt": None,
