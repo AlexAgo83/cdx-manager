@@ -10,7 +10,7 @@
 | [adr_003_logics_and_companion_tool_launch_guidance](architecture/adr_003_logics_and_companion_tool_launch_guidance.md) | Logics and companion tool launch guidance | Settled |  |  | architecture/adr_003_logics_and_companion_tool_launch_guidance.md |
 | [adr_004_provider_native_resume_command_boundary](architecture/adr_004_provider_native_resume_command_boundary.md) | Provider-native resume command boundary | Settled |  |  | architecture/adr_004_provider_native_resume_command_boundary.md |
 | [adr_005_cdx_tray_runtime_and_companion_transport_boundary](architecture/adr_005_cdx_tray_runtime_and_companion_transport_boundary.md) | CDX tray runtime and companion transport boundary | Settled |  |  | architecture/adr_005_cdx_tray_runtime_and_companion_transport_boundary.md |
-| [adr_006_tray_menu_lifecycle_observation_boundary](architecture/adr_006_tray_menu_lifecycle_observation_boundary.md) | Tray menu lifecycle observation boundary | Proposed |  |  | architecture/adr_006_tray_menu_lifecycle_observation_boundary.md |
+| [adr_006_tray_menu_lifecycle_observation_boundary](architecture/adr_006_tray_menu_lifecycle_observation_boundary.md) | Tray menu lifecycle observation boundary | Settled |  |  | architecture/adr_006_tray_menu_lifecycle_observation_boundary.md |
 
 ## Product briefs
 
@@ -49,8 +49,9 @@
 | [prod_030_accepted_automatic_cdx_tray_experience](product/prod_030_accepted_automatic_cdx_tray_experience.md) | Accepted automatic CDX tray experience | Settled |  |  | product/prod_030_accepted_automatic_cdx_tray_experience.md |
 | [prod_031_coherent_cdx_tray_unread_alerts](product/prod_031_coherent_cdx_tray_unread_alerts.md) | Coherent CDX tray unread alerts | Settled |  |  | product/prod_031_coherent_cdx_tray_unread_alerts.md |
 | [prod_032_actionable_cdx_tray_session_controls](product/prod_032_actionable_cdx_tray_session_controls.md) | Actionable CDX tray session controls | Settled |  |  | product/prod_032_actionable_cdx_tray_session_controls.md |
-| [prod_033_a_tray_session_row_that_answers_before_it_is_clicked](product/prod_033_a_tray_session_row_that_answers_before_it_is_clicked.md) | A tray session row that answers before it is clicked | Proposed |  |  | product/prod_033_a_tray_session_row_that_answers_before_it_is_clicked.md |
-| [prod_034_the_tray_opens_the_terminal_you_actually_use](product/prod_034_the_tray_opens_the_terminal_you_actually_use.md) | The tray opens the terminal you actually use | Proposed |  |  | product/prod_034_the_tray_opens_the_terminal_you_actually_use.md |
+| [prod_033_a_tray_session_row_that_answers_before_it_is_clicked](product/prod_033_a_tray_session_row_that_answers_before_it_is_clicked.md) | A tray session row that answers before it is clicked | Settled |  |  | product/prod_033_a_tray_session_row_that_answers_before_it_is_clicked.md |
+| [prod_034_the_tray_opens_the_terminal_you_actually_use](product/prod_034_the_tray_opens_the_terminal_you_actually_use.md) | The tray opens the terminal you actually use | Settled |  |  | product/prod_034_the_tray_opens_the_terminal_you_actually_use.md |
+| [prod_035_a_logics_card_that_knows_which_repository_it_is_about](product/prod_035_a_logics_card_that_knows_which_repository_it_is_about.md) | A Logics card that knows which repository it is about | Proposed |  |  | product/prod_035_a_logics_card_that_knows_which_repository_it_is_about.md |
 
 ## Roadmaps
 
@@ -106,8 +107,9 @@ _None_
 | [req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings](request/req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings.md) | Make CDX tray session rows actionable without misleading live settings | Done |  |  | request/req_043_make_cdx_tray_session_rows_actionable_without_misleading_live_settings.md |
 | [req_044_alert_on_agent_turns_that_fail_before_completion](request/req_044_alert_on_agent_turns_that_fail_before_completion.md) | Alert on agent turns that fail before completion | Done |  |  | request/req_044_alert_on_agent_turns_that_fail_before_completion.md |
 | [req_045_make_the_drawn_macos_session_row_highlight_like_a_menu_item](request/req_045_make_the_drawn_macos_session_row_highlight_like_a_menu_item.md) | Make the drawn macOS session row highlight like a menu item | Done |  |  | request/req_045_make_the_drawn_macos_session_row_highlight_like_a_menu_item.md |
-| [req_046_show_the_whole_session_row_on_macos_including_both_limit_windows](request/req_046_show_the_whole_session_row_on_macos_including_both_limit_windows.md) | Show the whole session row on macOS, including both limit windows | Draft |  |  | request/req_046_show_the_whole_session_row_on_macos_including_both_limit_windows.md |
-| [req_047_let_the_operator_choose_which_terminal_the_tray_opens](request/req_047_let_the_operator_choose_which_terminal_the_tray_opens.md) | Let the operator choose which terminal the tray opens | Draft |  |  | request/req_047_let_the_operator_choose_which_terminal_the_tray_opens.md |
+| [req_046_show_the_whole_session_row_on_macos_including_both_limit_windows](request/req_046_show_the_whole_session_row_on_macos_including_both_limit_windows.md) | Show the whole session row on macOS, including both limit windows | Done |  |  | request/req_046_show_the_whole_session_row_on_macos_including_both_limit_windows.md |
+| [req_047_let_the_operator_choose_which_terminal_the_tray_opens](request/req_047_let_the_operator_choose_which_terminal_the_tray_opens.md) | Let the operator choose which terminal the tray opens | Done |  |  | request/req_047_let_the_operator_choose_which_terminal_the_tray_opens.md |
+| [req_048_give_the_logics_tray_card_a_repository_to_report_on](request/req_048_give_the_logics_tray_card_a_repository_to_report_on.md) | Give the Logics tray card a repository to report on | Draft |  |  | request/req_048_give_the_logics_tray_card_a_repository_to_report_on.md |
 
 ## Backlog
 
@@ -206,9 +208,10 @@ _None_
 | [item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row](backlog/item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row.md) | Add an explicit, capability-safe action submenu to every tray session row | Done |  | 100% | backlog/item_090_add_an_explicit_capability_safe_action_submenu_to_every_tray_session_row.md |
 | [item_091_alert_on_claude_turns_that_end_in_a_provider_error](backlog/item_091_alert_on_claude_turns_that_end_in_a_provider_error.md) | Alert on Claude turns that end in a provider error | Done |  | 100% | backlog/item_091_alert_on_claude_turns_that_end_in_a_provider_error.md |
 | [item_092_highlight_the_drawn_macos_session_row_on_hover](backlog/item_092_highlight_the_drawn_macos_session_row_on_hover.md) | Highlight the drawn macOS session row on hover | Done |  | 100% | backlog/item_092_highlight_the_drawn_macos_session_row_on_hover.md |
-| [item_093_draw_freshness_and_reset_on_the_macos_session_row](backlog/item_093_draw_freshness_and_reset_on_the_macos_session_row.md) | Draw freshness and reset on the macOS session row | Ready |  | 0% | backlog/item_093_draw_freshness_and_reset_on_the_macos_session_row.md |
-| [item_094_publish_and_draw_both_limit_windows_per_session](backlog/item_094_publish_and_draw_both_limit_windows_per_session.md) | Publish and draw both limit windows per session | Ready |  | 0% | backlog/item_094_publish_and_draw_both_limit_windows_per_session.md |
-| [item_095_add_a_cdx_owned_terminal_preference_the_tray_honours](backlog/item_095_add_a_cdx_owned_terminal_preference_the_tray_honours.md) | Add a CDX-owned terminal preference the tray honours | Ready |  | 0% | backlog/item_095_add_a_cdx_owned_terminal_preference_the_tray_honours.md |
+| [item_093_draw_freshness_and_reset_on_the_macos_session_row](backlog/item_093_draw_freshness_and_reset_on_the_macos_session_row.md) | Draw freshness and reset on the macOS session row | Done |  | 100% | backlog/item_093_draw_freshness_and_reset_on_the_macos_session_row.md |
+| [item_094_publish_and_draw_both_limit_windows_per_session](backlog/item_094_publish_and_draw_both_limit_windows_per_session.md) | Publish and draw both limit windows per session | Done |  | 100% | backlog/item_094_publish_and_draw_both_limit_windows_per_session.md |
+| [item_095_add_a_cdx_owned_terminal_preference_the_tray_honours](backlog/item_095_add_a_cdx_owned_terminal_preference_the_tray_honours.md) | Add a CDX-owned terminal preference the tray honours | Done |  | 100% | backlog/item_095_add_a_cdx_owned_terminal_preference_the_tray_honours.md |
+| [item_096_name_the_repository_the_logics_card_reports_on](backlog/item_096_name_the_repository_the_logics_card_reports_on.md) | Name the repository the Logics card reports on | Ready |  | 0% | backlog/item_096_name_the_repository_the_logics_card_reports_on.md |
 
 ## Tasks
 
@@ -273,9 +276,13 @@ _None_
 | [task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls](tasks/task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls.md) | Orchestrate actionable and truthful CDX tray session controls | Done | corvus | 100% | tasks/task_054_orchestrate_actionable_and_truthful_cdx_tray_session_controls.md |
 | [task_055_orchestrate_alerts_for_failed_agent_turns](tasks/task_055_orchestrate_alerts_for_failed_agent_turns.md) | Orchestrate alerts for failed agent turns | Done | corvus | 100% | tasks/task_055_orchestrate_alerts_for_failed_agent_turns.md |
 | [task_056_orchestrate_the_drawn_macos_row_highlight](tasks/task_056_orchestrate_the_drawn_macos_row_highlight.md) | Orchestrate the drawn macOS row highlight | Done | corvus | 100% | tasks/task_056_orchestrate_the_drawn_macos_row_highlight.md |
-| [task_057_orchestrate_the_fuller_tray_session_row](tasks/task_057_orchestrate_the_fuller_tray_session_row.md) | Orchestrate the fuller tray session row | Ready |  | 0% | tasks/task_057_orchestrate_the_fuller_tray_session_row.md |
-| [task_058_orchestrate_the_preferred_tray_terminal](tasks/task_058_orchestrate_the_preferred_tray_terminal.md) | Orchestrate the preferred tray terminal | Ready |  | 0% | tasks/task_058_orchestrate_the_preferred_tray_terminal.md |
+| [task_057_orchestrate_the_fuller_tray_session_row](tasks/task_057_orchestrate_the_fuller_tray_session_row.md) | Orchestrate the fuller tray session row | Done | corvus | 100% | tasks/task_057_orchestrate_the_fuller_tray_session_row.md |
+| [task_058_orchestrate_the_preferred_tray_terminal](tasks/task_058_orchestrate_the_preferred_tray_terminal.md) | Orchestrate the preferred tray terminal | Done | corvus | 100% | tasks/task_058_orchestrate_the_preferred_tray_terminal.md |
+| [task_059_orchestrate_the_repository_aware_logics_card](tasks/task_059_orchestrate_the_repository_aware_logics_card.md) | Orchestrate the repository-aware Logics card | Ready |  | 0% | tasks/task_059_orchestrate_the_repository_aware_logics_card.md |
 
 ## Runbooks
 
-_None_
+| Doc | Title | Status | Category | Verified | Path |
+|---|---|---|---|---|---|
+| [run_001_testing_a_change_on_the_remote_fleet](runbook/run_001_testing_a_change_on_the_remote_fleet.md) | Testing a change on the remote fleet | Settled | validation | 2026-08-11, preparing v0.18.5 — Python suite in WSL and on Windows, native Windows tray build, graceful stop, and a real companion update between published versions. | runbook/run_001_testing_a_change_on_the_remote_fleet.md |
+| [run_002_finding_out_which_cdx_and_which_home_you_are_talking_to](runbook/run_002_finding_out_which_cdx_and_which_home_you_are_talking_to.md) | Finding out which CDX and which home you are talking to | Settled | diagnostics | 2026-08-11, three separate incidents in one day — a notification delivered directly while a tray was listening, a tray told to update a CDX that was current, and `cdx update` reporting success while the installation it was meant to replace stayed where it was. | runbook/run_002_finding_out_which_cdx_and_which_home_you_are_talking_to.md |
