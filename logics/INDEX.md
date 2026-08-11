@@ -54,6 +54,7 @@
 | [prod_035_a_logics_card_that_knows_which_repository_it_is_about](product/prod_035_a_logics_card_that_knows_which_repository_it_is_about.md) | A Logics card that knows which repository it is about | Proposed |  |  | product/prod_035_a_logics_card_that_knows_which_repository_it_is_about.md |
 | [prod_036_a_session_row_that_opens_where_you_already_are](product/prod_036_a_session_row_that_opens_where_you_already_are.md) | A session row that opens where you already are | Proposed |  |  | product/prod_036_a_session_row_that_opens_where_you_already_are.md |
 | [prod_037_commands_that_name_what_they_are_about_to_touch](product/prod_037_commands_that_name_what_they_are_about_to_touch.md) | Commands that name what they are about to touch | Proposed |  |  | product/prod_037_commands_that_name_what_they_are_about_to_touch.md |
+| [prod_038_sessions_that_know_what_they_are_working_on](product/prod_038_sessions_that_know_what_they_are_working_on.md) | Sessions that know what they are working on | Proposed |  |  | product/prod_038_sessions_that_know_what_they_are_working_on.md |
 
 ## Roadmaps
 
@@ -114,6 +115,7 @@ _None_
 | [req_048_give_the_logics_tray_card_a_repository_to_report_on](request/req_048_give_the_logics_tray_card_a_repository_to_report_on.md) | Give the Logics tray card a repository to report on | Draft |  |  | request/req_048_give_the_logics_tray_card_a_repository_to_report_on.md |
 | [req_049_open_a_tab_rather_than_a_window_where_the_platform_documents_one](request/req_049_open_a_tab_rather_than_a_window_where_the_platform_documents_one.md) | Open a tab rather than a window where the platform documents one | Draft |  |  | request/req_049_open_a_tab_rather_than_a_window_where_the_platform_documents_one.md |
 | [req_050_say_which_installation_and_which_home_a_command_is_acting_on](request/req_050_say_which_installation_and_which_home_a_command_is_acting_on.md) | Say which installation and which home a command is acting on | Draft |  |  | request/req_050_say_which_installation_and_which_home_a_command_is_acting_on.md |
+| [req_051_launch_a_session_in_the_directory_it_belongs_to](request/req_051_launch_a_session_in_the_directory_it_belongs_to.md) | Launch a session in the directory it belongs to | Draft |  |  | request/req_051_launch_a_session_in_the_directory_it_belongs_to.md |
 
 ## Backlog
 
@@ -219,6 +221,7 @@ _None_
 | [item_097_open_a_tab_where_the_terminal_documents_how](backlog/item_097_open_a_tab_where_the_terminal_documents_how.md) | Open a tab where the terminal documents how | Ready |  | 0% | backlog/item_097_open_a_tab_where_the_terminal_documents_how.md |
 | [item_098_name_the_prefix_an_install_or_update_acted_on](backlog/item_098_name_the_prefix_an_install_or_update_acted_on.md) | Name the prefix an install or update acted on | Ready |  | 0% | backlog/item_098_name_the_prefix_an_install_or_update_acted_on.md |
 | [item_099_report_the_cdx_and_store_the_companion_actually_reaches](backlog/item_099_report_the_cdx_and_store_the_companion_actually_reaches.md) | Report the CDX and store the companion actually reaches | Ready |  | 0% | backlog/item_099_report_the_cdx_and_store_the_companion_actually_reaches.md |
+| [item_100_record_and_honour_a_per_session_working_directory](backlog/item_100_record_and_honour_a_per_session_working_directory.md) | Record and honour a per-session working directory | Ready |  | 0% | backlog/item_100_record_and_honour_a_per_session_working_directory.md |
 
 ## Tasks
 
@@ -288,6 +291,7 @@ _None_
 | [task_059_orchestrate_the_repository_aware_logics_card](tasks/task_059_orchestrate_the_repository_aware_logics_card.md) | Orchestrate the repository-aware Logics card | Ready |  | 0% | tasks/task_059_orchestrate_the_repository_aware_logics_card.md |
 | [task_060_orchestrate_tabs_instead_of_windows](tasks/task_060_orchestrate_tabs_instead_of_windows.md) | Orchestrate tabs instead of windows | Ready |  | 0% | tasks/task_060_orchestrate_tabs_instead_of_windows.md |
 | [task_061_orchestrate_commands_that_name_what_they_touch](tasks/task_061_orchestrate_commands_that_name_what_they_touch.md) | Orchestrate commands that name what they touch | Ready |  | 0% | tasks/task_061_orchestrate_commands_that_name_what_they_touch.md |
+| [task_062_orchestrate_the_per_session_working_directory](tasks/task_062_orchestrate_the_per_session_working_directory.md) | Orchestrate the per-session working directory | Ready |  | 0% | tasks/task_062_orchestrate_the_per_session_working_directory.md |
 
 ## Runbooks
 
