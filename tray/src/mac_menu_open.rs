@@ -18,6 +18,19 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
+/// Say what happened, when asked to.
+///
+/// This whole path fails silently: a delegate that is replaced reports nothing,
+/// and the only symptom is a signal that never arrives — which is exactly how
+/// the first attempt shipped broken. `CDX_TRAY_DEBUG=1` is the difference
+/// between "the badge does not clear" and knowing which of the three steps did
+/// not happen.
+pub fn trace(what: &str) {
+    if std::env::var_os("CDX_TRAY_DEBUG").is_some() {
+        eprintln!("cdx-tray: {what}");
+    }
+}
+
 use objc2::rc::Retained;
 use objc2::runtime::{NSObject, NSObjectProtocol, ProtocolObject};
 use objc2::{define_class, msg_send, MainThreadMarker, MainThreadOnly};
@@ -39,6 +52,7 @@ define_class!(
     unsafe impl NSMenuDelegate for OpenDelegate {
         #[unsafe(method(menuWillOpen:))]
         fn menu_will_open(&self, _menu: &NSMenu) {
+            trace("menuWillOpen: fired");
             MENU_OPENED.store(true, Ordering::Relaxed);
         }
 
@@ -81,10 +95,12 @@ fn delegate(mtm: MainThreadMarker) -> &'static ProtocolObject<dyn NSMenuDelegate
 pub fn observe(ns_menu: *mut std::ffi::c_void) -> bool {
     let Some(mtm) = MainThreadMarker::new() else {
         INSTALLED.store(false, Ordering::Relaxed);
+        trace("delegate not installed: not on the main thread");
         return false;
     };
     if ns_menu.is_null() {
         INSTALLED.store(false, Ordering::Relaxed);
+        trace("delegate not installed: no menu");
         return false;
     }
     // SAFETY: the pointer comes from muda's `ContextMenu::ns_menu`, which
@@ -92,6 +108,7 @@ pub fn observe(ns_menu: *mut std::ffi::c_void) -> bool {
     let menu: &NSMenu = unsafe { &*(ns_menu as *const NSMenu) };
     menu.setDelegate(Some(delegate(mtm)));
     INSTALLED.store(true, Ordering::Relaxed);
+    trace("menu delegate installed");
     true
 }
 

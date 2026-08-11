@@ -42,7 +42,7 @@ objc2-app-kit = { version = "0.3", features = [
   "NSColor", "NSFont", "NSResponder", "NSGraphics", "NSCell",
   # The status item is how the companion reaches the menu that is actually on
   # screen, which is the only one whose delegate survives `set_menu`.
-  "NSStatusItem", "NSStatusBar",
+  "NSStatusItem", "NSStatusBar", "NSStatusBarButton", "NSButton",
 ] }
 objc2-foundation = "0.3"
 # Already in the tree through tray-icon. Naming it directly costs nothing to

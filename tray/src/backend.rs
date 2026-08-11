@@ -141,9 +141,11 @@ fn observe_menu(tray: &TrayIcon) {
     use objc2::MainThreadMarker;
 
     let (Some(item), Some(mtm)) = (tray.ns_status_item(), MainThreadMarker::new()) else {
+        crate::mac_menu_open::trace("no status item to watch");
         return;
     };
     let Some(menu) = item.menu(mtm) else {
+        crate::mac_menu_open::trace("the status item carries no menu");
         return;
     };
     crate::mac_menu_open::observe(Retained::as_ptr(&menu) as *mut std::ffi::c_void);
@@ -231,8 +233,38 @@ impl Appendable for Submenu {
 /// Needed because the first draw happens before the loop: alerts already
 /// waiting when the companion starts would otherwise show no marker until the
 /// next poll, which is up to a minute of the icon saying nothing happened.
+///
+/// Clearing it is not symmetrical with setting it, and that asymmetry was a
+/// bug for as long as this file has existed: `tray-icon`'s macOS `set_title`
+/// is `if let Some(title) = title { button.setTitle(...) }` — a `None` does
+/// nothing at all. So the marker could be raised and never lowered. The
+/// 45-second expiry it replaced never worked either; nobody noticed, because
+/// a marker that outstays its welcome looks like a marker that is still true.
 pub fn set_title(tray: &TrayIcon, title: Option<String>) {
-    tray.set_title(title);
+    match title {
+        Some(text) => tray.set_title(Some(text)),
+        None => clear_title(tray),
+    }
+}
+
+/// Empty the status item's own button title, since the crate will not.
+#[cfg(target_os = "macos")]
+fn clear_title(tray: &TrayIcon) {
+    use objc2::MainThreadMarker;
+    use objc2_foundation::NSString;
+
+    let (Some(item), Some(mtm)) = (tray.ns_status_item(), MainThreadMarker::new()) else {
+        return;
+    };
+    if let Some(button) = item.button(mtm) {
+        button.setTitle(&NSString::from_str(""));
+    }
+}
+
+/// Everywhere else `None` means what it says.
+#[cfg(not(target_os = "macos"))]
+fn clear_title(tray: &TrayIcon) {
+    tray.set_title(None::<String>);
 }
 
 pub fn update_tray(
@@ -251,7 +283,7 @@ pub fn update_tray(
     // Beside the glyph, never instead of it: the glyph means remaining quota,
     // and replacing it with an alert marker would hide the one thing the icon
     // exists to show. `None` clears it, which is what makes the marker temporary.
-    tray.set_title(title);
+    set_title(tray, title);
     tray.set_icon(Some(icon_for(state)?))
         .map_err(|e| e.to_string())?;
     // Re-asserted after every set_icon, and this is not belt-and-braces.

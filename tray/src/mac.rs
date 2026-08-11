@@ -81,7 +81,14 @@ pub fn run(transport: Transport) -> Result<(), String> {
         // The menu the user opened is the one drawn at the last redraw, so what
         // it showed is what has been read. Anything that arrived since is not
         // in that set and stays unread.
-        if observing && mac_menu_open::opened() && unread.consulted() {
+        let was_opened = mac_menu_open::opened();
+        if was_opened || !observing {
+            mac_menu_open::trace(&format!(
+                "loop: observing={observing} opened={was_opened} unread={}",
+                unread.marker().unwrap_or_else(|| "none".into())
+            ));
+        }
+        if observing && was_opened && unread.consulted() {
             redraw = true;
         }
         while let Ok(event) = muda::MenuEvent::receiver().try_recv() {

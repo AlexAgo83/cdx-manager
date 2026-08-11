@@ -6,7 +6,7 @@
 > Related task: task_053_orchestrate_coherent_cdx_tray_alert_read_state
 > Drivers: One reading signal across three unrelated menu stacks, alerts that are never silently lost, drawn session cells that still behave like menu items, a stated coupling to `muda` internals rather than an accidental one.
 > Reminder: Update status, linked refs, decision rationale, consequences, and follow-up work when you edit this doc.
-> Indicators reviewed: 2026-08-11 11:56:25
+> Indicators reviewed: 2026-08-11 12:03:25
 
 # Overview
 - Fix how the companion learns that its menu was opened, and rule out learning that it was closed, because `req_042`, `req_043` and `req_039` all need that signal and none of the three tray stacks offers it the same way.
@@ -52,6 +52,7 @@ flowchart LR
 
 # Consequences
 - Three backend-specific installation paths, each with its own failure mode, and a shared state module none of them owns.
+- Clearing the marker is not the mirror of setting it. `tray-icon`'s macOS `set_title` ignores a `None` entirely — it is `if let Some(title) = title`, with no else — so the badge can be raised and never lowered, and the companion has to empty the status item's button title itself. This predates the unread state: the 45-second expiry it replaced never cleared anything either, and nobody noticed, because a marker that outstays its welcome looks like one that is still true.
 - The macOS path is the fragile one: it depends on when two crates set a delegate they do not document setting, so a `muda` or `tray-icon` upgrade is a review point rather than a version bump. It also fails silently — nothing errors when a delegate is replaced, and the only symptom is a signal that never arrives.
 - The Windows subclass must be removed before the tray icon is dropped, or the process tears down through a dangling window procedure.
 - Nothing refreshes while a Windows menu is open, so a bounded graceful-shutdown request from `req_041` can wait up to the time the user leaves the menu open. Its timeout has to survive that, and must not escalate to a kill.
