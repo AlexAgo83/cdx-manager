@@ -26,6 +26,12 @@ pub enum ActionId {
     Refresh,
     OpenTerminal,
     Quit,
+    /// Open a terminal on this session, by its index in the snapshot.
+    ///
+    /// An index rather than the name, so the id stays `Copy` and the menu never
+    /// carries a session name it would have to keep in step with the snapshot.
+    /// The runner resolves it against the same list the menu was built from.
+    Session(usize),
 }
 
 fn pct(value: Option<f64>) -> String {
@@ -38,19 +44,26 @@ fn pct(value: Option<f64>) -> String {
 /// One line per session: who, which provider, how much is left, and how much
 /// that figure can be trusted. `auth_locked` is spelled out rather than shown
 /// as staleness, because the user cannot fix it by refreshing.
+/// One row, kept short because a dozen of them are read at a glance.
+///
+/// Columns are not aligned and cannot be: a native menu uses a proportional
+/// font, so padding with spaces produces ragged edges that look like a bug.
+/// The middle dot separates instead, and the wording is trimmed — "left" and
+/// "resets" are obvious from the figure and the arrow, and repeating them
+/// thirteen times costs width without telling anyone anything.
 fn session_line(session: &Session) -> String {
     let freshness = match session.freshness.as_str() {
         "fresh" => String::new(),
-        "auth_locked" => " · running, cannot refresh".to_string(),
+        "auth_locked" => " · running".to_string(),
         "unknown" => " · never reported".to_string(),
         other => format!(" · {other}"),
     };
     let reset = match &session.reset_at {
-        Some(at) if !at.is_empty() => format!(" · resets {at}"),
+        Some(at) if !at.is_empty() => format!(" · ↻ {at}"),
         _ => String::new(),
     };
     format!(
-        "{} · {} · {} left{}{}",
+        "{} · {} · {}{}{}",
         session.name,
         session.provider,
         pct(session.available_pct),
@@ -76,8 +89,17 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
             snapshot.icon_state, snapshot.session_count
         )));
         entries.push(Entry::Separator);
-        for session in &snapshot.sessions {
-            entries.push(Entry::Info(session_line(session)));
+        for (index, session) in snapshot.sessions.iter().enumerate() {
+            // An action rather than a label, and that is a readability fix
+            // before it is a feature: macOS greys every disabled item, so a
+            // dozen informational rows arrive as a wall of grey text. Making
+            // them selectable gives them full contrast, and clicking one opens
+            // a terminal on that session — which is what the list is for.
+            entries.push(Entry::Action {
+                id: ActionId::Session(index),
+                label: session_line(session),
+                enabled: true,
+            });
         }
     }
     if !alerts.is_empty() {
@@ -199,11 +221,8 @@ mod tests {
             &[],
         );
         let text = labels(&entries);
-        assert!(text.contains("work · codex · 18% left"), "{text}");
-        assert!(
-            text.contains("side · codex · — left · never reported"),
-            "{text}"
-        );
+        assert!(text.contains("work · codex · 18%"), "{text}");
+        assert!(text.contains("side · codex · — · never reported"), "{text}");
     }
 
     #[test]
@@ -213,7 +232,7 @@ mod tests {
             &[],
         );
         let text = labels(&entries);
-        assert!(text.contains("running, cannot refresh"), "{text}");
+        assert!(text.contains("work · codex · 40% · running"), "{text}");
         // The action stays present so it is not hunted for, but disabled so it
         // does not promise what the auth lock forbids.
         let refresh = entries

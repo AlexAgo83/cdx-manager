@@ -61,7 +61,12 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     state = Render::next(&transport, state.tick, &state.history);
                     redraw = true;
                 }
-                Some(ActionId::OpenTerminal) => open_terminal(&transport),
+                Some(ActionId::OpenTerminal) => open_terminal(&transport, "status"),
+                Some(ActionId::Session(index)) => {
+                    if let Some(name) = state.session_names.get(*index) {
+                        open_terminal(&transport, name);
+                    }
+                }
                 None => {}
             }
         }
@@ -168,7 +173,8 @@ fn find_icon_key() -> Option<String> {
 /// Open a console on `cdx status`. When CDX lives in WSL the command has to
 /// cross the same way the status poll does, or the window would open on a host
 /// that has no `cdx`.
-fn open_terminal(transport: &Transport) {
+/// Open a console on a cdx subcommand: the status table, or one session.
+fn open_terminal(transport: &Transport, arg: &str) {
     // The same cdx the status poll uses. Hardcoding `cdx` here would open a
     // console on a different binary than the menu it was clicked from.
     let cdx = Transport::cdx_command();
@@ -176,13 +182,13 @@ fn open_terminal(transport: &Transport) {
     command.args(["/c", "start", ""]);
     match transport {
         Transport::Wsl { distro: Some(name) } => {
-            command.args(["wsl.exe", "-d", name, "--", &cdx, "status"]);
+            command.args(["wsl.exe", "-d", name, "--", &cdx, arg]);
         }
         Transport::Wsl { distro: None } => {
-            command.args(["wsl.exe", "--", &cdx, "status"]);
+            command.args(["wsl.exe", "--", &cdx, arg]);
         }
         Transport::Native => {
-            command.args(["cmd", "/k", &format!("{cdx} status")]);
+            command.args(["cmd", "/k", &format!("{cdx} {arg}")]);
         }
     }
     let _ = command.spawn();

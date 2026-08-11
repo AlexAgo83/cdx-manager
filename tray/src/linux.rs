@@ -159,7 +159,12 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 state = Render::next(&transport, state.tick, &state.history);
                 redraw = true;
             }
-            Some(ActionId::OpenTerminal) => open_terminal(),
+            Some(ActionId::OpenTerminal) => open_terminal("status"),
+            Some(ActionId::Session(index)) => {
+                if let Some(name) = state.session_names.get(index) {
+                    open_terminal(name);
+                }
+            }
             None => {}
         }
         if Instant::now() >= due {
@@ -190,11 +195,12 @@ pub fn run(transport: Transport) -> Result<(), String> {
 /// Open a terminal on `cdx status`. Best effort, and deliberately not a search
 /// through a list of emulators: `x-terminal-emulator` is the distribution's own
 /// answer to which terminal this desktop uses.
-fn open_terminal() {
+/// Open a terminal on a cdx subcommand: the status table, or one session.
+fn open_terminal(arg: &str) {
     let cdx = Transport::cdx_command();
     for terminal in ["x-terminal-emulator", "gnome-terminal", "konsole", "xterm"] {
         let spawned = std::process::Command::new(terminal)
-            .args(["-e", &format!("{cdx} status")])
+            .args(["-e", &format!("{cdx} {arg}")])
             .spawn();
         if spawned.is_ok() {
             return;

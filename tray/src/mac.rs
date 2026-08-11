@@ -67,7 +67,12 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     state = Render::next(&transport, state.tick, &state.history);
                     redraw = true;
                 }
-                Some(ActionId::OpenTerminal) => open_terminal(),
+                Some(ActionId::OpenTerminal) => open_terminal("cdx status"),
+                Some(ActionId::Session(index)) => {
+                    if let Some(name) = state.session_names.get(*index) {
+                        open_terminal(&format!("cdx {name}"));
+                    }
+                }
                 None => {}
             }
         }
@@ -103,11 +108,18 @@ pub fn run(transport: Transport) -> Result<(), String> {
 /// Best effort by design: the tray never blocks on it, never waits for it, and
 /// never reports its failure as a quota problem. A user whose terminal does not
 /// open still has every figure in the menu they just clicked from.
-fn open_terminal() {
+/// Open Terminal on a command.
+///
+/// The command is built from a session name CDX itself produced, but it is
+/// still quoted for AppleScript: a name is user-supplied text, and one
+/// containing a quotation mark would otherwise end the string and turn the rest
+/// into script.
+fn open_terminal(command: &str) {
+    let escaped = command.replace('\\', "\\\\").replace('"', "\\\"");
     let _ = std::process::Command::new("osascript")
         .args([
             "-e",
-            r#"tell application "Terminal" to do script "cdx status""#,
+            &format!(r#"tell application "Terminal" to do script "{escaped}""#),
             "-e",
             r#"tell application "Terminal" to activate"#,
         ])

@@ -115,6 +115,29 @@ def menu_session(row, now):
     }
 
 
+def _by_urgency(sessions):
+    """Most constrained first, so the menu opens on what the icon is warning about.
+
+    The order the rows arrive in is the store's, which is not the order a person
+    reads for. With a dozen accounts the one at 1% sat tenth, below five at
+    100%, while the closed icon showed critical — the menu contradicted the
+    thing that made you open it.
+
+    Same ranking the icon uses, for the same reason: severity first, then least
+    remaining, and never-reported last. A session that never reported is not
+    urgent, it is unknown, and putting it on top would bury real news.
+    """
+    severity = {ICON_CRITICAL: 0, ICON_LOW: 1, ICON_OK: 2, ICON_UNKNOWN: 3}
+    return sorted(
+        sessions,
+        key=lambda s: (
+            severity[s["state"]],
+            s["available_pct"] if s["available_pct"] is not None else 101,
+            s["name"] or "",
+        ),
+    )
+
+
 def _worst(sessions):
     """The session whose state the closed icon should show.
 
@@ -179,7 +202,7 @@ def build_snapshot(rows, now, cdx_version, refreshable=True):
     `icon` carries no session name, account, or figure: it is what shows while
     the menu is closed, and `req_035` AC3 forbids leaking anything there.
     """
-    sessions = [menu_session(row, now) for row in rows if _eligible(row)]
+    sessions = _by_urgency([menu_session(row, now) for row in rows if _eligible(row)])
     if not sessions:
         icon = {
             "state": ICON_UNKNOWN,
