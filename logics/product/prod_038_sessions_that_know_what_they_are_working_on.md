@@ -6,6 +6,7 @@
 > Related task: `task_062_orchestrate_the_per_session_working_directory`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-11 14:04:40
 
 # Overview
 Make the working directory a property of the session rather than of the shell that launched it, with a per-launch override and a clear refusal when it has gone.
