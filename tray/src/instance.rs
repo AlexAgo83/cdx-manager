@@ -81,8 +81,15 @@ fn is_alive(pid: u32) -> bool {
         .unwrap_or(false)
 }
 
-pub fn holder() -> Held {
-    let Ok(contents) = fs::read_to_string(lock_path()) else {
+/// Who holds a named lock file.
+///
+/// Takes the path rather than assuming the real one, so a test can ask about a
+/// lock of its own. The suite used to acquire and release the real lock, which
+/// fails on a machine where the companion is running — and worse, `Drop`
+/// removes the file, so a run that got past the first assertion would have
+/// deleted a live companion's lock and let a second one start.
+pub fn holder_at(path: &std::path::Path) -> Held {
+    let Ok(contents) = fs::read_to_string(path) else {
         return Held::Free;
     };
     match contents.trim().parse::<u32>() {
@@ -96,10 +103,13 @@ pub fn holder() -> Held {
 impl Lock {
     /// Take the lock, or report who already holds it.
     pub fn acquire() -> Result<Lock, u32> {
-        match holder() {
+        Lock::acquire_at(lock_path())
+    }
+
+    pub fn acquire_at(path: PathBuf) -> Result<Lock, u32> {
+        match holder_at(&path) {
             Held::Running(pid) => Err(pid),
             Held::Stale | Held::Free => {
-                let path = lock_path();
                 if let Some(parent) = path.parent() {
                     let _ = fs::create_dir_all(parent);
                 }
@@ -133,28 +143,39 @@ mod tests {
 
     #[test]
     fn the_lock_lifecycle() {
+        // A lock of its own, never the real one. Using the real path made this
+        // fail on any machine where the companion was running — and `Drop`
+        // removes the file, so a run that had got past the first assertion
+        // would have deleted a live companion's lock and let a second start.
+        let path = std::env::temp_dir().join(format!(
+            "cdx-tray-test-{}/companion.pid",
+            std::process::id()
+        ));
+
         // One test rather than three: they share a single file on disk, and
         // cargo runs tests in parallel, so splitting them would race.
-        let lock = Lock::acquire().expect("free at first");
-        assert_eq!(holder(), Held::Running(std::process::id()));
+        let lock = Lock::acquire_at(path.clone()).expect("free at first");
+        assert_eq!(holder_at(&path), Held::Running(std::process::id()));
         // A second launch sees the first and is told whose pid to deal with.
-        assert_eq!(Lock::acquire().unwrap_err(), std::process::id());
+        assert_eq!(
+            Lock::acquire_at(path.clone()).unwrap_err(),
+            std::process::id()
+        );
         drop(lock);
-        assert_eq!(holder(), Held::Free);
+        assert_eq!(holder_at(&path), Held::Free);
 
         // A companion that crashed leaves its pid behind. That must be
         // reclaimable, or the tray would be unstartable until someone found
         // and deleted the file by hand.
-        let path = lock_path();
         fs::write(&path, "4000000000").unwrap();
-        assert_eq!(holder(), Held::Stale);
+        assert_eq!(holder_at(&path), Held::Stale);
         fs::write(&path, "not a pid").unwrap();
         assert_eq!(
-            holder(),
+            holder_at(&path),
             Held::Stale,
             "a truncated file must be reclaimable"
         );
-        Lock::acquire().expect("a stale lock is reclaimed, not fatal");
-        let _ = fs::remove_file(&path);
+        Lock::acquire_at(path.clone()).expect("a stale lock is reclaimed, not fatal");
+        let _ = fs::remove_dir_all(path.parent().unwrap());
     }
 }

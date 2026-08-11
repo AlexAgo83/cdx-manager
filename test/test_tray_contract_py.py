@@ -598,7 +598,10 @@ class TrayCommandTest(CliTestBase):
         io_obj = self.make_io()
         code = main(["tray", "doctor", "--json"], {
             **io_obj, "service": service,
-            "env": {"HOME": home, "CDX_HOME": temp_dir},
+            # TMPDIR too: the lock lives there, and without it doctor reads the
+            # machine's real one — so the suite failed on any host where the
+            # companion happened to be running.
+            "env": {"HOME": home, "CDX_HOME": temp_dir, "TMPDIR": home},
             "spawn_sync": self._fake_registry(),
         })
         self.assertEqual(code, 0)

@@ -292,7 +292,7 @@ def _tray_doctor(args, ctx):
     executable, source = companion_path(base_dir, env=env)
     state = read_state(base_dir)
     autostart = autostart_status(env=env, run=ctx.get("spawn_sync"))
-    instance = companion_instance()
+    instance = companion_instance(env=env)
     desktop = desktop_capability(env=env)
     toasts = toast_capability(env=env)
 
