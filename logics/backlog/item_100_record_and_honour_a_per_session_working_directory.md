@@ -1,10 +1,10 @@
 ## item_100_record_and_honour_a_per_session_working_directory - Choose the launch directory, and record the one each run used
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 80%
-> Progress: 90%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Session lifecycle
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -49,6 +49,7 @@
 - request-AC5 -> This backlog slice. Proof: AC5: It appears wherever the other launch settings appear.
 - request-AC6 -> This backlog slice. Proof: AC6: Focused tests cover all four cases for each supported provider.
 - request-AC7 -> This backlog slice. Proof: AC6: Focused tests cover all four cases for each supported provider.
+- request-AC8 -> This backlog slice. Proof: `7a80650` adds focused launch, headless, and runtime-directory coverage; 181 targeted tests and lint passed.
 
 # Decision framing
 - Product framing: Not needed
@@ -63,3 +64,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_062_orchestrate_the_per_session_working_directory`
+
+# Notes
+- Task `task_062_orchestrate_the_per_session_working_directory` was finished via `logics-manager flow finish task` on 2026-08-11.
