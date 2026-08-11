@@ -7,7 +7,7 @@
 > Complexity: Medium
 > Theme: Session lifecycle
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-11 13:38:55
+> Indicators reviewed: 2026-08-11 13:48:32
 
 # AI Context
 - Summary: A launch takes its directory from the shell with no confirmation, and nothing records which directory a run used.
@@ -28,8 +28,8 @@
 - req_048 needs to know which repositories are in play. A directory recorded per run answers it for several projects at once, which a per-session setting could not, and it comes from CDX's own record of what it launched rather than from a provider payload.
 
 # Acceptance criteria
-- AC1: A launch can name its directory explicitly, and that is the only way a directory is ever chosen for the operator — no per-session setting is introduced.
-- AC2: Launching from a directory that is plainly not a project — a home directory, or one with no project marker — does not proceed silently: an interactive launch offers the directories that session has recently run in, plus staying where it is.
+- AC1: A launch can name its directory explicitly with `--dir`, and that is the only way a directory is ever chosen for the operator — no per-session setting is introduced.
+- AC2: Launching from the home directory or from `/` does not proceed silently: an interactive launch offers the directories that session has recently run in, plus staying where it is. Nowhere else triggers it, so a launch from any working directory is untouched.
 - AC3: Launching from inside a project is unchanged: no prompt, no extra flag, no new output.
 - AC4: A non-interactive or JSON launch never prompts; it proceeds as today and says which directory it used.
 - AC5: A named directory that does not exist is refused before the provider starts, naming it.

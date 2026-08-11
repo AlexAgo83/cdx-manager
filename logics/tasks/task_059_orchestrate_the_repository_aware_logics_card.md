@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-08-11 13:40:11
+> Indicators reviewed: 2026-08-11 13:47:58
 
 # AI Context
 - Summary: Blocked on req_051: the run directories it records are the only source this card can read.
@@ -21,7 +21,8 @@
 - Blocked on `task_062`. The directories it records on each run are the only trustworthy source for this card; starting first means reading where a process happens to be, which is the bug being fixed.
 - The defect, measured after release: `cdx tray status` reports the card from inside a Logics repository and reports nothing from a home directory or from `/`. `_status` in `src/tray_logics.py` runs `logics-manager status --format json` as a subprocess, so it answers about the caller's working directory — and a companion started at login has none. Every existing test injects the status JSON, so none of them exercises this.
 - `adr_007` governs what may be read and what may cross: derive the repository at read time, never store it beside the path, and let only a basename reach the companion.
-- Open design, to settle before writing any rendering: when several repositories are in play, how a row says which one it belongs to. Merging counts across repositories describes neither, and the card has at most two rows to spend.
+- SETTLED: the summary aggregates across repositories and says how many there are — "3 repositories · 2 blocked" — while the two rows come from the most constrained repository alone, each prefixed with that repository's name. A row therefore always says what it is about, and the bound of two rows that `req_037` AC3 fixed is kept.
+- Rejected: one summary line per repository, which shows everything and leaves no row to click through to a document; and lifting the two-row bound, which contradicts `req_037` AC3 and turns a menu into a log.
 
 # Plan
 - [ ] 1. 1. Reproduce the absence: request the snapshot from a project, from a home directory, and from /.

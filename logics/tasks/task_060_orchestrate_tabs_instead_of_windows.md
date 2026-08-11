@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-08-11 13:40:12
+> Indicators reviewed: 2026-08-11 13:47:58
 
 # AI Context
 - Summary: Settle what macOS can actually do before implementing, then add the documented tab flags with a window fallback.
@@ -20,7 +20,10 @@
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
 - Where terminals are opened today: `open_terminal_in` in `tray/src/mac.rs`, `tray/src/linux.rs` and `tray/src/win.rs`. `req_047` already made *which* terminal a preference; this decides *how* it opens, and the two compose at the same call sites.
 - What each platform documents: Windows Terminal has `wt -w 0 nt`, which targets the existing window and opens a tab; gnome-terminal has `--tab`; konsole has `--new-tab`. These are the ones that can be honoured without guessing, which is the same discipline `req_047` applied to `wt`.
-- macOS is the one with no answer. Terminal.app has no AppleScript verb for a new tab, and the usual workaround drives System Events with a simulated Command-T — which needs the Accessibility permission and breaks when a dialog has focus. iTerm2 has its own dictionary. A conclusion of "window on macOS" is an acceptable outcome; it has to be written down as a conclusion rather than left looking like an oversight.
+- SETTLED after research: opening a tab is a property of the terminal, not of the platform. macOS is not the exception — Terminal.app is. Since `req_047` already records which terminal the operator chose, the mechanism follows from that choice rather than from the operating system.
+- What each documents: iTerm2 has `create tab with default profile command "..."` in a mature AppleScript dictionary; WezTerm has `wezterm cli spawn`, which spawns into the window of the current pane, plus `wezterm start --new-tab`; kitty has `kitty @ launch --type=tab`, but only when the operator has enabled `allow_remote_control` in their own config, so it is a try-and-fall-back rather than a guarantee; Windows Terminal has `wt -w 0 nt`; gnome-terminal has `--tab` and konsole `--new-tab`.
+- What documents nothing: Terminal.app has no AppleScript verb for a new tab, Ghostty has no CLI for it (an open request, ghostty-org/ghostty#12136), and Alacritty has no tabs at all by design. These open a window, and the documentation says so as a conclusion rather than leaving it looking like an oversight.
+- Ruled out: driving System Events with a simulated Command-T. It needs the Accessibility permission — which a tray would have to ask an operator to grant — and it breaks whenever a dialog has focus.
 - Lowest priority of the open work: nothing is broken, and three windows to arrange is a cost rather than a failure.
 
 # Plan

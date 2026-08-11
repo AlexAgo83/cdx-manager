@@ -7,7 +7,7 @@
 > Complexity: Low
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-11 13:38:54
+> Indicators reviewed: 2026-08-11 13:48:32
 
 # AI Context
 - Summary: The Logics tray card is built in the caller's working directory, and a companion started at login has none, so an enabled card is silent.
@@ -33,7 +33,7 @@
 - AC1: The card reports on the repositories CDX's own enabled sessions are working in, without anything being named by hand.
 - AC2: The card is identical whatever directory the snapshot was requested from, including a companion started at login with no meaningful one.
 - AC3: A session directory that has disappeared, or is not a Logics repository, contributes nothing and raises no error — exactly as an absent logics-manager does today.
-- AC4: When more than one repository is in play, each row says which one it belongs to; the card never merges two repositories into counts that describe neither.
+- AC4: When more than one repository is in play, the summary aggregates and says how many there are, while the two rows come from the most constrained repository and each carries its name. The card never merges two repositories into counts that describe neither, and never exceeds the two rows req_037 AC3 fixed.
 - AC5: No session working directory leaves CDX in an alert payload or the tray spool; what the card carries is what a menu row needs to name a repository, and nothing more.
 - AC6: An operator can still override the derived answer explicitly, for the case where the repository they care about has no session open in it.
 - AC7: Focused tests cover one repository, several, none, a directory that is not a Logics repository, and the explicit override; project validation passes.

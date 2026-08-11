@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-08-11 13:40:12
+> Indicators reviewed: 2026-08-11 13:47:58
 
 # AI Context
 - Summary: One resolution point feeds every provider's directory; this adds the explicit argument, the narrow prompt, and the per-run record.
@@ -22,7 +22,8 @@
 - Established by inspection, so it does not need rediscovering: the directory is decided at one line per entry point — `src/commands/launch.py:130` (`cwd = ctx.get("cwd") or os.getcwd()`), the headless builder, and `cdx run` — and all three hand it to `_build_launch_spec(session, cwd=...)`. Every provider receives it as `options.cwd`; Codex additionally receives `--cd`. This is one resolution function, not per-provider plumbing.
 - The record goes where the run already is: `start_session_runtime` in `src/session_service.py` keeps `runId`, `startedAt`, `pid`, `command`, `label` and `transcriptPath`, and no directory. That absence is the whole gap.
 - Why a home-directory launch is worse than merely unhelpful: with no `.git` above it, Codex's project-root resolver returns the home directory itself and loads `~/.codex/` as an untrusted *project* layer, rejecting keys that are only valid at user level. That is upstream issue openai/codex#9932, still open, and not ours to fix — it is the evidence that launching there is a real failure and not a preference.
-- Open decision, deliberately not taken in advance: what counts as "plainly not a project". A home directory is certain; a missing project marker is a judgement, and getting it wrong puts a prompt in front of a launch that was already correct. Settle it in step 2 before writing the prompt.
+- SETTLED: the explicit argument is `--dir`. Not positional, because `cdx <name>` already takes an initial prompt positionally and telling a path from a prompt only works while the path exists; not `--cd`, which is Codex's name for it and matches nothing else in cdx.
+- SETTLED: the choice is offered only when the directory is exactly the home directory, or `/`. A missing project marker was considered and rejected: it catches more cases at the price of interrupting launches that were already correct, and the failure being fixed is specifically the accidental launch into a home. Widening it later is cheap; a false prompt fifty times a day is not.
 
 # Plan
 - [ ] 1. 1. Trace how the directory reaches each provider today, interactively and headlessly, and where the other launch settings are stored and rendered.

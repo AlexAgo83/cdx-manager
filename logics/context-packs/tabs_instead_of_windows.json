@@ -59,7 +59,7 @@
       "ref": "req_049_open_a_tab_rather_than_a_window_where_the_platform_documents_one",
       "schema_version": "1.0",
       "status": "Draft",
-      "title": "Open a tab rather than a window where the platform documents one"
+      "title": "Open a tab rather than a window where the terminal documents one"
     },
     {
       "ai_context": {
@@ -118,7 +118,7 @@
     "companion_doc_count": 0,
     "doc_count": 4
   },
-  "generated_at": "2026-08-11T11:41:26Z",
+  "generated_at": "2026-08-11T11:48:34Z",
   "handoff": {
     "companion_doc_count": 0,
     "enabled": false,
