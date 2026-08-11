@@ -1,6 +1,6 @@
 ## adr_006_tray_menu_lifecycle_observation_boundary - Tray menu lifecycle observation boundary
 > Date: 2026-08-11
-> Status: Proposed
+> Status: Settled
 > Related request: req_042_synchronize_cdx_tray_alert_badges_with_menu_reading
 > Related backlog: item_089_unify_tray_alert_marker_and_recent_alert_read_state
 > Related task: task_053_orchestrate_coherent_cdx_tray_alert_read_state
