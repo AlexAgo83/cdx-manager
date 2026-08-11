@@ -35,7 +35,12 @@ tray-icon = "0.24"
 # few lines; winit or tao would provide the same thing plus a windowing stack
 # this companion never opens a window with.
 objc2 = "0.6"
-objc2-app-kit = "0.3"
+# The menu-cell features are named explicitly: objc2-app-kit gates every class
+# behind one, and a missing feature is a compile error rather than a silent gap.
+objc2-app-kit = { version = "0.3", features = [
+  "NSMenu", "NSMenuItem", "NSView", "NSTextField", "NSControl",
+  "NSColor", "NSFont", "NSResponder", "NSGraphics",
+] }
 objc2-foundation = "0.3"
 # Already in the tree through tray-icon. Naming it directly costs nothing to
 # download and is what lets the companion post its own notifications, which

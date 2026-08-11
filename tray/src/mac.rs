@@ -34,8 +34,12 @@ pub fn run(transport: Transport) -> Result<(), String> {
     app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
 
     let mut state = Render::first(&transport);
-    let (tray, mut actions) =
-        backend::build_tray(&state.icon_state, &state.tooltip, &state.entries)?;
+    let (tray, mut actions) = backend::build_tray(
+        &state.icon_state,
+        &state.tooltip,
+        &state.entries,
+        &state.rows,
+    )?;
     // The first draw happens before the loop, so the alerts it showed have to
     // be acknowledged here too. Leaving it to the redraw block would hold them
     // unacknowledged for a whole poll period, and a companion quit inside that
@@ -100,6 +104,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 &state.tooltip,
                 hint::title(alert_hint, Instant::now()),
                 &state.entries,
+                &state.rows,
             )?;
             // No enabled session means no reason to ask again. Wake up rarely
             // rather than never, so enabling one later is eventually noticed.

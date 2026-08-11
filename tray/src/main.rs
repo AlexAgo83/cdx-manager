@@ -14,6 +14,8 @@ mod instance;
 mod linux;
 #[cfg(target_os = "macos")]
 mod mac;
+#[cfg(target_os = "macos")]
+mod mac_cell;
 mod menu;
 mod notify;
 mod runner;

@@ -102,6 +102,32 @@ fn image_from_png(bytes: &[u8]) -> Result<(Vec<u8>, u32, u32), String> {
 
 /// Build the native menu, and the map from generated item id back to the action
 /// it stands for. muda hands back an id on click, so the mapping has to be kept.
+/// Give the session rows a drawn cell where the platform allows one.
+///
+/// Called while the menu is still owned here, because the pointer it exposes is
+/// only reachable through the `ContextMenu` trait. macOS is the only platform
+/// with somewhere to draw: Win32 would need owner-draw and a
+/// StatusNotifierItem menu is a D-Bus description, so the other two keep the
+/// text rows — which is why the text still says everything the drawing does.
+#[cfg(target_os = "macos")]
+fn style_rows(menu: &Menu, rows: &[crate::runner::Row]) {
+    use muda::ContextMenu;
+    let cells: Vec<crate::mac_cell::Cell> = rows
+        .iter()
+        .map(|row| crate::mac_cell::Cell {
+            index: row.menu_index,
+            name: row.name.clone(),
+            percent: row.percent,
+            state: row.state.clone(),
+            figure: row.figure.clone(),
+        })
+        .collect();
+    crate::mac_cell::apply(menu.ns_menu(), &cells);
+}
+
+#[cfg(not(target_os = "macos"))]
+fn style_rows(_menu: &Menu, _rows: &[crate::runner::Row]) {}
+
 pub fn build_menu(entries: &[Entry]) -> Result<(Menu, HashMap<MenuId, ActionId>), muda::Error> {
     let menu = Menu::new();
     let mut actions = HashMap::new();
@@ -148,8 +174,10 @@ pub fn update_tray(
     tooltip: &str,
     title: Option<String>,
     entries: &[Entry],
+    rows: &[crate::runner::Row],
 ) -> Result<HashMap<MenuId, ActionId>, String> {
     let (menu, actions) = build_menu(entries).map_err(|e| e.to_string())?;
+    style_rows(&menu, rows);
     tray.set_menu(Some(Box::new(menu)));
     let _ = tray.set_tooltip(Some(tooltip));
     // Beside the glyph, never instead of it: the glyph means remaining quota,
@@ -171,8 +199,10 @@ pub fn build_tray(
     state: &str,
     tooltip: &str,
     entries: &[Entry],
+    rows: &[crate::runner::Row],
 ) -> Result<(TrayIcon, HashMap<MenuId, ActionId>), String> {
     let (menu, actions) = build_menu(entries).map_err(|e| e.to_string())?;
+    style_rows(&menu, rows);
     let tray = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
         .with_icon(icon_for(state)?)
