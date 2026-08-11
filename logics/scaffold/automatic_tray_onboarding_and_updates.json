@@ -1,0 +1,102 @@
+{
+  "title": "Make accepted CDX tray onboarding and updates automatic",
+  "references": [
+    "src/commands/tray.py",
+    "src/commands/maintenance.py",
+    "src/tray_install.py",
+    "src/tray_instance.py",
+    "src/tray_autostart.py",
+    "src/agent_notify.py",
+    "src/session_service.py",
+    "test/test_tray_capability_py.py",
+    "test/test_tray_contract_py.py",
+    "logics/request/req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation.md"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Desktop integration",
+    "needs": [
+      "Installing the tray already downloads a verified companion, starts it, and asks about login startup, but it does not offer the related agent-alert consent in the same onboarding flow.",
+      "A user who explicitly accepts startup and alerts expects the tray to remain useful without repeating setup for existing or newly created compatible sessions.",
+      "cdx update already aligns an installed companion through staging and verification, but a running companion continues executing its old binary and requires a manual quit and relaunch.",
+      "Automation must remain consent-based and recoverable: an install must never silently create startup behavior or enable alerts, and a failed restarted update must retain a working companion."
+    ],
+    "context": [
+      "src/commands/tray.py currently starts the tray after installation and asks only whether to enable autostart. Its --yes flag answers that one prompt, while non-interactive installs decline autostart.",
+      "Per-session notify is intentionally opt-in. Hook provisioning happens on the next interactive launch, and Codex requires its own one-time hook trust approval per profile; CDX must not bypass that provider security boundary.",
+      "src/commands/maintenance.py calls align_companion after a successful CDX update. The replacement is staged, checksummed, and probed before the old installed files are retired, but a live process is intentionally left running and only a restart-pending warning is emitted.",
+      "src/tray_instance.py can identify a live tray lock owner. Any restart path must act only on that verified companion instance, wait within a short bound for it to exit, and never terminate an unrelated process from stale or malformed state.",
+      "The earlier tray lifecycle request required explicit opt-in and rejected hidden background activation. This request preserves that decision by asking once at install; it only automates the behavior the user has explicitly accepted."
+    ],
+    "acceptance_criteria": [
+      "AC1: An interactive cdx tray install asks separately and clearly whether to start at login and whether to enable agent alerts for compatible CDX sessions. Declining either leaves its current state unchanged.",
+      "AC2: Accepting alerts enables notify for every existing supported session and records an explicit tray-owned default so newly created supported sessions inherit notify on. Unsupported providers remain unchanged.",
+      "AC3: The install output and JSON result state whether the tray started, autostart was enabled, agent alerts were enabled, and whether Codex hook approval remains required. Non-interactive and JSON invocations never prompt; explicit flags select each consent deterministically.",
+      "AC4: A user-initiated cdx update automatically stages, verifies, installs, and restarts a running tray companion. If no tray is running, it updates files without starting a new tray process.",
+      "AC5: Restart acts only on a live CDX tray instance, uses a bounded graceful shutdown, verifies the replacement is running, and restores or retains a working companion when replacement launch fails. It never kills an unrelated process or reports success before the replacement is usable.",
+      "AC6: A later cdx update does not repeat onboarding prompts and keeps accepted autostart and alert defaults. Explicit cdx tray autostart off and alert disabling remain reversible and effective.",
+      "AC7: Focused tests cover every consent combination, existing and future supported sessions, non-interactive behavior, Codex trust notice, update with no tray, successful running-tray restart, stale lock, timeout, failed restart recovery, and no regression in staged-asset safety."
+    ]
+  },
+  "product": {
+    "title": "Accepted automatic CDX tray experience",
+    "overview": "Offer one explicit tray onboarding choice set, then keep installation, session alerts, and user-initiated companion updates automatic and recoverable.",
+    "goals": [
+      "Let a user accept autostart and agent alerts once during tray installation.",
+      "Apply accepted alert intent to supported current and future sessions without touching unsupported providers.",
+      "Keep a running tray current after a user-initiated CDX update without a manual restart step.",
+      "Retain clear state, reversibility, provider hook trust, and safe rollback boundaries."
+    ],
+    "non_goals": [
+      "No silent consent, background update daemon, forced login item, or notification enablement before the user accepts it.",
+      "No bypass of Codex hook trust, provider permission controls, system notification permission, or Focus and Do Not Disturb settings.",
+      "No automatic tray launch after an update when the tray was not already running.",
+      "No termination of unknown PIDs, external process manager, telemetry, remote update service, or change to checksum and staging verification."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Add consented tray onboarding defaults and safe running-companion restart",
+      "priority": "High",
+      "complexity": "High",
+      "theme": "Desktop integration",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC5", "AC6", "AC7"],
+      "problem": [
+        "A user must currently perform separate lifecycle and per-session notification setup, then manually restart a running tray after every companion update.",
+        "Naively killing and relaunching a process after replacement risks stopping an unrelated process or losing a known-working tray when the new build cannot start."
+      ],
+      "scope_in": [
+        "Add explicit interactive and flag-driven install consent for autostart and agent alerts, with truthful text and JSON outcomes.",
+        "Persist a tray alert default and apply it to existing and future Codex and Claude sessions only; preserve each provider's normal hook provisioning and trust flow.",
+        "Extend the staged companion update transaction with verified, bounded restart of a known running tray and recovery when launch fails.",
+        "Keep install, autostart off, alert off, no-running-tray update, and unavailable platform paths idempotent and recoverable.",
+        "Add focused platform-boundary tests and concise documentation for the one-time consent and Codex approval caveat."
+      ],
+      "scope_out": [
+        "Changing direct notification delivery, agent alert content, tray menu behavior, quota data, or provider-owned approval policies.",
+        "Automatic updates outside a user-initiated cdx update, startup without consent, or relaunching a tray that was intentionally quit.",
+        "Operating-system administrator installation, network services, arbitrary process control, or provider hook trust bypass."
+      ],
+      "acceptance_criteria": [
+        "AC1: Install makes both durable choices explicit and applies only accepted choices to the correct current and future sessions.",
+        "AC2: A running known companion is safely restarted to the verified replacement after cdx update, while a stopped companion remains stopped.",
+        "AC3: A failed stop, wait, or replacement launch leaves an honest diagnostic and a recoverable working state rather than an unverified success.",
+        "AC4: Regression tests cover consent, provider scope, trust messaging, lifecycle reversibility, update restart, and staged-update rollback."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate accepted automatic CDX tray onboarding and updates",
+    "plan": [
+      "Trace install flags and prompts, session creation defaults, notification preference persistence, provider provisioning, companion instance detection, autostart artifacts, and update staging end to end.",
+      "Define the smallest explicit consent state and deterministic non-interactive flags; apply accepted alert intent to existing and future supported sessions while surfacing provider trust boundaries.",
+      "Implement the running-companion update transaction: identify the CDX instance, request bounded graceful shutdown, promote the verified replacement, relaunch it, and retain or restore a proven working companion on failure.",
+      "Add targeted tests for all consent and restart outcomes, update README and diagnostics, then run project and Logics validation plus native smoke checks where available."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/automatic_tray_onboarding_and_updates.json",
+    "mode": "diff-first",
+    "profile": "deep"
+  }
+}

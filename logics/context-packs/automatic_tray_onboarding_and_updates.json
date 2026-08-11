@@ -1,0 +1,474 @@
+{
+  "budgets": {
+    "max_docs": 24,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [
+    "logics/backlog/item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart.md",
+    "logics/product/prod_030_accepted_automatic_cdx_tray_experience.md",
+    "logics/request/req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic.md",
+    "logics/scaffold/automatic_tray_onboarding_and_updates.json",
+    "logics/tasks/task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates.md"
+  ],
+  "command": "logics-manager sync context-pack req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates --mode diff-first --profile deep --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart"
+        ],
+        "prod": [
+          "prod_030_accepted_automatic_cdx_tray_experience"
+        ],
+        "req": [
+          "req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic"
+        ],
+        "task": [
+          "task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates"
+        ]
+      },
+      "path": "logics/product/prod_030_accepted_automatic_cdx_tray_experience.md",
+      "ref": "prod_030_accepted_automatic_cdx_tray_experience",
+      "sections": {
+        "Goals": [
+          "- Let a user accept autostart and agent alerts once during tray installation.",
+          "- Apply accepted alert intent to supported current and future sessions without touching unsupported providers.",
+          "- Keep a running tray current after a user-initiated CDX update without a manual restart step.",
+          "- Retain clear state, reversibility, provider hook trust, and safe rollback boundaries."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Offer one explicit tray onboarding choice set, then keep installation, session alerts, and user-initiated companion updates automatic and recoverable."
+        ],
+        "References": [
+          "- Product back-reference: `req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic`",
+          "- Task back-reference: `task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Accepted automatic CDX tray experience"
+    },
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls"
+        ],
+        "prod": [
+          "prod_027_trustworthy_cdx_tray_operation"
+        ],
+        "req": [
+          "req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation"
+        ],
+        "task": [
+          "task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation"
+        ]
+      },
+      "path": "logics/product/prod_027_trustworthy_cdx_tray_operation.md",
+      "ref": "prod_027_trustworthy_cdx_tray_operation",
+      "sections": {
+        "Goals": [
+          "- Keep launch, startup, update, and removal under direct user control.",
+          "- Offer one truthful glanceable capacity signal and clear diagnostics when it cannot be resolved.",
+          "- Support one configured WSL source and a documented Linux desktop matrix.",
+          "- Validate native behaviour on managed macOS and Windows plus WSL machines."
+        ],
+        "Key product decisions": [
+          "- Nothing starts by itself. Installing does not enable startup; autostart is a separate, explicit, reversible command.",
+          "- One instance owns the icon. A second launch reports the first rather than duplicating it.",
+          "- The icon shows the most constrained usable capacity, never an average, and never carries meaning in colour alone.",
+          "- Updates are staged: the replacement must start before the previous companion is retired, so a failed update leaves a working tray.",
+          "- Platform support is claimed only where it was tested, and capability is detected at runtime rather than inferred from a distribution name."
+        ],
+        "Overview": [
+          "Make the CDX tray companion a quiet, explicit, accessible, and testable desktop utility across supported operating systems.",
+          "```mermaid",
+          "%% logics-kind: product",
+          "%% logics-signature: product|trustworthy-cdx-tray-operation|explicit-lifecycle-and-real-host-validation",
+          "flowchart TD",
+          "    Controls[Explicit controls] --> Tray[CDX tray]"
+        ],
+        "References": [
+          "- Product back-reference: `item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls`",
+          "- Task back-reference: `task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation`"
+        ]
+      },
+      "status": "Settled",
+      "title": "Trustworthy CDX tray operation"
+    },
+    {
+      "kind": "architecture",
+      "linked_refs": {
+        "adr": [
+          "adr_005_cdx_tray_runtime_and_companion_transport_boundary"
+        ],
+        "item": [
+          "item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor"
+        ],
+        "task": [
+          "task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor"
+        ]
+      },
+      "path": "logics/architecture/adr_005_cdx_tray_runtime_and_companion_transport_boundary.md",
+      "ref": "adr_005_cdx_tray_runtime_and_companion_transport_boundary",
+      "sections": {
+        "Overview": [
+          "- Fix the tray companion's runtime, its transport to CDX, and its refresh policy before any native code is written, because `req_036`, `req_037`, and `req_038` already depend on properties of that choice."
+        ],
+        "References": [
+          "- Related request: `req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor`",
+          "- Related backlog: `item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl`",
+          "- Related task: `task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor`",
+          "- `src/session_status.py`",
+          "- `src/codex_usage.py`",
+          "- https://learn.microsoft.com/en-us/windows/wsl/networking"
+        ]
+      },
+      "status": "Settled",
+      "title": "CDX tray runtime and companion transport boundary"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, make accepted cdx tray onboarding and updates automatic, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Make accepted CDX tray onboarding and updates automatic",
+        "use when": "You need to implement or review the scaffolded workflow for Make accepted CDX tray onboarding and updates automatic."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart"
+        ],
+        "prod": [
+          "prod_030_accepted_automatic_cdx_tray_experience"
+        ],
+        "req": [
+          "req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation",
+          "req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic"
+        ]
+      },
+      "path": "logics/request/req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic.md",
+      "ref": "req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: An interactive cdx tray install asks separately and clearly whether to start at login and whether to enable agent alerts for compatible CDX sessions. Declining either leaves its current state unchanged.",
+          "- AC2: Accepting alerts enables notify for every existing supported session and records an explicit tray-owned default so newly created supported sessions inherit notify on. Unsupported providers remain unchanged.",
+          "- AC3: The install output and JSON result state whether the tray started, autostart was enabled, agent alerts were enabled, and whether Codex hook approval remains required. Non-interactive and JSON invocations never prompt; explicit flags select each consent deterministically.",
+          "- AC4: A user-initiated cdx update automatically stages, verifies, installs, and restarts a running tray companion. If no tray is running, it updates files without starting a new tray process.",
+          "- AC5: Restart acts only on a live CDX tray instance, uses a bounded graceful shutdown, verifies the replacement is running, and restores or retains a working companion when replacement launch fails. It never kills an unrelated process or reports success before the replacement is usable.",
+          "- AC6: A later cdx update does not repeat onboarding prompts and keeps accepted autostart and alert defaults. Explicit cdx tray autostart off and alert disabling remain reversible and effective."
+        ],
+        "Needs": [
+          "- Installing the tray already downloads a verified companion, starts it, and asks about login startup, but it does not offer the related agent-alert consent in the same onboarding flow.",
+          "- A user who explicitly accepts startup and alerts expects the tray to remain useful without repeating setup for existing or newly created compatible sessions.",
+          "- cdx update already aligns an installed companion through staging and verification, but a running companion continues executing its old binary and requires a manual quit and relaunch.",
+          "- Automation must remain consent-based and recoverable: an install must never silently create startup behavior or enable alerts, and a failed restarted update must retain a working companion."
+        ]
+      },
+      "status": "Draft",
+      "title": "Make accepted CDX tray onboarding and updates automatic"
+    },
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, harden cdx tray lifecycle, clarity, and platform validation, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Harden CDX tray lifecycle, clarity, and platform validation",
+        "use when": "You need to implement or review the scaffolded workflow for Harden CDX tray lifecycle, clarity, and platform validation."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "adr": [
+          "adr_005_cdx_tray_runtime_and_companion_transport_boundary"
+        ],
+        "item": [
+          "item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls",
+          "item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts"
+        ],
+        "prod": [
+          "prod_027_trustworthy_cdx_tray_operation"
+        ],
+        "req": [
+          "req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor",
+          "req_036_route_cdx_agent_alerts_through_an_active_tray_companion",
+          "req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray",
+          "req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation"
+        ]
+      },
+      "path": "logics/request/req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation.md",
+      "ref": "req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1 (revised 2026-08-11, at the product owner's decision): cdx tray install starts the companion it just installed, and offers startup rather than adding it silently \u2014 interactively it asks, non-interactively it declines and names the command. The original wording forbade startup outright; the reason behind it was that an install must not quietly add a login item, and a confirmation keeps that reason while dropping the friction of a second command. `--yes` and `--no-autostart` answer it without a prompt. The rest stands: cdx tray autostart on and off are explicit, idempotent, user-level operations that report the actual platform state, implemented as one recorded artifact per platform (a LaunchAgent plist, the per-user Run key, or an XDG autostart entry) that off deletes, and requiring no administrator rights.",
+          "- AC2: Only one tray instance owns a user session; duplicate launch, crash recovery, quit, and cdx tray doctor provide clear bounded diagnostics without a persistent background service.",
+          "- AC3: Windows uses the default WSL distribution unless an explicit named override is configured, reports a missing or invalid override honestly, and does not aggregate distributions in v1.",
+          "- AC4: The tray state selects the most constrained usable capacity, names its source and reset in the tooltip/menu, renders an explicit unknown state, and never makes colour the sole state signal.",
+          "- AC5: Completion and attention alerts respect native notification settings; quota state produces no new toast, and no tray surface exposes session, repository, task, or preview details while closed.",
+          "- AC6: cdx-managed update verifies the matching asset before staging, preserves the prior working companion until replacement starts, and cdx tray doctor explains partial installation or version mismatch recovery."
+        ],
+        "Needs": [
+          "- The tray must be quiet, transparent, and recoverable on a personal desktop: explicit startup control, one instance, useful diagnostics, and safe updates are more valuable than hidden background machinery.",
+          "- Windows-hosted WSL needs a deterministic default-distribution path plus an explicit override, while Linux support must describe only desktop environments that have been tested.",
+          "- A small icon must communicate actionable CDX availability without misleading averages, colour-only meaning, or revealing session and task details while closed.",
+          "- Native behaviour must be validated on real managed macOS and Windows plus WSL machines in addition to deterministic local tests."
+        ]
+      },
+      "status": "Done",
+      "title": "Harden CDX tray lifecycle, clarity, and platform validation"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, add consented tray onboarding defaults and safe running-companion restart, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Add consented tray onboarding defaults and safe running-companion restart",
+        "use when": "Implementing the scaffolded slice for Add consented tray onboarding defaults and safe running-companion restart."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart"
+        ],
+        "prod": [
+          "prod_030_accepted_automatic_cdx_tray_experience"
+        ],
+        "req": [
+          "req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic"
+        ],
+        "task": [
+          "task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates"
+        ]
+      },
+      "path": "logics/backlog/item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart.md",
+      "ref": "item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Install makes both durable choices explicit and applies only accepted choices to the correct current and future sessions.",
+          "- AC2: A running known companion is safely restarted to the verified replacement after cdx update, while a stopped companion remains stopped.",
+          "- AC3: A failed stop, wait, or replacement launch leaves an honest diagnostic and a recoverable working state rather than an unverified success.",
+          "- AC4: Regression tests cover consent, provider scope, trust messaging, lifecycle reversibility, update restart, and staged-update rollback."
+        ],
+        "Problem": [
+          "- A user must currently perform separate lifecycle and per-session notification setup, then manually restart a running tray after every companion update.",
+          "- Naively killing and relaunching a process after replacement risks stopping an unrelated process or losing a known-working tray when the new build cannot start."
+        ]
+      },
+      "status": "Ready",
+      "title": "Add consented tray onboarding defaults and safe running-companion restart"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart"
+        ],
+        "prod": [
+          "prod_030_accepted_automatic_cdx_tray_experience"
+        ],
+        "req": [
+          "req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic"
+        ],
+        "task": [
+          "task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates"
+        ]
+      },
+      "path": "logics/product/prod_030_accepted_automatic_cdx_tray_experience.md",
+      "ref": "prod_030_accepted_automatic_cdx_tray_experience",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Accepted automatic CDX tray experience"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate accepted automatic CDX tray onboarding and updates",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart"
+        ],
+        "prod": [
+          "prod_030_accepted_automatic_cdx_tray_experience"
+        ],
+        "req": [
+          "req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic"
+        ],
+        "task": [
+          "task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates"
+        ]
+      },
+      "path": "logics/tasks/task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates.md",
+      "ref": "task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate accepted automatic CDX tray onboarding and updates"
+    }
+  ],
+  "estimates": {
+    "char_count": 15743,
+    "companion_doc_count": 3,
+    "doc_count": 5
+  },
+  "generated_at": "2026-08-11T07:18:42Z",
+  "handoff": {
+    "companion_doc_count": 3,
+    "enabled": true,
+    "source_refs": [
+      "req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic",
+      "item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart",
+      "task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "deep",
+  "ref": "req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic,item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart,task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates",
+  "refs": [
+    "req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic",
+    "item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart",
+    "task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.18.4"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates.md",
+      "ref": "task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates"
+    }
+  ]
+}
