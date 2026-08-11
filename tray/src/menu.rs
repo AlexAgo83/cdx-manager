@@ -1059,18 +1059,20 @@ mod tests {
             &snapshot(vec![session("w", Some(1.0), "fresh")], false),
             &[]
         )));
-        assert!(quits(build_unavailable(&Unavailable::CdxTooOld)));
+        assert!(quits(build_unavailable(&Unavailable::CdxTooOld(
+            "wsl.exe -d Ubuntu -- cdx".into()
+        ))));
     }
 
     #[test]
     fn an_unavailable_menu_names_the_boundary_and_invents_no_quota() {
-        let entries = build_unavailable(&Unavailable::CdxTooOld);
+        let entries = build_unavailable(&Unavailable::CdxTooOld("wsl.exe -d Ubuntu -- cdx".into()));
         let text = labels(&entries);
         assert!(text.contains("unavailable"), "{text}");
-        assert!(
-            text.contains("update CDX") || text.contains("Update CDX"),
-            "{text}"
-        );
+        // It names the command that answered: on WSL the CDX the companion
+        // reaches is frequently not the one the user's terminal resolves.
+        assert!(text.contains("wsl.exe -d Ubuntu -- cdx"), "{text}");
+        assert!(text.contains("CDX_TRAY_CDX"), "{text}");
         assert!(
             !text.contains('%'),
             "no figure may appear when nothing is known: {text}"

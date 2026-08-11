@@ -125,7 +125,16 @@ pub enum Unavailable {
     /// CDX is installed but predates `cdx tray`. This is version drift in the
     /// other direction from an unknown snapshot major, and it is what a user
     /// hits after installing the companion without updating CDX.
-    CdxTooOld,
+    ///
+    /// It carries the command that answered, because on WSL the answer is
+    /// frequently about a different CDX than the one the user has. A companion
+    /// runs `wsl.exe -- cdx`, which is not a login shell, so it resolves the
+    /// system PATH rather than the one that puts `~/.local/bin` first — and a
+    /// forgotten `/usr/local/bin/cdx` from years ago answers instead. Measured
+    /// on a real host: `cdx --version` said 0.18.4 in the terminal and 0.12.1
+    /// through interop. Without naming the command, the tray tells that user to
+    /// update a CDX that is already current.
+    CdxTooOld(String),
     CdxFailed {
         code: Option<i32>,
         stderr: String,
@@ -141,9 +150,9 @@ impl std::fmt::Display for Unavailable {
                 write!(f, "cannot run `{how}`: CDX not found on this host")
             }
             Unavailable::WslDistro(problem) => write!(f, "{problem}"),
-            Unavailable::CdxTooOld => write!(
+            Unavailable::CdxTooOld(how) => write!(
                 f,
-                "this CDX does not have `cdx tray`. Update CDX to use the tray companion."
+                "`{how}` has no `cdx tray`. Update that CDX, or set CDX_TRAY_CDX to the one you meant."
             ),
             Unavailable::CdxFailed { code, stderr } => {
                 let code = code
@@ -264,7 +273,7 @@ fn fetch_with(transport: &Transport, beat: bool) -> Result<Snapshot, Unavailable
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
         if error_code(&stderr).as_deref() == Some("unknown_command") {
-            return Err(Unavailable::CdxTooOld);
+            return Err(Unavailable::CdxTooOld(transport.describe()));
         }
         return Err(Unavailable::CdxFailed {
             code: output.status.code(),
