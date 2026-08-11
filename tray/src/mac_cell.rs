@@ -118,9 +118,23 @@ pub struct Cell {
     pub state: String,
     /// The figure as text, so the number is never carried by the bar alone.
     pub figure: String,
+    /// The second line: how old the figure is, and when it resets. Both were
+    /// missing from this cell entirely — the text rows on the other platforms
+    /// said them, and macOS, which is the platform that draws, said neither.
+    pub detail: String,
 }
 
-const ROW_HEIGHT: f64 = 20.0;
+/// Two lines: the name and the figure on top, how much to trust it underneath.
+///
+/// One line could not hold both. The first already carries a name, a provider,
+/// a gauge, a figure and a chevron across 260 points, and squeezing an age and
+/// a reset in beside them would have shortened the name — which is the one
+/// thing on the row that identifies the session.
+const ROW_HEIGHT: f64 = 34.0;
+const TOP_LINE_Y: f64 = 17.0;
+const TOP_LINE_HEIGHT: f64 = 15.0;
+const DETAIL_Y: f64 = 3.0;
+const DETAIL_HEIGHT: f64 = 13.0;
 const ROW_WIDTH: f64 = 260.0;
 const GAUGE_WIDTH: f64 = 58.0;
 const GAUGE_HEIGHT: f64 = 4.0;
@@ -184,6 +198,7 @@ pub fn build_cell(cell: &Cell, mtm: MainThreadMarker) -> Retained<NSView> {
 
     let figure_x = ROW_WIDTH - INSET_RIGHT - CHEVRON_WIDTH - FIGURE_WIDTH;
     let gauge_x = figure_x - 8.0 - GAUGE_WIDTH;
+    let top = |height: f64| NSPoint::new(0.0, TOP_LINE_Y + (TOP_LINE_HEIGHT - height) / 2.0);
 
     // Name, on the left, in the menu's own weight. The provider follows it in
     // the secondary colour and a smaller size: it is what distinguishes two
@@ -192,21 +207,24 @@ pub fn build_cell(cell: &Cell, mtm: MainThreadMarker) -> Retained<NSView> {
     let text_width = gauge_x - INSET_LEFT - 8.0;
     let name = label(&cell.name, 13.0, NSColor::labelColor(), mtm);
     name.setFrame(NSRect::new(
-        NSPoint::new(INSET_LEFT, 1.0),
-        NSSize::new(text_width * NAME_SHARE, ROW_HEIGHT - 2.0),
+        NSPoint::new(INSET_LEFT, top(TOP_LINE_HEIGHT).y),
+        NSSize::new(text_width * NAME_SHARE, TOP_LINE_HEIGHT),
     ));
     container.addSubview(&name);
 
     let provider = label(&cell.provider, 11.0, NSColor::secondaryLabelColor(), mtm);
     provider.setFrame(NSRect::new(
-        NSPoint::new(INSET_LEFT + text_width * NAME_SHARE, 2.0),
-        NSSize::new(text_width * (1.0 - NAME_SHARE), ROW_HEIGHT - 3.0),
+        NSPoint::new(
+            INSET_LEFT + text_width * NAME_SHARE,
+            top(TOP_LINE_HEIGHT - 1.0).y,
+        ),
+        NSSize::new(text_width * (1.0 - NAME_SHARE), TOP_LINE_HEIGHT - 1.0),
     ));
     container.addSubview(&provider);
 
     // The track, then the fill over it. Drawn as two layers rather than one
     // gradient so an empty gauge still shows where full would be.
-    let track_y = (ROW_HEIGHT - GAUGE_HEIGHT) / 2.0;
+    let track_y = TOP_LINE_Y + (TOP_LINE_HEIGHT - GAUGE_HEIGHT) / 2.0;
     let track = bar(
         NSRect::new(
             NSPoint::new(gauge_x, track_y),
@@ -234,10 +252,22 @@ pub fn build_cell(cell: &Cell, mtm: MainThreadMarker) -> Retained<NSView> {
     let figure = label(&cell.figure, 12.0, NSColor::secondaryLabelColor(), mtm);
     figure.setAlignment(NSTextAlignment::Right);
     figure.setFrame(NSRect::new(
-        NSPoint::new(figure_x, 1.0),
-        NSSize::new(FIGURE_WIDTH, ROW_HEIGHT - 2.0),
+        NSPoint::new(figure_x, top(TOP_LINE_HEIGHT).y),
+        NSSize::new(FIGURE_WIDTH, TOP_LINE_HEIGHT),
     ));
     container.addSubview(&figure);
+
+    // The second line. Tertiary rather than secondary: it qualifies the figure
+    // above rather than competing with it, and a row of thirteen sessions
+    // should read as thirteen names with footnotes, not twenty-six lines.
+    if !cell.detail.is_empty() {
+        let detail = label(&cell.detail, 11.0, NSColor::tertiaryLabelColor(), mtm);
+        detail.setFrame(NSRect::new(
+            NSPoint::new(INSET_LEFT, DETAIL_Y),
+            NSSize::new(ROW_WIDTH - INSET_LEFT - INSET_RIGHT, DETAIL_HEIGHT),
+        ));
+        container.addSubview(&detail);
+    }
 
     // The chevron AppKit would have drawn if this row had kept its label.
     let chevron = label("\u{203a}", 13.0, NSColor::tertiaryLabelColor(), mtm);

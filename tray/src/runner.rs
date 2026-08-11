@@ -30,6 +30,11 @@ pub struct Row {
     pub percent: Option<f64>,
     pub state: String,
     pub figure: String,
+    /// How old the figure is and when it resets, in the words the text rows
+    /// use. A drawn cell replaces the label entirely, so anything the row
+    /// should say has to be carried here deliberately — this is the third
+    /// thing found missing that way, after the provider and the chevron.
+    pub detail: String,
 }
 
 pub struct Render {
@@ -167,6 +172,7 @@ fn rows_for(entries: &[menu::Entry], sessions: &[crate::snapshot::Session]) -> V
                     // glyph can never disagree about the same session.
                     state: menu::state_for(session.available_pct).to_string(),
                     figure: menu::pct(session.available_pct),
+                    detail: menu::row_detail(session),
                 });
             }
         }

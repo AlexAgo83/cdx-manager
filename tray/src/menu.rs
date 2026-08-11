@@ -151,24 +151,70 @@ pub fn pct(value: Option<f64>) -> String {
 /// The middle dot separates instead, and the wording is trimmed — "left" and
 /// "resets" are obvious from the figure and the arrow, and repeating them
 /// thirteen times costs width without telling anyone anything.
-fn session_line(session: &Session) -> String {
+/// How much the figure can be trusted, in words.
+///
+/// Empty when the figure is current: a text row that said "fresh" thirteen
+/// times would spend width on the absence of a problem. The drawn row asks for
+/// the age instead — see `row_detail` — because a cell with an empty second
+/// line looks broken where an unadorned text row does not.
+///
+/// Shared with the drawn row so the two cannot describe the same session
+/// differently, which is exactly how the provider and the reset went missing
+/// from the macOS cell in the first place.
+pub fn freshness_words(session: &Session) -> String {
     // Stale says the figure is old; the age says how old, which is the part a
-    // reader can act on. "stale · 3h ago" beats "stale" and costs six characters.
-    let freshness = match session.freshness.as_str() {
+    // reader can act on. "stale 3h ago" beats "stale" and costs six characters.
+    match session.freshness.as_str() {
         "fresh" => String::new(),
-        "auth_locked" => " · running".to_string(),
-        "unknown" => " · never reported".to_string(),
+        "auth_locked" => "running".to_string(),
+        "unknown" => "never reported".to_string(),
         other => match &session.updated_ago {
-            Some(ago) => format!(" · {other} {ago}"),
-            None => format!(" · {other}"),
+            Some(ago) => format!("{other} {ago}"),
+            None => other.to_string(),
         },
-    };
-    // The distance first, the stamp only when CDX is too old to have computed
-    // one — never both, since they say the same thing at different lengths.
-    let reset = match (&session.reset_in, &session.reset_at) {
-        (Some(distance), _) => format!(" · ↻ {distance}"),
-        (None, Some(at)) if !at.is_empty() => format!(" · ↻ {at}"),
+    }
+}
+
+/// When the limit resets, or nothing when CDX does not know.
+///
+/// The distance first, the stamp only when CDX is too old to have computed one
+/// — never both, since they say the same thing at different lengths.
+pub fn reset_words(session: &Session) -> String {
+    match (&session.reset_in, &session.reset_at) {
+        (Some(distance), _) => format!("↻ {distance}"),
+        (None, Some(at)) if !at.is_empty() => format!("↻ {at}"),
         _ => String::new(),
+    }
+}
+
+/// The drawn row's second line: how old the figure is, and when it resets.
+///
+/// A current figure says its age here rather than nothing. On a text row the
+/// absence of a warning means current; a drawn cell has a line reserved for
+/// this, and leaving it blank reads as missing data rather than as good news.
+/// It is also the question the operator asked first: a percentage with no age
+/// cannot be acted on.
+pub fn row_detail(session: &Session) -> String {
+    let freshness = match (session.freshness.as_str(), &session.updated_ago) {
+        ("fresh", Some(ago)) => ago.clone(),
+        ("fresh", None) => "just now".to_string(),
+        _ => freshness_words(session),
+    };
+    [freshness, reset_words(session)]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
+
+fn session_line(session: &Session) -> String {
+    let freshness = match freshness_words(session) {
+        words if words.is_empty() => String::new(),
+        words => format!(" · {words}"),
+    };
+    let reset = match reset_words(session) {
+        words if words.is_empty() => String::new(),
+        words => format!(" · {words}"),
     };
     // The provider rides on the row now. It used to be a group heading, which
     // cost less width but reordered the list: grouping gives a provider the rank
@@ -717,6 +763,51 @@ mod tests {
             &[],
         );
         assert!(!labels(&entries).to_lowercase().contains("logics"));
+    }
+
+    /// `req_046` AC1 and AC2: the drawn row has to say the two things a text
+    /// row says, in the same words, or macOS is the one platform that draws and
+    /// the one platform that does not tell you whether to trust the figure.
+    #[test]
+    fn the_drawn_row_says_how_old_the_figure_is_and_when_it_resets() {
+        let mut stale = session("work", Some(40.0), "stale");
+        stale.updated_ago = Some("3h ago".into());
+        stale.reset_in = Some("in 5h".into());
+        assert_eq!(row_detail(&stale), "stale 3h ago · ↻ in 5h");
+        // The same words the text row uses, not a second phrasing.
+        let line = session_line(&stale);
+        assert!(line.contains("stale 3h ago"), "{line}");
+        assert!(line.contains("↻ in 5h"), "{line}");
+    }
+
+    /// A current figure states its age rather than nothing: an empty second
+    /// line reads as missing data, where an unadorned text row does not.
+    #[test]
+    fn a_current_figure_still_says_when_it_was_taken() {
+        let mut fresh = session("work", Some(40.0), "fresh");
+        fresh.updated_ago = Some("2m ago".into());
+        assert_eq!(row_detail(&fresh), "2m ago");
+        // And the text row still says nothing, because there is nothing wrong.
+        assert!(!session_line(&fresh).contains("2m ago"));
+    }
+
+    #[test]
+    fn the_drawn_row_names_the_states_a_refresh_cannot_fix() {
+        let running = session("work", Some(40.0), "auth_locked");
+        assert_eq!(row_detail(&running), "running");
+        let never = session("side", None, "unknown");
+        assert_eq!(row_detail(&never), "never reported");
+        let mut bare = session("bare", Some(10.0), "fresh");
+        bare.updated_ago = None;
+        assert_eq!(row_detail(&bare), "just now");
+    }
+
+    #[test]
+    fn an_absolute_reset_reaches_the_drawn_row_when_that_is_all_there_is() {
+        let mut stamped = session("work", Some(40.0), "fresh");
+        stamped.updated_ago = Some("1m ago".into());
+        stamped.reset_at = Some("Aug 18 03:23".into());
+        assert_eq!(row_detail(&stamped), "1m ago · ↻ Aug 18 03:23");
     }
 
     /// `req_039` AC5: the alert is where the user already is when they want

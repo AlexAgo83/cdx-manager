@@ -124,6 +124,7 @@ fn style_rows(menu: &Menu, rows: &[crate::runner::Row]) {
             percent: row.percent,
             state: row.state.clone(),
             figure: row.figure.clone(),
+            detail: row.detail.clone(),
         })
         .collect();
     crate::mac_cell::apply(menu.ns_menu(), &cells);
