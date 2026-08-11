@@ -1,7 +1,7 @@
 ## req_049_open_a_tab_rather_than_a_window_where_the_platform_documents_one - Open a tab rather than a window where the terminal documents one
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium

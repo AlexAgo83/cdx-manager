@@ -1,14 +1,22 @@
 ## prod_036_a_session_row_that_opens_where_you_already_are - A session row that opens where you already are
 > Date: 2026-08-11
-> Status: Proposed
+> Status: Settled
 > Related request: `req_049_open_a_tab_rather_than_a_window_where_the_platform_documents_one`
 > Related backlog: `item_097_open_a_tab_where_the_terminal_documents_how`
 > Related task: `task_060_orchestrate_tabs_instead_of_windows`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-11 14:24:12
 
 # Overview
 Open a tab in the terminal already in front of the operator, wherever the platform says how, and say plainly where it cannot.
+
+```mermaid
+flowchart LR
+    Row[Tray row] --> Terminal[Chosen terminal]
+    Terminal --> Tab[Documented tab command]
+    Terminal --> Fallback[Existing window fallback]
+```
 
 # Goals
 - Stop a row costing a window to arrange.
@@ -33,5 +41,5 @@ Open a tab in the terminal already in front of the operator, wherever the platfo
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_049_open_a_tab_rather_than_a_window_where_the_platform_documents_one`
+- Product back-reference: `item_097_open_a_tab_where_the_terminal_documents_how`
 - Task back-reference: `task_060_orchestrate_tabs_instead_of_windows`

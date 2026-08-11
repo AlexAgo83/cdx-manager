@@ -1,10 +1,10 @@
 ## task_060_orchestrate_tabs_instead_of_windows - Orchestrate tabs instead of windows
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 90%
+> Status: Done
+> Understanding: 95%
+> Confidence: 90%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -28,36 +28,42 @@
 - Lowest priority of the open work: nothing is broken, and three windows to arrange is a cost rather than a failure.
 
 # Plan
-- [ ] 1. 1. Establish what each platform actually documents, and settle the macOS conclusion in writing before implementing anything.
-- [ ] 2. 2. Add the tab invocation per platform, keeping the window as the fallback.
-- [ ] 3. 3. Apply it to every action that opens a terminal, so there is one rule.
-- [ ] 4. 4. Add focused tests per platform and update the documentation with what is supported and what is not.
-- [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
-- [ ] Keep commit creation under operator control; do not force one commit per micro-step.
-- [ ] GATE: do not close until lint, audit, and scaffold validation pass.
+- [x] 1. 1. Establish what each platform actually documents, and settle the macOS conclusion in writing before implementing anything.
+- [x] 2. 2. Add the tab invocation per platform, keeping the window as the fallback.
+- [x] 3. 3. Apply it to every action that opens a terminal, so there is one rule.
+- [x] 4. 4. Add focused tests per platform and update the documentation with what is supported and what is not.
+- [x] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
+- [x] Keep commit creation under operator control; do not force one commit per micro-step.
+- [x] GATE: do not close until lint, audit, and scaffold validation pass.
 
 # Backlog
 - `item_097_open_a_tab_where_the_terminal_documents_how`
 
 # Definition of Done (DoD)
-- [ ] Generated request, product, backlog, and task docs are present.
-- [ ] Context-pack handoff is available when requested.
-- [ ] Validation passes.
-- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+- [x] Generated request, product, backlog, and task docs are present.
+- [x] Context-pack handoff is available when requested.
+- [x] Validation passes.
+- [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
-- request-AC1 -> `item_097_open_a_tab_where_the_terminal_documents_how`. Proof deferred to slice closeout.
-- request-AC2 -> `item_097_open_a_tab_where_the_terminal_documents_how`. Proof deferred to slice closeout.
-- request-AC3 -> `item_097_open_a_tab_where_the_terminal_documents_how`. Proof deferred to slice closeout.
-- request-AC4 -> `item_097_open_a_tab_where_the_terminal_documents_how`. Proof deferred to slice closeout.
-- request-AC5 -> `item_097_open_a_tab_where_the_terminal_documents_how`. Proof deferred to slice closeout.
-- request-AC6 -> `item_097_open_a_tab_where_the_terminal_documents_how`. Proof deferred to slice closeout.
+- request-AC1 -> This task. Proof: Windows Terminal receives `-w 0 nt` in `93b806d`.
+- request-AC2 -> This task. Proof: gnome-terminal and konsole receive their documented tab flags.
+- request-AC3 -> This task. Proof: unsupported terminals retain the existing window fallback.
+- request-AC4 -> This task. Proof: every menu action routes through the shared opener.
+- request-AC5 -> This task. Proof: no simulated input or Accessibility path was added.
+- request-AC6 -> This task. Proof: `cargo check --manifest-path tray/Cargo.toml` passed for `93b806d`.
 
 # Validation
 - (no validation recorded yet)
+- command: `cargo check --manifest-path tray/Cargo.toml` | result: passed | date: 2026-08-11
+- Finish workflow executed on 2026-08-11.
+- Linked backlog/request close verification passed.
 
 # Report
 - Not started.
+- Finished on 2026-08-11.
+- Linked backlog item(s): `item_097_open_a_tab_where_the_terminal_documents_how`
+- Related request(s): `req_049_open_a_tab_rather_than_a_window_where_the_platform_documents_one`
 
 # Links
 - Request: `req_049_open_a_tab_rather_than_a_window_where_the_platform_documents_one`

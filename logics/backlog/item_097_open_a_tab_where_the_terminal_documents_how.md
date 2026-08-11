@@ -1,10 +1,10 @@
 ## item_097_open_a_tab_where_the_terminal_documents_how - Open a tab where the terminal documents how
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 90%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -58,3 +58,9 @@
 # Priority
 - Priority: Low
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_060_orchestrate_tabs_instead_of_windows`
+
+# Notes
+- Task `task_060_orchestrate_tabs_instead_of_windows` was finished via `logics-manager flow finish task` on 2026-08-11.
