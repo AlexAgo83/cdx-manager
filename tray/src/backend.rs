@@ -121,9 +121,8 @@ fn style_rows(menu: &Menu, rows: &[crate::runner::Row]) {
             index: row.menu_index,
             name: row.name.clone(),
             provider: row.provider.clone(),
-            percent: row.percent,
             state: row.state.clone(),
-            figure: row.figure.clone(),
+            windows: row.windows.clone(),
             detail: row.detail.clone(),
         })
         .collect();

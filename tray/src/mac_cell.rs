@@ -111,13 +111,15 @@ pub struct Cell {
     /// is a provider the macOS user cannot read anywhere. The text rows the
     /// other backends keep say it on the same line.
     pub provider: String,
-    /// `None` for a session that never reported: the gauge draws empty rather
-    /// than full, because unknown must not look healthy at a glance.
-    pub percent: Option<f64>,
     /// `ok`, `low`, `critical` or `unknown` — the same states the icon uses.
     pub state: String,
-    /// The figure as text, so the number is never carried by the bar alone.
-    pub figure: String,
+    /// One entry per reported window — five hours, a week — each drawn on its
+    /// own line with its own bar and its own name. `None` draws an empty bar
+    /// rather than a full one, because a session that never reported must not
+    /// look healthy at a glance. Two numbers on one line
+    /// would need colour or position to tell them apart; a line each needs
+    /// neither, which is what keeps it readable without relying on colour.
+    pub windows: Vec<(String, Option<f64>)>,
     /// The second line: how old the figure is, and when it resets. Both were
     /// missing from this cell entirely — the text rows on the other platforms
     /// said them, and macOS, which is the platform that draws, said neither.
@@ -136,9 +138,11 @@ const TOP_LINE_HEIGHT: f64 = 15.0;
 const DETAIL_Y: f64 = 3.0;
 const DETAIL_HEIGHT: f64 = 13.0;
 const ROW_WIDTH: f64 = 260.0;
-const GAUGE_WIDTH: f64 = 58.0;
+const GAUGE_WIDTH: f64 = 46.0;
 const GAUGE_HEIGHT: f64 = 4.0;
-const FIGURE_WIDTH: f64 = 38.0;
+/// Wide enough for "5h 100%", because the window's name travels with its
+/// figure: a bare percentage would leave the two lines indistinguishable.
+const FIGURE_WIDTH: f64 = 54.0;
 const INSET_LEFT: f64 = 14.0;
 const INSET_RIGHT: f64 = 12.0;
 /// Room for the submenu chevron at the right edge.
@@ -152,6 +156,15 @@ const CHEVRON_WIDTH: f64 = 14.0;
 /// provider. Session names are what the user reads first and are the longer of
 /// the two; a provider is one short word from a set of two.
 const NAME_SHARE: f64 = 0.68;
+
+/// A percentage, or the same em dash the text rows use for a session that has
+/// never reported: an empty column would read as a rendering fault.
+fn percent_text(value: Option<f64>) -> String {
+    match value {
+        Some(v) => format!("{}%", v.round() as i64),
+        None => "—".to_string(),
+    }
+}
 
 fn severity_colour(state: &str) -> Retained<NSColor> {
     // Apple's own system colours rather than invented ones: they are the pair
@@ -222,40 +235,61 @@ pub fn build_cell(cell: &Cell, mtm: MainThreadMarker) -> Retained<NSView> {
     ));
     container.addSubview(&provider);
 
-    // The track, then the fill over it. Drawn as two layers rather than one
-    // gradient so an empty gauge still shows where full would be.
-    let track_y = TOP_LINE_Y + (TOP_LINE_HEIGHT - GAUGE_HEIGHT) / 2.0;
-    let track = bar(
-        NSRect::new(
-            NSPoint::new(gauge_x, track_y),
-            NSSize::new(GAUGE_WIDTH, GAUGE_HEIGHT),
-        ),
-        &NSColor::quaternaryLabelColor(),
-        mtm,
-    );
-    container.addSubview(&track);
+    // One window per line, each with its own bar and its own name. The lines
+    // are the two the row already has, so a second window costs no height.
+    for (index, (name, value)) in cell.windows.iter().take(2).enumerate() {
+        let line_y = if index == 0 { TOP_LINE_Y } else { DETAIL_Y };
+        let line_height = if index == 0 {
+            TOP_LINE_HEIGHT
+        } else {
+            DETAIL_HEIGHT
+        };
+        let track_y = line_y + (line_height - GAUGE_HEIGHT) / 2.0;
 
-    let filled = cell.percent.unwrap_or(0.0).clamp(0.0, 100.0) / 100.0 * GAUGE_WIDTH;
-    if filled > 0.5 {
-        let fill = bar(
+        // The track, then the fill over it. Drawn as two layers rather than one
+        // gradient so an empty gauge still shows where full would be.
+        let track = bar(
             NSRect::new(
                 NSPoint::new(gauge_x, track_y),
-                NSSize::new(filled, GAUGE_HEIGHT),
+                NSSize::new(GAUGE_WIDTH, GAUGE_HEIGHT),
             ),
-            &severity_colour(&cell.state),
+            &NSColor::quaternaryLabelColor(),
             mtm,
         );
-        container.addSubview(&fill);
-    }
+        container.addSubview(&track);
 
-    // The figure, on its own column so the digits line up down the menu.
-    let figure = label(&cell.figure, 12.0, NSColor::secondaryLabelColor(), mtm);
-    figure.setAlignment(NSTextAlignment::Right);
-    figure.setFrame(NSRect::new(
-        NSPoint::new(figure_x, top(TOP_LINE_HEIGHT).y),
-        NSSize::new(FIGURE_WIDTH, TOP_LINE_HEIGHT),
-    ));
-    container.addSubview(&figure);
+        let filled = value.unwrap_or(0.0).clamp(0.0, 100.0) / 100.0 * GAUGE_WIDTH;
+        if filled > 0.5 {
+            let fill = bar(
+                NSRect::new(
+                    NSPoint::new(gauge_x, track_y),
+                    NSSize::new(filled, GAUGE_HEIGHT),
+                ),
+                // The severity of the row, not of this window: the colour has
+                // to agree with the icon, and the icon follows the window that
+                // runs out first.
+                &severity_colour(&cell.state),
+                mtm,
+            );
+            container.addSubview(&fill);
+        }
+
+        // The figure, on its own column so the digits line up down the menu,
+        // carrying the window's name so the two lines cannot be confused.
+        let text = if name.is_empty() {
+            percent_text(*value)
+        } else {
+            format!("{name} {}", percent_text(*value))
+        };
+        let size = if index == 0 { 12.0 } else { 11.0 };
+        let figure = label(&text, size, NSColor::secondaryLabelColor(), mtm);
+        figure.setAlignment(NSTextAlignment::Right);
+        figure.setFrame(NSRect::new(
+            NSPoint::new(figure_x, line_y),
+            NSSize::new(FIGURE_WIDTH, line_height),
+        ));
+        container.addSubview(&figure);
+    }
 
     // The second line. Tertiary rather than secondary: it qualifies the figure
     // above rather than competing with it, and a row of thirteen sessions
@@ -264,7 +298,8 @@ pub fn build_cell(cell: &Cell, mtm: MainThreadMarker) -> Retained<NSView> {
         let detail = label(&cell.detail, 11.0, NSColor::tertiaryLabelColor(), mtm);
         detail.setFrame(NSRect::new(
             NSPoint::new(INSET_LEFT, DETAIL_Y),
-            NSSize::new(ROW_WIDTH - INSET_LEFT - INSET_RIGHT, DETAIL_HEIGHT),
+            // Stops before the gauge column, which the second window now uses.
+            NSSize::new(gauge_x - INSET_LEFT - 8.0, DETAIL_HEIGHT),
         ));
         container.addSubview(&detail);
     }

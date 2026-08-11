@@ -161,7 +161,16 @@ impl std::fmt::Display for Unavailable {
 pub struct Session {
     pub name: String,
     pub provider: String,
+    /// The window that runs out first, which is what the icon and the ordering
+    /// follow. CDX computes it as the minimum of the two below.
     pub available_pct: Option<f64>,
+    /// The five-hour and weekly windows, when the provider reports them.
+    ///
+    /// Both providers publish both, and CDX has been sending them since the
+    /// snapshot existed — the companion simply read neither, so a nearly spent
+    /// week was invisible behind a five-hour window that had just reset.
+    pub five_hour_pct: Option<f64>,
+    pub week_pct: Option<f64>,
     pub freshness: String,
     pub reset_at: Option<String>,
     /// The reset as a distance rather than a stamp — "in 5h" instead of
@@ -326,6 +335,10 @@ fn plugin_card_from(value: &Value) -> Option<PluginCard> {
     })
 }
 
+fn optional_pct(value: &Value, key: &str) -> Option<f64> {
+    value.get(key).and_then(Value::as_f64)
+}
+
 fn session_from(value: &Value) -> Session {
     Session {
         name: value
@@ -338,7 +351,9 @@ fn session_from(value: &Value) -> Session {
             .and_then(Value::as_str)
             .unwrap_or("-")
             .to_string(),
-        available_pct: value.get("available_pct").and_then(Value::as_f64),
+        available_pct: optional_pct(value, "available_pct"),
+        five_hour_pct: optional_pct(value, "remaining_5h_pct"),
+        week_pct: optional_pct(value, "remaining_week_pct"),
         freshness: value
             .get("freshness")
             .and_then(Value::as_str)
@@ -450,6 +465,40 @@ mod tests {
             .expect("a snapshot")
             .plugins
             .is_empty());
+    }
+
+    /// CDX has been sending both windows since the snapshot existed; only the
+    /// companion ignored them. A build that predates this reads neither and
+    /// keeps rendering the single figure, which is why nothing about the
+    /// payload had to change.
+    #[test]
+    fn both_limit_windows_are_read_when_cdx_reports_them() {
+        let value: Value = serde_json::from_str(&format!(
+            r#"{{"schema":{{"name":"{SCHEMA_NAME}","major":{SCHEMA_MAJOR},"minor":1}},
+                "icon":{{"state":"low","tooltip":"CDX","session_count":1}},
+                "sessions":[{{"name":"work","provider":"claude","available_pct":12,
+                    "remaining_5h_pct":80,"remaining_week_pct":12,"freshness":"fresh"}}]}}"#
+        ))
+        .expect("valid json");
+        let session = &read_snapshot(&value).expect("a snapshot").sessions[0];
+        assert_eq!(session.five_hour_pct, Some(80.0));
+        assert_eq!(session.week_pct, Some(12.0));
+        // The figure the icon follows stays the one that runs out first.
+        assert_eq!(session.available_pct, Some(12.0));
+    }
+
+    #[test]
+    fn a_session_without_windows_reads_as_having_none() {
+        let value: Value = serde_json::from_str(&format!(
+            r#"{{"schema":{{"name":"{SCHEMA_NAME}","major":{SCHEMA_MAJOR},"minor":0}},
+                "icon":{{"state":"ok","tooltip":"CDX","session_count":1}},
+                "sessions":[{{"name":"work","provider":"ollama","available_pct":50,"freshness":"fresh"}}]}}"#
+        ))
+        .expect("valid json");
+        let session = &read_snapshot(&value).expect("a snapshot").sessions[0];
+        assert_eq!(session.five_hour_pct, None);
+        assert_eq!(session.week_pct, None);
+        assert_eq!(session.available_pct, Some(50.0));
     }
 
     #[test]

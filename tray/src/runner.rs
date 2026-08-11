@@ -27,9 +27,10 @@ pub struct Row {
     /// the label entirely, so a provider missing here is a provider the macOS
     /// user cannot see at all.
     pub provider: String,
-    pub percent: Option<f64>,
     pub state: String,
-    pub figure: String,
+    /// One entry per reported limit window: its name and how much is left.
+    /// The drawn row gives each its own line, so neither can hide the other.
+    pub windows: Vec<(String, Option<f64>)>,
     /// How old the figure is and when it resets, in the words the text rows
     /// use. A drawn cell replaces the label entirely, so anything the row
     /// should say has to be carried here deliberately — this is the third
@@ -167,11 +168,13 @@ fn rows_for(entries: &[menu::Entry], sessions: &[crate::snapshot::Session]) -> V
                     menu_index,
                     name: session.name.clone(),
                     provider: session.provider.clone(),
-                    percent: session.available_pct,
                     // Same thresholds the icon uses, so a red bar and a red
                     // glyph can never disagree about the same session.
                     state: menu::state_for(session.available_pct).to_string(),
-                    figure: menu::pct(session.available_pct),
+                    windows: menu::windows(session)
+                        .into_iter()
+                        .map(|(name, value)| (name.to_string(), value))
+                        .collect(),
                     detail: menu::row_detail(session),
                 });
             }

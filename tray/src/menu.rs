@@ -141,6 +141,43 @@ pub fn pct(value: Option<f64>) -> String {
     }
 }
 
+/// The windows a session reports, each named.
+///
+/// Both providers meter two: five hours and a week. Showing one number meant
+/// showing whichever CDX had decided was worse, so a week almost spent was
+/// invisible behind a five-hour window that had just reset — and the figure
+/// silently changed meaning between two polls.
+///
+/// Named rather than positional: "5h 40% · wk 12%" survives one of the two
+/// being absent, where a bare "40% · 12%" would not say which one went.
+pub fn windows(session: &Session) -> Vec<(&'static str, Option<f64>)> {
+    let mut reported = Vec::new();
+    if session.five_hour_pct.is_some() {
+        reported.push(("5h", session.five_hour_pct));
+    }
+    if session.week_pct.is_some() {
+        reported.push(("wk", session.week_pct));
+    }
+    // A provider that reports neither window still has a figure: CDX derives
+    // `available_pct` from whatever it had, and an empty row would be a
+    // regression for the sake of a distinction that does not apply here.
+    if reported.is_empty() {
+        reported.push(("", session.available_pct));
+    }
+    reported
+}
+
+fn windows_text(session: &Session) -> String {
+    windows(session)
+        .into_iter()
+        .map(|(name, value)| match name {
+            "" => pct(value),
+            _ => format!("{name} {}", pct(value)),
+        })
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
+
 /// One line per session: who, which provider, how much is left, and how much
 /// that figure can be trusted. `auth_locked` is spelled out rather than shown
 /// as staleness, because the user cannot fix it by refreshing.
@@ -221,10 +258,12 @@ fn session_line(session: &Session) -> String {
     // of its most constrained session, so a healthy account could sit above the
     // one that made the icon turn. The list is ordered by remaining capacity and
     // by nothing else, so the provider has to be said per row.
+    // The leading gauge stays on the window that runs out first: it is the
+    // column the eye scans down, and it has to mean one thing all the way.
     format!(
         "  {}  {}  {} · {}{}{}",
         gauge(session.available_pct),
-        pct(session.available_pct),
+        windows_text(session),
         session.name,
         session.provider,
         freshness,
@@ -452,6 +491,10 @@ mod tests {
         Session {
             name: name.into(),
             provider: provider.into(),
+            // One window by default: the case where a provider reports only
+            // what CDX could derive, which has to keep rendering as one figure.
+            five_hour_pct: None,
+            week_pct: None,
             available_pct: pct,
             freshness: freshness.into(),
             reset_at: None,
@@ -763,6 +806,44 @@ mod tests {
             &[],
         );
         assert!(!labels(&entries).to_lowercase().contains("logics"));
+    }
+
+    /// `req_046` AC4: a week almost spent must not hide behind a five-hour
+    /// window that has just reset, which is exactly what one figure did.
+    #[test]
+    fn both_windows_are_named_on_the_row() {
+        let mut session = session("work", Some(12.0), "fresh");
+        session.five_hour_pct = Some(80.0);
+        session.week_pct = Some(12.0);
+        assert_eq!(
+            windows(&session),
+            vec![("5h", Some(80.0)), ("wk", Some(12.0))]
+        );
+        let line = session_line(&session);
+        assert!(line.contains("5h 80% · wk 12%"), "{line}");
+        // The leading gauge stays on the window that runs out first, so the
+        // column the eye scans means one thing all the way down.
+        assert!(line.trim_start().starts_with(&gauge(Some(12.0))), "{line}");
+    }
+
+    #[test]
+    fn a_single_window_is_named_and_implies_no_missing_second() {
+        let mut only_week = session("work", Some(30.0), "fresh");
+        only_week.week_pct = Some(30.0);
+        assert_eq!(windows(&only_week), vec![("wk", Some(30.0))]);
+        assert!(session_line(&only_week).contains("wk 30%"));
+    }
+
+    /// A provider that meters neither window still has a figure CDX derived,
+    /// and an empty row would be a regression for the sake of a distinction
+    /// that does not apply.
+    #[test]
+    fn a_session_with_no_named_window_still_shows_its_figure() {
+        let plain = session("work", Some(45.0), "fresh");
+        assert_eq!(windows(&plain), vec![("", Some(45.0))]);
+        assert!(session_line(&plain).contains("45%"));
+        let never = session("side", None, "unknown");
+        assert!(session_line(&never).contains("—"));
     }
 
     /// `req_046` AC1 and AC2: the drawn row has to say the two things a text
