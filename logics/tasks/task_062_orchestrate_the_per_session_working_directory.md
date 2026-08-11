@@ -8,6 +8,7 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Indicators reviewed: 2026-08-11 13:36:23
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)
@@ -54,4 +55,4 @@
 # Links
 - Request: `req_051_launch_a_session_in_the_directory_it_belongs_to`
 - Product brief(s): `prod_038_sessions_that_know_what_they_are_working_on`
-- Architecture decision(s): (none yet)
+- Architecture decision(s): `adr_007_what_cdx_records_about_where_a_run_happened`

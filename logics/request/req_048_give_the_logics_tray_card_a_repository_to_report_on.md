@@ -7,7 +7,7 @@
 > Complexity: Low
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-11 13:34:10
+> Indicators reviewed: 2026-08-11 13:36:23
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)
@@ -46,7 +46,7 @@
 
 # Companion docs
 - Product brief(s): `prod_035_a_logics_card_that_knows_which_repository_it_is_about`
-- Architecture decision(s): (none yet)
+- Architecture decision(s): `adr_007_what_cdx_records_about_where_a_run_happened`
 
 # References
 - src/tray_logics.py

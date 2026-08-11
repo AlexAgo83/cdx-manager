@@ -7,6 +7,7 @@
 > Complexity: Medium
 > Theme: Session lifecycle
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-08-11 13:36:22
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)
@@ -44,7 +45,7 @@
 
 # Companion docs
 - Product brief(s): `prod_038_sessions_that_know_what_they_are_working_on`
-- Architecture decision(s): (none yet)
+- Architecture decision(s): `adr_007_what_cdx_records_about_where_a_run_happened`
 
 # References
 - src/provider_runtime.py

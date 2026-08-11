@@ -8,6 +8,7 @@
 > Complexity: Medium
 > Theme: Session lifecycle
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-11 13:36:22
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)
@@ -51,11 +52,11 @@
 
 # Decision framing
 - Product framing: Not needed
-- Architecture framing: Not needed
+- Architecture framing: Settled in `adr_007_what_cdx_records_about_where_a_run_happened`: one resolved absolute path recorded on the run, every other property derived at read time, and only a basename crossing to a companion.
 
 # Links
 - Product brief(s): `prod_038_sessions_that_know_what_they_are_working_on`
-- Architecture decision(s): (none yet)
+- Architecture decision(s): `adr_007_what_cdx_records_about_where_a_run_happened`
 - Request: `req_051_launch_a_session_in_the_directory_it_belongs_to`
 - Primary task(s): `task_062_orchestrate_the_per_session_working_directory`
 
