@@ -42,10 +42,11 @@ from ..tray_install import (
     uninstall,
 )
 from ..tray_instance import companion_instance
+from ..tray_plugins import ADAPTERS, collect_cards, enabled_plugins, set_plugin_enabled
 
 TRAY_ACTIONS = (
     "status", "install", "launch", "uninstall", "autostart", "doctor",
-    "events", "ack", "heartbeat", "alerts",
+    "events", "ack", "heartbeat", "alerts", "plugin",
 )
 
 # Codes rather than prose, so a caller can branch on them.
@@ -86,7 +87,19 @@ def handle_tray(rest, ctx):
         return _tray_heartbeat(args, ctx)
     if action == "alerts":
         return _tray_alerts(args, ctx)
+    if action == "plugin":
+        return _tray_plugin(args, ctx)
     return _tray_install(args, ctx)
+
+
+def _plugin_cache(ctx):
+    """The per-process card cache.
+
+    `cdx tray status` is a fresh process per poll, so this only helps within one
+    invocation today. It exists as the seam the TTL is honoured through, and the
+    place a longer-lived cache would go without every adapter learning about it.
+    """
+    return ctx.setdefault("plugin_cache", {})
 
 
 def _tray_status(args, ctx):
@@ -103,11 +116,20 @@ def _tray_status(args, ctx):
         force_refresh=parsed["refresh"],
         cache_only=not parsed["refresh"],
     )
+    # Enabled integrations contribute a card each. A manual refresh passes no
+    # cache, so it is what actually re-asks them; a poll reuses a card for its
+    # TTL and does not make an integration pay the tray's rate.
+    cards = collect_cards(
+        ctx["service"]["base_dir"],
+        env=ctx.get("env"),
+        cache=None if parsed["refresh"] else _plugin_cache(ctx),
+    )
     snapshot = build_snapshot(
         rows,
         datetime.now(timezone.utc),
         ctx["version"],
         refreshable=not any(row.get("active") for row in rows),
+        plugins=cards,
     )
     # Pending alerts ride along with the snapshot rather than costing their own
     # call. Across WSL every invocation is a `wsl.exe` crossing measured at
@@ -363,6 +385,89 @@ def _tray_install(args, ctx):
             ctx["out"]("Codex will ask you once to approve the cdx hook plugin.\n")
     else:
         ctx["out"](f"Agent alerts: {alerts_reason}\n")
+    return 0
+
+
+PLUGIN_UNKNOWN = "tray_plugin_unknown"
+
+
+def _tray_plugin(args, ctx):
+    """Turn an integration on or off, and say what is on.
+
+    Explicit in both directions and reversible, because an integration runs
+    another tool's command on the user's behalf: nothing here has a default that
+    turns something on, and `disable` is not a hidden setting.
+    """
+    parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, TRAY_USAGE, positionals_key="args", max_positionals=2)
+    positional = parsed["args"] or ["status"]
+    mode = positional[0]
+    if mode not in ("enable", "disable", "status", "run"):
+        raise CdxError(TRAY_USAGE)
+    base_dir = ctx["service"]["base_dir"]
+
+    if mode == "run":
+        return _tray_plugin_run(positional[1:], parsed, ctx)
+
+    if mode in ("enable", "disable"):
+        if len(positional) < 2:
+            raise CdxError(TRAY_USAGE)
+        name = positional[1]
+        if name not in ADAPTERS:
+            return _refuse(
+                ctx, parsed["json"], "tray.plugin", PLUGIN_UNKNOWN,
+                f"No tray integration is called {name}. Known: {', '.join(sorted(ADAPTERS))}.",
+            )
+        set_plugin_enabled(base_dir, name, mode == "enable")
+
+    enabled = enabled_plugins(base_dir)
+    available = _available_plugins(ctx, enabled)
+    message = (
+        f"Tray integrations enabled: {', '.join(enabled)}" if enabled
+        else "No tray integration is enabled."
+    )
+    if parsed["json"]:
+        _write_json(ctx, _json_success(
+            "tray.plugin", message, enabled=enabled, known=sorted(ADAPTERS),
+            activatable=available, applied=mode in ("enable", "disable"),
+        ))
+        return 0
+    ctx["out"](f"{message}\n")
+    for name in available:
+        # Said once, as an offer rather than a nudge repeated on every command:
+        # the tool is here, the card is not on, and this is how to turn it on.
+        ctx["out"](f"{_dim(f'{name} is installed but not enabled. Run: cdx tray plugin enable {name}', ctx['use_color'])}\n")
+    return 0
+
+
+def _available_plugins(ctx, enabled):
+    """Integrations whose tool is installed and whose card is not enabled."""
+    from ..logics_view import resolve_logics_manager
+
+    if "logics" in enabled or not resolve_logics_manager(ctx.get("env") or {}):
+        return []
+    return ["logics"]
+
+
+def _tray_plugin_run(rest, parsed, ctx):
+    """Perform one card action, named by its id.
+
+    The tray sends an id back rather than a command, and this is where that
+    matters: the id is matched against what CDX knows how to do, and anything
+    else is refused. There is no path from a card to a shell.
+    """
+    from ..tray_plugin_actions import perform_action
+
+    if not rest:
+        raise CdxError(TRAY_USAGE)
+    result = perform_action(rest[0], ctx)
+    if not result["ok"]:
+        return _refuse(ctx, parsed["json"], "tray.plugin.run", result["code"], result["message"])
+    if parsed["json"]:
+        _write_json(ctx, _json_success("tray.plugin.run", result["message"], applied=True))
+        return 0
+    ctx["out"](f"{result['message']}\n")
     return 0
 
 

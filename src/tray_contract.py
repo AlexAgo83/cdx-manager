@@ -23,7 +23,7 @@ from .status_view import _format_reset_time
 
 SCHEMA_NAME = "cdx.tray.snapshot"
 SCHEMA_MAJOR = 1
-SCHEMA_MINOR = 0
+SCHEMA_MINOR = 1
 
 # Below this much remaining capacity a session cannot usefully take work. Shared
 # with the ranking's own usability threshold so the tray and `cdx next` do not
@@ -223,7 +223,7 @@ def tooltip_for(worst):
     return "CDX · " + " · ".join(parts)
 
 
-def build_snapshot(rows, now, cdx_version, refreshable=True):
+def build_snapshot(rows, now, cdx_version, refreshable=True, plugins=None):
     """The whole contract, from the rows `cdx status` already returns.
 
     `icon` carries no session name, account, or figure: it is what shows while
@@ -254,6 +254,10 @@ def build_snapshot(rows, now, cdx_version, refreshable=True):
         "sessions": sessions,
         "refreshable": bool(refreshable),
         "actions": ["refresh", "open_terminal"],
+        # Zero or more bounded cards from enabled integrations. A minor-version
+        # addition: a companion that predates it ignores the key and shows
+        # exactly what it showed before.
+        "plugins": list(plugins or []),
     }
 
 
