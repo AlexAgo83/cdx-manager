@@ -8,12 +8,13 @@
 > Complexity: Low
 > Theme: Diagnostics
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-11 13:38:56
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: name, prefix, install, update, acted
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: Install, update and uninstall report the prefix they acted on, and say when it is a session profile rather than the operator's own home.
+- Keywords: cdx update, install prefix, session profile, JSON result
+- Use when: Implementing the install-side half of req_050.
+- Skip when: The companion and hook diagnostics, which are the other slice.
 
 # Problem
 - `cdx update` inside a session updates the session's copy and reports plain success, so the operator's own installation silently stays behind.

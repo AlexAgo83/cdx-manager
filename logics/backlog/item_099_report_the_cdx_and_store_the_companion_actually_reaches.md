@@ -8,12 +8,13 @@
 > Complexity: Medium
 > Theme: Diagnostics
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-11 13:38:56
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: report, cdx, store, companion, actually, reaches
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: cdx tray doctor reports the cdx the companion resolves and the store a hook would publish into, and names a mismatch.
+- Keywords: tray doctor, WSL transport, CDX_TRAY_CDX, heartbeat store
+- Use when: Implementing the diagnostics half of req_050.
+- Skip when: The install and update reporting, which is the other slice.
 
 # Problem
 - A companion resolves cdx through a non-login PATH, or across WSL, and can reach a different installation than the operator's terminal — with nothing able to see both sides at once.

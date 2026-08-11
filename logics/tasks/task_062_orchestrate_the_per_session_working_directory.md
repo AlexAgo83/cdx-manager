@@ -8,16 +8,21 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-08-11 13:36:23
+> Indicators reviewed: 2026-08-11 13:40:12
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: orchestrate, per, session, working, directory
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: One resolution point feeds every provider's directory; this adds the explicit argument, the narrow prompt, and the per-run record.
+- Keywords: cwd resolution, launch picker, run record, adr_007
+- Use when: Implementing req_051. Read adr_007 first: it fixes the shape of the recorded fact and the privacy boundary.
+- Skip when: Any work that consumes the recorded directory rather than producing it.
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
+- `adr_007` fixes the shape before any code: one resolved absolute path recorded on the run, every other property derived at read time, only a basename crossing to a companion, and a missing record never substituted by the current directory. Read it first.
+- Established by inspection, so it does not need rediscovering: the directory is decided at one line per entry point — `src/commands/launch.py:130` (`cwd = ctx.get("cwd") or os.getcwd()`), the headless builder, and `cdx run` — and all three hand it to `_build_launch_spec(session, cwd=...)`. Every provider receives it as `options.cwd`; Codex additionally receives `--cd`. This is one resolution function, not per-provider plumbing.
+- The record goes where the run already is: `start_session_runtime` in `src/session_service.py` keeps `runId`, `startedAt`, `pid`, `command`, `label` and `transcriptPath`, and no directory. That absence is the whole gap.
+- Why a home-directory launch is worse than merely unhelpful: with no `.git` above it, Codex's project-root resolver returns the home directory itself and loads `~/.codex/` as an untrusted *project* layer, rejecting keys that are only valid at user level. That is upstream issue openai/codex#9932, still open, and not ours to fix — it is the evidence that launching there is a real failure and not a preference.
+- Open decision, deliberately not taken in advance: what counts as "plainly not a project". A home directory is certain; a missing project marker is a judgement, and getting it wrong puts a prompt in front of a launch that was already correct. Settle it in step 2 before writing the prompt.
 
 # Plan
 - [ ] 1. 1. Trace how the directory reaches each provider today, interactively and headlessly, and where the other launch settings are stored and rendered.

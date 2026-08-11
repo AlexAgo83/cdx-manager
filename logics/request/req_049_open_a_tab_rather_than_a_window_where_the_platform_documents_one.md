@@ -7,12 +7,13 @@
 > Complexity: Medium
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-08-11 13:38:55
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: open, tab, rather, than, window, platform, documents
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: Every session row opens a new terminal window, so three sessions cost three windows to arrange.
+- Keywords: terminal tab, wt, gnome-terminal, konsole, macOS limitation
+- Use when: Deciding how a tray session row opens a terminal.
+- Skip when: Which terminal opens, which req_047 settled, or anything needing simulated keystrokes.
 
 # Needs
 - Every session row opens a new terminal window. Someone who opens three sessions in a row ends up with three windows to arrange, on top of the one they were already working in — and the row exists to save them a step, not to cost them a tidy-up.

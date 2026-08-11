@@ -8,12 +8,13 @@
 > Complexity: Medium
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-11 13:38:56
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: open, tab, terminal, documents
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: Use each terminal's own documented tab flag, fall back to a window, and write down the macOS conclusion.
+- Keywords: wt -w 0 nt, gnome-terminal --tab, konsole --new-tab, fallback
+- Use when: Implementing req_049.
+- Skip when: Adding operator-supplied terminal flags, profiles or working directories.
 
 # Problem
 - Three sessions opened from the tray are three windows to arrange.

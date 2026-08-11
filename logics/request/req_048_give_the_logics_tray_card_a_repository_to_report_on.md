@@ -7,13 +7,13 @@
 > Complexity: Low
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-11 13:36:23
+> Indicators reviewed: 2026-08-11 13:38:54
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: logics, tray, card, repository, report
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: The Logics tray card is built in the caller's working directory, and a companion started at login has none, so an enabled card is silent.
+- Keywords: Logics card, tray plugin, working directory, several repositories
+- Use when: Making the Logics card report on something in normal use.
+- Skip when: The card's contents, bounds or refresh cadence, which req_037 already settled.
 
 # Needs
 - The Logics card is built by running logics-manager in the working directory of whatever asked for the snapshot. The tray companion is started at login and has no meaningful working directory, so the card it was built for is absent in exactly the situation it exists for — enabled, installed, and silent.

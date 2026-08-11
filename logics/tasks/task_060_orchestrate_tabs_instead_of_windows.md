@@ -8,15 +8,20 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Indicators reviewed: 2026-08-11 13:40:12
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: orchestrate, tabs, instead, windows
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: Settle what macOS can actually do before implementing, then add the documented tab flags with a window fallback.
+- Keywords: terminal tab, per-platform invocation, fallback, macOS limitation
+- Use when: Implementing req_049. Lowest priority of the open work.
+- Skip when: Anything requiring Accessibility permissions or simulated input.
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
+- Where terminals are opened today: `open_terminal_in` in `tray/src/mac.rs`, `tray/src/linux.rs` and `tray/src/win.rs`. `req_047` already made *which* terminal a preference; this decides *how* it opens, and the two compose at the same call sites.
+- What each platform documents: Windows Terminal has `wt -w 0 nt`, which targets the existing window and opens a tab; gnome-terminal has `--tab`; konsole has `--new-tab`. These are the ones that can be honoured without guessing, which is the same discipline `req_047` applied to `wt`.
+- macOS is the one with no answer. Terminal.app has no AppleScript verb for a new tab, and the usual workaround drives System Events with a simulated Command-T — which needs the Accessibility permission and breaks when a dialog has focus. iTerm2 has its own dictionary. A conclusion of "window on macOS" is an acceptable outcome; it has to be written down as a conclusion rather than left looking like an oversight.
+- Lowest priority of the open work: nothing is broken, and three windows to arrange is a cost rather than a failure.
 
 # Plan
 - [ ] 1. 1. Establish what each platform actually documents, and settle the macOS conclusion in writing before implementing anything.

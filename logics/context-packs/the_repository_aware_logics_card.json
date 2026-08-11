@@ -1,0 +1,250 @@
+{
+  "budgets": {
+    "max_docs": 8,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack task_059_orchestrate_the_repository_aware_logics_card --mode summary-only --profile deep",
+  "companion_docs": [],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "Logics card, derived repository, adr_007, blocked on req_051",
+        "skip when": "Starting before run directories are recorded; there is nothing reliable to read until then.",
+        "summary": "Blocked on req_051: the run directories it records are the only source this card can read.",
+        "use when": "Implementing req_048, after req_051 has landed."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_096_name_the_repository_the_logics_card_reports_on"
+        ],
+        "prod": [
+          "prod_035_a_logics_card_that_knows_which_repository_it_is_about"
+        ],
+        "req": [
+          "req_048_give_the_logics_tray_card_a_repository_to_report_on"
+        ],
+        "task": [
+          "task_059_orchestrate_the_repository_aware_logics_card"
+        ]
+      },
+      "path": "logics/tasks/task_059_orchestrate_the_repository_aware_logics_card.md",
+      "ref": "task_059_orchestrate_the_repository_aware_logics_card",
+      "schema_version": "1.0",
+      "status": "Ready",
+      "title": "Orchestrate the repository-aware Logics card"
+    },
+    {
+      "ai_context": {
+        "keywords": "Logics card, tray plugin, working directory, several repositories",
+        "skip when": "The card's contents, bounds or refresh cadence, which req_037 already settled.",
+        "summary": "The Logics tray card is built in the caller's working directory, and a companion started at login has none, so an enabled card is silent.",
+        "use when": "Making the Logics card report on something in normal use."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "adr": [
+          "adr_007_what_cdx_records_about_where_a_run_happened"
+        ],
+        "item": [
+          "item_096_name_the_repository_the_logics_card_reports_on"
+        ],
+        "prod": [
+          "prod_035_a_logics_card_that_knows_which_repository_it_is_about"
+        ],
+        "req": [
+          "req_048_give_the_logics_tray_card_a_repository_to_report_on"
+        ]
+      },
+      "path": "logics/request/req_048_give_the_logics_tray_card_a_repository_to_report_on.md",
+      "ref": "req_048_give_the_logics_tray_card_a_repository_to_report_on",
+      "schema_version": "1.0",
+      "status": "Draft",
+      "title": "Give the Logics tray card a repository to report on"
+    },
+    {
+      "ai_context": {
+        "keywords": "Logics card, running sessions, derived repository, adr_007",
+        "skip when": "Changing what the card shows per repository, or adding new Logics capabilities.",
+        "summary": "Derive the card's repositories from the directories the running sessions recorded, and name the repository per row when several are in play.",
+        "use when": "Implementing the card's repository resolution once req_051 records run directories."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_096_name_the_repository_the_logics_card_reports_on"
+        ],
+        "prod": [
+          "prod_035_a_logics_card_that_knows_which_repository_it_is_about"
+        ],
+        "req": [
+          "req_048_give_the_logics_tray_card_a_repository_to_report_on"
+        ],
+        "task": [
+          "task_059_orchestrate_the_repository_aware_logics_card"
+        ]
+      },
+      "path": "logics/backlog/item_096_name_the_repository_the_logics_card_reports_on.md",
+      "ref": "item_096_name_the_repository_the_logics_card_reports_on",
+      "schema_version": "1.0",
+      "status": "Ready",
+      "title": "Name the repository the Logics card reports on"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_096_name_the_repository_the_logics_card_reports_on"
+        ],
+        "prod": [
+          "prod_035_a_logics_card_that_knows_which_repository_it_is_about"
+        ],
+        "req": [
+          "req_048_give_the_logics_tray_card_a_repository_to_report_on"
+        ],
+        "task": [
+          "task_059_orchestrate_the_repository_aware_logics_card"
+        ]
+      },
+      "path": "logics/product/prod_035_a_logics_card_that_knows_which_repository_it_is_about.md",
+      "ref": "prod_035_a_logics_card_that_knows_which_repository_it_is_about",
+      "schema_version": "1.0",
+      "status": "Proposed",
+      "title": "A Logics card that knows which repository it is about"
+    }
+  ],
+  "estimates": {
+    "char_count": 3562,
+    "companion_doc_count": 0,
+    "doc_count": 4
+  },
+  "generated_at": "2026-08-11T11:41:25Z",
+  "handoff": {
+    "companion_doc_count": 0,
+    "enabled": false,
+    "source_refs": [
+      "task_059_orchestrate_the_repository_aware_logics_card"
+    ],
+    "validation_summary_count": 0
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "summary-only",
+  "profile": "deep",
+  "ref": "task_059_orchestrate_the_repository_aware_logics_card",
+  "refs": [
+    "task_059_orchestrate_the_repository_aware_logics_card"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.18.5"
+  },
+  "validation_summary": []
+}

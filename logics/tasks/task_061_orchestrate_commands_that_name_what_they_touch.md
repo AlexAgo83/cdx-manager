@@ -8,15 +8,21 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Indicators reviewed: 2026-08-11 13:40:12
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: orchestrate, commands, name, they, touch
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: Two slices: install-side prefix reporting, and doctor reporting what the companion and the hooks actually reach.
+- Keywords: diagnostics, HOME redirection, tray doctor, run_002
+- Use when: Implementing req_050. run_002 is the manual diagnosis this replaces, and lists the four questions to answer.
+- Skip when: Repairing a mismatch automatically, or changing resolution rules.
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
+- The evidence is three incidents in one day, all the same shape: `cdx update` run inside a session installed into that session's profile and reported plain success while the operator's own installation stayed behind; a hook published into a store no companion was watching, so an alert was delivered directly while a tray was plainly running; and a companion crossing into WSL resolved an older `cdx` through a non-login PATH and told the operator to update something already current.
+- None of them is a bug in what the code does. The installer installs where `HOME` points, the hook writes where `CDX_HOME` points, and the companion runs what `PATH` resolves. Each is correct and none of them says which one it picked.
+- `run_002` is the manual diagnosis this replaces, and it lists the four questions in the order that answers fastest. The point of the task is to make the tool answer them itself.
+- Where each fact already exists: the install prefix in `_build_standalone_step` (`src/update_manager.py`), the hook's store in `launch_notify_env` (`src/agent_notify.py`, whose docstring explains why `CDX_HOME` is pinned), and the companion's resolved command in the tray transport, which already has `CDX_TRAY_CDX` for naming it.
+- The constraint that decides the design: a line on every command would be ignored within a day. The extra output belongs where the target is *not* the obvious one, and nowhere else.
 
 # Plan
 - [ ] 1. 1. Trace where the prefix, the store and the resolved binary are already known, and confirm each is available at the moment of reporting.

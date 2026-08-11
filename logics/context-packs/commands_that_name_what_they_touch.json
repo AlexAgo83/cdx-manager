@@ -1,0 +1,281 @@
+{
+  "budgets": {
+    "max_docs": 8,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack task_061_orchestrate_commands_that_name_what_they_touch --mode summary-only --profile deep",
+  "companion_docs": [],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "diagnostics, HOME redirection, tray doctor, run_002",
+        "skip when": "Repairing a mismatch automatically, or changing resolution rules.",
+        "summary": "Two slices: install-side prefix reporting, and doctor reporting what the companion and the hooks actually reach.",
+        "use when": "Implementing req_050. run_002 is the manual diagnosis this replaces, and lists the four questions to answer."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_098_name_the_prefix_an_install_or_update_acted_on",
+          "item_099_report_the_cdx_and_store_the_companion_actually_reaches"
+        ],
+        "prod": [
+          "prod_037_commands_that_name_what_they_are_about_to_touch"
+        ],
+        "req": [
+          "req_050_say_which_installation_and_which_home_a_command_is_acting_on"
+        ],
+        "task": [
+          "task_061_orchestrate_commands_that_name_what_they_touch"
+        ]
+      },
+      "path": "logics/tasks/task_061_orchestrate_commands_that_name_what_they_touch.md",
+      "ref": "task_061_orchestrate_commands_that_name_what_they_touch",
+      "schema_version": "1.0",
+      "status": "Ready",
+      "title": "Orchestrate commands that name what they touch"
+    },
+    {
+      "ai_context": {
+        "keywords": "HOME redirection, CDX_HOME, PATH resolution, diagnostics, tray doctor",
+        "skip when": "Changing how HOME, CDX_HOME or PATH are resolved, or refusing to act on a profile home.",
+        "summary": "Commands act correctly on a home, a store or a binary the operator did not mean, and never say which one they picked.",
+        "use when": "Making CDX report the target it is about to act on, when that target is not the obvious one."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_098_name_the_prefix_an_install_or_update_acted_on",
+          "item_099_report_the_cdx_and_store_the_companion_actually_reaches"
+        ],
+        "prod": [
+          "prod_037_commands_that_name_what_they_are_about_to_touch"
+        ],
+        "req": [
+          "req_050_say_which_installation_and_which_home_a_command_is_acting_on"
+        ],
+        "run": [
+          "run_002_finding_out_which_cdx_and_which_home_you_are_talking_to"
+        ]
+      },
+      "path": "logics/request/req_050_say_which_installation_and_which_home_a_command_is_acting_on.md",
+      "ref": "req_050_say_which_installation_and_which_home_a_command_is_acting_on",
+      "schema_version": "1.0",
+      "status": "Draft",
+      "title": "Say which installation and which home a command is acting on"
+    },
+    {
+      "ai_context": {
+        "keywords": "cdx update, install prefix, session profile, JSON result",
+        "skip when": "The companion and hook diagnostics, which are the other slice.",
+        "summary": "Install, update and uninstall report the prefix they acted on, and say when it is a session profile rather than the operator's own home.",
+        "use when": "Implementing the install-side half of req_050."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_098_name_the_prefix_an_install_or_update_acted_on"
+        ],
+        "prod": [
+          "prod_037_commands_that_name_what_they_are_about_to_touch"
+        ],
+        "req": [
+          "req_050_say_which_installation_and_which_home_a_command_is_acting_on"
+        ],
+        "task": [
+          "task_061_orchestrate_commands_that_name_what_they_touch"
+        ]
+      },
+      "path": "logics/backlog/item_098_name_the_prefix_an_install_or_update_acted_on.md",
+      "ref": "item_098_name_the_prefix_an_install_or_update_acted_on",
+      "schema_version": "1.0",
+      "status": "Ready",
+      "title": "Name the prefix an install or update acted on"
+    },
+    {
+      "ai_context": {
+        "keywords": "tray doctor, WSL transport, CDX_TRAY_CDX, heartbeat store",
+        "skip when": "The install and update reporting, which is the other slice.",
+        "summary": "cdx tray doctor reports the cdx the companion resolves and the store a hook would publish into, and names a mismatch.",
+        "use when": "Implementing the diagnostics half of req_050."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_099_report_the_cdx_and_store_the_companion_actually_reaches"
+        ],
+        "prod": [
+          "prod_037_commands_that_name_what_they_are_about_to_touch"
+        ],
+        "req": [
+          "req_050_say_which_installation_and_which_home_a_command_is_acting_on"
+        ],
+        "task": [
+          "task_061_orchestrate_commands_that_name_what_they_touch"
+        ]
+      },
+      "path": "logics/backlog/item_099_report_the_cdx_and_store_the_companion_actually_reaches.md",
+      "ref": "item_099_report_the_cdx_and_store_the_companion_actually_reaches",
+      "schema_version": "1.0",
+      "status": "Ready",
+      "title": "Report the CDX and store the companion actually reaches"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_098_name_the_prefix_an_install_or_update_acted_on",
+          "item_099_report_the_cdx_and_store_the_companion_actually_reaches"
+        ],
+        "prod": [
+          "prod_037_commands_that_name_what_they_are_about_to_touch"
+        ],
+        "req": [
+          "req_050_say_which_installation_and_which_home_a_command_is_acting_on"
+        ],
+        "task": [
+          "task_061_orchestrate_commands_that_name_what_they_touch"
+        ]
+      },
+      "path": "logics/product/prod_037_commands_that_name_what_they_are_about_to_touch.md",
+      "ref": "prod_037_commands_that_name_what_they_are_about_to_touch",
+      "schema_version": "1.0",
+      "status": "Proposed",
+      "title": "Commands that name what they are about to touch"
+    }
+  ],
+  "estimates": {
+    "char_count": 4793,
+    "companion_doc_count": 0,
+    "doc_count": 5
+  },
+  "generated_at": "2026-08-11T11:41:27Z",
+  "handoff": {
+    "companion_doc_count": 0,
+    "enabled": false,
+    "source_refs": [
+      "task_061_orchestrate_commands_that_name_what_they_touch"
+    ],
+    "validation_summary_count": 0
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "summary-only",
+  "profile": "deep",
+  "ref": "task_061_orchestrate_commands_that_name_what_they_touch",
+  "refs": [
+    "task_061_orchestrate_commands_that_name_what_they_touch"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.18.5"
+  },
+  "validation_summary": []
+}

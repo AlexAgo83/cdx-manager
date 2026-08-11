@@ -8,13 +8,13 @@
 > Complexity: Medium
 > Theme: Session lifecycle
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-11 13:36:22
+> Indicators reviewed: 2026-08-11 13:38:56
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: record, honour, per, session, working, directory
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: Add an explicit launch directory, a choice only where the directory is plainly not a project, and a record of the directory each run used.
+- Keywords: cwd resolution, launch picker, run record, provider launch spec
+- Use when: Implementing the launch-side slice of req_051.
+- Skip when: Working on what reads the recorded directory afterwards, which is req_048 and req_050.
 
 # Problem
 - The directory a run uses comes from the shell with no confirmation, so a launch typed from a home directory produces an assistant with no project, a failed MCP start, and a provider misreading a configuration file as project-local.

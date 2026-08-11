@@ -7,12 +7,13 @@
 > Complexity: Medium
 > Theme: Diagnostics
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-08-11 13:38:55
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: say, installation, home, command, acting
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: Commands act correctly on a home, a store or a binary the operator did not mean, and never say which one they picked.
+- Keywords: HOME redirection, CDX_HOME, PATH resolution, diagnostics, tray doctor
+- Use when: Making CDX report the target it is about to act on, when that target is not the obvious one.
+- Skip when: Changing how HOME, CDX_HOME or PATH are resolved, or refusing to act on a profile home.
 
 # Needs
 - `cdx update` run from inside a cdx session reports success and updates a copy nobody runs. The session's home is redirected so provider auth stays isolated, so `$HOME/.local` is the session's, not the operator's — and the installer correctly installs where it was pointed. Measured while releasing 0.18.5: it reported updated, and the operator's own cdx stayed on the previous version.

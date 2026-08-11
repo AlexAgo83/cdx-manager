@@ -7,13 +7,13 @@
 > Complexity: Medium
 > Theme: Session lifecycle
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-11 13:36:22
+> Indicators reviewed: 2026-08-11 13:38:55
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: launch, session, directory, belongs
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: A launch takes its directory from the shell with no confirmation, and nothing records which directory a run used.
+- Keywords: working directory, launch, run record, project detection, cwd
+- Use when: Deciding how a session picks where it runs, or how CDX reports what its sessions are working on.
+- Skip when: Changing what a provider is invoked with beyond its directory, or per-session settings that are properties of the account.
 
 # Needs
 - `cdx <name>` launches wherever the shell happens to be. Run it from a home directory and the assistant opens on that home directory: no project, an MCP server that cannot start because there is nothing for it to serve, and a provider reading the wrong file as a project-local config. Observed on a real launch, and the assistant was one prompt away from working on nothing.

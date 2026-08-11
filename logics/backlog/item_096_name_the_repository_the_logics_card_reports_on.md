@@ -8,12 +8,13 @@
 > Complexity: Low
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-11 13:38:55
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: name, repository, logics, card, reports
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: Derive the card's repositories from the directories the running sessions recorded, and name the repository per row when several are in play.
+- Keywords: Logics card, running sessions, derived repository, adr_007
+- Use when: Implementing the card's repository resolution once req_051 records run directories.
+- Skip when: Changing what the card shows per repository, or adding new Logics capabilities.
 
 # Problem
 - The adapter runs logics-manager in the caller's working directory, and the caller is a companion with none.

@@ -1,0 +1,283 @@
+{
+  "budgets": {
+    "max_docs": 8,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack task_062_orchestrate_the_per_session_working_directory --mode summary-only --profile deep",
+  "companion_docs": [],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "cwd resolution, launch picker, run record, adr_007",
+        "skip when": "Any work that consumes the recorded directory rather than producing it.",
+        "summary": "One resolution point feeds every provider's directory; this adds the explicit argument, the narrow prompt, and the per-run record.",
+        "use when": "Implementing req_051. Read adr_007 first: it fixes the shape of the recorded fact and the privacy boundary."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "adr": [
+          "adr_007_what_cdx_records_about_where_a_run_happened"
+        ],
+        "item": [
+          "item_100_record_and_honour_a_per_session_working_directory"
+        ],
+        "prod": [
+          "prod_038_sessions_that_know_what_they_are_working_on"
+        ],
+        "req": [
+          "req_051_launch_a_session_in_the_directory_it_belongs_to"
+        ],
+        "task": [
+          "task_062_orchestrate_the_per_session_working_directory"
+        ]
+      },
+      "path": "logics/tasks/task_062_orchestrate_the_per_session_working_directory.md",
+      "ref": "task_062_orchestrate_the_per_session_working_directory",
+      "schema_version": "1.0",
+      "status": "Ready",
+      "title": "Orchestrate the per-session working directory"
+    },
+    {
+      "ai_context": {
+        "keywords": "working directory, launch, run record, project detection, cwd",
+        "skip when": "Changing what a provider is invoked with beyond its directory, or per-session settings that are properties of the account.",
+        "summary": "A launch takes its directory from the shell with no confirmation, and nothing records which directory a run used.",
+        "use when": "Deciding how a session picks where it runs, or how CDX reports what its sessions are working on."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "adr": [
+          "adr_007_what_cdx_records_about_where_a_run_happened"
+        ],
+        "item": [
+          "item_100_record_and_honour_a_per_session_working_directory"
+        ],
+        "prod": [
+          "prod_038_sessions_that_know_what_they_are_working_on"
+        ],
+        "req": [
+          "req_048_give_the_logics_tray_card_a_repository_to_report_on",
+          "req_051_launch_a_session_in_the_directory_it_belongs_to"
+        ]
+      },
+      "path": "logics/request/req_051_launch_a_session_in_the_directory_it_belongs_to.md",
+      "ref": "req_051_launch_a_session_in_the_directory_it_belongs_to",
+      "schema_version": "1.0",
+      "status": "Draft",
+      "title": "Know and choose where a session is being launched"
+    },
+    {
+      "ai_context": {
+        "keywords": "cwd resolution, launch picker, run record, provider launch spec",
+        "skip when": "Working on what reads the recorded directory afterwards, which is req_048 and req_050.",
+        "summary": "Add an explicit launch directory, a choice only where the directory is plainly not a project, and a record of the directory each run used.",
+        "use when": "Implementing the launch-side slice of req_051."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "adr": [
+          "adr_007_what_cdx_records_about_where_a_run_happened"
+        ],
+        "item": [
+          "item_100_record_and_honour_a_per_session_working_directory"
+        ],
+        "prod": [
+          "prod_038_sessions_that_know_what_they_are_working_on"
+        ],
+        "req": [
+          "req_051_launch_a_session_in_the_directory_it_belongs_to"
+        ],
+        "task": [
+          "task_062_orchestrate_the_per_session_working_directory"
+        ]
+      },
+      "path": "logics/backlog/item_100_record_and_honour_a_per_session_working_directory.md",
+      "ref": "item_100_record_and_honour_a_per_session_working_directory",
+      "schema_version": "1.0",
+      "status": "Ready",
+      "title": "Choose the launch directory, and record the one each run used"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_100_record_and_honour_a_per_session_working_directory"
+        ],
+        "prod": [
+          "prod_038_sessions_that_know_what_they_are_working_on"
+        ],
+        "req": [
+          "req_051_launch_a_session_in_the_directory_it_belongs_to"
+        ],
+        "task": [
+          "task_062_orchestrate_the_per_session_working_directory"
+        ]
+      },
+      "path": "logics/product/prod_038_sessions_that_know_what_they_are_working_on.md",
+      "ref": "prod_038_sessions_that_know_what_they_are_working_on",
+      "schema_version": "1.0",
+      "status": "Proposed",
+      "title": "Sessions that know what they are working on"
+    },
+    {
+      "ai_context": {},
+      "kind": "architecture",
+      "linked_refs": {
+        "adr": [
+          "adr_007_what_cdx_records_about_where_a_run_happened"
+        ],
+        "item": [
+          "item_086_deliver_structured_private_hook_context_to_actionable_tray_alerts",
+          "item_100_record_and_honour_a_per_session_working_directory"
+        ],
+        "req": [
+          "req_048_give_the_logics_tray_card_a_repository_to_report_on",
+          "req_050_say_which_installation_and_which_home_a_command_is_acting_on",
+          "req_051_launch_a_session_in_the_directory_it_belongs_to"
+        ],
+        "task": [
+          "task_062_orchestrate_the_per_session_working_directory"
+        ]
+      },
+      "path": "logics/architecture/adr_007_what_cdx_records_about_where_a_run_happened.md",
+      "ref": "adr_007_what_cdx_records_about_where_a_run_happened",
+      "schema_version": "1.0",
+      "status": "Proposed",
+      "title": "What CDX records about where a run happened"
+    }
+  ],
+  "estimates": {
+    "char_count": 4589,
+    "companion_doc_count": 0,
+    "doc_count": 5
+  },
+  "generated_at": "2026-08-11T11:41:28Z",
+  "handoff": {
+    "companion_doc_count": 0,
+    "enabled": false,
+    "source_refs": [
+      "task_062_orchestrate_the_per_session_working_directory"
+    ],
+    "validation_summary_count": 0
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "summary-only",
+  "profile": "deep",
+  "ref": "task_062_orchestrate_the_per_session_working_directory",
+  "refs": [
+    "task_062_orchestrate_the_per_session_working_directory"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.18.5"
+  },
+  "validation_summary": []
+}

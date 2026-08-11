@@ -8,15 +8,20 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Indicators reviewed: 2026-08-11 13:40:11
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: orchestrate, repository, aware, logics, card
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: Blocked on req_051: the run directories it records are the only source this card can read.
+- Keywords: Logics card, derived repository, adr_007, blocked on req_051
+- Use when: Implementing req_048, after req_051 has landed.
+- Skip when: Starting before run directories are recorded; there is nothing reliable to read until then.
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
+- Blocked on `task_062`. The directories it records on each run are the only trustworthy source for this card; starting first means reading where a process happens to be, which is the bug being fixed.
+- The defect, measured after release: `cdx tray status` reports the card from inside a Logics repository and reports nothing from a home directory or from `/`. `_status` in `src/tray_logics.py` runs `logics-manager status --format json` as a subprocess, so it answers about the caller's working directory — and a companion started at login has none. Every existing test injects the status JSON, so none of them exercises this.
+- `adr_007` governs what may be read and what may cross: derive the repository at read time, never store it beside the path, and let only a basename reach the companion.
+- Open design, to settle before writing any rendering: when several repositories are in play, how a row says which one it belongs to. Merging counts across repositories describes neither, and the card has at most two rows to spend.
 
 # Plan
 - [ ] 1. 1. Reproduce the absence: request the snapshot from a project, from a home directory, and from /.
