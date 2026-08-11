@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 
+from .config import get_cdx_home
 from .notify import notification_channel, send_desktop_notification
 from .tray_events import publish
 
@@ -133,8 +134,18 @@ def handle_notify(rest, ctx):
 
 
 def launch_notify_env(session, enabled, env=None):
-    """Env the provider is launched with, carrying who we are and whether to notify."""
-    values = {SESSION_ENV: session["name"]}
+    """Env the provider is launched with, carrying who we are and whether to notify.
+
+    `CDX_HOME` is pinned rather than inherited, and that is what makes tray
+    routing work at all. It defaults to `~/.cdx`, resolved against `HOME` — and
+    a provider session runs with `HOME` redirected into its own profile, which
+    is how cdx isolates auth. So a hook calling `cdx notify` would resolve a
+    *different* store from the one the companion writes its heartbeat into, find
+    no tray, and quietly deliver the notification itself. The symptom is a
+    running tray that never receives an alert, with nothing reporting an error.
+    """
+    env = os.environ if env is None else env
+    values = {SESSION_ENV: session["name"], "CDX_HOME": get_cdx_home(env)}
     if not enabled:
         values[ENABLED_ENV] = "0"
     elif (session.get("launch") or {}).get("notify_preview") is True:

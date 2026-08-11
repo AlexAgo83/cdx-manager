@@ -234,11 +234,18 @@ class ProvisioningTests(unittest.TestCase):
         self.assertTrue(agent_notify.notifications_enabled({"name": "a", "launch": {"notify": True}}))
 
     def test_launch_env_carries_the_session_and_the_suppression(self):
+        # CDX_HOME rides along too: a session runs with HOME redirected into its
+        # own profile, so a hook that inherited the default would resolve a
+        # different store than the tray companion writes into.
         session = {"name": "work1", "launch": {"notify_preview": True}}
-        self.assertEqual(agent_notify.launch_notify_env(session, True), {agent_notify.SESSION_ENV: "work1", agent_notify.PREVIEW_ENV: "1"})
+        home = {"CDX_HOME": "/somewhere/.cdx"}
         self.assertEqual(
-            agent_notify.launch_notify_env(session, False),
-            {agent_notify.SESSION_ENV: "work1", agent_notify.ENABLED_ENV: "0"},
+            agent_notify.launch_notify_env(session, True, env=home),
+            {agent_notify.SESSION_ENV: "work1", agent_notify.PREVIEW_ENV: "1", **home},
+        )
+        self.assertEqual(
+            agent_notify.launch_notify_env(session, False, env=home),
+            {agent_notify.SESSION_ENV: "work1", agent_notify.ENABLED_ENV: "0", **home},
         )
 
 

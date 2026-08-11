@@ -230,3 +230,29 @@ class TrayEventCommandTest(CliTestBase):
         code, out = self._run(["tray", "events", "--json"], service, temp_dir)
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(out)["events"], [])
+
+
+class LaunchEnvironmentTest(CliTestBase):
+    """The hook has to reach the same store the companion writes into.
+
+    CDX_HOME defaults to `~/.cdx`, resolved against HOME — and a provider
+    session runs with HOME redirected into its own profile, which is how cdx
+    isolates auth. Inheriting the default would make a hook resolve a different
+    store from the companion's, find no heartbeat, and deliver the notification
+    itself. Nothing errors; the tray simply never receives anything.
+    """
+
+    def test_the_launch_environment_pins_cdx_home(self):
+        from src.agent_notify import launch_notify_env
+        session = {"name": "work", "launch": {}}
+        values = launch_notify_env(session, True, env={"CDX_HOME": "/somewhere/.cdx"})
+        self.assertEqual(values["CDX_HOME"], "/somewhere/.cdx")
+
+    def test_it_is_pinned_for_headless_runs_too(self):
+        """Headless runs share the session's home and therefore its hooks, so
+        the same mismatch would apply."""
+        from src.agent_notify import launch_notify_env
+        session = {"name": "work", "launch": {}}
+        values = launch_notify_env(session, False, env={"CDX_HOME": "/somewhere/.cdx"})
+        self.assertEqual(values["CDX_HOME"], "/somewhere/.cdx")
+        self.assertEqual(values["CDX_NOTIFY"], "0")
