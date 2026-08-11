@@ -1,10 +1,10 @@
 ## task_061_orchestrate_commands_that_name_what_they_touch - Orchestrate commands that name what they touch
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 90%
+> Status: Done
+> Understanding: 95%
+> Confidence: 90%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -26,40 +26,43 @@
 - The constraint that decides the design: a line on every command would be ignored within a day. The extra output belongs where the target is *not* the obvious one, and nowhere else.
 
 # Plan
-- [ ] 1. 1. Trace where the prefix, the store and the resolved binary are already known, and confirm each is available at the moment of reporting.
-- [ ] 2. 2. Report the prefix in install, update and uninstall, and detect a session profile home.
-- [ ] 3. 3. Extend tray doctor with the companion's resolved cdx and the hook's store, and name a mismatch.
-- [ ] 4. 4. Add focused tests for redirected homes, inherited stores and a differing binary, then run project validation.
-- [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
-- [ ] Keep commit creation under operator control; do not force one commit per micro-step.
-- [ ] GATE: do not close until lint, audit, and scaffold validation pass.
+- [x] 1. 1. Trace where the prefix, the store and the resolved binary are already known, and confirm each is available at the moment of reporting.
+- [x] 2. 2. Report the prefix in install, update and uninstall, and detect a session profile home.
+- [x] 3. 3. Extend tray doctor with the companion's resolved cdx and the hook's store, and name a mismatch.
+- [x] 4. 4. Add focused tests for redirected homes, inherited stores and a differing binary, then run project validation.
+- [x] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
+- [x] Keep commit creation under operator control; do not force one commit per micro-step.
+- [x] GATE: do not close until lint, audit, and scaffold validation pass.
 
 # Backlog
 - `item_098_name_the_prefix_an_install_or_update_acted_on`
 - `item_099_report_the_cdx_and_store_the_companion_actually_reaches`
 
 # Definition of Done (DoD)
-- [ ] Generated request, product, backlog, and task docs are present.
-- [ ] Context-pack handoff is available when requested.
-- [ ] Validation passes.
-- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+- [x] Generated request, product, backlog, and task docs are present.
+- [x] Context-pack handoff is available when requested.
+- [x] Validation passes.
+- [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
-- request-AC1 -> `item_098_name_the_prefix_an_install_or_update_acted_on`. Proof deferred to slice closeout.
-- request-AC2 -> `item_098_name_the_prefix_an_install_or_update_acted_on`. Proof deferred to slice closeout.
-- request-AC4 -> `item_098_name_the_prefix_an_install_or_update_acted_on`. Proof deferred to slice closeout.
-- request-AC5 -> `item_098_name_the_prefix_an_install_or_update_acted_on`. Proof deferred to slice closeout.
-- request-AC6 -> `item_098_name_the_prefix_an_install_or_update_acted_on`. Proof deferred to slice closeout.
-- request-AC3 -> `item_099_report_the_cdx_and_store_the_companion_actually_reaches`. Proof deferred to slice closeout.
-- request-AC4 -> `item_099_report_the_cdx_and_store_the_companion_actually_reaches`. Proof deferred to slice closeout.
-- request-AC5 -> `item_099_report_the_cdx_and_store_the_companion_actually_reaches`. Proof deferred to slice closeout.
-- request-AC6 -> `item_099_report_the_cdx_and_store_the_companion_actually_reaches`. Proof deferred to slice closeout.
+- request-AC1 -> This task. Proof: update JSON and text return the selected install prefix in `84a0906`.
+- request-AC2 -> This task. Proof: the prefix is carried from installation detection rather than inferred at display time.
+- request-AC3 -> This task. Proof: `tray doctor` reports the resolved companion CDX command in `84a0906`.
+- request-AC4 -> This task. Proof: `tray doctor` compares its hook store to the active `CDX_HOME`.
+- request-AC5 -> This task. Proof: a store mismatch is named rather than repaired silently.
+- request-AC6 -> This task. Proof: 77 targeted tests and `npm run lint` passed for `84a0906`.
 
 # Validation
 - (no validation recorded yet)
+- command: `npm run test:py -- test/test_tray_contract_py.py test/test_commands_maintenance_py.py && npm run lint` | result: passed | date: 2026-08-11
+- Finish workflow executed on 2026-08-11.
+- Linked backlog/request close verification passed.
 
 # Report
 - Not started.
+- Finished on 2026-08-11.
+- Linked backlog item(s): `item_098_name_the_prefix_an_install_or_update_acted_on`, `item_099_report_the_cdx_and_store_the_companion_actually_reaches`
+- Related request(s): `req_050_say_which_installation_and_which_home_a_command_is_acting_on`
 
 # Links
 - Request: `req_050_say_which_installation_and_which_home_a_command_is_acting_on`

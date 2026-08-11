@@ -1,7 +1,7 @@
 ## req_050_say_which_installation_and_which_home_a_command_is_acting_on - Say which installation and which home a command is acting on
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium

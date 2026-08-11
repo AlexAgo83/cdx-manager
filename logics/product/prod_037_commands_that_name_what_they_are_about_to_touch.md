@@ -1,14 +1,22 @@
 ## prod_037_commands_that_name_what_they_are_about_to_touch - Commands that name what they are about to touch
 > Date: 2026-08-11
-> Status: Proposed
+> Status: Settled
 > Related request: `req_050_say_which_installation_and_which_home_a_command_is_acting_on`
-> Related backlog: `item_098_name_the_prefix_an_install_or_update_acted_on`, `item_099_report_the_cdx_and_store_the_companion_actually_reaches`
+> Related backlog: `item_098_name_the_prefix_an_install_or_update_acted_on`
 > Related task: `task_061_orchestrate_commands_that_name_what_they_touch`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-11 14:23:04
 
 # Overview
 Make CDX say which installation, which store and which binary a command is acting on, at the moment the answer is not the obvious one.
+
+```mermaid
+flowchart LR
+    Command[CDX command] --> Target[Resolved target]
+    Target --> Report[Visible diagnostic]
+    Report --> Operator[Operator decision]
+```
 
 # Goals
 - Turn a silent surprise into a visible statement.
@@ -33,5 +41,5 @@ Make CDX say which installation, which store and which binary a command is actin
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_050_say_which_installation_and_which_home_a_command_is_acting_on`
+- Product back-reference: `item_098_name_the_prefix_an_install_or_update_acted_on`
 - Task back-reference: `task_061_orchestrate_commands_that_name_what_they_touch`

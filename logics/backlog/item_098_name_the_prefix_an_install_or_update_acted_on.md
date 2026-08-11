@@ -1,10 +1,10 @@
 ## item_098_name_the_prefix_an_install_or_update_acted_on - Name the prefix an install or update acted on
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 90%
+> Progress: 100%
 > Complexity: Low
 > Theme: Diagnostics
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -55,3 +55,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_061_orchestrate_commands_that_name_what_they_touch`
+
+# Notes
+- Task `task_061_orchestrate_commands_that_name_what_they_touch` was finished via `logics-manager flow finish task` on 2026-08-11.
