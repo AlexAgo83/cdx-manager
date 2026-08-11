@@ -42,7 +42,42 @@ pub enum ActionId {
     Session(usize),
 }
 
-fn pct(value: Option<f64>) -> String {
+/// Eight blocks of remaining capacity.
+///
+/// `req_035` AC4 asks for a gauge and this is it: a bare percentage makes you
+/// read thirteen numbers to find the low one, where a bar is scanned. It leads
+/// the line because block characters all have the same advance width, so the
+/// gauge column aligns exactly even in the proportional font a native menu
+/// uses — the ragged part ends up on the right, where nothing is being
+/// compared. The figure stays beside it: `req_038` AC4 forbids making shape the
+/// only signal.
+const GAUGE_WIDTH: usize = 8;
+
+fn gauge(value: Option<f64>) -> String {
+    let filled = match value {
+        // Never reported draws empty rather than full: an unknown session must
+        // not look like a healthy one at a glance.
+        None => 0,
+        Some(v) => ((v.clamp(0.0, 100.0) / 100.0) * GAUGE_WIDTH as f64).round() as usize,
+    };
+    format!(
+        "{}{}",
+        "█".repeat(filled),
+        "░".repeat(GAUGE_WIDTH - filled.min(GAUGE_WIDTH))
+    )
+}
+
+/// The severity a figure carries, named as the icon names it.
+pub fn state_for(value: Option<f64>) -> &'static str {
+    match value {
+        None => "unknown",
+        Some(v) if v < 5.0 => "critical",
+        Some(v) if v < 25.0 => "low",
+        Some(_) => "ok",
+    }
+}
+
+pub fn pct(value: Option<f64>) -> String {
     match value {
         Some(v) => format!("{}%", v.round() as i64),
         None => "—".to_string(),
@@ -60,24 +95,54 @@ fn pct(value: Option<f64>) -> String {
 /// "resets" are obvious from the figure and the arrow, and repeating them
 /// thirteen times costs width without telling anyone anything.
 fn session_line(session: &Session) -> String {
+    // Stale says the figure is old; the age says how old, which is the part a
+    // reader can act on. "stale · 3h ago" beats "stale" and costs six characters.
     let freshness = match session.freshness.as_str() {
         "fresh" => String::new(),
         "auth_locked" => " · running".to_string(),
         "unknown" => " · never reported".to_string(),
-        other => format!(" · {other}"),
+        other => match &session.updated_ago {
+            Some(ago) => format!(" · {other} {ago}"),
+            None => format!(" · {other}"),
+        },
     };
-    let reset = match &session.reset_at {
-        Some(at) if !at.is_empty() => format!(" · ↻ {at}"),
+    // The distance first, the stamp only when CDX is too old to have computed
+    // one — never both, since they say the same thing at different lengths.
+    let reset = match (&session.reset_in, &session.reset_at) {
+        (Some(distance), _) => format!(" · ↻ {distance}"),
+        (None, Some(at)) if !at.is_empty() => format!(" · ↻ {at}"),
         _ => String::new(),
     };
+    // The provider is not repeated here: it is the group heading above.
     format!(
-        "{} · {} · {}{}{}",
-        session.name,
-        session.provider,
+        "  {}  {}  {}{}{}",
+        gauge(session.available_pct),
         pct(session.available_pct),
+        session.name,
         freshness,
         reset
     )
+}
+
+/// Sessions under a heading per provider, groups in urgency order.
+///
+/// Thirteen rows repeated "· claude ·" thirteen times, which is width spent on
+/// something the eye already grouped. The snapshot arrives sorted by urgency, so
+/// a provider takes the rank of its most constrained session and its sessions
+/// keep their order inside — grouping must not bury the account that made the
+/// icon turn.
+fn grouped(sessions: &[Session]) -> Vec<(String, Vec<&Session>)> {
+    let mut groups: Vec<(String, Vec<&Session>)> = Vec::new();
+    for session in sessions {
+        match groups
+            .iter_mut()
+            .find(|(name, _)| *name == session.provider)
+        {
+            Some((_, members)) => members.push(session),
+            None => groups.push((session.provider.clone(), vec![session])),
+        }
+    }
+    groups
 }
 
 /// The menu, with a bounded list of recent agent alerts above the actions.
@@ -97,17 +162,22 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
             snapshot.icon_state, snapshot.session_count
         )));
         entries.push(Entry::Separator);
-        for (index, session) in snapshot.sessions.iter().enumerate() {
-            // An action rather than a label, and that is a readability fix
-            // before it is a feature: macOS greys every disabled item, so a
-            // dozen informational rows arrive as a wall of grey text. Making
-            // them selectable gives them full contrast, and clicking one opens
-            // a terminal on that session — which is what the list is for.
-            entries.push(Entry::Action {
-                id: ActionId::Session(index),
-                label: session_line(session),
-                enabled: true,
-            });
+        let mut index = 0usize;
+        for (provider, members) in grouped(&snapshot.sessions) {
+            entries.push(Entry::Info(provider));
+            for session in members {
+                // An action rather than a label, and that is a readability fix
+                // before it is a feature: macOS greys every disabled item, so a
+                // dozen informational rows arrive as a wall of grey text. Making
+                // them selectable gives them full contrast, and clicking one opens
+                // a terminal on that session — which is what the list is for.
+                entries.push(Entry::Action {
+                    id: ActionId::Session(index),
+                    label: session_line(session),
+                    enabled: true,
+                });
+                index += 1;
+            }
         }
     }
     if !alerts.is_empty() {
@@ -194,6 +264,8 @@ mod tests {
             available_pct: pct,
             freshness: freshness.into(),
             reset_at: None,
+            reset_in: None,
+            updated_ago: None,
         }
     }
 
@@ -235,8 +307,46 @@ mod tests {
             &[],
         );
         let text = labels(&entries);
-        assert!(text.contains("work · codex · 18%"), "{text}");
-        assert!(text.contains("side · codex · — · never reported"), "{text}");
+        // The provider is the group heading now, so it is not on the row.
+        assert!(text.contains("18%  work"), "{text}");
+        assert!(
+            text.contains("codex"),
+            "the provider heading is still there: {text}"
+        );
+        assert!(text.contains("—  side · never reported"), "{text}");
+    }
+
+    #[test]
+    fn a_stale_row_says_how_stale() {
+        // "stale" says the figure is old; the age says how old, which is the
+        // part a reader can act on without opening anything else.
+        let mut aged = session("work", Some(40.0), "stale");
+        aged.updated_ago = Some("3h ago".into());
+        let entries = build_with_alerts(&snapshot(vec![aged], true), &[]);
+        assert!(
+            labels(&entries).contains("stale 3h ago"),
+            "{}",
+            labels(&entries)
+        );
+    }
+
+    #[test]
+    fn the_reset_is_a_distance_when_cdx_computed_one() {
+        let mut soon = session("work", Some(40.0), "fresh");
+        soon.reset_at = Some("Aug 18 03:23".into());
+        soon.reset_in = Some("in 5h".into());
+        let text = labels(&build_with_alerts(&snapshot(vec![soon], true), &[]));
+        assert!(text.contains("↻ in 5h"), "{text}");
+        // Never both: they say the same thing at different lengths.
+        assert!(!text.contains("Aug 18"), "{text}");
+    }
+
+    #[test]
+    fn an_older_cdx_still_gets_its_absolute_reset() {
+        let mut stamped = session("work", Some(40.0), "fresh");
+        stamped.reset_at = Some("Aug 18 03:23".into());
+        let text = labels(&build_with_alerts(&snapshot(vec![stamped], true), &[]));
+        assert!(text.contains("↻ Aug 18 03:23"), "{text}");
     }
 
     #[test]
@@ -246,7 +356,7 @@ mod tests {
             &[],
         );
         let text = labels(&entries);
-        assert!(text.contains("work · codex · 40% · running"), "{text}");
+        assert!(text.contains("40%  work · running"), "{text}");
         // The action stays present so it is not hunted for, but disabled so it
         // does not promise what the auth lock forbids.
         let refresh = entries

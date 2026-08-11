@@ -164,6 +164,12 @@ pub struct Session {
     pub available_pct: Option<f64>,
     pub freshness: String,
     pub reset_at: Option<String>,
+    /// The reset as a distance rather than a stamp — "in 5h" instead of
+    /// "Aug 18 03:23". Shorter by half, and it answers the question the reader
+    /// actually has without making them subtract.
+    pub reset_in: Option<String>,
+    /// How long since this figure was reported, or `None` when it never was.
+    pub updated_ago: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -257,6 +263,17 @@ fn session_from(value: &Value) -> Session {
             .to_string(),
         reset_at: value
             .get("reset_at")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        // Absent from an older CDX, which simply means the row falls back to
+        // the absolute stamp it already carried.
+        reset_in: value
+            .get("reset_in")
+            .and_then(Value::as_str)
+            .filter(|v| !v.is_empty() && *v != "-")
+            .map(str::to_string),
+        updated_ago: value
+            .get("updated_ago")
             .and_then(Value::as_str)
             .map(str::to_string),
     }

@@ -19,6 +19,7 @@ from .session_status import (
     CODEX_STATUS_CACHE_TTL_SECONDS,
     STATUS_CACHE_TTL_SECONDS,
 )
+from .status_view import _format_reset_time
 
 SCHEMA_NAME = "cdx.tray.snapshot"
 SCHEMA_MAJOR = 1
@@ -96,6 +97,26 @@ def _eligible(row):
     return row.get("enabled", True) is not False
 
 
+def _ago(seconds):
+    """How long ago, in the shortest form that stays unambiguous.
+
+    `None` when nothing was ever reported: "never" is a state the caller already
+    names, and inventing an age for it would be worse than saying nothing.
+    """
+    if seconds is None:
+        return None
+    seconds = max(0, int(seconds))
+    if seconds < 60:
+        return "just now"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h ago"
+    return f"{hours // 24}d ago"
+
+
 def menu_session(row, now):
     """One menu line. Everything the tray shows once the user opens it."""
     freshness, age = session_freshness(row, now)
@@ -107,6 +128,12 @@ def menu_session(row, now):
         "remaining_5h_pct": row.get("remaining_5h_pct"),
         "remaining_week_pct": row.get("remaining_week_pct"),
         "reset_at": row.get("reset_at"),
+        # The same wording `cdx status` uses — "in 5h", "passed 3h ago" — rather
+        # than a second vocabulary for the same idea. An absolute stamp costs a
+        # dozen characters per row and still makes the reader do the subtraction
+        # that matters: how long until it comes back.
+        "reset_in": _format_reset_time(row.get("reset_at")),
+        "updated_ago": _ago(age),
         "active": bool(row.get("active")),
         "state": icon_state_for_pct(row.get("available_pct")),
         "freshness": freshness,
