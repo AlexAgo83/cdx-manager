@@ -298,6 +298,7 @@ class PublishedLedgerFallbackTest(CliTestBase):
 
     def test_the_published_ledger_answers_when_the_local_one_cannot(self):
         import json
+
         from src.tray_install import expected_checksum
         scratch = self.make_temp_dir()
         local = self._ledger(scratch, {"v9.9.8": {"tray_assets": {"t": "old"}}})
