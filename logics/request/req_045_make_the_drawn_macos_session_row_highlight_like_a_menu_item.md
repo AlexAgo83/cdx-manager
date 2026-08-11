@@ -1,7 +1,7 @@
 ## req_045_make_the_drawn_macos_session_row_highlight_like_a_menu_item - Make the drawn macOS session row highlight like a menu item
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90
 > Confidence: 85
 > Complexity: Low

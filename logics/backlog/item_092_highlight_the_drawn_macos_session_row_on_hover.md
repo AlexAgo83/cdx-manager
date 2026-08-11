@@ -1,10 +1,10 @@
 ## item_092_highlight_the_drawn_macos_session_row_on_hover - Highlight the drawn macOS session row on hover
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90
 > Confidence: 85
-> Progress: 85%
+> Progress: 100%
 > Complexity: Low
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -57,3 +57,7 @@
 
 # Notes
 - Split out of task_054, which drew the chevron and left the highlight.
+- Task `task_056_orchestrate_the_drawn_macos_row_highlight` was finished via `logics-manager flow finish task` on 2026-08-11.
+
+# Tasks
+- `task_056_orchestrate_the_drawn_macos_row_highlight`
