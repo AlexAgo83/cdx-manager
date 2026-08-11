@@ -1,6 +1,6 @@
 ## prod_025_tray_aware_agent_alerts - Tray-aware agent alerts
 > Date: 2026-08-10
-> Status: Proposed
+> Status: Settled
 > Related request: `req_036_route_cdx_agent_alerts_through_an_active_tray_companion`
 > Related backlog: `item_082_deliver_agent_hook_events_through_the_active_cdx_tray_with_safe_fallback`
 > Related task: `task_047_orchestrate_tray_aware_cdx_agent_alert_delivery`
@@ -54,5 +54,5 @@ flowchart TD
 - An idle machine with no enabled session shows no tray polling, and a stopped WSL distribution is not restarted by the tray.
 
 # References
-- Product back-reference: `req_036_route_cdx_agent_alerts_through_an_active_tray_companion`
+- Product back-reference: `item_082_deliver_agent_hook_events_through_the_active_cdx_tray_with_safe_fallback`
 - Task back-reference: `task_047_orchestrate_tray_aware_cdx_agent_alert_delivery`

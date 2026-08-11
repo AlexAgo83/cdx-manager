@@ -1,10 +1,10 @@
 ## item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls - Add explicit CDX tray lifecycle, capacity, privacy, and recovery controls
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
-> Confidence: 92%
-> Progress: 95%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -40,6 +40,11 @@
 - Failing to write the shortcut never fails the install. The companion runs either way; only its toasts would go nowhere, and doctor says so. Three tests cover the refusal paths.
 - The shortcut is recorded in the install state only when CDX created it, so `uninstall` removes it and AC3 still holds: nothing CDX did not write ends up on the removal list.
 
+- AC6 is met, and measured rather than argued. On the managed macOS host: install the published companion, confirm `authorization: granted`, run the CDX-managed update, and confirm it again. The executable's inode changed, so the file was genuinely replaced, `codesign --verify --strict` still passes, and the authorization survived.
+- What makes it survive is the pair `adr_005` insisted on: a stable bundle identifier and a stable signing identity. macOS binds the grant to those, not to the bytes — which is why ad-hoc signing was rejected outright, since it mints a new identity every build and would drop the grant at every update. This is that decision confirmed on hardware rather than reasoned about.
+- Stronger than the criterion asks: the companion that replaced the local one was built and signed by CI on a different machine, and the grant held across that too.
+- AC3 is met through `item_082`: completion and attention alerts go out through the platform's own notification path and honour its settings — on macOS the authorization is checked before posting, and anything short of granted falls back rather than silently dropping. Quota urgency changes the icon and raises no toast, so there is no second alert category competing with agent alerts.
+
 # Acceptance criteria
 - AC1: cdx tray install never enables startup, cdx tray autostart on and off are explicit and idempotent and report the real platform state, and one tray instance owns a user session while a duplicate launch reports the existing one.
 - AC2: One accessible, privacy-preserving capacity state names the most constrained usable capacity, its remaining figure and its reset in the tooltip, in words rather than by shape, and without the session name; the menu carries the name. renders an explicit unknown state, and never relies on colour alone or exposes session, repository, task, or preview detail while closed.
@@ -70,3 +75,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation`
+
+# Notes
+- Task `task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation` was finished via `logics-manager flow finish task` on 2026-08-11.

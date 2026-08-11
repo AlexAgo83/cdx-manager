@@ -1,7 +1,7 @@
 ## item_082_deliver_agent_hook_events_through_the_active_cdx_tray_with_safe_fallback - Deliver agent hook events through the active CDX tray with safe fallback
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
 > Confidence: 93%
 > Progress: 100%
@@ -108,3 +108,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_047_orchestrate_tray_aware_cdx_agent_alert_delivery`
+
+# Notes
+- Task `task_047_orchestrate_tray_aware_cdx_agent_alert_delivery` was finished via `logics-manager flow finish task` on 2026-08-11.

@@ -1,14 +1,14 @@
 ## item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts - Constrain WSL and Linux tray support and validate it on real hosts
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
 > Confidence: 95%
 > Progress: 100%
 > Complexity: Medium
 > Theme: Platform support
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-10 23:20:18
+> Indicators reviewed: 2026-08-11 02:25:28
 
 # AI Context
 - Summary: Constrain WSL and Linux tray support and validate it on real hosts
@@ -67,3 +67,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation`
+
+# Notes
+- Task `task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation` was finished via `logics-manager flow finish task` on 2026-08-11.

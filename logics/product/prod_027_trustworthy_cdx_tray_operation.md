@@ -1,8 +1,8 @@
 ## prod_027_trustworthy_cdx_tray_operation - Trustworthy CDX tray operation
 > Date: 2026-08-10
-> Status: Proposed
+> Status: Settled
 > Related request: `req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation`
-> Related backlog: `item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls`, `item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts`
+> Related backlog: `item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls`
 > Related task: `task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
@@ -52,5 +52,5 @@ flowchart TD
 - The managed macOS and Windows-plus-Ubuntu-WSL smoke runs pass and record measured latency and poll cost.
 
 # References
-- Product back-reference: `req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation`
+- Product back-reference: `item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls`
 - Task back-reference: `task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation`

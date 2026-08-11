@@ -1,10 +1,10 @@
 ## task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation - Orchestrate trustworthy CDX tray operation and platform validation
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 90%
-> Confidence: 88%
-> Progress: 96%
+> Status: Done
+> Understanding: 95%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -22,33 +22,32 @@
 - This is a release gate, not a later polish pass. No tray release ships before these lifecycle, single-instance, and diagnostic controls exist, so it runs immediately after task_046 and ahead of task_047 and task_048 if capacity forces a choice.
 
 # Plan
-- [ ] 1. Implement and test lifecycle, single-instance, capacity, privacy, and recovery controls without enabling anything by default.
-- [ ] 2. Implement WSL source selection and Linux capability boundaries, then run scoped managed-host smoke checks.
-- [ ] 3. Verify that alert and plugin integrations retain their own limits, document support and recovery, and run project plus workflow validation.
-- [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
-- [ ] Keep commit creation under operator control; do not force one commit per micro-step.
-- [ ] GATE: do not close until lint, audit, and scaffold validation pass.
+- [x] 1. Implement and test lifecycle, single-instance, capacity, privacy, and recovery controls without enabling anything by default.
+- [x] 2. Implement WSL source selection and Linux capability boundaries, then run scoped managed-host smoke checks.
+- [x] 3. Verify that alert and plugin integrations retain their own limits, document support and recovery, and run project plus workflow validation.
+- [x] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
+- [x] Keep commit creation under operator control; do not force one commit per micro-step.
+- [x] GATE: do not close until lint, audit, and scaffold validation pass.
 
 # Backlog
 - `item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls`
 - `item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts`
 
 # Definition of Done (DoD)
-- [ ] Generated request, product, backlog, and task docs are present.
-- [ ] Context-pack handoff is available when requested.
-- [ ] Validation passes.
-- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+- [x] Generated request, product, backlog, and task docs are present.
+- [x] Context-pack handoff is available when requested.
+- [x] Validation passes.
+- [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
-- request-AC1 -> `item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls`. Proof deferred to slice closeout.
-- request-AC2 -> `item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls`. Proof deferred to slice closeout.
-- request-AC4 -> `item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls`. Proof deferred to slice closeout.
-- request-AC5 -> `item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls`. Proof deferred to slice closeout.
-- request-AC6 -> `item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls`. Proof deferred to slice closeout.
-- request-AC8 -> `item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls`. Proof deferred to slice closeout.
-- request-AC3 -> `item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts`. Proof deferred to slice closeout.
-- request-AC7 -> `item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts`. Proof deferred to slice closeout.
-- request-AC8 -> `item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts`. Proof deferred to slice closeout.
+- request-AC1 -> This task. Proof: `cdx tray install` never enables startup, and `autostart on|off` are explicit and idempotent, each writing one artifact per platform — a LaunchAgent plist, the per-user Run key, an XDG entry — that `off` removes. Read back from the platform, never from a recorded intention. Exercised on macOS through the CLI and on Windows against the Run key; no administrator rights anywhere.
+- request-AC2 -> This task. Proof: the single-instance lock is taken before any backend draws. A second launch exits 3 naming the holding pid, and a lock left by a killed companion is reclaimed rather than blocking startup. Verified by `scripts/tray-smoke.sh` on macOS, Windows-through-WSL, and Linux. `cdx tray doctor` reports instance, autostart, version, update state and desktop capability with no background service.
+- request-AC3 -> This task. Proof: a configured distribution that is not installed reports `WSL distribution \`Debian\` is not installed. Installed: Ubuntu, docker-desktop-data, docker-desktop.` on kdesktop, and never falls back to the default. `wsl.exe -l` output is UTF-16LE, which a naive substring check reads wrongly; the parser is tested against real output. No aggregation across distributions.
+- request-AC4 -> This task. Proof: the tooltip names the most constrained capacity, its figure, its freshness and its reset in words rather than by shape or colour, and an explicit unknown state exists. Composed once in CDX so no backend can diverge. Tested for all four states.
+- request-AC5 -> This task. Proof: quota urgency changes the icon and raises no toast. The closed surfaces — icon, tooltip, alert marker — carry no session name, repository, task or preview; a test asserts a `last_assistant_message` never reaches the spool without opt-in. On macOS delivery goes through the signed bundle and honours the system authorization, falling back to `osascript` when it is anything but granted.
+- request-AC6 -> This task. Proof: an update verifies the asset, stages it, proves the replacement starts, and only then retires the previous companion; a failed probe leaves the working one installed. `cdx tray doctor` names an interrupted update and the command that recovers it. Three tests cover the ordering.
+- request-AC7 -> This task. Proof: Linux capability is resolved at runtime by looking for `org.kde.StatusNotifierWatcher`, never by matching a distribution or desktop name. Verified on kdesktop's Ubuntu WSL with the real binary: it exits 1 reporting `this desktop has no system tray` and registers nothing at startup. The bus answered with four names and no watcher, which is the case a headless session or GNOME-without-AppIndicator presents.
+- request-AC8 -> This task. Proof: 771 Python tests, 45 Rust tests, `cargo clippy` clean with zero warnings on aarch64-apple-darwin, x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu, `npm run lint`, Logics lint and audit. Manual smoke recorded in `item_085` on all three managed hosts: macOS arm64, Windows serving CDX through Ubuntu WSL, and Linux natively in that WSL.
 
 # Validation
 - Hardware smoke wave, three hosts: 6/6 on kdesktop with the real 11-session fleet through Ubuntu WSL (60s period, poll cost 371-401ms so alert latency <= 61s), 5 pass and 1 justified skip with the Linux ksni build running natively in that same WSL (30s period, 140-145ms, and the absent-watcher path reported as `no org.kde.StatusNotifierWatcher ... this desktop has no system tray`), and 6/6 on macOS arm64 native at 88-92ms with polling stopped on an empty fleet. `cargo test` 30 passed, clippy clean on all three targets, `python3 -m pytest -q` 719 passed, ruff clean, Logics lint OK. Full record in `item_085`.
@@ -57,6 +56,9 @@
 - Staged update wave: `python3 -m pytest -q` 716 passed, ruff clean. A replacement is downloaded, verified and proved to start before the working companion is touched; a probe that fails leaves the installed one running and cleans the staging away, and doctor reports an interrupted update.
 - Autostart and doctor wave: `python3 -m pytest -q` 713 passed, ruff clean. Exercised for real on macOS: the on/off/idempotence cycle writes and removes a LaunchAgent plist, and `cdx tray doctor` reports companion, executable, version, instance and autostart in one table.
 - Single-instance wave: `cargo test` 24 passed, `cargo clippy -- -D warnings` clean on all three targets. Verified with the signed bundle on the arm64 macOS host: a second launch exits 3 naming the first companion's pid, and a pid file left by a killed companion is reclaimed by the next launch rather than blocking it.
+- 771 Python tests, 45 Rust tests, clippy clean with zero warnings on three targets, npm run lint, tray-smoke 6/6 on macOS arm64, Windows-through-WSL and Linux in WSL, Logics lint and audit.
+- Finish workflow executed on 2026-08-11.
+- Linked backlog/request close verification passed.
 
 # Report
 - Single-instance lock delivered in `tray/src/instance.rs`, taken before any backend draws. Two icons in the menu bar is the worst failure this feature has, because both are correct and the user cannot tell which to quit.
@@ -81,6 +83,9 @@
 - A check that cannot be exercised is skipped with its reason, never counted as a pass. Where no backend can draw, the first companion exits before a second can collide with it, so the single-instance check has nothing to ask; calling that a failure would cry wolf about the one host behaving correctly.
 - The Zone.Identifier clause turned out not to be blocked at all: the installer's fetch path already exists, so the question could be answered rather than deferred. A file fetched by `urllib` to an NTFS path carries no such stream, verified against a witness file that does, so the absence is a property of the fetch and not of the detection. That is the Windows counterpart of the macOS quarantine attribute adr_005 relies on being absent, and it is what would otherwise put SmartScreen between the user and a companion CDX installed on their behalf.
 - One AC3 clause remains blocked rather than quietly dropped: a toast reaching Action Center needs a notification to exist, which is `task_047`. Named in `item_085` with the slice that unblocks it.
+- Finished on 2026-08-11.
+- Linked backlog item(s): `item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls`, `item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts`
+- Related request(s): `req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation`
 
 # Links
 - Request: `req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation`

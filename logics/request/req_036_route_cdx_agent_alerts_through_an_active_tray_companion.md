@@ -1,7 +1,7 @@
 ## req_036_route_cdx_agent_alerts_through_an_active_tray_companion - Route CDX agent alerts through an active tray companion
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: High
