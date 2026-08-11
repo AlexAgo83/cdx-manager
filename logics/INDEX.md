@@ -44,6 +44,7 @@
 | [prod_026_extensible_cdx_tray_with_a_first_party_logics_card](product/prod_026_extensible_cdx_tray_with_a_first_party_logics_card.md) | Extensible CDX tray with a first-party Logics card | Proposed |  |  | product/prod_026_extensible_cdx_tray_with_a_first_party_logics_card.md |
 | [prod_027_trustworthy_cdx_tray_operation](product/prod_027_trustworthy_cdx_tray_operation.md) | Trustworthy CDX tray operation | Settled |  |  | product/prod_027_trustworthy_cdx_tray_operation.md |
 | [prod_028_structured_actionable_tray_agent_alerts](product/prod_028_structured_actionable_tray_agent_alerts.md) | Structured, actionable tray agent alerts | Proposed |  |  | product/prod_028_structured_actionable_tray_agent_alerts.md |
+| [prod_029_capacity_first_cdx_tray_menu](product/prod_029_capacity_first_cdx_tray_menu.md) | Capacity-first CDX tray menu | Proposed |  |  | product/prod_029_capacity_first_cdx_tray_menu.md |
 
 ## Roadmaps
 
@@ -93,6 +94,7 @@ _None_
 | [req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray](request/req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray.md) | Add a first-party Logics plugin surface to the CDX tray | Draft |  |  | request/req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray.md |
 | [req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation](request/req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation.md) | Harden CDX tray lifecycle, clarity, and platform validation | Done |  |  | request/req_038_harden_cdx_tray_lifecycle_clarity_and_platform_validation.md |
 | [req_039_make_cdx_tray_agent_alerts_structured_and_actionable](request/req_039_make_cdx_tray_agent_alerts_structured_and_actionable.md) | Make CDX tray agent alerts structured and actionable | Draft |  |  | request/req_039_make_cdx_tray_agent_alerts_structured_and_actionable.md |
+| [req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity](request/req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity.md) | Keep the CDX tray menu globally ordered by remaining capacity | Draft |  |  | request/req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity.md |
 
 ## Backlog
 
@@ -185,6 +187,7 @@ _None_
 | [item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls](backlog/item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls.md) | Add explicit CDX tray lifecycle, capacity, privacy, and recovery controls | Done |  | 100% | backlog/item_084_add_explicit_cdx_tray_lifecycle_capacity_privacy_and_recovery_controls.md |
 | [item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts](backlog/item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts.md) | Constrain WSL and Linux tray support and validate it on real hosts | Done |  | 100% | backlog/item_085_constrain_wsl_and_linux_tray_support_and_validate_it_on_real_hosts.md |
 | [item_086_deliver_structured_private_hook_context_to_actionable_tray_alerts](backlog/item_086_deliver_structured_private_hook_context_to_actionable_tray_alerts.md) | Deliver structured, private hook context to actionable tray alerts | Ready |  | 0% | backlog/item_086_deliver_structured_private_hook_context_to_actionable_tray_alerts.md |
+| [item_087_flatten_the_tray_session_menu_while_preserving_provider_context](backlog/item_087_flatten_the_tray_session_menu_while_preserving_provider_context.md) | Flatten the tray session menu while preserving provider context | Ready |  | 0% | backlog/item_087_flatten_the_tray_session_menu_while_preserving_provider_context.md |
 
 ## Tasks
 
@@ -243,6 +246,7 @@ _None_
 | [task_048_orchestrate_the_first_party_logics_cdx_tray_plugin](tasks/task_048_orchestrate_the_first_party_logics_cdx_tray_plugin.md) | Orchestrate the first-party Logics CDX tray plugin | Ready |  | 0% | tasks/task_048_orchestrate_the_first_party_logics_cdx_tray_plugin.md |
 | [task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation](tasks/task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation.md) | Orchestrate trustworthy CDX tray operation and platform validation | Done | claude | 100% | tasks/task_049_orchestrate_trustworthy_cdx_tray_operation_and_platform_validation.md |
 | [task_050_orchestrate_structured_actionable_cdx_tray_alerts](tasks/task_050_orchestrate_structured_actionable_cdx_tray_alerts.md) | Orchestrate structured actionable CDX tray alerts | Ready |  | 0% | tasks/task_050_orchestrate_structured_actionable_cdx_tray_alerts.md |
+| [task_051_orchestrate_the_capacity_first_cdx_tray_session_menu](tasks/task_051_orchestrate_the_capacity_first_cdx_tray_session_menu.md) | Orchestrate the capacity-first CDX tray session menu | Ready |  | 0% | tasks/task_051_orchestrate_the_capacity_first_cdx_tray_session_menu.md |
 
 ## Runbooks
 

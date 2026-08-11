@@ -1,0 +1,340 @@
+{
+  "budgets": {
+    "max_docs": 12,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_087_flatten_the_tray_session_menu_while_preserving_provider_context.md",
+    "logics/product/prod_029_capacity_first_cdx_tray_menu.md",
+    "logics/request/req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity.md",
+    "logics/scaffold/flat_capacity_sorted_tray_menu.json",
+    "logics/tasks/task_051_orchestrate_the_capacity_first_cdx_tray_session_menu.md"
+  ],
+  "command": "logics-manager sync context-pack req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity item_087_flatten_the_tray_session_menu_while_preserving_provider_context task_051_orchestrate_the_capacity_first_cdx_tray_session_menu --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_087_flatten_the_tray_session_menu_while_preserving_provider_context"
+        ],
+        "prod": [
+          "prod_029_capacity_first_cdx_tray_menu"
+        ],
+        "req": [
+          "req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity"
+        ],
+        "task": [
+          "task_051_orchestrate_the_capacity_first_cdx_tray_session_menu"
+        ]
+      },
+      "path": "logics/product/prod_029_capacity_first_cdx_tray_menu.md",
+      "ref": "prod_029_capacity_first_cdx_tray_menu",
+      "sections": {
+        "Goals": [
+          "- Make the most constrained session the first actionable row regardless of provider.",
+          "- Keep every rendered row and its session action correctly bound as capacity changes.",
+          "- Preserve provider identification in an accessible, compact form."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Show one stable, globally capacity-sorted session list in the CDX tray and retain provider context within each row."
+        ],
+        "References": [
+          "- Product back-reference: `req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity`",
+          "- Task back-reference: `task_051_orchestrate_the_capacity_first_cdx_tray_session_menu`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Capacity-first CDX tray menu"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, keep the cdx tray menu globally ordered by remaining capacity, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Keep the CDX tray menu globally ordered by remaining capacity",
+        "use when": "You need to implement or review the scaffolded workflow for Keep the CDX tray menu globally ordered by remaining capacity."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_087_flatten_the_tray_session_menu_while_preserving_provider_context"
+        ],
+        "prod": [
+          "prod_029_capacity_first_cdx_tray_menu"
+        ],
+        "req": [
+          "req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity"
+        ]
+      },
+      "path": "logics/request/req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity.md",
+      "ref": "req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: The tray menu displays every enabled session in the same global urgency and remaining-capacity order supplied by the snapshot, with no provider group headings or provider-driven reordering.",
+          "- AC2: Every session row states its provider in the native text fallback and the macOS custom row, so provider identity remains available without relying on a group heading or colour.",
+          "- AC3: A rendered row, its action identifier, and its session-launch target always refer to the same session when Codex, Claude, and other providers are interleaved and one session's percentage changes.",
+          "- AC4: The existing gauges, capacity figures, freshness, reset text, alert history, refresh action, and no-enabled-session state remain unchanged.",
+          "- AC5: Focused Rust tests cover an interleaved multi-provider snapshot, a capacity reorder, row/provider rendering, and click-target identity; the tray validation suite passes."
+        ],
+        "Needs": [
+          "- The tray already receives sessions globally sorted by urgency and remaining capacity, which directly answers which session needs attention first.",
+          "- Grouping those rows by provider reorders the menu, hides the global capacity ranking, and creates an index mismatch in the macOS custom row renderer when sessions from providers interleave.",
+          "- Users still need to identify a session's provider, but that information belongs on the row rather than in a grouping that changes the reading order."
+        ]
+      },
+      "status": "Draft",
+      "title": "Keep the CDX tray menu globally ordered by remaining capacity"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, flatten the tray session menu while preserving provider context, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Flatten the tray session menu while preserving provider context",
+        "use when": "Implementing the scaffolded slice for Flatten the tray session menu while preserving provider context."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_087_flatten_the_tray_session_menu_while_preserving_provider_context"
+        ],
+        "prod": [
+          "prod_029_capacity_first_cdx_tray_menu"
+        ],
+        "req": [
+          "req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity"
+        ],
+        "task": [
+          "task_051_orchestrate_the_capacity_first_cdx_tray_session_menu"
+        ]
+      },
+      "path": "logics/backlog/item_087_flatten_the_tray_session_menu_while_preserving_provider_context.md",
+      "ref": "item_087_flatten_the_tray_session_menu_while_preserving_provider_context",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: The shared menu model lists sessions exactly in snapshot order, once each, with provider text on each row.",
+          "- AC2: macOS custom cells display the same session and provider as their menu action; Windows and Linux retain accurate text rows.",
+          "- AC3: A synthetic interleaving where a Codex session moves past Claude sessions cannot display or launch the wrong session.",
+          "- AC4: Existing tray-focused tests and the smallest relevant project validation pass."
+        ],
+        "Problem": [
+          "- Provider grouping obscures the capacity-first priority order and causes graphical macOS rows to bind to an unrelated original snapshot index when providers interleave.",
+          "- Removing headings without adding provider text would make a multi-provider list ambiguous."
+        ]
+      },
+      "status": "Ready",
+      "title": "Flatten the tray session menu while preserving provider context"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_087_flatten_the_tray_session_menu_while_preserving_provider_context"
+        ],
+        "prod": [
+          "prod_029_capacity_first_cdx_tray_menu"
+        ],
+        "req": [
+          "req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity"
+        ],
+        "task": [
+          "task_051_orchestrate_the_capacity_first_cdx_tray_session_menu"
+        ]
+      },
+      "path": "logics/product/prod_029_capacity_first_cdx_tray_menu.md",
+      "ref": "prod_029_capacity_first_cdx_tray_menu",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Capacity-first CDX tray menu"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Orchestrate the capacity-first CDX tray session menu",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_087_flatten_the_tray_session_menu_while_preserving_provider_context"
+        ],
+        "prod": [
+          "prod_029_capacity_first_cdx_tray_menu"
+        ],
+        "req": [
+          "req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity"
+        ],
+        "task": [
+          "task_051_orchestrate_the_capacity_first_cdx_tray_session_menu"
+        ]
+      },
+      "path": "logics/tasks/task_051_orchestrate_the_capacity_first_cdx_tray_session_menu.md",
+      "ref": "task_051_orchestrate_the_capacity_first_cdx_tray_session_menu",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate the capacity-first CDX tray session menu"
+    }
+  ],
+  "estimates": {
+    "char_count": 7155,
+    "companion_doc_count": 1,
+    "doc_count": 4
+  },
+  "generated_at": "2026-08-11T07:15:46Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity",
+      "item_087_flatten_the_tray_session_menu_while_preserving_provider_context",
+      "task_051_orchestrate_the_capacity_first_cdx_tray_session_menu"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity,item_087_flatten_the_tray_session_menu_while_preserving_provider_context,task_051_orchestrate_the_capacity_first_cdx_tray_session_menu",
+  "refs": [
+    "req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity",
+    "item_087_flatten_the_tray_session_menu_while_preserving_provider_context",
+    "task_051_orchestrate_the_capacity_first_cdx_tray_session_menu"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.18.4"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_051_orchestrate_the_capacity_first_cdx_tray_session_menu.md",
+      "ref": "task_051_orchestrate_the_capacity_first_cdx_tray_session_menu"
+    }
+  ]
+}

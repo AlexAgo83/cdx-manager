@@ -1,0 +1,92 @@
+{
+  "title": "Keep the CDX tray menu globally ordered by remaining capacity",
+  "references": [
+    "src/tray_contract.py",
+    "tray/src/menu.rs",
+    "tray/src/runner.rs",
+    "tray/src/mac_cell.rs",
+    "tray/src/backend.rs",
+    "test/test_tray_contract_py.py",
+    "tray/Cargo.toml"
+  ],
+  "request": {
+    "complexity": "Low",
+    "theme": "Tray usability",
+    "needs": [
+      "The tray already receives sessions globally sorted by urgency and remaining capacity, which directly answers which session needs attention first.",
+      "Grouping those rows by provider reorders the menu, hides the global capacity ranking, and creates an index mismatch in the macOS custom row renderer when sessions from providers interleave.",
+      "Users still need to identify a session's provider, but that information belongs on the row rather than in a grouping that changes the reading order."
+    ],
+    "context": [
+      "src/tray_contract.py builds snapshot sessions in global urgency order: severity, remaining capacity, then session name.",
+      "tray/src/menu.rs groups that ordered list by provider and assigns new sequential ActionId::Session indices. tray/src/runner.rs resolves those indices against the original ungrouped snapshot list; macOS custom cells consequently draw a session under the wrong provider heading after a capacity change reorders interleaved providers.",
+      "The plain menu label and macOS custom cell currently omit the provider because the heading was assumed to supply it. Removing headings therefore requires provider text on every row, including the accessible text fallback.",
+      "The existing session action opens a named CDX session. Its identifier must stay bound to the same session displayed in the row on macOS, Windows, and Linux."
+    ],
+    "acceptance_criteria": [
+      "AC1: The tray menu displays every enabled session in the same global urgency and remaining-capacity order supplied by the snapshot, with no provider group headings or provider-driven reordering.",
+      "AC2: Every session row states its provider in the native text fallback and the macOS custom row, so provider identity remains available without relying on a group heading or colour.",
+      "AC3: A rendered row, its action identifier, and its session-launch target always refer to the same session when Codex, Claude, and other providers are interleaved and one session's percentage changes.",
+      "AC4: The existing gauges, capacity figures, freshness, reset text, alert history, refresh action, and no-enabled-session state remain unchanged.",
+      "AC5: Focused Rust tests cover an interleaved multi-provider snapshot, a capacity reorder, row/provider rendering, and click-target identity; the tray validation suite passes."
+    ]
+  },
+  "product": {
+    "title": "Capacity-first CDX tray menu",
+    "overview": "Show one stable, globally capacity-sorted session list in the CDX tray and retain provider context within each row.",
+    "goals": [
+      "Make the most constrained session the first actionable row regardless of provider.",
+      "Keep every rendered row and its session action correctly bound as capacity changes.",
+      "Preserve provider identification in an accessible, compact form."
+    ],
+    "non_goals": [
+      "No changes to quota collection, snapshot ranking rules, tray transport, alerts, or session-launch behavior.",
+      "No new sorting control, user preference, custom grouping mode, provider filter, or additional dependency.",
+      "No redesign of gauges, capacity thresholds, icon state, refresh timing, or notification history."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Flatten the tray session menu while preserving provider context",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Tray usability",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC5"],
+      "problem": [
+        "Provider grouping obscures the capacity-first priority order and causes graphical macOS rows to bind to an unrelated original snapshot index when providers interleave.",
+        "Removing headings without adding provider text would make a multi-provider list ambiguous."
+      ],
+      "scope_in": [
+        "Remove provider grouping from the shared menu model and keep the snapshot's global order.",
+        "Include the provider in every text and macOS custom session row.",
+        "Bind menu actions and custom cells directly to the same stable session identity.",
+        "Add focused Rust regression tests for the reported reordering case and preserve the existing tray menu behavior outside session rows."
+      ],
+      "scope_out": [
+        "Changes to the source snapshot ordering, quota values, provider status refresh, or session configuration.",
+        "User-selectable sorting, provider filters, nested submenus, or new tray settings.",
+        "Changes to agent alerts, notification payloads, event history, or platform-specific tray installation."
+      ],
+      "acceptance_criteria": [
+        "AC1: The shared menu model lists sessions exactly in snapshot order, once each, with provider text on each row.",
+        "AC2: macOS custom cells display the same session and provider as their menu action; Windows and Linux retain accurate text rows.",
+        "AC3: A synthetic interleaving where a Codex session moves past Claude sessions cannot display or launch the wrong session.",
+        "AC4: Existing tray-focused tests and the smallest relevant project validation pass."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate the capacity-first CDX tray session menu",
+    "plan": [
+      "Reproduce the interleaved-provider index mismatch from the current snapshot, menu model, runner row mapping, and macOS cell path.",
+      "Remove the provider grouping at the shared menu boundary and preserve stable session identity for labels, custom cells, and click actions.",
+      "Add compact provider text to the native fallback and macOS row layout without changing capacity, freshness, or reset information.",
+      "Add focused Rust regression coverage for capacity reordering and identity binding, then run the tray and project validation checks."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/flat_capacity_sorted_tray_menu.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}
