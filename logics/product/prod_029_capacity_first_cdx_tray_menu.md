@@ -1,6 +1,6 @@
 ## prod_029_capacity_first_cdx_tray_menu - Capacity-first CDX tray menu
 > Date: 2026-08-11
-> Status: Proposed
+> Status: Settled
 > Related request: `req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity`
 > Related backlog: `item_087_flatten_the_tray_session_menu_while_preserving_provider_context`
 > Related task: `task_051_orchestrate_the_capacity_first_cdx_tray_session_menu`
@@ -9,6 +9,16 @@
 
 # Overview
 Show one stable, globally capacity-sorted session list in the CDX tray and retain provider context within each row.
+
+```mermaid
+flowchart LR
+    Snapshot[snapshot ordered by remaining capacity] --> Menu[one flat session list]
+    Menu --> Row[row states name and provider]
+    Row --> Cell[macOS drawn cell states both too]
+    Row --> Action[action carries the session name]
+    Action --> Launch[opens the session that was read]
+    Reorder[capacity changes between draw and click] -.->|no effect| Launch
+```
 
 # Goals
 - Make the most constrained session the first actionable row regardless of provider.
@@ -33,5 +43,5 @@ Show one stable, globally capacity-sorted session list in the CDX tray and retai
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity`
+- Product back-reference: `item_087_flatten_the_tray_session_menu_while_preserving_provider_context`
 - Task back-reference: `task_051_orchestrate_the_capacity_first_cdx_tray_session_menu`

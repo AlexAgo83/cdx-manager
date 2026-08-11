@@ -1,10 +1,10 @@
 ## item_087_flatten_the_tray_session_menu_while_preserving_provider_context - Flatten the tray session menu while preserving provider context
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 95%
 > Confidence: 92%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Low
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -57,3 +57,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_051_orchestrate_the_capacity_first_cdx_tray_session_menu`
+
+# Notes
+- Task `task_051_orchestrate_the_capacity_first_cdx_tray_session_menu` was finished via `logics-manager flow finish task` on 2026-08-11.

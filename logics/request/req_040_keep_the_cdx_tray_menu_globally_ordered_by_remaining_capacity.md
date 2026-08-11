@@ -1,7 +1,7 @@
 ## req_040_keep_the_cdx_tray_menu_globally_ordered_by_remaining_capacity - Keep the CDX tray menu globally ordered by remaining capacity
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Low
