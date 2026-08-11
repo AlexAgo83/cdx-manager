@@ -33,6 +33,10 @@ pub struct Cell {
     /// Position of the row in the menu, matching the entry list it was built from.
     pub index: usize,
     pub name: String,
+    /// A view replaces the label entirely, so a provider that is not drawn here
+    /// is a provider the macOS user cannot read anywhere. The text rows the
+    /// other backends keep say it on the same line.
+    pub provider: String,
     /// `None` for a session that never reported: the gauge draws empty rather
     /// than full, because unknown must not look healthy at a glance.
     pub percent: Option<f64>,
@@ -49,6 +53,10 @@ const GAUGE_HEIGHT: f64 = 4.0;
 const FIGURE_WIDTH: f64 = 38.0;
 const INSET_LEFT: f64 = 14.0;
 const INSET_RIGHT: f64 = 12.0;
+/// How much of the text column the session name takes, leaving the rest to the
+/// provider. Session names are what the user reads first and are the longer of
+/// the two; a provider is one short word from a set of two.
+const NAME_SHARE: f64 = 0.68;
 
 fn severity_colour(state: &str) -> Retained<NSColor> {
     // Apple's own system colours rather than invented ones: they are the pair
@@ -95,13 +103,24 @@ pub fn build_cell(cell: &Cell, mtm: MainThreadMarker) -> Retained<NSView> {
 
     let gauge_x = ROW_WIDTH - INSET_RIGHT - FIGURE_WIDTH - 8.0 - GAUGE_WIDTH;
 
-    // Name, on the left, in the menu's own weight.
+    // Name, on the left, in the menu's own weight. The provider follows it in
+    // the secondary colour and a smaller size: it is what distinguishes two
+    // accounts with similar names, but it is not what the row is about, and the
+    // list is short enough that a column of its own would be width wasted.
+    let text_width = gauge_x - INSET_LEFT - 8.0;
     let name = label(&cell.name, 13.0, NSColor::labelColor(), mtm);
     name.setFrame(NSRect::new(
         NSPoint::new(INSET_LEFT, 1.0),
-        NSSize::new(gauge_x - INSET_LEFT - 8.0, ROW_HEIGHT - 2.0),
+        NSSize::new(text_width * NAME_SHARE, ROW_HEIGHT - 2.0),
     ));
     container.addSubview(&name);
+
+    let provider = label(&cell.provider, 11.0, NSColor::secondaryLabelColor(), mtm);
+    provider.setFrame(NSRect::new(
+        NSPoint::new(INSET_LEFT + text_width * NAME_SHARE, 2.0),
+        NSSize::new(text_width * (1.0 - NAME_SHARE), ROW_HEIGHT - 3.0),
+    ));
+    container.addSubview(&provider);
 
     // The track, then the fill over it. Drawn as two layers rather than one
     // gradient so an empty gauge still shows where full would be.

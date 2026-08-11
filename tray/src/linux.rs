@@ -118,25 +118,25 @@ impl ksni::Tray for CdxTray {
                 // StatusNotifierItem has a real checkmark item, so the switch
                 // shows its state here as it does on the other two platforms.
                 Entry::Check { id, label, checked } => {
-                    let action = *id;
+                    let action = id.clone();
                     ksni::menu::CheckmarkItem {
                         label: label.clone(),
                         enabled: true,
                         checked: *checked,
                         activate: Box::new(move |tray: &mut CdxTray| {
-                            *tray.pending.lock().unwrap() = Some(action);
+                            *tray.pending.lock().unwrap() = Some(action.clone());
                         }),
                         ..Default::default()
                     }
                     .into()
                 }
                 Entry::Action { id, label, enabled } => {
-                    let action = *id;
+                    let action = id.clone();
                     StandardItem {
                         label: label.clone(),
                         enabled: *enabled,
                         activate: Box::new(move |tray: &mut CdxTray| {
-                            *tray.pending.lock().unwrap() = Some(action);
+                            *tray.pending.lock().unwrap() = Some(action.clone());
                         }),
                         ..Default::default()
                     }
@@ -184,11 +184,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 state = Render::next(&transport, state.tick, &state.history);
                 redraw = true;
             }
-            Some(ActionId::Session(index)) => {
-                if let Some(name) = state.session_names.get(index) {
-                    open_terminal(name);
-                }
-            }
+            Some(ActionId::Session(name)) => open_terminal(&name),
             None => {}
         }
         // An alert lands in the spool the moment a hook writes it. Polling for

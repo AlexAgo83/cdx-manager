@@ -12,10 +12,9 @@ use crate::schedule::Tick;
 use crate::snapshot::{fetch, Transport};
 
 /// One session as a drawn row needs it: where it sits in the menu, and the
-/// three values a cell shows. Computed here rather than in a backend so the
-/// platform that can draw and the two that cannot start from the same data.
+/// values a cell shows. Computed here rather than in a backend so the platform
+/// that can draw and the two that cannot start from the same data.
 /// Read only where a platform can draw a cell, which today is macOS alone.
-/// (`session_names` covers the click, so the other backends need none of this.)
 /// Kept platform-neutral anyway: the data is the same everywhere, and gating
 /// the struct would make every caller match on the target.
 #[allow(dead_code)]
@@ -23,6 +22,10 @@ use crate::snapshot::{fetch, Transport};
 pub struct Row {
     pub menu_index: usize,
     pub name: String,
+    /// Carried so the drawn row can say what the text row says. A cell replaces
+    /// the label entirely, so a provider missing here is a provider the macOS
+    /// user cannot see at all.
+    pub provider: String,
     pub percent: Option<f64>,
     pub state: String,
     pub figure: String,
@@ -49,10 +52,6 @@ pub struct Render {
     pub spool_path: Option<String>,
     /// Whether alerts may raise a banner, so the switch draws its real state.
     pub alerts_enabled: bool,
-    /// Session names in menu order, so a clicked row resolves to the session it
-    /// names. Kept beside the entries rather than inside them: the menu id has
-    /// to stay `Copy`, and a name embedded in it could drift from the snapshot.
-    pub session_names: Vec<String>,
 }
 
 impl Render {
@@ -86,7 +85,6 @@ impl Render {
                     rows: rows_for(&entries_for_rows, &snap.sessions),
                     spool_path: snap.spool_path.clone(),
                     alerts_enabled: snap.alerts_enabled,
-                    session_names: snap.sessions.iter().map(|s| s.name.clone()).collect(),
                     entries: entries_for_rows.clone(),
                     delay: tick.next_delay(transport.is_wsl()),
                     tick,
@@ -111,7 +109,6 @@ impl Render {
                     // like a mute nobody set.
                     alerts_enabled: true,
                     rows: Vec::new(),
-                    session_names: Vec::new(),
                     entries: menu::build_unavailable(&reason),
                     delay: tick.next_delay(transport.is_wsl()),
                     tick,
@@ -143,21 +140,23 @@ pub fn announce(transport: &Transport, state: &Render) {
 
 /// Pair each session with the menu position its row occupies.
 ///
-/// The menu carries group headings and separators, so a session's rank is not
+/// The menu carries a summary line and separators, so a session's rank is not
 /// its menu index. Reading the positions back from the entries keeps the two in
-/// step without the menu builder having to report them.
+/// step without the menu builder having to report them, and resolving by name
+/// means a cell can only ever be drawn onto the row that carries that name.
 fn rows_for(entries: &[menu::Entry], sessions: &[crate::snapshot::Session]) -> Vec<Row> {
     let mut rows = Vec::new();
     for (menu_index, entry) in entries.iter().enumerate() {
         if let menu::Entry::Action {
-            id: menu::ActionId::Session(session_index),
+            id: menu::ActionId::Session(name),
             ..
         } = entry
         {
-            if let Some(session) = sessions.get(*session_index) {
+            if let Some(session) = sessions.iter().find(|s| s.name == *name) {
                 rows.push(Row {
                     menu_index,
                     name: session.name.clone(),
+                    provider: session.provider.clone(),
                     percent: session.available_pct,
                     // Same thresholds the icon uses, so a red bar and a red
                     // glyph can never disagree about the same session.

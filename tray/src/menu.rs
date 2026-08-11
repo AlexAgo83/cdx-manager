@@ -27,19 +27,21 @@ pub enum Entry {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ActionId {
     Refresh,
     OpenTerminal,
     Quit,
     /// Silence agent alerts, or let them through again.
     ToggleAlerts,
-    /// Open a terminal on this session, by its index in the snapshot.
+    /// Open a terminal on this session, by name.
     ///
-    /// An index rather than the name, so the id stays `Copy` and the menu never
-    /// carries a session name it would have to keep in step with the snapshot.
-    /// The runner resolves it against the same list the menu was built from.
-    Session(usize),
+    /// It was an index into the snapshot, which kept the id `Copy`. That only
+    /// held while the order was stable: now that the menu is ordered by
+    /// remaining capacity, a poll landing between the draw and the click
+    /// renumbers the list, and a rank would open whichever session had taken
+    /// that place. The name is what the user clicked and stays what gets opened.
+    Session(String),
 }
 
 /// Eight blocks of remaining capacity.
@@ -113,36 +115,20 @@ fn session_line(session: &Session) -> String {
         (None, Some(at)) if !at.is_empty() => format!(" · ↻ {at}"),
         _ => String::new(),
     };
-    // The provider is not repeated here: it is the group heading above.
+    // The provider rides on the row now. It used to be a group heading, which
+    // cost less width but reordered the list: grouping gives a provider the rank
+    // of its most constrained session, so a healthy account could sit above the
+    // one that made the icon turn. The list is ordered by remaining capacity and
+    // by nothing else, so the provider has to be said per row.
     format!(
-        "  {}  {}  {}{}{}",
+        "  {}  {}  {} · {}{}{}",
         gauge(session.available_pct),
         pct(session.available_pct),
         session.name,
+        session.provider,
         freshness,
         reset
     )
-}
-
-/// Sessions under a heading per provider, groups in urgency order.
-///
-/// Thirteen rows repeated "· claude ·" thirteen times, which is width spent on
-/// something the eye already grouped. The snapshot arrives sorted by urgency, so
-/// a provider takes the rank of its most constrained session and its sessions
-/// keep their order inside — grouping must not bury the account that made the
-/// icon turn.
-fn grouped(sessions: &[Session]) -> Vec<(String, Vec<&Session>)> {
-    let mut groups: Vec<(String, Vec<&Session>)> = Vec::new();
-    for session in sessions {
-        match groups
-            .iter_mut()
-            .find(|(name, _)| *name == session.provider)
-        {
-            Some((_, members)) => members.push(session),
-            None => groups.push((session.provider.clone(), vec![session])),
-        }
-    }
-    groups
 }
 
 /// The menu, with a bounded list of recent agent alerts above the actions.
@@ -162,22 +148,17 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
             snapshot.icon_state, snapshot.session_count
         )));
         entries.push(Entry::Separator);
-        let mut index = 0usize;
-        for (provider, members) in grouped(&snapshot.sessions) {
-            entries.push(Entry::Info(provider));
-            for session in members {
-                // An action rather than a label, and that is a readability fix
-                // before it is a feature: macOS greys every disabled item, so a
-                // dozen informational rows arrive as a wall of grey text. Making
-                // them selectable gives them full contrast, and clicking one opens
-                // a terminal on that session — which is what the list is for.
-                entries.push(Entry::Action {
-                    id: ActionId::Session(index),
-                    label: session_line(session),
-                    enabled: true,
-                });
-                index += 1;
-            }
+        for session in &snapshot.sessions {
+            // An action rather than a label, and that is a readability fix
+            // before it is a feature: macOS greys every disabled item, so a
+            // dozen informational rows arrive as a wall of grey text. Making
+            // them selectable gives them full contrast, and clicking one opens
+            // a terminal on that session — which is what the list is for.
+            entries.push(Entry::Action {
+                id: ActionId::Session(session.name.clone()),
+                label: session_line(session),
+                enabled: true,
+            });
         }
     }
     if !alerts.is_empty() {
@@ -258,9 +239,13 @@ mod tests {
     use crate::snapshot::{Session, Snapshot};
 
     fn session(name: &str, pct: Option<f64>, freshness: &str) -> Session {
+        provided(name, "codex", pct, freshness)
+    }
+
+    fn provided(name: &str, provider: &str, pct: Option<f64>, freshness: &str) -> Session {
         Session {
             name: name.into(),
-            provider: "codex".into(),
+            provider: provider.into(),
             available_pct: pct,
             freshness: freshness.into(),
             reset_at: None,
@@ -308,13 +293,87 @@ mod tests {
             &[],
         );
         let text = labels(&entries);
-        // The provider is the group heading now, so it is not on the row.
-        assert!(text.contains("18%  work"), "{text}");
-        assert!(
-            text.contains("codex"),
-            "the provider heading is still there: {text}"
+        // The provider rides on the row, since there is no heading to carry it.
+        assert!(text.contains("18%  work · codex"), "{text}");
+        assert!(text.contains("—  side · codex · never reported"), "{text}");
+    }
+
+    /// The order the snapshot arrived in, kept exactly.
+    ///
+    /// Grouping used to reorder it: a provider took the rank of its most
+    /// constrained session, so a healthy account could sit above the one that
+    /// made the icon turn — which is the opposite of what the list is for.
+    #[test]
+    fn sessions_are_listed_once_each_in_snapshot_order() {
+        let entries = build_with_alerts(
+            &snapshot(
+                vec![
+                    provided("alpha", "claude", Some(4.0), "fresh"),
+                    provided("beta", "codex", Some(30.0), "fresh"),
+                    provided("gamma", "claude", Some(80.0), "fresh"),
+                ],
+                true,
+            ),
+            &[],
         );
-        assert!(text.contains("—  side · never reported"), "{text}");
+        let clicked: Vec<String> = entries
+            .iter()
+            .filter_map(|e| match e {
+                Entry::Action {
+                    id: ActionId::Session(name),
+                    ..
+                } => Some(name.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(clicked, vec!["alpha", "beta", "gamma"]);
+        // No heading survives, so nothing separates a provider from the next.
+        let text = labels(&entries);
+        assert!(!text.lines().any(|line| line.trim() == "claude"), "{text}");
+        for provider in ["claude", "codex", "claude"] {
+            assert!(text.contains(provider), "{text}");
+        }
+    }
+
+    /// The case the request reported: a Codex session drops and overtakes the
+    /// Claude ones between two draws. Under grouping plus a positional id, the
+    /// row the user clicked and the session that opened were two different
+    /// things. The name is the id now, so the two cannot come apart.
+    #[test]
+    fn a_session_overtaking_another_still_opens_the_row_that_was_clicked() {
+        let before = build_with_alerts(
+            &snapshot(
+                vec![
+                    provided("claude-main", "claude", Some(10.0), "fresh"),
+                    provided("claude-side", "claude", Some(50.0), "fresh"),
+                    provided("codex-work", "codex", Some(90.0), "fresh"),
+                ],
+                true,
+            ),
+            &[],
+        );
+        let after = build_with_alerts(
+            &snapshot(
+                vec![
+                    provided("codex-work", "codex", Some(2.0), "fresh"),
+                    provided("claude-main", "claude", Some(10.0), "fresh"),
+                    provided("claude-side", "claude", Some(50.0), "fresh"),
+                ],
+                true,
+            ),
+            &[],
+        );
+        let id_at = |entries: &[Entry], wanted: &str| {
+            entries.iter().any(|e| {
+                matches!(e, Entry::Action { id: ActionId::Session(name), label, .. }
+                    if name == wanted && label.contains(wanted))
+            })
+        };
+        for entries in [&before, &after] {
+            for name in ["codex-work", "claude-main", "claude-side"] {
+                assert!(id_at(entries, name), "{name} is bound to its own row");
+            }
+        }
     }
 
     #[test]
@@ -357,7 +416,7 @@ mod tests {
             &[],
         );
         let text = labels(&entries);
-        assert!(text.contains("40%  work · running"), "{text}");
+        assert!(text.contains("40%  work · codex · running"), "{text}");
         // The action stays present so it is not hunted for, but disabled so it
         // does not promise what the auth lock forbids.
         let refresh = entries

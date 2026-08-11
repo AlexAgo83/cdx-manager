@@ -117,6 +117,7 @@ fn style_rows(menu: &Menu, rows: &[crate::runner::Row]) {
         .map(|row| crate::mac_cell::Cell {
             index: row.menu_index,
             name: row.name.clone(),
+            provider: row.provider.clone(),
             percent: row.percent,
             state: row.state.clone(),
             figure: row.figure.clone(),
@@ -139,13 +140,13 @@ pub fn build_menu(entries: &[Entry]) -> Result<(Menu, HashMap<MenuId, ActionId>)
             }
             Entry::Check { id, label, checked } => {
                 let item = CheckMenuItem::new(label, true, *checked, None);
-                actions.insert(item.id().clone(), *id);
+                actions.insert(item.id().clone(), id.clone());
                 menu.append(&item)?;
             }
             Entry::Separator => menu.append(&PredefinedMenuItem::separator())?,
             Entry::Action { id, label, enabled } => {
                 let item = MenuItem::new(label, *enabled, None);
-                actions.insert(item.id().clone(), *id);
+                actions.insert(item.id().clone(), id.clone());
                 menu.append(&item)?;
             }
         }

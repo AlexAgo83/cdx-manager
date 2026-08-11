@@ -86,11 +86,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     state = Render::next(&transport, state.tick, &state.history);
                     redraw = true;
                 }
-                Some(ActionId::Session(index)) => {
-                    if let Some(name) = state.session_names.get(*index) {
-                        open_terminal(&format!("cdx {name}"));
-                    }
-                }
+                Some(ActionId::Session(name)) => open_terminal(&format!("cdx {name}")),
                 None => {}
             }
         }
