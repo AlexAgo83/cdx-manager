@@ -339,3 +339,89 @@ class PublishedLedgerFallbackTest(CliTestBase):
         self.assertIsNone(
             expected_checksum("9.9.9", "t", ledger_path=local, download=download)
         )
+
+
+class CompanionAlignmentTest(CliTestBase):
+    """`cdx update` has to bring the companion with it.
+
+    The companion is a separate artifact on a separate release, so it drifts
+    unless something moves it. Nothing did: the user updated CDX and had to
+    notice the mismatch and reinstall by hand, which is exactly what
+    `item_081` AC2 says must not happen.
+    """
+
+    def _asset(self, directory):
+        import hashlib
+        import tarfile
+        payload = os.path.join(directory, "cdx-tray")
+        with open(payload, "wb") as handle:
+            handle.write(b"#!/bin/sh\nexit 0\n")
+        os.chmod(payload, 0o755)
+        archive = os.path.join(directory, "asset.tar.gz")
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.add(payload, arcname="cdx-tray")
+        return archive, hashlib.sha256(open(archive, "rb").read()).hexdigest()
+
+    def _ledger(self, directory, digest):
+        import json
+        path = os.path.join(directory, "ledger.json")
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"releases": {
+                "v1.0.0": {"tray_assets": {"t": digest}},
+                "v2.0.0": {"tray_assets": {"t": digest}},
+            }}, handle)
+        return path
+
+    def _installed(self, base_dir, scratch, version):
+        import shutil
+
+        from src.tray_install import install
+        archive, digest = self._asset(scratch)
+        ledger = self._ledger(scratch, digest)
+        install(
+            base_dir, version, target="t", ledger_path=ledger,
+            download=lambda _url, dest: shutil.copyfile(archive, dest),
+        )
+        return archive, ledger
+
+    def test_nothing_installed_is_not_a_failure(self):
+        from src.tray_install import align_companion
+        result = align_companion(self.make_temp_dir(), "2.0.0")
+        self.assertFalse(result["aligned"])
+        self.assertIn("no companion", result["reason"])
+
+    def test_an_aligned_companion_is_left_alone(self):
+        from src.tray_install import align_companion
+        base, scratch = self.make_temp_dir(), self.make_temp_dir()
+        _archive, ledger = self._installed(base, scratch, "1.0.0")
+        result = align_companion(base, "1.0.0", ledger_path=ledger)
+        self.assertFalse(result["aligned"])
+        self.assertEqual(result["reason"], "already aligned")
+
+    def test_a_drifted_companion_is_moved(self):
+        import shutil
+
+        from src.tray_install import align_companion, read_state
+        base, scratch = self.make_temp_dir(), self.make_temp_dir()
+        archive, ledger = self._installed(base, scratch, "1.0.0")
+        result = align_companion(
+            base, "2.0.0", ledger_path=ledger, target="t",
+            download=lambda _url, dest: shutil.copyfile(archive, dest),
+        )
+        self.assertTrue(result["aligned"], result)
+        self.assertEqual(read_state(base)["cdx_version"], "2.0.0")
+
+    def test_a_failure_is_reported_and_the_old_one_kept(self):
+        """The CDX update has already succeeded by then. Failing it because a
+        companion could not be replaced would undo a good outcome."""
+        from src.tray_install import align_companion, read_state
+        base, scratch = self.make_temp_dir(), self.make_temp_dir()
+        _archive, ledger = self._installed(base, scratch, "1.0.0")
+
+        def refuse(_url, _dest):
+            raise OSError("no network")
+
+        result = align_companion(base, "2.0.0", ledger_path=ledger, target="t", download=refuse)
+        self.assertFalse(result["aligned"])
+        self.assertEqual(result["previous"], "1.0.0")
+        self.assertEqual(read_state(base)["cdx_version"], "1.0.0", "the working one stays")

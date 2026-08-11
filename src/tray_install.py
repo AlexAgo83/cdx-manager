@@ -251,6 +251,34 @@ def install(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, targe
     return state
 
 
+def align_companion(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, target=None, env=None):
+    """Bring an installed companion up to the CDX release that just landed.
+
+    `item_081` AC2 asks for the two to stay aligned, and until now nothing did
+    it: `cdx update` moved CDX and left the companion behind, so the user had to
+    notice the drift and reinstall by hand.
+
+    Returns a dict describing what happened, and never raises. The CDX update
+    has already succeeded by the time this runs — failing it because a companion
+    could not be replaced would undo a good outcome for a worse reason. Every
+    refusal is reported instead.
+    """
+    state = read_state(base_dir)
+    if not state:
+        return {"aligned": False, "reason": "no companion is installed"}
+    if state.get("cdx_version") == version:
+        return {"aligned": False, "reason": "already aligned"}
+    try:
+        update(base_dir, version, download=download, ledger_path=ledger_path, target=target)
+    except TrayInstallError as error:
+        return {
+            "aligned": False,
+            "reason": str(error),
+            "previous": state.get("cdx_version"),
+        }
+    return {"aligned": True, "previous": state.get("cdx_version"), "version": version}
+
+
 def _extract(archive, destination):
     """Unpack, refusing any member that would escape the destination.
 

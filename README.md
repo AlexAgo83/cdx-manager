@@ -517,6 +517,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx tray launch [--json]` | Start the installed tray companion, detached. Reports `tray_companion_not_installed` when nothing is recorded, or `tray_companion_missing` when the recorded companion is gone. `CDX_TRAY_BIN` points it at a locally built one |
 | `cdx tray install [--json]` | Download the companion for this OS and architecture, verify its published checksum before unpacking, and record what was written. Refuses when no checksum is published for the asset |
 | `cdx tray uninstall [--json]` | Remove exactly what `install` recorded, and nothing else |
+| — | `cdx update` also moves an installed companion to the new release, and says so. A companion already running keeps executing the build it started with, so it reports that too rather than leaving you to wonder why the menu looks unchanged |
 | `cdx tray autostart [on\|off\|status] [--json]` | Start the companion at login, or stop doing so. Off until asked, idempotent, and the state is read back from the platform rather than from what CDX last intended |
 | `cdx tray events [--json]` | List agent alerts a running companion has not shown yet. The companion reads these instead of the spool file, so a Windows tray can collect events from CDX in WSL over the same interop it already uses |
 | `cdx tray ack <id>... [--json]` | Mark events as shown, idempotently |

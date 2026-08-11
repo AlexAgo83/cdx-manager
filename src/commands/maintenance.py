@@ -587,6 +587,51 @@ def handle_repair(rest, ctx):
             ctx["out"](f"{_dim('Tip: run cdx repair --force to apply safe repairs.', ctx['use_color'])}\n")
     return 0
 
+def _align_tray_companion(ctx, target_version):
+    """Move an installed tray companion to the release CDX just moved to.
+
+    Never raises and never fails the update: CDX has already been replaced
+    successfully by this point, and a companion that could not follow is a
+    warning, not a reason to call a good update bad.
+    """
+    from ..tray_install import align_companion
+    from ..tray_instance import companion_instance
+
+    try:
+        base_dir = ctx["service"]["base_dir"]
+        result = align_companion(base_dir, target_version, download=ctx.get("download_asset"))
+    except Exception as error:  # noqa: BLE001 - the update already succeeded
+        return [{"code": "tray_companion_not_aligned", "message": f"The tray companion was left as it was: {error}"}]
+
+    if not result["aligned"]:
+        if result.get("reason") in ("no companion is installed", "already aligned"):
+            return []
+        return [{
+            "code": "tray_companion_not_aligned",
+            "message": (
+                f"The tray companion is still on {result.get('previous') or 'its previous version'}: "
+                f"{result['reason']} Run: cdx tray install"
+            ),
+        }]
+
+    warnings = [{
+        "code": "tray_companion_updated",
+        "message": f"Updated the tray companion to {target_version} as well.",
+    }]
+    # A running companion keeps executing the binary it started with. Saying so
+    # beats leaving someone to wonder why the menu still looks old, and beats
+    # quitting an application they did not ask us to touch.
+    try:
+        if companion_instance(env=ctx.get("env")).get("pid"):
+            warnings.append({
+                "code": "tray_companion_restart_pending",
+                "message": "The running tray is still the previous build. Quit it from its menu and run: cdx tray launch",
+            })
+    except Exception:  # noqa: BLE001
+        pass
+    return warnings
+
+
 def handle_update(rest, ctx):
     parsed = _parse_update_args(rest)
     if parsed["all"]:
@@ -703,6 +748,12 @@ def handle_update(rest, ctx):
     )
     if version_warning:
         warnings.append(version_warning)
+
+    # The tray companion is a separate artifact on a separate release, so it
+    # drifts unless something moves it. Reported rather than silent either way:
+    # an install that did not happen is as worth knowing as one that did.
+    for tray_warning in _align_tray_companion(ctx, target_version):
+        warnings.append(tray_warning)
 
     message = f"Updated cdx-manager to {target_version}"
     if json_flag:

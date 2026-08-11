@@ -314,7 +314,12 @@ def _tray_doctor(args, ctx):
          executable or "run: cdx tray install"),
         ("executable", "present" if executable and os.path.exists(executable) else "missing",
          executable or "-"),
-        ("cdx_version", ctx["version"], (state or {}).get("cdx_version") or "-"),
+        # Named rather than left as two numbers to compare: drift is the state
+        # that makes someone reinstall by hand, and `cdx update` now fixes it,
+        # so the report should say which one you are in.
+        ("cdx_version",
+         "aligned" if not state or state.get("cdx_version") == ctx["version"] else "drifted",
+         f"cdx {ctx['version']}, companion {(state or {}).get('cdx_version') or 'not installed'}"),
         ("target", (state or {}).get("target") or "-", (state or {}).get("sha256") or "-"),
         ("running", "yes" if instance.get("pid") else "no", str(instance.get("pid") or "-")),
         ("autostart", "on" if autostart["enabled"] else "off", autostart["artifact"] or "unsupported"),
