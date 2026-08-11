@@ -1,6 +1,6 @@
 ## adr_007_what_cdx_records_about_where_a_run_happened - What CDX records about where a run happened
 > Date: 2026-08-11
-> Status: Proposed
+> Status: Settled
 > Related request: `req_051_launch_a_session_in_the_directory_it_belongs_to`
 > Related backlog: `item_100_record_and_honour_a_per_session_working_directory`
 > Related task: `task_062_orchestrate_the_per_session_working_directory`
