@@ -20,13 +20,87 @@
 //! font size cannot grow. `req_038` AC4 asks for the state in words; that rules
 //! the image out.
 
+use std::cell::Cell as StateCell;
+
 use objc2::rc::Retained;
-use objc2::MainThreadMarker;
+use objc2::runtime::NSObjectProtocol;
+use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker, MainThreadOnly};
 use objc2_app_kit::{
-    NSAutoresizingMaskOptions, NSBox, NSBoxType, NSColor, NSFont, NSMenu, NSTextAlignment,
-    NSTextField, NSTitlePosition, NSView,
+    NSAutoresizingMaskOptions, NSBox, NSBoxType, NSColor, NSFont, NSMenu, NSMenuItem, NSRectFill,
+    NSTextAlignment, NSTextField, NSTitlePosition, NSView,
 };
 use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
+
+define_class!(
+    /// The row's own view, which has to draw its own selection.
+    ///
+    /// An `NSMenuItem` carrying a view draws none of its standard furniture, and
+    /// the highlight is the half of that a user notices immediately: every other
+    /// item in the menu lights up under the pointer and these did not, which
+    /// reads as a row that cannot be clicked.
+    ///
+    /// The item's own `highlighted` property is not the signal. Since Big Sur it
+    /// stays true after the drawn row has visually stopped being highlighted, so
+    /// the menu delegate is what says which row is current.
+    #[unsafe(super(NSView))]
+    #[name = "CdxRowView"]
+    #[thread_kind = MainThreadOnly]
+    #[ivars = StateCell<bool>]
+    struct RowView;
+
+    unsafe impl NSObjectProtocol for RowView {}
+
+    impl RowView {
+        #[unsafe(method(drawRect:))]
+        fn draw_rect(&self, _dirty: NSRect) {
+            if !self.ivars().get() {
+                return;
+            }
+            // The unemphasized selection colour rather than the accent one: it
+            // is the pair AppKit keeps legible against ordinary label colours in
+            // both menu materials, so the row lights up without every label
+            // having to be repainted white.
+            NSColor::unemphasizedSelectedContentBackgroundColor().setFill();
+            NSRectFill(self.bounds());
+        }
+    }
+);
+
+impl RowView {
+    fn new(frame: NSRect, mtm: MainThreadMarker) -> Retained<Self> {
+        let this = mtm.alloc::<Self>().set_ivars(StateCell::new(false));
+        unsafe { msg_send![super(this), initWithFrame: frame] }
+    }
+
+    fn set_highlighted(&self, highlighted: bool) {
+        if self.ivars().get() == highlighted {
+            return;
+        }
+        self.ivars().set(highlighted);
+        self.setNeedsDisplay(true);
+    }
+}
+
+/// Move the highlight to the row the menu says is current.
+///
+/// Called from the menu delegate, which is the only thing that knows. Every
+/// drawn row is cleared and at most one is set, so a pointer leaving the menu
+/// entirely — `item` is None — leaves nothing lit.
+pub fn highlight(ns_menu: &NSMenu, item: Option<&NSMenuItem>) {
+    for index in 0..ns_menu.numberOfItems() {
+        let Some(row) = ns_menu.itemAtIndex(index) else {
+            continue;
+        };
+        let Some(view) = row.view() else {
+            continue;
+        };
+        let Ok(drawn) = view.downcast::<RowView>() else {
+            continue;
+        };
+        let current = item.is_some_and(|highlighted| std::ptr::eq(highlighted, &*row));
+        drawn.set_highlighted(current);
+    }
+}
 
 /// What one row needs to draw itself.
 pub struct Cell {
@@ -102,9 +176,9 @@ fn bar(frame: NSRect, colour: &NSColor, mtm: MainThreadMarker) -> Retained<NSBox
 
 /// The view for one row, laid out in fixed columns.
 pub fn build_cell(cell: &Cell, mtm: MainThreadMarker) -> Retained<NSView> {
-    let container = NSView::initWithFrame(
-        mtm.alloc::<NSView>(),
+    let container = RowView::new(
         NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(ROW_WIDTH, ROW_HEIGHT)),
+        mtm,
     );
     container.setAutoresizingMask(NSAutoresizingMaskOptions::ViewWidthSizable);
 
@@ -174,7 +248,7 @@ pub fn build_cell(cell: &Cell, mtm: MainThreadMarker) -> Retained<NSView> {
     ));
     container.addSubview(&chevron);
 
-    container
+    Retained::into_super(container)
 }
 
 /// Attach a drawn row to every session item in a menu.

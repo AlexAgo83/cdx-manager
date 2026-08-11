@@ -21,7 +21,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use objc2::rc::Retained;
 use objc2::runtime::{NSObject, NSObjectProtocol, ProtocolObject};
 use objc2::{define_class, msg_send, MainThreadMarker, MainThreadOnly};
-use objc2_app_kit::{NSMenu, NSMenuDelegate};
+use objc2_app_kit::{NSMenu, NSMenuDelegate, NSMenuItem};
 
 static MENU_OPENED: AtomicBool = AtomicBool::new(false);
 /// Whether the last attempt to watch a menu succeeded.
@@ -40,6 +40,15 @@ define_class!(
         #[unsafe(method(menuWillOpen:))]
         fn menu_will_open(&self, _menu: &NSMenu) {
             MENU_OPENED.store(true, Ordering::Relaxed);
+        }
+
+        /// Which row the pointer is on. A view-bearing item draws no highlight
+        /// of its own, so this is the only thing that can tell the drawn cells
+        /// apart — and it is a different callback from the opening signal,
+        /// which reports the menu rather than a row.
+        #[unsafe(method(menu:willHighlightItem:))]
+        fn menu_will_highlight_item(&self, menu: &NSMenu, item: Option<&NSMenuItem>) {
+            crate::mac_cell::highlight(menu, item);
         }
     }
 );
