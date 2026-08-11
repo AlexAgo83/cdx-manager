@@ -50,7 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main --depth=1
-          git checkout -B ledger origin/main
+          git checkout -f -B ledger origin/main
           python3 scripts/update_release_checksums.py --tag "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"
           if git diff --quiet -- checksums/release-archives.json; then
             echo "Ledger already records $RELEASE_TAG; nothing to commit."
