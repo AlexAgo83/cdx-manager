@@ -1,10 +1,10 @@
 ## item_099_report_the_cdx_and_store_the_companion_actually_reaches - Report the CDX and store the companion actually reaches
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 90%
 > Complexity: Medium
 > Theme: Diagnostics
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

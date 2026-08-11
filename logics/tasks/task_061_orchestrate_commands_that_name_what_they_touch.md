@@ -1,14 +1,15 @@
 ## task_061_orchestrate_commands_that_name_what_they_touch - Orchestrate commands that name what they touch
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 90%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 > Indicators reviewed: 2026-08-11 13:40:12
+> Owner: Codex
 
 # AI Context
 - Summary: Two slices: install-side prefix reporting, and doctor reporting what the companion and the hooks actually reach.

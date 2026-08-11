@@ -5,12 +5,14 @@ and `autostart` act on recorded state and say plainly when there is none, and
 `doctor` reads all of it without changing any of it.
 """
 import os
+import shutil
 import subprocess
 from datetime import datetime, timezone
 
 from ..cli_args import TRAY_USAGE, _parse_flag_args
 from ..cli_helpers import _json_success, _write_json
 from ..cli_render import _dim, _pad_table, _style, _warn
+from ..config import get_cdx_home
 from ..errors import CdxError
 from ..tray_alerts import alerts_enabled, set_alerts
 from ..tray_autostart import disable as autostart_disable
@@ -592,6 +594,8 @@ def _tray_doctor(args, ctx):
     instance = companion_instance(env=env)
     desktop = desktop_capability(env=env)
     toasts = toast_capability(env=env)
+    companion_cdx = (env or {}).get("CDX_TRAY_CDX") or shutil.which("cdx", path=(env or {}).get("PATH")) or "cdx"
+    hook_store = get_cdx_home(env)
 
     checks = [
         ("companion", "installed" if state else ("override" if executable else "absent"),
@@ -609,6 +613,8 @@ def _tray_doctor(args, ctx):
         ("autostart", "on" if autostart["enabled"] else "off", autostart["artifact"] or "unsupported"),
         ("alerts", "on" if alerts_enabled(base_dir) else "muted",
          "cdx tray alerts on|off"),
+        ("companion_cdx", "override" if (env or {}).get("CDX_TRAY_CDX") else "path", companion_cdx),
+        ("hook_store", "aligned" if os.path.realpath(hook_store) == os.path.realpath(base_dir) else "mismatched", hook_store),
         ("update", "interrupted" if interrupted_update(base_dir) else "clean",
          "a staged companion was never promoted; run: cdx tray install"
          if interrupted_update(base_dir) else "-"),

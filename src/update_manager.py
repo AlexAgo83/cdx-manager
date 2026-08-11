@@ -171,6 +171,7 @@ def build_update_plan(target_version=None, package_root=None, env=None, prefix=N
     return {
         "mode": mode,
         "package_root": str(root),
+        "prefix": str(prefix or sys.prefix),
         "target_version": version,
         "steps": steps,
     }

@@ -1,10 +1,10 @@
 ## item_098_name_the_prefix_an_install_or_update_acted_on - Name the prefix an install or update acted on
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 90%
 > Complexity: Low
 > Theme: Diagnostics
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

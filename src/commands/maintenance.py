@@ -774,10 +774,12 @@ def handle_update(rest, ctx):
             current_version=current_version,
             target_version=target_version,
             mode=plan["mode"],
+            prefix=plan["prefix"],
             steps=results,
         ))
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    ctx["out"](f"Install prefix: {plan['prefix']}\n")
     for warning in warnings:
         ctx["out"](f"{_warn(warning['message'], ctx['use_color'])}\n")
     return 0
