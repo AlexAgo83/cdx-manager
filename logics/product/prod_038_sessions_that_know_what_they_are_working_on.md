@@ -10,6 +10,14 @@
 # Overview
 Make the working directory a property of the session rather than of the shell that launched it, with a per-launch override and a clear refusal when it has gone.
 
+```mermaid
+flowchart LR
+    Launch[Launch] --> Directory[Resolved directory]
+    Directory --> Provider[Provider]
+    Directory --> Runtime[Run runtime and history]
+    Runtime --> Status[Status and tray]
+```
+
 # Goals
 - Stop a launch from a home directory producing an assistant with no project.
 - Make what a session works on stable and inspectable, like every other launch setting.
