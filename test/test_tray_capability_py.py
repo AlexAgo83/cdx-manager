@@ -440,6 +440,46 @@ class CompanionAlignmentTest(CliTestBase):
         self.assertEqual(result["previous"], "1.0.0")
         self.assertEqual(read_state(base)["cdx_version"], "1.0.0", "the working one stays")
 
+
+    def test_an_update_keeps_the_login_item_pointing_at_a_live_path(self):
+        """Autostart records the executable path. If an update moved it, the
+        login item would silently point at a companion that is no longer there."""
+        import shutil
+
+        from src.tray_install import align_companion, read_state
+        base, scratch = self.make_temp_dir(), self.make_temp_dir()
+        archive, ledger = self._installed(base, scratch, "1.0.0")
+        before = read_state(base)["executable"]
+        align_companion(
+            base, "2.0.0", ledger_path=ledger, target="t",
+            download=lambda _url, dest: shutil.copyfile(archive, dest),
+            probe=lambda _executable: True,
+            stop=lambda env=None: {"stopped": False, "was_running": False},
+            start=lambda executable, **kwargs: {"started": True},
+        )
+        after = read_state(base)
+        self.assertEqual(after["executable"], before)
+        self.assertEqual(after["cdx_version"], "2.0.0")
+        import os
+        self.assertTrue(os.path.exists(after["executable"]))
+
+    def test_an_update_does_not_touch_the_accepted_alert_default(self):
+        import shutil
+
+        from src.tray_defaults import alerts_default, set_alerts_default
+        from src.tray_install import align_companion
+        base, scratch = self.make_temp_dir(), self.make_temp_dir()
+        archive, ledger = self._installed(base, scratch, "1.0.0")
+        set_alerts_default(base, True)
+        align_companion(
+            base, "2.0.0", ledger_path=ledger, target="t",
+            download=lambda _url, dest: shutil.copyfile(archive, dest),
+            probe=lambda _executable: True,
+            stop=lambda env=None: {"stopped": False, "was_running": False},
+            start=lambda executable, **kwargs: {"started": True},
+        )
+        self.assertTrue(alerts_default(base))
+
     # --- doubles for the running companion ---------------------------------
 
     @staticmethod
@@ -829,3 +869,4 @@ class InstallConsentTest(CliTestBase):
         with open(path, "w", encoding="utf-8") as handle:
             handle.write("{ not json")
         self.assertFalse(alerts_default(base))
+
