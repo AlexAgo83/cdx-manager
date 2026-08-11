@@ -2,8 +2,8 @@
 > From version: 0.18.5
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 85%
+> Confidence: 75%
 > Progress: 0%
 > Complexity: Low
 > Theme: Tray usability
@@ -17,22 +17,24 @@
 
 # Problem
 - The adapter runs logics-manager in the caller's working directory, and the caller is a companion with none.
+- An operator with several sessions is working in several repositories at once, so a single named path would report on one and ignore the rest.
 - The card is therefore absent in normal use while appearing correct in every test and in every hand-run check from a project directory.
 
 # Scope
 - In:
-  - A CDX-side setting for the repository path, set and cleared explicitly.
-  - Running the adapter against that path rather than the caller's directory.
-  - Falling back to silence when the path is gone or is not a Logics repository.
+  - Derive the repositories from the working directories of CDX's own enabled sessions, which it already knows because it launched them.
+  - Run the adapter against each, and name the repository on every row when more than one is in play.
+  - Keep an explicit override for a repository with no session open in it.
+  - Fall back to silence for a directory that is gone or is not a Logics repository.
 - Out:
-  - Automatic discovery, multiple repositories, or per-session repositories.
+  - Scanning the filesystem for repositories, or reporting on any directory no session is working in and nobody named.
   - Changes to the card's contents, bounds, refresh cadence or action vocabulary.
 
 # Acceptance criteria
-- AC1: The repository is named through CDX, reversibly, and stored with the other tray preferences.
+- AC1: The repositories come from the sessions' own directories, with an explicit override available and reversible.
 - AC2: The card is identical whether the snapshot is requested from that repository, from a home directory, or from /.
 - AC3: A path that is gone, or is not a Logics repository, yields no card and no error.
-- AC4: With nothing named, behaviour is unchanged from today.
+- AC4: With several repositories in play, each row names its own; counts are never merged across repositories.
 - AC5: Focused tests cover all four cases.
 
 # AC Traceability

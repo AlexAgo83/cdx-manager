@@ -52,6 +52,8 @@
 | [prod_033_a_tray_session_row_that_answers_before_it_is_clicked](product/prod_033_a_tray_session_row_that_answers_before_it_is_clicked.md) | A tray session row that answers before it is clicked | Settled |  |  | product/prod_033_a_tray_session_row_that_answers_before_it_is_clicked.md |
 | [prod_034_the_tray_opens_the_terminal_you_actually_use](product/prod_034_the_tray_opens_the_terminal_you_actually_use.md) | The tray opens the terminal you actually use | Settled |  |  | product/prod_034_the_tray_opens_the_terminal_you_actually_use.md |
 | [prod_035_a_logics_card_that_knows_which_repository_it_is_about](product/prod_035_a_logics_card_that_knows_which_repository_it_is_about.md) | A Logics card that knows which repository it is about | Proposed |  |  | product/prod_035_a_logics_card_that_knows_which_repository_it_is_about.md |
+| [prod_036_a_session_row_that_opens_where_you_already_are](product/prod_036_a_session_row_that_opens_where_you_already_are.md) | A session row that opens where you already are | Proposed |  |  | product/prod_036_a_session_row_that_opens_where_you_already_are.md |
+| [prod_037_commands_that_name_what_they_are_about_to_touch](product/prod_037_commands_that_name_what_they_are_about_to_touch.md) | Commands that name what they are about to touch | Proposed |  |  | product/prod_037_commands_that_name_what_they_are_about_to_touch.md |
 
 ## Roadmaps
 
@@ -110,6 +112,8 @@ _None_
 | [req_046_show_the_whole_session_row_on_macos_including_both_limit_windows](request/req_046_show_the_whole_session_row_on_macos_including_both_limit_windows.md) | Show the whole session row on macOS, including both limit windows | Done |  |  | request/req_046_show_the_whole_session_row_on_macos_including_both_limit_windows.md |
 | [req_047_let_the_operator_choose_which_terminal_the_tray_opens](request/req_047_let_the_operator_choose_which_terminal_the_tray_opens.md) | Let the operator choose which terminal the tray opens | Done |  |  | request/req_047_let_the_operator_choose_which_terminal_the_tray_opens.md |
 | [req_048_give_the_logics_tray_card_a_repository_to_report_on](request/req_048_give_the_logics_tray_card_a_repository_to_report_on.md) | Give the Logics tray card a repository to report on | Draft |  |  | request/req_048_give_the_logics_tray_card_a_repository_to_report_on.md |
+| [req_049_open_a_tab_rather_than_a_window_where_the_platform_documents_one](request/req_049_open_a_tab_rather_than_a_window_where_the_platform_documents_one.md) | Open a tab rather than a window where the platform documents one | Draft |  |  | request/req_049_open_a_tab_rather_than_a_window_where_the_platform_documents_one.md |
+| [req_050_say_which_installation_and_which_home_a_command_is_acting_on](request/req_050_say_which_installation_and_which_home_a_command_is_acting_on.md) | Say which installation and which home a command is acting on | Draft |  |  | request/req_050_say_which_installation_and_which_home_a_command_is_acting_on.md |
 
 ## Backlog
 
@@ -212,6 +216,9 @@ _None_
 | [item_094_publish_and_draw_both_limit_windows_per_session](backlog/item_094_publish_and_draw_both_limit_windows_per_session.md) | Publish and draw both limit windows per session | Done |  | 100% | backlog/item_094_publish_and_draw_both_limit_windows_per_session.md |
 | [item_095_add_a_cdx_owned_terminal_preference_the_tray_honours](backlog/item_095_add_a_cdx_owned_terminal_preference_the_tray_honours.md) | Add a CDX-owned terminal preference the tray honours | Done |  | 100% | backlog/item_095_add_a_cdx_owned_terminal_preference_the_tray_honours.md |
 | [item_096_name_the_repository_the_logics_card_reports_on](backlog/item_096_name_the_repository_the_logics_card_reports_on.md) | Name the repository the Logics card reports on | Ready |  | 0% | backlog/item_096_name_the_repository_the_logics_card_reports_on.md |
+| [item_097_open_a_tab_where_the_terminal_documents_how](backlog/item_097_open_a_tab_where_the_terminal_documents_how.md) | Open a tab where the terminal documents how | Ready |  | 0% | backlog/item_097_open_a_tab_where_the_terminal_documents_how.md |
+| [item_098_name_the_prefix_an_install_or_update_acted_on](backlog/item_098_name_the_prefix_an_install_or_update_acted_on.md) | Name the prefix an install or update acted on | Ready |  | 0% | backlog/item_098_name_the_prefix_an_install_or_update_acted_on.md |
+| [item_099_report_the_cdx_and_store_the_companion_actually_reaches](backlog/item_099_report_the_cdx_and_store_the_companion_actually_reaches.md) | Report the CDX and store the companion actually reaches | Ready |  | 0% | backlog/item_099_report_the_cdx_and_store_the_companion_actually_reaches.md |
 
 ## Tasks
 
@@ -279,6 +286,8 @@ _None_
 | [task_057_orchestrate_the_fuller_tray_session_row](tasks/task_057_orchestrate_the_fuller_tray_session_row.md) | Orchestrate the fuller tray session row | Done | corvus | 100% | tasks/task_057_orchestrate_the_fuller_tray_session_row.md |
 | [task_058_orchestrate_the_preferred_tray_terminal](tasks/task_058_orchestrate_the_preferred_tray_terminal.md) | Orchestrate the preferred tray terminal | Done | corvus | 100% | tasks/task_058_orchestrate_the_preferred_tray_terminal.md |
 | [task_059_orchestrate_the_repository_aware_logics_card](tasks/task_059_orchestrate_the_repository_aware_logics_card.md) | Orchestrate the repository-aware Logics card | Ready |  | 0% | tasks/task_059_orchestrate_the_repository_aware_logics_card.md |
+| [task_060_orchestrate_tabs_instead_of_windows](tasks/task_060_orchestrate_tabs_instead_of_windows.md) | Orchestrate tabs instead of windows | Ready |  | 0% | tasks/task_060_orchestrate_tabs_instead_of_windows.md |
+| [task_061_orchestrate_commands_that_name_what_they_touch](tasks/task_061_orchestrate_commands_that_name_what_they_touch.md) | Orchestrate commands that name what they touch | Ready |  | 0% | tasks/task_061_orchestrate_commands_that_name_what_they_touch.md |
 
 ## Runbooks
 

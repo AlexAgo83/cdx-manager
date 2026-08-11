@@ -2,8 +2,8 @@
 > From version: 0.18.5
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 85%
+> Confidence: 75%
 > Progress: 0%
 > Complexity: Medium
 > Theme: Implementation delivery
