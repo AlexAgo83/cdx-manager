@@ -8,7 +8,7 @@
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-11 00:19:07
+> Indicators reviewed: 2026-08-11 02:25:37
 
 # AI Context
 - Summary: Deliver agent hook events through the active CDX tray with safe fallback
