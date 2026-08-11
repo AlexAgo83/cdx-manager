@@ -101,12 +101,18 @@ def tray_is_listening(base_dir, now=None):
 
 # --- the hook's side -------------------------------------------------------
 
-def publish(base_dir, title, message, kind="complete", now=None, event_id=None):
+def publish(base_dir, title, message, kind="complete", now=None, event_id=None, details=None):
     """Hand one event to the tray. Returns True only if it was written.
 
     False means the caller must deliver it directly, so every failure here has
     to be a False and never an exception: the alternative is a provider hook
     that raises inside someone's agent turn.
+
+    `details` carries the same event as fields, so a companion does not have to
+    read a sentence to know which session it belongs to. It is written beside
+    the rendered title and message, never instead of them: a companion that
+    predates the fields ignores an unknown key and shows what it always showed,
+    and a newer one handed a malformed `details` still has the sentence.
     """
     now = time.time() if now is None else now
     try:
@@ -119,6 +125,8 @@ def publish(base_dir, title, message, kind="complete", now=None, event_id=None):
             "title": title,
             "message": message,
         }
+        if isinstance(details, dict) and details:
+            event["details"] = details
         path = events_path(base_dir)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         line = json.dumps(event, ensure_ascii=False) + "\n"

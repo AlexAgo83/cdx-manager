@@ -30,6 +30,18 @@ PREVIEW_ENV = "CDX_NOTIFY_PREVIEW"
 HOOK_ARG = "notify"
 
 _WAITING_EVENTS = {"notification", "permissionrequest"}
+# The Notification states that mean the agent is waiting for its user.
+#
+# Claude's Notification hook is a broad one: `permission_prompt` fires for the
+# same tool call `PermissionRequest` already reports, exactly and immediately,
+# so subscribing to both once produced two alerts for one request. Filtering
+# here rather than unsubscribing keeps the idle states, which nothing else
+# reports at all — an agent waiting on an answer would otherwise go silent.
+_WAITING_NOTIFICATIONS = {"idle_prompt", "agent_needs_input"}
+# Hook events that decide something. Anything this process writes to stdout on
+# one of these is read by Claude Code as an allow or a deny for the tool call,
+# so `cdx notify` has to stay silent on them whatever happens.
+_DECIDING_EVENTS = {"permissionrequest"}
 _PREVIEW_LIMIT = 180
 _TOOL_NAME_LIMIT = 80
 
@@ -69,6 +81,38 @@ def read_hook_payload(args, stdin_text=None):
     return {}
 
 
+def hook_event(payload):
+    """The provider's event name, in one spelling.
+
+    Both providers publish the same names now, but they have each spelled them
+    differently over time and Codex's older `notify` used `type`. Normalising in
+    one place keeps every caller reading the same value.
+    """
+    raw = payload.get("hook_event_name") or payload.get("eventName") or payload.get("type") or ""
+    return str(raw).lower().replace("_", "").replace("-", "")
+
+
+def is_deciding_event(payload):
+    """Whether this hook's output would be read as a permission decision."""
+    return hook_event(payload) in _DECIDING_EVENTS
+
+
+def _is_reportable(payload, event):
+    """Whether this event is one the user should hear about at all.
+
+    A Notification that is not a waiting state is either something another hook
+    reports exactly — `permission_prompt` duplicates PermissionRequest — or an
+    internal state the user has no action to take on.
+    """
+    if event != "notification":
+        return True
+    kind = str(payload.get("notification_type") or "").lower()
+    # An older Claude sent no type at all. Reporting it is the safer default: a
+    # duplicate is a nuisance, a missed "the agent is waiting for you" is the
+    # failure this feature exists to prevent.
+    return not kind or kind in _WAITING_NOTIFICATIONS
+
+
 def compose_notification(payload, env=None, cwd=None):
     """Title and message for this event, or None if we should stay quiet."""
     env = os.environ if env is None else env
@@ -79,9 +123,10 @@ def compose_notification(payload, env=None, cwd=None):
     session = env.get(SESSION_ENV)
     if not session:
         return None
+    event = hook_event(payload)
+    if not _is_reportable(payload, event):
+        return None
     directory = payload.get("cwd") or payload.get("workspace") or cwd or os.getcwd()
-    event = str(payload.get("hook_event_name") or payload.get("eventName") or payload.get("type") or "").lower()
-    event = event.replace("_", "").replace("-", "")
     state = "needs your attention" if event in _WAITING_EVENTS else "turn complete"
     tool_name = _notification_text(payload.get("tool_name"), _TOOL_NAME_LIMIT)
     if event == "permissionrequest" and tool_name:
@@ -89,6 +134,59 @@ def compose_notification(payload, env=None, cwd=None):
     where = os.path.basename(str(directory).rstrip("/\\")) or directory
     preview = _notification_preview(payload, event, env)
     return f"✓ {session}", f"{where} · {state}" + (f" — {preview}" if preview else "")
+
+
+def structured_details(payload, env=None, cwd=None):
+    """The event as fields, for a tray that should not parse a sentence.
+
+    What is deliberately absent is the point of this function. `tool_input`
+    carries command lines, paths and patch bodies; `transcript_path` points at
+    the whole conversation; `session_id` and `turn_id` identify a provider
+    session rather than a cdx one. None of them reach the spool. What crosses is
+    what cdx already knew (its own session name, the project directory) plus the
+    closed-vocabulary metadata the providers document: the event, the tool name,
+    the model, the permission category and the stop reason.
+    """
+    env = os.environ if env is None else env
+    event = hook_event(payload)
+    directory = payload.get("cwd") or payload.get("workspace") or cwd or os.getcwd()
+    details = {
+        "session": env.get(SESSION_ENV) or "",
+        "project": os.path.basename(str(directory).rstrip("/\\")) or str(directory),
+        "event": event,
+    }
+    for key, source, limit in (
+        ("tool", "tool_name", _TOOL_NAME_LIMIT),
+        ("model", "model", _TOOL_NAME_LIMIT),
+        ("category", "permission_category", _TOOL_NAME_LIMIT),
+        ("stop_reason", "stop_reason", _TOOL_NAME_LIMIT),
+    ):
+        value = _notification_text(payload.get(source), limit)
+        if value:
+            details[key] = value
+    preview = _notification_preview(payload, event, env)
+    if preview:
+        details["preview"] = preview
+    reason = _permission_reason(payload, event, env)
+    if reason:
+        details["reason"] = reason
+    return details
+
+
+def _permission_reason(payload, event, env):
+    """The provider's own words for what it is asking permission to do.
+
+    The one field taken out of `tool_input`, and only this one: it is prose the
+    provider wrote for a human, where everything else in there is the command
+    itself. It follows the response-preview preference like any other free text,
+    because prose a provider composed can quote whatever it was asked to do.
+    """
+    if event != "permissionrequest" or env.get(PREVIEW_ENV) != "1":
+        return ""
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return ""
+    return _notification_text(tool_input.get("description"), _PREVIEW_LIMIT)
 
 
 def _notification_preview(payload, event, env):
@@ -120,6 +218,11 @@ def handle_notify(rest, ctx):
         if reader is not None and not ctx.get("stdin_is_tty"):
             stdin_text = reader.read()
         payload = read_hook_payload(rest, stdin_text)
+        # From here on nothing may be written to stdout. On a PermissionRequest
+        # Claude Code reads this process's stdout as the decision for the tool
+        # call being asked about, so a stray line would allow or deny it. The
+        # notification paths below print nothing; this is the statement of why
+        # they must not start.
         composed = compose_notification(payload, env, ctx.get("cwd"))
         if composed:
             # Muted stops the banner, not the record: the event still reaches a
@@ -128,14 +231,14 @@ def handle_notify(rest, ctx):
             base_dir = (ctx.get("service") or {}).get("base_dir")
             muted = bool(base_dir) and not alerts_enabled(base_dir)
             if muted:
-                _published_to_tray(ctx, composed, payload)
+                _published_to_tray(ctx, composed, payload, env, ctx.get("cwd"))
                 return 0
             # A live tray becomes the sole owner of this alert, so the user sees
             # one notification rather than two. Publication happens below the
             # composition boundary on purpose: the tray receives the same
             # already-sanitized title and message the direct path would send,
             # and cannot be handed anything the privacy rules removed.
-            if not _published_to_tray(ctx, composed, payload):
+            if not _published_to_tray(ctx, composed, payload, env, ctx.get("cwd")):
                 send_desktop_notification(*composed, spawn_sync=ctx.get("spawn_sync"), env=env)
     except Exception:  # noqa: BLE001 - deliberate: the caller is an agent turn
         pass
@@ -330,7 +433,12 @@ def _apply_hooks(path, enabled, command):
     hooks = document.get("hooks")
     hooks = hooks if isinstance(hooks, dict) else {}
     before = json.dumps(hooks, sort_keys=True)
-    for event in ("Stop", "Notification"):
+    # PermissionRequest is what Codex has always used and Claude Code now
+    # publishes too: it fires immediately and names the tool, where Notification
+    # is delayed and does not. Notification stays subscribed for the waiting
+    # states nothing else reports; the duplicate it used to cause is filtered in
+    # `cdx notify` rather than avoided by unsubscribing.
+    for event in ("Stop", "Notification", "PermissionRequest"):
         # Rebuilt from whatever is there minus our own entry, so user-authored
         # hooks on the same event survive both installing and removing.
         entries = [entry for entry in hooks.get(event, []) if not _is_ours(entry)]
@@ -387,22 +495,29 @@ def _write_json(path, document):
     return True
 
 
-def _published_to_tray(ctx, composed, payload):
+def _published_to_tray(ctx, composed, payload, env=None, cwd=None):
     """Hand the alert to a live tray, or say we did not.
 
     False is the safe answer to everything: no base directory, no heartbeat, a
     stale one, a schema mismatch, or an unwritable spool all mean the direct
     path still runs. The only way to lose a notification here would be to
     return True without having written it.
+
+    The rendered title and message go too, unchanged. A companion older than the
+    structured fields reads exactly what it read before, and a newer one that is
+    handed a malformed event still has a sentence to show.
     """
     try:
         base_dir = (ctx.get("service") or {}).get("base_dir")
         if not base_dir:
             return False
-        event = str(
-            payload.get("hook_event_name") or payload.get("eventName") or payload.get("type") or ""
-        ).lower().replace("_", "").replace("-", "")
-        kind = "attention" if event in _WAITING_EVENTS else "complete"
-        return publish(base_dir, composed[0], composed[1], kind=kind)
+        kind = "attention" if hook_event(payload) in _WAITING_EVENTS else "complete"
+        return publish(
+            base_dir,
+            composed[0],
+            composed[1],
+            kind=kind,
+            details=structured_details(payload, env, cwd),
+        )
     except Exception:  # noqa: BLE001 - the caller is an agent turn
         return False

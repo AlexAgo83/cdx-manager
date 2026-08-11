@@ -60,6 +60,97 @@ class HookTargetTests(unittest.TestCase):
         self.assertIn("Bash", attention)
         self.assertNotIn(text[:20], attention)
 
+    def test_a_permission_prompt_notification_is_dropped_as_a_duplicate(self):
+        # PermissionRequest reports the same tool call immediately and by name.
+        # Subscribing to both once meant two alerts for one request.
+        env = {agent_notify.SESSION_ENV: "work1"}
+        duplicate = agent_notify.compose_notification(
+            {"hook_event_name": "Notification", "notification_type": "permission_prompt", "cwd": "/r/a"},
+            env,
+        )
+        self.assertIsNone(duplicate)
+
+    def test_the_waiting_notifications_nothing_else_reports_survive(self):
+        env = {agent_notify.SESSION_ENV: "work1"}
+        for kind in ("idle_prompt", "agent_needs_input"):
+            _, message = agent_notify.compose_notification(
+                {"hook_event_name": "Notification", "notification_type": kind, "cwd": "/r/a"},
+                env,
+            )
+            self.assertIn("needs your attention", message, kind)
+        # An older Claude sends no type at all: reported, because a missed
+        # "waiting for you" is worse than a duplicate.
+        self.assertIsNotNone(
+            agent_notify.compose_notification({"hook_event_name": "Notification", "cwd": "/r/a"}, env)
+        )
+
+    def test_structured_details_carry_the_safe_fields_and_nothing_else(self):
+        payload = {
+            "hook_event_name": "PermissionRequest",
+            "cwd": "/repos/logics-manager",
+            "tool_name": "Bash",
+            "tool_use_id": "toolu_01ABC",
+            "tool_input": {"command": "rm -rf /tmp/build", "description": "Clean the build"},
+            "permission_category": "shell_command",
+            "model": "claude-opus-5",
+            "transcript_path": "/home/u/.claude/projects/x/transcript.jsonl",
+            "session_id": "abc123",
+            "turn_id": "turn-9",
+        }
+        details = agent_notify.structured_details(payload, {agent_notify.SESSION_ENV: "work1"})
+        self.assertEqual(details["session"], "work1")
+        self.assertEqual(details["project"], "logics-manager")
+        self.assertEqual(details["event"], "permissionrequest")
+        self.assertEqual(details["tool"], "Bash")
+        self.assertEqual(details["category"], "shell_command")
+        self.assertEqual(details["model"], "claude-opus-5")
+        # The command line, the transcript and the provider's own identifiers
+        # never cross: this is the privacy boundary, asserted on the whole blob
+        # rather than field by field so a new leak has to defeat the test.
+        blob = json.dumps(details)
+        for secret in ("rm -rf", "toolu_01ABC", "transcript.jsonl", "abc123", "turn-9"):
+            self.assertNotIn(secret, blob)
+
+    def test_a_permission_reason_needs_the_preview_opt_in(self):
+        payload = {
+            "hook_event_name": "PermissionRequest",
+            "tool_input": {"command": "rm -rf /tmp", "description": "Clean the build"},
+        }
+        env = {agent_notify.SESSION_ENV: "work1"}
+        self.assertNotIn("reason", agent_notify.structured_details(payload, env))
+        opted = agent_notify.structured_details(payload, {**env, agent_notify.PREVIEW_ENV: "1"})
+        self.assertEqual(opted["reason"], "Clean the build")
+        # Only the description, never the command beside it.
+        self.assertNotIn("rm -rf", json.dumps(opted))
+
+    def test_a_stop_carries_its_reason_and_opted_in_preview(self):
+        payload = {
+            "hook_event_name": "Stop",
+            "cwd": "/r/a",
+            "stop_reason": "max_tokens",
+            "last_assistant_message": "Here it is",
+        }
+        env = {agent_notify.SESSION_ENV: "work1", agent_notify.PREVIEW_ENV: "1"}
+        details = agent_notify.structured_details(payload, env)
+        self.assertEqual(details["stop_reason"], "max_tokens")
+        self.assertEqual(details["preview"], "Here it is")
+        self.assertNotIn("preview", agent_notify.structured_details(payload, {agent_notify.SESSION_ENV: "work1"}))
+
+    def test_a_permission_request_never_writes_to_stdout(self):
+        # Claude Code reads this process's stdout as the decision for the tool
+        # call. Anything printed here allows or denies it.
+        written = []
+        for payload in (
+            {"hook_event_name": "PermissionRequest", "tool_name": "Bash"},
+            {"hook_event_name": "PermissionRequest"},
+            "not json at all",
+        ):
+            text = payload if isinstance(payload, str) else json.dumps(payload)
+            ctx = self._ctx(text, {agent_notify.SESSION_ENV: "work1"})
+            ctx["out"] = written.append
+            self.assertEqual(agent_notify.handle_notify([], ctx), 0)
+        self.assertEqual(written, [])
+
     def test_permission_tool_name_is_sanitized_and_bounded(self):
         tool_name = "Bash\nwith\x00control " + "x" * 100
         _, message = agent_notify.compose_notification(
@@ -182,6 +273,25 @@ class ProvisioningTests(unittest.TestCase):
         hooks = self._read("claude")["hooks"]
         self.assertEqual(hooks["Stop"][0]["hooks"][0]["command"], "/usr/local/bin/cdx notify")
         self.assertIn("Notification", hooks)
+
+    def test_both_providers_subscribe_the_same_two_events(self):
+        # The contract Codex has always used and Claude Code now publishes too.
+        # Claude keeps Notification on top, for the waiting states nothing else
+        # reports; the duplicate that used to cause is filtered in cdx notify.
+        self.assertTrue(self._provision("claude"))
+        claude = set(self._read("claude")["hooks"])
+        self.assertEqual(claude, {"Stop", "Notification", "PermissionRequest"})
+
+        calls = []
+        with mock.patch.object(agent_notify, "notification_channel", return_value="osascript"):
+            agent_notify.provision(self.home, "codex", True, self.env, lambda *a, **k: calls.append(a) or {"status": 0})
+        plugin = os.path.join(
+            agent_notify.codex_plugin_root(self.home, None), "hooks", "cdx-hooks.json"
+        )
+        with open(plugin, encoding="utf-8") as handle:
+            codex = set(json.load(handle)["hooks"])
+        self.assertEqual(codex, {"Stop", "PermissionRequest"})
+        self.assertTrue(codex <= claude)
 
     def test_second_launch_changes_nothing(self):
         self.assertTrue(self._provision("claude"))
