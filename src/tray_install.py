@@ -32,7 +32,11 @@ CHECKSUM_LEDGER = os.path.join(
 TARGETS = {
     ("Darwin", "arm64"): "aarch64-apple-darwin",
     ("Darwin", "x86_64"): "x86_64-apple-darwin",
-    ("Windows", "AMD64"): "x86_64-pc-windows-gnu",
+    # msvc, not gnu: this has to name the asset the release actually publishes,
+    # and the release workflow builds on windows-latest with the default MSVC
+    # toolchain. A mismatch here is not a degraded install, it is a refusal —
+    # there is no checksum published under a target nobody built.
+    ("Windows", "AMD64"): "x86_64-pc-windows-msvc",
     ("Linux", "x86_64"): "x86_64-unknown-linux-musl",
     ("Linux", "aarch64"): "aarch64-unknown-linux-musl",
 }
@@ -214,9 +218,14 @@ def _extract(archive, destination):
     """
     names = []
     with tarfile.open(archive, "r:gz") as tar:
+        root = os.path.realpath(destination)
         for member in tar.getmembers():
             resolved = os.path.realpath(os.path.join(destination, member.name))
-            if not resolved.startswith(os.path.realpath(destination) + os.sep):
+            # The destination itself is not an escape. An archive written with
+            # `tar -C dir .` carries a `.` member for the directory, which is
+            # what the release workflow produces — and rejecting it refused
+            # every published asset while the archive was perfectly safe.
+            if resolved != root and not resolved.startswith(root + os.sep):
                 raise TrayInstallError(
                     f"{os.path.basename(archive)} tries to write outside its install directory "
                     f"({member.name}). Nothing was installed."
@@ -254,7 +263,11 @@ def _executable_in(destination, names):
     bundles = [n for n in names if candidate(n).endswith(".app")]
     binaries = [n for n in names if candidate(n) in ("cdx-tray", "cdx-tray.exe")]
     for name in bundles + binaries:
-        path = os.path.join(destination, name.rstrip("/"))
+        # Normalised because an archive written with `tar -C dir .` names its
+        # members `./CDX.app`, and this path is recorded, launched, and removed
+        # later — a `/./` in the middle works but reads like a defect to anyone
+        # looking at the install record or a doctor report.
+        path = os.path.normpath(os.path.join(destination, name.rstrip("/")))
         if os.path.isdir(path):
             return path
         if os.path.isfile(path):

@@ -205,3 +205,75 @@ class WindowsAutostartTest(CliTestBase):
         artifact = status(env={}, system="Windows", run=run)["artifact"]
         self.assertIn("CurrentVersion\\Run", artifact)
         self.assertTrue(artifact.endswith("CDXTray"))
+
+
+class ReleaseTargetAgreementTest(CliTestBase):
+    """The targets CDX asks for must be the ones the release actually builds.
+
+    This is the test that would have caught it: CDX asked for
+    x86_64-pc-windows-gnu while the workflow builds on windows-latest with the
+    default MSVC toolchain, so no checksum was ever published under the name
+    CDX looked for. Every Windows install refused, correctly and uselessly —
+    the guard worked, the name was wrong.
+    """
+
+    def _workflow_targets(self):
+        import re
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        text = open(
+            os.path.join(root, ".github", "workflows", "build-tray-assets.yml"),
+            encoding="utf-8",
+        ).read()
+        return set(re.findall(r"^\s*-\s*target:\s*(\S+)", text, re.MULTILINE))
+
+    def test_every_target_cdx_installs_is_one_the_release_builds(self):
+        from src.tray_install import TARGETS
+        built = self._workflow_targets()
+        self.assertTrue(built, "the workflow should declare a target matrix")
+        for key, target in TARGETS.items():
+            with self.subTest(platform=key):
+                self.assertIn(target, built, f"{target} is asked for but never built")
+
+
+class ArchiveShapeTest(CliTestBase):
+    """Archives written as `tar -C dir .` carry a `.` member for the directory.
+
+    That is what the release workflow produces, and rejecting it as an escape
+    refused every published asset while the archive was perfectly safe. The
+    guard still has to refuse a real escape.
+    """
+
+    def _archive(self, directory, arcnames):
+        """An archive whose first member is the directory itself, as `tar -C dir .`
+        writes it — a directory entry, not a file called `.`."""
+        import tarfile
+        payload = os.path.join(directory, "cdx-tray")
+        with open(payload, "wb") as handle:
+            handle.write(b"#!/bin/sh\n")
+        archive = os.path.join(directory, "asset.tar.gz")
+        with tarfile.open(archive, "w:gz") as tar:
+            for name in arcnames:
+                if name.endswith("."):
+                    info = tarfile.TarInfo(name)
+                    info.type = tarfile.DIRTYPE
+                    info.mode = 0o755
+                    tar.addfile(info)
+                else:
+                    tar.add(payload, arcname=name)
+        return archive
+
+    def test_the_destination_itself_is_not_an_escape(self):
+        from src.tray_install import _extract
+        scratch = self.make_temp_dir()
+        destination = self.make_temp_dir()
+        archive = self._archive(scratch, [".", "./cdx-tray"])
+        names = _extract(archive, destination)
+        self.assertIn("./cdx-tray", names)
+
+    def test_a_real_escape_is_still_refused(self):
+        from src.tray_install import TrayInstallError, _extract
+        scratch = self.make_temp_dir()
+        destination = self.make_temp_dir()
+        archive = self._archive(scratch, ["../escaped"])
+        with self.assertRaises(TrayInstallError):
+            _extract(archive, destination)

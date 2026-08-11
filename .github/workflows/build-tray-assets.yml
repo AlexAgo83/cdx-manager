@@ -35,6 +35,13 @@ jobs:
           # nothing to install on the target machine to run it.
           - target: x86_64-unknown-linux-musl
             runs-on: ubuntu-latest
+          # Cross-compiled from the same runner: musl plus rust-lld needs no C
+          # toolchain for the target, which is what makes an ARM Linux asset
+          # cost nothing extra to publish. CDX already offers this target to a
+          # Raspberry Pi or an ARM server, so not building it left those users
+          # with a refusal and no way to act on it.
+          - target: aarch64-unknown-linux-musl
+            runs-on: ubuntu-latest
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
     steps:
