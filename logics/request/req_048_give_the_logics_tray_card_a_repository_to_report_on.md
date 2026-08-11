@@ -7,7 +7,7 @@
 > Complexity: Low
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-11 13:27:16
+> Indicators reviewed: 2026-08-11 13:34:10
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)
@@ -26,7 +26,7 @@
 - CDX knows the answer without asking: it launched each session in a directory, so the repositories in play are the ones its own sessions are working in. That is more reliable than a preference nobody remembers to update, and it covers several repositories rather than one.
 - The alert envelope is deliberately not the source. It carries `project` as a basename, not a path, because `task_050` put transcript paths and provider identifiers outside the boundary and a full working directory is closer to those than to a session name. A session's own directory is CDX's data about its own launch, so taking it there avoids the question rather than arguing about it.
 - Several repositories means the card has to say which one each row belongs to, or say nothing useful. That is the part worth designing before implementing.
-- `req_051` is what makes the derivation trustworthy: today a session's directory is wherever the shell happened to be when it was launched, so deriving repositories from it would inherit that unreliability. Recording the directory as a property of the session answers both requests with one fact, and this one should follow it.
+- `req_051` is what makes the derivation possible at all: it records the directory each run actually used, which is the only place that fact exists. A per-session setting was considered and rejected there — the same account legitimately runs in two projects at once — so what this card reads is the set of directories the *running* sessions are in, which is also the honest answer to "several at once".
 - Whatever carries the answer has to survive `cdx tray install`, `cdx update`, and a companion restart, so it belongs with the other durable tray preferences in CDX rather than in the adapter.
 
 # Acceptance criteria

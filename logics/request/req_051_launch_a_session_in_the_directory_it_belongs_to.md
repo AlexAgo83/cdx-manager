@@ -1,9 +1,9 @@
-## req_051_launch_a_session_in_the_directory_it_belongs_to - Launch a session in the directory it belongs to
+## req_051_launch_a_session_in_the_directory_it_belongs_to - Know and choose where a session is being launched
 > From version: 0.18.5
 > Schema version: 1.0
 > Status: Draft
 > Understanding: 90%
-> Confidence: 85%
+> Confidence: 80%
 > Complexity: Medium
 > Theme: Session lifecycle
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
@@ -16,23 +16,25 @@
 
 # Needs
 - `cdx <name>` launches wherever the shell happens to be. Run it from a home directory and the assistant opens on that home directory: no project, an MCP server that cannot start because there is nothing for it to serve, and a provider reading the wrong file as a project-local config. Observed on a real launch, and the assistant was one prompt away from working on nothing.
-- The directory is not an incidental property of a launch. A session is an account working on something, and which something is stable — far more stable than which terminal tab the operator happened to be in when they typed the name.
-- Correcting it afterwards costs a quit and a relaunch, by which point the provider has already read its configuration and started its servers.
+- Recording a directory per session is the wrong shape and was the first answer considered. An operator switches between projects all day, and the same account can legitimately be running in two directories at once — so a setting would describe a state that does not exist, and would have to be changed every time it was right.
+- Correcting a bad launch afterwards costs a quit and a relaunch, by which point the provider has already read its configuration and started its servers.
+- Nothing records where a running session is working. The runtime keeps its pid, its command, its label and its transcript, and not the one fact that says what it is working on — so neither `cdx status`, nor the tray, nor anything else can answer "what are my sessions on right now" for a fleet spread across several projects.
 
 # Context
 - cdx already passes the current directory to the provider — Codex receives `--cd` — so the mechanism exists and only its source is wrong.
-- Every other durable launch decision is already a per-session setting: provider, permission, model, reasoning effort, alerts. A working directory is the one that decides what the session is about, and it is the one that is not recorded.
-- There is a second payoff, and it is not incidental: req_048 needs to know which repositories CDX's sessions are working in, and today it can only ask where the process happens to be. A recorded directory answers both questions with one fact.
-- Overriding at launch has to stay possible. Someone opening a session on a different tree for one task should not have to change a setting and change it back.
+- The other launch settings — provider, permission, model, effort, alerts — are properties of the account. The directory is a property of *this run*, which is why it belongs with the runtime rather than with the session.
+- The friction has to land only where the problem is. Launching from inside a project is the overwhelmingly common case and already correct; it must gain nothing, not a prompt and not a flag to remember.
+- req_048 needs to know which repositories are in play. A directory recorded per run answers it for several projects at once, which a per-session setting could not, and it comes from CDX's own record of what it launched rather than from a provider payload.
 
 # Acceptance criteria
-- AC1: A session can record the directory it belongs to, and launches there whatever directory the command was typed in.
-- AC2: A launch can override it explicitly for that launch alone, without changing what was recorded.
-- AC3: A session with nothing recorded behaves exactly as it does today, launching where the command was run.
-- AC4: A recorded directory that no longer exists is reported before the provider starts, rather than launching somewhere unintended.
-- AC5: The recorded directory appears in the session's configuration view alongside the other launch settings, and in the JSON surfaces that already describe a session.
-- AC6: Headless runs honour the same rule, so a scripted run and an interactive one work on the same tree.
-- AC7: Focused tests cover recorded, overridden, absent, and missing-directory launches for each supported provider; project validation passes.
+- AC1: A launch can name its directory explicitly, and that is the only way a directory is ever chosen for the operator — no per-session setting is introduced.
+- AC2: Launching from a directory that is plainly not a project — a home directory, or one with no project marker — does not proceed silently: an interactive launch offers the directories that session has recently run in, plus staying where it is.
+- AC3: Launching from inside a project is unchanged: no prompt, no extra flag, no new output.
+- AC4: A non-interactive or JSON launch never prompts; it proceeds as today and says which directory it used.
+- AC5: A named directory that does not exist is refused before the provider starts, naming it.
+- AC6: Every run records the directory it ran in, so several sessions across several projects can each be told apart while running.
+- AC7: The recorded directory appears wherever a running session is already described, including `cdx status` and the tray snapshot.
+- AC8: Focused tests cover an explicit directory, a home-directory launch with and without a terminal, a project launch, a missing directory, and the recording of several concurrent runs; project validation passes.
 
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.
