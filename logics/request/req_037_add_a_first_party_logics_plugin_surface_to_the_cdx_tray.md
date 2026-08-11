@@ -1,7 +1,7 @@
 ## req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray - Add a first-party Logics plugin surface to the CDX tray
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: High

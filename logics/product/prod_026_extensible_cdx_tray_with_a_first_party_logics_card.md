@@ -1,6 +1,6 @@
 ## prod_026_extensible_cdx_tray_with_a_first_party_logics_card - Extensible CDX tray with a first-party Logics card
 > Date: 2026-08-10
-> Status: Proposed
+> Status: Settled
 > Related request: `req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray`
 > Related backlog: `item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card`
 > Related task: `task_048_orchestrate_the_first_party_logics_cdx_tray_plugin`
@@ -54,5 +54,5 @@ flowchart TD
 - Adding the card costs no extra wsl.exe call per refresh on the Windows-to-WSL path.
 
 # References
-- Product back-reference: `req_037_add_a_first_party_logics_plugin_surface_to_the_cdx_tray`
+- Product back-reference: `item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card`
 - Task back-reference: `task_048_orchestrate_the_first_party_logics_cdx_tray_plugin`

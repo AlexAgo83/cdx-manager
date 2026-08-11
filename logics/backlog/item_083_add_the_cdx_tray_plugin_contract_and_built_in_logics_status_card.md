@@ -1,10 +1,10 @@
 ## item_083_add_the_cdx_tray_plugin_contract_and_built_in_logics_status_card - Add the CDX tray plugin contract and built-in Logics status card
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -64,3 +64,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_048_orchestrate_the_first_party_logics_cdx_tray_plugin`
+
+# Notes
+- Task `task_048_orchestrate_the_first_party_logics_cdx_tray_plugin` was finished via `logics-manager flow finish task` on 2026-08-11.
