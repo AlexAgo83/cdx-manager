@@ -1,10 +1,10 @@
 ## item_091_alert_on_claude_turns_that_end_in_a_provider_error - Alert on Claude turns that end in a provider error
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 85
 > Confidence: 80
-> Progress: 0
+> Progress: 100%
 > Complexity: Medium
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -64,3 +64,7 @@
 
 # Notes
 - Depends on item_086: the envelope it introduces is what a failure would travel in.
+- Task `task_055_orchestrate_alerts_for_failed_agent_turns` was finished via `logics-manager flow finish task` on 2026-08-11.
+
+# Tasks
+- `task_055_orchestrate_alerts_for_failed_agent_turns`

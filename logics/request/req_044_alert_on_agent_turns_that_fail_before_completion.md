@@ -1,7 +1,7 @@
 ## req_044_alert_on_agent_turns_that_fail_before_completion - Alert on agent turns that fail before completion
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 85%
 > Confidence: 80%
 > Complexity: Medium
