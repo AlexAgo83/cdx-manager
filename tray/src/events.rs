@@ -22,8 +22,31 @@ pub const HISTORY_LIMIT: usize = 8;
 pub struct Event {
     pub id: String,
     pub kind: String,
+    /// The rendered sentence CDX composed. Kept even when the fields below are
+    /// present: it is what an event from an older CDX has, and what a malformed
+    /// `details` falls back to.
     pub title: String,
     pub message: String,
+    pub details: Details,
+}
+
+/// The event as fields rather than prose.
+///
+/// Everything is optional because everything can be absent: an older CDX sends
+/// none of it, and a newer one omits what a given provider did not supply. A
+/// missing field is never an error — it is a line that says slightly less.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Details {
+    /// The cdx session this belongs to. What makes an alert clickable: with it
+    /// the menu can offer to open the session, without it the row is text.
+    pub session: Option<String>,
+    pub project: Option<String>,
+    /// The provider hook that fired, normalised: `stop`, `permissionrequest`,
+    /// `notification`.
+    pub event: Option<String>,
+    pub tool: Option<String>,
+    pub reason: Option<String>,
+    pub preview: Option<String>,
 }
 
 fn run(mut command: Command) -> Option<String> {
@@ -67,8 +90,24 @@ pub fn parse_array(value: Option<&serde_json::Value>) -> Vec<Event> {
         .iter()
         .filter_map(|item| {
             let id = item.get("id")?.as_str()?.to_string();
+            let details = item.get("details");
+            let field = |name: &str| {
+                details
+                    .and_then(|d| d.get(name))
+                    .and_then(|v| v.as_str())
+                    .filter(|text| !text.is_empty())
+                    .map(str::to_string)
+            };
             Some(Event {
                 id,
+                details: Details {
+                    session: field("session"),
+                    project: field("project"),
+                    event: field("event"),
+                    tool: field("tool"),
+                    reason: field("reason"),
+                    preview: field("preview"),
+                },
                 kind: item
                     .get("kind")
                     .and_then(|v| v.as_str())
@@ -89,17 +128,53 @@ pub fn parse_array(value: Option<&serde_json::Value>) -> Vec<Event> {
         .collect()
 }
 
-/// The menu's recent-alert section: newest first, bounded.
-pub fn history_lines(history: &[Event]) -> Vec<String> {
-    history
-        .iter()
-        .rev()
-        .take(HISTORY_LIMIT)
-        .map(|event| {
-            let mark = if event.kind == "attention" { "!" } else { "·" };
-            format!("{mark} {} — {}", event.title, event.message)
-        })
-        .collect()
+/// The alerts the menu shows: newest first, bounded.
+///
+/// The order and the bound live here rather than in the menu, so the count
+/// beside the icon and the list under it can never disagree about how many
+/// there are.
+pub fn recent(history: &[Event]) -> impl Iterator<Item = &Event> {
+    history.iter().rev().take(HISTORY_LIMIT)
+}
+
+/// One alert as the menu shows it.
+///
+/// Composed from the fields when they are there, and from the sentence CDX
+/// rendered when they are not. Nothing here parses that sentence — an older
+/// event is shown as it arrived rather than picked apart, because a display
+/// string is a presentation, not a contract.
+pub fn alert_line(event: &Event) -> String {
+    let mark = if event.kind == "attention" { "!" } else { "·" };
+    let Some(session) = &event.details.session else {
+        return format!("{mark} {} — {}", event.title, event.message);
+    };
+    let mut line = format!("{mark} {session}");
+    if let Some(project) = &event.details.project {
+        line.push_str(&format!(" · {project}"));
+    }
+    line.push_str(match event.details.event.as_deref() {
+        Some("permissionrequest") => " · permission",
+        Some("stop") => " · done",
+        Some("notification") => " · waiting",
+        // An event this build has not heard of still gets a line, because a
+        // newer CDX inventing one must not make its alerts invisible.
+        Some(_) | None => " · alert",
+    });
+    if let Some(tool) = &event.details.tool {
+        line.push_str(&format!(" ({tool})"));
+    }
+    // The reason and the preview are the same slot: an alert has one thing to
+    // quote, and a permission request quotes what it wants to do rather than
+    // what was said before it.
+    if let Some(text) = event
+        .details
+        .reason
+        .as_ref()
+        .or(event.details.preview.as_ref())
+    {
+        line.push_str(&format!(" — {text}"));
+    }
+    line
 }
 
 #[cfg(test)]
@@ -159,9 +234,10 @@ mod tests {
                 kind: "complete".into(),
                 title: format!("✓ s{index}"),
                 message: "m".into(),
+                details: Details::default(),
             })
             .collect();
-        let lines = history_lines(&history);
+        let lines: Vec<String> = recent(&history).map(alert_line).collect();
         assert_eq!(lines.len(), HISTORY_LIMIT);
         assert!(
             lines[0].contains(&format!("s{}", HISTORY_LIMIT + 3)),
@@ -169,14 +245,68 @@ mod tests {
         );
     }
 
+    /// An event from a CDX older than the fields still reads exactly as it did:
+    /// the sentence it composed is shown, and nothing tries to take it apart.
+    #[test]
+    fn an_event_without_fields_falls_back_to_the_rendered_sentence() {
+        let events = parse(
+            r#"{"events":[{"id":"a","kind":"complete","title":"✓ work","message":"repo · turn complete"}]}"#,
+        );
+        assert_eq!(events[0].details, Details::default());
+        assert_eq!(alert_line(&events[0]), "· ✓ work — repo · turn complete");
+    }
+
+    #[test]
+    fn a_structured_permission_alert_names_the_session_and_the_tool() {
+        let events = parse(
+            r#"{"events":[{"id":"a","kind":"attention","title":"✓ work","message":"repo · needs your attention (Bash)",
+                "details":{"session":"work","project":"repo","event":"permissionrequest","tool":"Bash"}}]}"#,
+        );
+        assert_eq!(events[0].details.session.as_deref(), Some("work"));
+        assert_eq!(alert_line(&events[0]), "! work · repo · permission (Bash)");
+    }
+
+    #[test]
+    fn a_structured_completion_quotes_its_preview_when_there_is_one() {
+        let events = parse(
+            r#"{"events":[{"id":"a","kind":"complete","title":"✓ work","message":"repo · turn complete",
+                "details":{"session":"work","project":"repo","event":"stop","preview":"All done"}}]}"#,
+        );
+        assert_eq!(alert_line(&events[0]), "· work · repo · done — All done");
+    }
+
+    /// A field this build has never heard of must not make the alert vanish.
+    #[test]
+    fn an_unknown_event_name_still_produces_a_line() {
+        let events = parse(
+            r#"{"events":[{"id":"a","kind":"complete","title":"t","message":"m",
+                "details":{"session":"work","event":"somethingnew"}}]}"#,
+        );
+        assert_eq!(alert_line(&events[0]), "· work · alert");
+    }
+
+    /// A details block that is not an object is the malformed case, and it has
+    /// to degrade to the sentence rather than drop the alert.
+    #[test]
+    fn a_malformed_details_block_leaves_the_sentence_standing() {
+        let events = parse(
+            r#"{"events":[{"id":"a","kind":"complete","title":"✓ work","message":"repo · turn complete","details":"nonsense"}]}"#,
+        );
+        assert_eq!(events.len(), 1);
+        assert_eq!(alert_line(&events[0]), "· ✓ work — repo · turn complete");
+    }
+
     #[test]
     fn attention_is_marked_differently_from_completion() {
-        let lines = history_lines(&[Event {
+        let lines: Vec<String> = recent(&[Event {
             id: "a".into(),
             kind: "attention".into(),
             title: "✓ work".into(),
             message: "repo · needs your attention".into(),
-        }]);
+            details: Details::default(),
+        }])
+        .map(alert_line)
+        .collect();
         assert!(lines[0].starts_with('!'), "{lines:?}");
     }
 }

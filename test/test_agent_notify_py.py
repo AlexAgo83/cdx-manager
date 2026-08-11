@@ -10,12 +10,17 @@ from src import agent_notify
 
 class HookTargetTests(unittest.TestCase):
     def _ctx(self, stdin_text=None, env=None, calls=None):
+        # The spawn double is never optional. `handle_notify` falls back to the
+        # real desktop notifier when no tray is listening, and a test that left
+        # spawn_sync unset raised an actual notification on the machine running
+        # the suite — once per run, naming a session out of a fixture.
+        calls = [] if calls is None else calls
         return {
             "prompt_stdin": io.StringIO(stdin_text) if stdin_text is not None else io.StringIO(""),
             "stdin_is_tty": False,
             "env": env or {},
             "cwd": "/repos/crh-manager",
-            "spawn_sync": (lambda argv, **kwargs: calls.append(argv)) if calls is not None else None,
+            "spawn_sync": lambda argv, **kwargs: calls.append(argv),
         }
 
     def test_reads_claude_style_payload_from_stdin(self):
@@ -140,13 +145,17 @@ class HookTargetTests(unittest.TestCase):
         # Claude Code reads this process's stdout as the decision for the tool
         # call. Anything printed here allows or denies it.
         written = []
+        # The spawn double matters as much as the assertion: without it this
+        # test raises a real desktop notification on the machine running it,
+        # every run, which is how it was first noticed.
+        calls = []
         for payload in (
             {"hook_event_name": "PermissionRequest", "tool_name": "Bash"},
             {"hook_event_name": "PermissionRequest"},
             "not json at all",
         ):
             text = payload if isinstance(payload, str) else json.dumps(payload)
-            ctx = self._ctx(text, {agent_notify.SESSION_ENV: "work1"})
+            ctx = self._ctx(text, {agent_notify.SESSION_ENV: "work1"}, calls)
             ctx["out"] = written.append
             self.assertEqual(agent_notify.handle_notify([], ctx), 0)
         self.assertEqual(written, [])

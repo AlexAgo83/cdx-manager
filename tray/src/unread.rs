@@ -97,6 +97,7 @@ impl Unread {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::events::Details;
 
     fn event(id: &str) -> Event {
         Event {
@@ -104,6 +105,7 @@ mod tests {
             kind: "complete".into(),
             title: format!("✓ {id}"),
             message: "m".into(),
+            details: Details::default(),
         }
     }
 

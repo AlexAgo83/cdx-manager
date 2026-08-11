@@ -378,10 +378,25 @@ configuration and, on Codex, puts an approval prompt in front of you. That is
 not something to do to sessions you already own without being asked.
 
 Response previews are separately off by default. When enabled, a completion
-notification includes at most 180 characters of the agent's final response.
-That text can be visible on a lock screen, so enable it only for sessions whose
-output is safe to expose. Previews never read transcripts and are not shown for
-permission requests.
+notification includes at most 180 characters of the agent's final response, and
+a permission request may quote the provider's own one-line description of what
+it wants to do. That text can be visible on a lock screen, so enable it only for
+sessions whose output is safe to expose. Previews never read transcripts, and
+the command a permission request is about is never included.
+
+Both providers are subscribed to the same two hooks: `Stop` when a turn ends and
+`PermissionRequest` when one blocks on your approval. Claude Code is also
+subscribed to `Notification`, for the "still waiting for you" states that no
+other hook reports; the permission notifications it also sends are dropped,
+because `PermissionRequest` already reported the same call immediately and by
+name.
+
+A running tray companion receives each alert as fields rather than as a
+sentence, so its menu can name the session, the project and the tool, and
+clicking a recent alert opens the session it came from. The tool's arguments,
+the transcript path and the provider's own session identifiers are never part of
+that — only what cdx already knew and what the providers document as safe
+metadata.
 
 `cdx notify` is the internal hook target, called by the provider; it is not the
 setup command. `cdx ready` is separate: it notifies you when the next cooling-

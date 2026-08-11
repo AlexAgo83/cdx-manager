@@ -268,8 +268,22 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
     if !alerts.is_empty() {
         entries.push(Entry::Separator);
         entries.push(Entry::Info("Unread alerts".into()));
-        for line in crate::events::history_lines(alerts) {
-            entries.push(Entry::Info(line));
+        // Newest first, and clickable when the event says which session it came
+        // from. An alert is the one place a user is already looking when they
+        // want that session, so making them find the row again above is a step
+        // this can simply remove. An alert without a session — one from a CDX
+        // older than the structured fields — stays text rather than guessing a
+        // name out of the sentence.
+        for event in crate::events::recent(alerts) {
+            let line = crate::events::alert_line(event);
+            match &event.details.session {
+                Some(session) => entries.push(Entry::Action {
+                    id: ActionId::Session(session.clone()),
+                    label: line,
+                    enabled: true,
+                }),
+                None => entries.push(Entry::Info(line)),
+            }
         }
     }
     if let Some(hint) = &snapshot.update_hint {
@@ -571,6 +585,61 @@ mod tests {
         let text = labels(&entries).to_lowercase();
         assert!(!text.contains("extension"), "{text}");
         assert!(!text.contains("logics"), "{text}");
+    }
+
+    /// `req_039` AC5: the alert is where the user already is when they want
+    /// that session, so it opens it rather than sending them back up the menu.
+    #[test]
+    fn a_structured_alert_opens_the_session_it_names() {
+        let alert = crate::events::Event {
+            id: "a".into(),
+            kind: "attention".into(),
+            title: "✓ work".into(),
+            message: "repo · needs your attention".into(),
+            details: crate::events::Details {
+                session: Some("work".into()),
+                project: Some("repo".into()),
+                event: Some("permissionrequest".into()),
+                tool: Some("Bash".into()),
+                ..Default::default()
+            },
+        };
+        let entries = build_with_alerts(&snapshot(vec![], true), &[alert]);
+        let clicked = entries.iter().find_map(|e| match e {
+            Entry::Action {
+                id: ActionId::Session(name),
+                label,
+                ..
+            } => Some((name.clone(), label.clone())),
+            _ => None,
+        });
+        assert_eq!(
+            clicked,
+            Some(("work".into(), "! work · repo · permission (Bash)".into()))
+        );
+    }
+
+    /// An alert from a CDX older than the structured fields has no session to
+    /// open, and guessing one out of the sentence is exactly what this work
+    /// removed. It stays text.
+    #[test]
+    fn an_alert_without_fields_stays_text_rather_than_guessing() {
+        let alert = crate::events::Event {
+            id: "a".into(),
+            kind: "complete".into(),
+            title: "✓ work".into(),
+            message: "repo · turn complete".into(),
+            details: crate::events::Details::default(),
+        };
+        let entries = build_with_alerts(&snapshot(vec![], true), &[alert]);
+        assert!(!entries.iter().any(|e| matches!(
+            e,
+            Entry::Action {
+                id: ActionId::Session(_),
+                ..
+            }
+        )));
+        assert!(labels(&entries).contains("✓ work — repo · turn complete"));
     }
 
     /// `req_043` AC5: an action that cannot run says why instead of vanishing.
