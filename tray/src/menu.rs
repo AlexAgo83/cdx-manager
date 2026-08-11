@@ -521,6 +521,7 @@ mod tests {
             refreshable,
             update_hint: None,
             plugins: Vec::new(),
+            terminal: None,
             sessions,
         }
     }

@@ -43,10 +43,12 @@ from ..tray_install import (
 )
 from ..tray_instance import companion_instance
 from ..tray_plugins import ADAPTERS, collect_cards, enabled_plugins, set_plugin_enabled
+from ..tray_terminal import REFUSAL as TERMINAL_REFUSAL
+from ..tray_terminal import clear_terminal, set_terminal, terminal_preference
 
 TRAY_ACTIONS = (
     "status", "install", "launch", "uninstall", "autostart", "doctor",
-    "events", "ack", "heartbeat", "alerts", "plugin",
+    "events", "ack", "heartbeat", "alerts", "plugin", "terminal",
 )
 
 # Codes rather than prose, so a caller can branch on them.
@@ -89,6 +91,8 @@ def handle_tray(rest, ctx):
         return _tray_alerts(args, ctx)
     if action == "plugin":
         return _tray_plugin(args, ctx)
+    if action == "terminal":
+        return _tray_terminal(args, ctx)
     return _tray_install(args, ctx)
 
 
@@ -130,6 +134,7 @@ def _tray_status(args, ctx):
         ctx["version"],
         refreshable=not any(row.get("active") for row in rows),
         plugins=cards,
+        terminal=terminal_preference(ctx["service"]["base_dir"]),
     )
     # Pending alerts ride along with the snapshot rather than costing their own
     # call. Across WSL every invocation is a `wsl.exe` crossing measured at
@@ -389,6 +394,52 @@ def _tray_install(args, ctx):
 
 
 PLUGIN_UNKNOWN = "tray_plugin_unknown"
+TERMINAL_INVALID = "tray_terminal_invalid"
+
+
+def _tray_terminal(args, ctx):
+    """Choose the terminal a session row opens, or go back to the default.
+
+    A refusal is a refusal, not a silent normalisation: a value that cannot be
+    stored says why, and nothing is written. Storing a sanitized version of what
+    someone typed would make the rule invisible exactly where it matters.
+    """
+    parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, TRAY_USAGE, positionals_key="args", max_positionals=2)
+    positional = parsed["args"] or ["status"]
+    mode = positional[0]
+    base_dir = ctx["service"]["base_dir"]
+
+    if mode == "clear":
+        clear_terminal(base_dir)
+    elif mode == "set":
+        if len(positional) < 2:
+            raise CdxError(TRAY_USAGE)
+        try:
+            set_terminal(base_dir, positional[1])
+        except ValueError:
+            return _refuse(ctx, parsed["json"], "tray.terminal", TERMINAL_INVALID, TERMINAL_REFUSAL)
+    elif mode != "status":
+        raise CdxError(TRAY_USAGE)
+
+    chosen = terminal_preference(base_dir)
+    message = (
+        f"Tray session rows open {chosen}." if chosen
+        else "Tray session rows open this platform's default terminal."
+    )
+    if parsed["json"]:
+        _write_json(ctx, _json_success(
+            "tray.terminal", message, terminal=chosen, applied=mode in ("set", "clear"),
+        ))
+        return 0
+    ctx["out"](f"{message}\n")
+    if chosen:
+        # Said once, at the moment it is chosen: the companion falls back
+        # silently, and a user whose terminal never opens should know that is
+        # the designed behaviour rather than a broken setting.
+        ctx["out"](f"{_dim('If it is not installed, the platform default opens instead.', ctx['use_color'])}\n")
+    return 0
 
 
 def _tray_plugin(args, ctx):

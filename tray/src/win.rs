@@ -140,7 +140,9 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     state = Render::next(&transport, state.tick, &mut unread);
                     redraw = true;
                 }
-                Some(ActionId::OpenTerminal) => open_terminal(&transport, "status"),
+                Some(ActionId::OpenTerminal) => {
+                    open_terminal_in(&transport, "status", state.terminal.as_deref())
+                }
                 Some(ActionId::ToggleAlerts) => {
                     // Written through cdx rather than by the companion: the
                     // hook is what obeys the mute, and it reads CDX's store.
@@ -151,13 +153,17 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     state = Render::next(&transport, state.tick, &mut unread);
                     redraw = true;
                 }
-                Some(ActionId::Session(name)) => open_terminal(&transport, name),
+                Some(ActionId::Session(name)) => {
+                    open_terminal_in(&transport, name, state.terminal.as_deref())
+                }
                 // A view, not an edit: `cdx config` prints the settings that
                 // will apply to the next launch, through the same native or
                 // WSL routing every other tray command uses.
-                Some(ActionId::SessionConfig(name)) => {
-                    open_terminal(&transport, &format!("config {name}"))
-                }
+                Some(ActionId::SessionConfig(name)) => open_terminal_in(
+                    &transport,
+                    &format!("config {name}"),
+                    state.terminal.as_deref(),
+                ),
                 // Handed back exactly as it arrived. The companion knows no
                 // card action and can compose none, so CDX decides what, if
                 // anything, an id means.
@@ -277,6 +283,38 @@ fn find_icon_key() -> Option<String> {
 /// cross the same way the status poll does, or the window would open on a host
 /// that has no `cdx`.
 /// Open a console on a cdx subcommand: the status table, or one session.
+/// Open a console on a cdx subcommand.
+///
+/// The preference is honoured only for Windows Terminal, and that is a
+/// statement about Windows rather than a shortcut. macOS has `open -a` and
+/// Linux has `-e`: both are conventions every application follows. Windows has
+/// no equivalent — there is no way to ask an arbitrary terminal to run a
+/// command — so `wt`, which documents `wt -- <command>`, is the one that can be
+/// honoured without guessing. Anything else falls back to the console that has
+/// always opened, which is a working click rather than a broken promise.
+fn open_terminal_in(transport: &Transport, arg: &str, preferred: Option<&str>) {
+    let cdx = Transport::cdx_command();
+    if preferred.is_some_and(|name| name.eq_ignore_ascii_case("wt")) {
+        let mut command = std::process::Command::new("wt.exe");
+        match transport {
+            Transport::Wsl { distro: Some(name) } => {
+                command.args(["--", "wsl.exe", "-d", name, "--", &cdx, arg]);
+            }
+            Transport::Wsl { distro: None } => {
+                command.args(["--", "wsl.exe", "--", &cdx, arg]);
+            }
+            Transport::Native => {
+                command.args(["--", "cmd", "/k", &format!("{cdx} {arg}")]);
+            }
+        }
+        if command.spawn().is_ok() {
+            return;
+        }
+        // Not installed, or refused to start. The default console still opens.
+    }
+    open_terminal(transport, arg)
+}
+
 fn open_terminal(transport: &Transport, arg: &str) {
     // The same cdx the status poll uses. Hardcoding `cdx` here would open a
     // console on a different binary than the menu it was clicked from.

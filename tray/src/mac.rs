@@ -98,7 +98,9 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     state = Render::next(&transport, state.tick, &mut unread);
                     redraw = true;
                 }
-                Some(ActionId::OpenTerminal) => open_terminal("cdx status"),
+                Some(ActionId::OpenTerminal) => {
+                    open_terminal_in("cdx status", state.terminal.as_deref())
+                }
                 Some(ActionId::ToggleAlerts) => {
                     // Written through cdx rather than by the companion: the
                     // hook is what obeys the mute, and it reads CDX's store.
@@ -109,11 +111,15 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     state = Render::next(&transport, state.tick, &mut unread);
                     redraw = true;
                 }
-                Some(ActionId::Session(name)) => open_terminal(&format!("cdx {name}")),
+                Some(ActionId::Session(name)) => {
+                    open_terminal_in(&format!("cdx {name}"), state.terminal.as_deref())
+                }
                 // A view, not an edit: `cdx config` prints the settings that
                 // will apply to the next launch, and the tray never claims to
                 // change an assistant already running.
-                Some(ActionId::SessionConfig(name)) => open_terminal(&format!("cdx config {name}")),
+                Some(ActionId::SessionConfig(name)) => {
+                    open_terminal_in(&format!("cdx config {name}"), state.terminal.as_deref())
+                }
                 // Handed back exactly as it arrived. The companion knows no
                 // card action and can compose none, so CDX decides what, if
                 // anything, an id means.
@@ -171,14 +177,60 @@ pub fn run(transport: Transport) -> Result<(), String> {
 /// still quoted for AppleScript: a name is user-supplied text, and one
 /// containing a quotation mark would otherwise end the string and turn the rest
 /// into script.
-fn open_terminal(command: &str) {
-    let escaped = command.replace('\\', "\\\\").replace('"', "\\\"");
-    let _ = std::process::Command::new("osascript")
-        .args([
-            "-e",
-            &format!(r#"tell application "Terminal" to do script "{escaped}""#),
-            "-e",
-            r#"tell application "Terminal" to activate"#,
-        ])
-        .spawn();
+/// Open a command in the chosen terminal, or in Terminal.app.
+///
+/// The two paths are different mechanisms, not one with a variable in it.
+/// Terminal.app is driven by AppleScript, which is what lets a command be typed
+/// into an existing window. Every other terminal has its own scripting dialect
+/// or none, so the portable move is the oldest one: write the command to a
+/// script and ask the application to open it. `open -a` resolves an application
+/// by name or bundle id and refuses anything that is not one, which is the
+/// second half of why a preference cannot become a command.
+fn open_terminal_in(command: &str, preferred: Option<&str>) {
+    let Some(app) = preferred else {
+        let escaped = command.replace('\\', "\\\\").replace('"', "\\\"");
+        let _ = std::process::Command::new("osascript")
+            .args([
+                "-e",
+                &format!(r#"tell application "Terminal" to do script "{escaped}""#),
+                "-e",
+                r#"tell application "Terminal" to activate"#,
+            ])
+            .spawn();
+        return;
+    };
+    match script_for(command) {
+        Some(path) => {
+            let spawned = std::process::Command::new("open")
+                .args(["-a", app, &path])
+                .spawn();
+            if spawned.is_err() {
+                // A named terminal that is not installed must not leave the
+                // click doing nothing.
+                open_terminal_in(command, None);
+            }
+        }
+        None => open_terminal_in(command, None),
+    }
+}
+
+/// A one-shot script carrying the command, for a terminal that has no scripting
+/// interface we can rely on.
+///
+/// The content is built here from CDX's own command, never from the preference:
+/// the preference names the application that opens this file and nothing else.
+/// It removes itself, so a menu clicked all day does not fill the temporary
+/// directory with copies of the same line.
+fn script_for(command: &str) -> Option<String> {
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+
+    let path = std::env::temp_dir().join(format!("cdx-open-{}.sh", std::process::id()));
+    let mut file = std::fs::File::create(&path).ok()?;
+    writeln!(file, "#!/bin/sh")
+        .and_then(|()| writeln!(file, "rm -f \"$0\""))
+        .and_then(|()| writeln!(file, "{command}"))
+        .ok()?;
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).ok()?;
+    Some(path.to_string_lossy().into_owned())
 }

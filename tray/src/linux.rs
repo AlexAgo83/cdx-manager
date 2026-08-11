@@ -224,16 +224,18 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 state = Render::next(&transport, state.tick, &mut unread);
                 redraw = true;
             }
-            Some(ActionId::OpenTerminal) => open_terminal("status"),
+            Some(ActionId::OpenTerminal) => open_terminal_in("status", state.terminal.as_deref()),
             Some(ActionId::ToggleAlerts) => {
                 set_alerts(&transport, !state.alerts_enabled);
                 state = Render::next(&transport, state.tick, &mut unread);
                 redraw = true;
             }
-            Some(ActionId::Session(name)) => open_terminal(&name),
+            Some(ActionId::Session(name)) => open_terminal_in(&name, state.terminal.as_deref()),
             // A view, not an edit: `cdx config` prints the settings that will
             // apply to the next launch.
-            Some(ActionId::SessionConfig(name)) => open_terminal(&format!("config {name}")),
+            Some(ActionId::SessionConfig(name)) => {
+                open_terminal_in(&format!("config {name}"), state.terminal.as_deref())
+            }
             Some(ActionId::Plugin(action)) => run_plugin_action(&transport, &action),
             None => {}
         }
@@ -273,9 +275,16 @@ pub fn run(transport: Transport) -> Result<(), String> {
 /// through a list of emulators: `x-terminal-emulator` is the distribution's own
 /// answer to which terminal this desktop uses.
 /// Open a terminal on a cdx subcommand: the status table, or one session.
-fn open_terminal(arg: &str) {
+/// The chosen emulator first, then the list that answers.
+///
+/// `-e` is the one convention every emulator here honours. The preference names
+/// the program, never its arguments, so a value that is not installed costs one
+/// failed spawn and the list takes over — a click that opened nothing would be
+/// a worse answer than a click that opened the wrong terminal.
+fn open_terminal_in(arg: &str, preferred: Option<&str>) {
     let cdx = Transport::cdx_command();
-    for terminal in ["x-terminal-emulator", "gnome-terminal", "konsole", "xterm"] {
+    let defaults = ["x-terminal-emulator", "gnome-terminal", "konsole", "xterm"];
+    for terminal in preferred.into_iter().chain(defaults) {
         let spawned = std::process::Command::new(terminal)
             .args(["-e", &format!("{cdx} {arg}")])
             .spawn();

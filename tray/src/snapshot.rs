@@ -204,6 +204,10 @@ pub struct Snapshot {
     /// Cards from integrations the user enabled in CDX. Empty is the normal
     /// case and an older CDX sends none at all.
     pub plugins: Vec<PluginCard>,
+    /// Which terminal a session row should open, or `None` for this platform's
+    /// own. CDX validates it as an application name; the companion never builds
+    /// a command out of it, only hands it to the platform's launcher.
+    pub terminal: Option<String>,
 }
 
 /// One integration's card, already bounded by CDX.
@@ -422,6 +426,11 @@ pub fn read_snapshot(payload: &Value) -> Result<Snapshot, Unavailable> {
         update_hint: (major > SCHEMA_MAJOR).then(|| {
             format!("This companion reads tray snapshot v{SCHEMA_MAJOR}; CDX emits v{major}. Update the tray companion.")
         }),
+        terminal: snapshot
+            .get("terminal")
+            .and_then(Value::as_str)
+            .filter(|name| !name.is_empty())
+            .map(str::to_string),
         plugins: snapshot
             .get("plugins")
             .and_then(Value::as_array)
@@ -485,6 +494,46 @@ mod tests {
         assert_eq!(session.week_pct, Some(12.0));
         // The figure the icon follows stays the one that runs out first.
         assert_eq!(session.available_pct, Some(12.0));
+    }
+
+    /// `req_047` AC2: the preference reaches the companion through the snapshot
+    /// it already polls, not through a second store it would have to keep in
+    /// step with CDX.
+    #[test]
+    fn the_chosen_terminal_arrives_with_the_snapshot() {
+        let value: Value = serde_json::from_str(&format!(
+            r#"{{"schema":{{"name":"{SCHEMA_NAME}","major":{SCHEMA_MAJOR},"minor":2}},
+                "icon":{{"state":"ok","tooltip":"CDX","session_count":0}},
+                "sessions":[],"terminal":"Ghostty"}}"#
+        ))
+        .expect("valid json");
+        assert_eq!(
+            read_snapshot(&value)
+                .expect("a snapshot")
+                .terminal
+                .as_deref(),
+            Some("Ghostty")
+        );
+    }
+
+    /// An older CDX sends no preference, and an empty one is no preference —
+    /// either way the platform's own terminal opens.
+    #[test]
+    fn no_preference_means_the_platform_default() {
+        for payload in [
+            format!(
+                r#"{{"schema":{{"name":"{SCHEMA_NAME}","major":{SCHEMA_MAJOR},"minor":1}},
+                    "icon":{{"state":"ok","tooltip":"CDX","session_count":0}},"sessions":[]}}"#
+            ),
+            format!(
+                r#"{{"schema":{{"name":"{SCHEMA_NAME}","major":{SCHEMA_MAJOR},"minor":2}},
+                    "icon":{{"state":"ok","tooltip":"CDX","session_count":0}},
+                    "sessions":[],"terminal":""}}"#
+            ),
+        ] {
+            let value: Value = serde_json::from_str(&payload).expect("valid json");
+            assert_eq!(read_snapshot(&value).expect("a snapshot").terminal, None);
+        }
     }
 
     #[test]

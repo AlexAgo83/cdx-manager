@@ -57,6 +57,8 @@ pub struct Render {
     pub spool_path: Option<String>,
     /// Whether alerts may raise a banner, so the switch draws its real state.
     pub alerts_enabled: bool,
+    /// The terminal a row should open, or None for this platform's own.
+    pub terminal: Option<String>,
 }
 
 impl Render {
@@ -96,6 +98,7 @@ impl Render {
                     rows: rows_for(&entries_for_rows, &snap.sessions),
                     spool_path: snap.spool_path.clone(),
                     alerts_enabled: snap.alerts_enabled,
+                    terminal: snap.terminal.clone(),
                     entries: entries_for_rows.clone(),
                     delay: tick.next_delay(transport.is_wsl()),
                     tick,
@@ -118,6 +121,9 @@ impl Render {
                     // Unknown reads as on: a CDX we cannot reach must not look
                     // like a mute nobody set.
                     alerts_enabled: true,
+                    // Unreachable CDX means no preference to honour; the
+                    // platform default is the only thing still knowable.
+                    terminal: None,
                     rows: Vec::new(),
                     entries: menu::build_unavailable(&reason),
                     delay: tick.next_delay(transport.is_wsl()),
