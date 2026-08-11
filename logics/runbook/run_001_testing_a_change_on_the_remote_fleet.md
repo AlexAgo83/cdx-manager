@@ -1,5 +1,5 @@
 ## run_001_testing_a_change_on_the_remote_fleet - Testing a change on the remote fleet
-> Status: Settled
+> Status: Active
 > Category: validation
 > Verified: 2026-08-11, preparing v0.18.5 — Python suite in WSL and on Windows, native Windows tray build, graceful stop, and a real companion update between published versions.
 > Related request: (none yet)

@@ -1,6 +1,6 @@
 ## run_002_finding_out_which_cdx_and_which_home_you_are_talking_to - Finding out which CDX and which home you are talking to
-> Status: Settled
-> Category: diagnostics
+> Status: Active
+> Category: support
 > Verified: 2026-08-11, three separate incidents in one day — a notification delivered directly while a tray was listening, a tray told to update a CDX that was current, and `cdx update` reporting success while the installation it was meant to replace stayed where it was.
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
 
