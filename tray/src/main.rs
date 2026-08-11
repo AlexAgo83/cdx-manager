@@ -35,6 +35,9 @@ fn render(entries: &[Entry]) {
             Entry::Action { label, enabled, .. } => {
                 println!("  [{}] {label}", if *enabled { "x" } else { " " })
             }
+            Entry::Check { label, checked, .. } => {
+                println!("  ({}) {label}", if *checked { "•" } else { " " })
+            }
         }
     }
 }

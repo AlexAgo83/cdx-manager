@@ -256,3 +256,63 @@ class LaunchEnvironmentTest(CliTestBase):
         values = launch_notify_env(session, False, env={"CDX_HOME": "/somewhere/.cdx"})
         self.assertEqual(values["CDX_HOME"], "/somewhere/.cdx")
         self.assertEqual(values["CDX_NOTIFY"], "0")
+
+
+class AlertMuteTest(CliTestBase):
+    """The quick way to go quiet, and what it deliberately does not do.
+
+    Muting stops the banner, not the record: events keep reaching a running
+    tray so the menu shows what was missed. And it applies to the direct path
+    too, because otherwise quitting the companion would silently un-mute.
+    """
+
+    def _ctx(self, base_dir):
+        return {
+            "service": {"base_dir": base_dir},
+            "env": {SESSION_ENV: "work"},
+            "out": lambda _text: None,
+            "stdin_is_tty": False,
+            "prompt_stdin": io.StringIO(""),
+            "spawn_sync": lambda *args, **kwargs: None,
+        }
+
+    def _notify(self, base_dir):
+        with mock.patch.object(agent_notify, "send_desktop_notification") as direct:
+            handle_notify(['{"hook_event_name": "Stop", "cwd": "/tmp/repo"}'], self._ctx(base_dir))
+            return direct.called
+
+    def test_alerts_are_on_until_muted(self):
+        from src.tray_alerts import alerts_enabled
+        self.assertTrue(alerts_enabled(self.make_temp_dir()))
+
+    def test_a_damaged_state_file_does_not_silence_anyone(self):
+        """A mute that outlived a damaged file would silence someone with no way
+        to see why, and silence is the failure that hides itself."""
+        from src.tray_alerts import alerts_enabled, state_path
+        base = self.make_temp_dir()
+        path = state_path(base)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("{ truncated")
+        self.assertTrue(alerts_enabled(base))
+
+    def test_muting_stops_the_direct_notification(self):
+        from src.tray_alerts import set_alerts
+        base = self.make_temp_dir()
+        set_alerts(base, False)
+        self.assertFalse(self._notify(base), "muted must not raise a banner")
+
+    def test_muting_still_records_the_event_for_the_tray(self):
+        from src.tray_alerts import set_alerts
+        base = self.make_temp_dir()
+        write_heartbeat(base)
+        set_alerts(base, False)
+        self.assertFalse(self._notify(base))
+        self.assertEqual(len(read_events(base)), 1, "the menu should still show it")
+
+    def test_unmuting_restores_delivery(self):
+        from src.tray_alerts import set_alerts
+        base = self.make_temp_dir()
+        set_alerts(base, False)
+        set_alerts(base, True)
+        self.assertTrue(self._notify(base))

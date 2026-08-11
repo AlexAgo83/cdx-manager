@@ -47,6 +47,12 @@ pub fn acknowledge(transport: &Transport, ids: &[String]) {
     let _ = run(transport.command_for(&args));
 }
 
+/// Mute or unmute agent alerts, through CDX rather than in the companion.
+pub fn set_alerts(transport: &Transport, enabled: bool) {
+    let mode = if enabled { "on" } else { "off" };
+    let _ = run(transport.command_for(&["tray", "alerts", mode, "--json"]));
+}
+
 /// The events array out of whatever carried it.
 ///
 /// Tolerant in the same way the snapshot reader is: a payload from a newer CDX

@@ -175,6 +175,9 @@ pub struct Snapshot {
     /// Alerts CDX is holding, delivered with the snapshot rather than fetched
     /// separately: across WSL each extra call is another `wsl.exe` crossing.
     pub events: Vec<crate::events::Event>,
+    /// Whether an alert may raise a banner. Read from CDX rather than kept by
+    /// the companion: the hook is what obeys it, and the hook is not the tray.
+    pub alerts_enabled: bool,
     pub session_count: u64,
     pub refreshable: bool,
     /// Set when the snapshot is newer than this build understands.
@@ -275,6 +278,12 @@ pub fn read_snapshot(payload: &Value) -> Result<Snapshot, Unavailable> {
     let icon = snapshot.get("icon").ok_or(Unavailable::NotASnapshot)?;
     Ok(Snapshot {
         events: crate::events::parse_array(snapshot.get("events")),
+        // Absent means on: an older CDX has no mute, and defaulting to muted
+        // would silence someone who never asked for it.
+        alerts_enabled: snapshot
+            .get("alerts_enabled")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true),
         tooltip: icon
             .get("tooltip")
             .and_then(Value::as_str)

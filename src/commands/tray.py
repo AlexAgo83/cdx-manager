@@ -12,6 +12,7 @@ from ..cli_args import TRAY_USAGE, _parse_flag_args
 from ..cli_helpers import _json_success, _write_json
 from ..cli_render import _dim, _pad_table, _style, _warn
 from ..errors import CdxError
+from ..tray_alerts import alerts_enabled, set_alerts
 from ..tray_autostart import disable as autostart_disable
 from ..tray_autostart import enable as autostart_enable
 from ..tray_autostart import status as autostart_status
@@ -41,7 +42,10 @@ from ..tray_install import (
 )
 from ..tray_instance import companion_instance
 
-TRAY_ACTIONS = ("status", "install", "launch", "uninstall", "autostart", "doctor", "events", "ack", "heartbeat")
+TRAY_ACTIONS = (
+    "status", "install", "launch", "uninstall", "autostart", "doctor",
+    "events", "ack", "heartbeat", "alerts",
+)
 
 # Codes rather than prose, so a caller can branch on them.
 COMPANION_UNAVAILABLE = "tray_companion_not_available"
@@ -79,6 +83,8 @@ def handle_tray(rest, ctx):
         return _tray_ack(args, ctx)
     if action == "heartbeat":
         return _tray_heartbeat(args, ctx)
+    if action == "alerts":
+        return _tray_alerts(args, ctx)
     return _tray_install(args, ctx)
 
 
@@ -109,6 +115,7 @@ def _tray_status(args, ctx):
     # needs.
     base_dir = ctx["service"]["base_dir"]
     snapshot["events"] = read_events(base_dir)
+    snapshot["alerts_enabled"] = alerts_enabled(base_dir)
     # `--beat` is what claims ownership of alerts, so it is opt-in: a caller
     # that merely looks at the status must not make `cdx notify` believe a tray
     # is listening.
@@ -305,6 +312,8 @@ def _tray_doctor(args, ctx):
         ("target", (state or {}).get("target") or "-", (state or {}).get("sha256") or "-"),
         ("running", "yes" if instance.get("pid") else "no", str(instance.get("pid") or "-")),
         ("autostart", "on" if autostart["enabled"] else "off", autostart["artifact"] or "unsupported"),
+        ("alerts", "on" if alerts_enabled(base_dir) else "muted",
+         "cdx tray alerts on|off"),
         ("update", "interrupted" if interrupted_update(base_dir) else "clean",
          "a staged companion was never promoted; run: cdx tray install"
          if interrupted_update(base_dir) else "-"),
@@ -442,4 +451,32 @@ def _tray_heartbeat(args, ctx):
         _write_json(ctx, _json_success("tray.heartbeat", "Recorded the tray heartbeat"))
         return 0
     ctx["out"]("Recorded the tray heartbeat.\n")
+    return 0
+
+
+def _tray_alerts(args, ctx):
+    """Silence agent alerts, or let them through again.
+
+    Separate from the per-session `--notify` preference on purpose: that says
+    which sessions may alert at all, and spending it to go quiet for a meeting
+    would be a poor trade. This is the temporary switch, and it is reported
+    rather than remembered — `cdx tray doctor` reads it back.
+    """
+    parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, TRAY_USAGE, positionals_key="args", max_positionals=1)
+    mode = (parsed["args"] or ["status"])[0]
+    if mode not in ("on", "off", "status"):
+        raise CdxError(TRAY_USAGE)
+    base_dir = ctx["service"]["base_dir"]
+    if mode != "status":
+        set_alerts(base_dir, mode == "on")
+    enabled = alerts_enabled(base_dir)
+    message = f"Agent alerts are {'on' if enabled else 'muted'}"
+    if parsed["json"]:
+        _write_json(ctx, _json_success(
+            "tray.alerts", message, enabled=enabled, applied=mode != "status",
+        ))
+        return 0
+    ctx["out"](f"{message}\n")
     return 0

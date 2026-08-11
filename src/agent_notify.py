@@ -16,6 +16,7 @@ import subprocess
 
 from .config import get_cdx_home
 from .notify import notification_channel, send_desktop_notification
+from .tray_alerts import alerts_enabled
 from .tray_events import publish
 
 # Set on the provider process at launch; the hook runs as its child and inherits both.
@@ -121,6 +122,14 @@ def handle_notify(rest, ctx):
         payload = read_hook_payload(rest, stdin_text)
         composed = compose_notification(payload, env, ctx.get("cwd"))
         if composed:
+            # Muted stops the banner, not the record: the event still reaches a
+            # running tray so the menu can show what was missed, and the direct
+            # path stays quiet too — otherwise quitting the tray would un-mute.
+            base_dir = (ctx.get("service") or {}).get("base_dir")
+            muted = bool(base_dir) and not alerts_enabled(base_dir)
+            if muted:
+                _published_to_tray(ctx, composed, payload)
+                return 0
             # A live tray becomes the sole owner of this alert, so the user sees
             # one notification rather than two. Publication happens below the
             # composition boundary on purpose: the tray receives the same

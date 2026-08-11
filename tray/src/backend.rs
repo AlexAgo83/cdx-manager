@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use muda::{Menu, MenuId, MenuItem, PredefinedMenuItem};
+use muda::{CheckMenuItem, Menu, MenuId, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 use crate::menu::{ActionId, Entry};
@@ -109,6 +109,11 @@ pub fn build_menu(entries: &[Entry]) -> Result<(Menu, HashMap<MenuId, ActionId>)
         match entry {
             Entry::Info(text) => {
                 let item = MenuItem::new(text, false, None);
+                menu.append(&item)?;
+            }
+            Entry::Check { id, label, checked } => {
+                let item = CheckMenuItem::new(label, true, *checked, None);
+                actions.insert(item.id().clone(), *id);
                 menu.append(&item)?;
             }
             Entry::Separator => menu.append(&PredefinedMenuItem::separator())?,

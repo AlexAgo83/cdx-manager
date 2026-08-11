@@ -23,6 +23,8 @@ pub struct Render {
     pub fresh: Vec<Event>,
     /// Recent alerts, oldest first, bounded.
     pub history: Vec<Event>,
+    /// Whether alerts may raise a banner, so the switch draws its real state.
+    pub alerts_enabled: bool,
     /// Session names in menu order, so a clicked row resolves to the session it
     /// names. Kept beside the entries rather than inside them: the menu id has
     /// to stay `Copy`, and a name embedded in it could drift from the snapshot.
@@ -56,6 +58,7 @@ impl Render {
                 Render {
                     icon_state: snap.icon_state.clone(),
                     tooltip: snap.tooltip.clone(),
+                    alerts_enabled: snap.alerts_enabled,
                     session_names: snap.sessions.iter().map(|s| s.name.clone()).collect(),
                     entries: menu::build_with_alerts(&snap, &history),
                     delay: tick.next_delay(transport.is_wsl()),
@@ -74,6 +77,9 @@ impl Render {
                     // it shows that nothing is known rather than a stale figure.
                     icon_state: "unknown".to_string(),
                     tooltip: format!("CDX · unavailable · {reason}"),
+                    // Unknown reads as on: a CDX we cannot reach must not look
+                    // like a mute nobody set.
+                    alerts_enabled: true,
                     session_names: Vec::new(),
                     entries: menu::build_unavailable(&reason),
                     delay: tick.next_delay(transport.is_wsl()),

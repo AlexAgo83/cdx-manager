@@ -19,6 +19,12 @@ pub enum Entry {
         label: String,
         enabled: bool,
     },
+    /// A switch, drawn with a tick so its state is readable without clicking.
+    Check {
+        id: ActionId,
+        label: String,
+        checked: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +32,8 @@ pub enum ActionId {
     Refresh,
     OpenTerminal,
     Quit,
+    /// Silence agent alerts, or let them through again.
+    ToggleAlerts,
     /// Open a terminal on this session, by its index in the snapshot.
     ///
     /// An index rather than the name, so the id stays `Copy` and the menu never
@@ -114,6 +122,11 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
         entries.push(Entry::Info(hint.clone()));
     }
     entries.push(Entry::Separator);
+    entries.push(Entry::Check {
+        id: ActionId::ToggleAlerts,
+        label: "Agent alerts".into(),
+        checked: snapshot.alerts_enabled,
+    });
     entries.push(refresh_entry(snapshot.refreshable));
     entries.push(Entry::Action {
         id: ActionId::OpenTerminal,
@@ -187,6 +200,7 @@ mod tests {
     fn snapshot(sessions: Vec<Session>, refreshable: bool) -> Snapshot {
         Snapshot {
             events: Vec::new(),
+            alerts_enabled: true,
             icon_state: "low".into(),
             tooltip: "CDX · capacity low".into(),
             session_count: sessions.len() as u64,
@@ -202,7 +216,7 @@ mod tests {
             .map(|e| match e {
                 Entry::Info(text) => text.clone(),
                 Entry::Separator => "---".into(),
-                Entry::Action { label, .. } => label.clone(),
+                Entry::Action { label, .. } | Entry::Check { label, .. } => label.clone(),
             })
             .collect::<Vec<_>>()
             .join("\n")

@@ -17,6 +17,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::backend;
+use crate::events::set_alerts;
 use crate::hint;
 use crate::menu::ActionId;
 use crate::runner::{announce, Render};
@@ -62,6 +63,16 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     redraw = true;
                 }
                 Some(ActionId::OpenTerminal) => open_terminal(&transport, "status"),
+                Some(ActionId::ToggleAlerts) => {
+                    // Written through cdx rather than by the companion: the
+                    // hook is what obeys the mute, and it reads CDX's store.
+                    // The next poll brings the new state back, so the tick
+                    // reflects what was actually recorded rather than what was
+                    // clicked.
+                    set_alerts(&transport, !state.alerts_enabled);
+                    state = Render::next(&transport, state.tick, &state.history);
+                    redraw = true;
+                }
                 Some(ActionId::Session(index)) => {
                     if let Some(name) = state.session_names.get(*index) {
                         open_terminal(&transport, name);

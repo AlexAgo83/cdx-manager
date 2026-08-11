@@ -12,6 +12,7 @@
 
 use std::time::{Duration, Instant};
 
+use crate::events::set_alerts;
 use crate::hint;
 use crate::menu::{ActionId, Entry};
 use crate::runner::{announce, Render};
@@ -113,6 +114,21 @@ impl ksni::Tray for CdxTray {
                     ..Default::default()
                 }
                 .into(),
+                // StatusNotifierItem has a real checkmark item, so the switch
+                // shows its state here as it does on the other two platforms.
+                Entry::Check { id, label, checked } => {
+                    let action = *id;
+                    ksni::menu::CheckmarkItem {
+                        label: label.clone(),
+                        enabled: true,
+                        checked: *checked,
+                        activate: Box::new(move |tray: &mut CdxTray| {
+                            *tray.pending.lock().unwrap() = Some(action);
+                        }),
+                        ..Default::default()
+                    }
+                    .into()
+                }
                 Entry::Action { id, label, enabled } => {
                     let action = *id;
                     StandardItem {
@@ -160,6 +176,11 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 redraw = true;
             }
             Some(ActionId::OpenTerminal) => open_terminal("status"),
+            Some(ActionId::ToggleAlerts) => {
+                set_alerts(&transport, !state.alerts_enabled);
+                state = Render::next(&transport, state.tick, &state.history);
+                redraw = true;
+            }
             Some(ActionId::Session(index)) => {
                 if let Some(name) = state.session_names.get(index) {
                     open_terminal(name);

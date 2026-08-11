@@ -521,6 +521,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx tray events [--json]` | List agent alerts a running companion has not shown yet. The companion reads these instead of the spool file, so a Windows tray can collect events from CDX in WSL over the same interop it already uses |
 | `cdx tray ack <id>... [--json]` | Mark events as shown, idempotently |
 | `cdx tray heartbeat [--json]` | Record that a companion is alive. `cdx notify` publishes to the tray only while this is fresh, and delivers directly otherwise |
+| `cdx tray alerts [on\|off\|status] [--json]` | Silence agent alerts, or let them through again — the tray menu has the same switch. Muting stops the banner, not the record: events still reach a running companion, so the menu shows what you missed. It applies to the direct notification path too, so quitting the tray does not silently un-mute you. Distinct from the per-session `--notify` opt-in, which says which sessions may alert at all |
 | `cdx tray doctor [--json]` | Report companion, executable, version, running instance, autostart, and the two capabilities that fail silently — whether this desktop can draw a tray icon at all, and on Windows whether the Start Menu shortcut toasts depend on exists. Reads only; it never repairs |
 | `cdx --help` | Show usage |
 | `cdx --version` | Show version |

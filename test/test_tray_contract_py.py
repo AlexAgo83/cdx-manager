@@ -609,7 +609,7 @@ class TrayCommandTest(CliTestBase):
         self.assertEqual(
             set(checks),
             {"companion", "executable", "cdx_version", "target", "running", "autostart", "update",
-             "desktop", "toasts"},
+             "desktop", "toasts", "alerts"},
         )
         self.assertEqual(checks["companion"]["state"], "absent")
         self.assertEqual(checks["running"]["state"], "no")
