@@ -1,14 +1,15 @@
 ## task_060_orchestrate_tabs_instead_of_windows - Orchestrate tabs instead of windows
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 90%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 > Indicators reviewed: 2026-08-11 13:47:58
+> Owner: Codex
 
 # AI Context
 - Summary: Settle what macOS can actually do before implementing, then add the documented tab flags with a window fallback.

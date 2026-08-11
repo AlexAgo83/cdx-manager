@@ -1,10 +1,10 @@
 ## item_097_open_a_tab_where_the_terminal_documents_how - Open a tab where the terminal documents how
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 90%
 > Complexity: Medium
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

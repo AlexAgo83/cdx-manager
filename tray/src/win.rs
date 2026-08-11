@@ -301,13 +301,13 @@ fn open_terminal_in(transport: &Transport, arg: &str, preferred: Option<&str>) {
         let mut command = std::process::Command::new("wt.exe");
         match transport {
             Transport::Wsl { distro: Some(name) } => {
-                command.args(["--", "wsl.exe", "-d", name, "--", &cdx, arg]);
+                command.args(["-w", "0", "nt", "--", "wsl.exe", "-d", name, "--", &cdx, arg]);
             }
             Transport::Wsl { distro: None } => {
-                command.args(["--", "wsl.exe", "--", &cdx, arg]);
+                command.args(["-w", "0", "nt", "--", "wsl.exe", "--", &cdx, arg]);
             }
             Transport::Native => {
-                command.args(["--", "cmd", "/k", &format!("{cdx} {arg}")]);
+                command.args(["-w", "0", "nt", "--", "cmd", "/k", &format!("{cdx} {arg}")]);
             }
         }
         if command.spawn().is_ok() {

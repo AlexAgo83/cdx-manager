@@ -288,9 +288,16 @@ fn open_terminal_in(arg: &str, preferred: Option<&str>) {
     let cdx = Transport::cdx_command();
     let defaults = ["x-terminal-emulator", "gnome-terminal", "konsole", "xterm"];
     for terminal in preferred.into_iter().chain(defaults) {
-        let spawned = std::process::Command::new(terminal)
-            .args(["-e", &format!("{cdx} {arg}")])
-            .spawn();
+        let text = format!("{cdx} {arg}");
+        let mut command = std::process::Command::new(terminal);
+        if terminal == "gnome-terminal" {
+            command.args(["--tab", "--", "sh", "-lc", &text]);
+        } else if terminal == "konsole" {
+            command.args(["--new-tab", "-e", "sh", "-lc", &text]);
+        } else {
+            command.args(["-e", &text]);
+        }
+        let spawned = command.spawn();
         if spawned.is_ok() {
             return;
         }
