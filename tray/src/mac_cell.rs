@@ -111,8 +111,6 @@ pub struct Cell {
     /// is a provider the macOS user cannot read anywhere. The text rows the
     /// other backends keep say it on the same line.
     pub provider: String,
-    /// `ok`, `low`, `critical` or `unknown` — the same states the icon uses.
-    pub state: String,
     /// One entry per reported window — five hours, a week — each drawn on its
     /// own line with its own bar and its own name. `None` draws an empty bar
     /// rather than a full one, because a session that never reported must not
@@ -148,9 +146,11 @@ const DETAIL_HEIGHT: f64 = 13.0;
 const ROW_WIDTH: f64 = 340.0;
 const GAUGE_WIDTH: f64 = 46.0;
 const GAUGE_HEIGHT: f64 = 4.0;
-/// Wide enough for "5h 100%", because the window's name travels with its
-/// figure: a bare percentage would leave the two lines indistinguishable.
-const FIGURE_WIDTH: f64 = 54.0;
+/// Wide enough for "wk 100%", because the window's name travels with its
+/// figure: a bare percentage would leave the two lines indistinguishable. The
+/// first attempt at 54 truncated exactly the value it needed to show — a full
+/// week — into "wk 100…".
+const FIGURE_WIDTH: f64 = 68.0;
 const INSET_LEFT: f64 = 14.0;
 const INSET_RIGHT: f64 = 12.0;
 /// Room for the submenu chevron at the right edge.
@@ -174,15 +174,28 @@ fn percent_text(value: Option<f64>) -> String {
     }
 }
 
-fn severity_colour(state: &str) -> Retained<NSColor> {
-    // Apple's own system colours rather than invented ones: they are the pair
-    // that stays legible on both the light and the dark menu material, which a
-    // hand-picked hex would have to be re-tuned for.
-    match state {
+/// The colour of one window's bar.
+///
+/// Identity first: the five-hour window is yellow and the week is green, so two
+/// bars on one row are told apart without reading the labels beside them. That
+/// is what the operator asked for, and it is the right default — the two
+/// windows are different questions, not two readings of one.
+///
+/// Severity still wins when it matters. A window below the thresholds the icon
+/// uses turns orange or red whichever window it is, because a bar that stayed
+/// yellow at four percent would be using colour to say "five hours" at the one
+/// moment it needs to say "about to run out". The figure beside it says the
+/// number either way, so no state is carried by colour alone.
+fn window_colour(name: &str, value: Option<f64>) -> Retained<NSColor> {
+    // The thresholds come from the same function the icon state does, rather
+    // than being restated here: two copies of "low means under 25" is how a bar
+    // and a glyph end up disagreeing about the same session.
+    match crate::menu::state_for(value) {
         "critical" => NSColor::systemRedColor(),
         "low" => NSColor::systemOrangeColor(),
-        "ok" => NSColor::systemGreenColor(),
-        _ => NSColor::tertiaryLabelColor(),
+        "unknown" => NSColor::tertiaryLabelColor(),
+        _ if name == "5h" => NSColor::systemYellowColor(),
+        _ => NSColor::systemGreenColor(),
     }
 }
 
@@ -281,10 +294,7 @@ pub fn build_cell(cell: &Cell, mtm: MainThreadMarker) -> Retained<NSView> {
                     NSPoint::new(gauge_x, track_y),
                     NSSize::new(filled, GAUGE_HEIGHT),
                 ),
-                // The severity of the row, not of this window: the colour has
-                // to agree with the icon, and the icon follows the window that
-                // runs out first.
-                &severity_colour(&cell.state),
+                &window_colour(name, *value),
                 mtm,
             );
             container.addSubview(&fill);

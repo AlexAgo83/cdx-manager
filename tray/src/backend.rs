@@ -121,13 +121,36 @@ fn style_rows(menu: &Menu, rows: &[crate::runner::Row]) {
             index: row.menu_index,
             name: row.name.clone(),
             provider: row.provider.clone(),
-            state: row.state.clone(),
             windows: row.windows.clone(),
             detail: row.detail.clone(),
         })
         .collect();
     crate::mac_cell::apply(menu.ns_menu(), &cells);
 }
+
+/// Watch the menu the status item is actually showing, after it has been set.
+///
+/// The ordering is the whole fix. `tray-icon`'s `set_menu` ends with
+/// `setDelegate: ns_status_item`, so a delegate installed before it is silently
+/// replaced — which is what happened: the companion set one, `set_menu` threw
+/// it away on the same call, and no menu-open signal ever arrived. Nothing
+/// reported an error; the badge simply never cleared.
+#[cfg(target_os = "macos")]
+fn observe_menu(tray: &TrayIcon) {
+    use objc2::rc::Retained;
+    use objc2::MainThreadMarker;
+
+    let (Some(item), Some(mtm)) = (tray.ns_status_item(), MainThreadMarker::new()) else {
+        return;
+    };
+    let Some(menu) = item.menu(mtm) else {
+        return;
+    };
+    crate::mac_menu_open::observe(Retained::as_ptr(&menu) as *mut std::ffi::c_void);
+}
+
+#[cfg(not(target_os = "macos"))]
+fn observe_menu(_tray: &TrayIcon) {}
 
 #[cfg(not(target_os = "macos"))]
 fn style_rows(_menu: &Menu, _rows: &[crate::runner::Row]) {}
@@ -223,6 +246,7 @@ pub fn update_tray(
     let (menu, actions) = build_menu(entries).map_err(|e| e.to_string())?;
     style_rows(&menu, rows);
     tray.set_menu(Some(Box::new(menu)));
+    observe_menu(tray);
     let _ = tray.set_tooltip(Some(tooltip));
     // Beside the glyph, never instead of it: the glyph means remaining quota,
     // and replacing it with an alert marker would hide the one thing the icon
@@ -256,6 +280,7 @@ pub fn build_tray(
         .with_tooltip(tooltip)
         .build()
         .map_err(|e| e.to_string())?;
+    observe_menu(&tray);
     Ok((tray, actions))
 }
 

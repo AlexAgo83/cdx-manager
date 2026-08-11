@@ -39,7 +39,10 @@ objc2 = "0.6"
 # behind one, and a missing feature is a compile error rather than a silent gap.
 objc2-app-kit = { version = "0.3", features = [
   "NSMenu", "NSMenuItem", "NSView", "NSTextField", "NSControl",
-  "NSColor", "NSFont", "NSResponder", "NSGraphics",
+  "NSColor", "NSFont", "NSResponder", "NSGraphics", "NSCell",
+  # The status item is how the companion reaches the menu that is actually on
+  # screen, which is the only one whose delegate survives `set_menu`.
+  "NSStatusItem", "NSStatusBar",
 ] }
 objc2-foundation = "0.3"
 # Already in the tree through tray-icon. Naming it directly costs nothing to

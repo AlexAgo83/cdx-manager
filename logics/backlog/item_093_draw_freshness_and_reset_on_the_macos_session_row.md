@@ -1,10 +1,10 @@
 ## item_093_draw_freshness_and_reset_on_the_macos_session_row - Draw freshness and reset on the macOS session row
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 45%
 > Complexity: Low
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

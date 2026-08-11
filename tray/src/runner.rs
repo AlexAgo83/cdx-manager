@@ -27,7 +27,6 @@ pub struct Row {
     /// the label entirely, so a provider missing here is a provider the macOS
     /// user cannot see at all.
     pub provider: String,
-    pub state: String,
     /// One entry per reported limit window: its name and how much is left.
     /// The drawn row gives each its own line, so neither can hide the other.
     pub windows: Vec<(String, Option<f64>)>,
@@ -168,9 +167,6 @@ fn rows_for(entries: &[menu::Entry], sessions: &[crate::snapshot::Session]) -> V
                     menu_index,
                     name: session.name.clone(),
                     provider: session.provider.clone(),
-                    // Same thresholds the icon uses, so a red bar and a red
-                    // glyph can never disagree about the same session.
-                    state: menu::state_for(session.available_pct).to_string(),
                     windows: menu::windows(session)
                         .into_iter()
                         .map(|(name, value)| (name.to_string(), value))

@@ -125,6 +125,13 @@ fn gauge(value: Option<f64>) -> String {
 }
 
 /// The severity a figure carries, named as the icon names it.
+///
+/// Read only where a platform can colour something, which today is the macOS
+/// cell alone. It stays here rather than moving there because it is the one
+/// definition of what low and critical mean, and the glyph CDX chooses uses
+/// the same thresholds — two copies is how a bar and an icon end up
+/// disagreeing about the same session.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn state_for(value: Option<f64>) -> &'static str {
     match value {
         None => "unknown",

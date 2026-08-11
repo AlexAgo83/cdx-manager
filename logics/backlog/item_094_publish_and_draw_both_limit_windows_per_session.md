@@ -1,10 +1,10 @@
 ## item_094_publish_and_draw_both_limit_windows_per_session - Publish and draw both limit windows per session
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 45%
 > Complexity: Medium
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
