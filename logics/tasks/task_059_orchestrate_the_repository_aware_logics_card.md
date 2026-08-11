@@ -1,14 +1,15 @@
 ## task_059_orchestrate_the_repository_aware_logics_card - Orchestrate the repository-aware Logics card
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 85%
 > Confidence: 75%
-> Progress: 0%
+> Progress: 90%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 > Indicators reviewed: 2026-08-11 13:47:58
+> Owner: Codex
 
 # AI Context
 - Summary: Blocked on req_051: the run directories it records are the only source this card can read.

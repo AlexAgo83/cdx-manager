@@ -128,7 +128,7 @@ def _valid_action(action, plugin):
     )
 
 
-def collect_cards(base_dir, env=None, now=None, adapters=None, cache=None):
+def collect_cards(base_dir, env=None, now=None, adapters=None, cache=None, directories=None):
     """Every enabled plugin's card, bounded, with failures dropped.
 
     Never raises. An adapter that throws, hangs past its timeout, returns
@@ -143,7 +143,7 @@ def collect_cards(base_dir, env=None, now=None, adapters=None, cache=None):
         if not adapter:
             continue
         try:
-            raw = adapter(env=env, now=now, cache=cache)
+            raw = adapter(env=env, now=now, cache=cache, directories=directories) if name == "logics" else adapter(env=env, now=now, cache=cache)
         except Exception:  # noqa: BLE001 - an integration cannot break the tray
             continue
         card = bounded_card(raw, name)
@@ -152,10 +152,10 @@ def collect_cards(base_dir, env=None, now=None, adapters=None, cache=None):
     return cards
 
 
-def _logics_adapter(env=None, now=None, cache=None):
+def _logics_adapter(env=None, now=None, cache=None, directories=None):
     from .tray_logics import logics_card
 
-    return logics_card(env=env, now=now, cache=cache)
+    return logics_card(env=env, now=now, cache=cache, directories=directories)
 
 
 # The registry. A name here is the only way an adapter can run, and adding one

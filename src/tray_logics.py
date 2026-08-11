@@ -12,6 +12,7 @@ task, because it is what to do instead. A tray menu that listed everything would
 be a worse `logics-manager status`, run more often.
 """
 import json
+import os
 import subprocess
 import time
 
@@ -21,7 +22,7 @@ from .tray_plugins import ADAPTER_TIMEOUT_SECONDS, CARD_TTL_SECONDS
 _PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
 
-def logics_card(env=None, now=None, cache=None, runner=None, executable=None):
+def logics_card(env=None, now=None, cache=None, runner=None, executable=None, directories=None):
     """One card, or None when there is nothing truthful to show.
 
     None covers every unhappy case on purpose — not installed, not a Logics
@@ -33,7 +34,7 @@ def logics_card(env=None, now=None, cache=None, runner=None, executable=None):
     cached = _from_cache(cache, now)
     if cached is not None:
         return cached
-    status = _status(env=env, runner=runner, executable=executable)
+    status = _status(env=env, runner=runner, executable=executable, directories=directories)
     card = _card_from_status(status)
     _to_cache(cache, now, card)
     return card
@@ -58,7 +59,16 @@ def _to_cache(cache, now, card):
         cache["logics"] = {"at": now, "card": card}
 
 
-def _status(env=None, runner=None, executable=None):
+def _repository_root(directory):
+    directory = os.path.realpath(directory or "")
+    while directory and directory != os.path.dirname(directory):
+        if os.path.exists(os.path.join(directory, ".git")):
+            return directory
+        directory = os.path.dirname(directory)
+    return directory if os.path.exists(os.path.join(directory, ".git")) else None
+
+
+def _status(env=None, runner=None, executable=None, directories=None):
     """`logics-manager status --format json`, or None however it failed.
 
     Resolved through CDX's own lookup rather than a path the tray knows: on a
@@ -68,26 +78,38 @@ def _status(env=None, runner=None, executable=None):
     executable = executable or resolve_logics_manager(env or {})
     if not executable:
         return None
-    try:
-        completed = (runner or subprocess.run)(
-            [executable, "status", "--format", "json"],
-            capture_output=True,
-            text=True,
-            timeout=ADAPTER_TIMEOUT_SECONDS,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
+    roots = sorted({root for root in (_repository_root(path) for path in (directories or [])) if root})
+    if directories is not None and not roots:
         return None
-    if getattr(completed, "returncode", 1) != 0:
-        return None
-    try:
-        payload = json.loads(completed.stdout)
-    except (TypeError, ValueError):
-        return None
-    return payload if isinstance(payload, dict) else None
+    payloads = []
+    for root in roots or [None]:
+        try:
+            completed = (runner or subprocess.run)(
+                [executable, "status", "--format", "json"], capture_output=True,
+                text=True, timeout=ADAPTER_TIMEOUT_SECONDS, check=False, **({"cwd": root} if root else {}),
+            )
+            payload = json.loads(completed.stdout) if getattr(completed, "returncode", 1) == 0 else None
+        except (OSError, subprocess.SubprocessError, TypeError, ValueError):
+            return None if not payloads else payloads
+        if isinstance(payload, dict):
+            payloads.append((root, payload))
+    return payloads if roots else (payloads[0][1] if payloads else None)
 
 
 def _card_from_status(status):
+    if isinstance(status, list):
+        cards = [(root, _card_from_status(payload), len(payload.get("blocked_docs") or [])) for root, payload in status]
+        cards = [(root, card, blocked) for root, card, blocked in cards if card]
+        if not cards:
+            return None
+        root, card, _ = sorted(cards, key=lambda item: (-item[2], -len(item[1]["rows"]), item[0] or ""))[0]
+        repository_count = len(cards)
+        blocked_count = sum(item[2] for item in cards)
+        card["summary"] = f"{repository_count} repositories · {blocked_count} blocked"
+        prefix = os.path.basename(root or "")
+        for row in card["rows"]:
+            row["label"] = f"{prefix}: {row['label']}"
+        return card
     if not isinstance(status, dict):
         return None
     blocked = [doc for doc in (status.get("blocked_docs") or []) if isinstance(doc, dict)]

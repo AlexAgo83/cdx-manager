@@ -127,6 +127,7 @@ def _tray_status(args, ctx):
         ctx["service"]["base_dir"],
         env=ctx.get("env"),
         cache=None if parsed["refresh"] else _plugin_cache(ctx),
+        directories=[row.get("cwd") for row in rows if row.get("active") and row.get("cwd")],
     )
     snapshot = build_snapshot(
         rows,

@@ -1,10 +1,10 @@
 ## item_096_name_the_repository_the_logics_card_reports_on - Name the repository the Logics card reports on
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 85%
 > Confidence: 75%
-> Progress: 0%
+> Progress: 90%
 > Complexity: Low
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

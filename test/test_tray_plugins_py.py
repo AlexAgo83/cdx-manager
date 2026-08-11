@@ -183,6 +183,15 @@ class LogicsAdapterTest(CliTestBase):
             ["logics.focus:task_010", "logics.focus:task_021"],
         )
 
+    def test_recorded_repositories_are_aggregated_without_paths_in_rows(self):
+        card = tray_logics._card_from_status([
+            ("/private/a", {"blocked_docs": [], "active_tasks": [{"ref": "task_1", "title": "A", "priority": "High"}]}),
+            ("/private/b", {"blocked_docs": [{"ref": "task_2", "title": "B"}], "active_tasks": []}),
+        ])
+        self.assertEqual(card["summary"], "2 repositories · 1 blocked")
+        self.assertEqual(card["rows"][0]["label"], "b: blocked: B")
+        self.assertNotIn("/private", card["rows"][0]["label"])
+
     def test_a_row_without_a_reference_is_dropped_rather_than_guessed(self):
         card = tray_logics.logics_card(
             executable="logics-manager",
