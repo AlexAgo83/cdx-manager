@@ -20,10 +20,10 @@ jobs:
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
     steps:
-      - name: Checkout release tag
+      - name: Checkout main
         uses: actions/checkout@v5
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: main
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -33,24 +33,15 @@ jobs:
       - name: Generate release checksums
         run: python3 scripts/update_release_checksums.py --tag "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"
 
-      - name: Upload checksum asset
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$RELEASE_TAG" checksums/release-archives.json --clobber
-
-      # The asset is built by seeding from the ledger as it stood at the tag. If
-      # the new entry is never written back to the branch, the next release seeds
-      # from a ledger still missing this one, and the gap is permanent: v0.12.3
-      # and v0.12.4 are absent from every asset published after them. Recording
-      # it here closes the loop. The asset stays the source installers verify
-      # against — it is immutable, the branch is not.
+      # The tray-asset workflow uploads this ledger after it has added its
+      # companion checksums. This workflow records only the Git archive hashes,
+      # so it cannot overwrite that complete release asset with the tag's older
+      # ledger.
       - name: Record the checksum in the ledger on main
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git fetch origin main --depth=1
-          git checkout -f -B ledger origin/main
           python3 scripts/update_release_checksums.py --tag "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"
           if git diff --quiet -- checksums/release-archives.json; then
             echo "Ledger already records $RELEASE_TAG; nothing to commit."
@@ -60,4 +51,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add checksums/release-archives.json
           git commit -m "chore: record release archive checksums for $RELEASE_TAG"
-          git push origin ledger:main
+          git push origin HEAD:main
