@@ -407,6 +407,11 @@ class CompanionAlignmentTest(CliTestBase):
         result = align_companion(
             base, "2.0.0", ledger_path=ledger, target="t",
             download=lambda _url, dest: shutil.copyfile(archive, dest),
+            # The subject is the ordering, not whether this host can execute the
+            # stand-in payload: a `#!/bin/sh` file is not runnable on Windows,
+            # which failed the probe for a reason that has nothing to do with
+            # what the test is asking.
+            probe=lambda _executable: True,
         )
         self.assertTrue(result["aligned"], result)
         self.assertEqual(read_state(base)["cdx_version"], "2.0.0")

@@ -251,7 +251,7 @@ def install(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, targe
     return state
 
 
-def align_companion(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, target=None, env=None):
+def align_companion(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, target=None, env=None, probe=None):
     """Bring an installed companion up to the CDX release that just landed.
 
     `item_081` AC2 asks for the two to stay aligned, and until now nothing did
@@ -269,7 +269,7 @@ def align_companion(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGE
     if state.get("cdx_version") == version:
         return {"aligned": False, "reason": "already aligned"}
     try:
-        update(base_dir, version, download=download, ledger_path=ledger_path, target=target)
+        update(base_dir, version, download=download, ledger_path=ledger_path, target=target, probe=probe)
     except TrayInstallError as error:
         return {
             "aligned": False,
