@@ -44,6 +44,17 @@ from src.session_service import create_session_service
 
 class RunsCommandTests(CliTestBase):
 
+    def test_run_accepts_dir_as_the_launch_directory(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        service["create_session"]("work", "ollama")
+        service["set_launch_settings"]("work", {"model": "llama3.2"})
+        io_obj = self.make_io()
+
+        self.assertEqual(main([
+            "run", "work", "--dir", target_dir, "--prompt", "Do it", "--json"
+        ], self.make_run_ctx(io_obj, service, spawn_headless=lambda *_args, **_kwargs: _HeadlessChild(0))), 0)
+
     def test_headless_selection_priority_breaks_reasoning_ties_after_minimum_filter(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})

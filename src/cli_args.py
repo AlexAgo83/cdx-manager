@@ -43,7 +43,7 @@ RESUME_USAGE = "Usage: cdx resume <name> [--json]"
 CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--json]"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json"
 NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
-RUN_USAGE = "Usage: cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--detach] [--failover] [--refresh] --json"
+RUN_USAGE = "Usage: cdx run [session] (--cwd|--dir) PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--detach] [--failover] [--refresh] --json"
 RUN_JSON_REQUIRED = "cdx run: --json is required."
 RUN_TARGET_REQUIRED = "cdx run: specify a session name or --provider PROVIDER."
 RUN_SESSION_PROVIDER_CONFLICT = "cdx run: cannot specify both a session name and --provider."
@@ -585,6 +585,7 @@ def _parse_run_effort(reasoning_effort, power):
 def _parse_run_args(args):
     parsed = _parse_run_flag_args(args, {
         "--cwd": {"key": "cwd", "type": "str", "default": None},
+        "--dir": {"key": "cwd", "type": "str", "default": None},
         "--prompt-file": {"key": "prompt_file", "type": "str", "default": None},
         "--prompt": {"key": "prompt", "type": "str", "default": None},
         "--provider": {"key": "provider", "type": "str", "default": None, "transform": _parse_run_provider},

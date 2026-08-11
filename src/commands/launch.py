@@ -28,6 +28,54 @@ from ..errors import CdxError
 from ..provider_runtime import _ensure_session_authentication, _get_auth_home, _run_interactive_provider_command
 
 
+def _parse_launch_args(args):
+    """Return the per-launch directory and ordinary launch flags."""
+    directory = None
+    cleaned = []
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--dir":
+            if directory is not None or index + 1 >= len(args):
+                raise CdxError("Usage: cdx <name> [--dir PATH] [--resume] [--json]")
+            directory = args[index + 1]
+            index += 2
+            continue
+        if arg.startswith("--dir="):
+            if directory is not None or not arg.split("=", 1)[1]:
+                raise CdxError("Usage: cdx <name> [--dir PATH] [--resume] [--json]")
+            directory = arg.split("=", 1)[1]
+            index += 1
+            continue
+        cleaned.append(arg)
+        index += 1
+    return directory, cleaned
+
+
+def _launch_directory(session, ctx, explicit, json_flag):
+    cwd = os.path.realpath(explicit) if explicit else (ctx.get("cwd") or os.getcwd())
+    if explicit and not os.path.isdir(cwd):
+        raise CdxError(f"Invalid directory: {explicit or cwd}")
+    if explicit or json_flag or not ctx["stdin_is_tty"] or cwd not in {os.path.realpath(os.path.expanduser("~")), os.path.realpath(os.path.sep)}:
+        return cwd
+    recent = []
+    for entry in ctx["service"]["get_launch_history"](session["name"], limit=20):
+        path = entry.get("cwd")
+        if path and os.path.isdir(path) and path not in recent:
+            recent.append(path)
+    choices = recent + [cwd]
+    if len(choices) == 1:
+        return cwd
+    ctx["out"]("Choose launch directory:\n" + "".join(f"  {index + 1}. {path}\n" for index, path in enumerate(choices)))
+    answer = (ctx["options"].get("input") or input)(f"Directory [1-{len(choices)}] (default {len(choices)}): ").strip()
+    if not answer:
+        return cwd
+    try:
+        return choices[int(answer) - 1]
+    except (ValueError, IndexError):
+        raise CdxError("Launch cancelled: choose a listed directory.") from None
+
+
 def _format_resume_capability(capability, use_color=False):
     name = capability["session"]
     provider = capability["provider"]
@@ -74,12 +122,13 @@ def handle_can_resume(rest, ctx):
     return 0
 
 def handle_resume(rest, ctx):
+    directory, rest = _parse_launch_args(rest)
     json_flag, args = _parse_json_flag(rest)
     if len(args) != 1:
         raise CdxError(RESUME_USAGE)
-    return handle_launch(args[0], ctx, resume=True, force_json=json_flag)
+    return handle_launch(args[0], ctx, resume=True, force_json=json_flag, directory=directory)
 
-def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=None):
+def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=None, directory=None):
     json_flag = "--json" in ctx.get("raw_args", ctx["options"].get("raw_args", []))
     if force_json is not None:
         json_flag = force_json
@@ -91,6 +140,9 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         raise CdxError(
             f"Provider {session['provider']} does not support native resume through cdx."
         )
+    cwd = _launch_directory(session, ctx, directory, json_flag)
+    if not json_flag and not ctx["stdin_is_tty"]:
+        ctx["out"](f"Using directory: {cwd}\n")
     _ensure_session_authentication(
         session,
         ctx["service"],
@@ -127,13 +179,12 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
             # a real turn — so it gets no instruction it does not need.
             notice += " — approve them once in Codex to enable"
         ctx["out"](f"{_info(notice, ctx['use_color'])}\n")
-    cwd = ctx.get("cwd") or os.getcwd()
     runtime_run_id = None
 
     def runtime_lifecycle(event, info):
         nonlocal runtime_run_id
         if event == "started":
-            runtime = ctx["service"]["start_session_runtime"](session["name"], info)
+            runtime = ctx["service"]["start_session_runtime"](session["name"], {**info, "cwd": cwd})
             runtime_run_id = runtime.get("runId")
         elif event == "finished" and runtime_run_id:
             ctx["service"]["finish_session_runtime"](
@@ -176,7 +227,7 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         **run_info,
     })
     if json_flag:
-        extra = {"session": ctx["service"]["get_session"](session["name"])}
+        extra = {"session": ctx["service"]["get_session"](session["name"]), "cwd": cwd}
         if capability:
             extra["resume"] = capability
         _write_json(ctx, _json_success("resume" if resume else "launch", message, warnings=warnings, **extra))

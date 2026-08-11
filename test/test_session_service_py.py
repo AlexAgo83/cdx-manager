@@ -454,10 +454,12 @@ class SessionServicePythonTests(unittest.TestCase):
         service = create_session_service({"base_dir": temp_dir})
 
         service["create_session"]("main")
-        runtime = service["start_session_runtime"]("main", {"pid": os.getpid(), "command": "codex"})
+        runtime = service["start_session_runtime"]("main", {"pid": os.getpid(), "command": "codex", "cwd": "/tmp/repo"})
         rows = service["get_status_rows"]()
         self.assertTrue(rows[0]["active"])
+        self.assertEqual(rows[0]["cwd"], "/tmp/repo")
         self.assertTrue(service["format_list_rows"]()[0]["active"])
+        self.assertEqual(service["format_list_rows"]()[0]["cwd"], "/tmp/repo")
 
         service["finish_session_runtime"]("main", runtime["runId"], {"returncode": 0})
         self.assertFalse(service["get_status_rows"]()[0]["active"])

@@ -1,10 +1,10 @@
 ## item_100_record_and_honour_a_per_session_working_directory - Choose the launch directory, and record the one each run used
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 80%
-> Progress: 0%
+> Progress: 90%
 > Complexity: Medium
 > Theme: Session lifecycle
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

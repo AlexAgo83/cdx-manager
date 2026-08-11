@@ -740,6 +740,7 @@ def start_session_runtime(store, name, payload=None):
         "pid": payload.get("pid") or os.getpid(),
         "command": payload.get("command"),
         "label": payload.get("label"),
+        "cwd": payload.get("cwd"),
         "transcriptPath": payload.get("transcript_path") or payload.get("transcriptPath"),
     }
 

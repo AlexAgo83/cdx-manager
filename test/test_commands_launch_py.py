@@ -34,6 +34,43 @@ from src.session_service import create_session_service
 
 class LaunchCommandTests(CliTestBase):
 
+    def test_launch_directory_is_explicit_recorded_and_exposed_while_running(self):
+        temp_dir = self.make_temp_dir()
+        workspace = os.path.join(temp_dir, "repo")
+        os.makedirs(workspace)
+        harness = _AuthHarness()
+        self.assertEqual(main(["add", "main"], {
+            **self.make_io(), "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn, "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        self.assertEqual(main(["main", "--dir", workspace], {
+            **self.make_io(), "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn, "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        launch_call = [call for call in harness.calls if call["kind"] == "spawn" and call["command"] == "script"][-1]
+        launch_args = _script_launch_args(launch_call)
+        self.assertEqual(launch_args[launch_args.index("--cd") + 1], os.path.realpath(workspace))
+        history = create_session_service({"base_dir": temp_dir})["get_launch_history"]("main", limit=1)
+        self.assertEqual(history[0]["cwd"], os.path.realpath(workspace))
+
+    def test_launch_rejects_missing_explicit_directory_before_provider_starts(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        self.assertEqual(main(["add", "main"], {
+            **self.make_io(), "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn, "spawn_sync": harness.spawn_sync,
+        }), 0)
+
+        missing = os.path.join(temp_dir, "missing")
+        with self.assertRaisesRegex(CdxError, "Invalid directory"):
+            main(["main", "--dir", missing], {
+                **self.make_io(), "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn, "spawn_sync": harness.spawn_sync,
+            })
+        self.assertEqual(harness.calls, [])
+
     def test_handoff_installs_context_for_target_session_json(self):
         temp_dir = self.make_temp_dir()
         workspace = os.path.join(temp_dir, "repo")

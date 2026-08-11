@@ -268,6 +268,7 @@ def _status_row_from_session(store, s):
     status = s.get("lastStatus")
     enabled = s.get("enabled", True) is not False
     row_status = status if enabled else None
+    runtime = _session_runtime(store, s["name"])
     return {
         "session_name": s["name"],
         "label": s.get("label"),
@@ -279,7 +280,8 @@ def _status_row_from_session(store, s):
         # ignored `--priority` entirely.
         "priority": _row_priority(s),
         "reasoning_effort": _row_reasoning_effort(s),
-        "active": bool(_session_runtime(store, s["name"])) if enabled else False,
+        "active": bool(runtime) if enabled else False,
+        "cwd": runtime.get("cwd") if runtime else None,
         "status": "enabled" if enabled else "disabled",
         "auth_status": (s.get("auth") or {}).get("status") or "unknown",
         "auth_checked_at": _to_local_iso((s.get("auth") or {}).get("lastCheckedAt")),
@@ -313,6 +315,7 @@ def format_list_rows(store):
         "provider": s["provider"] if has_multiple else None,
         "enabled": s.get("enabled", True) is not False,
         "active": bool(_session_runtime(store, s["name"])) if s.get("enabled", True) is not False else False,
+        "cwd": (_session_runtime(store, s["name"]) or {}).get("cwd"),
         "enabled_status": "disabled" if s.get("enabled", True) is False else "enabled",
         "status": s.get("lastStatus"),
         "launch": s.get("launch") or {},

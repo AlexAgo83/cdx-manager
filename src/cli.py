@@ -619,8 +619,10 @@ def main(argv, options=None):
     if handler:
         return handler(rest, ctx)
 
-    if all(arg in ("--json", "-r", "--resume") for arg in rest):
-        return handle_launch(command, ctx, resume=("-r" in rest or "--resume" in rest))
+    from .commands.launch import _parse_launch_args
+    directory, launch_args = _parse_launch_args(rest)
+    if all(arg in ("--json", "-r", "--resume") for arg in launch_args):
+        return handle_launch(command, ctx, resume=("-r" in launch_args or "--resume" in launch_args), directory=directory)
 
     raise CdxError(f"Unknown command: {command}. Use cdx --help.")
 

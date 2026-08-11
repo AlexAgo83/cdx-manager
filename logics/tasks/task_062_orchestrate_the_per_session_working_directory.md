@@ -1,14 +1,15 @@
 ## task_062_orchestrate_the_per_session_working_directory - Orchestrate the per-session working directory
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 80%
-> Progress: 0%
+> Progress: 90%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 > Indicators reviewed: 2026-08-11 13:47:58
+> Owner: Codex
 
 # AI Context
 - Summary: One resolution point feeds every provider's directory; this adds the explicit argument, the narrow prompt, and the per-run record.
