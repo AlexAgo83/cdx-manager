@@ -377,12 +377,13 @@ It is off by default because turning it on writes into the provider's own
 configuration and, on Codex, puts an approval prompt in front of you. That is
 not something to do to sessions you already own without being asked.
 
-Response previews are separately off by default. When enabled, a completion
-notification includes at most 180 characters of the agent's final response, and
-a permission request may quote the provider's own one-line description of what
-it wants to do. That text can be visible on a lock screen, so enable it only for
-sessions whose output is safe to expose. Previews never read transcripts, and
-the command a permission request is about is never included.
+New sessions inherit response previews when agent alerts were accepted during
+tray installation. A completion notification includes at most 180 characters
+of the agent's final response, and a permission request may quote the
+provider's own one-line description of what it wants to do. That text can be
+visible on a lock screen; disable it per session with
+`cdx set <name> --notify-preview off`. Previews never read transcripts, and the
+command a permission request is about is never included.
 
 Both providers are subscribed to the same two hooks: `Stop` when a turn ends and
 `PermissionRequest` when one blocks on your approval. Claude Code is also

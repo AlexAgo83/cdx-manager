@@ -844,7 +844,9 @@ class InstallConsentTest(CliTestBase):
         base = self.make_temp_dir()
         self.assertNotIn("notify", _launch_defaults_for(base, "codex"))
         set_alerts_default(base, True)
-        self.assertTrue(_launch_defaults_for(base, "codex")["notify"])
+        launch = _launch_defaults_for(base, "codex")
+        self.assertTrue(launch["notify"])
+        self.assertTrue(launch["notify_preview"])
         # Unsupported providers inherit nothing, because there is no hook to
         # install for them.
         self.assertNotIn("notify", _launch_defaults_for(base, "ollama"))
@@ -869,4 +871,3 @@ class InstallConsentTest(CliTestBase):
         with open(path, "w", encoding="utf-8") as handle:
             handle.write("{ not json")
         self.assertFalse(alerts_default(base))
-

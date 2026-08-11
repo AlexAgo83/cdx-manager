@@ -629,6 +629,7 @@ def _launch_defaults_for(base_dir, provider):
     try:
         if supports_agent_alerts(provider) and alerts_default(base_dir):
             launch["notify"] = True
+            launch["notify_preview"] = True
     except OSError:
         # An unreadable default is no default. Creating the session matters
         # more than inheriting a preference.
