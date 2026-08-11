@@ -1,8 +1,8 @@
 ## prod_024_cdx_tray_usage_monitor - CDX tray usage monitor
 > Date: 2026-08-10
-> Status: Proposed
+> Status: Settled
 > Related request: `req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor`
-> Related backlog: `item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface`, `item_080_build_native_tray_companions_for_macos_and_windows_plus_wsl`, `item_081_add_linux_tray_support_and_explicit_release_asset_installation`
+> Related backlog: `item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface`
 > Related task: `task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor`
 > Related architecture: `adr_005_cdx_tray_runtime_and_companion_transport_boundary`
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
@@ -60,5 +60,5 @@ flowchart TD
 - Whether the macOS notification grant survives a companion update under a self-signed identity. The answer comes from the managed macOS smoke run, and the fallback is osascript delivery without the CDX icon rather than buying a certificate.
 
 # References
-- Product back-reference: `req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor`
+- Product back-reference: `item_079_define_the_minimal_tray_status_contract_and_cdx_command_surface`
 - Task back-reference: `task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor`

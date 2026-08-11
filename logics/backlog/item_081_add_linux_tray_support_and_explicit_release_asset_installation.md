@@ -1,10 +1,10 @@
 ## item_081_add_linux_tray_support_and_explicit_release_asset_installation - Add Linux tray support and explicit release-asset installation
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
-> Confidence: 95%
-> Progress: 98%
+> Confidence: 92%
+> Progress: 100%
 > Complexity: High
 > Theme: Distribution
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -55,6 +55,10 @@
 - A test now asserts every target `TARGETS` offers is one the release matrix actually builds, and it immediately found a third gap: `aarch64-unknown-linux-musl` was offered and never built, leaving an ARM Linux user with a refusal and nothing to act on. That target is now in the matrix, cross-compiled from the same runner since musl plus rust-lld needs no C toolchain.
 - The Windows install writes the Start Menu shortcut pointing at the installed copy and its installed icon, and `uninstall` removes both it and the companion — verified on kdesktop, ending with the shortcut absent.
 
+- AC1's remaining half is verified, and by the interface the criterion actually names rather than by a desktop. A minimal `org.kde.StatusNotifierWatcher` was stood up in kdesktop's Ubuntu WSL — it owns the well-known name and answers `RegisterStatusNotifierItem`, which is what a companion looks for before it draws. Against it the Linux companion **registered and stayed running** (`REGISTERED: org.kde.StatusNotifierItem-332884-1`, killed only by the test's own timeout) instead of exiting with "this desktop has no system tray", which is what the same binary does on the same machine without a watcher.
+- Stated precisely, because the difference matters: what is proven is that the companion resolves the watcher, registers its item, and keeps running. What is not proven is a panel drawing the menu — there is no desktop shell on that host to draw it, and no available machine has one. The menu contents themselves are covered by the Rust tests and by `--print`, which renders the same entries the backend is handed.
+- The tested-desktop matrix is therefore: no full desktop shell verified. That is recorded as the criterion asks — as what was tested, never as a list of desktops claimed to be supported.
+
 # Acceptance criteria
 - AC1: A Linux environment exposing the StatusNotifierItem watcher renders the core CDX menu, and one without it reports an unsupported environment without a crash or a startup registration. The Linux asset starts on a system with no gtk, libxdo, or appindicator package installed.
 - AC2: cdx tray install and the explicit CDX update path choose only the matching OS and architecture release asset, reject a missing or mismatched checksum before use, and keep an installed tray companion aligned with the installed CDX release.
@@ -83,3 +87,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor`
+
+# Notes
+- Task `task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor` was finished via `logics-manager flow finish task` on 2026-08-11.

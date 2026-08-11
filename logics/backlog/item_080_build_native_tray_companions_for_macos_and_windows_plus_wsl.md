@@ -8,7 +8,7 @@
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-11 01:16:59
+> Indicators reviewed: 2026-08-11 03:29:04
 
 # AI Context
 - Summary: Build native tray companions for macOS and Windows plus WSL
@@ -84,3 +84,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor`
+
+# Notes
+- Task `task_046_orchestrate_the_optional_cross_platform_cdx_tray_usage_monitor` was finished via `logics-manager flow finish task` on 2026-08-11.

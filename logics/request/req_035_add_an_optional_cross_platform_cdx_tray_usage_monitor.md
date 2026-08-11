@@ -1,7 +1,7 @@
 ## req_035_add_an_optional_cross_platform_cdx_tray_usage_monitor - Add an optional cross-platform CDX tray usage monitor
 > From version: 0.17.1
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: High
