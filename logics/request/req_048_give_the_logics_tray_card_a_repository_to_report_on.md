@@ -1,7 +1,7 @@
 ## req_048_give_the_logics_tray_card_a_repository_to_report_on - Give the Logics tray card a repository to report on
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 85%
 > Confidence: 75%
 > Complexity: Low

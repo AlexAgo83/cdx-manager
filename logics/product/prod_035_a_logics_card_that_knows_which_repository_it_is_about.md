@@ -1,22 +1,30 @@
 ## prod_035_a_logics_card_that_knows_which_repository_it_is_about - A Logics card that knows which repository it is about
 > Date: 2026-08-11
-> Status: Proposed
+> Status: Settled
 > Related request: `req_048_give_the_logics_tray_card_a_repository_to_report_on`
 > Related backlog: `item_096_name_the_repository_the_logics_card_reports_on`
 > Related task: `task_059_orchestrate_the_repository_aware_logics_card`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-11 14:06:58
 
 # Overview
-Let the Logics tray card report on a repository the operator named, rather than on whichever directory happened to ask.
+Let the Logics tray card report on repositories derived from active runs, rather than whichever directory happened to ask.
+
+```mermaid
+flowchart LR
+    Runs[Active run directories] --> Repositories[Repository roots]
+    Repositories --> Status[Logics status]
+    Status --> Card[Basename-only tray card]
+```
 
 # Goals
 - Make an enabled card visible in the tray it was built for.
-- Keep the answer durable across install, update and restart.
+- Keep the answer truthful across install, update and restart.
 - Keep silence the behaviour when nothing is named or nothing is there.
 
 # Non-goals
-- Detecting repositories automatically, or reporting on several at once.
+- Recording repository roots or full paths beside a run.
 - Changing what the card shows or how often it refreshes.
 - Any new Logics capability beyond the status the adapter already reads.
 
@@ -33,5 +41,5 @@ Let the Logics tray card report on a repository the operator named, rather than 
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_048_give_the_logics_tray_card_a_repository_to_report_on`
+- Product back-reference: `item_096_name_the_repository_the_logics_card_reports_on`
 - Task back-reference: `task_059_orchestrate_the_repository_aware_logics_card`

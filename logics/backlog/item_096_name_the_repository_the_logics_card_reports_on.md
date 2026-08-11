@@ -1,10 +1,10 @@
 ## item_096_name_the_repository_the_logics_card_reports_on - Name the repository the Logics card reports on
 > From version: 0.18.5
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 85%
 > Confidence: 75%
-> Progress: 90%
+> Progress: 100%
 > Complexity: Low
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -44,6 +44,8 @@
 - request-AC3 -> This backlog slice. Proof: AC3: A path that is gone, or is not a Logics repository, yields no card and no error.
 - request-AC4 -> This backlog slice. Proof: AC4: With nothing named, behaviour is unchanged from today.
 - request-AC5 -> This backlog slice. Proof: AC5: Focused tests cover all four cases.
+- request-AC6 -> This backlog slice. Proof: `0ccf23a` aggregates recorded repositories without full paths.
+- request-AC7 -> This backlog slice. Proof: `0ccf23a` proves basename-only tray labels.
 
 # Decision framing
 - Product framing: Not needed
@@ -58,3 +60,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_059_orchestrate_the_repository_aware_logics_card`
+
+# Notes
+- Task `task_059_orchestrate_the_repository_aware_logics_card` was finished via `logics-manager flow finish task` on 2026-08-11.
