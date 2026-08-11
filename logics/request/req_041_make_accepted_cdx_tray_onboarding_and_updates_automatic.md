@@ -1,7 +1,7 @@
 ## req_041_make_accepted_cdx_tray_onboarding_and_updates_automatic - Make accepted CDX tray onboarding and updates automatic
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: High

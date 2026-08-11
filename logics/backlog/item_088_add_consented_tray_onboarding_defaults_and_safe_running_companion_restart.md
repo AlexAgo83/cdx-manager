@@ -1,10 +1,10 @@
 ## item_088_add_consented_tray_onboarding_defaults_and_safe_running_companion_restart - Add consented tray onboarding defaults and safe running-companion restart
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 92%
 > Confidence: 78%
-> Progress: 0%
+> Progress: 100%
 > Complexity: High
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -61,3 +61,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates`
+
+# Notes
+- Task `task_052_orchestrate_accepted_automatic_cdx_tray_onboarding_and_updates` was finished via `logics-manager flow finish task` on 2026-08-11.
