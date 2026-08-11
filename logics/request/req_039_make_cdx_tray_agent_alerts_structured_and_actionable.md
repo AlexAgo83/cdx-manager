@@ -1,7 +1,7 @@
 ## req_039_make_cdx_tray_agent_alerts_structured_and_actionable - Make CDX tray agent alerts structured and actionable
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 95%
 > Confidence: 92%
 > Complexity: Medium

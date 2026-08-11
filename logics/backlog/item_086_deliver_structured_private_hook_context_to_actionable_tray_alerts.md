@@ -1,10 +1,10 @@
 ## item_086_deliver_structured_private_hook_context_to_actionable_tray_alerts - Deliver structured, private hook context to actionable tray alerts
 > From version: 0.18.4
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 95%
 > Confidence: 92%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -68,3 +68,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_050_orchestrate_structured_actionable_cdx_tray_alerts`
+
+# Notes
+- Task `task_050_orchestrate_structured_actionable_cdx_tray_alerts` was finished via `logics-manager flow finish task` on 2026-08-11.
