@@ -251,32 +251,89 @@ def install(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, targe
     return state
 
 
-def align_companion(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, target=None, env=None, probe=None):
+def align_companion(
+    base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, target=None, env=None,
+    probe=None, spawn=None, stop=None, start=None,
+):
     """Bring an installed companion up to the CDX release that just landed.
 
     `item_081` AC2 asks for the two to stay aligned, and until now nothing did
     it: `cdx update` moved CDX and left the companion behind, so the user had to
     notice the drift and reinstall by hand.
 
+    A running companion is stopped first, replaced, and started again. Stopping
+    before touching anything on disk is not politeness: a running executable
+    cannot be replaced on Windows, and a directory holding one cannot reliably
+    be renamed either. It also means a companion that refuses to stop leaves the
+    files exactly as they were — the user keeps a working tray on the old
+    version, which is a far better outcome than a half-replaced one.
+
     Returns a dict describing what happened, and never raises. The CDX update
     has already succeeded by the time this runs — failing it because a companion
     could not be replaced would undo a good outcome for a worse reason. Every
     refusal is reported instead.
     """
+    from .tray_restart import start_companion, stop_running_companion
+
     state = read_state(base_dir)
     if not state:
         return {"aligned": False, "reason": "no companion is installed"}
     if state.get("cdx_version") == version:
         return {"aligned": False, "reason": "already aligned"}
-    try:
-        update(base_dir, version, download=download, ledger_path=ledger_path, target=target, probe=probe)
-    except TrayInstallError as error:
+
+    halted = (stop or stop_running_companion)(env=env)
+    if halted.get("was_running") and not halted.get("stopped"):
         return {
+            "aligned": False,
+            "reason": halted.get("reason", "the running tray could not be stopped"),
+            "previous": state.get("cdx_version"),
+        }
+
+    try:
+        result = update(
+            base_dir, version,
+            download=download, ledger_path=ledger_path, target=target, probe=probe,
+        )
+    except TrayInstallError as error:
+        outcome = {
             "aligned": False,
             "reason": str(error),
             "previous": state.get("cdx_version"),
         }
-    return {"aligned": True, "previous": state.get("cdx_version"), "version": version}
+        # Nothing was replaced, so the companion we stopped is the one to bring
+        # back. Leaving the user with no tray because an update failed would be
+        # a worse outcome than the failure itself.
+        if halted.get("was_running"):
+            outcome["restarted"] = (start or start_companion)(
+                state["executable"], spawn=spawn, env=env,
+            ).get("started", False)
+        return outcome
+
+    aligned = {"aligned": True, "previous": state.get("cdx_version"), "version": version}
+    if not halted.get("was_running"):
+        # Files updated, and no tray to bring back. Starting one the user had
+        # not started themselves would be deciding for them.
+        aligned["restarted"] = False
+        aligned["restart_reason"] = "no tray was running"
+        return aligned
+
+    started = (start or start_companion)(result["state"]["executable"], spawn=spawn, env=env)
+    if started.get("started"):
+        aligned["restarted"] = True
+        return aligned
+
+    # The replacement passed its probe and still did not come up here. Put back
+    # the one that was proven to work, and start that — a rollback that leaves
+    # no running tray has only done half the job.
+    aligned["restarted"] = False
+    aligned["restart_reason"] = started.get("reason", "the replacement did not start")
+    aligned["rolled_back"] = restore_previous(base_dir, result.get("previous_state"))
+    if aligned["rolled_back"]:
+        aligned["aligned"] = False
+        aligned["restarted"] = (start or start_companion)(
+            state["executable"], spawn=spawn, env=env,
+        ).get("started", False)
+    return aligned
 
 
 def _extract(archive, destination):
@@ -385,22 +442,58 @@ def update(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, target
         )
 
     live = os.path.join(state_dir(base_dir), "companion")
-    retired = os.path.join(state_dir(base_dir), "companion.previous")
+    retired = previous_dir(base_dir)
     shutil.rmtree(retired, ignore_errors=True)
     if os.path.isdir(live):
         os.rename(live, retired)
     os.rename(staged, live)
-    # Only now is the previous one retired.
-    shutil.rmtree(retired, ignore_errors=True)
+    # The retired copy stays. It used to be deleted here, which left nothing to
+    # go back to the moment the replacement turned out not to start — and that
+    # is precisely when it is needed. The next update clears it, so at most one
+    # extra copy is ever on disk.
 
     state = {
         **fresh,
         "executable": fresh["executable"].replace(staged, live, 1),
         "paths": [live],
     }
+    _record_state(base_dir, state)
+    return {"state": state, "replaced": previous.get("cdx_version"), "previous_state": previous}
+
+
+def previous_dir(base_dir):
+    """The last working companion, kept until the next update replaces it."""
+    return os.path.join(state_dir(base_dir), "companion.previous")
+
+
+def _record_state(base_dir, state):
     with open(state_path(base_dir), "w", encoding="utf-8") as handle:
         json.dump(state, handle, indent=2)
-    return {"state": state, "replaced": previous.get("cdx_version")}
+
+
+def restore_previous(base_dir, previous_state):
+    """Put back the companion that was proven to work.
+
+    Only called when the replacement failed to start, and it has to be able to
+    fail quietly itself: a rollback that raises would turn a bad update into an
+    unusable install, which is the one outcome worse than not updating.
+    """
+    live = os.path.join(state_dir(base_dir), "companion")
+    retired = previous_dir(base_dir)
+    if not os.path.isdir(retired):
+        return False
+    try:
+        broken = os.path.join(state_dir(base_dir), "companion.rejected")
+        shutil.rmtree(broken, ignore_errors=True)
+        if os.path.isdir(live):
+            os.rename(live, broken)
+        os.rename(retired, live)
+        shutil.rmtree(broken, ignore_errors=True)
+        if previous_state:
+            _record_state(base_dir, previous_state)
+        return True
+    except OSError:
+        return False
 
 
 def _probe(executable):

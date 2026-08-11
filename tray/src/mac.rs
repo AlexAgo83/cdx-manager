@@ -69,6 +69,14 @@ pub fn run(transport: Transport) -> Result<(), String> {
             }
         });
 
+        // CDX asks for the process, not for the files: an update replaces the
+        // binary underneath a companion that would otherwise keep running the
+        // old one. Checked before anything else in the iteration so a stop is
+        // never delayed by work about to be thrown away.
+        if crate::instance::stop_requested() {
+            return Ok(());
+        }
+
         let mut redraw = false;
         // The menu the user opened is the one drawn at the last redraw, so what
         // it showed is what has been read. Anything that arrived since is not

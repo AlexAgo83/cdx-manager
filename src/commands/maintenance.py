@@ -595,11 +595,15 @@ def _align_tray_companion(ctx, target_version):
     warning, not a reason to call a good update bad.
     """
     from ..tray_install import align_companion
-    from ..tray_instance import companion_instance
 
     try:
         base_dir = ctx["service"]["base_dir"]
-        result = align_companion(base_dir, target_version, download=ctx.get("download_asset"))
+        result = align_companion(
+            base_dir, target_version,
+            download=ctx.get("download_asset"),
+            env=ctx.get("env"),
+            spawn=ctx.get("spawn_detached"),
+        )
     except Exception as error:  # noqa: BLE001 - the update already succeeded
         return [{"code": "tray_companion_not_aligned", "message": f"The tray companion was left as it was: {error}"}]
 
@@ -614,21 +618,26 @@ def _align_tray_companion(ctx, target_version):
             ),
         }]
 
+    if result.get("restarted"):
+        return [{
+            "code": "tray_companion_updated",
+            "message": f"Updated the tray companion to {target_version} and restarted it.",
+        }]
+
     warnings = [{
         "code": "tray_companion_updated",
         "message": f"Updated the tray companion to {target_version} as well.",
     }]
-    # A running companion keeps executing the binary it started with. Saying so
-    # beats leaving someone to wonder why the menu still looks old, and beats
-    # quitting an application they did not ask us to touch.
-    try:
-        if companion_instance(env=ctx.get("env")).get("pid"):
-            warnings.append({
-                "code": "tray_companion_restart_pending",
-                "message": "The running tray is still the previous build. Quit it from its menu and run: cdx tray launch",
-            })
-    except Exception:  # noqa: BLE001
-        pass
+    # It was replaced but is not running. Only worth saying when there was one
+    # to bring back: a user who had no tray open did not lose anything.
+    if result.get("restart_reason") and result.get("restart_reason") != "no tray was running":
+        warnings.append({
+            "code": "tray_companion_restart_pending",
+            "message": (
+                f"The tray companion did not restart: {result['restart_reason']} "
+                "Run: cdx tray launch"
+            ),
+        })
     return warnings
 
 

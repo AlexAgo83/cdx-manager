@@ -45,6 +45,31 @@ fn lock_path() -> PathBuf {
     runtime_dir().join("companion.pid")
 }
 
+/// Where CDX asks this companion to stop.
+///
+/// A file rather than a signal, and that is not squeamishness about signals: it
+/// behaves identically on the three platforms, where a Unix signal has no
+/// Windows equivalent and `PostThreadMessage` needs a thread id CDX does not
+/// have. The loop already wakes several times a second, so noticing it costs a
+/// `stat` on a path that is usually absent.
+fn stop_path() -> PathBuf {
+    runtime_dir().join("companion.stop")
+}
+
+/// Has CDX asked this companion to stop?
+///
+/// Consumed when read: the file is removed before the loop acts on it, so a
+/// replacement companion started a moment later does not read the same request
+/// and quit immediately.
+pub fn stop_requested() -> bool {
+    let path = stop_path();
+    if !path.exists() {
+        return false;
+    }
+    let _ = std::fs::remove_file(&path);
+    true
+}
+
 /// Where the lock lives, for a caller that needs to find it without knowing the
 /// rule. The rule differs per platform, and a script or a support conversation
 /// that reimplements it would look in the wrong place on exactly the platform
@@ -139,6 +164,22 @@ mod tests {
         assert!(is_alive(std::process::id()));
         // Above any plausible pid on every platform under test.
         assert!(!is_alive(4_000_000_000));
+    }
+
+    #[test]
+    fn a_stop_request_is_seen_once_and_then_gone() {
+        // Consumed on read, so the replacement started right after does not
+        // read the same request and quit before it has drawn anything.
+        let path = super::stop_path();
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::remove_file(&path);
+        assert!(!stop_requested());
+        std::fs::write(&path, "1").expect("write a stop request");
+        assert!(stop_requested());
+        assert!(!stop_requested());
+        assert!(!path.exists());
     }
 
     #[test]

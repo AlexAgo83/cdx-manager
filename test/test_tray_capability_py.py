@@ -412,9 +412,15 @@ class CompanionAlignmentTest(CliTestBase):
             # which failed the probe for a reason that has nothing to do with
             # what the test is asking.
             probe=lambda _executable: True,
+            # Doubles, and not only for speed: without them this reaches the
+            # lock of whatever companion is running on the machine executing
+            # the suite and asks it to stop.
+            stop=self.no_tray_running,
+            start=self.starts,
         )
         self.assertTrue(result["aligned"], result)
         self.assertEqual(read_state(base)["cdx_version"], "2.0.0")
+        self.assertFalse(result["restarted"], "nothing was running, so nothing is started")
 
     def test_a_failure_is_reported_and_the_old_one_kept(self):
         """The CDX update has already succeeded by then. Failing it because a
@@ -426,10 +432,114 @@ class CompanionAlignmentTest(CliTestBase):
         def refuse(_url, _dest):
             raise OSError("no network")
 
-        result = align_companion(base, "2.0.0", ledger_path=ledger, target="t", download=refuse)
+        result = align_companion(
+            base, "2.0.0", ledger_path=ledger, target="t", download=refuse,
+            stop=self.no_tray_running, start=self.starts,
+        )
         self.assertFalse(result["aligned"])
         self.assertEqual(result["previous"], "1.0.0")
         self.assertEqual(read_state(base)["cdx_version"], "1.0.0", "the working one stays")
+
+    # --- doubles for the running companion ---------------------------------
+
+    @staticmethod
+    def no_tray_running(env=None):
+        return {"stopped": False, "was_running": False, "reason": "no tray companion is running"}
+
+    @staticmethod
+    def stopped(env=None):
+        return {"stopped": True, "was_running": True, "pid": 4242}
+
+    @staticmethod
+    def refuses_to_stop(env=None):
+        return {"stopped": False, "was_running": True, "pid": 4242, "reason": "it did not stop in time"}
+
+    @staticmethod
+    def starts(executable, spawn=None, env=None, **_kwargs):
+        return {"started": True, "pid": 4243}
+
+    def test_a_running_companion_is_stopped_replaced_and_started_again(self):
+        import shutil
+
+        from src.tray_install import align_companion, read_state
+        base, scratch = self.make_temp_dir(), self.make_temp_dir()
+        archive, ledger = self._installed(base, scratch, "1.0.0")
+        launched = []
+        result = align_companion(
+            base, "2.0.0", ledger_path=ledger, target="t",
+            download=lambda _url, dest: shutil.copyfile(archive, dest),
+            probe=lambda _executable: True,
+            stop=self.stopped,
+            start=lambda executable, **kwargs: launched.append(executable) or {"started": True, "pid": 1},
+        )
+        self.assertTrue(result["aligned"], result)
+        self.assertTrue(result["restarted"])
+        self.assertEqual(read_state(base)["cdx_version"], "2.0.0")
+        # Started on the replacement, not on the binary it replaced.
+        self.assertEqual(launched, [read_state(base)["executable"]])
+
+    def test_a_companion_that_will_not_stop_leaves_the_files_alone(self):
+        """A user reading a tray menu is not a process to terminate over a
+        version number, and a half-replaced install is worse than an old one."""
+        import shutil
+
+        from src.tray_install import align_companion, read_state
+        base, scratch = self.make_temp_dir(), self.make_temp_dir()
+        archive, ledger = self._installed(base, scratch, "1.0.0")
+        result = align_companion(
+            base, "2.0.0", ledger_path=ledger, target="t",
+            download=lambda _url, dest: shutil.copyfile(archive, dest),
+            probe=lambda _executable: True,
+            stop=self.refuses_to_stop,
+            start=self.starts,
+        )
+        self.assertFalse(result["aligned"])
+        self.assertIn("did not stop", result["reason"])
+        self.assertEqual(read_state(base)["cdx_version"], "1.0.0", "nothing was replaced")
+
+    def test_a_replacement_that_does_not_start_is_rolled_back_and_the_old_one_restarted(self):
+        import shutil
+
+        from src.tray_install import align_companion, read_state
+        base, scratch = self.make_temp_dir(), self.make_temp_dir()
+        archive, ledger = self._installed(base, scratch, "1.0.0")
+        attempts = []
+
+        def start(executable, **_kwargs):
+            attempts.append(executable)
+            # The replacement fails; whatever is tried next is the rollback.
+            return {"started": len(attempts) > 1, "reason": "it exited immediately"}
+
+        result = align_companion(
+            base, "2.0.0", ledger_path=ledger, target="t",
+            download=lambda _url, dest: shutil.copyfile(archive, dest),
+            probe=lambda _executable: True,
+            stop=self.stopped,
+            start=start,
+        )
+        self.assertFalse(result["aligned"], "a rollback is not an alignment")
+        self.assertTrue(result["rolled_back"])
+        self.assertTrue(result["restarted"], "the proven one is running again")
+        self.assertEqual(read_state(base)["cdx_version"], "1.0.0")
+        self.assertEqual(len(attempts), 2)
+
+    def test_a_failed_update_restarts_the_companion_it_stopped(self):
+        from src.tray_install import align_companion
+        base, scratch = self.make_temp_dir(), self.make_temp_dir()
+        _archive, ledger = self._installed(base, scratch, "1.0.0")
+
+        def refuse(_url, _dest):
+            raise OSError("no network")
+
+        started = []
+        result = align_companion(
+            base, "2.0.0", ledger_path=ledger, target="t", download=refuse,
+            stop=self.stopped,
+            start=lambda executable, **kwargs: started.append(executable) or {"started": True},
+        )
+        self.assertFalse(result["aligned"])
+        self.assertTrue(result["restarted"], "we stopped it, so we bring it back")
+        self.assertEqual(len(started), 1)
 
 
 class InstallStartupTest(CliTestBase):
@@ -464,3 +574,122 @@ class InstallStartupTest(CliTestBase):
         disable(env={"HOME": home}, system="Darwin")
         self.assertFalse(os.path.exists(artifact_path(env={"HOME": home}, system="Darwin")))
         self.assertTrue(os.path.exists(bystander), "a file CDX never wrote survives")
+
+
+class CompanionStopTest(CliTestBase):
+    """Asking a running companion to stop, and never insisting.
+
+    The channel is a file the companion polls, chosen over a signal because it
+    behaves identically on the three platforms. Everything here is about the
+    cases where it does not work.
+    """
+
+    def _env(self):
+        return {"TMPDIR": self.make_temp_dir(), "LOCALAPPDATA": self.make_temp_dir()}
+
+    def test_nothing_running_is_not_a_failure(self):
+        from src.tray_restart import stop_running_companion
+        result = stop_running_companion(env=self._env())
+        self.assertFalse(result["was_running"])
+        self.assertFalse(result["stopped"])
+
+    def test_a_stop_request_is_written_beside_the_lock(self):
+        import os
+
+        from src.tray_instance import lock_path
+        from src.tray_restart import request_stop, stop_path
+        env = self._env()
+        self.assertTrue(request_stop(env=env))
+        self.assertTrue(os.path.exists(stop_path(env=env)))
+        self.assertEqual(os.path.dirname(stop_path(env=env)), os.path.dirname(lock_path(env=env)))
+
+    def test_a_companion_that_stops_is_reported_as_stopped(self):
+        import os
+
+        from src.tray_instance import lock_path
+        from src.tray_restart import stop_path, stop_running_companion
+        env = self._env()
+        path = lock_path(env=env)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(str(os.getpid()))
+
+        alive = iter([True, True, False])
+        result = stop_running_companion(
+            env=env, sleep=lambda _s: None, alive=lambda _pid: next(alive),
+        )
+        self.assertTrue(result["stopped"])
+        self.assertEqual(result["pid"], os.getpid())
+        # The request is withdrawn once honoured, or the replacement started a
+        # moment later reads it and quits before drawing anything.
+        self.assertFalse(os.path.exists(stop_path(env=env)))
+
+    def test_a_companion_that_ignores_the_request_is_left_alone(self):
+        import os
+
+        from src.tray_instance import lock_path
+        from src.tray_restart import stop_path, stop_running_companion
+        env = self._env()
+        path = lock_path(env=env)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        # A pid that is genuinely alive, because the instance check reads the
+        # real process table: a made-up number reads as a stale lock instead.
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(str(os.getpid()))
+
+        result = stop_running_companion(
+            env=env, timeout=0.0, sleep=lambda _s: None, alive=lambda _pid: True,
+        )
+        self.assertFalse(result["stopped"])
+        self.assertTrue(result["was_running"])
+        self.assertIn("menu", result["reason"], "it says why, and what to do")
+        # Withdrawn, so it does not stop the tray later at a moment nobody
+        # connected to an update.
+        self.assertFalse(os.path.exists(stop_path(env=env)))
+
+    def test_a_stale_lock_is_not_a_running_companion(self):
+        import os
+
+        from src.tray_instance import lock_path
+        from src.tray_restart import stop_running_companion
+        env = self._env()
+        path = lock_path(env=env)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("999999999")
+        result = stop_running_companion(env=env, sleep=lambda _s: None)
+        self.assertFalse(result["was_running"])
+
+    def test_a_launch_that_never_registers_is_not_a_start(self):
+        """Spawning is not evidence. A binary that exits immediately leaves a
+        successful spawn and no tray."""
+        from src.tray_restart import start_companion
+        result = start_companion(
+            "/nowhere/cdx-tray",
+            spawn=lambda _command: None,
+            verify=lambda env=None: {"pid": None},
+            settle=lambda _s: None,
+        )
+        self.assertFalse(result["started"])
+        self.assertIn("never registered", result["reason"])
+
+    def test_a_launch_that_registers_is_a_start(self):
+        from src.tray_restart import start_companion
+        result = start_companion(
+            "/nowhere/cdx-tray",
+            spawn=lambda _command: None,
+            verify=lambda env=None: {"pid": 77},
+            settle=lambda _s: None,
+        )
+        self.assertTrue(result["started"])
+        self.assertEqual(result["pid"], 77)
+
+    def test_a_launch_that_cannot_spawn_says_so(self):
+        from src.tray_restart import start_companion
+
+        def refuse(_command):
+            raise OSError("permission denied")
+
+        result = start_companion("/nowhere/cdx-tray", spawn=refuse, settle=lambda _s: None)
+        self.assertFalse(result["started"])
+        self.assertIn("permission denied", result["reason"])
