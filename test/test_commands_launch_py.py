@@ -62,6 +62,7 @@ class LaunchCommandTests(CliTestBase):
             **self.make_io(), "env": {"CDX_HOME": temp_dir},
             "spawn": harness.spawn, "spawn_sync": harness.spawn_sync,
         }), 0)
+        harness.calls.clear()
 
         missing = os.path.join(temp_dir, "missing")
         with self.assertRaisesRegex(CdxError, "Invalid directory"):
