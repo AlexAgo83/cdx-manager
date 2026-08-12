@@ -1,0 +1,373 @@
+{
+  "budgets": {
+    "max_docs": 16,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt.md",
+    "logics/backlog/item_110_make_interactive_launch_directory_cancellation_a_clean_no_op.md",
+    "logics/product/prod_042_recoverable_interactive_cdx_launch_choices.md",
+    "logics/request/req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe.md",
+    "logics/scaffold/interactive_launch_directory_input.json",
+    "logics/tasks/task_066_orchestrate_writable_and_cancellable_launch_directory_selection.md"
+  ],
+  "command": "logics-manager sync context-pack req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt item_110_make_interactive_launch_directory_cancellation_a_clean_no_op task_066_orchestrate_writable_and_cancellable_launch_directory_selection --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt",
+          "item_110_make_interactive_launch_directory_cancellation_a_clean_no_op"
+        ],
+        "prod": [
+          "prod_042_recoverable_interactive_cdx_launch_choices"
+        ],
+        "req": [
+          "req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe"
+        ],
+        "task": [
+          "task_066_orchestrate_writable_and_cancellable_launch_directory_selection"
+        ]
+      },
+      "path": "logics/product/prod_042_recoverable_interactive_cdx_launch_choices.md",
+      "ref": "prod_042_recoverable_interactive_cdx_launch_choices",
+      "sections": {
+        "Goals": [
+          "- Make any valid local launch directory reachable from the existing prompt.",
+          "- Treat cancellation as a normal no-op rather than an exception traceback.",
+          "- Reuse the current explicit-directory validation and launch flow."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Let an interactive CDX operator choose an unlisted launch directory or cancel the prompt cleanly, without turning the selector into a second configuration system."
+        ],
+        "References": [
+          "- Product back-reference: `req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe`",
+          "- Task back-reference: `task_066_orchestrate_writable_and_cancellable_launch_directory_selection`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Recoverable interactive CDX launch choices"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "interactive, launch, directory, selection, writable, cancellation, safe",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt",
+          "item_110_make_interactive_launch_directory_cancellation_a_clean_no_op"
+        ],
+        "prod": [
+          "prod_042_recoverable_interactive_cdx_launch_choices"
+        ],
+        "req": [
+          "req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe"
+        ]
+      },
+      "path": "logics/request/req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe.md",
+      "ref": "req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: The interactive launch-directory menu includes one clearly labelled Other option that prompts for a path; a valid entered directory is normalized and becomes the launch directory.",
+          "- AC2: An invalid, unreadable, or non-directory Other path reports a concise validation message and re-prompts without launching a provider or changing durable session state.",
+          "- AC3: Ctrl-C at either the choice prompt or the Other-path prompt exits cleanly with no Python traceback, no provider launch, and no session or directory mutation.",
+          "- AC4: Existing numbered choices, the default current directory, explicit --dir behavior, JSON/non-interactive behavior, and recent-directory ordering remain unchanged.",
+          "- AC5: Focused command tests cover valid Other input, invalid retry, cancellation at both prompts, and unchanged legacy selection behavior; project and Logics validation pass."
+        ],
+        "Needs": [
+          "- When CDX offers recently used launch directories, an operator can only choose a displayed number. They need one explicit Other option to enter a valid directory that is not already listed.",
+          "- Pressing Ctrl-C at the interactive directory prompt currently raises KeyboardInterrupt through the top-level CLI and prints a Python traceback. Cancelling a choice must leave no launch, no saved state change, and no traceback."
+        ]
+      },
+      "status": "Draft",
+      "title": "Make interactive launch-directory selection writable and cancellation-safe"
+    },
+    {
+      "ai_context": {
+        "keywords": "add, validated, other, path, interactive, launch, directory, prompt",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt"
+        ],
+        "prod": [
+          "prod_042_recoverable_interactive_cdx_launch_choices"
+        ],
+        "req": [
+          "req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe"
+        ],
+        "task": [
+          "task_066_orchestrate_writable_and_cancellable_launch_directory_selection"
+        ]
+      },
+      "path": "logics/backlog/item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt.md",
+      "ref": "item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Other accepts a valid directory and returns its normalized path to the existing launch flow.",
+          "- AC2: Invalid paths retry safely and do not launch a provider.",
+          "- AC3: Numbered, default, explicit, JSON, and non-interactive paths retain their current behavior."
+        ],
+        "Problem": [
+          "- The current selector lists recent paths but cannot reach a valid directory outside that bounded list.",
+          "- Ad-hoc validation would drift from the explicit launch-directory path."
+        ]
+      },
+      "status": "Ready",
+      "title": "Add a validated Other path to the interactive launch-directory prompt"
+    },
+    {
+      "ai_context": {
+        "keywords": "interactive, launch, directory, cancellation, clean",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_110_make_interactive_launch_directory_cancellation_a_clean_no_op"
+        ],
+        "prod": [
+          "prod_042_recoverable_interactive_cdx_launch_choices"
+        ],
+        "req": [
+          "req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe"
+        ],
+        "task": [
+          "task_066_orchestrate_writable_and_cancellable_launch_directory_selection"
+        ]
+      },
+      "path": "logics/backlog/item_110_make_interactive_launch_directory_cancellation_a_clean_no_op.md",
+      "ref": "item_110_make_interactive_launch_directory_cancellation_a_clean_no_op",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Ctrl-C at either interactive directory prompt prints concise cancellation output with no traceback.",
+          "- AC2: Cancellation starts no provider and writes no session or directory state.",
+          "- AC3: Other CLI exceptions retain their existing error handling."
+        ],
+        "Problem": [
+          "- KeyboardInterrupt from the prompt reaches the Python entry point, exposing an implementation traceback for an ordinary cancelled choice."
+        ]
+      },
+      "status": "Ready",
+      "title": "Make interactive launch-directory cancellation a clean no-op"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt",
+          "item_110_make_interactive_launch_directory_cancellation_a_clean_no_op"
+        ],
+        "prod": [
+          "prod_042_recoverable_interactive_cdx_launch_choices"
+        ],
+        "req": [
+          "req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe"
+        ],
+        "task": [
+          "task_066_orchestrate_writable_and_cancellable_launch_directory_selection"
+        ]
+      },
+      "path": "logics/product/prod_042_recoverable_interactive_cdx_launch_choices.md",
+      "ref": "prod_042_recoverable_interactive_cdx_launch_choices",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Recoverable interactive CDX launch choices"
+    },
+    {
+      "ai_context": {
+        "keywords": "orchestrate, writable, cancellable, launch, directory, selection",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt",
+          "item_110_make_interactive_launch_directory_cancellation_a_clean_no_op"
+        ],
+        "prod": [
+          "prod_042_recoverable_interactive_cdx_launch_choices"
+        ],
+        "req": [
+          "req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe"
+        ],
+        "task": [
+          "task_066_orchestrate_writable_and_cancellable_launch_directory_selection"
+        ]
+      },
+      "path": "logics/tasks/task_066_orchestrate_writable_and_cancellable_launch_directory_selection.md",
+      "ref": "task_066_orchestrate_writable_and_cancellable_launch_directory_selection",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate writable and cancellable launch-directory selection"
+    }
+  ],
+  "estimates": {
+    "char_count": 8596,
+    "companion_doc_count": 1,
+    "doc_count": 5
+  },
+  "generated_at": "2026-08-12T23:01:05Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe",
+      "item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt",
+      "item_110_make_interactive_launch_directory_cancellation_a_clean_no_op",
+      "task_066_orchestrate_writable_and_cancellable_launch_directory_selection"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe,item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt,item_110_make_interactive_launch_directory_cancellation_a_clean_no_op,task_066_orchestrate_writable_and_cancellable_launch_directory_selection",
+  "refs": [
+    "req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe",
+    "item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt",
+    "item_110_make_interactive_launch_directory_cancellation_a_clean_no_op",
+    "task_066_orchestrate_writable_and_cancellable_launch_directory_selection"
+  ],
+  "release": {
+    "blocking_reasons": [],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Release evidence is complete.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": null,
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "ready",
+    "target_version": "0.18.6"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_066_orchestrate_writable_and_cancellable_launch_directory_selection.md",
+      "ref": "task_066_orchestrate_writable_and_cancellable_launch_directory_selection"
+    }
+  ]
+}

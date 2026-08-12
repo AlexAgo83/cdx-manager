@@ -61,6 +61,7 @@
 | [prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions](product/prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions.md) | Stable terminal titles for cdx-managed Claude sessions | Proposed |  |  | product/prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions.md |
 | [prod_042_reviewable_release_preparation_for_stable_claude_titles](product/prod_042_reviewable_release_preparation_for_stable_claude_titles.md) | Reviewable release preparation for stable Claude titles | Proposed |  |  | product/prod_042_reviewable_release_preparation_for_stable_claude_titles.md |
 | [prod_041_contextual_cdx_tray_recovery_paths](product/prod_041_contextual_cdx_tray_recovery_paths.md) | Contextual CDX tray recovery paths | Proposed |  |  | product/prod_041_contextual_cdx_tray_recovery_paths.md |
+| [prod_042_recoverable_interactive_cdx_launch_choices](product/prod_042_recoverable_interactive_cdx_launch_choices.md) | Recoverable interactive CDX launch choices | Proposed |  |  | product/prod_042_recoverable_interactive_cdx_launch_choices.md |
 
 ## Roadmaps
 
@@ -127,6 +128,7 @@ _None_
 | [req_054_keep_cdx_terminal_titles_stable_while_claude_is_working](request/req_054_keep_cdx_terminal_titles_stable_while_claude_is_working.md) | Keep cdx terminal titles stable while Claude is working | Done |  |  | request/req_054_keep_cdx_terminal_titles_stable_while_claude_is_working.md |
 | [req_055_land_and_release_the_stable_claude_terminal_title_change](request/req_055_land_and_release_the_stable_claude_terminal_title_change.md) | Land and release the stable Claude terminal-title change | Draft |  |  | request/req_055_land_and_release_the_stable_claude_terminal_title_change.md |
 | [req_054_group_tray_alerts_by_session_and_make_logics_actions_reliably_open_the_viewer](request/req_054_group_tray_alerts_by_session_and_make_logics_actions_reliably_open_the_viewer.md) | Group tray alerts by session and make Logics actions reliably open the viewer | Draft |  |  | request/req_054_group_tray_alerts_by_session_and_make_logics_actions_reliably_open_the_viewer.md |
+| [req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe](request/req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe.md) | Make interactive launch-directory selection writable and cancellation-safe | Draft |  |  | request/req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe.md |
 
 ## Backlog
 
@@ -241,8 +243,10 @@ _None_
 | [item_106_make_the_notification_banner_act_like_the_alert_row_on_macos](backlog/item_106_make_the_notification_banner_act_like_the_alert_row_on_macos.md) | Make the notification banner act like the alert row on macOS | Ready |  | 0% | backlog/item_106_make_the_notification_banner_act_like_the_alert_row_on_macos.md |
 | [item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions](backlog/item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions.md) | Disable Claude's competing terminal-title writes for cdx sessions | Done |  | 100% | backlog/item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions.md |
 | [item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request](backlog/item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request.md) | Prepare the Claude terminal-title fix for a gated pull request | Ready |  | 0% | backlog/item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request.md |
-| [item_107_group_unread_tray_alerts_by_their_originating_session](backlog/item_107_group_unread_tray_alerts_by_their_originating_session.md) | Group unread tray alerts by their originating session | Ready |  | 0% | backlog/item_107_group_unread_tray_alerts_by_their_originating_session.md |
-| [item_108_launch_the_correct_logics_fleet_or_project_viewer_from_tray_actions](backlog/item_108_launch_the_correct_logics_fleet_or_project_viewer_from_tray_actions.md) | Launch the correct Logics Fleet or project viewer from tray actions | Ready |  | 0% | backlog/item_108_launch_the_correct_logics_fleet_or_project_viewer_from_tray_actions.md |
+| [item_107_group_unread_tray_alerts_by_their_originating_session](backlog/item_107_group_unread_tray_alerts_by_their_originating_session.md) | Group unread tray alerts by their originating session | In progress |  | 10% | backlog/item_107_group_unread_tray_alerts_by_their_originating_session.md |
+| [item_108_launch_the_correct_logics_fleet_or_project_viewer_from_tray_actions](backlog/item_108_launch_the_correct_logics_fleet_or_project_viewer_from_tray_actions.md) | Launch the correct Logics Fleet or project viewer from tray actions | In progress |  | 10% | backlog/item_108_launch_the_correct_logics_fleet_or_project_viewer_from_tray_actions.md |
+| [item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt](backlog/item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt.md) | Add a validated Other path to the interactive launch-directory prompt | Ready |  | 0% | backlog/item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt.md |
+| [item_110_make_interactive_launch_directory_cancellation_a_clean_no_op](backlog/item_110_make_interactive_launch_directory_cancellation_a_clean_no_op.md) | Make interactive launch-directory cancellation a clean no-op | Ready |  | 0% | backlog/item_110_make_interactive_launch_directory_cancellation_a_clean_no_op.md |
 
 ## Tasks
 
@@ -317,7 +321,8 @@ _None_
 | [task_064_deliver_alerts_that_lead_back_to_their_terminal](tasks/task_064_deliver_alerts_that_lead_back_to_their_terminal.md) | Deliver alerts that lead back to their terminal | Ready |  | 0% | tasks/task_064_deliver_alerts_that_lead_back_to_their_terminal.md |
 | [task_065_keep_the_cdx_title_stable_during_interactive_claude_actions](tasks/task_065_keep_the_cdx_title_stable_during_interactive_claude_actions.md) | Keep the cdx title stable during interactive Claude actions | Done |  | 100% | tasks/task_065_keep_the_cdx_title_stable_during_interactive_claude_actions.md |
 | [task_066_create_a_validated_branch_and_pr_for_the_claude_title_release](tasks/task_066_create_a_validated_branch_and_pr_for_the_claude_title_release.md) | Create a validated branch and PR for the Claude title release | Ready |  | 0% | tasks/task_066_create_a_validated_branch_and_pr_for_the_claude_title_release.md |
-| [task_065_orchestrate_grouped_tray_alerts_and_reliable_logics_viewer_actions](tasks/task_065_orchestrate_grouped_tray_alerts_and_reliable_logics_viewer_actions.md) | Orchestrate grouped tray alerts and reliable Logics viewer actions | Ready |  | 0% | tasks/task_065_orchestrate_grouped_tray_alerts_and_reliable_logics_viewer_actions.md |
+| [task_065_orchestrate_grouped_tray_alerts_and_reliable_logics_viewer_actions](tasks/task_065_orchestrate_grouped_tray_alerts_and_reliable_logics_viewer_actions.md) | Orchestrate grouped tray alerts and reliable Logics viewer actions | In progress | Codex | 0% | tasks/task_065_orchestrate_grouped_tray_alerts_and_reliable_logics_viewer_actions.md |
+| [task_066_orchestrate_writable_and_cancellable_launch_directory_selection](tasks/task_066_orchestrate_writable_and_cancellable_launch_directory_selection.md) | Orchestrate writable and cancellable launch-directory selection | Ready |  | 0% | tasks/task_066_orchestrate_writable_and_cancellable_launch_directory_selection.md |
 
 ## Runbooks
 

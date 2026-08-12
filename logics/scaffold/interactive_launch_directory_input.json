@@ -1,0 +1,103 @@
+{
+  "title": "Make interactive launch-directory selection writable and cancellation-safe",
+  "references": [
+    "src/commands/launch.py",
+    "src/cli.py",
+    "test/test_commands_launch_py.py"
+  ],
+  "request": {
+    "complexity": "Low",
+    "theme": "CLI usability",
+    "needs": [
+      "When CDX offers recently used launch directories, an operator can only choose a displayed number. They need one explicit Other option to enter a valid directory that is not already listed.",
+      "Pressing Ctrl-C at the interactive directory prompt currently raises KeyboardInterrupt through the top-level CLI and prints a Python traceback. Cancelling a choice must leave no launch, no saved state change, and no traceback."
+    ],
+    "context": [
+      "_launch_directory in src/commands/launch.py builds the numbered recent-directory menu before any provider process is started. The change belongs at that boundary, not in each launch caller.",
+      "The typed directory must use the same realpath and is-directory validation as an explicit directory argument. An empty typed path returns to the menu rather than silently choosing an unrelated directory.",
+      "Cancellation is a normal interactive outcome. CDX should print one concise cancellation line and exit with the conventional interrupted status without persisting a launch directory or emitting a stack trace."
+    ],
+    "acceptance_criteria": [
+      "AC1: The interactive launch-directory menu includes one clearly labelled Other option that prompts for a path; a valid entered directory is normalized and becomes the launch directory.",
+      "AC2: An invalid, unreadable, or non-directory Other path reports a concise validation message and re-prompts without launching a provider or changing durable session state.",
+      "AC3: Ctrl-C at either the choice prompt or the Other-path prompt exits cleanly with no Python traceback, no provider launch, and no session or directory mutation.",
+      "AC4: Existing numbered choices, the default current directory, explicit --dir behavior, JSON/non-interactive behavior, and recent-directory ordering remain unchanged.",
+      "AC5: Focused command tests cover valid Other input, invalid retry, cancellation at both prompts, and unchanged legacy selection behavior; project and Logics validation pass."
+    ]
+  },
+  "product": {
+    "title": "Recoverable interactive CDX launch choices",
+    "overview": "Let an interactive CDX operator choose an unlisted launch directory or cancel the prompt cleanly, without turning the selector into a second configuration system.",
+    "goals": [
+      "Make any valid local launch directory reachable from the existing prompt.",
+      "Treat cancellation as a normal no-op rather than an exception traceback.",
+      "Reuse the current explicit-directory validation and launch flow."
+    ],
+    "non_goals": [
+      "No directory browser, filesystem scan, persisted favourites, shell expansion beyond existing path normalization, or changes to non-interactive commands.",
+      "No provider launch, session mutation, or recent-directory write after cancellation or invalid input."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Add a validated Other path to the interactive launch-directory prompt",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "CLI usability",
+      "request_acs": ["AC1", "AC2", "AC4", "AC5"],
+      "problem": [
+        "The current selector lists recent paths but cannot reach a valid directory outside that bounded list.",
+        "Ad-hoc validation would drift from the explicit launch-directory path."
+      ],
+      "scope_in": [
+        "Add one Other menu option and a path prompt to _launch_directory.",
+        "Reuse realpath and is-directory validation, with a concise retry message for invalid input.",
+        "Add focused command tests for valid Other input, invalid retry, and preserved numeric/default choices."
+      ],
+      "scope_out": [
+        "A directory picker, recursive discovery, persistent favourites, or a changed command-line directory contract."
+      ],
+      "acceptance_criteria": [
+        "AC1: Other accepts a valid directory and returns its normalized path to the existing launch flow.",
+        "AC2: Invalid paths retry safely and do not launch a provider.",
+        "AC3: Numbered, default, explicit, JSON, and non-interactive paths retain their current behavior."
+      ]
+    },
+    {
+      "title": "Make interactive launch-directory cancellation a clean no-op",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "CLI reliability",
+      "request_acs": ["AC3", "AC4", "AC5"],
+      "problem": [
+        "KeyboardInterrupt from the prompt reaches the Python entry point, exposing an implementation traceback for an ordinary cancelled choice."
+      ],
+      "scope_in": [
+        "Handle interruption at the directory-selection boundary and return the conventional interrupted outcome without entering provider launch logic.",
+        "Cover cancellation at both choice prompts and assert no launch or state mutation."
+      ],
+      "scope_out": [
+        "Changing cancellation semantics for unrelated commands, swallowing other errors, or converting a cancellation into a default directory launch."
+      ],
+      "acceptance_criteria": [
+        "AC1: Ctrl-C at either interactive directory prompt prints concise cancellation output with no traceback.",
+        "AC2: Cancellation starts no provider and writes no session or directory state.",
+        "AC3: Other CLI exceptions retain their existing error handling."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate writable and cancellable launch-directory selection",
+    "plan": [
+      "Reproduce the interactive menu from a terminal and pin the current selection and Ctrl-C behavior with focused command tests.",
+      "Add the smallest Other-path loop using existing normalization and validation, preserving every non-interactive path.",
+      "Handle interruption only at the interactive selection boundary, prove no launch or mutation follows it, and run project validation.",
+      "Update Logics indicators and record validation evidence before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/interactive_launch_directory_input.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}
