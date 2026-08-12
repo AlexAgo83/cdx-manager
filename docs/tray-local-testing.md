@@ -91,6 +91,18 @@ cdx tray launch                      # stops whatever is running, starts the ins
 cdx tray doctor                      # confirms which one is running, and against which CDX
 ```
 
+For the repeatable local cycle, use the checkout helper instead. It builds and
+verifies the development bundle, then restores the recorded installed companion
+without replacing it:
+
+```bash
+./scripts/tray-dev.sh load
+./scripts/tray-dev.sh unload
+```
+
+See `logics/runbook/run_003_load_and_unload_the_local_macos_tray_companion.md`
+for prerequisites, verification, and rollback.
+
 `--dev` is signed ad-hoc, so **its identity changes at every rebuild**. Two
 consequences: macOS forgets the notification authorization each time, and the
 banner loses the app's own icon. Anything about notification *appearance* has to
