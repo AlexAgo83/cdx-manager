@@ -1,7 +1,7 @@
 ## task_066_orchestrate_writable_and_cancellable_launch_directory_selection - Orchestrate writable and cancellable launch-directory selection
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
 > Progress: 0%
@@ -9,6 +9,7 @@
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 > Indicators reviewed: 2026-08-13 01:01:31
+> Owner: Codex
 
 # AI Context
 - Summary: Deliver one shared selector repair: manual Other input with existing validation, plus clean cancellation before a provider can start.

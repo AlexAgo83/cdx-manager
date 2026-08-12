@@ -1,10 +1,10 @@
 ## item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt - Add a validated Other path to the interactive launch-directory prompt
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Low
 > Theme: CLI usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

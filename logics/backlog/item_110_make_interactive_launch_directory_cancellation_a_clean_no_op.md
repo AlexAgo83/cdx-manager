@@ -1,10 +1,10 @@
 ## item_110_make_interactive_launch_directory_cancellation_a_clean_no_op - Make interactive launch-directory cancellation a clean no-op
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Low
 > Theme: CLI reliability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
