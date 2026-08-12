@@ -4,7 +4,7 @@
 
 <br clear="left"/>
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.18.6-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.18.7-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
 **Stop guessing which AI account still has quota.** `cdx` tracks the rate-limit window of every Codex and Claude account you own, tells you which one is usable right now, and launches it with isolated auth — in one command.
 
@@ -465,6 +465,8 @@ cdx model provider:ollama default
 Interactive launches and resumes set the terminal window title to `session — folder`, where `folder` is the basename of the launch directory - for example `work — cdx-manager`. The convention is identical for Claude, Codex, and Antigravity: it comes from the shared launch runtime, not from provider flags, and cdx keeps re-asserting it so a provider TUI cannot take the title back mid-session.
 
 The title is only written when stdout is a terminal. Nothing is emitted for `--json` launches, redirected or piped output, `cdx run` and other headless runs, login flows, or Ollama sessions. Session names and directories are stripped of escape and control characters before the title is emitted, and cdx does not restore the previous title when the session ends.
+
+Claude Code writes its own animated title while an action runs, and it redraws far more often than cdx re-asserts the shared title. So interactive Claude launches and resumes started by cdx set the Claude-specific `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` in the provider environment, which stops Claude from setting and clearing the title and leaves `session — folder` stable while Claude is busy. Claude's in-TUI activity indicator is unaffected, the value is forced so an ambient setting in your shell cannot hand the title back, and headless `cdx run`, Claude authentication flows, and every non-Claude provider keep their previous environment.
 
 ### Launch History
 

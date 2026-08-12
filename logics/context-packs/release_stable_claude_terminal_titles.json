@@ -1,0 +1,338 @@
+{
+  "budgets": {
+    "max_docs": 12,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_055_land_and_release_the_stable_claude_terminal_title_change item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request task_066_create_a_validated_branch_and_pr_for_the_claude_title_release --mode full --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request"
+        ],
+        "prod": [
+          "prod_042_reviewable_release_preparation_for_stable_claude_titles"
+        ],
+        "req": [
+          "req_055_land_and_release_the_stable_claude_terminal_title_change"
+        ],
+        "task": [
+          "task_066_create_a_validated_branch_and_pr_for_the_claude_title_release"
+        ]
+      },
+      "path": "logics/product/prod_042_reviewable_release_preparation_for_stable_claude_titles.md",
+      "ref": "prod_042_reviewable_release_preparation_for_stable_claude_titles",
+      "sections": {
+        "Goals": [
+          "- Preserve a small, auditable change set for the terminal-title fix.",
+          "- Make the version bump and release note internally consistent before review.",
+          "- Treat successful CI as a hard gate before opening the pull request."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "The completed Claude terminal-title fix is isolated in a validated, version-prepared branch and proposed through a PR after CI confirms it."
+        ],
+        "References": [
+          "- Product back-reference: `req_055_land_and_release_the_stable_claude_terminal_title_change`",
+          "- Task back-reference: `task_066_create_a_validated_branch_and_pr_for_the_claude_title_release`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Reviewable release preparation for stable Claude titles"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "land, release, stable, claude, terminal, title, change",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request"
+        ],
+        "prod": [
+          "prod_042_reviewable_release_preparation_for_stable_claude_titles"
+        ],
+        "req": [
+          "req_055_land_and_release_the_stable_claude_terminal_title_change"
+        ]
+      },
+      "path": "logics/request/req_055_land_and_release_the_stable_claude_terminal_title_change.md",
+      "ref": "req_055_land_and_release_the_stable_claude_terminal_title_change",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A new feature branch rooted at the verified main commit contains the existing implementation and its Logics documentation, with unrelated work excluded.",
+          "- AC2: The implementation commit is reviewable, uses the project conventions, and records no unvalidated or unintended files.",
+          "- AC3: The selected next semantic version is deliberate, consistent across every required source, documented in release notes, and passes `npm run release:validate`.",
+          "- AC4: Before push, the branch passes the relevant focused tests, full lint, full test suite, Logics lint, and a final diff/status review.",
+          "- AC5: The branch is pushed to the intended remote only after local gates pass; the matching CI run completes successfully before a PR is created.",
+          "- AC6: The PR targets the intended base branch, describes the Claude-specific terminal-title fix and validation evidence, and excludes release publication or tagging."
+        ],
+        "Needs": [
+          "- Move the completed Claude terminal-title fix off main into a reviewable feature branch without losing the existing uncommitted implementation or its linked Logics corpus.",
+          "- Prepare a consistent next release version and release notes for the user-visible fix.",
+          "- Push only a clean, validated branch, wait for the branch CI conclusion, and create a pull request only when CI is successful."
+        ]
+      },
+      "status": "Draft",
+      "title": "Land and release the stable Claude terminal-title change"
+    },
+    {
+      "ai_context": {
+        "keywords": "prepare, claude, terminal, title, fix, gated, pull, request",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request"
+        ],
+        "prod": [
+          "prod_042_reviewable_release_preparation_for_stable_claude_titles"
+        ],
+        "req": [
+          "req_055_land_and_release_the_stable_claude_terminal_title_change"
+        ],
+        "task": [
+          "task_066_create_a_validated_branch_and_pr_for_the_claude_title_release"
+        ]
+      },
+      "path": "logics/backlog/item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request.md",
+      "ref": "item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: The task records the exact base SHA, branch name, remote, and selected files before branch creation and commit.",
+          "- AC2: The implementation commit contains the Claude-only environment change, regression tests, README adjustment, and their linked Logics records, with no unrelated diff.",
+          "- AC3: The release-preparation commit uses the selected semver version consistently in package.json, pyproject.toml, VERSION, CLI-reported version, README badge, and the repository's release note surface.",
+          "- AC4: `npm run release:validate`, `npm run lint`, `npm test`, and `logics-manager lint --require-status` all pass on the exact commit that will be pushed.",
+          "- AC5: The pushed branch's CI run for that commit completes with success; a failed, cancelled, stale, or branch-mismatched run blocks PR creation.",
+          "- AC6: The created PR targets main, links the delivery task where appropriate, states that Claude title writes are disabled only for cdx-managed sessions, and includes the passed validation commands."
+        ],
+        "Problem": [
+          "- The completed change currently resides as uncommitted work on main, which is not reviewable or safely pushable as-is.",
+          "- A release-facing user fix needs an intentional version decision and aligned metadata before it enters review.",
+          "- Opening a PR before the multi-platform CI result would make an unvalidated state externally visible."
+        ]
+      },
+      "status": "Ready",
+      "title": "Prepare the Claude terminal-title fix for a gated pull request"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request"
+        ],
+        "prod": [
+          "prod_042_reviewable_release_preparation_for_stable_claude_titles"
+        ],
+        "req": [
+          "req_055_land_and_release_the_stable_claude_terminal_title_change"
+        ],
+        "task": [
+          "task_066_create_a_validated_branch_and_pr_for_the_claude_title_release"
+        ]
+      },
+      "path": "logics/product/prod_042_reviewable_release_preparation_for_stable_claude_titles.md",
+      "ref": "prod_042_reviewable_release_preparation_for_stable_claude_titles",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Reviewable release preparation for stable Claude titles"
+    },
+    {
+      "ai_context": {
+        "keywords": "create, validated, branch, claude, title, release",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request"
+        ],
+        "prod": [
+          "prod_042_reviewable_release_preparation_for_stable_claude_titles"
+        ],
+        "req": [
+          "req_055_land_and_release_the_stable_claude_terminal_title_change"
+        ],
+        "task": [
+          "task_066_create_a_validated_branch_and_pr_for_the_claude_title_release"
+        ]
+      },
+      "path": "logics/tasks/task_066_create_a_validated_branch_and_pr_for_the_claude_title_release.md",
+      "ref": "task_066_create_a_validated_branch_and_pr_for_the_claude_title_release",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Create a validated branch and PR for the Claude title release"
+    }
+  ],
+  "estimates": {
+    "char_count": 7685,
+    "companion_doc_count": 1,
+    "doc_count": 4
+  },
+  "generated_at": "2026-08-12T20:38:56Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_055_land_and_release_the_stable_claude_terminal_title_change",
+      "item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request",
+      "task_066_create_a_validated_branch_and_pr_for_the_claude_title_release"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "full",
+  "profile": "normal",
+  "ref": "req_055_land_and_release_the_stable_claude_terminal_title_change,item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request,task_066_create_a_validated_branch_and_pr_for_the_claude_title_release",
+  "refs": [
+    "req_055_land_and_release_the_stable_claude_terminal_title_change",
+    "item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request",
+    "task_066_create_a_validated_branch_and_pr_for_the_claude_title_release"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: missing required evidence",
+      "changelog: missing required evidence",
+      "release_checksums: missing required evidence",
+      "local_validation: missing required evidence",
+      "git_push: missing required evidence",
+      "ci: missing required evidence",
+      "github_release: missing required evidence",
+      "npm_publication: missing required evidence",
+      "pypi_publication: missing required evidence"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: missing required evidence",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "preparing",
+    "target_version": "0.18.6"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_066_create_a_validated_branch_and_pr_for_the_claude_title_release.md",
+      "ref": "task_066_create_a_validated_branch_and_pr_for_the_claude_title_release"
+    }
+  ]
+}
