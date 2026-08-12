@@ -1,0 +1,424 @@
+{
+  "budgets": {
+    "max_docs": 20,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_053_bring_back_the_terminal_an_alert_came_from item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray item_105_focus_the_originating_terminal_from_a_tray_alert_row item_106_make_the_notification_banner_act_like_the_alert_row_on_macos task_064_deliver_alerts_that_lead_back_to_their_terminal --mode full --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray",
+          "item_105_focus_the_originating_terminal_from_a_tray_alert_row",
+          "item_106_make_the_notification_banner_act_like_the_alert_row_on_macos"
+        ],
+        "prod": [
+          "prod_040_alerts_that_lead_back_to_their_terminal"
+        ],
+        "req": [
+          "req_053_bring_back_the_terminal_an_alert_came_from"
+        ],
+        "task": [
+          "task_064_deliver_alerts_that_lead_back_to_their_terminal"
+        ]
+      },
+      "path": "logics/product/prod_040_alerts_that_lead_back_to_their_terminal.md",
+      "ref": "prod_040_alerts_that_lead_back_to_their_terminal",
+      "sections": {
+        "Goals": [
+          "- Close the loop between an alert and the session it is about.",
+          "- Cover the terminals and platforms where a documented mechanism exists, and say so honestly where none does.",
+          "- Keep a stale target harmless: nothing visible rather than the wrong window."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "An agent alert knows which terminal produced it, and acting on the alert returns the operator to that window."
+        ],
+        "References": [
+          "- Product back-reference: `req_053_bring_back_the_terminal_an_alert_came_from`",
+          "- Task back-reference: `task_064_deliver_alerts_that_lead_back_to_their_terminal`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Alerts that lead back to their terminal"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "bring, back, terminal, alert, came",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray",
+          "item_105_focus_the_originating_terminal_from_a_tray_alert_row",
+          "item_106_make_the_notification_banner_act_like_the_alert_row_on_macos"
+        ],
+        "prod": [
+          "prod_040_alerts_that_lead_back_to_their_terminal"
+        ],
+        "req": [
+          "req_053_bring_back_the_terminal_an_alert_came_from"
+        ]
+      },
+      "path": "logics/request/req_053_bring_back_the_terminal_an_alert_came_from.md",
+      "ref": "req_053_bring_back_the_terminal_an_alert_came_from",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A hook records which terminal its session runs in, from the environment, and the alert carries that identity to the tray.",
+          "- AC2: Clicking a tray alert row focuses the terminal session the alert came from, on a platform and terminal where a documented mechanism exists.",
+          "- AC3: An alert whose target no longer exists does nothing visible when clicked, and never focuses a different window.",
+          "- AC4: An alert with no usable identity, or on a platform with no mechanism, renders its focus action as unavailable with the reason rather than silently doing nothing.",
+          "- AC5: Where the platform permits it, clicking the notification banner does what clicking the tray row does.",
+          "- AC6: The identity crossing into the spool is named metadata only, documented in structured_details alongside what still may not cross."
+        ],
+        "Needs": [
+          "- Return to the terminal an agent alert came from by clicking the alert, instead of hunting for the window among many open sessions.",
+          "- Get the same behaviour from the notification banner where the platform allows it.",
+          "- Never be sent to the wrong window when the original one is gone."
+        ]
+      },
+      "status": "Draft",
+      "title": "Bring back the terminal an alert came from"
+    },
+    {
+      "ai_context": {
+        "keywords": "record, terminal, hook, fired, carry, tray",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray"
+        ],
+        "prod": [
+          "prod_040_alerts_that_lead_back_to_their_terminal"
+        ],
+        "req": [
+          "req_053_bring_back_the_terminal_an_alert_came_from"
+        ],
+        "task": [
+          "task_064_deliver_alerts_that_lead_back_to_their_terminal"
+        ]
+      },
+      "path": "logics/backlog/item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray.md",
+      "ref": "item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: The hook derives a terminal program and a session identifier from its inherited environment, with an absent variable yielding no field rather than a guess.",
+          "- AC2: The values pass the existing sanitisation and length limits before entering the alert.",
+          "- AC3: structured_details documents the added fields and why they are metadata rather than content, in the same terms as what it already refuses.",
+          "- AC4: The alert carries the fields to the spool and a companion that predates them is unaffected.",
+          "- AC5: Notification tests cover a session with an identity, one without, and one whose variables hold unusable values."
+        ],
+        "Problem": [
+          "- The alert names the session and the project but nothing about where that session is displayed.",
+          "- The obvious source is unavailable: a hook has no tty on any descriptor.",
+          "- structured_details deliberately enumerates what may cross into the spool, so an addition has to be argued rather than appended."
+        ]
+      },
+      "status": "Ready",
+      "title": "Record which terminal a hook fired from, and carry it to the tray"
+    },
+    {
+      "ai_context": {
+        "keywords": "focus, originating, terminal, tray, alert, row",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_105_focus_the_originating_terminal_from_a_tray_alert_row"
+        ],
+        "prod": [
+          "prod_040_alerts_that_lead_back_to_their_terminal"
+        ],
+        "req": [
+          "req_053_bring_back_the_terminal_an_alert_came_from"
+        ],
+        "task": [
+          "task_064_deliver_alerts_that_lead_back_to_their_terminal"
+        ]
+      },
+      "path": "logics/backlog/item_105_focus_the_originating_terminal_from_a_tray_alert_row.md",
+      "ref": "item_105_focus_the_originating_terminal_from_a_tray_alert_row",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: An alert carrying an iTerm2 identity focuses that session and brings the application forward when its row is activated.",
+          "- AC2: A stale, unknown or unmatchable identity results in no visible change, and never focuses another window.",
+          "- AC3: An alert with no identity, or on a platform with no mechanism, draws the action disabled with a reason the operator can read.",
+          "- AC4: Terminal.app is either supported or documented as unsupported with the evidence, not left unstated.",
+          "- AC5: Menu tests cover the available, unavailable and stale renderings, and the macOS focus path is exercised by the smoke script rather than asserted.",
+          "- AC6: Any macOS authorization the mechanism requires is documented, including what an operator sees the first time."
+        ],
+        "Problem": [
+          "- The operator reads which session needs them and then has to find its window among many.",
+          "- No focus mechanism is universal: each terminal, and each platform, offers a different one or none at all.",
+          "- An action that silently does nothing is indistinguishable from a broken build."
+        ]
+      },
+      "status": "Ready",
+      "title": "Focus the originating terminal from a tray alert row"
+    },
+    {
+      "ai_context": {
+        "keywords": "notification, banner, act, like, alert, row, macos",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_106_make_the_notification_banner_act_like_the_alert_row_on_macos"
+        ],
+        "prod": [
+          "prod_040_alerts_that_lead_back_to_their_terminal"
+        ],
+        "req": [
+          "req_053_bring_back_the_terminal_an_alert_came_from"
+        ],
+        "task": [
+          "task_064_deliver_alerts_that_lead_back_to_their_terminal"
+        ]
+      },
+      "path": "logics/backlog/item_106_make_the_notification_banner_act_like_the_alert_row_on_macos.md",
+      "ref": "item_106_make_the_notification_banner_act_like_the_alert_row_on_macos",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Clicking a delivered banner on macOS focuses the same terminal the alert row would.",
+          "- AC2: The delegate is in place before any notification is delivered, so the first alert of a run is clickable like the rest.",
+          "- AC3: A banner raised through the fallback path is delivered as before, and its inability to be activated is documented rather than silently accepted.",
+          "- AC4: A click whose target has gone does nothing visible, matching the row's behaviour exactly.",
+          "- AC5: Tray tests cover the delegate wiring and the shared resolution path."
+        ],
+        "Problem": [
+          "- The banner is what the operator sees first, and clicking it does nothing at all today.",
+          "- The companion sets no notification delegate, so click responses are never received.",
+          "- The osascript fallback path cannot be activated, and neither can the Windows toast the current implementation raises."
+        ]
+      },
+      "status": "Ready",
+      "title": "Make the notification banner act like the alert row on macOS"
+    },
+    {
+      "ai_context": {
+        "keywords": "deliver, alerts, lead, back, terminal",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray",
+          "item_105_focus_the_originating_terminal_from_a_tray_alert_row",
+          "item_106_make_the_notification_banner_act_like_the_alert_row_on_macos"
+        ],
+        "prod": [
+          "prod_040_alerts_that_lead_back_to_their_terminal"
+        ],
+        "req": [
+          "req_053_bring_back_the_terminal_an_alert_came_from"
+        ],
+        "task": [
+          "task_064_deliver_alerts_that_lead_back_to_their_terminal"
+        ]
+      },
+      "path": "logics/tasks/task_064_deliver_alerts_that_lead_back_to_their_terminal.md",
+      "ref": "task_064_deliver_alerts_that_lead_back_to_their_terminal",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Deliver alerts that lead back to their terminal"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray",
+          "item_105_focus_the_originating_terminal_from_a_tray_alert_row",
+          "item_106_make_the_notification_banner_act_like_the_alert_row_on_macos"
+        ],
+        "prod": [
+          "prod_040_alerts_that_lead_back_to_their_terminal"
+        ],
+        "req": [
+          "req_053_bring_back_the_terminal_an_alert_came_from"
+        ],
+        "task": [
+          "task_064_deliver_alerts_that_lead_back_to_their_terminal"
+        ]
+      },
+      "path": "logics/product/prod_040_alerts_that_lead_back_to_their_terminal.md",
+      "ref": "prod_040_alerts_that_lead_back_to_their_terminal",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Alerts that lead back to their terminal"
+    }
+  ],
+  "estimates": {
+    "char_count": 10902,
+    "companion_doc_count": 1,
+    "doc_count": 6
+  },
+  "generated_at": "2026-08-12T07:12:21Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_053_bring_back_the_terminal_an_alert_came_from",
+      "item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray",
+      "item_105_focus_the_originating_terminal_from_a_tray_alert_row",
+      "item_106_make_the_notification_banner_act_like_the_alert_row_on_macos",
+      "task_064_deliver_alerts_that_lead_back_to_their_terminal"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "full",
+  "profile": "normal",
+  "ref": "req_053_bring_back_the_terminal_an_alert_came_from,item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray,item_105_focus_the_originating_terminal_from_a_tray_alert_row,item_106_make_the_notification_banner_act_like_the_alert_row_on_macos,task_064_deliver_alerts_that_lead_back_to_their_terminal",
+  "refs": [
+    "req_053_bring_back_the_terminal_an_alert_came_from",
+    "item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray",
+    "item_105_focus_the_originating_terminal_from_a_tray_alert_row",
+    "item_106_make_the_notification_banner_act_like_the_alert_row_on_macos",
+    "task_064_deliver_alerts_that_lead_back_to_their_terminal"
+  ],
+  "release": {
+    "blocking_reasons": [],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Release evidence is complete.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": null,
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "ready",
+    "target_version": "0.18.6"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_064_deliver_alerts_that_lead_back_to_their_terminal.md",
+      "ref": "task_064_deliver_alerts_that_lead_back_to_their_terminal"
+    }
+  ]
+}

@@ -57,6 +57,7 @@
 | [prod_037_commands_that_name_what_they_are_about_to_touch](product/prod_037_commands_that_name_what_they_are_about_to_touch.md) | Commands that name what they are about to touch | Settled |  |  | product/prod_037_commands_that_name_what_they_are_about_to_touch.md |
 | [prod_038_sessions_that_know_what_they_are_working_on](product/prod_038_sessions_that_know_what_they_are_working_on.md) | Sessions that know what they are working on | Settled |  |  | product/prod_038_sessions_that_know_what_they_are_working_on.md |
 | [prod_039_a_tray_whose_terminal_preference_is_discoverable_and_honest](product/prod_039_a_tray_whose_terminal_preference_is_discoverable_and_honest.md) | A tray whose terminal preference is discoverable and honest | Proposed |  |  | product/prod_039_a_tray_whose_terminal_preference_is_discoverable_and_honest.md |
+| [prod_040_alerts_that_lead_back_to_their_terminal](product/prod_040_alerts_that_lead_back_to_their_terminal.md) | Alerts that lead back to their terminal | Proposed |  |  | product/prod_040_alerts_that_lead_back_to_their_terminal.md |
 
 ## Roadmaps
 
@@ -119,6 +120,7 @@ _None_
 | [req_050_say_which_installation_and_which_home_a_command_is_acting_on](request/req_050_say_which_installation_and_which_home_a_command_is_acting_on.md) | Say which installation and which home a command is acting on | Done |  |  | request/req_050_say_which_installation_and_which_home_a_command_is_acting_on.md |
 | [req_051_launch_a_session_in_the_directory_it_belongs_to](request/req_051_launch_a_session_in_the_directory_it_belongs_to.md) | Know and choose where a session is being launched | Done |  |  | request/req_051_launch_a_session_in_the_directory_it_belongs_to.md |
 | [req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform](request/req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform.md) | Let the operator choose the tray's target terminal on every platform | Draft |  |  | request/req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform.md |
+| [req_053_bring_back_the_terminal_an_alert_came_from](request/req_053_bring_back_the_terminal_an_alert_came_from.md) | Bring back the terminal an alert came from | Draft |  |  | request/req_053_bring_back_the_terminal_an_alert_came_from.md |
 
 ## Backlog
 
@@ -228,6 +230,9 @@ _None_
 | [item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates](backlog/item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates.md) | Declare the launchable terminals in CDX and publish the candidates | Ready |  | 0% | backlog/item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates.md |
 | [item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue](backlog/item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue.md) | Honour PowerShell, pwsh and cmd on Windows, and prove the branches match the catalogue | Ready |  | 0% | backlog/item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue.md |
 | [item_103_offer_the_terminal_choice_as_a_tray_submenu](backlog/item_103_offer_the_terminal_choice_as_a_tray_submenu.md) | Offer the terminal choice as a tray submenu | Ready |  | 0% | backlog/item_103_offer_the_terminal_choice_as_a_tray_submenu.md |
+| [item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray](backlog/item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray.md) | Record which terminal a hook fired from, and carry it to the tray | Ready |  | 0% | backlog/item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray.md |
+| [item_105_focus_the_originating_terminal_from_a_tray_alert_row](backlog/item_105_focus_the_originating_terminal_from_a_tray_alert_row.md) | Focus the originating terminal from a tray alert row | Ready |  | 0% | backlog/item_105_focus_the_originating_terminal_from_a_tray_alert_row.md |
+| [item_106_make_the_notification_banner_act_like_the_alert_row_on_macos](backlog/item_106_make_the_notification_banner_act_like_the_alert_row_on_macos.md) | Make the notification banner act like the alert row on macOS | Ready |  | 0% | backlog/item_106_make_the_notification_banner_act_like_the_alert_row_on_macos.md |
 
 ## Tasks
 
@@ -299,6 +304,7 @@ _None_
 | [task_061_orchestrate_commands_that_name_what_they_touch](tasks/task_061_orchestrate_commands_that_name_what_they_touch.md) | Orchestrate commands that name what they touch | Done | Codex | 100% | tasks/task_061_orchestrate_commands_that_name_what_they_touch.md |
 | [task_062_orchestrate_the_per_session_working_directory](tasks/task_062_orchestrate_the_per_session_working_directory.md) | Orchestrate the per-session working directory | Done | Codex | 100% | tasks/task_062_orchestrate_the_per_session_working_directory.md |
 | [task_063_deliver_a_discoverable_and_honest_tray_terminal_choice](tasks/task_063_deliver_a_discoverable_and_honest_tray_terminal_choice.md) | Deliver a discoverable and honest tray terminal choice | Ready |  | 0% | tasks/task_063_deliver_a_discoverable_and_honest_tray_terminal_choice.md |
+| [task_064_deliver_alerts_that_lead_back_to_their_terminal](tasks/task_064_deliver_alerts_that_lead_back_to_their_terminal.md) | Deliver alerts that lead back to their terminal | Ready |  | 0% | tasks/task_064_deliver_alerts_that_lead_back_to_their_terminal.md |
 
 ## Runbooks
 
