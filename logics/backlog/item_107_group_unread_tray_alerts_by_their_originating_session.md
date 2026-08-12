@@ -1,10 +1,10 @@
 ## item_107_group_unread_tray_alerts_by_their_originating_session - Group unread tray alerts by their originating session
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 90%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Tray usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -57,3 +57,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_065_orchestrate_grouped_tray_alerts_and_reliable_logics_viewer_actions`
+
+# Notes
+- Task `task_065_orchestrate_grouped_tray_alerts_and_reliable_logics_viewer_actions` was finished via `logics-manager flow finish task` on 2026-08-13.

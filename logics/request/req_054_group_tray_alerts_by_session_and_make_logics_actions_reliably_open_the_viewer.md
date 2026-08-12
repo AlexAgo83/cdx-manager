@@ -1,7 +1,7 @@
 ## req_054_group_tray_alerts_by_session_and_make_logics_actions_reliably_open_the_viewer - Group tray alerts by session and make Logics actions reliably open the viewer
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium

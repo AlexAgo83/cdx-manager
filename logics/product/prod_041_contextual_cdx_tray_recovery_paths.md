@@ -1,8 +1,8 @@
 ## prod_041_contextual_cdx_tray_recovery_paths - Contextual CDX tray recovery paths
 > Date: 2026-08-13
-> Status: Proposed
+> Status: Settled
 > Related request: `req_054_group_tray_alerts_by_session_and_make_logics_actions_reliably_open_the_viewer`
-> Related backlog: `item_107_group_unread_tray_alerts_by_their_originating_session`, `item_108_launch_the_correct_logics_fleet_or_project_viewer_from_tray_actions`
+> Related backlog: `item_107_group_unread_tray_alerts_by_their_originating_session`
 > Related task: `task_065_orchestrate_grouped_tray_alerts_and_reliable_logics_viewer_actions`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
@@ -43,5 +43,5 @@ flowchart TD
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_054_group_tray_alerts_by_session_and_make_logics_actions_reliably_open_the_viewer`
+- Product back-reference: `item_107_group_unread_tray_alerts_by_their_originating_session`
 - Task back-reference: `task_065_orchestrate_grouped_tray_alerts_and_reliable_logics_viewer_actions`
