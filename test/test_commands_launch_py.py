@@ -28,11 +28,100 @@ from cli_test_support import (  # noqa: F401
 from src.cli import (
     main,
 )
+from src.commands.launch import _launch_directory
 from src.errors import CdxError
 from src.session_service import create_session_service
 
 
 class LaunchCommandTests(CliTestBase):
+
+    def test_launch_directory_other_uses_a_validated_path(self):
+        temp_dir = self.make_temp_dir()
+        recent = os.path.join(temp_dir, "recent")
+        target = os.path.join(temp_dir, "outside-recent")
+        os.makedirs(recent)
+        os.makedirs(target)
+        answers = iter(["3", target])
+        ctx = {
+            **self.make_io(),
+            "cwd": os.path.expanduser("~"),
+            "stdin_is_tty": True,
+            "options": {"input": lambda _prompt: next(answers)},
+            "service": {"get_launch_history": lambda *_args, **_kwargs: [{"cwd": recent}]},
+            "out": lambda _text: None,
+        }
+
+        self.assertEqual(_launch_directory({"name": "main"}, ctx, None, False), os.path.realpath(target))
+
+    def test_launch_directory_other_reprompts_after_invalid_path(self):
+        temp_dir = self.make_temp_dir()
+        recent = os.path.join(temp_dir, "recent")
+        target = os.path.join(temp_dir, "valid")
+        os.makedirs(recent)
+        os.makedirs(target)
+        answers = iter(["3", os.path.join(temp_dir, "missing"), target])
+        output = []
+        ctx = {
+            **self.make_io(),
+            "cwd": os.path.expanduser("~"),
+            "stdin_is_tty": True,
+            "options": {"input": lambda _prompt: next(answers)},
+            "service": {"get_launch_history": lambda *_args, **_kwargs: [{"cwd": recent}]},
+            "out": output.append,
+        }
+
+        self.assertEqual(_launch_directory({"name": "main"}, ctx, None, False), os.path.realpath(target))
+        self.assertIn("Invalid directory:", "".join(output))
+
+    def test_launch_directory_other_interrupt_is_a_clean_cancellation(self):
+        temp_dir = self.make_temp_dir()
+        recent = os.path.join(temp_dir, "recent")
+        os.makedirs(recent)
+
+        def interrupted_other(prompt):
+            if prompt.startswith("Directory ["):
+                return "3"
+            raise KeyboardInterrupt()
+
+        ctx = {
+            **self.make_io(),
+            "cwd": os.path.expanduser("~"),
+            "stdin_is_tty": True,
+            "options": {"input": interrupted_other},
+            "service": {"get_launch_history": lambda *_args, **_kwargs: [{"cwd": recent}]},
+            "out": lambda _text: None,
+        }
+
+        with self.assertRaisesRegex(CdxError, "Launch cancelled") as caught:
+            _launch_directory({"name": "main"}, ctx, None, False)
+        self.assertEqual(caught.exception.exit_code, 130)
+
+    def test_launch_directory_interrupt_is_a_clean_cancellation_before_session_mutates(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        self.assertEqual(main(["add", "main"], {
+            **self.make_io(), "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn, "spawn_sync": harness.spawn_sync,
+        }), 0)
+        service = create_session_service({"base_dir": temp_dir})
+        recent = os.path.join(temp_dir, "recent")
+        os.makedirs(recent)
+        service["record_launch_history"]("main", {"cwd": recent, "status": "success"})
+        before = service["get_session"]("main")
+        harness.calls.clear()
+
+        with self.assertRaisesRegex(CdxError, "Launch cancelled") as caught:
+            main(["main"], {
+                **self.make_io(), "env": {"CDX_HOME": temp_dir},
+                "cwd": os.path.expanduser("~"),
+                "input": lambda _prompt: (_ for _ in ()).throw(KeyboardInterrupt()),
+                "spawn": harness.spawn, "spawn_sync": harness.spawn_sync,
+            })
+
+        after = service["get_session"]("main")
+        self.assertEqual(caught.exception.exit_code, 130)
+        self.assertEqual(after, before)
+        self.assertEqual(harness.calls, [])
 
     def test_launch_directory_is_explicit_recorded_and_exposed_while_running(self):
         temp_dir = self.make_temp_dir()

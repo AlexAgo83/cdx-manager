@@ -66,14 +66,41 @@ def _launch_directory(session, ctx, explicit, json_flag):
     choices = recent + [cwd]
     if len(choices) == 1:
         return cwd
-    ctx["out"]("Choose launch directory:\n" + "".join(f"  {index + 1}. {path}\n" for index, path in enumerate(choices)))
-    answer = (ctx["options"].get("input") or input)(f"Directory [1-{len(choices)}] (default {len(choices)}): ").strip()
-    if not answer:
-        return cwd
-    try:
-        return choices[int(answer) - 1]
-    except (ValueError, IndexError):
-        raise CdxError("Launch cancelled: choose a listed directory.") from None
+    ask = ctx["options"].get("input") or input
+    other_index = len(choices) + 1
+    while True:
+        ctx["out"](
+            "Choose launch directory:\n"
+            + "".join(f"  {index + 1}. {path}\n" for index, path in enumerate(choices))
+            + f"  {other_index}. Other (enter a path)\n"
+        )
+        try:
+            answer = ask(f"Directory [1-{other_index}] (default {len(choices)}): ").strip()
+        except KeyboardInterrupt:
+            raise CdxError("Launch cancelled.", exit_code=130) from None
+        if not answer:
+            return cwd
+        try:
+            choice = int(answer)
+        except ValueError:
+            raise CdxError("Launch cancelled: choose a listed directory.") from None
+        if choice == other_index:
+            while True:
+                try:
+                    entered = ask("Directory path (blank to return): ").strip()
+                except KeyboardInterrupt:
+                    raise CdxError("Launch cancelled.", exit_code=130) from None
+                if not entered:
+                    break
+                directory = os.path.realpath(entered)
+                if os.path.isdir(directory):
+                    return directory
+                ctx["out"](f"Invalid directory: {entered}\n")
+            continue
+        try:
+            return choices[choice - 1]
+        except IndexError:
+            raise CdxError("Launch cancelled: choose a listed directory.") from None
 
 
 def _format_resume_capability(capability, use_color=False):
@@ -134,13 +161,19 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         json_flag = force_json
     warnings = _update_notice_warnings(ctx)
     _warn_if_session_already_running(command, ctx)
-    session = ctx["service"]["launch_session"](command)
+    session = ctx["service"]["get_session"](command)
+    if not session:
+        raise CdxError(f"Unknown session: {command}")
+    if session.get("enabled", True) is False:
+        raise CdxError(f"Session is disabled: {command}")
     capability = _resume_capability_for_session(session, ctx) if resume else None
     if capability and not capability["resumable"]:
         raise CdxError(
             f"Provider {session['provider']} does not support native resume through cdx."
         )
     cwd = _launch_directory(session, ctx, directory, json_flag)
+    session = ctx["service"]["launch_session"](command)
+    capability = _resume_capability_for_session(session, ctx) if resume else None
     if not json_flag and not ctx["stdin_is_tty"]:
         ctx["out"](f"Using directory: {cwd}\n")
     _ensure_session_authentication(
