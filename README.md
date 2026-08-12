@@ -1047,6 +1047,10 @@ Without `--yes`, an interactive confirmation is required. `cdx` sends an idempot
 
 Contribution guidelines are available in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+Working on the tray companion? [`docs/tray-local-testing.md`](docs/tray-local-testing.md)
+covers the local loops, from rendering the menu to stdout to running a real icon
+in the menu bar.
+
 ---
 
 ## License
