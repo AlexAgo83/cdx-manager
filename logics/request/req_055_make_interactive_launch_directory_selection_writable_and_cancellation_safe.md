@@ -1,7 +1,7 @@
 ## req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe - Make interactive launch-directory selection writable and cancellation-safe
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Low

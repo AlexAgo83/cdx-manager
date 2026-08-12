@@ -1,10 +1,10 @@
 ## item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt - Add a validated Other path to the interactive launch-directory prompt
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 10%
+> Progress: 100%
 > Complexity: Low
 > Theme: CLI usability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -52,3 +52,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_066_orchestrate_writable_and_cancellable_launch_directory_selection`
+
+# Notes
+- Task `task_066_orchestrate_writable_and_cancellable_launch_directory_selection` was finished via `logics-manager flow finish task` on 2026-08-13.

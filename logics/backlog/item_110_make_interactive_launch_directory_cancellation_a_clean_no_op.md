@@ -1,10 +1,10 @@
 ## item_110_make_interactive_launch_directory_cancellation_a_clean_no_op - Make interactive launch-directory cancellation a clean no-op
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 10%
+> Progress: 100%
 > Complexity: Low
 > Theme: CLI reliability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -49,3 +49,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_066_orchestrate_writable_and_cancellable_launch_directory_selection`
+
+# Notes
+- Task `task_066_orchestrate_writable_and_cancellable_launch_directory_selection` was finished via `logics-manager flow finish task` on 2026-08-13.

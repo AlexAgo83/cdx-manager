@@ -1,8 +1,8 @@
 ## prod_042_recoverable_interactive_cdx_launch_choices - Recoverable interactive CDX launch choices
 > Date: 2026-08-13
-> Status: Proposed
+> Status: Settled
 > Related request: `req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe`
-> Related backlog: `item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt`, `item_110_make_interactive_launch_directory_cancellation_a_clean_no_op`
+> Related backlog: `item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt`
 > Related task: `task_066_orchestrate_writable_and_cancellable_launch_directory_selection`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
@@ -40,5 +40,5 @@ flowchart TD
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe`
+- Product back-reference: `item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt`
 - Task back-reference: `task_066_orchestrate_writable_and_cancellable_launch_directory_selection`
