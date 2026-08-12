@@ -1,0 +1,100 @@
+{
+  "title": "Land and release the stable Claude terminal-title change",
+  "references": [
+    "Current working tree contains the completed Claude terminal-title implementation in src/provider_runtime.py, README.md, and test/test_runtime_py.py.",
+    "Current branch is main at 6a85c27; the latest release tag is v0.18.6 and package.json plus pyproject.toml declare 0.18.6.",
+    "package.json defines npm run lint, npm test, and npm run release:validate; .github/workflows/ci.yml runs lint and tests on Ubuntu and Windows.",
+    "User delivery sequence: create a new branch, commit the completed change, prepare the release version before the release commit and push, then open a PR only after CI passes."
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "release-delivery",
+    "needs": [
+      "Move the completed Claude terminal-title fix off main into a reviewable feature branch without losing the existing uncommitted implementation or its linked Logics corpus.",
+      "Prepare a consistent next release version and release notes for the user-visible fix.",
+      "Push only a clean, validated branch, wait for the branch CI conclusion, and create a pull request only when CI is successful."
+    ],
+    "context": [
+      "The implementation uses Claude Code's `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` environment variable so cdx retains `session — folder` while Claude is busy, rather than racing title updates.",
+      "The repository version is duplicated in package.json, pyproject.toml, VERSION, the CLI-reported version, and the README version badge; release validation checks their alignment.",
+      "The checksum ledger intentionally has no required entry for an unreleased working-tree version, while an explicit released tag must have archive metadata.",
+      "Branch creation, commits, remote push, version selection, and PR creation alter shared history or external state and must be performed only in the delivery task after verifying the exact targets and gates."
+    ],
+    "acceptance_criteria": [
+      "AC1: A new feature branch rooted at the verified main commit contains the existing implementation and its Logics documentation, with unrelated work excluded.",
+      "AC2: The implementation commit is reviewable, uses the project conventions, and records no unvalidated or unintended files.",
+      "AC3: The selected next semantic version is deliberate, consistent across every required source, documented in release notes, and passes `npm run release:validate`.",
+      "AC4: Before push, the branch passes the relevant focused tests, full lint, full test suite, Logics lint, and a final diff/status review.",
+      "AC5: The branch is pushed to the intended remote only after local gates pass; the matching CI run completes successfully before a PR is created.",
+      "AC6: The PR targets the intended base branch, describes the Claude-specific terminal-title fix and validation evidence, and excludes release publication or tagging."
+    ]
+  },
+  "product": {
+    "title": "Reviewable release preparation for stable Claude titles",
+    "overview": "The completed Claude terminal-title fix is isolated in a validated, version-prepared branch and proposed through a PR after CI confirms it.",
+    "goals": [
+      "Preserve a small, auditable change set for the terminal-title fix.",
+      "Make the version bump and release note internally consistent before review.",
+      "Treat successful CI as a hard gate before opening the pull request."
+    ],
+    "non_goals": [
+      "Publishing packages, creating a Git tag, or creating a hosted release.",
+      "Merging the pull request.",
+      "Changing the terminal-title implementation beyond fixes required by validation.",
+      "Including unrelated current or future work in the branch."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Prepare the Claude terminal-title fix for a gated pull request",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "release-delivery",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC5", "AC6"],
+      "problem": [
+        "The completed change currently resides as uncommitted work on main, which is not reviewable or safely pushable as-is.",
+        "A release-facing user fix needs an intentional version decision and aligned metadata before it enters review.",
+        "Opening a PR before the multi-platform CI result would make an unvalidated state externally visible."
+      ],
+      "scope_in": [
+        "Inspect the worktree, base commit, remotes, existing release conventions, and changed files before any write or external action.",
+        "Create a narrowly named feature branch from the verified main base and commit only the title-fix implementation plus its required docs and Logics artifacts.",
+        "Choose the next patch version by default for this backward-compatible bug fix; stop for operator direction if inspection shows a breaking or release-policy reason to choose otherwise.",
+        "Update every repository-owned version declaration and the changelog or release-note surface used by this repository, then make a separate release-preparation commit if that preserves review clarity.",
+        "Run focused regression tests, npm run release:validate, npm run lint, npm test, logics-manager lint --require-status, and final git status/diff checks before push.",
+        "Push the named branch, identify the CI run for that exact branch commit, wait for a successful conclusion, then create a PR against main with a concise change and validation summary."
+      ],
+      "scope_out": [
+        "Committing, pushing, or modifying unrelated user changes found in the working tree.",
+        "Tagging, publishing npm or PyPI packages, uploading release assets, or creating a hosted release.",
+        "Merging, approving, or auto-merging the PR.",
+        "Bypassing failed CI, required checks, protected-branch policy, or version validation."
+      ],
+      "acceptance_criteria": [
+        "AC1: The task records the exact base SHA, branch name, remote, and selected files before branch creation and commit.",
+        "AC2: The implementation commit contains the Claude-only environment change, regression tests, README adjustment, and their linked Logics records, with no unrelated diff.",
+        "AC3: The release-preparation commit uses the selected semver version consistently in package.json, pyproject.toml, VERSION, CLI-reported version, README badge, and the repository's release note surface.",
+        "AC4: `npm run release:validate`, `npm run lint`, `npm test`, and `logics-manager lint --require-status` all pass on the exact commit that will be pushed.",
+        "AC5: The pushed branch's CI run for that commit completes with success; a failed, cancelled, stale, or branch-mismatched run blocks PR creation.",
+        "AC6: The created PR targets main, links the delivery task where appropriate, states that Claude title writes are disabled only for cdx-managed sessions, and includes the passed validation commands.",
+        "AC7: No tag, release, package publication, checksum upload, merge, or approval is performed by this task."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Create a validated branch and PR for the Claude title release",
+    "plan": [
+      "Inspect the uncommitted implementation, Logics artifacts, main base SHA, remotes, branch naming conventions, and version/release-note sources; isolate any unrelated work before changing git state.",
+      "Create the feature branch from the verified base and make a reviewable implementation commit containing only the completed Claude title fix and its necessary documentation and Logics records.",
+      "Select and document the next release version, update every required version and release-note source, and commit the release preparation separately when appropriate.",
+      "Run focused and full local gates, then inspect the exact staged and committed diff, status, version alignment, and target branch before pushing.",
+      "Push the validated feature branch, wait for CI for its exact HEAD SHA, and create a PR to main only after all required checks are successful.",
+      "Record the branch, commits, version, validation results, CI URL/status, and PR URL in the task closeout without publishing or merging."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/release_stable_claude_terminal_titles.json",
+    "mode": "full",
+    "profile": "normal"
+  }
+}

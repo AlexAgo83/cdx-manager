@@ -1,0 +1,337 @@
+{
+  "budgets": {
+    "max_docs": 12,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_054_keep_cdx_terminal_titles_stable_while_claude_is_working item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions task_065_keep_the_cdx_title_stable_during_interactive_claude_actions --mode full --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions"
+        ],
+        "prod": [
+          "prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions"
+        ],
+        "req": [
+          "req_054_keep_cdx_terminal_titles_stable_while_claude_is_working"
+        ],
+        "task": [
+          "task_065_keep_the_cdx_title_stable_during_interactive_claude_actions"
+        ]
+      },
+      "path": "logics/product/prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions.md",
+      "ref": "prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions",
+      "sections": {
+        "Goals": [
+          "- Make the shared cdx title stable during Claude activity.",
+          "- Use Claude's supported opt-out instead of increasing cdx title-refresh frequency.",
+          "- Keep the provider-specific change constrained and testable."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "cdx remains the sole terminal-title owner for its interactive Claude sessions, so the session and working folder stay identifiable while Claude works."
+        ],
+        "References": [
+          "- Product back-reference: `req_054_keep_cdx_terminal_titles_stable_while_claude_is_working`",
+          "- Task back-reference: `task_065_keep_the_cdx_title_stable_during_interactive_claude_actions`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Stable terminal titles for cdx-managed Claude sessions"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "cdx, terminal, titles, stable, while, claude, working",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions"
+        ],
+        "prod": [
+          "prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions"
+        ],
+        "req": [
+          "req_054_keep_cdx_terminal_titles_stable_while_claude_is_working"
+        ]
+      },
+      "path": "logics/request/req_054_keep_cdx_terminal_titles_stable_while_claude_is_working.md",
+      "ref": "req_054_keep_cdx_terminal_titles_stable_while_claude_is_working",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Every interactive Claude launch and resume started by cdx receives `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` in its provider environment.",
+          "- AC2: During a busy Claude action, the terminal title remains the cdx `session \u2014 folder` title rather than Claude's animated session-only title.",
+          "- AC3: The setting does not alter Claude credentials isolation, explicit caller environment handling, launch arguments, transcript capture, or notifications.",
+          "- AC4: Codex, Antigravity, Ollama, headless `cdx run`, and Claude authentication actions keep their existing environment and title behaviour.",
+          "- AC5: Runtime tests cover the Claude environment contract and the targeted launch/resume paths; documentation accurately names the Claude-specific workaround."
+        ],
+        "Needs": [
+          "- Keep the cdx `session \u2014 folder` terminal title visible throughout an interactive Claude session, including while Claude is running an action.",
+          "- Avoid a competing high-frequency title refresh between cdx and Claude Code.",
+          "- Preserve the existing title behaviour and isolation environment for Codex, Antigravity, Ollama, headless runs, and Claude authentication flows."
+        ]
+      },
+      "status": "Draft",
+      "title": "Keep cdx terminal titles stable while Claude is working"
+    },
+    {
+      "ai_context": {
+        "keywords": "disable, claude, competing, terminal, title, writes, cdx, sessions",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions"
+        ],
+        "prod": [
+          "prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions"
+        ],
+        "req": [
+          "req_054_keep_cdx_terminal_titles_stable_while_claude_is_working"
+        ],
+        "task": [
+          "task_065_keep_the_cdx_title_stable_during_interactive_claude_actions"
+        ]
+      },
+      "path": "logics/backlog/item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions.md",
+      "ref": "item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: `_claude_env` produces `CLAUDE_CODE_DISABLE_TERMINAL_TITLE` with value `1` alongside the existing cdx-owned Claude environment settings.",
+          "- AC2: Claude launch and resume specs pass that value to the spawned provider process without changing command arguments or transcript wrapping.",
+          "- AC3: An explicit ambient value cannot cause a cdx-managed interactive Claude process to re-enable Claude title writes.",
+          "- AC4: Tests demonstrate that non-Claude provider specs and Claude auth-specific flows retain their prior contracts.",
+          "- AC5: README states that cdx disables Claude's own terminal-title updates so `session \u2014 folder` remains stable while Claude is busy.",
+          "- AC6: The focused tests and the applicable project lint/validation commands pass."
+        ],
+        "Problem": [
+          "- Claude Code updates the terminal title frequently while an action is active, overwriting cdx's lower-frequency shared title keeper.",
+          "- Increasing cdx's refresh rate would create a visible title race and needless terminal writes.",
+          "- The current environment helper does not tell Claude that cdx owns the title."
+        ]
+      },
+      "status": "Ready",
+      "title": "Disable Claude's competing terminal-title writes for cdx sessions"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions"
+        ],
+        "prod": [
+          "prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions"
+        ],
+        "req": [
+          "req_054_keep_cdx_terminal_titles_stable_while_claude_is_working"
+        ],
+        "task": [
+          "task_065_keep_the_cdx_title_stable_during_interactive_claude_actions"
+        ]
+      },
+      "path": "logics/product/prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions.md",
+      "ref": "prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Stable terminal titles for cdx-managed Claude sessions"
+    },
+    {
+      "ai_context": {
+        "keywords": "cdx, title, stable, during, interactive, claude, actions",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions"
+        ],
+        "prod": [
+          "prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions"
+        ],
+        "req": [
+          "req_054_keep_cdx_terminal_titles_stable_while_claude_is_working"
+        ],
+        "task": [
+          "task_065_keep_the_cdx_title_stable_during_interactive_claude_actions"
+        ]
+      },
+      "path": "logics/tasks/task_065_keep_the_cdx_title_stable_during_interactive_claude_actions.md",
+      "ref": "task_065_keep_the_cdx_title_stable_during_interactive_claude_actions",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Keep the cdx title stable during interactive Claude actions"
+    }
+  ],
+  "estimates": {
+    "char_count": 7238,
+    "companion_doc_count": 1,
+    "doc_count": 4
+  },
+  "generated_at": "2026-08-12T20:25:53Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_054_keep_cdx_terminal_titles_stable_while_claude_is_working",
+      "item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions",
+      "task_065_keep_the_cdx_title_stable_during_interactive_claude_actions"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "full",
+  "profile": "normal",
+  "ref": "req_054_keep_cdx_terminal_titles_stable_while_claude_is_working,item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions,task_065_keep_the_cdx_title_stable_during_interactive_claude_actions",
+  "refs": [
+    "req_054_keep_cdx_terminal_titles_stable_while_claude_is_working",
+    "item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions",
+    "task_065_keep_the_cdx_title_stable_during_interactive_claude_actions"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: missing required evidence",
+      "changelog: missing required evidence",
+      "release_checksums: missing required evidence",
+      "local_validation: missing required evidence",
+      "git_push: missing required evidence",
+      "ci: missing required evidence",
+      "github_release: missing required evidence",
+      "npm_publication: missing required evidence",
+      "pypi_publication: missing required evidence"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: missing required evidence",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "preparing",
+    "target_version": "0.18.6"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_065_keep_the_cdx_title_stable_during_interactive_claude_actions.md",
+      "ref": "task_065_keep_the_cdx_title_stable_during_interactive_claude_actions"
+    }
+  ]
+}

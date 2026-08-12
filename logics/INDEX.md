@@ -58,6 +58,8 @@
 | [prod_038_sessions_that_know_what_they_are_working_on](product/prod_038_sessions_that_know_what_they_are_working_on.md) | Sessions that know what they are working on | Settled |  |  | product/prod_038_sessions_that_know_what_they_are_working_on.md |
 | [prod_039_a_tray_whose_terminal_preference_is_discoverable_and_honest](product/prod_039_a_tray_whose_terminal_preference_is_discoverable_and_honest.md) | A tray whose terminal preference is discoverable and honest | Proposed |  |  | product/prod_039_a_tray_whose_terminal_preference_is_discoverable_and_honest.md |
 | [prod_040_alerts_that_lead_back_to_their_terminal](product/prod_040_alerts_that_lead_back_to_their_terminal.md) | Alerts that lead back to their terminal | Proposed |  |  | product/prod_040_alerts_that_lead_back_to_their_terminal.md |
+| [prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions](product/prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions.md) | Stable terminal titles for cdx-managed Claude sessions | Proposed |  |  | product/prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions.md |
+| [prod_042_reviewable_release_preparation_for_stable_claude_titles](product/prod_042_reviewable_release_preparation_for_stable_claude_titles.md) | Reviewable release preparation for stable Claude titles | Proposed |  |  | product/prod_042_reviewable_release_preparation_for_stable_claude_titles.md |
 
 ## Roadmaps
 
@@ -121,6 +123,8 @@ _None_
 | [req_051_launch_a_session_in_the_directory_it_belongs_to](request/req_051_launch_a_session_in_the_directory_it_belongs_to.md) | Know and choose where a session is being launched | Done |  |  | request/req_051_launch_a_session_in_the_directory_it_belongs_to.md |
 | [req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform](request/req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform.md) | Let the operator choose the tray's target terminal on every platform | Draft |  |  | request/req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform.md |
 | [req_053_bring_back_the_terminal_an_alert_came_from](request/req_053_bring_back_the_terminal_an_alert_came_from.md) | Bring back the terminal an alert came from | Draft |  |  | request/req_053_bring_back_the_terminal_an_alert_came_from.md |
+| [req_054_keep_cdx_terminal_titles_stable_while_claude_is_working](request/req_054_keep_cdx_terminal_titles_stable_while_claude_is_working.md) | Keep cdx terminal titles stable while Claude is working | Done |  |  | request/req_054_keep_cdx_terminal_titles_stable_while_claude_is_working.md |
+| [req_055_land_and_release_the_stable_claude_terminal_title_change](request/req_055_land_and_release_the_stable_claude_terminal_title_change.md) | Land and release the stable Claude terminal-title change | Draft |  |  | request/req_055_land_and_release_the_stable_claude_terminal_title_change.md |
 
 ## Backlog
 
@@ -233,6 +237,8 @@ _None_
 | [item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray](backlog/item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray.md) | Record which terminal a hook fired from, and carry it to the tray | Ready |  | 0% | backlog/item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray.md |
 | [item_105_focus_the_originating_terminal_from_a_tray_alert_row](backlog/item_105_focus_the_originating_terminal_from_a_tray_alert_row.md) | Focus the originating terminal from a tray alert row | Ready |  | 0% | backlog/item_105_focus_the_originating_terminal_from_a_tray_alert_row.md |
 | [item_106_make_the_notification_banner_act_like_the_alert_row_on_macos](backlog/item_106_make_the_notification_banner_act_like_the_alert_row_on_macos.md) | Make the notification banner act like the alert row on macOS | Ready |  | 0% | backlog/item_106_make_the_notification_banner_act_like_the_alert_row_on_macos.md |
+| [item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions](backlog/item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions.md) | Disable Claude's competing terminal-title writes for cdx sessions | Done |  | 100% | backlog/item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions.md |
+| [item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request](backlog/item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request.md) | Prepare the Claude terminal-title fix for a gated pull request | Ready |  | 0% | backlog/item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request.md |
 
 ## Tasks
 
@@ -305,6 +311,8 @@ _None_
 | [task_062_orchestrate_the_per_session_working_directory](tasks/task_062_orchestrate_the_per_session_working_directory.md) | Orchestrate the per-session working directory | Done | Codex | 100% | tasks/task_062_orchestrate_the_per_session_working_directory.md |
 | [task_063_deliver_a_discoverable_and_honest_tray_terminal_choice](tasks/task_063_deliver_a_discoverable_and_honest_tray_terminal_choice.md) | Deliver a discoverable and honest tray terminal choice | Ready |  | 0% | tasks/task_063_deliver_a_discoverable_and_honest_tray_terminal_choice.md |
 | [task_064_deliver_alerts_that_lead_back_to_their_terminal](tasks/task_064_deliver_alerts_that_lead_back_to_their_terminal.md) | Deliver alerts that lead back to their terminal | Ready |  | 0% | tasks/task_064_deliver_alerts_that_lead_back_to_their_terminal.md |
+| [task_065_keep_the_cdx_title_stable_during_interactive_claude_actions](tasks/task_065_keep_the_cdx_title_stable_during_interactive_claude_actions.md) | Keep the cdx title stable during interactive Claude actions | Done |  | 100% | tasks/task_065_keep_the_cdx_title_stable_during_interactive_claude_actions.md |
+| [task_066_create_a_validated_branch_and_pr_for_the_claude_title_release](tasks/task_066_create_a_validated_branch_and_pr_for_the_claude_title_release.md) | Create a validated branch and PR for the Claude title release | Ready |  | 0% | tasks/task_066_create_a_validated_branch_and_pr_for_the_claude_title_release.md |
 
 ## Runbooks
 

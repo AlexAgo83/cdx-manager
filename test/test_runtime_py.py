@@ -1043,6 +1043,72 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertIn("claude --name claude 'resume this'", spec["args"][3])
         self.assertTrue(spec["args"][4].endswith(".log"))
 
+    def test_claude_env_disables_claude_title_writes_only_when_cdx_owns_the_title(self):
+        owned = provider_runtime._claude_env({}, "/tmp/claude-home", own_terminal_title=True)
+        shared = provider_runtime._claude_env({}, "/tmp/claude-home")
+
+        self.assertEqual(owned["CLAUDE_CODE_DISABLE_TERMINAL_TITLE"], "1")
+        self.assertEqual(owned["ANTHROPIC_PROFILE"], "default")
+        self.assertEqual(owned["HOME"], "/tmp/claude-home")
+        self.assertNotIn("CLAUDE_CODE_DISABLE_TERMINAL_TITLE", shared)
+
+    def test_claude_env_ignores_an_ambient_request_to_re_enable_claude_titles(self):
+        env = provider_runtime._claude_env(
+            {"CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "0"},
+            "/tmp/claude-home",
+            own_terminal_title=True,
+        )
+
+        self.assertEqual(env["CLAUDE_CODE_DISABLE_TERMINAL_TITLE"], "1")
+
+    def test_interactive_claude_specs_disable_claude_title_writes(self):
+        session = {
+            "name": "work",
+            "provider": "claude",
+            "authHome": "/tmp/claude-home",
+            "conversation": {"id": "11111111-1111-4111-8111-111111111111"},
+        }
+
+        launch = provider_runtime._build_launch_spec(session, cwd="/tmp/repo")
+        resume = provider_runtime._build_resume_spec(session, cwd="/tmp/repo")
+
+        for spec in (launch, resume):
+            # The wrapped spec and its no-transcript fallback share one env dict,
+            # so the setting survives a transcript retry.
+            self.assertEqual(spec["command"], "script")
+            self.assertEqual(
+                spec["options"]["env"]["CLAUDE_CODE_DISABLE_TERMINAL_TITLE"], "1")
+            self.assertEqual(
+                spec["fallback"]["options"]["env"]["CLAUDE_CODE_DISABLE_TERMINAL_TITLE"], "1")
+        self.assertEqual(launch["fallback"]["args"][:2], ["--name", "work"])
+        self.assertEqual(
+            resume["fallback"]["args"][:2],
+            ["--resume", "11111111-1111-4111-8111-111111111111"],
+        )
+
+    def test_non_interactive_and_non_claude_specs_keep_claude_title_writes_untouched(self):
+        claude = {"name": "work", "provider": "claude", "authHome": "/tmp/claude-home"}
+        headless = provider_runtime._build_headless_launch_spec(claude, cwd="/tmp/repo")
+        auth_login = provider_runtime._build_auth_action_spec(claude, "login", cwd="/tmp/repo")
+        setup_token = provider_runtime._build_auth_action_spec(claude, "setup-token", cwd="/tmp/repo")
+        login_status = provider_runtime._build_login_status_spec(claude)
+
+        for env in (
+            headless["options"]["env"],
+            auth_login["options"]["env"],
+            setup_token["options"]["env"],
+            login_status["env"],
+        ):
+            self.assertNotIn("CLAUDE_CODE_DISABLE_TERMINAL_TITLE", env)
+        self.assertEqual(headless["args"][:4], ["--print", "--output-format", "json", "--name"])
+        self.assertEqual(auth_login["args"], ["auth", "login"])
+
+        for provider, home in (("codex", "/tmp/codex-home"), ("antigravity", "/tmp/agy-home"), ("ollama", "/tmp/olla-home")):
+            spec = provider_runtime._build_launch_spec(
+                {"name": provider, "provider": provider, "authHome": home}, cwd="/tmp/repo")
+            self.assertNotIn(
+                "CLAUDE_CODE_DISABLE_TERMINAL_TITLE", spec["options"]["env"])
+
     def test_build_resume_spec_uses_codex_resume_last(self):
         session = {
             "name": "main",

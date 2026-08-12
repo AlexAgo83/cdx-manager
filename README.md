@@ -466,6 +466,8 @@ Interactive launches and resumes set the terminal window title to `session — f
 
 The title is only written when stdout is a terminal. Nothing is emitted for `--json` launches, redirected or piped output, `cdx run` and other headless runs, login flows, or Ollama sessions. Session names and directories are stripped of escape and control characters before the title is emitted, and cdx does not restore the previous title when the session ends.
 
+Claude Code writes its own animated title while an action runs, and it redraws far more often than cdx re-asserts the shared title. So interactive Claude launches and resumes started by cdx set the Claude-specific `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` in the provider environment, which stops Claude from setting and clearing the title and leaves `session — folder` stable while Claude is busy. Claude's in-TUI activity indicator is unaffected, the value is forced so an ambient setting in your shell cannot hand the title back, and headless `cdx run`, Claude authentication flows, and every non-Claude provider keep their previous environment.
+
 ### Launch History
 
 Every interactive `cdx <name>` launch is recorded under `CDX_HOME`, including success/failure, duration, cwd, launch settings, and transcript path.

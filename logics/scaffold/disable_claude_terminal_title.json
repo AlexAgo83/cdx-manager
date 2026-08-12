@@ -1,0 +1,93 @@
+{
+  "title": "Keep cdx terminal titles stable while Claude is working",
+  "references": [
+    "User report: a Claude action replaces the cdx `session — folder` terminal title with Claude's animated busy indicator and session name.",
+    "src/provider_runtime.py: _TerminalTitleKeeper re-emits the shared title every five seconds, while Claude redraws its busy title much more frequently.",
+    "Claude Code 2.1.228 installed locally: the executable contains CLAUDE_CODE_DISABLE_TERMINAL_TITLE, and its bundled changelog documents that it prevents Claude from setting and clearing the terminal title."
+  ],
+  "request": {
+    "complexity": "Low",
+    "theme": "interactive-session-ergonomics",
+    "needs": [
+      "Keep the cdx `session — folder` terminal title visible throughout an interactive Claude session, including while Claude is running an action.",
+      "Avoid a competing high-frequency title refresh between cdx and Claude Code.",
+      "Preserve the existing title behaviour and isolation environment for Codex, Antigravity, Ollama, headless runs, and Claude authentication flows."
+    ],
+    "context": [
+      "cdx owns the consistent terminal title through the shared interactive runtime, but Claude Code also writes an animated busy title during actions.",
+      "The Claude-specific documented environment variable `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` lets cdx disable Claude's title writes while retaining Claude's in-TUI activity indicator.",
+      "Claude launch and resume specs already derive their environment through `_claude_env`, making that provider boundary the narrow place to apply the setting."
+    ],
+    "acceptance_criteria": [
+      "AC1: Every interactive Claude launch and resume started by cdx receives `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` in its provider environment.",
+      "AC2: During a busy Claude action, the terminal title remains the cdx `session — folder` title rather than Claude's animated session-only title.",
+      "AC3: The setting does not alter Claude credentials isolation, explicit caller environment handling, launch arguments, transcript capture, or notifications.",
+      "AC4: Codex, Antigravity, Ollama, headless `cdx run`, and Claude authentication actions keep their existing environment and title behaviour.",
+      "AC5: Runtime tests cover the Claude environment contract and the targeted launch/resume paths; documentation accurately names the Claude-specific workaround."
+    ]
+  },
+  "product": {
+    "title": "Stable terminal titles for cdx-managed Claude sessions",
+    "overview": "cdx remains the sole terminal-title owner for its interactive Claude sessions, so the session and working folder stay identifiable while Claude works.",
+    "goals": [
+      "Make the shared cdx title stable during Claude activity.",
+      "Use Claude's supported opt-out instead of increasing cdx title-refresh frequency.",
+      "Keep the provider-specific change constrained and testable."
+    ],
+    "non_goals": [
+      "Change Codex, Antigravity, or Ollama terminal-title behaviour.",
+      "Disable Claude's in-terminal spinner or other interactive UI feedback.",
+      "Introduce user-configurable title formats or refresh intervals.",
+      "Change global user Claude configuration outside cdx's per-session process environment."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Disable Claude's competing terminal-title writes for cdx sessions",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "interactive-session-ergonomics",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC5"],
+      "problem": [
+        "Claude Code updates the terminal title frequently while an action is active, overwriting cdx's lower-frequency shared title keeper.",
+        "Increasing cdx's refresh rate would create a visible title race and needless terminal writes.",
+        "The current environment helper does not tell Claude that cdx owns the title."
+      ],
+      "scope_in": [
+        "Set `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` only in the cdx-generated Claude provider environment.",
+        "Ensure both interactive Claude launch and resume inherit the setting through the shared environment builder.",
+        "Add targeted tests for the environment and interactive spec paths, preserving caller environment merge semantics.",
+        "Update terminal-title documentation to explain that cdx disables Claude's competing title updates for cdx-managed sessions.",
+        "Run the focused Python runtime and launch suites, then the repository validation required by the task."
+      ],
+      "scope_out": [
+        "Setting the variable in the user's shell or global Claude configuration.",
+        "Changing cdx's title keeper cadence or OSC title format.",
+        "Applying a guessed equivalent environment variable to Codex.",
+        "Changing headless, login, setup-token, or non-Claude provider environments."
+      ],
+      "acceptance_criteria": [
+        "AC1: `_claude_env` produces `CLAUDE_CODE_DISABLE_TERMINAL_TITLE` with value `1` alongside the existing cdx-owned Claude environment settings.",
+        "AC2: Claude launch and resume specs pass that value to the spawned provider process without changing command arguments or transcript wrapping.",
+        "AC3: An explicit ambient value cannot cause a cdx-managed interactive Claude process to re-enable Claude title writes.",
+        "AC4: Tests demonstrate that non-Claude provider specs and Claude auth-specific flows retain their prior contracts.",
+        "AC5: README states that cdx disables Claude's own terminal-title updates so `session — folder` remains stable while Claude is busy.",
+        "AC6: The focused tests and the applicable project lint/validation commands pass."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Keep the cdx title stable during interactive Claude actions",
+    "plan": [
+      "Read the current Claude environment construction and launch/resume specs, confirming which paths must inherit the setting and which must remain unchanged.",
+      "Add the Claude-only terminal-title opt-out at the shared environment boundary and keep cdx's title keeper unchanged.",
+      "Add regression coverage for the environment value, launch/resume inheritance, and unchanged non-Claude or auth paths.",
+      "Update the terminal-title documentation, run focused tests plus required validation, and record the outcome for closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/disable_claude_terminal_title.json",
+    "mode": "full",
+    "profile": "normal"
+  }
+}

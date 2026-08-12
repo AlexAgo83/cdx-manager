@@ -108,6 +108,9 @@ def headless_permission_disables_network(provider, permission):
 
 
 REDACTED_PROMPT_ARG = "[prompt redacted]"
+# Documented Claude Code switch that stops it from setting and clearing the
+# terminal title, leaving cdx's shared title keeper as the only writer.
+CLAUDE_DISABLE_TERMINAL_TITLE_ENV = "CLAUDE_CODE_DISABLE_TERMINAL_TITLE"
 CLAUDE_CLI_MODEL_ALIASES = {
     "claude-sonnet": "sonnet",
     "claude-opus": "opus",
@@ -148,11 +151,23 @@ def _anthropic_credentials_path(auth_home):
     return os.path.join(auth_home, "credentials", f"{_anthropic_profile_name()}.json")
 
 
-def _claude_env(base_env, auth_home):
+def _claude_env(base_env, auth_home, own_terminal_title=False):
+    """Build the Claude provider environment for one cdx spawn.
+
+    `own_terminal_title` is set by the interactive launch/resume paths, where
+    cdx's title keeper owns the `session — folder` title. Claude Code redraws an
+    animated busy title far more often than the keeper re-emits, so we tell it
+    to leave the title alone; its in-TUI activity indicator is unaffected. The
+    value is forced rather than defaulted so an ambient `0` in the operator's
+    shell cannot hand the title back to Claude. Headless and auth spawns do not
+    own a title and keep their previous environment.
+    """
     env = {**base_env, **_home_env_overrides(auth_home)}
     env.pop("CLAUDE_CONFIG_DIR", None)
     env.pop("CODEX_HOME", None)
     env.setdefault("ANTHROPIC_PROFILE", _anthropic_profile_name())
+    if own_terminal_title:
+        env[CLAUDE_DISABLE_TERMINAL_TITLE_ENV] = "1"
     return env
 
 
@@ -547,7 +562,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
         if initial_prompt:
             args.append(initial_prompt)
         auth_home = _get_auth_home(session)
-        claude_env = _claude_env(env, auth_home)
+        claude_env = _claude_env(env, auth_home, own_terminal_title=True)
         oauth_token = _read_claude_launch_oauth_token(auth_home)
         if oauth_token:
             claude_env["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token
@@ -693,7 +708,7 @@ def _build_resume_spec(session, cwd=None, env_override=None, capture_transcript=
         if resume_prompt:
             args.append(resume_prompt)
         auth_home = _get_auth_home(session)
-        claude_env = _claude_env(env, auth_home)
+        claude_env = _claude_env(env, auth_home, own_terminal_title=True)
         oauth_token = _read_claude_launch_oauth_token(auth_home)
         if oauth_token:
             claude_env["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token
