@@ -1,0 +1,109 @@
+{
+  "title": "Group Logics tray next actions by repository",
+  "references": [
+    "src/tray_logics.py",
+    "src/tray_plugins.py",
+    "src/commands/tray.py",
+    "tray/src/snapshot.rs",
+    "tray/src/menu.rs",
+    "test/test_tray_plugins_py.py",
+    "tray/src/menu.rs"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Tray navigation",
+    "needs": [
+      "The Logics tray card currently picks one repository and renders its at-most-two rows flat, prefixed with the repository name. When several repositories have work, an operator cannot scan each repository independently or discover its next action from a repository submenu.",
+      "The tray should group Logics work by repository. Opening a repository submenu should show that repository's blocked and next actionable documents, with each action opening the focused viewer in the correct repository."
+    ],
+    "context": [
+      "tray_logics queries bounded logics-manager status payloads per repository root, but _card_from_status currently selects a single card. The plugin-card snapshot contract has only flat rows and the Rust companion only renders flat card actions.",
+      "A repository group needs a stable display label plus rows that retain the already-proven root and logics.focus action identity. The companion must never infer a root from a label or an array position.",
+      "Nested submenus are available in the native tray menu. The new optional grouped-card field must preserve legacy flat rows when CDX and the companion versions differ, and remain bounded so a plugin cannot turn the quota tray into a document browser."
+    ],
+    "acceptance_criteria": [
+      "AC1: When Logics reports work in multiple repository roots, the tray renders a deterministic repository submenu for each bounded group instead of selecting one global repository row.",
+      "AC2: Each repository submenu shows that repository's blocked document when present and its next active task when present; labels identify the action without repeating the repository name inside its own submenu.",
+      "AC3: Every focused row carries the repository root and stable logics.focus reference through the Python snapshot validation and Rust action callback, so clicking it opens the correct focused viewer.",
+      "AC4: Repository-group ordering, per-group row limits, and total group limits are deterministic and bounded; an empty repository contributes no submenu, while Open Logics and Refresh Logics remain card-wide actions.",
+      "AC5: Older flat plugin cards continue to render as before, malformed groups are safely ignored, and snapshot schema compatibility remains forward-safe.",
+      "AC6: Python and Rust tests cover multiple roots, group ordering and bounds, blocked-plus-next rows, action-root propagation, legacy flat cards, and native submenu rendering; project and Logics validation pass."
+    ]
+  },
+  "product": {
+    "title": "Repository-oriented Logics tray navigation",
+    "overview": "Turn the Logics section of the tray from one global next-action row into a compact repository menu, so an operator can see and open the next work in each active repository without leaving the tray.",
+    "goals": [
+      "Show a bounded, deterministic submenu per repository with meaningful Logics work.",
+      "Keep focused viewer actions bound to the repository that produced them.",
+      "Preserve the compact card summary and global Logics actions."
+    ],
+    "non_goals": [
+      "No document tree, arbitrary repository browsing, unbounded task list, or direct document editing from the tray.",
+      "No change to Logics manager status selection, viewer server ownership, or session alert grouping."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Publish bounded Logics repository groups in the tray card",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Tray data contract",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC5", "AC6"],
+      "problem": [
+        "The adapter discovers multiple roots but discards all but one selected card, and flat plugin rows cannot represent ownership by repository without encoding it into display text.",
+        "A naive expansion risks an unbounded menu or action targets reconstructed from labels."
+      ],
+      "scope_in": [
+        "Build deterministic, bounded repository groups from the existing per-root status payloads, retaining one blocked and one next row per group when present.",
+        "Add an optional grouped-card snapshot field with explicit group label, validated rows, and repository roots carried only as structured action data.",
+        "Keep the existing summary and card-wide Open Logics and Refresh Logics actions."
+      ],
+      "scope_out": [
+        "Changing Logics manager selection rules, showing every document, or introducing arbitrary plugin-provided menu structure."
+      ],
+      "acceptance_criteria": [
+        "AC1: Multiple active roots produce separate bounded groups with deterministic order.",
+        "AC2: A group contains only its own blocked and next rows, each with a valid focus action and root.",
+        "AC3: Legacy flat cards remain valid snapshot input."
+      ]
+    },
+    {
+      "title": "Render Logics repository groups as native tray submenus",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Tray interaction",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC5", "AC6"],
+      "problem": [
+        "The Rust companion currently maps every plugin row directly to one action row, so repository ownership cannot be navigated as a submenu."
+      ],
+      "scope_in": [
+        "Parse and bound optional repository groups alongside legacy rows, then render them as native submenus below the Logics summary.",
+        "Forward each grouped action and root verbatim through the established Plugin action path.",
+        "Add Rust menu and snapshot tests for subgroup labels, actions, compatibility, and malformed input."
+      ],
+      "scope_out": [
+        "A generic nested plugin marketplace, action execution inside the companion, or changing the platform-specific action runner."
+      ],
+      "acceptance_criteria": [
+        "AC1: Each repository appears as one submenu whose child labels are concise blocked/next actions.",
+        "AC2: Clicking a child passes its original action and root to CDX.",
+        "AC3: Flat legacy rows and card-wide actions retain their current rendering."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate repository-grouped Logics tray navigation",
+    "plan": [
+      "Trace the current multi-root Logics adapter output through Python card validation, snapshot parsing, native menu construction, and focused viewer action dispatch.",
+      "Design the smallest optional bounded repository-group field that preserves legacy flat-card compatibility and stable roots.",
+      "Publish groups per root and render native repository submenus with their blocked and next actions, retaining card-wide actions.",
+      "Exercise source-companion rendering and focused actions against multiple repository roots, then record Python, Rust, and Logics validation evidence before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/group_logics_tray_rows_by_repository.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}

@@ -64,6 +64,7 @@
 | [prod_042_recoverable_interactive_cdx_launch_choices](product/prod_042_recoverable_interactive_cdx_launch_choices.md) | Recoverable interactive CDX launch choices | Settled |  |  | product/prod_042_recoverable_interactive_cdx_launch_choices.md |
 | [prod_043_live_tray_control_for_consented_agent_alerts](product/prod_043_live_tray_control_for_consented_agent_alerts.md) | Live tray control for consented agent alerts | Proposed |  |  | product/prod_043_live_tray_control_for_consented_agent_alerts.md |
 | [prod_044_signal_only_cdx_status_reset_columns](product/prod_044_signal_only_cdx_status_reset_columns.md) | Signal-only CDX status reset columns | Proposed |  |  | product/prod_044_signal_only_cdx_status_reset_columns.md |
+| [prod_045_repository_oriented_logics_tray_navigation](product/prod_045_repository_oriented_logics_tray_navigation.md) | Repository-oriented Logics tray navigation | Proposed |  |  | product/prod_045_repository_oriented_logics_tray_navigation.md |
 
 ## Roadmaps
 
@@ -133,6 +134,7 @@ _None_
 | [req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe](request/req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe.md) | Make interactive launch-directory selection writable and cancellation-safe | Done |  |  | request/req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe.md |
 | [req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch](request/req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch.md) | Make tray agent-alert muting live and hook consent explicit at launch | Draft |  |  | request/req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch.md |
 | [req_057_hide_empty_reset_columns_from_cdx_status](request/req_057_hide_empty_reset_columns_from_cdx_status.md) | Hide empty reset columns from cdx status | Draft |  |  | request/req_057_hide_empty_reset_columns_from_cdx_status.md |
+| [req_058_group_logics_tray_next_actions_by_repository](request/req_058_group_logics_tray_next_actions_by_repository.md) | Group Logics tray next actions by repository | Draft |  |  | request/req_058_group_logics_tray_next_actions_by_repository.md |
 
 ## Backlog
 
@@ -255,6 +257,8 @@ _None_
 | [item_112_make_the_tray_alert_switch_the_live_delivery_authority](backlog/item_112_make_the_tray_alert_switch_the_live_delivery_authority.md) | Make the tray alert switch the live delivery authority | Ready |  | 0% | backlog/item_112_make_the_tray_alert_switch_the_live_delivery_authority.md |
 | [item_113_derive_reset_column_visibility_from_rendered_status_data](backlog/item_113_derive_reset_column_visibility_from_rendered_status_data.md) | Derive reset-column visibility from rendered status data | Ready |  | 0% | backlog/item_113_derive_reset_column_visibility_from_rendered_status_data.md |
 | [item_114_prove_conditional_reset_columns_preserve_status_contracts](backlog/item_114_prove_conditional_reset_columns_preserve_status_contracts.md) | Prove conditional reset columns preserve status contracts | Ready |  | 0% | backlog/item_114_prove_conditional_reset_columns_preserve_status_contracts.md |
+| [item_115_publish_bounded_logics_repository_groups_in_the_tray_card](backlog/item_115_publish_bounded_logics_repository_groups_in_the_tray_card.md) | Publish bounded Logics repository groups in the tray card | Ready |  | 0% | backlog/item_115_publish_bounded_logics_repository_groups_in_the_tray_card.md |
+| [item_116_render_logics_repository_groups_as_native_tray_submenus](backlog/item_116_render_logics_repository_groups_as_native_tray_submenus.md) | Render Logics repository groups as native tray submenus | Ready |  | 0% | backlog/item_116_render_logics_repository_groups_as_native_tray_submenus.md |
 
 ## Tasks
 
@@ -333,6 +337,7 @@ _None_
 | [task_066_orchestrate_writable_and_cancellable_launch_directory_selection](tasks/task_066_orchestrate_writable_and_cancellable_launch_directory_selection.md) | Orchestrate writable and cancellable launch-directory selection | Done | Codex | 100% | tasks/task_066_orchestrate_writable_and_cancellable_launch_directory_selection.md |
 | [task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent](tasks/task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent.md) | Orchestrate live tray muting and launch-time hook consent | Ready |  | 0% | tasks/task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent.md |
 | [task_068_orchestrate_conditional_reset_columns_in_cdx_status](tasks/task_068_orchestrate_conditional_reset_columns_in_cdx_status.md) | Orchestrate conditional reset columns in cdx status | Ready |  | 0% | tasks/task_068_orchestrate_conditional_reset_columns_in_cdx_status.md |
+| [task_069_orchestrate_repository_grouped_logics_tray_navigation](tasks/task_069_orchestrate_repository_grouped_logics_tray_navigation.md) | Orchestrate repository-grouped Logics tray navigation | Ready |  | 0% | tasks/task_069_orchestrate_repository_grouped_logics_tray_navigation.md |
 
 ## Runbooks
 
