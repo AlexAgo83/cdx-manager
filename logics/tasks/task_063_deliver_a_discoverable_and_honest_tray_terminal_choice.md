@@ -2,18 +2,18 @@
 > From version: 0.18.6
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 90%
 > Progress: 0%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: deliver, discoverable, honest, tray, terminal, choice
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: Deliver a discoverable terminal-candidate menu without turning preferences into arbitrary commands.
+- Keywords: terminal candidate, native menu, Windows launcher, WSL transport
+- Use when: Implementing the selectable terminal tray flow and its platform launch branches.
+- Skip when: Changing the unrelated directory launch chooser.
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
@@ -24,6 +24,7 @@
 - [ ] 3. Add the Windows launch branches for powershell, pwsh and cmd, then the contract test that keeps the catalogue and the companion branches in step.
 - [ ] 4. Build the tray submenu from the candidates on all three backends, writing through CDX and repolling before the tick changes.
 - [ ] 5. Run the Python suites, the Rust tray suite and lint, and document the preference and its Windows shell/application distinction in README.
+- [ ] 6. Prove a candidate that disappears after snapshot creation never silently opens a different named terminal, and keep host versus WSL transport discovery explicit.
 - [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
 - [ ] Keep commit creation under operator control; do not force one commit per micro-step.
 - [ ] GATE: do not close until lint, audit, and scaffold validation pass.
@@ -52,6 +53,8 @@
 - request-AC2 -> `item_103_offer_the_terminal_choice_as_a_tray_submenu`. Proof deferred to slice closeout.
 - request-AC4 -> `item_103_offer_the_terminal_choice_as_a_tray_submenu`. Proof deferred to slice closeout.
 - request-AC8 -> `item_103_offer_the_terminal_choice_as_a_tray_submenu`. Proof deferred to slice closeout.
+- request-AC9 -> `item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue`. Proof deferred to slice closeout.
+- request-AC10 -> `item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates`. Proof deferred to slice closeout.
 
 # Validation
 - (no validation recorded yet)

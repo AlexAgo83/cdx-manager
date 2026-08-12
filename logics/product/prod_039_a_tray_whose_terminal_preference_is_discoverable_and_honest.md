@@ -6,9 +6,17 @@
 > Related task: `task_063_deliver_a_discoverable_and_honest_tray_terminal_choice`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-13 01:57:07
 
 # Overview
 CDX declares which terminals it can launch on this host, the tray lets the operator pick one, and every offered choice is one that will actually open.
+
+```mermaid
+flowchart LR
+  Catalog[CDX catalog] --> Candidate[Available candidate]
+  Candidate --> Tray[Tray submenu]
+  Tray --> Launch[Matching launcher]
+```
 
 # Goals
 - Make the terminal preference discoverable where the operator already is: the tray menu.

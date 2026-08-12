@@ -6,9 +6,17 @@
 > Related task: `task_069_orchestrate_repository_grouped_logics_tray_navigation`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-13 01:57:07
 
 # Overview
 Turn the Logics section of the tray from one global next-action row into a compact repository menu, so an operator can see and open the next work in each active repository without leaving the tray.
+
+```mermaid
+flowchart LR
+  Roots[Repository roots] --> Groups[Bounded card groups]
+  Groups --> Menus[Native submenus]
+  Menus --> Viewer[Focused viewer action]
+```
 
 # Goals
 - Show a bounded, deterministic submenu per repository with meaningful Logics work.

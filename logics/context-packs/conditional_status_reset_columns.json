@@ -1,66 +1,18 @@
 {
   "budgets": {
-    "max_docs": 16,
+    "max_docs": 8,
     "max_docs_per_ref": 4
   },
-  "changed_paths": [
-    "logics/backlog/item_113_derive_reset_column_visibility_from_rendered_status_data.md",
-    "logics/backlog/item_114_prove_conditional_reset_columns_preserve_status_contracts.md",
-    "logics/product/prod_044_signal_only_cdx_status_reset_columns.md",
-    "logics/request/req_057_hide_empty_reset_columns_from_cdx_status.md",
-    "logics/scaffold/conditional_status_reset_columns.json",
-    "logics/tasks/task_068_orchestrate_conditional_reset_columns_in_cdx_status.md"
-  ],
-  "command": "logics-manager sync context-pack req_057_hide_empty_reset_columns_from_cdx_status item_113_derive_reset_column_visibility_from_rendered_status_data item_114_prove_conditional_reset_columns_preserve_status_contracts task_068_orchestrate_conditional_reset_columns_in_cdx_status --mode diff-first --profile normal --handoff",
-  "companion_docs": [
-    {
-      "kind": "product",
-      "linked_refs": {
-        "item": [
-          "item_113_derive_reset_column_visibility_from_rendered_status_data",
-          "item_114_prove_conditional_reset_columns_preserve_status_contracts"
-        ],
-        "prod": [
-          "prod_044_signal_only_cdx_status_reset_columns"
-        ],
-        "req": [
-          "req_057_hide_empty_reset_columns_from_cdx_status"
-        ],
-        "task": [
-          "task_068_orchestrate_conditional_reset_columns_in_cdx_status"
-        ]
-      },
-      "path": "logics/product/prod_044_signal_only_cdx_status_reset_columns.md",
-      "ref": "prod_044_signal_only_cdx_status_reset_columns",
-      "sections": {
-        "Goals": [
-          "- Remove reset columns that contain no signal across the rendered table.",
-          "- Preserve independent visibility for bonus, five-hour, and weekly reset information.",
-          "- Leave programmatic status data and availability ranking unchanged."
-        ],
-        "Key product decisions": [
-          "- Use structured input as the source of truth for generated docs.",
-          "- Keep generated write paths local and repo-bounded."
-        ],
-        "Overview": [
-          "Keep the cdx status table compact by displaying reset columns only when they carry information an operator can act on, without changing stored quota data or scheduling decisions."
-        ],
-        "References": [
-          "- Product back-reference: `req_057_hide_empty_reset_columns_from_cdx_status`",
-          "- Task back-reference: `task_068_orchestrate_conditional_reset_columns_in_cdx_status`"
-        ]
-      },
-      "status": "Proposed",
-      "title": "Signal-only CDX status reset columns"
-    }
-  ],
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_057_hide_empty_reset_columns_from_cdx_status task_068_orchestrate_conditional_reset_columns_in_cdx_status --mode summary-only --profile normal",
+  "companion_docs": [],
   "docs": [
     {
       "ai_context": {
-        "keywords": "hide, empty, reset, columns, cdx, status",
-        "skip when": "(unfilled: replace before this doc is used)",
-        "summary": "(unfilled: replace before this doc is used)",
-        "use when": "(unfilled: replace before this doc is used)"
+        "keywords": "status table, reset column, active session, malformed cache value",
+        "skip when": "Changing JSON, detailed status, or quota ranking semantics.",
+        "summary": "Status tables show each reset column only when active displayed session data makes it useful.",
+        "use when": "Changing human-readable cdx status table rendering or reset-column visibility."
       },
       "kind": "request",
       "linked_refs": {
@@ -78,28 +30,15 @@
       "path": "logics/request/req_057_hide_empty_reset_columns_from_cdx_status.md",
       "ref": "req_057_hide_empty_reset_columns_from_cdx_status",
       "schema_version": "1.0",
-      "sections": {
-        "Acceptance criteria": [
-          "- AC1: Normal cdx status omits RESETS when no displayed session has a positive reset_credits_available value, omits RESET 5H when no displayed session has reset_5h_at, and omits RESET WEEK when no displayed session has reset_week_at.",
-          "- AC2: Each reset column appears independently as soon as at least one displayed row has its actionable value; zero or absent bonus-reset counts do not make RESETS appear.",
-          "- AC3: The small status table follows the same visibility rules, and table alignment remains correct for active and disabled rows.",
-          "- AC4: JSON status payloads, detailed status reset information, session ranking, and reset-based recommendations retain their current data and behaviour.",
-          "- AC5: Focused status-view tests cover all-hidden, each independently visible, mixed rows, zero bonus resets, disabled rows, and small-table output; project and Logics validation pass."
-        ],
-        "Needs": [
-          "- cdx status currently always renders RESETS, RESET 5H, and RESET WEEK, even when every row contains only a dash. Those empty columns make the terminal table wider without helping an operator choose a session.",
-          "- An operator should see a reset column only when at least one displayed session has actionable data for that reset type."
-        ]
-      },
       "status": "Draft",
       "title": "Hide empty reset columns from cdx status"
     },
     {
       "ai_context": {
         "keywords": "derive, reset, column, visibility, rendered, status, data",
-        "skip when": "(unfilled: replace before this doc is used)",
-        "summary": "(unfilled: replace before this doc is used)",
-        "use when": "(unfilled: replace before this doc is used)"
+        "skip when": "Changing reset accounting, JSON status, or session ranking.",
+        "summary": "Derive terminal table reset columns from active renderable reset signals rather than stored row shape.",
+        "use when": "Changing cdx status table headers, cells, or reset visibility inputs."
       },
       "kind": "backlog",
       "linked_refs": {
@@ -119,26 +58,15 @@
       "path": "logics/backlog/item_113_derive_reset_column_visibility_from_rendered_status_data.md",
       "ref": "item_113_derive_reset_column_visibility_from_rendered_status_data",
       "schema_version": "1.0",
-      "sections": {
-        "Acceptance criteria": [
-          "- AC1: Empty bonus, five-hour, and weekly reset columns disappear independently.",
-          "- AC2: A single row with a value restores only its matching header and cells.",
-          "- AC3: Normal and small tables remain aligned for disabled and mixed-provider rows."
-        ],
-        "Problem": [
-          "- The fixed status headers reserve three reset columns even when every cell is empty, reducing readability for common weekly-only or no-reset account shapes.",
-          "- The six fixed usage values couple column construction to headers, so an ad-hoc string replacement could misalign disabled and small rows."
-        ]
-      },
       "status": "Ready",
       "title": "Derive reset-column visibility from rendered status data"
     },
     {
       "ai_context": {
         "keywords": "prove, conditional, reset, columns, preserve, status, contracts",
-        "skip when": "(unfilled: replace before this doc is used)",
-        "summary": "(unfilled: replace before this doc is used)",
-        "use when": "(unfilled: replace before this doc is used)"
+        "skip when": "Changing the reset visibility calculation itself.",
+        "summary": "Prove conditional terminal-table columns do not change status data, detail, or ranking behavior.",
+        "use when": "Adding focused status-table regression coverage for reset visibility."
       },
       "kind": "backlog",
       "linked_refs": {
@@ -158,16 +86,6 @@
       "path": "logics/backlog/item_114_prove_conditional_reset_columns_preserve_status_contracts.md",
       "ref": "item_114_prove_conditional_reset_columns_preserve_status_contracts",
       "schema_version": "1.0",
-      "sections": {
-        "Acceptance criteria": [
-          "- AC1: JSON and detailed reset fields remain present independently of table visibility.",
-          "- AC2: Existing reset-based recommendation tests stay green.",
-          "- AC3: Project and Logics validation pass."
-        ],
-        "Problem": [
-          "- Reset data also informs detail and recommendation paths. A display cleanup must not accidentally make a known reset unavailable to ranking or JSON consumers."
-        ]
-      },
       "status": "Ready",
       "title": "Prove conditional reset columns preserve status contracts"
     },
@@ -192,16 +110,15 @@
       "path": "logics/product/prod_044_signal_only_cdx_status_reset_columns.md",
       "ref": "prod_044_signal_only_cdx_status_reset_columns",
       "schema_version": "1.0",
-      "sections": {},
       "status": "Proposed",
       "title": "Signal-only CDX status reset columns"
     },
     {
       "ai_context": {
-        "keywords": "orchestrate, conditional, reset, columns, cdx, status",
-        "skip when": "(unfilled: replace before this doc is used)",
-        "summary": "(unfilled: replace before this doc is used)",
-        "use when": "(unfilled: replace before this doc is used)"
+        "keywords": "reset visibility, status table, disabled session, malformed value",
+        "skip when": "Changing JSON, detail output, or ranking behavior.",
+        "summary": "Make reset columns signal-driven in terminal tables without changing status data contracts.",
+        "use when": "Implementing conditional reset columns in cdx status tables."
       },
       "kind": "task",
       "linked_refs": {
@@ -222,34 +139,24 @@
       "path": "logics/tasks/task_068_orchestrate_conditional_reset_columns_in_cdx_status.md",
       "ref": "task_068_orchestrate_conditional_reset_columns_in_cdx_status",
       "schema_version": "1.0",
-      "sections": {
-        "Context": [
-          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
-        ],
-        "Validation": [
-          "- (no validation recorded yet)"
-        ]
-      },
       "status": "Ready",
       "title": "Orchestrate conditional reset columns in cdx status"
     }
   ],
   "estimates": {
-    "char_count": 7910,
-    "companion_doc_count": 1,
+    "char_count": 4441,
+    "companion_doc_count": 0,
     "doc_count": 5
   },
-  "generated_at": "2026-08-12T23:32:22Z",
+  "generated_at": "2026-08-12T23:56:06Z",
   "handoff": {
-    "companion_doc_count": 1,
-    "enabled": true,
+    "companion_doc_count": 0,
+    "enabled": false,
     "source_refs": [
       "req_057_hide_empty_reset_columns_from_cdx_status",
-      "item_113_derive_reset_column_visibility_from_rendered_status_data",
-      "item_114_prove_conditional_reset_columns_preserve_status_contracts",
       "task_068_orchestrate_conditional_reset_columns_in_cdx_status"
     ],
-    "validation_summary_count": 1
+    "validation_summary_count": 0
   },
   "i18n": {
     "actions": [
@@ -265,13 +172,11 @@
     "ok": true,
     "state": "absent"
   },
-  "mode": "diff-first",
+  "mode": "summary-only",
   "profile": "normal",
-  "ref": "req_057_hide_empty_reset_columns_from_cdx_status,item_113_derive_reset_column_visibility_from_rendered_status_data,item_114_prove_conditional_reset_columns_preserve_status_contracts,task_068_orchestrate_conditional_reset_columns_in_cdx_status",
+  "ref": "req_057_hide_empty_reset_columns_from_cdx_status,task_068_orchestrate_conditional_reset_columns_in_cdx_status",
   "refs": [
     "req_057_hide_empty_reset_columns_from_cdx_status",
-    "item_113_derive_reset_column_visibility_from_rendered_status_data",
-    "item_114_prove_conditional_reset_columns_preserve_status_contracts",
     "task_068_orchestrate_conditional_reset_columns_in_cdx_status"
   ],
   "release": {
@@ -361,13 +266,5 @@
     "state": "ready",
     "target_version": "0.18.6"
   },
-  "validation_summary": [
-    {
-      "items": [
-        "- (no validation recorded yet)"
-      ],
-      "path": "logics/tasks/task_068_orchestrate_conditional_reset_columns_in_cdx_status.md",
-      "ref": "task_068_orchestrate_conditional_reset_columns_in_cdx_status"
-    }
-  ]
+  "validation_summary": []
 }

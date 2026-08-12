@@ -2,18 +2,18 @@
 > From version: 0.18.6
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 90%
 > Progress: 0%
 > Complexity: Medium
 > Theme: Tray data contract
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
+- Summary: Publish bounded repository-owned Logics groups with stable roots and collision-safe labels.
 - Keywords: publish, bounded, logics, repository, groups, tray, card
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Use when: Changing Logics adapter output, card schema, or repository group labels.
+- Skip when: Changing native menu rendering alone.
 
 # Problem
 - The adapter discovers multiple roots but discards all but one selected card, and flat plugin rows cannot represent ownership by repository without encoding it into display text.
@@ -23,6 +23,7 @@
 - In:
   - Build deterministic, bounded repository groups from the existing per-root status payloads, retaining one blocked and one next row per group when present.
   - Add an optional grouped-card snapshot field with explicit group label, validated rows, and repository roots carried only as structured action data.
+  - Derive collision-safe labels from the shortest necessary parent context, with roots remaining structured focus data rather than display identity.
   - Keep the existing summary and card-wide Open Logics and Refresh Logics actions.
 - Out:
   - Changing Logics manager selection rules, showing every document, or introducing arbitrary plugin-provided menu structure.
@@ -31,6 +32,7 @@
 - AC1: Multiple active roots produce separate bounded groups with deterministic order.
 - AC2: A group contains only its own blocked and next rows, each with a valid focus action and root.
 - AC3: Legacy flat cards remain valid snapshot input.
+- AC4: Same-basename roots receive deterministic distinct labels without exposing arbitrary absolute paths.
 
 # AC Traceability
 - request-AC1 -> This backlog slice. Proof: AC1: Multiple active roots produce separate bounded groups with deterministic order.

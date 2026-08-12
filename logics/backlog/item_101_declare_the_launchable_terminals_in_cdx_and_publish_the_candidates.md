@@ -2,18 +2,18 @@
 > From version: 0.18.6
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 90%
 > Progress: 0%
 > Complexity: Medium
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
+- Summary: Define the single terminal catalogue and snapshot candidates that native tray backends can honestly offer.
 - Keywords: declare, launchable, terminals, cdx, publish, candidates
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Use when: Changing terminal discovery, candidate publication, or the tray terminal preference contract.
+- Skip when: Changing an existing platform launcher without changing candidate availability.
 
 # Problem
 - Nothing in CDX knows which terminal names are launchable, so nothing can offer a list.
@@ -27,6 +27,7 @@
   - Carry the resulting candidates in the snapshot beside the existing `terminal` key and bump SCHEMA_MINOR, so an older companion ignores the addition.
   - Add `cdx tray terminal list` with human and JSON output, marking the current choice and naming the platform default.
   - Re-validate every candidate name through valid_terminal() before it enters the snapshot or the listing.
+  - Compute candidates for the same native or WSL transport that will execute the companion action; do not infer a Windows-host result from a WSL process PATH.
 - Out:
   - Changing how a terminal is launched; this item only declares and reports.
   - Any change to the tray companion.
@@ -39,6 +40,7 @@
 - AC4: `cdx tray terminal list` prints the candidates with the current choice marked and the platform default named, and `--json` returns the same data structurally.
 - AC5: A name that fails valid_terminal() never reaches the snapshot or the listing, whatever detection returned.
 - AC6: Tray contract and tray command test suites cover the catalogue, the detection boundary and both output modes.
+- AC7: Native and WSL detection tests prove the advertised candidates belong to the transport that will launch them.
 
 # AC Traceability
 - request-AC3 -> This backlog slice. Proof: AC1: A single declaration in src/tray_terminal.py names the launchable terminals per platform, and both the snapshot and the CLI read it rather than repeating it.

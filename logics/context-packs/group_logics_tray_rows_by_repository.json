@@ -1,66 +1,18 @@
 {
   "budgets": {
-    "max_docs": 16,
+    "max_docs": 8,
     "max_docs_per_ref": 4
   },
-  "changed_paths": [
-    "logics/backlog/item_115_publish_bounded_logics_repository_groups_in_the_tray_card.md",
-    "logics/backlog/item_116_render_logics_repository_groups_as_native_tray_submenus.md",
-    "logics/product/prod_045_repository_oriented_logics_tray_navigation.md",
-    "logics/request/req_058_group_logics_tray_next_actions_by_repository.md",
-    "logics/scaffold/group_logics_tray_rows_by_repository.json",
-    "logics/tasks/task_069_orchestrate_repository_grouped_logics_tray_navigation.md"
-  ],
-  "command": "logics-manager sync context-pack req_058_group_logics_tray_next_actions_by_repository item_115_publish_bounded_logics_repository_groups_in_the_tray_card item_116_render_logics_repository_groups_as_native_tray_submenus task_069_orchestrate_repository_grouped_logics_tray_navigation --mode diff-first --profile normal --handoff",
-  "companion_docs": [
-    {
-      "kind": "product",
-      "linked_refs": {
-        "item": [
-          "item_115_publish_bounded_logics_repository_groups_in_the_tray_card",
-          "item_116_render_logics_repository_groups_as_native_tray_submenus"
-        ],
-        "prod": [
-          "prod_045_repository_oriented_logics_tray_navigation"
-        ],
-        "req": [
-          "req_058_group_logics_tray_next_actions_by_repository"
-        ],
-        "task": [
-          "task_069_orchestrate_repository_grouped_logics_tray_navigation"
-        ]
-      },
-      "path": "logics/product/prod_045_repository_oriented_logics_tray_navigation.md",
-      "ref": "prod_045_repository_oriented_logics_tray_navigation",
-      "sections": {
-        "Goals": [
-          "- Show a bounded, deterministic submenu per repository with meaningful Logics work.",
-          "- Keep focused viewer actions bound to the repository that produced them.",
-          "- Preserve the compact card summary and global Logics actions."
-        ],
-        "Key product decisions": [
-          "- Use structured input as the source of truth for generated docs.",
-          "- Keep generated write paths local and repo-bounded."
-        ],
-        "Overview": [
-          "Turn the Logics section of the tray from one global next-action row into a compact repository menu, so an operator can see and open the next work in each active repository without leaving the tray."
-        ],
-        "References": [
-          "- Product back-reference: `req_058_group_logics_tray_next_actions_by_repository`",
-          "- Task back-reference: `task_069_orchestrate_repository_grouped_logics_tray_navigation`"
-        ]
-      },
-      "status": "Proposed",
-      "title": "Repository-oriented Logics tray navigation"
-    }
-  ],
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_058_group_logics_tray_next_actions_by_repository task_069_orchestrate_repository_grouped_logics_tray_navigation --mode summary-only --profile normal",
+  "companion_docs": [],
   "docs": [
     {
       "ai_context": {
-        "keywords": "group, logics, tray, next, actions, repository",
-        "skip when": "(unfilled: replace before this doc is used)",
-        "summary": "(unfilled: replace before this doc is used)",
-        "use when": "(unfilled: replace before this doc is used)"
+        "keywords": "repository group, native submenu, Logics card, snapshot compatibility",
+        "skip when": "Changing global tray actions unrelated to repository-specific Logics navigation.",
+        "summary": "Native tray Logics navigation groups bounded next actions by repository while retaining global actions.",
+        "use when": "Changing Logics tray card structure, repository labels, or focused viewer actions."
       },
       "kind": "request",
       "linked_refs": {
@@ -78,29 +30,15 @@
       "path": "logics/request/req_058_group_logics_tray_next_actions_by_repository.md",
       "ref": "req_058_group_logics_tray_next_actions_by_repository",
       "schema_version": "1.0",
-      "sections": {
-        "Acceptance criteria": [
-          "- AC1: When Logics reports work in multiple repository roots, the tray renders a deterministic repository submenu for each bounded group instead of selecting one global repository row.",
-          "- AC2: Each repository submenu shows that repository's blocked document when present and its next active task when present; labels identify the action without repeating the repository name inside its own submenu.",
-          "- AC3: Every focused row carries the repository root and stable logics.focus reference through the Python snapshot validation and Rust action callback, so clicking it opens the correct focused viewer.",
-          "- AC4: Repository-group ordering, per-group row limits, and total group limits are deterministic and bounded; an empty repository contributes no submenu, while Open Logics and Refresh Logics remain card-wide actions.",
-          "- AC5: Older flat plugin cards continue to render as before, malformed groups are safely ignored, and snapshot schema compatibility remains forward-safe.",
-          "- AC6: Python and Rust tests cover multiple roots, group ordering and bounds, blocked-plus-next rows, action-root propagation, legacy flat cards, and native submenu rendering; project and Logics validation pass."
-        ],
-        "Needs": [
-          "- The Logics tray card currently picks one repository and renders its at-most-two rows flat, prefixed with the repository name. When several repositories have work, an operator cannot scan each repository independently or discover its next action from a repository submenu.",
-          "- The tray should group Logics work by repository. Opening a repository submenu should show that repository's blocked and next actionable documents, with each action opening the focused viewer in the correct repository."
-        ]
-      },
       "status": "Draft",
       "title": "Group Logics tray next actions by repository"
     },
     {
       "ai_context": {
         "keywords": "publish, bounded, logics, repository, groups, tray, card",
-        "skip when": "(unfilled: replace before this doc is used)",
-        "summary": "(unfilled: replace before this doc is used)",
-        "use when": "(unfilled: replace before this doc is used)"
+        "skip when": "Changing native menu rendering alone.",
+        "summary": "Publish bounded repository-owned Logics groups with stable roots and collision-safe labels.",
+        "use when": "Changing Logics adapter output, card schema, or repository group labels."
       },
       "kind": "backlog",
       "linked_refs": {
@@ -120,26 +58,15 @@
       "path": "logics/backlog/item_115_publish_bounded_logics_repository_groups_in_the_tray_card.md",
       "ref": "item_115_publish_bounded_logics_repository_groups_in_the_tray_card",
       "schema_version": "1.0",
-      "sections": {
-        "Acceptance criteria": [
-          "- AC1: Multiple active roots produce separate bounded groups with deterministic order.",
-          "- AC2: A group contains only its own blocked and next rows, each with a valid focus action and root.",
-          "- AC3: Legacy flat cards remain valid snapshot input."
-        ],
-        "Problem": [
-          "- The adapter discovers multiple roots but discards all but one selected card, and flat plugin rows cannot represent ownership by repository without encoding it into display text.",
-          "- A naive expansion risks an unbounded menu or action targets reconstructed from labels."
-        ]
-      },
       "status": "Ready",
       "title": "Publish bounded Logics repository groups in the tray card"
     },
     {
       "ai_context": {
         "keywords": "render, logics, repository, groups, native, tray, submenus",
-        "skip when": "(unfilled: replace before this doc is used)",
-        "summary": "(unfilled: replace before this doc is used)",
-        "use when": "(unfilled: replace before this doc is used)"
+        "skip when": "Changing card discovery or repository label selection.",
+        "summary": "Render repository groups as bounded native tray submenus without losing stable action targets.",
+        "use when": "Changing Rust companion menu parsing, submenu construction, or group action dispatch."
       },
       "kind": "backlog",
       "linked_refs": {
@@ -159,16 +86,6 @@
       "path": "logics/backlog/item_116_render_logics_repository_groups_as_native_tray_submenus.md",
       "ref": "item_116_render_logics_repository_groups_as_native_tray_submenus",
       "schema_version": "1.0",
-      "sections": {
-        "Acceptance criteria": [
-          "- AC1: Each repository appears as one submenu whose child labels are concise blocked/next actions.",
-          "- AC2: Clicking a child passes its original action and root to CDX.",
-          "- AC3: Flat legacy rows and card-wide actions retain their current rendering."
-        ],
-        "Problem": [
-          "- The Rust companion currently maps every plugin row directly to one action row, so repository ownership cannot be navigated as a submenu."
-        ]
-      },
       "status": "Ready",
       "title": "Render Logics repository groups as native tray submenus"
     },
@@ -193,16 +110,15 @@
       "path": "logics/product/prod_045_repository_oriented_logics_tray_navigation.md",
       "ref": "prod_045_repository_oriented_logics_tray_navigation",
       "schema_version": "1.0",
-      "sections": {},
       "status": "Proposed",
       "title": "Repository-oriented Logics tray navigation"
     },
     {
       "ai_context": {
-        "keywords": "orchestrate, repository, grouped, logics, tray, navigation",
-        "skip when": "(unfilled: replace before this doc is used)",
-        "summary": "(unfilled: replace before this doc is used)",
-        "use when": "(unfilled: replace before this doc is used)"
+        "keywords": "repository label, submenu, card schema, collision",
+        "skip when": "Changing non-Logics session or alert menu groups.",
+        "summary": "Render a bounded, compatible repository hierarchy for Logics next actions in the tray.",
+        "use when": "Implementing repository-grouped Logics tray navigation."
       },
       "kind": "task",
       "linked_refs": {
@@ -223,34 +139,24 @@
       "path": "logics/tasks/task_069_orchestrate_repository_grouped_logics_tray_navigation.md",
       "ref": "task_069_orchestrate_repository_grouped_logics_tray_navigation",
       "schema_version": "1.0",
-      "sections": {
-        "Context": [
-          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
-        ],
-        "Validation": [
-          "- (no validation recorded yet)"
-        ]
-      },
       "status": "Ready",
       "title": "Orchestrate repository-grouped Logics tray navigation"
     }
   ],
   "estimates": {
-    "char_count": 8522,
-    "companion_doc_count": 1,
+    "char_count": 4523,
+    "companion_doc_count": 0,
     "doc_count": 5
   },
-  "generated_at": "2026-08-12T23:36:45Z",
+  "generated_at": "2026-08-12T23:56:06Z",
   "handoff": {
-    "companion_doc_count": 1,
-    "enabled": true,
+    "companion_doc_count": 0,
+    "enabled": false,
     "source_refs": [
       "req_058_group_logics_tray_next_actions_by_repository",
-      "item_115_publish_bounded_logics_repository_groups_in_the_tray_card",
-      "item_116_render_logics_repository_groups_as_native_tray_submenus",
       "task_069_orchestrate_repository_grouped_logics_tray_navigation"
     ],
-    "validation_summary_count": 1
+    "validation_summary_count": 0
   },
   "i18n": {
     "actions": [
@@ -266,13 +172,11 @@
     "ok": true,
     "state": "absent"
   },
-  "mode": "diff-first",
+  "mode": "summary-only",
   "profile": "normal",
-  "ref": "req_058_group_logics_tray_next_actions_by_repository,item_115_publish_bounded_logics_repository_groups_in_the_tray_card,item_116_render_logics_repository_groups_as_native_tray_submenus,task_069_orchestrate_repository_grouped_logics_tray_navigation",
+  "ref": "req_058_group_logics_tray_next_actions_by_repository,task_069_orchestrate_repository_grouped_logics_tray_navigation",
   "refs": [
     "req_058_group_logics_tray_next_actions_by_repository",
-    "item_115_publish_bounded_logics_repository_groups_in_the_tray_card",
-    "item_116_render_logics_repository_groups_as_native_tray_submenus",
     "task_069_orchestrate_repository_grouped_logics_tray_navigation"
   ],
   "release": {
@@ -362,13 +266,5 @@
     "state": "ready",
     "target_version": "0.18.6"
   },
-  "validation_summary": [
-    {
-      "items": [
-        "- (no validation recorded yet)"
-      ],
-      "path": "logics/tasks/task_069_orchestrate_repository_grouped_logics_tray_navigation.md",
-      "ref": "task_069_orchestrate_repository_grouped_logics_tray_navigation"
-    }
-  ]
+  "validation_summary": []
 }

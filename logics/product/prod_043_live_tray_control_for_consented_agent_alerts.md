@@ -6,9 +6,18 @@
 > Related task: `task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-13 01:57:07
 
 # Overview
 Make agent-alert delivery a global live mode once an operator has explicitly consented to provider hooks, so the tray can mute or restore notifications for existing sessions without conflating silence with hook removal.
+
+```mermaid
+flowchart LR
+  Consent[Interactive consent] --> Hook[Future profile hook]
+  Switch[Tray or CLI switch] --> State[Shared delivery state]
+  Hook --> State
+  State --> Event[Muted or notified event]
+```
 
 # Goals
 - Make tray muting effective on the next agent event from an already-running hooked session.

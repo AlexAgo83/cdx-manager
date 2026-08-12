@@ -2,18 +2,18 @@
 > From version: 0.18.6
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 90%
 > Progress: 0%
 > Complexity: Medium
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
+- Summary: Route macOS notification-banner clicks through the same retained alert action as tray rows.
 - Keywords: notification, banner, act, like, alert, row, macos
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Use when: Changing macOS notification delegates or alert click dispatch.
+- Skip when: Changing terminal-origin metadata or non-macOS notifications.
 
 # Problem
 - The banner is what the operator sees first, and clicking it does nothing at all today.

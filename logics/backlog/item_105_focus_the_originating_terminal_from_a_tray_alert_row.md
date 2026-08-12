@@ -2,18 +2,18 @@
 > From version: 0.18.6
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 90%
 > Progress: 0%
 > Complexity: High
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
+- Summary: Focus an alert's retained terminal target only when it remains valid, otherwise state that it is unavailable.
 - Keywords: focus, originating, terminal, tray, alert, row
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Use when: Adding terminal focus actions or platform-specific focus adapters.
+- Skip when: Changing the terminal selected for a new tray session.
 
 # Problem
 - The operator reads which session needs them and then has to find its window among many.
@@ -27,6 +27,7 @@
   - Probe Terminal.app and decide from evidence whether an identifier can be matched, rather than assuming parity.
   - Render the action as unavailable, with its reason, where the identity is missing or the platform offers no mechanism — the first real user of Availability::Unavailable.
   - Treat a target that no longer exists as a no-op, never as a reason to activate something else.
+  - Re-validate the allowlisted identity when the retained alert is clicked; never reconstruct a launcher input from display text or the environment.
 - Out:
   - Windows Terminal tab activation and Wayland window raising, neither of which the platform supports.
   - Notification-banner activation, which is its own item.
@@ -39,6 +40,7 @@
 - AC4: Terminal.app is either supported or documented as unsupported with the evidence, not left unstated.
 - AC5: Menu tests cover the available, unavailable and stale renderings, and the macOS focus path is exercised by the smoke script rather than asserted.
 - AC6: Any macOS authorization the mechanism requires is documented, including what an operator sees the first time.
+- AC7: A malformed identity or a target that disappeared after alert receipt is unavailable or a no-op, and cannot focus a session row, preferred terminal, or recency match.
 
 # AC Traceability
 - request-AC2 -> This backlog slice. Proof: AC1: An alert carrying an iTerm2 identity focuses that session and brings the application forward when its row is activated.

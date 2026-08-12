@@ -2,18 +2,18 @@
 > From version: 0.18.6
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 90%
 > Progress: 0%
 > Complexity: Medium
 > Theme: Notification consent
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
+- Summary: Persist one explicit installation consent before provisioning provider hooks for future profile launches.
 - Keywords: request, persist, provider, hook, consent, interactive, launch
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Use when: Changing interactive hook consent, profile provisioning, or non-interactive launch behavior.
+- Skip when: Changing delivery-time mute behavior after a hook already exists.
 
 # Problem
 - A per-session notify setting currently controls hook provisioning, so the user cannot tell whether tray silence means muted delivery or no hook exists to receive future changes.
@@ -24,6 +24,7 @@
   - Define one persisted consent state for supported provider hooks and prompt at the eligible interactive launch boundary when it is absent.
   - Use the existing safe provisioning/removal ownership rules and preserve all non-CDX hook entries.
   - Start global alert delivery muted after consent and surface consent-required, muted, and enabled states through the existing tray/CLI status surfaces.
+  - Treat consent as installation-wide while provisioning hook files per supported profile only on that profile's next eligible interactive launch.
 - Out:
   - Installing hooks without consent, prompting in JSON or non-interactive runs, or changing unrelated session launch preferences.
 
@@ -31,6 +32,7 @@
 - AC1: A first eligible interactive launch asks before provider hook configuration changes; decline is a no-op.
 - AC2: Acceptance provisions only supported sessions through the existing provider-safe paths and persists consent for later launches.
 - AC3: The resulting status clearly separates consent required from globally muted delivery.
+- AC4: Accepted consent is not re-prompted for each new profile, and an already-running provider is never modified retroactively.
 
 # AC Traceability
 - request-AC1 -> This backlog slice. Proof: AC1: A first eligible interactive launch asks before provider hook configuration changes; decline is a no-op.

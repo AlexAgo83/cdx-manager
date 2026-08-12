@@ -2,8 +2,8 @@
 > From version: 0.18.6
 > Schema version: 1.0
 > Status: Draft
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 90%
 > Complexity: Medium
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
@@ -26,6 +26,8 @@
 - Windows conflates two axes the other platforms do not: the terminal application (wt, conhost) and the shell it runs (cmd, powershell, pwsh). The companion already hard-codes `cmd /k` without telling anyone.
 - PowerShell and pwsh are not terminals but shells, and both document a launch-with-a-command form (`-NoExit -Command`), so they can be honoured exactly as `wt` already is.
 - A checked menu item that records a choice the companion cannot honour is worse than no submenu: the fallback is silent, so the operator sees a tick and gets a different terminal.
+- Candidate discovery is a snapshot and can become stale before a click. A missing selected terminal at action time must report an unavailable action or use only the explicit system-default choice; it must never silently substitute another named terminal.
+- Candidate discovery and execution must describe the companion transport that will execute them. In particular, a Windows host and a WSL CDX process cannot claim availability on behalf of one another.
 
 # Acceptance criteria
 - AC1: The tray menu offers a terminal submenu on macOS, Linux and Windows, listing the candidates with the current choice ticked and an explicit system-default entry.
@@ -36,6 +38,8 @@
 - AC6: The launchable names are declared once, in CDX, and a contract test fails when the companion's Windows branches and that declaration disagree.
 - AC7: The terminal preference still stores an application name and never a command, and every path added here re-validates through the existing rule.
 - AC8: A companion older than this delivery reads the extended snapshot unchanged, and an operator with no preference keeps the platform default.
+- AC9: If a previously offered named terminal is absent when clicked, CDX reports that outcome without falling back to a different named terminal; the explicit system-default choice remains the sole fallback path.
+- AC10: Tests prove candidate availability and launch execution under each native and WSL transport boundary rather than treating the CDX process PATH as the companion host PATH.
 
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.

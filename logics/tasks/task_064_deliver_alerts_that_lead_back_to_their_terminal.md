@@ -2,18 +2,18 @@
 > From version: 0.18.6
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 90%
 > Progress: 0%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: deliver, alerts, lead, back, terminal
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: Carry safe terminal-origin metadata from an alert to an honest native focus action.
+- Keywords: alert origin, terminal identity, stale alert, macOS notification
+- Use when: Implementing alert focus behavior or notification click parity.
+- Skip when: Changing alert delivery volume or mute preferences.
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
@@ -25,6 +25,7 @@
 - [ ] 4. Probe Terminal.app and record the finding, supported or not, rather than leaving it open.
 - [ ] 5. Add the macOS notification delegate so a banner click resolves through the same path as the row.
 - [ ] 6. Run the Python suites, the Rust tray suite and the tray smoke script, and document the behaviour and its authorization prompt.
+- [ ] 7. Treat terminal identity as untrusted structured metadata: validate it at receipt and click time, and prove stale retained alerts cannot fall back to a different window.
 - [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
 - [ ] Keep commit creation under operator control; do not force one commit per micro-step.
 - [ ] GATE: do not close until lint, audit, and scaffold validation pass.
@@ -48,6 +49,8 @@
 - request-AC3 -> `item_105_focus_the_originating_terminal_from_a_tray_alert_row`. Proof deferred to slice closeout.
 - request-AC4 -> `item_105_focus_the_originating_terminal_from_a_tray_alert_row`. Proof deferred to slice closeout.
 - request-AC5 -> `item_106_make_the_notification_banner_act_like_the_alert_row_on_macos`. Proof deferred to slice closeout.
+- request-AC8 -> `item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray`. Proof deferred to slice closeout.
+- request-AC9 -> `item_105_focus_the_originating_terminal_from_a_tray_alert_row`. Proof deferred to slice closeout.
 
 # Validation
 - (no validation recorded yet)

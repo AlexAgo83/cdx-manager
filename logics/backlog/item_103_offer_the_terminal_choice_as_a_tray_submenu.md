@@ -2,18 +2,18 @@
 > From version: 0.18.6
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 90%
 > Progress: 0%
 > Complexity: Medium
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
+- Summary: Expose supported terminal candidates as an immediate, checked native tray submenu.
 - Keywords: offer, terminal, choice, tray, submenu
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Use when: Changing native tray menu construction for terminal choice.
+- Skip when: Changing candidate discovery or platform launch execution.
 
 # Problem
 - The preference is invisible from the tray, which is where the operator is when the wrong terminal opens.

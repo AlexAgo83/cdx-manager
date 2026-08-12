@@ -6,9 +6,17 @@
 > Related task: `task_068_orchestrate_conditional_reset_columns_in_cdx_status`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-13 01:57:07
 
 # Overview
 Keep the cdx status table compact by displaying reset columns only when they carry information an operator can act on, without changing stored quota data or scheduling decisions.
+
+```mermaid
+flowchart LR
+  Rows[Rendered active rows] --> Signal[Positive reset signal]
+  Signal --> Columns[Visible table columns]
+  Rows --> Data[JSON and ranking unchanged]
+```
 
 # Goals
 - Remove reset columns that contain no signal across the rendered table.

@@ -2,8 +2,8 @@
 > From version: 0.18.6
 > Schema version: 1.0
 > Status: Draft
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 90%
 > Complexity: High
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
@@ -28,6 +28,8 @@
 - Wayland forbids a client raising another by design, so Linux coverage stops at X11.
 - Clicking a tray row and clicking a notification banner are different problems: the companion is already the clicked application in the first case, while the second needs a notification delegate that does not exist yet, and on Windows a COM activator that is impractical for a non-packaged app.
 - Terminal identity is CDX-level metadata rather than conversation content, so it fits the spool's privacy rule, but adding it is a deliberate extension of what structured_details allows to cross.
+- The inherited environment is input, not authority. The spool may carry only an allowlisted terminal kind plus a bounded opaque identifier; no platform launcher, shell fragment, AppleScript, window title, or provider payload may cross and later be executed.
+- Alert retention means a click can occur long after the session stopped. Focus must validate the exact target at click time and report an unavailable outcome rather than falling back to a session row, terminal preference, or recency heuristic.
 
 # Acceptance criteria
 - AC1: A hook records which terminal its session runs in, from the environment, and the alert carries that identity to the tray.
@@ -37,6 +39,8 @@
 - AC5: Where the platform permits it, clicking the notification banner does what clicking the tray row does.
 - AC6: The identity crossing into the spool is named metadata only, documented in structured_details alongside what still may not cross.
 - AC7: A companion older than this delivery ignores the added fields and behaves exactly as before.
+- AC8: Terminal identity fields are allowlisted, printable, length-bounded metadata; malformed or unknown values cannot reach a platform focus mechanism.
+- AC9: Tests cover a stale retained alert, malformed identity, and a target that disappears between receipt and click, proving no fallback focuses another terminal.
 
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.

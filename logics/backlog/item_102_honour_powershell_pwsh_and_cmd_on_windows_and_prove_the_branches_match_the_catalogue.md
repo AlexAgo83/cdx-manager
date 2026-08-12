@@ -2,18 +2,18 @@
 > From version: 0.18.6
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 90%
 > Progress: 0%
 > Complexity: Medium
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
+- Summary: Keep each offered Windows terminal candidate aligned with its explicit native or WSL launch branch.
 - Keywords: honour, powershell, pwsh, cmd, windows, prove, branches, match, catalogue
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Use when: Changing Windows terminal launching, unavailable-candidate handling, or catalogue coverage tests.
+- Skip when: Adding a non-Windows candidate.
 
 # Problem
 - tray/src/win.rs honours `wt` alone; any other stored name falls back to cmd without a word, so a recorded preference can be a lie.
@@ -23,7 +23,7 @@
 # Scope
 - In:
   - Add documented launch branches for `powershell`, `pwsh` and `cmd` beside the existing `wt` one, under both the native and WSL transports.
-  - Keep the silent-fallback path for a name the build cannot launch, since it remains the only safe behaviour for a stale preference.
+  - Refuse a stale named preference at action time with an actionable unavailable result; only the explicit system-default choice may select the default console.
   - Add a contract test asserting that the Windows names CDX declares launchable are exactly those the companion implements a branch for.
   - Document, in the module that owns it, that Windows names a shell where the other platforms name an application.
 - Out:
@@ -33,7 +33,7 @@
 
 # Acceptance criteria
 - AC1: Each of `wt`, `powershell`, `pwsh` and `cmd` launches the intended cdx command through its own documented invocation, under native and WSL transports alike.
-- AC2: A stored name this build cannot launch still opens the default console rather than doing nothing.
+- AC2: A stored named terminal that is absent or unsupported at action time reports an unavailable outcome and never opens a different named terminal.
 - AC3: A contract test fails when CDX's Windows catalogue and the companion's implemented branches disagree in either direction.
 - AC4: The command line is composed by the companion from CDX's own command, never from the preference, which names only the application or shell.
 - AC5: The Rust tray test suite and the Python contract suite both pass, with new cases for each added branch.

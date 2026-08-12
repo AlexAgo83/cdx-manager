@@ -6,9 +6,18 @@
 > Related task: `task_064_deliver_alerts_that_lead_back_to_their_terminal`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-13 01:57:07
 
 # Overview
 An agent alert knows which terminal produced it, and acting on the alert returns the operator to that window.
+
+```mermaid
+flowchart LR
+  Hook[Provider hook] --> Alert[Tray alert]
+  Alert --> Check[Validate retained target]
+  Check --> Focus[Focus terminal]
+  Check --> Unavailable[Show unavailable]
+```
 
 # Goals
 - Close the loop between an alert and the session it is about.

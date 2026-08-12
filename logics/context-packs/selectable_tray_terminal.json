@@ -1,61 +1,18 @@
 {
   "budgets": {
-    "max_docs": 20,
+    "max_docs": 8,
     "max_docs_per_ref": 4
   },
   "changed_paths": [],
-  "command": "logics-manager sync context-pack req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue item_103_offer_the_terminal_choice_as_a_tray_submenu task_063_deliver_a_discoverable_and_honest_tray_terminal_choice --mode full --profile normal --handoff",
-  "companion_docs": [
-    {
-      "kind": "product",
-      "linked_refs": {
-        "item": [
-          "item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates",
-          "item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue",
-          "item_103_offer_the_terminal_choice_as_a_tray_submenu"
-        ],
-        "prod": [
-          "prod_039_a_tray_whose_terminal_preference_is_discoverable_and_honest"
-        ],
-        "req": [
-          "req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform"
-        ],
-        "task": [
-          "task_063_deliver_a_discoverable_and_honest_tray_terminal_choice"
-        ]
-      },
-      "path": "logics/product/prod_039_a_tray_whose_terminal_preference_is_discoverable_and_honest.md",
-      "ref": "prod_039_a_tray_whose_terminal_preference_is_discoverable_and_honest",
-      "sections": {
-        "Goals": [
-          "- Make the terminal preference discoverable where the operator already is: the tray menu.",
-          "- Give the CLI a discovery command so a name never has to be guessed.",
-          "- Guarantee that an offered choice is an honoured choice, on every platform.",
-          "- Keep one definition of what is launchable, so the CLI and the companion cannot drift apart."
-        ],
-        "Key product decisions": [
-          "- Use structured input as the source of truth for generated docs.",
-          "- Keep generated write paths local and repo-bounded."
-        ],
-        "Overview": [
-          "CDX declares which terminals it can launch on this host, the tray lets the operator pick one, and every offered choice is one that will actually open."
-        ],
-        "References": [
-          "- Product back-reference: `req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform`",
-          "- Task back-reference: `task_063_deliver_a_discoverable_and_honest_tray_terminal_choice`"
-        ]
-      },
-      "status": "Proposed",
-      "title": "A tray whose terminal preference is discoverable and honest"
-    }
-  ],
+  "command": "logics-manager sync context-pack req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform task_063_deliver_a_discoverable_and_honest_tray_terminal_choice --mode summary-only --profile normal",
+  "companion_docs": [],
   "docs": [
     {
       "ai_context": {
-        "keywords": "let, operator, choose, tray, target, terminal, platform",
-        "skip when": "(unfilled: replace before this doc is used)",
-        "summary": "(unfilled: replace before this doc is used)",
-        "use when": "(unfilled: replace before this doc is used)"
+        "keywords": "tray, terminal, preference, submenu, windows, powershell, discovery, snapshot",
+        "skip when": "Working on which terminal a headless or CLI launch uses, on interactive terminal titles, or on any tray surface other than the terminal choice.",
+        "summary": "The tray's terminal preference exists and works but is reachable only through a CLI command nobody discovers, and on Windows it is honoured for `wt` alone \u2014 every other name falls back to cmd in silence. This makes the choice visible in the menu and makes an offered choice an honoured one.",
+        "use when": "Working on how the tray opens a session, on the terminal preference and its catalogue, or on the snapshot keys and menu entries that carry it."
       },
       "kind": "request",
       "linked_refs": {
@@ -74,30 +31,15 @@
       "path": "logics/request/req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform.md",
       "ref": "req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform",
       "schema_version": "1.0",
-      "sections": {
-        "Acceptance criteria": [
-          "- AC1: The tray menu offers a terminal submenu on macOS, Linux and Windows, listing the candidates with the current choice ticked and an explicit system-default entry.",
-          "- AC2: Choosing an entry records the preference through CDX rather than in the companion, and the tick reflects what was stored rather than what was clicked.",
-          "- AC3: `cdx tray terminal list` prints the candidates, marks the current choice, and names the platform default, in both human and JSON output.",
-          "- AC4: A candidate is offered only when this build knows how to launch it and it is present on the host; anything else is absent rather than drawn and silently ignored.",
-          "- AC5: Windows honours `wt`, `powershell`, `pwsh` and `cmd` through each one's documented invocation, under both native and WSL transports.",
-          "- AC6: The launchable names are declared once, in CDX, and a contract test fails when the companion's Windows branches and that declaration disagree."
-        ],
-        "Needs": [
-          "- Change which terminal application the tray's session rows open, from the tray menu itself, on macOS, Linux and Windows.",
-          "- Discover the available choices from the CLI without reading the source or guessing a name.",
-          "- Trust that a terminal offered as a choice is a terminal that will actually open."
-        ]
-      },
       "status": "Draft",
       "title": "Let the operator choose the tray's target terminal on every platform"
     },
     {
       "ai_context": {
         "keywords": "declare, launchable, terminals, cdx, publish, candidates",
-        "skip when": "(unfilled: replace before this doc is used)",
-        "summary": "(unfilled: replace before this doc is used)",
-        "use when": "(unfilled: replace before this doc is used)"
+        "skip when": "Changing an existing platform launcher without changing candidate availability.",
+        "summary": "Define the single terminal catalogue and snapshot candidates that native tray backends can honestly offer.",
+        "use when": "Changing terminal discovery, candidate publication, or the tray terminal preference contract."
       },
       "kind": "backlog",
       "linked_refs": {
@@ -117,30 +59,15 @@
       "path": "logics/backlog/item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates.md",
       "ref": "item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates",
       "schema_version": "1.0",
-      "sections": {
-        "Acceptance criteria": [
-          "- AC1: A single declaration in src/tray_terminal.py names the launchable terminals per platform, and both the snapshot and the CLI read it rather than repeating it.",
-          "- AC2: Detection reports only terminals present on the host, and a detection failure yields an empty candidate list rather than an error.",
-          "- AC3: The snapshot carries the candidates alongside `terminal`, with SCHEMA_MINOR bumped, and read_snapshot on a companion that predates the key is unaffected.",
-          "- AC4: `cdx tray terminal list` prints the candidates with the current choice marked and the platform default named, and `--json` returns the same data structurally.",
-          "- AC5: A name that fails valid_terminal() never reaches the snapshot or the listing, whatever detection returned.",
-          "- AC6: Tray contract and tray command test suites cover the catalogue, the detection boundary and both output modes."
-        ],
-        "Problem": [
-          "- Nothing in CDX knows which terminal names are launchable, so nothing can offer a list.",
-          "- The preference is discoverable only by reading `cdx tray --help` or the source.",
-          "- A list computed in one place and honoured in another will drift the first time a name is added without its launch branch."
-        ]
-      },
       "status": "Ready",
       "title": "Declare the launchable terminals in CDX and publish the candidates"
     },
     {
       "ai_context": {
         "keywords": "honour, powershell, pwsh, cmd, windows, prove, branches, match, catalogue",
-        "skip when": "(unfilled: replace before this doc is used)",
-        "summary": "(unfilled: replace before this doc is used)",
-        "use when": "(unfilled: replace before this doc is used)"
+        "skip when": "Adding a non-Windows candidate.",
+        "summary": "Keep each offered Windows terminal candidate aligned with its explicit native or WSL launch branch.",
+        "use when": "Changing Windows terminal launching, unavailable-candidate handling, or catalogue coverage tests."
       },
       "kind": "backlog",
       "linked_refs": {
@@ -160,29 +87,15 @@
       "path": "logics/backlog/item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue.md",
       "ref": "item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue",
       "schema_version": "1.0",
-      "sections": {
-        "Acceptance criteria": [
-          "- AC1: Each of `wt`, `powershell`, `pwsh` and `cmd` launches the intended cdx command through its own documented invocation, under native and WSL transports alike.",
-          "- AC2: A stored name this build cannot launch still opens the default console rather than doing nothing.",
-          "- AC3: A contract test fails when CDX's Windows catalogue and the companion's implemented branches disagree in either direction.",
-          "- AC4: The command line is composed by the companion from CDX's own command, never from the preference, which names only the application or shell.",
-          "- AC5: The Rust tray test suite and the Python contract suite both pass, with new cases for each added branch."
-        ],
-        "Problem": [
-          "- tray/src/win.rs honours `wt` alone; any other stored name falls back to cmd without a word, so a recorded preference can be a lie.",
-          "- Windows needs the shell named as well as the terminal, and the companion hard-codes `cmd /k` invisibly.",
-          "- Nothing fails when a name is added to CDX's catalogue without a matching branch in the companion."
-        ]
-      },
       "status": "Ready",
       "title": "Honour PowerShell, pwsh and cmd on Windows, and prove the branches match the catalogue"
     },
     {
       "ai_context": {
         "keywords": "offer, terminal, choice, tray, submenu",
-        "skip when": "(unfilled: replace before this doc is used)",
-        "summary": "(unfilled: replace before this doc is used)",
-        "use when": "(unfilled: replace before this doc is used)"
+        "skip when": "Changing candidate discovery or platform launch execution.",
+        "summary": "Expose supported terminal candidates as an immediate, checked native tray submenu.",
+        "use when": "Changing native tray menu construction for terminal choice."
       },
       "kind": "backlog",
       "linked_refs": {
@@ -202,29 +115,15 @@
       "path": "logics/backlog/item_103_offer_the_terminal_choice_as_a_tray_submenu.md",
       "ref": "item_103_offer_the_terminal_choice_as_a_tray_submenu",
       "schema_version": "1.0",
-      "sections": {
-        "Acceptance criteria": [
-          "- AC1: The menu shows a terminal submenu whose entries are the snapshot's candidates plus a system-default entry, with exactly one ticked.",
-          "- AC2: Clicking an entry writes the preference through CDX and the following poll drives the tick, so a rejected value never appears as selected.",
-          "- AC3: The macOS, Linux and Windows backends all dispatch the action.",
-          "- AC4: A snapshot with no candidates renders no submenu and no empty heading.",
-          "- AC5: The chosen terminal takes effect on the next session row opened, with no companion restart.",
-          "- AC6: Menu tests cover the tick, the default entry, the empty case and the fact that a click is not drawn as selected until it is stored."
-        ],
-        "Problem": [
-          "- The preference is invisible from the tray, which is where the operator is when the wrong terminal opens.",
-          "- There is no menu vocabulary yet for a choice among several values; the existing Check is used only for a two-state switch."
-        ]
-      },
       "status": "Ready",
       "title": "Offer the terminal choice as a tray submenu"
     },
     {
       "ai_context": {
-        "keywords": "deliver, discoverable, honest, tray, terminal, choice",
-        "skip when": "(unfilled: replace before this doc is used)",
-        "summary": "(unfilled: replace before this doc is used)",
-        "use when": "(unfilled: replace before this doc is used)"
+        "keywords": "terminal candidate, native menu, Windows launcher, WSL transport",
+        "skip when": "Changing the unrelated directory launch chooser.",
+        "summary": "Deliver a discoverable terminal-candidate menu without turning preferences into arbitrary commands.",
+        "use when": "Implementing the selectable terminal tray flow and its platform launch branches."
       },
       "kind": "task",
       "linked_refs": {
@@ -246,61 +145,24 @@
       "path": "logics/tasks/task_063_deliver_a_discoverable_and_honest_tray_terminal_choice.md",
       "ref": "task_063_deliver_a_discoverable_and_honest_tray_terminal_choice",
       "schema_version": "1.0",
-      "sections": {
-        "Context": [
-          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
-        ],
-        "Validation": [
-          "- (no validation recorded yet)"
-        ]
-      },
       "status": "Ready",
       "title": "Deliver a discoverable and honest tray terminal choice"
-    },
-    {
-      "ai_context": {},
-      "kind": "product",
-      "linked_refs": {
-        "item": [
-          "item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates",
-          "item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue",
-          "item_103_offer_the_terminal_choice_as_a_tray_submenu"
-        ],
-        "prod": [
-          "prod_039_a_tray_whose_terminal_preference_is_discoverable_and_honest"
-        ],
-        "req": [
-          "req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform"
-        ],
-        "task": [
-          "task_063_deliver_a_discoverable_and_honest_tray_terminal_choice"
-        ]
-      },
-      "path": "logics/product/prod_039_a_tray_whose_terminal_preference_is_discoverable_and_honest.md",
-      "ref": "prod_039_a_tray_whose_terminal_preference_is_discoverable_and_honest",
-      "schema_version": "1.0",
-      "sections": {},
-      "status": "Proposed",
-      "title": "A tray whose terminal preference is discoverable and honest"
     }
   ],
   "estimates": {
-    "char_count": 12245,
-    "companion_doc_count": 1,
-    "doc_count": 6
+    "char_count": 5828,
+    "companion_doc_count": 0,
+    "doc_count": 5
   },
-  "generated_at": "2026-08-12T07:02:37Z",
+  "generated_at": "2026-08-12T23:56:04Z",
   "handoff": {
-    "companion_doc_count": 1,
-    "enabled": true,
+    "companion_doc_count": 0,
+    "enabled": false,
     "source_refs": [
       "req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform",
-      "item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates",
-      "item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue",
-      "item_103_offer_the_terminal_choice_as_a_tray_submenu",
       "task_063_deliver_a_discoverable_and_honest_tray_terminal_choice"
     ],
-    "validation_summary_count": 1
+    "validation_summary_count": 0
   },
   "i18n": {
     "actions": [
@@ -316,14 +178,11 @@
     "ok": true,
     "state": "absent"
   },
-  "mode": "full",
+  "mode": "summary-only",
   "profile": "normal",
-  "ref": "req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform,item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates,item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue,item_103_offer_the_terminal_choice_as_a_tray_submenu,task_063_deliver_a_discoverable_and_honest_tray_terminal_choice",
+  "ref": "req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform,task_063_deliver_a_discoverable_and_honest_tray_terminal_choice",
   "refs": [
     "req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform",
-    "item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates",
-    "item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue",
-    "item_103_offer_the_terminal_choice_as_a_tray_submenu",
     "task_063_deliver_a_discoverable_and_honest_tray_terminal_choice"
   ],
   "release": {
@@ -413,13 +272,5 @@
     "state": "ready",
     "target_version": "0.18.6"
   },
-  "validation_summary": [
-    {
-      "items": [
-        "- (no validation recorded yet)"
-      ],
-      "path": "logics/tasks/task_063_deliver_a_discoverable_and_honest_tray_terminal_choice.md",
-      "ref": "task_063_deliver_a_discoverable_and_honest_tray_terminal_choice"
-    }
-  ]
+  "validation_summary": []
 }

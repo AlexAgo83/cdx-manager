@@ -2,17 +2,17 @@
 > From version: 0.18.6
 > Schema version: 1.0
 > Status: Draft
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 90%
 > Complexity: Medium
 > Theme: Tray navigation
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: group, logics, tray, next, actions, repository
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: Native tray Logics navigation groups bounded next actions by repository while retaining global actions.
+- Keywords: repository group, native submenu, Logics card, snapshot compatibility
+- Use when: Changing Logics tray card structure, repository labels, or focused viewer actions.
+- Skip when: Changing global tray actions unrelated to repository-specific Logics navigation.
 
 # Needs
 - The Logics tray card currently picks one repository and renders its at-most-two rows flat, prefixed with the repository name. When several repositories have work, an operator cannot scan each repository independently or discover its next action from a repository submenu.
@@ -22,6 +22,8 @@
 - tray_logics queries bounded logics-manager status payloads per repository root, but _card_from_status currently selects a single card. The plugin-card snapshot contract has only flat rows and the Rust companion only renders flat card actions.
 - A repository group needs a stable display label plus rows that retain the already-proven root and logics.focus action identity. The companion must never infer a root from a label or an array position.
 - Nested submenus are available in the native tray menu. The new optional grouped-card field must preserve legacy flat rows when CDX and the companion versions differ, and remain bounded so a plugin cannot turn the quota tray into a document browser.
+- Repository basenames are not unique. A group label must be deterministic and distinguish collisions by the shortest necessary parent context without exposing an arbitrary absolute path; the structured root remains the only focus target.
+- The snapshot must advertise the optional groups through a minor-schema-compatible addition: a newer companion accepts an older flat card, and an older companion ignores groups while retaining existing card-wide actions. Limit the card to five repository groups and two rows per group.
 
 # Acceptance criteria
 - AC1: When Logics reports work in multiple repository roots, the tray renders a deterministic repository submenu for each bounded group instead of selecting one global repository row.
@@ -30,6 +32,8 @@
 - AC4: Repository-group ordering, per-group row limits, and total group limits are deterministic and bounded; an empty repository contributes no submenu, while Open Logics and Refresh Logics remain card-wide actions.
 - AC5: Older flat plugin cards continue to render as before, malformed groups are safely ignored, and snapshot schema compatibility remains forward-safe.
 - AC6: Python and Rust tests cover multiple roots, group ordering and bounds, blocked-plus-next rows, action-root propagation, legacy flat cards, and native submenu rendering; project and Logics validation pass.
+- AC7: Repositories with the same basename receive deterministic distinct labels without using display text as an action target.
+- AC8: The snapshot minor version and parser compatibility are tested in both directions; at most five groups and two rows per group can reach the native menu.
 
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.

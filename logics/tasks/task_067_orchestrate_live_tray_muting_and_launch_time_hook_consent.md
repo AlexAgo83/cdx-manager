@@ -2,18 +2,18 @@
 > From version: 0.18.6
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 95%
+> Confidence: 90%
 > Progress: 0%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
-- Keywords: orchestrate, live, tray, muting, launch, time, hook, consent
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Summary: Deliver live muting backed by one delivery state, with explicit consent before hooks are provisioned.
+- Keywords: alert mute, hook consent, provider profile, direct fallback
+- Use when: Implementing notification consent, live muting, or hook delivery behavior.
+- Skip when: Changing only unread-alert presentation.
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
@@ -23,6 +23,7 @@
 - [ ] 2. Add the smallest explicit consent record and interactive launch prompt, preserving non-interactive and unsupported-provider paths.
 - [ ] 3. Make the shared mute state authoritative at hook delivery time and prove an already-launched hook responds to off then on without restarting its provider.
 - [ ] 4. Update tray/CLI state wording, validate preservation of tray history and direct fallback, and record the real hook/executable smoke evidence before closeout.
+- [ ] 5. Separate installation-wide consent from per-profile hook provisioning; prove the no-tray direct path and the installed cached-hook path both observe the same live state.
 - [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
 - [ ] Keep commit creation under operator control; do not force one commit per micro-step.
 - [ ] GATE: do not close until lint, audit, and scaffold validation pass.
@@ -47,6 +48,9 @@
 - request-AC4 -> `item_112_make_the_tray_alert_switch_the_live_delivery_authority`. Proof deferred to slice closeout.
 - request-AC5 -> `item_112_make_the_tray_alert_switch_the_live_delivery_authority`. Proof deferred to slice closeout.
 - request-AC6 -> `item_112_make_the_tray_alert_switch_the_live_delivery_authority`. Proof deferred to slice closeout.
+- request-AC7 -> `item_111_request_and_persist_provider_hook_consent_at_interactive_launch`. Proof deferred to slice closeout.
+- request-AC8 -> `item_112_make_the_tray_alert_switch_the_live_delivery_authority`. Proof deferred to slice closeout.
+- request-AC9 -> `item_112_make_the_tray_alert_switch_the_live_delivery_authority`. Proof deferred to slice closeout.
 
 # Validation
 - (no validation recorded yet)
