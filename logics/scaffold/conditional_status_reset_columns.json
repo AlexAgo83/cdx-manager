@@ -1,0 +1,104 @@
+{
+  "title": "Hide empty reset columns from cdx status",
+  "references": [
+    "src/status_view.py",
+    "src/commands/status.py",
+    "test/test_commands_status_py.py",
+    "README.md"
+  ],
+  "request": {
+    "complexity": "Low",
+    "theme": "Status readability",
+    "needs": [
+      "cdx status currently always renders RESETS, RESET 5H, and RESET WEEK, even when every row contains only a dash. Those empty columns make the terminal table wider without helping an operator choose a session.",
+      "An operator should see a reset column only when at least one displayed session has actionable data for that reset type."
+    ],
+    "context": [
+      "_format_status_rows builds both normal and small table headers with fixed reset columns, then creates six usage values per row. The same rows still feed recommendation and ranking logic, which must not be changed by presentation-only filtering.",
+      "RESETS is a bonus-reset counter and should be visible only when a displayed row has a positive available count. RESET 5H and RESET WEEK should be independently visible only when their corresponding timestamp exists on a displayed row.",
+      "The human table is the scope. JSON payload fields, detail output, stored status data, and the reset-aware recommendation algorithm remain stable even when a table column is hidden."
+    ],
+    "acceptance_criteria": [
+      "AC1: Normal cdx status omits RESETS when no displayed session has a positive reset_credits_available value, omits RESET 5H when no displayed session has reset_5h_at, and omits RESET WEEK when no displayed session has reset_week_at.",
+      "AC2: Each reset column appears independently as soon as at least one displayed row has its actionable value; zero or absent bonus-reset counts do not make RESETS appear.",
+      "AC3: The small status table follows the same visibility rules, and table alignment remains correct for active and disabled rows.",
+      "AC4: JSON status payloads, detailed status reset information, session ranking, and reset-based recommendations retain their current data and behaviour.",
+      "AC5: Focused status-view tests cover all-hidden, each independently visible, mixed rows, zero bonus resets, disabled rows, and small-table output; project and Logics validation pass."
+    ]
+  },
+  "product": {
+    "title": "Signal-only CDX status reset columns",
+    "overview": "Keep the cdx status table compact by displaying reset columns only when they carry information an operator can act on, without changing stored quota data or scheduling decisions.",
+    "goals": [
+      "Remove reset columns that contain no signal across the rendered table.",
+      "Preserve independent visibility for bonus, five-hour, and weekly reset information.",
+      "Leave programmatic status data and availability ranking unchanged."
+    ],
+    "non_goals": [
+      "No change to quota fetching, reset timestamp parsing, recommendation policy, JSON schema, or detailed status output.",
+      "No new display configuration flag, per-column preference, or terminal-width layout system."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Derive reset-column visibility from rendered status data",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Status presentation",
+      "request_acs": ["AC1", "AC2", "AC3", "AC5"],
+      "problem": [
+        "The fixed status headers reserve three reset columns even when every cell is empty, reducing readability for common weekly-only or no-reset account shapes.",
+        "The six fixed usage values couple column construction to headers, so an ad-hoc string replacement could misalign disabled and small rows."
+      ],
+      "scope_in": [
+        "Compute independent visibility flags once from the rendered rows before building normal or small headers.",
+        "Include only the corresponding bonus-reset count and reset-time values in each row while preserving alignment and existing formatting.",
+        "Treat only a positive numeric reset_credits_available value as a visible bonus-reset signal."
+      ],
+      "scope_out": [
+        "Changing reset values, hiding five-hour or weekly quota percentage columns, or adding presentation preferences."
+      ],
+      "acceptance_criteria": [
+        "AC1: Empty bonus, five-hour, and weekly reset columns disappear independently.",
+        "AC2: A single row with a value restores only its matching header and cells.",
+        "AC3: Normal and small tables remain aligned for disabled and mixed-provider rows."
+      ]
+    },
+    {
+      "title": "Prove conditional reset columns preserve status contracts",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Status regression safety",
+      "request_acs": ["AC3", "AC4", "AC5"],
+      "problem": [
+        "Reset data also informs detail and recommendation paths. A display cleanup must not accidentally make a known reset unavailable to ranking or JSON consumers."
+      ],
+      "scope_in": [
+        "Add focused rendering tests for absence, independent presence, zero counts, disabled rows, and compact output.",
+        "Retain existing detail, JSON, and recommendation coverage and update concise user documentation only if it asserts fixed columns."
+      ],
+      "scope_out": [
+        "Changing the JSON contract, the reset countdown formatter, provider probes, or selector ranking."
+      ],
+      "acceptance_criteria": [
+        "AC1: JSON and detailed reset fields remain present independently of table visibility.",
+        "AC2: Existing reset-based recommendation tests stay green.",
+        "AC3: Project and Logics validation pass."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate conditional reset columns in cdx status",
+    "plan": [
+      "Trace normal, compact, detail, JSON, and ranking consumers of reset fields and pin the current fixed-column rendering with focused tests.",
+      "Add the smallest per-column visibility calculation to the status-table renderer, reusing existing value formatting and preserving disabled-row alignment.",
+      "Exercise all-hidden and mixed reset data in both table modes, then verify JSON, detail, and recommendation contracts remain untouched.",
+      "Record validation evidence and update Logics documentation before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/conditional_status_reset_columns.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}
