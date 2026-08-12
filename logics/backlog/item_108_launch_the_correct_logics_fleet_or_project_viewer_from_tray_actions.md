@@ -1,10 +1,10 @@
 ## item_108_launch_the_correct_logics_fleet_or_project_viewer_from_tray_actions - Launch the correct Logics Fleet or project viewer from tray actions
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Medium
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

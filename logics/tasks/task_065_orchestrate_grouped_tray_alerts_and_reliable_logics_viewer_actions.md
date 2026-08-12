@@ -1,7 +1,7 @@
 ## task_065_orchestrate_grouped_tray_alerts_and_reliable_logics_viewer_actions - Orchestrate grouped tray alerts and reliable Logics viewer actions
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
 > Progress: 0%
@@ -9,6 +9,7 @@
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 > Indicators reviewed: 2026-08-13 00:53:55
+> Owner: Codex
 
 # AI Context
 - Summary: Deliver the two linked recovery paths in order: menu-only alert grouping, then detached repository-aware Logics viewer launches proven through the installed macOS tray.
