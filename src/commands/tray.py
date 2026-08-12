@@ -454,6 +454,7 @@ def _tray_plugin(args, ctx):
     """
     parsed = _parse_flag_args(args, {
         "--json": {"key": "json", "type": "bool", "default": False},
+        "--root": {"key": "root", "type": "str", "default": None},
     }, TRAY_USAGE, positionals_key="args", max_positionals=2)
     positional = parsed["args"] or ["status"]
     mode = positional[0]
@@ -515,7 +516,7 @@ def _tray_plugin_run(rest, parsed, ctx):
 
     if not rest:
         raise CdxError(TRAY_USAGE)
-    result = perform_action(rest[0], ctx)
+    result = perform_action(rest[0], ctx, root=parsed["root"])
     if not result["ok"]:
         return _refuse(ctx, parsed["json"], "tray.plugin.run", result["code"], result["message"])
     if parsed["json"]:

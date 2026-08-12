@@ -108,7 +108,11 @@ def bounded_card(raw, plugin):
         action = row.get("action")
         if not label or not _valid_action(action, plugin):
             continue
-        rows.append({"label": label, "action": action})
+        root = row.get("root")
+        if root is not None:
+            if plugin != "logics" or not action.startswith("logics.focus:") or not _valid_root(root):
+                continue
+        rows.append({"label": label, "action": action, **({"root": root} if root else {})})
     actions = [a for a in (raw.get("actions") or []) if _valid_action(a, plugin)]
     return {
         "plugin": plugin,
@@ -126,6 +130,10 @@ def _valid_action(action, plugin):
         and bool(_ACTION_PATTERN.match(action))
         and action.split(".", 1)[0] == plugin
     )
+
+
+def _valid_root(root):
+    return isinstance(root, str) and os.path.isabs(root) and "\x00" not in root and len(root) <= 4096
 
 
 def collect_cards(base_dir, env=None, now=None, adapters=None, cache=None, directories=None):

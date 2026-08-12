@@ -192,6 +192,13 @@ class LogicsAdapterTest(CliTestBase):
         self.assertEqual(card["rows"][0]["label"], "b: blocked: B")
         self.assertNotIn("/private", card["rows"][0]["label"])
 
+    def test_a_focused_row_keeps_its_root_out_of_the_label(self):
+        card = tray_logics._card_from_status([
+            ("/private/project", {"blocked_docs": [{"ref": "task_2", "title": "B"}], "active_tasks": []}),
+        ])
+        self.assertEqual(card["rows"][0]["root"], "/private/project")
+        self.assertNotIn("/private", card["rows"][0]["label"])
+
     def test_a_row_without_a_reference_is_dropped_rather_than_guessed(self):
         card = tray_logics.logics_card(
             executable="logics-manager",
@@ -244,9 +251,12 @@ class CardActionTest(CliTestBase):
 
     def _ctx(self, executable="logics-manager"):
         opened = []
+        root = self.make_temp_dir()
+        os.makedirs(os.path.join(root, ".git"))
         return {
             "env": {"PATH": "/nowhere"},
-            "cwd": "/repo",
+            "cwd": root,
+            "root": root,
             "spawn_detached_runner": lambda argv, **kwargs: opened.append(argv),
             "opened": opened,
             "executable": executable,
@@ -268,9 +278,26 @@ class CardActionTest(CliTestBase):
         ctx = self._ctx()
         with mock.patch("src.logics_view.resolve_logics_manager", return_value="/bin/logics-manager"):
             self.assertTrue(perform_action("logics.open", ctx)["ok"])
-            self.assertTrue(perform_action("logics.focus:task_048", ctx)["ok"])
-        self.assertEqual(ctx["opened"][0], ["/bin/logics-manager", "view"])
-        self.assertEqual(ctx["opened"][1], ["/bin/logics-manager", "view", "--focus", "task_048"])
+            self.assertTrue(perform_action("logics.focus:task_048", ctx, root=ctx["root"])["ok"])
+        self.assertEqual(ctx["opened"][0], ["/bin/logics-manager", "view", "--fleet", "--open"])
+        self.assertEqual(ctx["opened"][1], ["/bin/logics-manager", "view", "--focus", "task_048", "--open"])
+
+    def test_a_focused_action_needs_a_repository_root(self):
+        from unittest import mock
+        with mock.patch("src.logics_view.resolve_logics_manager", return_value="/bin/logics-manager"):
+            result = perform_action("logics.focus:task_048", self._ctx())
+        self.assertEqual(result["code"], "logics_viewer_root_invalid")
+
+    def test_a_focused_action_launches_detached_in_its_originating_root(self):
+        from unittest import mock
+        ctx = self._ctx()
+        seen = []
+        ctx["spawn_detached_runner"] = lambda argv, **kwargs: seen.append((argv, kwargs))
+        with mock.patch("src.logics_view.resolve_logics_manager", return_value="/bin/logics-manager"):
+            self.assertTrue(perform_action("logics.focus:task_048", ctx, root=ctx["root"])["ok"])
+        self.assertEqual(seen[0][0], ["/bin/logics-manager", "view", "--focus", "task_048", "--open"])
+        self.assertEqual(seen[0][1]["cwd"], ctx["root"])
+        self.assertTrue(seen[0][1]["start_new_session"])
 
     def test_a_missing_logics_manager_is_reported_not_crashed(self):
         from unittest import mock

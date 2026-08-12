@@ -36,3 +36,13 @@ def run_logics_viewer(executable, cwd, env=None, extra_args=None, runner=None):
     if runner is subprocess.run:
         return subprocess.run(argv, cwd=cwd, env=merged_env)
     return runner(argv, cwd=cwd, env=merged_env)
+
+
+def spawn_logics_viewer(executable, cwd, env=None, extra_args=None, runner=None):
+    """Start the long-running viewer without making a tray click wait for it."""
+    argv = [executable, "view"] + (extra_args or [])
+    merged_env = {**os.environ, **(env or {})}
+    return (runner or subprocess.Popen)(
+        argv, cwd=cwd, env=merged_env, stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
+    )

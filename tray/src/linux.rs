@@ -239,7 +239,10 @@ pub fn run(transport: Transport) -> Result<(), String> {
             Some(ActionId::SessionConfig(name)) => {
                 open_terminal_in(&format!("config {name}"), state.terminal.as_deref())
             }
-            Some(ActionId::Plugin(action)) => run_plugin_action(&transport, &action),
+            Some(ActionId::Plugin { action, root }) => {
+                run_plugin_action(&transport, &action, root.as_deref())
+            }
+            Some(ActionId::AlertGroup) => {}
             None => {}
         }
         // An alert lands in the spool the moment a hook writes it. Polling for

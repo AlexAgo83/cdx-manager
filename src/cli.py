@@ -589,6 +589,7 @@ def main(argv, options=None):
         "signal_emitter": signal_emitter,
         "spawn": spawn,
         "spawn_detached": options.get("spawn_detached"),
+        "spawn_detached_runner": options.get("spawn_detached_runner"),
         "spawn_headless": options.get("spawn_headless"),
         # Stream `--prompt-file -` reads from. Distinct from "stdin", which is
         # the {"isTTY": ...} descriptor the interactive paths use.

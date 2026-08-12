@@ -10,12 +10,14 @@ different id. An id CDX does not recognise is refused, and refusal is the
 default branch rather than the exception — so an integration gaining a new
 capability is a change to this file, reviewed like any other.
 """
+import os
+
 from .errors import CdxError
 
 ACTION_UNKNOWN = "tray_plugin_action_unknown"
 
 
-def perform_action(action, ctx):
+def perform_action(action, ctx, root=None):
     """Run one action id. Never raises for a bad id: it reports."""
     if not isinstance(action, str) or "." not in action:
         return _unknown(action)
@@ -31,27 +33,38 @@ def perform_action(action, ctx):
     if verb == "open":
         return _open_viewer(ctx, None)
     if verb == "focus" and reference:
-        return _open_viewer(ctx, reference)
+        return _open_viewer(ctx, reference, root)
     return _unknown(action)
 
 
-def _open_viewer(ctx, reference):
-    from .logics_view import missing_logics_manager_failure, resolve_logics_manager, run_logics_viewer
+def _open_viewer(ctx, reference, root=None):
+    from .logics_view import missing_logics_manager_failure, resolve_logics_manager, spawn_logics_viewer
 
     executable = resolve_logics_manager(ctx.get("env") or {})
     if not executable:
         failure = missing_logics_manager_failure()
         return {"ok": False, "code": failure["code"], "message": failure["message"]}
-    extra = ["--focus", reference] if reference else []
+    if reference and not _valid_root(root):
+        return {"ok": False, "code": "logics_viewer_root_invalid", "message": "The focused Logics action has no valid repository context."}
+    extra = ["--focus", reference, "--open"] if reference else ["--fleet", "--open"]
     try:
-        run_logics_viewer(
-            executable, ctx.get("cwd"), env=ctx.get("env"),
+        spawn_logics_viewer(
+            executable, root if reference else ctx.get("cwd"), env=ctx.get("env"),
             extra_args=extra, runner=ctx.get("spawn_detached_runner"),
         )
     except (OSError, CdxError) as error:
         return {"ok": False, "code": "logics_viewer_failed", "message": str(error)}
     where = f" focused on {reference}" if reference else ""
     return {"ok": True, "code": None, "message": f"Opened the Logics viewer{where}."}
+
+
+def _valid_root(root):
+    return (
+        isinstance(root, str)
+        and os.path.isabs(root)
+        and "\x00" not in root
+        and os.path.exists(os.path.join(root, ".git"))
+    )
 
 
 def _unknown(action):

@@ -78,8 +78,13 @@ pub fn acknowledge(transport: &Transport, ids: &[String]) {
 /// CDX matches it against the fixed vocabulary it published and refuses
 /// anything else. That is the whole reason a card can offer an action at all
 /// without an integration gaining a way to run something on this machine.
-pub fn run_plugin_action(transport: &Transport, action: &str) {
-    let _ = run(transport.command_for(&["tray", "plugin", "run", action, "--json"]));
+pub fn run_plugin_action(transport: &Transport, action: &str, root: Option<&str>) {
+    let mut args = vec!["tray", "plugin", "run", action];
+    if let Some(root) = root {
+        args.extend(["--root", root]);
+    }
+    args.push("--json");
+    let _ = run(transport.command_for(&args));
 }
 
 /// Mute or unmute agent alerts, through CDX rather than in the companion.

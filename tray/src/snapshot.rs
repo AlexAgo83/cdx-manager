@@ -238,6 +238,9 @@ pub struct PluginCard {
 pub struct PluginRow {
     pub label: String,
     pub action: String,
+    /// The originating repository for a focused Logics action. It is never
+    /// rendered, and CDX validates it before it can reach a subprocess.
+    pub root: Option<String>,
 }
 
 /// The most rows a card may contribute, mirroring CDX's own bound. A menu that
@@ -328,6 +331,13 @@ fn plugin_card_from(value: &Value) -> Option<PluginCard> {
                                 .filter(|l| !l.is_empty())?
                                 .to_string(),
                             action: action_of(row)?,
+                            root: row
+                                .get("root")
+                                .and_then(Value::as_str)
+                                .filter(|root| {
+                                    !root.is_empty() && root.len() <= 4096 && !root.contains('\0')
+                                })
+                                .map(str::to_string),
                         })
                     })
                     .take(MAX_PLUGIN_ROWS)
@@ -562,10 +572,11 @@ mod tests {
     #[test]
     fn a_card_carries_its_rows_and_actions() {
         let parsed = cards(&wrap(
-            r#"[{"title":"Logics","summary":"1 blocked","rows":[{"label":"blocked: x","action":"logics.focus:t1"}],"actions":["logics.open"]}]"#,
+            r#"[{"title":"Logics","summary":"1 blocked","rows":[{"label":"blocked: x","action":"logics.focus:t1","root":"C:\\repo"}],"actions":["logics.open"]}]"#,
         ));
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0].rows[0].action, "logics.focus:t1");
+        assert_eq!(parsed[0].rows[0].root.as_deref(), Some("C:\\repo"));
         assert_eq!(parsed[0].actions, vec!["logics.open".to_string()]);
     }
 

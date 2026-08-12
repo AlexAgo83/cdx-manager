@@ -57,7 +57,13 @@ pub enum ActionId {
     /// Carried verbatim and handed straight back: the companion does not know
     /// what any of them do, and cannot compose one, which is what keeps an
     /// integration from reaching the machine through the tray.
-    Plugin(String),
+    Plugin {
+        action: String,
+        root: Option<String>,
+    },
+    /// A non-actionable alert submenu. Kept distinct from `Session` so macOS
+    /// never mistakes it for a capacity row when drawing native cells.
+    AlertGroup,
     /// Show this session's persistent launch settings, by name.
     ///
     /// A view, never an edit, and the wording says so: these settings apply to
@@ -400,7 +406,10 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
         entries.push(Entry::Info(format!("{} · {}", card.title, card.summary)));
         for row in &card.rows {
             entries.push(Entry::Action {
-                id: ActionId::Plugin(row.action.clone()),
+                id: ActionId::Plugin {
+                    action: row.action.clone(),
+                    root: row.root.clone(),
+                },
                 label: format!("  {}", row.label),
                 enabled: true,
             });
@@ -411,7 +420,10 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
             // which is quieter than a menu row nobody can read.
             if let Some(label) = plugin_action_label(action) {
                 entries.push(Entry::Action {
-                    id: ActionId::Plugin(action.clone()),
+                    id: ActionId::Plugin {
+                        action: action.clone(),
+                        root: None,
+                    },
                     label,
                     enabled: true,
                 });
@@ -420,23 +432,43 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
     }
     if !alerts.is_empty() {
         entries.push(Entry::Separator);
-        entries.push(Entry::Info("Unread alerts".into()));
-        // Newest first, and clickable when the event says which session it came
-        // from. An alert is the one place a user is already looking when they
-        // want that session, so making them find the row again above is a step
-        // this can simply remove. An alert without a session — one from a CDX
-        // older than the structured fields — stays text rather than guessing a
-        // name out of the sentence.
+        entries.push(Entry::Info("Alert groups".into()));
+        // `recent` already supplies newest-first bounded history. Keeping the
+        // first group occurrence preserves that order without a second clock or
+        // read state; at eight events a tiny linear lookup is clearer than a map.
+        let mut groups: Vec<(Option<&str>, Vec<&crate::events::Event>)> = Vec::new();
         for event in crate::events::recent(alerts) {
-            let line = crate::events::alert_line(event);
-            match &event.details.session {
-                Some(session) => entries.push(Entry::Action {
-                    id: ActionId::Session(session.clone()),
-                    label: line,
-                    enabled: true,
-                }),
-                None => entries.push(Entry::Info(line)),
+            let session = event.details.session.as_deref();
+            if let Some((_, events)) = groups.iter_mut().find(|(key, _)| *key == session) {
+                events.push(event);
+            } else {
+                groups.push((session, vec![event]));
             }
+        }
+        for (session, events) in groups {
+            let label = match session {
+                Some(name) => format!("  {name} ({})", events.len()),
+                None => format!("  Other alerts ({})", events.len()),
+            };
+            let items = events
+                .into_iter()
+                .map(|event| {
+                    let line = crate::events::alert_line(event);
+                    match &event.details.session {
+                        Some(name) => Entry::Action {
+                            id: ActionId::Session(name.clone()),
+                            label: line,
+                            enabled: true,
+                        },
+                        None => Entry::Info(line),
+                    }
+                })
+                .collect();
+            entries.push(Entry::Submenu {
+                about: ActionId::AlertGroup,
+                label,
+                items,
+            });
         }
     }
     if let Some(hint) = &snapshot.update_hint {
@@ -755,6 +787,7 @@ mod tests {
                 .map(|(label, action)| crate::snapshot::PluginRow {
                     label: label.into(),
                     action: action.into(),
+                    root: None,
                 })
                 .collect(),
             actions: actions.into_iter().map(str::to_string).collect(),
@@ -786,7 +819,7 @@ mod tests {
             .iter()
             .filter_map(|e| match e {
                 Entry::Action {
-                    id: ActionId::Plugin(action),
+                    id: ActionId::Plugin { action, .. },
                     ..
                 } => Some(action.clone()),
                 _ => None,
@@ -813,7 +846,7 @@ mod tests {
         assert!(!entries.iter().any(|e| matches!(
             e,
             Entry::Action {
-                id: ActionId::Plugin(_),
+                id: ActionId::Plugin { .. },
                 ..
             }
         )));
@@ -937,11 +970,16 @@ mod tests {
         };
         let entries = build_with_alerts(&snapshot(vec![], true), &[alert]);
         let clicked = entries.iter().find_map(|e| match e {
-            Entry::Action {
-                id: ActionId::Session(name),
-                label,
-                ..
-            } => Some((name.clone(), label.clone())),
+            Entry::Submenu { label, items, .. } if label == "  work (1)" => {
+                items.iter().find_map(|e| match e {
+                    Entry::Action {
+                        id: ActionId::Session(name),
+                        label,
+                        ..
+                    } => Some((name.clone(), label.clone())),
+                    _ => None,
+                })
+            }
             _ => None,
         });
         assert_eq!(
@@ -971,6 +1009,40 @@ mod tests {
             }
         )));
         assert!(labels(&entries).contains("✓ work — repo · turn complete"));
+    }
+
+    #[test]
+    fn alerts_group_by_session_in_newest_group_order() {
+        let event = |id: &str, session: &str| crate::events::Event {
+            id: id.into(),
+            kind: "complete".into(),
+            title: id.into(),
+            message: "done".into(),
+            details: crate::events::Details {
+                session: Some(session.into()),
+                ..Default::default()
+            },
+        };
+        let entries = build_with_alerts(
+            &snapshot(vec![], true),
+            &[
+                event("old", "alpha"),
+                event("middle", "beta"),
+                event("new", "alpha"),
+            ],
+        );
+        let groups = entries
+            .iter()
+            .filter_map(|entry| match entry {
+                Entry::Submenu {
+                    about: ActionId::AlertGroup,
+                    label,
+                    items,
+                } => Some((label.as_str(), items.len())),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(groups, vec![("  alpha (2)", 2), ("  beta (1)", 1)]);
     }
 
     /// `req_043` AC5: an action that cannot run says why instead of vanishing.

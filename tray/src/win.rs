@@ -170,7 +170,10 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 // Handed back exactly as it arrived. The companion knows no
                 // card action and can compose none, so CDX decides what, if
                 // anything, an id means.
-                Some(ActionId::Plugin(action)) => run_plugin_action(&transport, action),
+                Some(ActionId::Plugin { action, root }) => {
+                    run_plugin_action(&transport, action, root.as_deref())
+                }
+                Some(ActionId::AlertGroup) => {}
                 None => {}
             }
         }
@@ -301,7 +304,9 @@ fn open_terminal_in(transport: &Transport, arg: &str, preferred: Option<&str>) {
         let mut command = std::process::Command::new("wt.exe");
         match transport {
             Transport::Wsl { distro: Some(name) } => {
-                command.args(["-w", "0", "nt", "--", "wsl.exe", "-d", name, "--", &cdx, arg]);
+                command.args([
+                    "-w", "0", "nt", "--", "wsl.exe", "-d", name, "--", &cdx, arg,
+                ]);
             }
             Transport::Wsl { distro: None } => {
                 command.args(["-w", "0", "nt", "--", "wsl.exe", "--", &cdx, arg]);

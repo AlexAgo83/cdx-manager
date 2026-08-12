@@ -96,9 +96,9 @@ def _status(env=None, runner=None, executable=None, directories=None):
     return payloads if roots else (payloads[0][1] if payloads else None)
 
 
-def _card_from_status(status):
+def _card_from_status(status, root=None):
     if isinstance(status, list):
-        cards = [(root, _card_from_status(payload), len(payload.get("blocked_docs") or [])) for root, payload in status]
+        cards = [(root, _card_from_status(payload, root), len(payload.get("blocked_docs") or [])) for root, payload in status]
         cards = [(root, card, blocked) for root, card, blocked in cards if card]
         if not cards:
             return None
@@ -126,9 +126,9 @@ def _card_from_status(status):
         }
     rows = []
     if blocked:
-        rows.append(_row(blocked[0], "blocked"))
+        rows.append(_row(blocked[0], "blocked", root))
     if active:
-        rows.append(_row(_most_urgent(active), "next"))
+        rows.append(_row(_most_urgent(active), "next", root))
     return {
         "title": "Logics",
         "summary": f"{len(blocked)} blocked · {len(active)} in progress",
@@ -155,9 +155,12 @@ def _progress(task):
     return value if isinstance(value, (int, float)) else 0
 
 
-def _row(doc, kind):
+def _row(doc, kind, root=None):
     ref = doc.get("ref")
     title = doc.get("title") or ref
     if not isinstance(ref, str) or not ref or not isinstance(title, str):
         return None
-    return {"label": f"{kind}: {title}", "action": f"logics.focus:{ref}"}
+    row = {"label": f"{kind}: {title}", "action": f"logics.focus:{ref}"}
+    if root:
+        row["root"] = root
+    return row

@@ -23,7 +23,7 @@ from .status_view import _format_reset_time
 
 SCHEMA_NAME = "cdx.tray.snapshot"
 SCHEMA_MAJOR = 1
-SCHEMA_MINOR = 2
+SCHEMA_MINOR = 3
 
 # Below this much remaining capacity a session cannot usefully take work. Shared
 # with the ranking's own usability threshold so the tray and `cdx next` do not
