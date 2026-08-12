@@ -1,0 +1,164 @@
+{
+  "title": "Let the operator choose the tray's target terminal on every platform",
+  "references": [
+    "User request: changing the target terminal must be possible from a tray submenu on every platform, plus a CLI discovery command",
+    "src/tray_terminal.py: storage and name validation already exist; the preference is an application name, never a command",
+    "src/tray_contract.py:226 build_snapshot already carries `terminal` but not the candidates",
+    "src/commands/tray.py:403 `cdx tray terminal set|clear|status` exists and is the only way to discover the preference",
+    "tray/src/win.rs:298 open_terminal_in honours only `wt`; every other name falls back to cmd without saying so",
+    "tray/src/mac.rs:192 and tray/src/linux.rs:287 launch a preferred application through a platform-wide convention (`open -a`, `-e`)",
+    "tray/src/menu.rs Entry::Submenu and Entry::Check already exist, used by session rows and the alert mute"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "tray-companion",
+    "needs": [
+      "Change which terminal application the tray's session rows open, from the tray menu itself, on macOS, Linux and Windows.",
+      "Discover the available choices from the CLI without reading the source or guessing a name.",
+      "Trust that a terminal offered as a choice is a terminal that will actually open."
+    ],
+    "context": [
+      "The preference exists and works but is reachable only through `cdx tray terminal set <name>`, so an operator who never read the help has the platform default forever.",
+      "The preference is deliberately an application name and never a command line; nothing about this delivery may weaken that, because the value is writable by anything that can write CDX's state.",
+      "macOS and Linux have a universal launch convention (`open -a`, `-e`), so any installed terminal can be honoured there; Windows has none, and the companion special-cases `wt` alone.",
+      "Windows conflates two axes the other platforms do not: the terminal application (wt, conhost) and the shell it runs (cmd, powershell, pwsh). The companion already hard-codes `cmd /k` without telling anyone.",
+      "PowerShell and pwsh are not terminals but shells, and both document a launch-with-a-command form (`-NoExit -Command`), so they can be honoured exactly as `wt` already is.",
+      "A checked menu item that records a choice the companion cannot honour is worse than no submenu: the fallback is silent, so the operator sees a tick and gets a different terminal."
+    ],
+    "acceptance_criteria": [
+      "AC1: The tray menu offers a terminal submenu on macOS, Linux and Windows, listing the candidates with the current choice ticked and an explicit system-default entry.",
+      "AC2: Choosing an entry records the preference through CDX rather than in the companion, and the tick reflects what was stored rather than what was clicked.",
+      "AC3: `cdx tray terminal list` prints the candidates, marks the current choice, and names the platform default, in both human and JSON output.",
+      "AC4: A candidate is offered only when this build knows how to launch it and it is present on the host; anything else is absent rather than drawn and silently ignored.",
+      "AC5: Windows honours `wt`, `powershell`, `pwsh` and `cmd` through each one's documented invocation, under both native and WSL transports.",
+      "AC6: The launchable names are declared once, in CDX, and a contract test fails when the companion's Windows branches and that declaration disagree.",
+      "AC7: The terminal preference still stores an application name and never a command, and every path added here re-validates through the existing rule.",
+      "AC8: A companion older than this delivery reads the extended snapshot unchanged, and an operator with no preference keeps the platform default."
+    ]
+  },
+  "product": {
+    "title": "A tray whose terminal preference is discoverable and honest",
+    "overview": "CDX declares which terminals it can launch on this host, the tray lets the operator pick one, and every offered choice is one that will actually open.",
+    "goals": [
+      "Make the terminal preference discoverable where the operator already is: the tray menu.",
+      "Give the CLI a discovery command so a name never has to be guessed.",
+      "Guarantee that an offered choice is an honoured choice, on every platform.",
+      "Keep one definition of what is launchable, so the CLI and the companion cannot drift apart."
+    ],
+    "non_goals": [
+      "Letting the preference hold a command line, a path, or arguments.",
+      "Adding an interactive CLI picker; `list` plus the existing `set` covers the discovery need.",
+      "Choosing the shell independently of the terminal on macOS and Linux, where the application brings its own.",
+      "Detecting terminals CDX has no documented way to launch, however popular they are."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Declare the launchable terminals in CDX and publish the candidates",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "tray-companion",
+      "request_acs": ["AC3", "AC4", "AC6", "AC7", "AC8"],
+      "problem": [
+        "Nothing in CDX knows which terminal names are launchable, so nothing can offer a list.",
+        "The preference is discoverable only by reading `cdx tray --help` or the source.",
+        "A list computed in one place and honoured in another will drift the first time a name is added without its launch branch."
+      ],
+      "scope_in": [
+        "Declare, in src/tray_terminal.py, the per-platform catalogue of names this build knows how to launch, as the single source of truth.",
+        "Detect which of them are present on the host: `open -Ra <name>` on macOS, PATH lookup on Linux and Windows.",
+        "Carry the resulting candidates in the snapshot beside the existing `terminal` key and bump SCHEMA_MINOR, so an older companion ignores the addition.",
+        "Add `cdx tray terminal list` with human and JSON output, marking the current choice and naming the platform default.",
+        "Re-validate every candidate name through valid_terminal() before it enters the snapshot or the listing."
+      ],
+      "scope_out": [
+        "Changing how a terminal is launched; this item only declares and reports.",
+        "Any change to the tray companion.",
+        "Storing detection results; the catalogue is computed per snapshot."
+      ],
+      "acceptance_criteria": [
+        "AC1: A single declaration in src/tray_terminal.py names the launchable terminals per platform, and both the snapshot and the CLI read it rather than repeating it.",
+        "AC2: Detection reports only terminals present on the host, and a detection failure yields an empty candidate list rather than an error.",
+        "AC3: The snapshot carries the candidates alongside `terminal`, with SCHEMA_MINOR bumped, and read_snapshot on a companion that predates the key is unaffected.",
+        "AC4: `cdx tray terminal list` prints the candidates with the current choice marked and the platform default named, and `--json` returns the same data structurally.",
+        "AC5: A name that fails valid_terminal() never reaches the snapshot or the listing, whatever detection returned.",
+        "AC6: Tray contract and tray command test suites cover the catalogue, the detection boundary and both output modes."
+      ]
+    },
+    {
+      "title": "Honour PowerShell, pwsh and cmd on Windows, and prove the branches match the catalogue",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "tray-companion",
+      "request_acs": ["AC4", "AC5", "AC6"],
+      "problem": [
+        "tray/src/win.rs honours `wt` alone; any other stored name falls back to cmd without a word, so a recorded preference can be a lie.",
+        "Windows needs the shell named as well as the terminal, and the companion hard-codes `cmd /k` invisibly.",
+        "Nothing fails when a name is added to CDX's catalogue without a matching branch in the companion."
+      ],
+      "scope_in": [
+        "Add documented launch branches for `powershell`, `pwsh` and `cmd` beside the existing `wt` one, under both the native and WSL transports.",
+        "Keep the silent-fallback path for a name the build cannot launch, since it remains the only safe behaviour for a stale preference.",
+        "Add a contract test asserting that the Windows names CDX declares launchable are exactly those the companion implements a branch for.",
+        "Document, in the module that owns it, that Windows names a shell where the other platforms name an application."
+      ],
+      "scope_out": [
+        "Adding terminal emulators beyond the four named here.",
+        "Changing the macOS or Linux launch paths, whose conventions already cover any installed application.",
+        "Exposing shell arguments or profiles as part of the preference."
+      ],
+      "acceptance_criteria": [
+        "AC1: Each of `wt`, `powershell`, `pwsh` and `cmd` launches the intended cdx command through its own documented invocation, under native and WSL transports alike.",
+        "AC2: A stored name this build cannot launch still opens the default console rather than doing nothing.",
+        "AC3: A contract test fails when CDX's Windows catalogue and the companion's implemented branches disagree in either direction.",
+        "AC4: The command line is composed by the companion from CDX's own command, never from the preference, which names only the application or shell.",
+        "AC5: The Rust tray test suite and the Python contract suite both pass, with new cases for each added branch."
+      ]
+    },
+    {
+      "title": "Offer the terminal choice as a tray submenu",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "tray-companion",
+      "request_acs": ["AC1", "AC2", "AC4", "AC8"],
+      "problem": [
+        "The preference is invisible from the tray, which is where the operator is when the wrong terminal opens.",
+        "There is no menu vocabulary yet for a choice among several values; the existing Check is used only for a two-state switch."
+      ],
+      "scope_in": [
+        "Build a terminal submenu from the snapshot's candidates, using the existing Entry::Submenu and Entry::Check, with the current choice ticked and an explicit system-default entry.",
+        "Add a menu action carrying the chosen name, handed back to CDX exactly as the alert mute already does, followed by a repoll so the tick shows what was stored.",
+        "Wire the action on all three platform backends.",
+        "Render no submenu at all when the snapshot carries no candidates, rather than an empty heading."
+      ],
+      "scope_out": [
+        "Composing any launch command inside the companion.",
+        "Offering a name absent from the snapshot's candidates.",
+        "Restarting or reopening terminals already open when the choice changes."
+      ],
+      "acceptance_criteria": [
+        "AC1: The menu shows a terminal submenu whose entries are the snapshot's candidates plus a system-default entry, with exactly one ticked.",
+        "AC2: Clicking an entry writes the preference through CDX and the following poll drives the tick, so a rejected value never appears as selected.",
+        "AC3: The macOS, Linux and Windows backends all dispatch the action.",
+        "AC4: A snapshot with no candidates renders no submenu and no empty heading.",
+        "AC5: The chosen terminal takes effect on the next session row opened, with no companion restart.",
+        "AC6: Menu tests cover the tick, the default entry, the empty case and the fact that a click is not drawn as selected until it is stored."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Deliver a discoverable and honest tray terminal choice",
+    "plan": [
+      "Read src/tray_terminal.py, src/tray_contract.py, src/commands/tray.py and the three companion backends, and confirm the invariant that a preference names an application and never a command.",
+      "Declare the per-platform launchable catalogue in CDX, detect what is present, publish the candidates in the snapshot behind a minor schema bump, and add `cdx tray terminal list`.",
+      "Add the Windows launch branches for powershell, pwsh and cmd, then the contract test that keeps the catalogue and the companion branches in step.",
+      "Build the tray submenu from the candidates on all three backends, writing through CDX and repolling before the tick changes.",
+      "Run the Python suites, the Rust tray suite and lint, and document the preference and its Windows shell/application distinction in README."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/selectable_tray_terminal.json",
+    "mode": "full",
+    "profile": "normal"
+  }
+}
