@@ -58,6 +58,7 @@ def _notification_setting_notice(settings, sessions, action):
             notices.append(f"Agent alerts updated for {names} — this provider does not support notification hooks.")
         return "\n".join(notices)
     if "notify_preview" in settings:
+        names = _format_bulk_launch_summary(sessions)
         if action == "set" and settings["notify_preview"]:
             return f"Response previews enabled for {names} — completion text may be visible on the lock screen."
         return f"Response previews disabled for {names}."
