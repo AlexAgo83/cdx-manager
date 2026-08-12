@@ -1,0 +1,131 @@
+{
+  "title": "Group tray alerts by session and make Logics actions reliably open the viewer",
+  "references": [
+    "src/tray_logics.py",
+    "src/tray_plugin_actions.py",
+    "src/logics_view.py",
+    "src/commands/tray.py",
+    "src/tray_events.py",
+    "tray/src/events.rs",
+    "tray/src/menu.rs",
+    "tray/src/runner.rs",
+    "tray/src/mac.rs",
+    "logics/request/req_042_synchronize_cdx_tray_alert_badges_with_menu_reading.md",
+    "logics/request/req_048_give_the_logics_tray_card_a_repository_to_report_on.md"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Tray usability",
+    "needs": [
+      "Unread tray alerts are currently rendered as one flat list, so messages from parallel sessions are interleaved instead of being readable in their session context.",
+      "The Logics card declares focused-row and Open Logics actions, but the tray invokes them synchronously, without asking the viewer to open a browser, and without retaining the repository that supplied a focused row. On macOS this presents as a click that does nothing or leaves the tray blocked.",
+      "The upcoming Logics viewer provides a shared Fleet entry point. CDX should use that supported viewer contract rather than create a second server or embed a browser."
+    ],
+    "context": [
+      "Structured tray events already carry an optional stable session name. Events without it must remain visible without guessing a target from display text.",
+      "The current unread lifecycle is intentionally consultation-based: opening the tray reads the alerts rendered in that menu while alerts arriving later remain unread. Grouping changes the presentation only; it must not create a second read state.",
+      "The Logics adapter derives status from active session repository roots and currently prefixes rows with a repository basename, but its action contract retains only an action string. A focused action therefore lacks the root required to launch a project-focused viewer reliably.",
+      "logics-manager view --fleet --open is the global Fleet entry point. A focused project action must launch detached from the tray with --focus and --open in the originating repository, allowing Logics to reuse its own viewer server."
+    ],
+    "acceptance_criteria": [
+      "AC1: The tray presents unread alerts as a bounded Alert groups section: one submenu per structured session, ordered by each group's newest alert, with the session name and count; each submenu contains that session's messages newest first.",
+      "AC2: Alerts without a structured session remain visible in one clearly labelled fallback group and never infer an action target from title or message text.",
+      "AC3: Grouping preserves the existing global history bound, native notification delivery, spool acknowledgement, mute behaviour, direct fallback, and consultation-based unread semantics; an alert arriving after a menu opens remains unread for the next consultation.",
+      "AC4: Selecting a session-bound alert still routes only through the existing stable session action; a malformed or unknown session is harmless and cannot select a different session.",
+      "AC5: Open Logics launches the supported Fleet viewer asynchronously with an explicit browser-open request, so the native tray event loop never waits for a long-running viewer server.",
+      "AC6: Selecting a focused Logics row launches the supported viewer asynchronously with --focus and --open from the exact repository that produced that row; cards spanning repositories never focus a reference in another repository.",
+      "AC7: The plugin snapshot and action boundary carry only the minimum validated repository context needed for the focused launch. Full paths do not appear in alert payloads, tray labels, or arbitrary plugin-defined commands.",
+      "AC8: Focused Python and Rust checks cover grouping and fallback alerts, preserved unread behaviour, detached global and focused viewer argv/cwd routing, rejection of malformed context, and the macOS action path; project and Logics validation pass."
+    ]
+  },
+  "product": {
+    "title": "Contextual CDX tray recovery paths",
+    "overview": "Make the CDX tray a reliable place to recover work: group agent alerts by their session and open the supported Logics viewer in the correct global or project context.",
+    "goals": [
+      "Let an operator scan unread alerts by session before reading individual messages.",
+      "Keep alert actions tied to structured stable identities rather than rendered text.",
+      "Make global and focused Logics tray actions visibly open the supported viewer without blocking the tray.",
+      "Reuse the Logics Fleet viewer/server lifecycle instead of adding CDX viewer infrastructure."
+    ],
+    "non_goals": [
+      "No persistent alert archive, per-message read receipts, notification templates, or changes to provider hook payloads.",
+      "No embedded browser, CDX-owned Logics server, arbitrary plugin command, or Logics workflow mutation from the tray.",
+      "No filesystem scan to find a repository and no full repository path in a tray label or alert spool.",
+      "No change to session capacity ordering, tray installation, WSL transport, or direct desktop-notification fallback."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Group unread tray alerts by their originating session",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Tray usability",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC8"],
+      "problem": [
+        "A flat recent-alert list interleaves messages from concurrent sessions, forcing an operator to repeatedly rediscover which work stream a message belongs to.",
+        "The current event envelope is deliberately structured, but the menu ignores its session identity for grouping."
+      ],
+      "scope_in": [
+        "Group the existing bounded unread event list into session submenus plus one fallback group for events without a session.",
+        "Order groups by newest event and messages newest first, showing a count in each session group.",
+        "Keep existing stable session actions for session-bound messages and retain safe text-only handling for incomplete events.",
+        "Cover the Rust menu model and unread lifecycle with focused tests."
+      ],
+      "scope_out": [
+        "Changing event storage, hook payloads, alert retention limits, mute policy, or the native-notification fallback.",
+        "Adding persistent per-alert read state, cross-device history, or an alert search interface.",
+        "Recovering a session identity from a rendered title, message, or menu index."
+      ],
+      "acceptance_criteria": [
+        "AC1: Unread alerts render beneath one Alert groups heading as session submenus with counts and one fallback group when needed.",
+        "AC2: Group and message ordering derives deterministically from the existing newest-first bounded event list.",
+        "AC3: Session-bound alert messages retain the existing stable Session action and all incomplete events remain non-actionable text.",
+        "AC4: Existing consultation, marker, notification, acknowledgement, and mute tests continue to pass alongside focused grouping coverage."
+      ]
+    },
+    {
+      "title": "Launch the correct Logics Fleet or project viewer from tray actions",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Desktop integration",
+      "request_acs": ["AC5", "AC6", "AC7", "AC8"],
+      "problem": [
+        "Tray card actions currently block on a server command, omit the browser-open request, and discard the repository context needed by a focused Logics reference.",
+        "The visible card can therefore describe a repository correctly while its action either appears inert or launches outside that repository."
+      ],
+      "scope_in": [
+        "Use a detached CDX-owned viewer launcher for tray actions, with an explicit browser-open request and no tray-side server management.",
+        "Route Open Logics to the supported Fleet viewer entry point.",
+        "Extend the bounded first-party Logics card/action contract with validated originating repository context for focused rows only.",
+        "Launch focused rows in their originating repository, preserving the fixed action vocabulary and WSL environment resolution in CDX.",
+        "Add regression tests for argv, cwd, detachment, malformed context, global versus focused routing, and macOS menu dispatch."
+      ],
+      "scope_out": [
+        "Starting, supervising, or duplicating a Logics server inside the Rust tray companion.",
+        "Embedding a web view, exposing a port in CDX, adding a plugin marketplace, or allowing plugin-defined shell commands.",
+        "Publishing repository paths into alert payloads or user-facing tray labels."
+      ],
+      "acceptance_criteria": [
+        "AC1: Global Open Logics returns promptly and launches the supported Fleet viewer with an explicit browser-open request.",
+        "AC2: A focused row returns promptly and launches the viewer with the row reference, browser-open request, and exact originating repository as cwd.",
+        "AC3: The action context is schema-validated, bounded, first-party owned, and unavailable actions fail safely without executing a command.",
+        "AC4: Existing plugin isolation, action-id validation, repository privacy, native/WSL resolution, and base tray behaviour remain intact."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate grouped tray alerts and reliable Logics viewer actions",
+    "plan": [
+      "Trace the event-to-menu and plugin-card-to-action paths on macOS, then pin the current flat grouping and blocking/inert viewer failures with focused checks.",
+      "Implement the smallest menu-only alert grouping over the existing unread list, preserving its consultation boundary and stable action identity.",
+      "Extend the bounded first-party Logics row context and implement detached global Fleet and focused project viewer launches using the upcoming supported Logics CLI contract.",
+      "Exercise the installed macOS companion against real session alerts and both Logics actions; verify the browser opens, focused navigation targets the originating repository, and the tray remains responsive.",
+      "Record implementation evidence, update concise documentation if the user-visible behaviour changes, and run project plus Logics validation."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/grouped_alerts_and_reliable_logics_actions.json",
+    "mode": "diff-first",
+    "profile": "deep"
+  }
+}
