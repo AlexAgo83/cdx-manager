@@ -1,0 +1,60 @@
+## task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent - Orchestrate live tray muting and launch-time hook consent
+> From version: 0.18.6
+> Schema version: 1.0
+> Status: Ready
+> Understanding: 90%
+> Confidence: 85%
+> Progress: 0%
+> Complexity: Medium
+> Theme: Implementation delivery
+> Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+
+# AI Context
+- Summary: (unfilled: replace before this doc is used)
+- Keywords: orchestrate, live, tray, muting, launch, time, hook, consent
+- Use when: (unfilled: replace before this doc is used)
+- Skip when: (unfilled: replace before this doc is used)
+
+# Context
+- Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
+
+# Plan
+- [ ] 1. Trace the exact active hook command, inherited notification environment, and shared tray-state path before changing any delivery gate.
+- [ ] 2. Add the smallest explicit consent record and interactive launch prompt, preserving non-interactive and unsupported-provider paths.
+- [ ] 3. Make the shared mute state authoritative at hook delivery time and prove an already-launched hook responds to off then on without restarting its provider.
+- [ ] 4. Update tray/CLI state wording, validate preservation of tray history and direct fallback, and record the real hook/executable smoke evidence before closeout.
+- [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
+- [ ] Keep commit creation under operator control; do not force one commit per micro-step.
+- [ ] GATE: do not close until lint, audit, and scaffold validation pass.
+
+# Backlog
+- `item_111_request_and_persist_provider_hook_consent_at_interactive_launch`
+- `item_112_make_the_tray_alert_switch_the_live_delivery_authority`
+
+# Definition of Done (DoD)
+- [ ] Generated request, product, backlog, and task docs are present.
+- [ ] Context-pack handoff is available when requested.
+- [ ] Validation passes.
+- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+
+# AC Traceability
+- request-AC1 -> `item_111_request_and_persist_provider_hook_consent_at_interactive_launch`. Proof deferred to slice closeout.
+- request-AC2 -> `item_111_request_and_persist_provider_hook_consent_at_interactive_launch`. Proof deferred to slice closeout.
+- request-AC5 -> `item_111_request_and_persist_provider_hook_consent_at_interactive_launch`. Proof deferred to slice closeout.
+- request-AC6 -> `item_111_request_and_persist_provider_hook_consent_at_interactive_launch`. Proof deferred to slice closeout.
+- request-AC2 -> `item_112_make_the_tray_alert_switch_the_live_delivery_authority`. Proof deferred to slice closeout.
+- request-AC3 -> `item_112_make_the_tray_alert_switch_the_live_delivery_authority`. Proof deferred to slice closeout.
+- request-AC4 -> `item_112_make_the_tray_alert_switch_the_live_delivery_authority`. Proof deferred to slice closeout.
+- request-AC5 -> `item_112_make_the_tray_alert_switch_the_live_delivery_authority`. Proof deferred to slice closeout.
+- request-AC6 -> `item_112_make_the_tray_alert_switch_the_live_delivery_authority`. Proof deferred to slice closeout.
+
+# Validation
+- (no validation recorded yet)
+
+# Report
+- Not started.
+
+# Links
+- Request: `req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch`
+- Product brief(s): `prod_043_live_tray_control_for_consented_agent_alerts`
+- Architecture decision(s): (none yet)

@@ -1,0 +1,113 @@
+{
+  "title": "Make tray agent-alert muting live and hook consent explicit at launch",
+  "references": [
+    "src/agent_notify.py",
+    "src/tray_alerts.py",
+    "src/tray_defaults.py",
+    "src/commands/launch.py",
+    "src/commands/tray.py",
+    "src/provider_runtime.py",
+    "test/test_agent_notify_py.py",
+    "test/test_tray_events_py.py"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Interactive agent alerts",
+    "needs": [
+      "Turning Agent alerts off from the tray must immediately silence desktop banners from already-running agent sessions, without waiting for a relaunch or restart.",
+      "The product currently mixes provider-hook installation, per-session notification opt-in, and the temporary tray mute. A hook that inherited CDX_NOTIFY=0 can never observe a later tray unmute, while a hook pointed at a stale executable can bypass the intended mute state.",
+      "Writing provider hooks, especially the Codex plugin requiring approval, needs explicit consent. That consent should be requested during an eligible interactive launch, not inferred from a tray toggle or hidden per-session setting."
+    ],
+    "context": [
+      "Provider hooks call cdx notify as a child process. The delivery boundary in handle_notify can read shared CDX state on every event, so it is the correct place for a live global mute; it must apply whether a tray heartbeat is present or direct desktop delivery is used.",
+      "Hook installation is a separate persistent permission because it writes provider-owned configuration. After permission is granted, the hook must remain available while global alert delivery defaults to muted, allowing a later tray unmute to take effect for the next event without restarting the provider.",
+      "The launch environment currently uses CDX_NOTIFY as a per-session suppression gate before compose_notification. The new contract must not leave a stale launch-time environment value able to override the shared live mute state for an installed hook.",
+      "Existing user-owned hook entries and unsupported providers must remain untouched. The tray must distinguish hooks not yet authorised from hooks installed but globally muted."
+    ],
+    "acceptance_criteria": [
+      "AC1: At an eligible interactive launch with no recorded hook-installation consent, CDX asks once before modifying provider hook configuration; declining leaves provider configuration untouched and starts no notification integration.",
+      "AC2: After explicit consent, supported sessions receive the maintained cdx notification hook through the existing provider-safe provisioning path, while global alert delivery starts muted unless the operator explicitly turns it on.",
+      "AC3: Toggling Agent alerts off from the running tray prevents the next event from every already-hooked supported session from raising a desktop banner immediately, while still recording it for the tray; toggling on restores delivery for the next event without a session restart.",
+      "AC4: The live shared alert state, not a stale CDX_NOTIFY value inherited when a provider launched, is the final delivery authority for installed hooks on both tray and direct-delivery paths.",
+      "AC5: The tray and CLI report distinct actionable states for hook consent required, hooks available but muted, and alerts enabled; unsupported providers and unrelated per-session launch settings preserve their current behaviour.",
+      "AC6: Focused tests cover consent accept/decline, existing-hook migration compatibility, immediate mute/unmute for a launched hook environment, tray-event retention, direct delivery, and no unintended provider-config writes; project and Logics validation pass."
+    ]
+  },
+  "product": {
+    "title": "Live tray control for consented agent alerts",
+    "overview": "Make agent-alert delivery a global live mode once an operator has explicitly consented to provider hooks, so the tray can mute or restore notifications for existing sessions without conflating silence with hook removal.",
+    "goals": [
+      "Make tray muting effective on the next agent event from an already-running hooked session.",
+      "Ask for provider-hook consent at a clear interactive launch boundary and preserve a safe muted delivery default.",
+      "Keep tray history useful while banners are muted and make unavailable versus muted states understandable."
+    ],
+    "non_goals": [
+      "No silent installation or removal of provider hooks, no background polling of providers, and no attempt to retrofit a hook into an already-running provider that has never authorised one.",
+      "No changes to notification preview privacy rules, provider event filtering, tray alert grouping, or unsupported-provider behaviour."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Request and persist provider-hook consent at interactive launch",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Notification consent",
+      "request_acs": ["AC1", "AC2", "AC5", "AC6"],
+      "problem": [
+        "A per-session notify setting currently controls hook provisioning, so the user cannot tell whether tray silence means muted delivery or no hook exists to receive future changes.",
+        "Provider hook configuration is sensitive and must be changed only after an explicit, visible operator decision."
+      ],
+      "scope_in": [
+        "Define one persisted consent state for supported provider hooks and prompt at the eligible interactive launch boundary when it is absent.",
+        "Use the existing safe provisioning/removal ownership rules and preserve all non-CDX hook entries.",
+        "Start global alert delivery muted after consent and surface consent-required, muted, and enabled states through the existing tray/CLI status surfaces."
+      ],
+      "scope_out": [
+        "Installing hooks without consent, prompting in JSON or non-interactive runs, or changing unrelated session launch preferences."
+      ],
+      "acceptance_criteria": [
+        "AC1: A first eligible interactive launch asks before provider hook configuration changes; decline is a no-op.",
+        "AC2: Acceptance provisions only supported sessions through the existing provider-safe paths and persists consent for later launches.",
+        "AC3: The resulting status clearly separates consent required from globally muted delivery."
+      ]
+    },
+    {
+      "title": "Make the tray alert switch the live delivery authority",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Interactive notification delivery",
+      "request_acs": ["AC2", "AC3", "AC4", "AC5", "AC6"],
+      "problem": [
+        "A launch-time CDX_NOTIFY suppression value can prevent an installed hook from reaching the shared mute decision, making a tray toggle ineffective until the session restarts.",
+        "The user needs muted events retained in tray history without allowing either the tray or direct fallback to raise a banner."
+      ],
+      "scope_in": [
+        "Make handle_notify read one shared live alert-delivery state for every composed event and apply it before either tray-owned or direct desktop delivery.",
+        "Remove or migrate only the stale launch-time suppression that conflicts with the live global contract, retaining privacy preview and session identity environment fields.",
+        "Test the next event before and after a tray toggle using an already-hooked launch environment, including tray retention and direct fallback."
+      ],
+      "scope_out": [
+        "Changing provider hook payload schemas, exposing transcript or tool-input data, deleting alert history on mute, or adding a new notification backend."
+      ],
+      "acceptance_criteria": [
+        "AC1: A muted global state suppresses banners immediately for both tray and direct paths while retaining the event for the tray.",
+        "AC2: An enabled global state restores delivery for the next event from the same launched hook environment.",
+        "AC3: Legacy installed hooks and existing non-notification launch behaviour remain compatible."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate live tray muting and launch-time hook consent",
+    "plan": [
+      "Trace the exact active hook command, inherited notification environment, and shared tray-state path before changing any delivery gate.",
+      "Add the smallest explicit consent record and interactive launch prompt, preserving non-interactive and unsupported-provider paths.",
+      "Make the shared mute state authoritative at hook delivery time and prove an already-launched hook responds to off then on without restarting its provider.",
+      "Update tray/CLI state wording, validate preservation of tray history and direct fallback, and record the real hook/executable smoke evidence before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/live_agent_alert_mute_and_launch_consent.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}

@@ -1,0 +1,376 @@
+{
+  "budgets": {
+    "max_docs": 16,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_111_request_and_persist_provider_hook_consent_at_interactive_launch.md",
+    "logics/backlog/item_112_make_the_tray_alert_switch_the_live_delivery_authority.md",
+    "logics/product/prod_043_live_tray_control_for_consented_agent_alerts.md",
+    "logics/request/req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch.md",
+    "logics/scaffold/live_agent_alert_mute_and_launch_consent.json",
+    "logics/tasks/task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent.md"
+  ],
+  "command": "logics-manager sync context-pack req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch item_111_request_and_persist_provider_hook_consent_at_interactive_launch item_112_make_the_tray_alert_switch_the_live_delivery_authority task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_111_request_and_persist_provider_hook_consent_at_interactive_launch",
+          "item_112_make_the_tray_alert_switch_the_live_delivery_authority"
+        ],
+        "prod": [
+          "prod_043_live_tray_control_for_consented_agent_alerts"
+        ],
+        "req": [
+          "req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch"
+        ],
+        "task": [
+          "task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent"
+        ]
+      },
+      "path": "logics/product/prod_043_live_tray_control_for_consented_agent_alerts.md",
+      "ref": "prod_043_live_tray_control_for_consented_agent_alerts",
+      "sections": {
+        "Goals": [
+          "- Make tray muting effective on the next agent event from an already-running hooked session.",
+          "- Ask for provider-hook consent at a clear interactive launch boundary and preserve a safe muted delivery default.",
+          "- Keep tray history useful while banners are muted and make unavailable versus muted states understandable."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Make agent-alert delivery a global live mode once an operator has explicitly consented to provider hooks, so the tray can mute or restore notifications for existing sessions without conflating silence with hook removal."
+        ],
+        "References": [
+          "- Product back-reference: `req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch`",
+          "- Task back-reference: `task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Live tray control for consented agent alerts"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "tray, agent, alert, muting, live, hook, consent, explicit, launch",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_111_request_and_persist_provider_hook_consent_at_interactive_launch",
+          "item_112_make_the_tray_alert_switch_the_live_delivery_authority"
+        ],
+        "prod": [
+          "prod_043_live_tray_control_for_consented_agent_alerts"
+        ],
+        "req": [
+          "req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch"
+        ]
+      },
+      "path": "logics/request/req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch.md",
+      "ref": "req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: At an eligible interactive launch with no recorded hook-installation consent, CDX asks once before modifying provider hook configuration; declining leaves provider configuration untouched and starts no notification integration.",
+          "- AC2: After explicit consent, supported sessions receive the maintained cdx notification hook through the existing provider-safe provisioning path, while global alert delivery starts muted unless the operator explicitly turns it on.",
+          "- AC3: Toggling Agent alerts off from the running tray prevents the next event from every already-hooked supported session from raising a desktop banner immediately, while still recording it for the tray; toggling on restores delivery for the next event without a session restart.",
+          "- AC4: The live shared alert state, not a stale CDX_NOTIFY value inherited when a provider launched, is the final delivery authority for installed hooks on both tray and direct-delivery paths.",
+          "- AC5: The tray and CLI report distinct actionable states for hook consent required, hooks available but muted, and alerts enabled; unsupported providers and unrelated per-session launch settings preserve their current behaviour.",
+          "- AC6: Focused tests cover consent accept/decline, existing-hook migration compatibility, immediate mute/unmute for a launched hook environment, tray-event retention, direct delivery, and no unintended provider-config writes; project and Logics validation pass."
+        ],
+        "Needs": [
+          "- Turning Agent alerts off from the tray must immediately silence desktop banners from already-running agent sessions, without waiting for a relaunch or restart.",
+          "- The product currently mixes provider-hook installation, per-session notification opt-in, and the temporary tray mute. A hook that inherited CDX_NOTIFY=0 can never observe a later tray unmute, while a hook pointed at a stale executable can bypass the intended mute state.",
+          "- Writing provider hooks, especially the Codex plugin requiring approval, needs explicit consent. That consent should be requested during an eligible interactive launch, not inferred from a tray toggle or hidden per-session setting."
+        ]
+      },
+      "status": "Draft",
+      "title": "Make tray agent-alert muting live and hook consent explicit at launch"
+    },
+    {
+      "ai_context": {
+        "keywords": "request, persist, provider, hook, consent, interactive, launch",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_111_request_and_persist_provider_hook_consent_at_interactive_launch"
+        ],
+        "prod": [
+          "prod_043_live_tray_control_for_consented_agent_alerts"
+        ],
+        "req": [
+          "req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch"
+        ],
+        "task": [
+          "task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent"
+        ]
+      },
+      "path": "logics/backlog/item_111_request_and_persist_provider_hook_consent_at_interactive_launch.md",
+      "ref": "item_111_request_and_persist_provider_hook_consent_at_interactive_launch",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A first eligible interactive launch asks before provider hook configuration changes; decline is a no-op.",
+          "- AC2: Acceptance provisions only supported sessions through the existing provider-safe paths and persists consent for later launches.",
+          "- AC3: The resulting status clearly separates consent required from globally muted delivery."
+        ],
+        "Problem": [
+          "- A per-session notify setting currently controls hook provisioning, so the user cannot tell whether tray silence means muted delivery or no hook exists to receive future changes.",
+          "- Provider hook configuration is sensitive and must be changed only after an explicit, visible operator decision."
+        ]
+      },
+      "status": "Ready",
+      "title": "Request and persist provider-hook consent at interactive launch"
+    },
+    {
+      "ai_context": {
+        "keywords": "tray, alert, switch, live, delivery, authority",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_112_make_the_tray_alert_switch_the_live_delivery_authority"
+        ],
+        "prod": [
+          "prod_043_live_tray_control_for_consented_agent_alerts"
+        ],
+        "req": [
+          "req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch"
+        ],
+        "task": [
+          "task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent"
+        ]
+      },
+      "path": "logics/backlog/item_112_make_the_tray_alert_switch_the_live_delivery_authority.md",
+      "ref": "item_112_make_the_tray_alert_switch_the_live_delivery_authority",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A muted global state suppresses banners immediately for both tray and direct paths while retaining the event for the tray.",
+          "- AC2: An enabled global state restores delivery for the next event from the same launched hook environment.",
+          "- AC3: Legacy installed hooks and existing non-notification launch behaviour remain compatible."
+        ],
+        "Problem": [
+          "- A launch-time CDX_NOTIFY suppression value can prevent an installed hook from reaching the shared mute decision, making a tray toggle ineffective until the session restarts.",
+          "- The user needs muted events retained in tray history without allowing either the tray or direct fallback to raise a banner."
+        ]
+      },
+      "status": "Ready",
+      "title": "Make the tray alert switch the live delivery authority"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_111_request_and_persist_provider_hook_consent_at_interactive_launch",
+          "item_112_make_the_tray_alert_switch_the_live_delivery_authority"
+        ],
+        "prod": [
+          "prod_043_live_tray_control_for_consented_agent_alerts"
+        ],
+        "req": [
+          "req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch"
+        ],
+        "task": [
+          "task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent"
+        ]
+      },
+      "path": "logics/product/prod_043_live_tray_control_for_consented_agent_alerts.md",
+      "ref": "prod_043_live_tray_control_for_consented_agent_alerts",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Live tray control for consented agent alerts"
+    },
+    {
+      "ai_context": {
+        "keywords": "orchestrate, live, tray, muting, launch, time, hook, consent",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_111_request_and_persist_provider_hook_consent_at_interactive_launch",
+          "item_112_make_the_tray_alert_switch_the_live_delivery_authority"
+        ],
+        "prod": [
+          "prod_043_live_tray_control_for_consented_agent_alerts"
+        ],
+        "req": [
+          "req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch"
+        ],
+        "task": [
+          "task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent"
+        ]
+      },
+      "path": "logics/tasks/task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent.md",
+      "ref": "task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate live tray muting and launch-time hook consent"
+    }
+  ],
+  "estimates": {
+    "char_count": 9813,
+    "companion_doc_count": 1,
+    "doc_count": 5
+  },
+  "generated_at": "2026-08-12T23:29:55Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch",
+      "item_111_request_and_persist_provider_hook_consent_at_interactive_launch",
+      "item_112_make_the_tray_alert_switch_the_live_delivery_authority",
+      "task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch,item_111_request_and_persist_provider_hook_consent_at_interactive_launch,item_112_make_the_tray_alert_switch_the_live_delivery_authority,task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent",
+  "refs": [
+    "req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch",
+    "item_111_request_and_persist_provider_hook_consent_at_interactive_launch",
+    "item_112_make_the_tray_alert_switch_the_live_delivery_authority",
+    "task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent"
+  ],
+  "release": {
+    "blocking_reasons": [],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Release evidence is complete.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": null,
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "ready",
+    "target_version": "0.18.6"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent.md",
+      "ref": "task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent"
+    }
+  ]
+}

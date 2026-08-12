@@ -62,6 +62,7 @@
 | [prod_042_reviewable_release_preparation_for_stable_claude_titles](product/prod_042_reviewable_release_preparation_for_stable_claude_titles.md) | Reviewable release preparation for stable Claude titles | Proposed |  |  | product/prod_042_reviewable_release_preparation_for_stable_claude_titles.md |
 | [prod_041_contextual_cdx_tray_recovery_paths](product/prod_041_contextual_cdx_tray_recovery_paths.md) | Contextual CDX tray recovery paths | Settled |  |  | product/prod_041_contextual_cdx_tray_recovery_paths.md |
 | [prod_042_recoverable_interactive_cdx_launch_choices](product/prod_042_recoverable_interactive_cdx_launch_choices.md) | Recoverable interactive CDX launch choices | Settled |  |  | product/prod_042_recoverable_interactive_cdx_launch_choices.md |
+| [prod_043_live_tray_control_for_consented_agent_alerts](product/prod_043_live_tray_control_for_consented_agent_alerts.md) | Live tray control for consented agent alerts | Proposed |  |  | product/prod_043_live_tray_control_for_consented_agent_alerts.md |
 
 ## Roadmaps
 
@@ -129,6 +130,7 @@ _None_
 | [req_055_land_and_release_the_stable_claude_terminal_title_change](request/req_055_land_and_release_the_stable_claude_terminal_title_change.md) | Land and release the stable Claude terminal-title change | Draft |  |  | request/req_055_land_and_release_the_stable_claude_terminal_title_change.md |
 | [req_054_group_tray_alerts_by_session_and_make_logics_actions_reliably_open_the_viewer](request/req_054_group_tray_alerts_by_session_and_make_logics_actions_reliably_open_the_viewer.md) | Group tray alerts by session and make Logics actions reliably open the viewer | Done |  |  | request/req_054_group_tray_alerts_by_session_and_make_logics_actions_reliably_open_the_viewer.md |
 | [req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe](request/req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe.md) | Make interactive launch-directory selection writable and cancellation-safe | Done |  |  | request/req_055_make_interactive_launch_directory_selection_writable_and_cancellation_safe.md |
+| [req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch](request/req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch.md) | Make tray agent-alert muting live and hook consent explicit at launch | Draft |  |  | request/req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch.md |
 
 ## Backlog
 
@@ -247,6 +249,8 @@ _None_
 | [item_108_launch_the_correct_logics_fleet_or_project_viewer_from_tray_actions](backlog/item_108_launch_the_correct_logics_fleet_or_project_viewer_from_tray_actions.md) | Launch the correct Logics Fleet or project viewer from tray actions | Done |  | 100% | backlog/item_108_launch_the_correct_logics_fleet_or_project_viewer_from_tray_actions.md |
 | [item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt](backlog/item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt.md) | Add a validated Other path to the interactive launch-directory prompt | Done |  | 100% | backlog/item_109_add_a_validated_other_path_to_the_interactive_launch_directory_prompt.md |
 | [item_110_make_interactive_launch_directory_cancellation_a_clean_no_op](backlog/item_110_make_interactive_launch_directory_cancellation_a_clean_no_op.md) | Make interactive launch-directory cancellation a clean no-op | Done |  | 100% | backlog/item_110_make_interactive_launch_directory_cancellation_a_clean_no_op.md |
+| [item_111_request_and_persist_provider_hook_consent_at_interactive_launch](backlog/item_111_request_and_persist_provider_hook_consent_at_interactive_launch.md) | Request and persist provider-hook consent at interactive launch | Ready |  | 0% | backlog/item_111_request_and_persist_provider_hook_consent_at_interactive_launch.md |
+| [item_112_make_the_tray_alert_switch_the_live_delivery_authority](backlog/item_112_make_the_tray_alert_switch_the_live_delivery_authority.md) | Make the tray alert switch the live delivery authority | Ready |  | 0% | backlog/item_112_make_the_tray_alert_switch_the_live_delivery_authority.md |
 
 ## Tasks
 
@@ -323,6 +327,7 @@ _None_
 | [task_066_create_a_validated_branch_and_pr_for_the_claude_title_release](tasks/task_066_create_a_validated_branch_and_pr_for_the_claude_title_release.md) | Create a validated branch and PR for the Claude title release | Ready |  | 0% | tasks/task_066_create_a_validated_branch_and_pr_for_the_claude_title_release.md |
 | [task_065_orchestrate_grouped_tray_alerts_and_reliable_logics_viewer_actions](tasks/task_065_orchestrate_grouped_tray_alerts_and_reliable_logics_viewer_actions.md) | Orchestrate grouped tray alerts and reliable Logics viewer actions | Done | Codex | 100% | tasks/task_065_orchestrate_grouped_tray_alerts_and_reliable_logics_viewer_actions.md |
 | [task_066_orchestrate_writable_and_cancellable_launch_directory_selection](tasks/task_066_orchestrate_writable_and_cancellable_launch_directory_selection.md) | Orchestrate writable and cancellable launch-directory selection | Done | Codex | 100% | tasks/task_066_orchestrate_writable_and_cancellable_launch_directory_selection.md |
+| [task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent](tasks/task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent.md) | Orchestrate live tray muting and launch-time hook consent | Ready |  | 0% | tasks/task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent.md |
 
 ## Runbooks
 
