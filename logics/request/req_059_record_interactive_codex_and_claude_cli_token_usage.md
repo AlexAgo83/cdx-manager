@@ -7,6 +7,7 @@
 > Complexity: Medium
 > Theme: Usage observability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-08-13 21:38:35
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)
@@ -59,3 +60,6 @@
 # Backlog
 - `item_117_capture_and_normalize_interactive_provider_token_snapshots`
 - `item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics`
+
+# Notes
+- Research-backed implementation decisions: - Codex: hook input supplies session_id and transcript_path; use Stop for durable per-turn snapshots and SessionEnd as a final reconciliation. SessionEnd is synchronous, defaults to 1 second, and is capped at 3 seconds, so parsing must be bounded and fail-open. Codex marks non-managed hooks for explicit trust review. The transcript path is documented as convenient but its format is not stable. Source: https://developers.openai.com/codex/hooks - Codex empirical contract (current local rollout JSONL): select the final valid event_msg.payload where type is token_count, then read info.total_token_usage.{input_tokens,cached_input_tokens,output_tokens,reasoning_output_tokens,total_tokens}. This is a compatibility parser, not a stable public schema. - Claude: SessionEnd supplies session_id and transcript_path on exit, clear, and interactive resume changes. Parse assistant.message.usage records for local accounting; use the complete transcript on every snapshot and deduplicate by assistant-message UUID or a persisted high-water mark. Source: https://code.claude.com/docs/en/hooks - Claude OTel is a supported optional enterprise source of exact per-request input, output, cache-read, and cache-creation tokens, but it needs explicit exporter configuration and must not be required for ordinary local CDX use. Source: https://code.claude.com/docs/en/monitoring-usage - Persistence contract: add optional cached_input_tokens alongside the existing normalized fields. Keep provider total_tokens authoritative; never derive it by adding cached tokens to input and output, because Codex reports cache separately from its displayed total. Existing cdx history and cdx stats remain the retrieval surface, with cache shown as a distinct optional figure when present.
