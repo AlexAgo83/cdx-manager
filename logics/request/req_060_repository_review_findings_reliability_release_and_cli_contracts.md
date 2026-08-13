@@ -7,7 +7,7 @@
 > Complexity: High
 > Theme: Repository health
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-13 22:03:05
+> Indicators reviewed: 2026-08-13 22:05:20
 
 # AI Context
 - Summary: Evidence-backed candidates from a repository-wide review; capture only, with no implementation commitment.
@@ -16,7 +16,6 @@
 - Skip when: Implementing an already-scoped request.
 
 # Needs
-- P0 — Correct the Logics viewer delegation: `src/logics_view.py:11,29,44` invokes `logics-manager view`, while the repository instruction and provider-runtime guidance require `cdx view`; README repeats the obsolete command at lines 121 and 527. The current command will fail or open the wrong surface after the Logics CLI contract changes.
 - P1 — Exercise the Rust tray in CI. `.github/workflows/ci.yml` only runs Python lint/tests on Ubuntu and Windows; it never runs `cargo test --manifest-path tray/Cargo.toml` (96 local tests passed) or builds the tray.
 - P1 — Add a macOS CI lane for the tray and terminal integration. The tray has macOS-specific code in `tray/src/mac.rs`, `tray/src/mac_menu_open.rs`, and `tray/src/notify.rs`, but CI's matrix excludes macOS.
 - P1 — Verify distributable artifacts before release. CI only does `npm pack --dry-run`; the PyPI wheel is built only after a release is published in `.github/workflows/publish-pypi.yml`. Build, inspect, install into a clean environment, and smoke the npm tarball and wheel before release publication.
@@ -37,13 +36,12 @@
 - Out of scope: implementation, new provider features, a rewrite of the CLI, and duplicating previously-open product work.
 
 # Acceptance criteria
-- AC1: Viewer delegation and README guidance use the supported `cdx view` workflow and have regression coverage.
-- AC2: CI runs Python checks, Rust tray tests, and an appropriate macOS tray lane before release publication.
-- AC3: npm and PyPI artifacts are built, inspected, installed in clean environments, and smoke-tested before publication.
-- AC4: Release workflows reduce mutable-action supply-chain exposure without weakening required permissions.
-- AC5: Registry persistence and lock behaviour have bounded, crash-safe semantics on both POSIX and Windows, with tests.
-- AC6: Usage accounting has one documented schema including optional cached input, and interactive transcript reading has a bounded failure-safe I/O path.
-- AC7: The highest-risk untested command paths, contributor instructions, and historical Logics progress inconsistencies are corrected and validated.
+- AC1: CI runs Python checks, Rust tray tests, and an appropriate macOS tray lane before release publication.
+- AC2: npm and PyPI artifacts are built, inspected, installed in clean environments, and smoke-tested before publication.
+- AC3: Release workflows reduce mutable-action supply-chain exposure without weakening required permissions.
+- AC4: Registry persistence and lock behaviour have bounded, crash-safe semantics on both POSIX and Windows, with tests.
+- AC5: Usage accounting has one documented schema including optional cached input, and interactive transcript reading has a bounded failure-safe I/O path.
+- AC6: The highest-risk untested command paths, contributor instructions, and historical Logics progress inconsistencies are corrected and validated.
 
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.
@@ -62,7 +60,6 @@
 - `.github/workflows/publish-pypi.yml`
 - `README.md`
 - `CONTRIBUTING.md`
-- `src/logics_view.py`
 - `src/interactive_usage.py`
 - `src/run_usage.py`
 - `src/commands/status.py`
