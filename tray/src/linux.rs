@@ -307,8 +307,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
 fn open_terminal_in(arg: &str, preferred: Option<&str>) {
     let cdx = Transport::cdx_command();
     let defaults = ["x-terminal-emulator", "gnome-terminal", "konsole", "xterm"];
-    let terminals: &[&str] = preferred.map_or(&defaults, |terminal| std::slice::from_ref(&terminal));
-    for terminal in terminals {
+    for terminal in preferred.into_iter().chain(defaults) {
         let text = format!("{cdx} {arg}");
         let mut command = std::process::Command::new(terminal);
         if terminal == "gnome-terminal" {
