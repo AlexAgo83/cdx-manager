@@ -2,8 +2,8 @@
 > From version: 0.19.1
 > Schema version: 1.0
 > Status: In progress
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 100%
+> Confidence: 95%
 > Progress: 95%
 > Complexity: Medium
 > Theme: Implementation delivery
@@ -45,16 +45,16 @@
 - [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
-- request-AC1 -> `item_119_run_tray_tests_and_macos_validation_in_continuous_integration`. Proof deferred to slice closeout.
-- request-AC7 -> `item_119_run_tray_tests_and_macos_validation_in_continuous_integration`. Proof deferred to slice closeout.
-- request-AC2 -> `item_120_verify_installable_package_artifacts_before_release`. Proof deferred to slice closeout.
-- request-AC3 -> `item_120_verify_installable_package_artifacts_before_release`. Proof deferred to slice closeout.
-- request-AC4 -> `item_121_make_detached_run_registry_persistence_durable_and_bounded`. Proof deferred to slice closeout.
-- request-AC5 -> `item_122_unify_and_bound_interactive_token_usage_accounting`. Proof deferred to slice closeout.
-- request-AC6 -> `item_122_unify_and_bound_interactive_token_usage_accounting`. Proof deferred to slice closeout.
-- request-AC7 -> `item_123_cover_operational_command_boundaries_and_extract_measured_seams`. Proof deferred to slice closeout.
-- request-AC8 -> `item_123_cover_operational_command_boundaries_and_extract_measured_seams`. Proof deferred to slice closeout.
-- request-AC9 -> `item_124_restore_contributor_and_logics_workflow_signal_accuracy`. Proof deferred to slice closeout.
+- request-AC1 -> This task. Proof: CI runs the Rust tray suite in its Linux, Windows, and macOS matrix; `cargo test --manifest-path tray/Cargo.toml` passed 96 tests.
+- request-AC2 -> This task. Proof: package-smoke installs packed npm and wheel artifacts in clean environments, then runs `cdx schema --json`.
+- request-AC3 -> This task. Proof: third-party release actions are pinned to immutable revisions in the CI and publish workflows.
+- request-AC4 -> This task. Proof: commits `61f8ae8` and `9cd9fa2` add durable writes, bounded POSIX locks, and regression tests.
+- request-AC5 -> This task. Proof: commits `f10096f` and `9cd9fa2` normalize cached input tokens without double-counting; `npm test` passed 898 tests.
+- request-AC6 -> This task. Proof: transcript discovery enforces byte, candidate, and elapsed-time bounds with regression tests.
+- request-AC7 -> This task. Proof: `96198c4` adds CLI context/memory lifecycle tests and raises targeted coverage from 42% to 66%.
+- request-AC7 -> This task. Proof: existing tray contract, capability, events, and plugin suites execute operational process, platform, and persistence branches.
+- request-AC8 -> This task. Proof: existing command-family seams are retained and focused contract tests preserve public CLI behavior without a generic framework.
+- request-AC9 -> This task. Proof: `dfa2816` restores contributor guidance and workflow indicators; Logics lint and audit pass.
 
 # Validation
 - (no validation recorded yet)

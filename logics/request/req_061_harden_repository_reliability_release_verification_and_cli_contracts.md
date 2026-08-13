@@ -38,17 +38,6 @@
 - AC8: Provider runtime and CLI argument code are split only along verified existing seams, retaining public CLI behaviour and coverage.
 - AC9: Contributor instructions and historical Logics progress state accurately describe the current validation and workflow contracts.
 
-# AC Traceability
-- request-AC1 -> This task. Proof: CI matrix covers macOS and runs `cargo test --manifest-path tray/Cargo.toml`; validated by the Rust suite (96 passed).
-- request-AC2 -> This task. Proof: CI installs the packed npm archive and built wheel in clean environments, then runs `cdx schema --json`.
-- request-AC3 -> This task. Proof: release workflow actions are pinned to immutable revisions and inspected by CI configuration review.
-- request-AC4 -> This task. Proof: `61f8ae8` and `9cd9fa2` add durable writes, bounded POSIX locks, and regression tests.
-- request-AC5 -> This task. Proof: `f10096f` and `9cd9fa2` normalize cached input tokens without double-counting; 898 Python tests pass.
-- request-AC6 -> This task. Proof: interactive transcript discovery has byte, candidate, and elapsed-time bounds with regression tests.
-- request-AC7 -> This task. Proof: `96198c4` adds CLI context/memory lifecycle tests, raising targeted coverage from 42% to 66%.
-- request-AC8 -> This task. Proof: existing command-family seams remain intact; focused contract tests preserve public CLI behavior without a generic framework.
-- request-AC9 -> This task. Proof: `dfa2816` restores contributor guidance and historical workflow indicators; Logics lint/audit pass.
-
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.
 - [x] Scope boundaries (in/out) are explicit.
