@@ -30,9 +30,10 @@ Run before every commit:
 ```bash
 npm run lint
 npm test
+cargo test --manifest-path tray/Cargo.toml
 ```
 
-Both commands must pass with no errors before opening a pull request.
+All three commands must pass with no errors before opening a pull request.
 
 ## Code Style
 
@@ -48,7 +49,7 @@ Tests run through `pytest`. CI also runs `pytest` with coverage reporting for `s
 
 Test files live under `test/` and follow the `test_*_py.py` naming convention.
 
-When adding a new command or changing existing behavior, add or update the corresponding test in `test/test_cli_py.py` or `test/test_session_service_py.py`.
+When adding or changing a command, update the matching `test/test_commands_*_py.py` module. Update `test/test_session_service_py.py` for service-level behaviour and the Rust tray tests for companion changes.
 
 ## Adding a Provider
 

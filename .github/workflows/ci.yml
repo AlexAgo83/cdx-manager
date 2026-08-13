@@ -19,20 +19,21 @@ jobs:
         os:
           - ubuntu-latest
           - windows-latest
+          - macos-latest
     defaults:
       run:
         shell: bash
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.11"
 
@@ -50,6 +51,9 @@ jobs:
         run: python -m pytest --cov=src --cov-report=term-missing
         env:
           PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
+
+      - name: Test tray companion
+        run: cargo test --manifest-path tray/Cargo.toml
 
       - name: Package dry-run
         run: npm pack --dry-run
@@ -100,3 +104,36 @@ jobs:
           cdx notify --next-ready --once --json
           cdx rmv smoke --force
           cdx rmv smoke-claude --force
+
+  package-smoke:
+    name: Install packaged npm and wheel artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+
+      - name: Install build tooling
+        run: python -m pip install build
+
+      - name: Build and install npm package
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          npm install --global "$RUNNER_TEMP"/cdx-manager-*.tgz
+          cdx --version
+
+      - name: Build and install wheel
+        run: |
+          python -m build --wheel --outdir "$RUNNER_TEMP/wheels"
+          python -m venv "$RUNNER_TEMP/cdx-wheel"
+          "$RUNNER_TEMP/cdx-wheel/bin/python" -m pip install "$RUNNER_TEMP"/wheels/*.whl
+          "$RUNNER_TEMP/cdx-wheel/bin/cdx" --version
