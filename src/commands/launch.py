@@ -155,6 +155,29 @@ def handle_resume(rest, ctx):
         raise CdxError(RESUME_USAGE)
     return handle_launch(args[0], ctx, resume=True, force_json=json_flag, directory=directory)
 
+
+def _notification_provisioning_enabled(session, ctx, json_flag):
+    """Ask once before the first supported profile receives a hook."""
+    enabled = notifications_enabled(session)
+    if enabled or not supports_agent_alerts(session["provider"]):
+        return enabled
+    from ..tray_defaults import alerts_default, set_alerts_default
+
+    base_dir = ctx["service"]["base_dir"]
+    if alerts_default(base_dir):
+        return True
+    if not ctx["stdin_is_tty"] or json_flag:
+        return False
+    ask = ctx.get("options", {}).get("input") or input
+    answer = ask("Allow CDX to install this provider's agent-alert hook? [y/N] ").strip().lower()
+    if answer not in ("y", "yes"):
+        return False
+    set_alerts_default(base_dir, True)
+    from ..tray_alerts import set_alerts
+    set_alerts(base_dir, False)
+    return True
+
+
 def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=None, directory=None):
     json_flag = "--json" in ctx.get("raw_args", ctx["options"].get("raw_args", []))
     if force_json is not None:
@@ -195,19 +218,7 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
     if not json_flag:
         ctx["out"](f"{_info(message, ctx['use_color'])}\n")
         _write_update_notice(ctx)
-    alerts_allowed = notifications_enabled(session)
-    if supports_agent_alerts(session["provider"]) and not alerts_allowed:
-        from ..tray_defaults import alerts_default, set_alerts_default
-        if alerts_default(ctx["service"]["base_dir"]):
-            alerts_allowed = True
-        elif ctx["stdin_is_tty"] and not json_flag:
-            ask = ctx.get("options", {}).get("input") or input
-            answer = ask("Allow CDX to install this provider's agent-alert hook? [y/N] ").strip().lower()
-            if answer in ("y", "yes"):
-                set_alerts_default(ctx["service"]["base_dir"], True)
-                from ..tray_alerts import set_alerts
-                set_alerts(ctx["service"]["base_dir"], False)
-                alerts_allowed = True
+    alerts_allowed = _notification_provisioning_enabled(session, ctx, json_flag)
     installed = provision(
         _get_auth_home(session),
         session["provider"],
