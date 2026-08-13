@@ -133,3 +133,54 @@ class ContextMemoryCommandTests(CliTestBase):
                 "env": {"CDX_HOME": temp_dir},
             })
 
+    def test_context_lifecycle_accepts_captured_stdin_and_editor(self):
+        temp_dir = self.make_temp_dir()
+        workspace = os.path.join(temp_dir, "repo")
+        os.makedirs(workspace)
+        calls = []
+
+        def context_main(args, io_obj, **extra):
+            return main(args, {
+                **io_obj,
+                "env": {"CDX_HOME": temp_dir, "EDITOR": "editor --wait"},
+                "cwd": workspace,
+                **extra,
+            })
+
+        set_io = self.make_io()
+        self.assertEqual(context_main(["context", "set", "--json"], set_io, stdin_data="From stdin"), 0)
+        self.assertEqual(json.loads(set_io["stdout"].getvalue())["context"]["bytes"], len("From stdin\n"))
+
+        self.assertEqual(context_main(["context", "append", "and", "more"], self.make_io()), 0)
+        path_io = self.make_io()
+        self.assertEqual(context_main(["context", "path"], path_io), 0)
+        self.assertTrue(path_io["stdout"].getvalue().strip().endswith("context.md"))
+
+        self.assertEqual(context_main(
+            ["context", "edit", "--json"], self.make_io(),
+            spawn_sync=lambda command, args, options: calls.append((command, args, options)) or {"returncode": 0},
+        ), 0)
+        self.assertEqual(calls[0][0], "editor")
+
+        clear_io = self.make_io()
+        self.assertEqual(context_main(["context", "clear", "--json"], clear_io), 0)
+        self.assertTrue(json.loads(clear_io["stdout"].getvalue())["context"]["removed"])
+
+    def test_memory_lifecycle_handles_global_stdin_and_plain_empty_show(self):
+        temp_dir = self.make_temp_dir()
+        base = {"env": {"CDX_HOME": temp_dir}}
+
+        init_io = self.make_io()
+        self.assertEqual(main(["memory", "--global", "init", "--json"], {**init_io, **base}), 0)
+        self.assertTrue(json.loads(init_io["stdout"].getvalue())["memory"]["created"])
+
+        set_io = self.make_io()
+        self.assertEqual(main(["memory", "--global", "set", "--json"], {
+            **set_io, **base, "stdin_data": "Global stdin",
+        }), 0)
+        self.assertEqual(json.loads(set_io["stdout"].getvalue())["memory"]["scope"], "global")
+
+        self.assertEqual(main(["memory", "--global", "clear"], {**self.make_io(), **base}), 0)
+        show_io = self.make_io()
+        self.assertEqual(main(["memory", "--global", "show"], {**show_io, **base}), 0)
+        self.assertIn("No memory for this scope", show_io["stdout"].getvalue())
