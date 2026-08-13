@@ -65,7 +65,7 @@
 | [prod_043_live_tray_control_for_consented_agent_alerts](product/prod_043_live_tray_control_for_consented_agent_alerts.md) | Live tray control for consented agent alerts | Settled |  |  | product/prod_043_live_tray_control_for_consented_agent_alerts.md |
 | [prod_044_signal_only_cdx_status_reset_columns](product/prod_044_signal_only_cdx_status_reset_columns.md) | Signal-only CDX status reset columns | Settled |  |  | product/prod_044_signal_only_cdx_status_reset_columns.md |
 | [prod_045_repository_oriented_logics_tray_navigation](product/prod_045_repository_oriented_logics_tray_navigation.md) | Repository-oriented Logics tray navigation | Settled |  |  | product/prod_045_repository_oriented_logics_tray_navigation.md |
-| [prod_046_interactive_cli_usage_accounting](product/prod_046_interactive_cli_usage_accounting.md) | Interactive CLI usage accounting | Proposed |  |  | product/prod_046_interactive_cli_usage_accounting.md |
+| [prod_046_interactive_cli_usage_accounting](product/prod_046_interactive_cli_usage_accounting.md) | Interactive CLI usage accounting | Settled |  |  | product/prod_046_interactive_cli_usage_accounting.md |
 
 ## Roadmaps
 
@@ -136,7 +136,8 @@ _None_
 | [req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch](request/req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch.md) | Make tray agent-alert muting live and hook consent explicit at launch | Done |  |  | request/req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch.md |
 | [req_057_hide_empty_reset_columns_from_cdx_status](request/req_057_hide_empty_reset_columns_from_cdx_status.md) | Hide empty reset columns from cdx status | Done |  |  | request/req_057_hide_empty_reset_columns_from_cdx_status.md |
 | [req_058_group_logics_tray_next_actions_by_repository](request/req_058_group_logics_tray_next_actions_by_repository.md) | Group Logics tray next actions by repository | Done |  |  | request/req_058_group_logics_tray_next_actions_by_repository.md |
-| [req_059_record_interactive_codex_and_claude_cli_token_usage](request/req_059_record_interactive_codex_and_claude_cli_token_usage.md) | Record interactive Codex and Claude CLI token usage | Draft |  |  | request/req_059_record_interactive_codex_and_claude_cli_token_usage.md |
+| [req_059_record_interactive_codex_and_claude_cli_token_usage](request/req_059_record_interactive_codex_and_claude_cli_token_usage.md) | Record interactive Codex and Claude CLI token usage | Done |  |  | request/req_059_record_interactive_codex_and_claude_cli_token_usage.md |
+| [req_060_repository_review_findings_reliability_release_and_cli_contracts](request/req_060_repository_review_findings_reliability_release_and_cli_contracts.md) | Repository review findings: reliability, release, and CLI contracts | Draft |  |  | request/req_060_repository_review_findings_reliability_release_and_cli_contracts.md |
 
 ## Backlog
 
@@ -261,8 +262,8 @@ _None_
 | [item_114_prove_conditional_reset_columns_preserve_status_contracts](backlog/item_114_prove_conditional_reset_columns_preserve_status_contracts.md) | Prove conditional reset columns preserve status contracts | Done |  | 100% | backlog/item_114_prove_conditional_reset_columns_preserve_status_contracts.md |
 | [item_115_publish_bounded_logics_repository_groups_in_the_tray_card](backlog/item_115_publish_bounded_logics_repository_groups_in_the_tray_card.md) | Publish bounded Logics repository groups in the tray card | Done |  | 100% | backlog/item_115_publish_bounded_logics_repository_groups_in_the_tray_card.md |
 | [item_116_render_logics_repository_groups_as_native_tray_submenus](backlog/item_116_render_logics_repository_groups_as_native_tray_submenus.md) | Render Logics repository groups as native tray submenus | Done |  | 100% | backlog/item_116_render_logics_repository_groups_as_native_tray_submenus.md |
-| [item_117_capture_and_normalize_interactive_provider_token_snapshots](backlog/item_117_capture_and_normalize_interactive_provider_token_snapshots.md) | Capture and normalize interactive provider token snapshots | Ready |  | 0% | backlog/item_117_capture_and_normalize_interactive_provider_token_snapshots.md |
-| [item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics](backlog/item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics.md) | Persist interactive usage in existing CDX history and statistics | Ready |  | 0% | backlog/item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics.md |
+| [item_117_capture_and_normalize_interactive_provider_token_snapshots](backlog/item_117_capture_and_normalize_interactive_provider_token_snapshots.md) | Capture and normalize interactive provider token snapshots | Done |  | 100% | backlog/item_117_capture_and_normalize_interactive_provider_token_snapshots.md |
+| [item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics](backlog/item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics.md) | Persist interactive usage in existing CDX history and statistics | Done |  | 100% | backlog/item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics.md |
 
 ## Tasks
 
@@ -342,7 +343,7 @@ _None_
 | [task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent](tasks/task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent.md) | Orchestrate live tray muting and launch-time hook consent | Done | Codex | 100% | tasks/task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent.md |
 | [task_068_orchestrate_conditional_reset_columns_in_cdx_status](tasks/task_068_orchestrate_conditional_reset_columns_in_cdx_status.md) | Orchestrate conditional reset columns in cdx status | Done | Codex | 100% | tasks/task_068_orchestrate_conditional_reset_columns_in_cdx_status.md |
 | [task_069_orchestrate_repository_grouped_logics_tray_navigation](tasks/task_069_orchestrate_repository_grouped_logics_tray_navigation.md) | Orchestrate repository-grouped Logics tray navigation | Done | Codex | 100% | tasks/task_069_orchestrate_repository_grouped_logics_tray_navigation.md |
-| [task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting](tasks/task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting.md) | Orchestrate interactive Codex and Claude CLI usage accounting | Ready |  | 0% | tasks/task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting.md |
+| [task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting](tasks/task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting.md) | Orchestrate interactive Codex and Claude CLI usage accounting | Done | codex | 100% | tasks/task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting.md |
 
 ## Runbooks
 
