@@ -86,6 +86,8 @@ def _format_status_rows(rows, use_color=False, small=False):
         any(r.get("reset_5h_at") for r in active_rows),
         any(r.get("reset_week_at") for r in active_rows),
     ]
+    block_visible = any(_format_blocking_quota(r) not in ("-", "?") for r in active_rows)
+    credits_visible = any(r.get("credits") is not None for r in active_rows)
     has_provider = len({r["provider"] for r in rows}) > 1 and not small
     has_label = any(r.get("label") for r in rows) and not small
     if small:
@@ -94,12 +96,12 @@ def _format_status_rows(rows, use_color=False, small=False):
         headers = ["SESSION", "PROV."]
         if has_label:
             headers.append("LABEL")
-        headers += ["STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR"] + [name for name, visible in zip(["RESETS", "RESET 5H", "RESET WEEK"], reset_visible) if visible] + ["UPDATED"]
+        headers += ["STATUS", "AUTH", "OK", "5H", "WEEK"] + (["BLOCK"] if block_visible else []) + (["CR"] if credits_visible else []) + [name for name, visible in zip(["RESETS", "RESET 5H", "RESET WEEK"], reset_visible) if visible] + ["UPDATED"]
     else:
         headers = ["SESSION"]
         if has_label:
             headers.append("LABEL")
-        headers += ["STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR"] + [name for name, visible in zip(["RESETS", "RESET 5H", "RESET WEEK"], reset_visible) if visible] + ["UPDATED"]
+        headers += ["STATUS", "AUTH", "OK", "5H", "WEEK"] + (["BLOCK"] if block_visible else []) + (["CR"] if credits_visible else []) + [name for name, visible in zip(["RESETS", "RESET 5H", "RESET WEEK"], reset_visible) if visible] + ["UPDATED"]
     if not rows:
         if small:
             return "SESSION  STATUS  OK  5H  WEEK  RESETS  RESET 5H  RESET WEEK\nNo saved sessions yet."
@@ -144,12 +146,12 @@ def _format_status_rows(rows, use_color=False, small=False):
         else:
             block = "-" if r.get("enabled", True) is False else _format_blocking_quota(r)
             credits = _format_credits(r.get("credits"), empty="-")
-            base += usage_columns[:3] + [
-                _style(block, "33" if block not in ("?", "-") else "2", use_color),
-                _style(credits, "33" if r.get("credits") is not None else "2", use_color),
-                *[value for value, visible in zip(usage_columns[3:], reset_visible) if visible],
-                _style(_format_relative_age(r.get("updated_at")), "2", use_color),
-            ]
+            base += usage_columns[:3]
+            if block_visible:
+                base.append(_style(block, "33" if block not in ("?", "-") else "2", use_color))
+            if credits_visible:
+                base.append(_style(credits, "33" if r.get("credits") is not None else "2", use_color))
+            base += [*[value for value, visible in zip(usage_columns[3:], reset_visible) if visible], _style(_format_relative_age(r.get("updated_at")), "2", use_color)]
         table_rows.append(base)
     # "Recommended", not "Priority": the `--priority` setting is one input to
     # this ranking among several, and labelling the whole recommendation with

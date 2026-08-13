@@ -124,7 +124,10 @@ class StatusCommandTests(CliTestBase):
 
     def test_status_hides_empty_reset_columns_without_touching_active_signals(self):
         rows = [{"session_name": "work", "provider": "codex", "enabled": True, "reset_credits_available": "0", "reset_5h_at": None, "reset_week_at": None}]
-        self.assertNotIn("RESETS", _format_status_rows(rows).splitlines()[0])
+        header = _format_status_rows(rows).splitlines()[0]
+        self.assertNotIn("RESETS", header)
+        self.assertNotIn("BLOCK", header)
+        self.assertNotIn("CR", header)
         rows[0]["reset_credits_available"] = "2"
         self.assertIn("RESETS", _format_status_rows(rows).splitlines()[0])
 
@@ -680,7 +683,7 @@ class StatusCommandTests(CliTestBase):
         output = status_io["stdout"].getvalue()
         self.assertIn("work1", output)
         self.assertIn("OK", output)
-        self.assertIn("CR", output)
+        self.assertNotIn("CR", output)
         self.assertNotIn("AVAIL.", output)
         self.assertNotIn("AVAILABLE", output)
         self.assertNotIn("CREDITS", output)

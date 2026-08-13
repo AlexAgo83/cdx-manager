@@ -142,8 +142,9 @@ const DETAIL_HEIGHT: f64 = 13.0;
 /// first screenshot of it showed "claud", "antigr" and a reset cut mid-word.
 /// A menu sizes itself to its widest item, so this costs nothing on a menu that
 /// already holds a sentence like "Refresh unavailable while a session is
-/// running".
-const ROW_WIDTH: f64 = 340.0;
+/// running". 370 also lets the session cells use the same visual width as the
+/// control section below them.
+const ROW_WIDTH: f64 = 370.0;
 const GAUGE_WIDTH: f64 = 46.0;
 const GAUGE_HEIGHT: f64 = 4.0;
 /// Wide enough for "wk 100%", because the window's name travels with its
