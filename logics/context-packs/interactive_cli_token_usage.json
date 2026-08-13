@@ -1,0 +1,391 @@
+{
+  "budgets": {
+    "max_docs": 32,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [
+    "logics/backlog/item_117_capture_and_normalize_interactive_provider_token_snapshots.md",
+    "logics/backlog/item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics.md",
+    "logics/product/prod_046_interactive_cli_usage_accounting.md",
+    "logics/request/req_059_record_interactive_codex_and_claude_cli_token_usage.md",
+    "logics/scaffold/interactive_cli_token_usage.json",
+    "logics/tasks/task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting.md"
+  ],
+  "command": "logics-manager sync context-pack req_059_record_interactive_codex_and_claude_cli_token_usage item_117_capture_and_normalize_interactive_provider_token_snapshots item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting --mode diff-first --profile deep --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_117_capture_and_normalize_interactive_provider_token_snapshots",
+          "item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics"
+        ],
+        "prod": [
+          "prod_046_interactive_cli_usage_accounting"
+        ],
+        "req": [
+          "req_059_record_interactive_codex_and_claude_cli_token_usage"
+        ],
+        "task": [
+          "task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting"
+        ]
+      },
+      "path": "logics/product/prod_046_interactive_cli_usage_accounting.md",
+      "ref": "prod_046_interactive_cli_usage_accounting",
+      "sections": {
+        "Goals": [
+          "- Use provider-native structured transcript data rather than terminal-screen scraping.",
+          "- Persist one accurate cumulative usage record per interactive session in the existing CDX history model.",
+          "- Expose the result through existing cdx history and cdx stats contracts, including JSON output.",
+          "- Keep hooks non-blocking and records free of user prompts, tool inputs, paths, and model output."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Make the existing CDX usage history and statistics complete by recording local token totals from interactive Codex and Claude CLI sessions."
+        ],
+        "References": [
+          "- Product back-reference: `req_059_record_interactive_codex_and_claude_cli_token_usage`",
+          "- Task back-reference: `task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Interactive CLI usage accounting"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "record, interactive, codex, claude, cli, token, usage",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_117_capture_and_normalize_interactive_provider_token_snapshots",
+          "item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics"
+        ],
+        "prod": [
+          "prod_046_interactive_cli_usage_accounting"
+        ],
+        "req": [
+          "req_059_record_interactive_codex_and_claude_cli_token_usage"
+        ]
+      },
+      "path": "logics/request/req_059_record_interactive_codex_and_claude_cli_token_usage.md",
+      "ref": "req_059_record_interactive_codex_and_claude_cli_token_usage",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: An interactive Codex session launched through CDX records the latest cumulative provider token totals, including input, cached input, output, reasoning, and total, without parsing ANSI terminal capture.",
+          "- AC2: An interactive Claude session launched through CDX records token totals from its provider transcript without double-counting repeated hook invocations or cache fields.",
+          "- AC3: Usage capture runs at a reliable lifecycle boundary for both providers and preserves a final session total when the user exits, clears, or resumes away from an interactive session.",
+          "- AC4: Captured interactive usage is persisted in the existing launch-history-compatible data model and appears through existing cdx history and cdx stats text and JSON commands without adding a parallel user-facing reporting command.",
+          "- AC5: Missing, malformed, incomplete, or changed provider transcript data never breaks an interactive provider turn, invents a token value, or stores conversation content in the usage record.",
+          "- AC6: Focused parser, deduplication, lifecycle provisioning, persistence, history/statistics, and provider launch checks pass."
+        ],
+        "Needs": [
+          "- CDX persists token usage for headless runs, but interactive launches of Codex and Claude are absent from the same history and statistics.",
+          "- Users need to retrieve their own interactive CLI token usage through the existing CDX history and statistics commands, without parsing terminal output themselves.",
+          "- Codex and Claude already write local provider transcripts for interactive sessions; CDX launches already provide an isolated provider home and a CDX session name to child hooks."
+        ]
+      },
+      "status": "Draft",
+      "title": "Record interactive Codex and Claude CLI token usage"
+    },
+    {
+      "ai_context": {
+        "keywords": "capture, normalize, interactive, provider, token, snapshots",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_117_capture_and_normalize_interactive_provider_token_snapshots"
+        ],
+        "prod": [
+          "prod_046_interactive_cli_usage_accounting"
+        ],
+        "req": [
+          "req_059_record_interactive_codex_and_claude_cli_token_usage"
+        ],
+        "task": [
+          "task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting"
+        ]
+      },
+      "path": "logics/backlog/item_117_capture_and_normalize_interactive_provider_token_snapshots.md",
+      "ref": "item_117_capture_and_normalize_interactive_provider_token_snapshots",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Codex parsing selects the latest valid cumulative total_token_usage snapshot and does not add cached input into total tokens.",
+          "- AC2: Claude parsing sums usage once per assistant response using the same cache accounting policy as existing CDX usage normalization.",
+          "- AC3: Re-running capture for the same session is idempotent and never reduces a previously recorded valid cumulative total.",
+          "- AC4: A malformed or partially written record is ignored without raising from the hook path.",
+          "- AC5: Focused parser and lifecycle tests pass."
+        ],
+        "Problem": [
+          "- Interactive sessions expose structured usage in provider-owned JSONL artifacts, but CDX currently only normalizes headless JSON output.",
+          "- Lifecycle hooks may fire repeatedly and a transcript may be mid-write, so na\u00efve summing or a strict parser can miscount usage or disrupt an agent turn."
+        ]
+      },
+      "status": "Ready",
+      "title": "Capture and normalize interactive provider token snapshots"
+    },
+    {
+      "ai_context": {
+        "keywords": "persist, interactive, usage, existing, cdx, history, statistics",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics"
+        ],
+        "prod": [
+          "prod_046_interactive_cli_usage_accounting"
+        ],
+        "req": [
+          "req_059_record_interactive_codex_and_claude_cli_token_usage"
+        ],
+        "task": [
+          "task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting"
+        ]
+      },
+      "path": "logics/backlog/item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics.md",
+      "ref": "item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A completed interactive launch contributes one usage-bearing record that cdx history and cdx stats return in text and JSON output.",
+          "- AC2: Repeated turn hooks update the same interactive session record rather than creating duplicate usage entries.",
+          "- AC3: Interactive accounting works when notifications are disabled and does not alter notification behaviour when they are enabled.",
+          "- AC4: The documented commands state that interactive Codex and Claude token usage is included when the provider exposes a readable local transcript.",
+          "- AC5: Focused persistence, command-contract, and provider-hook provisioning tests pass."
+        ],
+        "Problem": [
+          "- cdx history and cdx stats already display persisted usage but only headless runs currently populate it.",
+          "- Interactive hook provisioning is currently coupled to notification preference, so accounting must not depend on desktop notifications being enabled."
+        ]
+      },
+      "status": "Ready",
+      "title": "Persist interactive usage in existing CDX history and statistics"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_117_capture_and_normalize_interactive_provider_token_snapshots",
+          "item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics"
+        ],
+        "prod": [
+          "prod_046_interactive_cli_usage_accounting"
+        ],
+        "req": [
+          "req_059_record_interactive_codex_and_claude_cli_token_usage"
+        ],
+        "task": [
+          "task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting"
+        ]
+      },
+      "path": "logics/product/prod_046_interactive_cli_usage_accounting.md",
+      "ref": "prod_046_interactive_cli_usage_accounting",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Interactive CLI usage accounting"
+    },
+    {
+      "ai_context": {
+        "keywords": "orchestrate, interactive, codex, claude, cli, usage, accounting",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_117_capture_and_normalize_interactive_provider_token_snapshots",
+          "item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics"
+        ],
+        "prod": [
+          "prod_046_interactive_cli_usage_accounting"
+        ],
+        "req": [
+          "req_059_record_interactive_codex_and_claude_cli_token_usage"
+        ],
+        "task": [
+          "task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting"
+        ]
+      },
+      "path": "logics/tasks/task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting.md",
+      "ref": "task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate interactive Codex and Claude CLI usage accounting"
+    }
+  ],
+  "estimates": {
+    "char_count": 9534,
+    "companion_doc_count": 1,
+    "doc_count": 5
+  },
+  "generated_at": "2026-08-13T19:33:25Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_059_record_interactive_codex_and_claude_cli_token_usage",
+      "item_117_capture_and_normalize_interactive_provider_token_snapshots",
+      "item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics",
+      "task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "deep",
+  "ref": "req_059_record_interactive_codex_and_claude_cli_token_usage,item_117_capture_and_normalize_interactive_provider_token_snapshots,item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics,task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting",
+  "refs": [
+    "req_059_record_interactive_codex_and_claude_cli_token_usage",
+    "item_117_capture_and_normalize_interactive_provider_token_snapshots",
+    "item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics",
+    "task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.19.1"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting.md",
+      "ref": "task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting"
+    }
+  ]
+}
