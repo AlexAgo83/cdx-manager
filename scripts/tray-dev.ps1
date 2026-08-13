@@ -21,9 +21,9 @@ function Stop-Companion {
 }
 
 function RunningPid {
-  $pid = & node (Join-Path $root 'bin\python-runner.js') -c 'from src.tray_instance import companion_instance; print(next(iter(companion_instance().values())))'
+  $instancePid = & node (Join-Path $root 'bin\python-runner.js') -c 'from src.tray_instance import companion_instance; print(next(iter(companion_instance().values())))'
   if ($LASTEXITCODE) { throw 'Could not read the tray instance lock.' }
-  return "$pid".Trim()
+  return "$instancePid".Trim()
 }
 
 if ($Action -eq 'load') {
