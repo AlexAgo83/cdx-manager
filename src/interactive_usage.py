@@ -2,9 +2,11 @@
 
 import json
 import os
+import time
 
 MAX_TRANSCRIPT_BYTES = 16 * 1024 * 1024
 MAX_TRANSCRIPT_CANDIDATES = 1000
+MAX_TRANSCRIPT_SCAN_SECONDS = 1
 
 def extract_interactive_usage(provider, auth_home, started_at=None):
     """Return the newest provider-native usage after an interactive session.
@@ -32,7 +34,10 @@ def _latest_transcript(provider, auth_home, started_at):
         return None
     cutoff = _timestamp(started_at)
     candidates = []
+    deadline = time.monotonic() + MAX_TRANSCRIPT_SCAN_SECONDS
     for directory, subdirs, names in os.walk(root):
+        if time.monotonic() >= deadline:
+            return max(candidates, default=(None, None))[1]
         if provider == "claude":
             subdirs[:] = [name for name in subdirs if name != "subagents"]
         for name in names:
@@ -46,7 +51,7 @@ def _latest_transcript(provider, auth_home, started_at):
             if cutoff is None or modified >= cutoff:
                 candidates.append((modified, path))
                 if len(candidates) > MAX_TRANSCRIPT_CANDIDATES:
-                    return None
+                    return max(candidates)[1]
     return max(candidates, default=(None, None))[1]
 
 

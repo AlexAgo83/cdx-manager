@@ -89,11 +89,12 @@ def _usage_from_dict(value):
         usage.get("cache_creation_input_tokens"),
         usage.get("cache_read_input_tokens"),
     )
-    cached_input_tokens = _int_value(
-        usage.get("cached_input_tokens"),
-        usage.get("cache_creation_input_tokens"),
-        usage.get("cache_read_input_tokens"),
-    )
+    cached_input_tokens = _first_int(usage.get("cached_input_tokens"))
+    if cached_input_tokens is None:
+        cached_input_tokens = _int_value(
+            usage.get("cache_creation_input_tokens"),
+            usage.get("cache_read_input_tokens"),
+        )
     output_tokens = _int_value(usage.get("output_tokens"), usage.get("completion_tokens"))
     reasoning_tokens = _int_value(
         usage.get("reasoning_tokens"),

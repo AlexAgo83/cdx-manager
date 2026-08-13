@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 
+from src import interactive_usage
 from src.interactive_usage import MAX_TRANSCRIPT_BYTES, extract_interactive_usage
 
 
@@ -64,6 +65,19 @@ class InteractiveUsageTests(unittest.TestCase):
             usage, selected = extract_interactive_usage("codex", home)
             self.assertIsNone(usage)
             self.assertEqual(selected, path)
+
+    def test_candidate_cap_returns_newest_seen_transcript(self):
+        with tempfile.TemporaryDirectory() as home:
+            older = self._write(home, "sessions/older.jsonl", [])
+            newer = self._write(home, "sessions/newer.jsonl", [])
+            os.utime(older, (1, 1))
+            os.utime(newer, (2, 2))
+            previous = interactive_usage.MAX_TRANSCRIPT_CANDIDATES
+            interactive_usage.MAX_TRANSCRIPT_CANDIDATES = 1
+            try:
+                self.assertEqual(interactive_usage._latest_transcript("codex", home, None), newer)
+            finally:
+                interactive_usage.MAX_TRANSCRIPT_CANDIDATES = previous
 
 
 if __name__ == "__main__":

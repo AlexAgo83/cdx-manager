@@ -29,11 +29,14 @@ def atomic_write(path, data, mode=None):
             os.chmod(temp_path, mode)
         os.replace(temp_path, path)
         if os.name != "nt":
-            directory_fd = os.open(directory, os.O_RDONLY)
             try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
+                directory_fd = os.open(directory, os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+            except OSError:
+                pass
     except Exception:
         try:
             os.unlink(temp_path)

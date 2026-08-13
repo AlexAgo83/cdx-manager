@@ -1370,6 +1370,20 @@ class RuntimePythonTests(unittest.TestCase):
                 "total_tokens": 27,
             })
 
+    def test_run_usage_prefers_cached_aggregate_over_components(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-usage-") as temp_dir:
+            path = os.path.join(temp_dir, "stdout.log")
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump({"usage": {
+                    "input_tokens": 12,
+                    "cached_input_tokens": 8,
+                    "cache_creation_input_tokens": 3,
+                    "cache_read_input_tokens": 5,
+                    "output_tokens": 7,
+                }}, handle)
+
+            self.assertEqual(run_usage.extract_run_usage("claude", path)["cached_input_tokens"], 8)
+
     def test_run_usage_extracts_latest_jsonl_usage(self):
         with tempfile.TemporaryDirectory(prefix="cdx-usage-") as temp_dir:
             path = os.path.join(temp_dir, "stdout.log")

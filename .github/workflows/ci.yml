@@ -130,6 +130,7 @@ jobs:
           npm pack --pack-destination "$RUNNER_TEMP"
           npm install --global "$RUNNER_TEMP"/cdx-manager-*.tgz
           cdx --version
+          cdx schema --json
 
       - name: Build and install wheel
         run: |
@@ -137,3 +138,4 @@ jobs:
           python -m venv "$RUNNER_TEMP/cdx-wheel"
           "$RUNNER_TEMP/cdx-wheel/bin/python" -m pip install "$RUNNER_TEMP"/wheels/*.whl
           "$RUNNER_TEMP/cdx-wheel/bin/cdx" --version
+          "$RUNNER_TEMP/cdx-wheel/bin/cdx" schema --json

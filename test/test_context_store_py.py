@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from src.context_store import (
     append_context,
@@ -154,3 +155,14 @@ class AtomicWriteTests(unittest.TestCase):
             with open(path, encoding="utf-8") as handle:
                 self.assertEqual(handle.read(), "kept\n")
             self.assertEqual(os.listdir(temp_dir), ["target.md"])
+
+    @unittest.skipIf(os.name == "nt", "directory fsync is POSIX-only")
+    def test_atomic_write_keeps_replaced_file_when_directory_sync_is_unsupported(self):
+        from src.fs_utils import atomic_write
+
+        with tempfile.TemporaryDirectory(prefix="cdx-atomic-") as temp_dir:
+            path = os.path.join(temp_dir, "target.md")
+            with mock.patch("src.fs_utils.os.fsync", side_effect=[None, OSError("unsupported")]):
+                atomic_write(path, "written\n")
+            with open(path, encoding="utf-8") as handle:
+                self.assertEqual(handle.read(), "written\n")
