@@ -1,13 +1,13 @@
 ## req_060_repository_review_findings_reliability_release_and_cli_contracts - Repository review findings: reliability, release, and CLI contracts
 > From version: 0.19.1
 > Schema version: 1.0
-> Status: Draft
+> Status: Obsolete
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: High
 > Theme: Repository health
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-13 22:05:20
+> Indicators reviewed: 2026-08-13 22:15:30
 
 # AI Context
 - Summary: Evidence-backed candidates from a repository-wide review; capture only, with no implementation commitment.
@@ -70,3 +70,6 @@
 
 # Backlog
 - none
+
+# Links
+- Superseded by: `req_061_harden_repository_reliability_release_verification_and_cli_contracts`

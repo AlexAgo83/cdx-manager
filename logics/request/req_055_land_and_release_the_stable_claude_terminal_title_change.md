@@ -1,12 +1,13 @@
 ## req_055_land_and_release_the_stable_claude_terminal_title_change - Land and release the stable Claude terminal-title change
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Draft
+> Status: Obsolete
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
 > Theme: release-delivery
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-08-13 22:15:30
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)
@@ -51,3 +52,6 @@
 
 # Backlog
 - `item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request`
+
+# Links
+- Superseded by: `req_054_keep_cdx_terminal_titles_stable_while_claude_is_working`

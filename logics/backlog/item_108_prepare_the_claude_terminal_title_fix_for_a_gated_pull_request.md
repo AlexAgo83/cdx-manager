@@ -1,13 +1,14 @@
 ## item_108_prepare_the_claude_terminal_title_fix_for_a_gated_pull_request - Prepare the Claude terminal-title fix for a gated pull request
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: Obsolete
 > Understanding: 90%
 > Confidence: 85%
 > Progress: 0%
 > Complexity: Medium
 > Theme: release-delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-13 22:15:30
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)
@@ -60,6 +61,7 @@
 - Architecture decision(s): (none yet)
 - Request: `req_055_land_and_release_the_stable_claude_terminal_title_change`
 - Primary task(s): `task_066_create_a_validated_branch_and_pr_for_the_claude_title_release`
+- Superseded by: `item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions`
 
 # Priority
 - Priority: High
