@@ -114,8 +114,6 @@ The reason `cdx` exists: knowing, across every account you own, which one you ca
 - **Launch history.** Inspect recent launches with provider, result, duration, working directory, launch settings, and transcript path.
 - **Aggregate usage.** `cdx stats` totals runs, token usage, and time spent per session over any period.
 
-![cdx stats: runs, input and output tokens, total time and last use per session](docs/assets/stats.png)
-
 - **Disk usage and cleanup.** `cdx disk` reports `CDX_HOME` usage, `cdx disk profiles --candidates` identifies reclaimable profile caches/logs with evidence, and `cdx clean profiles ...` applies explicit cleanup actions.
 - **Health and repair.** `cdx doctor` inspects dependencies, permissions, and orphan profiles; `cdx repair` plans or applies safe fixes.
 - **Portable bundles.** `cdx export` / `cdx import` move sessions between machines, with passphrase-encrypted auth data when you ask for it.
