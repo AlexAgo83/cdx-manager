@@ -2,8 +2,8 @@
 > From version: 0.18.6
 > Schema version: 1.0
 > Status: In progress
-> Understanding: 95%
-> Confidence: 90%
+> Understanding: 100%
+> Confidence: 95%
 > Progress: 55%
 > Complexity: Medium
 > Theme: Interactive notification delivery
@@ -41,6 +41,8 @@
 - request-AC4 -> This backlog slice. Proof: AC3: Legacy installed hooks and existing non-notification launch behaviour remain compatible.
 - request-AC5 -> This backlog slice. Proof: AC3: Legacy installed hooks and existing non-notification launch behaviour remain compatible.
 - request-AC6 -> This backlog slice. Proof: AC3: Legacy installed hooks and existing non-notification launch behaviour remain compatible.
+- request-AC8 -> This backlog slice. Proof: Implemented in 3dbe8a1; `test_tray_events_py.py` proves off then on controls direct delivery.
+- request-AC9 -> This backlog slice. Proof: Verified the cached work1 Codex hook invokes `/Users/alexandreagostini/.local/bin/cdx notify`; live `alerts off|status|on --json` read back the shared state.
 
 # Decision framing
 - Product framing: Not needed

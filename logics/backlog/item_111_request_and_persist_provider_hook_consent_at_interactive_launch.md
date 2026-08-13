@@ -2,8 +2,8 @@
 > From version: 0.18.6
 > Schema version: 1.0
 > Status: In progress
-> Understanding: 95%
-> Confidence: 90%
+> Understanding: 100%
+> Confidence: 95%
 > Progress: 55%
 > Complexity: Medium
 > Theme: Notification consent
@@ -39,6 +39,7 @@
 - request-AC2 -> This backlog slice. Proof: AC2: Acceptance provisions only supported sessions through the existing provider-safe paths and persists consent for later launches.
 - request-AC5 -> This backlog slice. Proof: AC3: The resulting status clearly separates consent required from globally muted delivery.
 - request-AC6 -> This backlog slice. Proof: AC3: The resulting status clearly separates consent required from globally muted delivery.
+- request-AC7 -> This backlog slice. Proof: Implemented in 4c49a48; `test_launch_notifications_py.py` proves consent is reused by a later profile without prompting.
 
 # Decision framing
 - Product framing: Not needed
