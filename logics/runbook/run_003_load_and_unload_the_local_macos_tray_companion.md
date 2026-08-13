@@ -1,4 +1,4 @@
-## run_003_load_and_unload_the_local_macos_tray_companion - Load and unload the local macOS tray companion
+## run_003_load_and_unload_the_local_tray_companion - Load and unload the local tray companion
 > Status: Active
 > Category: support
 > Verified: 2026-08-13: load and unload passed against the local development and installed macOS companions.
@@ -8,17 +8,17 @@
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
 
 # Trigger
-- A macOS tray change needs a real menu-bar smoke test against the working tree.
+- A macOS or Windows tray change needs a real menu-bar smoke test against the working tree.
 - The installed companion must be restored after local testing without replacing
   or reinstalling its release bundle.
 
 # Prerequisites
-- Run from a CDX checkout on macOS with Rust and Python available.
+- Run from a CDX checkout on macOS or Windows with Rust, Node, and Python available.
 - An installed companion is optional for `load`, but required for `unload`.
 - Close an open tray menu before either command so the running companion can
   consume its bounded graceful-stop request.
 
-# Procedure
+# Procedure: macOS
 From the repository root, load a freshly built development companion:
 
 ```sh
@@ -40,6 +40,28 @@ This stops whichever lock-verified companion is running, starts the companion
 recorded in the CDX install state, and verifies that the process path is under
 `.cdx/tray/companion/CDX.app`.
 
+# Procedure: Windows
+
+From a PowerShell session in the checkout, use the equivalent helper:
+
+```powershell
+.\scripts\tray-dev.ps1 load
+```
+
+It builds `tray\target\release\cdx-tray.exe`, writes a local `.cmd` wrapper
+that invokes the checkout's `node bin\cdx.js`, stops only the lock-verified
+companion, then verifies the running process is the development executable.
+It does not install or overwrite a release companion.
+
+After testing, restore an already installed companion:
+
+```powershell
+.\scripts\tray-dev.ps1 unload
+```
+
+`unload` intentionally fails when no release companion is installed; install
+state is never guessed and a development test must not create it.
+
 # Verification
 - `load` prints `Development tray loaded` only after the process command is
   `tray/target/release/CDX.app/Contents/MacOS/cdx-tray`.
@@ -53,15 +75,19 @@ cdx tray doctor
 - A development bundle is ad-hoc signed. macOS can forget its notification
   permission after a rebuild; this is expected and does not change the
   installed companion's release signing identity.
+- On Windows, confirm the running executable with `cdx tray doctor` and use
+  the tray menu to exercise the platform-specific launch branch.
 
 # Rollback
-- Run `./scripts/tray-dev.sh unload`. If `load` fails after it stopped the
+- Run `./scripts/tray-dev.sh unload` on macOS or `.\scripts\tray-dev.ps1 unload`
+  on Windows. If `load` fails after it stopped the
   current companion, the same command returns directly to the installed one.
 - Do not use `cdx tray install` or replace anything under `.cdx/tray/companion`
   for this workflow: the release bundle is intentionally left untouched.
 
 # References
 - `scripts/tray-dev.sh`
+- `scripts/tray-dev.ps1`
 - `scripts/build-tray.sh`
 - `docs/tray-local-testing.md`
 - `src/tray_restart.py`
