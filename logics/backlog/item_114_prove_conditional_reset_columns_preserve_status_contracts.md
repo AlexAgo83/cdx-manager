@@ -1,10 +1,10 @@
 ## item_114_prove_conditional_reset_columns_preserve_status_contracts - Prove conditional reset columns preserve status contracts
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Low
 > Theme: Status regression safety
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

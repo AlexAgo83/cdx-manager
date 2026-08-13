@@ -75,26 +75,36 @@ def _format_credits(value, empty="n/a"):
 
 
 def _format_status_rows(rows, use_color=False, small=False):
+    active_rows = [r for r in rows if r.get("enabled", True) is not False]
+    def positive(value):
+        try:
+            return float(value) > 0
+        except (TypeError, ValueError):
+            return False
+    reset_visible = [
+        any(positive(r.get("reset_credits_available")) for r in active_rows),
+        any(r.get("reset_5h_at") for r in active_rows),
+        any(r.get("reset_week_at") for r in active_rows),
+    ]
     has_provider = len({r["provider"] for r in rows}) > 1 and not small
     has_label = any(r.get("label") for r in rows) and not small
     if small:
-        headers = ["SESSION", "STATUS", "OK", "5H", "WEEK", "RESETS", "RESET 5H", "RESET WEEK"]
+        headers = ["SESSION", "STATUS", "OK", "5H", "WEEK"] + [name for name, visible in zip(["RESETS", "RESET 5H", "RESET WEEK"], reset_visible) if visible]
     elif has_provider:
         headers = ["SESSION", "PROV."]
         if has_label:
             headers.append("LABEL")
-        headers += ["STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR", "RESETS", "RESET 5H", "RESET WEEK", "UPDATED"]
+        headers += ["STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR"] + [name for name, visible in zip(["RESETS", "RESET 5H", "RESET WEEK"], reset_visible) if visible] + ["UPDATED"]
     else:
         headers = ["SESSION"]
         if has_label:
             headers.append("LABEL")
-        headers += ["STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR", "RESETS", "RESET 5H", "RESET WEEK", "UPDATED"]
+        headers += ["STATUS", "AUTH", "OK", "5H", "WEEK", "BLOCK", "CR"] + [name for name, visible in zip(["RESETS", "RESET 5H", "RESET WEEK"], reset_visible) if visible] + ["UPDATED"]
     if not rows:
         if small:
             return "SESSION  STATUS  OK  5H  WEEK  RESETS  RESET 5H  RESET WEEK\nNo saved sessions yet."
         return "SESSION  STATUS  OK  5H  WEEK  BLOCK  CR  RESETS  RESET 5H  RESET WEEK  UPDATED\nNo saved sessions yet."
     headers = [_style(header, "1", use_color) for header in headers]
-    active_rows = [r for r in rows if r.get("enabled", True) is not False]
     priority = recommend_priority_rows(rows)
     disabled_rows = sorted(
         [r for r in rows if r.get("enabled", True) is False],
@@ -130,14 +140,14 @@ def _format_status_rows(rows, use_color=False, small=False):
                 _style_reset_time(r.get("reset_week_at"), use_color),
             ]
         if small:
-            base += usage_columns
+            base += usage_columns[:3] + [value for value, visible in zip(usage_columns[3:], reset_visible) if visible]
         else:
             block = "-" if r.get("enabled", True) is False else _format_blocking_quota(r)
             credits = _format_credits(r.get("credits"), empty="-")
             base += usage_columns[:3] + [
                 _style(block, "33" if block not in ("?", "-") else "2", use_color),
                 _style(credits, "33" if r.get("credits") is not None else "2", use_color),
-                *usage_columns[3:],
+                *[value for value, visible in zip(usage_columns[3:], reset_visible) if visible],
                 _style(_format_relative_age(r.get("updated_at")), "2", use_color),
             ]
         table_rows.append(base)

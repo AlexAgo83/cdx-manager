@@ -169,7 +169,10 @@ def _notification_provisioning_enabled(session, ctx, json_flag):
     if not ctx["stdin_is_tty"] or json_flag:
         return False
     ask = ctx.get("options", {}).get("input") or input
-    answer = ask("Allow CDX to install this provider's agent-alert hook? [y/N] ").strip().lower()
+    try:
+        answer = ask("Allow CDX to install this provider's agent-alert hook? [y/N] ").strip().lower()
+    except EOFError:
+        return False
     if answer not in ("y", "yes"):
         return False
     set_alerts_default(base_dir, True)

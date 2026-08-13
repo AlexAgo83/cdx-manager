@@ -1,13 +1,14 @@
 ## task_068_orchestrate_conditional_reset_columns_in_cdx_status - Orchestrate conditional reset columns in cdx status
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 95%
 > Confidence: 90%
 > Progress: 0%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Owner: Codex
 
 # AI Context
 - Summary: Make reset columns signal-driven in terminal tables without changing status data contracts.

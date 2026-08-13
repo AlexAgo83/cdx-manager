@@ -122,6 +122,12 @@ class StatusCommandTests(CliTestBase):
         self.assertRegex(output.splitlines()[1], r"\b453\.46\b")
         self.assertNotIn("453.456", output)
 
+    def test_status_hides_empty_reset_columns_without_touching_active_signals(self):
+        rows = [{"session_name": "work", "provider": "codex", "enabled": True, "reset_credits_available": "0", "reset_5h_at": None, "reset_week_at": None}]
+        self.assertNotIn("RESETS", _format_status_rows(rows).splitlines()[0])
+        rows[0]["reset_credits_available"] = "2"
+        self.assertIn("RESETS", _format_status_rows(rows).splitlines()[0])
+
     def test_status_priority_skips_logged_out_sessions(self):
         output = _format_status_rows([
             {
@@ -224,7 +230,7 @@ class StatusCommandTests(CliTestBase):
         self.assertIn("WEEK", header)
         self.assertIn("RESET 5H", header)
         self.assertIn("RESET WEEK", header)
-        self.assertIn("RESETS", header)
+        self.assertNotIn("RESETS", header)
         self.assertNotIn("LABEL", header)
         self.assertNotIn("PROV.", header)
         self.assertNotIn("BLOCK", header)

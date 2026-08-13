@@ -1,10 +1,10 @@
 ## item_113_derive_reset_column_visibility_from_rendered_status_data - Derive reset-column visibility from rendered status data
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Low
 > Theme: Status presentation
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
