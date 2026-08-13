@@ -287,8 +287,8 @@ class CardActionTest(CliTestBase):
         with mock.patch("src.logics_view.resolve_logics_manager", return_value="/bin/logics-manager"):
             self.assertTrue(perform_action("logics.open", ctx)["ok"])
             self.assertTrue(perform_action("logics.focus:task_048", ctx, root=ctx["root"])["ok"])
-        self.assertEqual(ctx["opened"][0], ["/bin/logics-manager", "view", "--fleet", "--open"])
-        self.assertEqual(ctx["opened"][1], ["/bin/logics-manager", "view", "--focus", "task_048", "--open"])
+        self.assertEqual(ctx["opened"][0], ["/bin/logics-manager", "view", "--fleet", "--open", "--port", "0"])
+        self.assertEqual(ctx["opened"][1], ["/bin/logics-manager", "view", "--focus", "task_048", "--open", "--port", "0"])
 
     def test_a_focused_action_needs_a_repository_root(self):
         from unittest import mock
@@ -303,7 +303,7 @@ class CardActionTest(CliTestBase):
         ctx["spawn_detached_runner"] = lambda argv, **kwargs: seen.append((argv, kwargs))
         with mock.patch("src.logics_view.resolve_logics_manager", return_value="/bin/logics-manager"):
             self.assertTrue(perform_action("logics.focus:task_048", ctx, root=ctx["root"])["ok"])
-        self.assertEqual(seen[0][0], ["/bin/logics-manager", "view", "--focus", "task_048", "--open"])
+        self.assertEqual(seen[0][0], ["/bin/logics-manager", "view", "--focus", "task_048", "--open", "--port", "0"])
         self.assertEqual(seen[0][1]["cwd"], ctx["root"])
         self.assertTrue(seen[0][1]["start_new_session"])
 

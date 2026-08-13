@@ -46,7 +46,9 @@ def _open_viewer(ctx, reference, root=None):
         return {"ok": False, "code": failure["code"], "message": failure["message"]}
     if reference and not _valid_root(root):
         return {"ok": False, "code": "logics_viewer_root_invalid", "message": "The focused Logics action has no valid repository context."}
-    extra = ["--focus", reference, "--open"] if reference else ["--fleet", "--open"]
+    # A tray click must coexist with any viewer already serving another repo.
+    # Port 0 is Logics' documented request for a free local port.
+    extra = ["--focus", reference, "--open", "--port", "0"] if reference else ["--fleet", "--open", "--port", "0"]
     try:
         spawn_logics_viewer(
             executable, root if reference else ctx.get("cwd"), env=ctx.get("env"),
