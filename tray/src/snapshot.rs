@@ -192,6 +192,7 @@ pub struct Session {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Snapshot {
+    pub cdx_version: Option<String>,
     pub icon_state: String,
     /// What the closed icon may say on hover. Built by CDX so the companion
     /// cannot accidentally compose something the privacy rule forbids.
@@ -435,6 +436,7 @@ pub fn read_snapshot(payload: &Value) -> Result<Snapshot, Unavailable> {
         .ok_or(Unavailable::NotASnapshot)?;
     let icon = snapshot.get("icon").ok_or(Unavailable::NotASnapshot)?;
     Ok(Snapshot {
+        cdx_version: snapshot.get("cdx_version").and_then(Value::as_str).filter(|value| !value.is_empty()).map(str::to_string),
         events: crate::events::parse_array(snapshot.get("events")),
         // Absent means on: an older CDX has no mute, and defaulting to muted
         // would silence someone who never asked for it.

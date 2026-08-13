@@ -14,7 +14,7 @@ use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSEventMask};
 use objc2_foundation::{NSDate, NSDefaultRunLoopMode};
 
 use crate::backend;
-use crate::events::{clear_terminal, run_plugin_action, set_alerts, set_terminal};
+use crate::events::{clear_terminal, open_project_page, run_plugin_action, set_alerts, set_terminal};
 use crate::mac_menu_open;
 use crate::menu::ActionId;
 use crate::runner::{announce, Render};
@@ -104,6 +104,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 Some(ActionId::OpenTerminal) => {
                     open_terminal_in("cdx status", state.terminal.as_deref())
                 }
+                Some(ActionId::About) => open_project_page(),
                 Some(ActionId::ToggleAlerts) => {
                     // Written through cdx rather than by the companion: the
                     // hook is what obeys the mute, and it reads CDX's store.

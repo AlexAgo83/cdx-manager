@@ -41,6 +41,7 @@ pub enum Entry {
 pub enum ActionId {
     Refresh,
     OpenTerminal,
+    About,
     Quit,
     /// Silence agent alerts, or let them through again.
     ToggleAlerts,
@@ -515,6 +516,11 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
     });
     entries.push(Entry::Separator);
     entries.push(Entry::Action {
+        id: ActionId::About,
+        label: format!("About ({})", snapshot.cdx_version.as_deref().unwrap_or("CDX")),
+        enabled: true,
+    });
+    entries.push(Entry::Action {
         id: ActionId::Quit,
         label: "Quit".into(),
         enabled: true,
@@ -589,6 +595,7 @@ mod tests {
 
     fn snapshot(sessions: Vec<Session>, refreshable: bool) -> Snapshot {
         Snapshot {
+            cdx_version: Some("0.18.6".into()),
             events: Vec::new(),
             spool_path: None,
             alerts_enabled: true,
@@ -700,6 +707,14 @@ mod tests {
         let entries = build_with_alerts(&state, &[]);
         assert!(labels(&entries).contains("System default"));
         assert!(entries.iter().any(|entry| matches!(entry, Entry::Submenu { items, .. } if items.iter().any(|item| matches!(item, Entry::Check { id: ActionId::ClearTerminal, checked: true, .. })) )));
+    }
+
+    #[test]
+    fn about_precedes_quit_and_names_the_installed_cdx_version() {
+        let entries = build_with_alerts(&snapshot(vec![], true), &[]);
+        let about = entries.iter().position(|entry| matches!(entry, Entry::Action { id: ActionId::About, label, .. } if label == "About (0.18.6)")).unwrap();
+        let quit = entries.iter().position(|entry| matches!(entry, Entry::Action { id: ActionId::Quit, .. })).unwrap();
+        assert!(about < quit);
     }
 
     /// The case the request reported: a Codex session drops and overtakes the

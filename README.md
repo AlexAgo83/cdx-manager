@@ -607,6 +607,7 @@ The companion is a native binary distributed as a release asset, not part of the
 - **Uninstall removes only what install recorded**, from a record CDX wrote itself. A damaged record reads as absent rather than being guessed at, because that record drives deletion.
 - **Linux carries no C library.** The Linux asset is statically linked against musl, so there is no glibc version to match and no `gtk`, `libxdo`, or `appindicator` package to install. Tray support is resolved at runtime by looking for the `org.kde.StatusNotifierWatcher` D-Bus name — never by matching a distribution or desktop name. A session without it is told so, and nothing is registered to start at login.
 - **Version drift between CDX and the companion is normal**, since pip upgrades one and `cdx tray install` the other. Whichever is older keeps serving every field it understands and shows one update hint.
+- **About stays actionable.** The last tray action before Quit is `About (<installed CDX version>)`; it opens the project’s GitHub page with the platform’s normal browser launcher.
 
 ## JSON Output
 

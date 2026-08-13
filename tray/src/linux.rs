@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::events::{clear_terminal, run_plugin_action, set_alerts, set_terminal};
+use crate::events::{clear_terminal, open_project_page, run_plugin_action, set_alerts, set_terminal};
 use crate::menu::{ActionId, Entry};
 use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
@@ -228,6 +228,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 redraw = true;
             }
             Some(ActionId::OpenTerminal) => open_terminal_in("status", state.terminal.as_deref()),
+            Some(ActionId::About) => open_project_page(),
             Some(ActionId::ToggleAlerts) => {
                 set_alerts(&transport, !state.alerts_enabled);
                 state = Render::next(&transport, state.tick, &mut unread);

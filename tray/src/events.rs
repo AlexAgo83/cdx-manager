@@ -99,6 +99,21 @@ pub fn clear_terminal(transport: &Transport) {
     let _ = run(transport.command_for(&["tray", "terminal", "clear"]));
 }
 
+pub fn open_project_page() {
+    const URL: &str = "https://github.com/AlexAgo83/cdx-manager";
+    #[cfg(target_os = "macos")]
+    let mut command = std::process::Command::new("open");
+    #[cfg(target_os = "windows")]
+    let mut command = std::process::Command::new("cmd");
+    #[cfg(target_os = "linux")]
+    let mut command = std::process::Command::new("xdg-open");
+    #[cfg(target_os = "windows")]
+    command.args(["/c", "start", "", URL]);
+    #[cfg(not(target_os = "windows"))]
+    command.arg(URL);
+    let _ = command.spawn();
+}
+
 /// Mute or unmute agent alerts, through CDX rather than in the companion.
 pub fn set_alerts(transport: &Transport, enabled: bool) {
     let mode = if enabled { "on" } else { "off" };
