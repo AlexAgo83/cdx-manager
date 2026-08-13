@@ -14,7 +14,7 @@ use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSEventMask};
 use objc2_foundation::{NSDate, NSDefaultRunLoopMode};
 
 use crate::backend;
-use crate::events::{run_plugin_action, set_alerts, set_terminal};
+use crate::events::{clear_terminal, run_plugin_action, set_alerts, set_terminal};
 use crate::mac_menu_open;
 use crate::menu::ActionId;
 use crate::runner::{announce, Render};
@@ -119,6 +119,11 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     state = Render::next(&transport, state.tick, &mut unread);
                     redraw = true;
                 }
+                Some(ActionId::ClearTerminal) => {
+                    clear_terminal(&transport);
+                    state = Render::next(&transport, state.tick, &mut unread);
+                    redraw = true;
+                }
                 Some(ActionId::Session(name)) => {
                     open_terminal_in(&format!("cdx {name}"), state.terminal.as_deref())
                 }
@@ -220,11 +225,7 @@ fn open_terminal_in(command: &str, preferred: Option<&str>) {
             let spawned = std::process::Command::new("open")
                 .args(["-a", app, &path])
                 .spawn();
-            if spawned.is_err() {
-                // A named terminal that is not installed must not leave the
-                // click doing nothing.
-                open_terminal_in(command, None);
-            }
+            if spawned.is_err() { eprintln!("Preferred terminal {app} is unavailable"); }
         }
         None => open_terminal_in(command, None),
     }

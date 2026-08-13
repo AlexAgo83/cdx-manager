@@ -45,6 +45,7 @@ pub enum ActionId {
     /// Silence agent alerts, or let them through again.
     ToggleAlerts,
     SetTerminal(String),
+    ClearTerminal,
     /// Open a terminal on this session, by name.
     ///
     /// It was an index into the snapshot, which kept the id `Copy`. That only
@@ -446,9 +447,11 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
         entries.push(Entry::Submenu {
             about: ActionId::OpenTerminal,
             label: "Terminal for new sessions".into(),
-            items: snapshot.terminal_candidates.iter().map(|candidate| Entry::Check {
+            items: std::iter::once(Entry::Check {
+                id: ActionId::ClearTerminal, label: "System default".into(), checked: snapshot.terminal.is_none(),
+            }).chain(snapshot.terminal_candidates.iter().map(|candidate| Entry::Check {
                 id: ActionId::SetTerminal(candidate.clone()), label: candidate.clone(), checked: snapshot.terminal.as_deref() == Some(candidate),
-            }).collect(),
+            })).collect(),
         });
     }
     if !alerts.is_empty() {
@@ -687,6 +690,15 @@ mod tests {
         for provider in ["claude", "codex", "claude"] {
             assert!(text.contains(provider), "{text}");
         }
+    }
+
+    #[test]
+    fn terminal_choice_keeps_an_explicit_system_default() {
+        let mut state = snapshot(vec![], true);
+        state.terminal_candidates = vec!["Terminal".into()];
+        let entries = build_with_alerts(&state, &[]);
+        assert!(labels(&entries).contains("System default"));
+        assert!(entries.iter().any(|entry| matches!(entry, Entry::Submenu { items, .. } if items.iter().any(|item| matches!(item, Entry::Check { id: ActionId::ClearTerminal, checked: true, .. })) )));
     }
 
     /// The case the request reported: a Codex session drops and overtakes the

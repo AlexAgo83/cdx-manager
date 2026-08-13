@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::events::{run_plugin_action, set_alerts, set_terminal};
+use crate::events::{clear_terminal, run_plugin_action, set_alerts, set_terminal};
 use crate::menu::{ActionId, Entry};
 use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
@@ -238,6 +238,11 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 state = Render::next(&transport, state.tick, &mut unread);
                 redraw = true;
             }
+            Some(ActionId::ClearTerminal) => {
+                clear_terminal(&transport);
+                state = Render::next(&transport, state.tick, &mut unread);
+                redraw = true;
+            }
             Some(ActionId::Session(name)) => open_terminal_in(&name, state.terminal.as_deref()),
             Some(ActionId::FocusTerminal { .. }) => {}
             // A view, not an edit: `cdx config` prints the settings that will
@@ -296,7 +301,8 @@ pub fn run(transport: Transport) -> Result<(), String> {
 fn open_terminal_in(arg: &str, preferred: Option<&str>) {
     let cdx = Transport::cdx_command();
     let defaults = ["x-terminal-emulator", "gnome-terminal", "konsole", "xterm"];
-    for terminal in preferred.into_iter().chain(defaults) {
+    let terminals: &[&str] = preferred.map_or(&defaults, |terminal| std::slice::from_ref(&terminal));
+    for terminal in terminals {
         let text = format!("{cdx} {arg}");
         let mut command = std::process::Command::new(terminal);
         if terminal == "gnome-terminal" {
@@ -311,4 +317,5 @@ fn open_terminal_in(arg: &str, preferred: Option<&str>) {
             return;
         }
     }
+    if let Some(terminal) = preferred { eprintln!("Preferred terminal {terminal} is unavailable"); }
 }

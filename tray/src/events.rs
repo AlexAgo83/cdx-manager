@@ -95,6 +95,10 @@ pub fn set_terminal(transport: &Transport, terminal: &str) {
     let _ = run(transport.command_for(&["tray", "terminal", "set", terminal]));
 }
 
+pub fn clear_terminal(transport: &Transport) {
+    let _ = run(transport.command_for(&["tray", "terminal", "clear"]));
+}
+
 /// Mute or unmute agent alerts, through CDX rather than in the companion.
 pub fn set_alerts(transport: &Transport, enabled: bool) {
     let mode = if enabled { "on" } else { "off" };

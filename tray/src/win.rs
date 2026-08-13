@@ -20,7 +20,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::backend;
-use crate::events::{run_plugin_action, set_alerts, set_terminal};
+use crate::events::{clear_terminal, run_plugin_action, set_alerts, set_terminal};
 use crate::menu::ActionId;
 use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
@@ -158,6 +158,11 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 }
                 Some(ActionId::SetTerminal(name)) => {
                     set_terminal(&transport, name);
+                    state = Render::next(&transport, state.tick, &mut unread);
+                    redraw = true;
+                }
+                Some(ActionId::ClearTerminal) => {
+                    clear_terminal(&transport);
                     state = Render::next(&transport, state.tick, &mut unread);
                     redraw = true;
                 }
@@ -324,7 +329,8 @@ fn open_terminal_in(transport: &Transport, arg: &str, preferred: Option<&str>) {
         if command.spawn().is_ok() {
             return;
         }
-        // Not installed, or refused to start. The default console still opens.
+        eprintln!("Preferred terminal wt is unavailable");
+        return;
     }
     if let Some(name @ ("powershell" | "pwsh" | "cmd")) = preferred.map(|name| name.to_ascii_lowercase()).as_deref() {
         let program = if name == "cmd" { "cmd.exe" } else if name == "pwsh" { "pwsh.exe" } else { "powershell.exe" };
@@ -338,8 +344,10 @@ fn open_terminal_in(transport: &Transport, arg: &str, preferred: Option<&str>) {
         if command.spawn().is_ok() {
             return;
         }
+        eprintln!("Preferred terminal {name} is unavailable");
+        return;
     }
-    open_terminal(transport, arg)
+    if preferred.is_some() { eprintln!("Preferred terminal is unavailable"); } else { open_terminal(transport, arg) }
 }
 
 fn open_terminal(transport: &Transport, arg: &str) {
