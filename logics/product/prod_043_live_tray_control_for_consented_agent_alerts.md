@@ -1,8 +1,8 @@
 ## prod_043_live_tray_control_for_consented_agent_alerts - Live tray control for consented agent alerts
 > Date: 2026-08-13
-> Status: Proposed
+> Status: Settled
 > Related request: `req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch`
-> Related backlog: `item_111_request_and_persist_provider_hook_consent_at_interactive_launch`, `item_112_make_the_tray_alert_switch_the_live_delivery_authority`
+> Related backlog: `item_111_request_and_persist_provider_hook_consent_at_interactive_launch`
 > Related task: `task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
@@ -41,5 +41,5 @@ flowchart LR
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch`
+- Product back-reference: `item_111_request_and_persist_provider_hook_consent_at_interactive_launch`
 - Task back-reference: `task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent`

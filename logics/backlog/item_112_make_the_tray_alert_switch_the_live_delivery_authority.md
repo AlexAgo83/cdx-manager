@@ -1,10 +1,10 @@
 ## item_112_make_the_tray_alert_switch_the_live_delivery_authority - Make the tray alert switch the live delivery authority
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 100%
 > Confidence: 95%
-> Progress: 55%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Interactive notification delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -57,3 +57,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent`
+
+# Notes
+- Task `task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent` was finished via `logics-manager flow finish task` on 2026-08-13.

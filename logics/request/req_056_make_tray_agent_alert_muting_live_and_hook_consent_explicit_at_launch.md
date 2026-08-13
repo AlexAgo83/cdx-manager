@@ -1,7 +1,7 @@
 ## req_056_make_tray_agent_alert_muting_live_and_hook_consent_explicit_at_launch - Make tray agent-alert muting live and hook consent explicit at launch
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
 > Complexity: Medium
