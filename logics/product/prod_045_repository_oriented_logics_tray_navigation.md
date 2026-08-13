@@ -1,8 +1,8 @@
 ## prod_045_repository_oriented_logics_tray_navigation - Repository-oriented Logics tray navigation
 > Date: 2026-08-13
-> Status: Proposed
+> Status: Settled
 > Related request: `req_058_group_logics_tray_next_actions_by_repository`
-> Related backlog: `item_115_publish_bounded_logics_repository_groups_in_the_tray_card`, `item_116_render_logics_repository_groups_as_native_tray_submenus`
+> Related backlog: `item_115_publish_bounded_logics_repository_groups_in_the_tray_card`
 > Related task: `task_069_orchestrate_repository_grouped_logics_tray_navigation`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
@@ -40,5 +40,5 @@ flowchart LR
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_058_group_logics_tray_next_actions_by_repository`
+- Product back-reference: `item_115_publish_bounded_logics_repository_groups_in_the_tray_card`
 - Task back-reference: `task_069_orchestrate_repository_grouped_logics_tray_navigation`

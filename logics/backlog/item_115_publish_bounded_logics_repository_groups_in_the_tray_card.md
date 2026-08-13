@@ -1,13 +1,14 @@
 ## item_115_publish_bounded_logics_repository_groups_in_the_tray_card - Publish bounded Logics repository groups in the tray card
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 80%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Tray data contract
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-13 10:39:34
 
 # AI Context
 - Summary: Publish bounded repository-owned Logics groups with stable roots and collision-safe labels.
@@ -41,6 +42,7 @@
 - request-AC4 -> This backlog slice. Proof: AC3: Legacy flat cards remain valid snapshot input.
 - request-AC5 -> This backlog slice. Proof: AC3: Legacy flat cards remain valid snapshot input.
 - request-AC6 -> This backlog slice. Proof: AC3: Legacy flat cards remain valid snapshot input.
+- request-AC7 -> This backlog slice. Proof: `d62989b`; collision-safe group labels distinguish equal basenames without becoming action targets.
 
 # Decision framing
 - Product framing: Not needed
@@ -55,3 +57,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_069_orchestrate_repository_grouped_logics_tray_navigation`
+
+# Notes
+- Task `task_069_orchestrate_repository_grouped_logics_tray_navigation` was finished via `logics-manager flow finish task` on 2026-08-13.

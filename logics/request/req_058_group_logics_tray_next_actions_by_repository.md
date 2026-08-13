@@ -1,7 +1,7 @@
 ## req_058_group_logics_tray_next_actions_by_repository - Group Logics tray next actions by repository
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
 > Complexity: Medium

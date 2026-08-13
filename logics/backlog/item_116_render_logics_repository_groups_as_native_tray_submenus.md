@@ -1,13 +1,14 @@
 ## item_116_render_logics_repository_groups_as_native_tray_submenus - Render Logics repository groups as native tray submenus
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 80%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Tray interaction
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-13 10:39:34
 
 # AI Context
 - Summary: Render repository groups as bounded native tray submenus without losing stable action targets.
@@ -39,6 +40,7 @@
 - request-AC4 -> This backlog slice. Proof: AC3: Flat legacy rows and card-wide actions retain their current rendering.
 - request-AC5 -> This backlog slice. Proof: AC3: Flat legacy rows and card-wide actions retain their current rendering.
 - request-AC6 -> This backlog slice. Proof: AC3: Flat legacy rows and card-wide actions retain their current rendering.
+- request-AC8 -> This backlog slice. Proof: `d62989b`; Rust snapshot parsing and menu rendering enforce five groups and two rows per group.
 
 # Decision framing
 - Product framing: Not needed
@@ -53,3 +55,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_069_orchestrate_repository_grouped_logics_tray_navigation`
+
+# Notes
+- Task `task_069_orchestrate_repository_grouped_logics_tray_navigation` was finished via `logics-manager flow finish task` on 2026-08-13.
