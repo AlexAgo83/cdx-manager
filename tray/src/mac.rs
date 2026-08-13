@@ -14,7 +14,7 @@ use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSEventMask};
 use objc2_foundation::{NSDate, NSDefaultRunLoopMode};
 
 use crate::backend;
-use crate::events::{clear_terminal, open_project_page, run_plugin_action, set_alerts, set_terminal};
+use crate::events::{clear_terminal, open_project_page, run_plugin_action, set_alerts, set_sort, set_terminal};
 use crate::mac_menu_open;
 use crate::menu::ActionId;
 use crate::runner::{announce, Render};
@@ -122,6 +122,11 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 }
                 Some(ActionId::ClearTerminal) => {
                     clear_terminal(&transport);
+                    state = Render::next(&transport, state.tick, &mut unread);
+                    redraw = true;
+                }
+                Some(ActionId::SetSort(sort)) => {
+                    set_sort(&transport, sort);
                     state = Render::next(&transport, state.tick, &mut unread);
                     redraw = true;
                 }

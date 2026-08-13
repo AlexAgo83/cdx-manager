@@ -46,11 +46,11 @@ from ..tray_install import (
 from ..tray_instance import companion_instance
 from ..tray_plugins import ADAPTERS, collect_cards, enabled_plugins, set_plugin_enabled
 from ..tray_terminal import REFUSAL as TERMINAL_REFUSAL
-from ..tray_terminal import clear_terminal, set_terminal, terminal_candidates, terminal_preference
+from ..tray_terminal import clear_terminal, set_sort, set_terminal, sort_preference, terminal_candidates, terminal_preference
 
 TRAY_ACTIONS = (
     "status", "install", "launch", "uninstall", "autostart", "doctor",
-    "events", "ack", "heartbeat", "alerts", "plugin", "terminal",
+    "events", "ack", "heartbeat", "alerts", "plugin", "terminal", "sort",
 )
 
 # Codes rather than prose, so a caller can branch on them.
@@ -95,6 +95,8 @@ def handle_tray(rest, ctx):
         return _tray_plugin(args, ctx)
     if action == "terminal":
         return _tray_terminal(args, ctx)
+    if action == "sort":
+        return _tray_sort(args, ctx)
     return _tray_install(args, ctx)
 
 
@@ -139,6 +141,7 @@ def _tray_status(args, ctx):
         plugins=cards,
         terminal=terminal_preference(ctx["service"]["base_dir"]),
         terminal_candidates=terminal_candidates(),
+        sort=sort_preference(ctx["service"]["base_dir"]),
     )
     # Pending alerts ride along with the snapshot rather than costing their own
     # call. Across WSL every invocation is a `wsl.exe` crossing measured at
@@ -451,6 +454,28 @@ def _tray_terminal(args, ctx):
         # silently, and a user whose terminal never opens should know that is
         # the designed behaviour rather than a broken setting.
         ctx["out"](f"{_dim('If it is not installed, the platform default opens instead.', ctx['use_color'])}\n")
+    return 0
+
+
+def _tray_sort(args, ctx):
+    parsed = _parse_flag_args(args, {"--json": {"key": "json", "type": "bool", "default": False}}, TRAY_USAGE, positionals_key="args", max_positionals=2)
+    positional = parsed["args"] or ["status"]
+    mode = positional[0]
+    base_dir = ctx["service"]["base_dir"]
+    if mode == "set" and len(positional) == 2:
+        try:
+            sort = set_sort(base_dir, positional[1])
+        except ValueError as error:
+            raise CdxError(str(error)) from None
+    elif mode == "status":
+        sort = sort_preference(base_dir)
+    else:
+        raise CdxError(TRAY_USAGE)
+    message = f"Tray sessions sort by {sort}."
+    if parsed["json"]:
+        _write_json(ctx, _json_success("tray.sort", message, sort=sort, applied=mode == "set"))
+    else:
+        ctx["out"](f"{message}\n")
     return 0
 
 

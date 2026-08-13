@@ -47,6 +47,7 @@ pub enum ActionId {
     ToggleAlerts,
     SetTerminal(String),
     ClearTerminal,
+    SetSort(String),
     /// Open a terminal on this session, by name.
     ///
     /// It was an index into the snapshot, which kept the id `Copy`. That only
@@ -380,6 +381,14 @@ fn session_entries_from(actions: Vec<SessionAction>) -> Vec<Entry> {
 /// beside the icon and this list are the same thing said twice.
 pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -> Vec<Entry> {
     let mut entries = Vec::new();
+    entries.push(Entry::Submenu {
+        about: ActionId::Refresh,
+        label: "Sort".into(),
+        items: [("Capacity", "capacity"), ("Reset", "reset"), ("Recent", "recent")].into_iter().map(|(label, value)| Entry::Check {
+            id: ActionId::SetSort(value.into()), label: label.into(), checked: snapshot.sort == value,
+        }).collect(),
+    });
+    entries.push(Entry::Separator);
     if snapshot.sessions.is_empty() {
         entries.push(Entry::Info("No enabled CDX sessions".into()));
     } else {
@@ -607,6 +616,7 @@ mod tests {
             plugins: Vec::new(),
             terminal: None,
             terminal_candidates: Vec::new(),
+            sort: "capacity".into(),
             sessions,
         }
     }
@@ -707,6 +717,14 @@ mod tests {
         let entries = build_with_alerts(&state, &[]);
         assert!(labels(&entries).contains("System default"));
         assert!(entries.iter().any(|entry| matches!(entry, Entry::Submenu { items, .. } if items.iter().any(|item| matches!(item, Entry::Check { id: ActionId::ClearTerminal, checked: true, .. })) )));
+    }
+
+    #[test]
+    fn session_sort_is_a_short_persistent_choice() {
+        let mut state = snapshot(vec![], true);
+        state.sort = "recent".into();
+        let entries = build_with_alerts(&state, &[]);
+        assert!(matches!(&entries[0], Entry::Submenu { label, items, .. } if label == "Sort" && items.iter().any(|entry| matches!(entry, Entry::Check { id: ActionId::SetSort(value), checked: true, .. } if value == "recent"))));
     }
 
     #[test]

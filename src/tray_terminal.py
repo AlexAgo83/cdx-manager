@@ -21,6 +21,7 @@ import subprocess
 import sys
 
 STATE_VERSION = 1
+SORT_VALUES = ("capacity", "reset", "recent")
 # An application name or a bundle identifier, and nothing that could be read as
 # a command. No slashes, so it cannot name a path; no quotes, semicolons,
 # ampersands, pipes, backticks or dollars, so it cannot carry a shell fragment;
@@ -45,15 +46,17 @@ def terminal_preference(base_dir):
     preference. A value that fails validation today must not be honoured just
     because it was written before the rule existed.
     """
-    try:
-        with open(state_path(base_dir), encoding="utf-8") as handle:
-            state = json.load(handle)
-    except (OSError, ValueError):
-        return None
+    state = _state(base_dir)
     if not isinstance(state, dict) or state.get("version") != STATE_VERSION:
         return None
     name = state.get("terminal")
     return name if isinstance(name, str) and _NAME.match(name) else None
+
+
+def sort_preference(base_dir):
+    state = _state(base_dir)
+    value = state.get("sort")
+    return value if value in SORT_VALUES else "capacity"
 
 
 def valid_terminal(name):
@@ -75,14 +78,36 @@ def set_terminal(base_dir, name):
     """Record a preferred terminal. Raises ValueError on anything else."""
     if not valid_terminal(name):
         raise ValueError(REFUSAL)
-    _write(base_dir, {"version": STATE_VERSION, "terminal": name})
+    state = _state(base_dir)
+    state["terminal"] = name
+    _write(base_dir, state)
     return name
 
 
 def clear_terminal(base_dir):
     """Return to the platform's default."""
-    _write(base_dir, {"version": STATE_VERSION, "terminal": None})
+    state = _state(base_dir)
+    state["terminal"] = None
+    _write(base_dir, state)
     return None
+
+
+def set_sort(base_dir, value):
+    if value not in SORT_VALUES:
+        raise ValueError("Tray sort must be capacity, reset, or recent.")
+    state = _state(base_dir)
+    state["sort"] = value
+    _write(base_dir, state)
+    return value
+
+
+def _state(base_dir):
+    try:
+        with open(state_path(base_dir), encoding="utf-8") as handle:
+            state = json.load(handle)
+    except (OSError, ValueError):
+        state = {}
+    return state if isinstance(state, dict) and state.get("version") == STATE_VERSION else {"version": STATE_VERSION}
 
 
 def _write(base_dir, state):

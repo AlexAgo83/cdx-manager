@@ -149,7 +149,15 @@ class TrayContractTest(CliTestBase):
         snapshot = build_snapshot([], NOW, "9.9.9")
         self.assertEqual(snapshot["icon"]["state"], ICON_UNKNOWN)
         self.assertEqual(snapshot["icon"]["reason"], "no_sessions")
-        self.assertEqual(snapshot["sessions"], [])
+
+    def test_session_sort_modes_keep_unknown_values_last(self):
+        rows = [
+            _row("later", reset_at="2026-08-12T12:00:00+00:00", last_launched_at="2026-08-09T12:00:00+00:00"),
+            _row("soon", reset_at="2026-08-11T12:00:00+00:00", last_launched_at="2026-08-10T11:00:00+00:00"),
+            _row("unknown"),
+        ]
+        self.assertEqual([row["name"] for row in build_snapshot(rows, NOW, "9.9.9", sort="reset")["sessions"]], ["soon", "later", "unknown"])
+        self.assertEqual([row["name"] for row in build_snapshot(rows, NOW, "9.9.9", sort="recent")["sessions"]], ["soon", "later", "unknown"])
 
     def test_disabled_sessions_are_left_out(self):
         snapshot = build_snapshot([_row(name="off", available_pct=1, enabled=False)], NOW, "9.9.9")

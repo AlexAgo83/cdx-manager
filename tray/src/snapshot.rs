@@ -219,6 +219,7 @@ pub struct Snapshot {
     /// a command out of it, only hands it to the platform's launcher.
     pub terminal: Option<String>,
     pub terminal_candidates: Vec<String>,
+    pub sort: String,
 }
 
 /// One integration's card, already bounded by CDX.
@@ -473,6 +474,7 @@ pub fn read_snapshot(payload: &Value) -> Result<Snapshot, Unavailable> {
             .filter(|name| !name.is_empty())
             .map(str::to_string),
         terminal_candidates: snapshot.get("terminal_candidates").and_then(Value::as_array).map(|items| items.iter().filter_map(Value::as_str).filter(|name| !name.is_empty() && name.len() <= 64).map(str::to_string).take(8).collect()).unwrap_or_default(),
+        sort: snapshot.get("sort").and_then(Value::as_str).filter(|value| matches!(*value, "capacity" | "reset" | "recent")).unwrap_or("capacity").to_string(),
         plugins: snapshot
             .get("plugins")
             .and_then(Value::as_array)

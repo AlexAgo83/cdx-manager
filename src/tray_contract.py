@@ -139,6 +139,7 @@ def menu_session(row, now):
         "freshness": freshness,
         "age_seconds": None if age is None else int(age),
         "updated_at": row.get("updated_at"),
+        "last_launched_at": row.get("last_launched_at"),
     }
 
 
@@ -223,13 +224,17 @@ def tooltip_for(worst):
     return "CDX · " + " · ".join(parts)
 
 
-def build_snapshot(rows, now, cdx_version, refreshable=True, plugins=None, terminal=None, terminal_candidates=None):
+def build_snapshot(rows, now, cdx_version, refreshable=True, plugins=None, terminal=None, terminal_candidates=None, sort="capacity"):
     """The whole contract, from the rows `cdx status` already returns.
 
     `icon` carries no session name, account, or figure: it is what shows while
     the menu is closed, and `req_035` AC3 forbids leaking anything there.
     """
     sessions = _by_urgency([menu_session(row, now) for row in rows if _eligible(row)])
+    if sort == "reset":
+        sessions.sort(key=lambda row: (_reset_sort_key(row), row["name"]))
+    elif sort == "recent":
+        sessions.sort(key=lambda row: (_recent_sort_key(row), row["name"]))
     if not sessions:
         icon = {
             "state": ICON_UNKNOWN,
@@ -264,7 +269,20 @@ def build_snapshot(rows, now, cdx_version, refreshable=True, plugins=None, termi
         # is a second thing to keep in step.
         "terminal": terminal,
         "terminal_candidates": list(terminal_candidates or []),
+        "sort": sort if sort in ("capacity", "reset", "recent") else "capacity",
     }
+
+
+def _reset_sort_key(row):
+    from .status_view import _parse_reset_timestamp
+    value = _parse_reset_timestamp(row.get("reset_at"))
+    return value if value is not None else float("inf")
+
+
+def _recent_sort_key(row):
+    from .status_view import _parse_reset_timestamp
+    value = _parse_reset_timestamp(row.get("last_launched_at"))
+    return -value if value is not None else float("inf")
 
 
 def read_snapshot(payload):

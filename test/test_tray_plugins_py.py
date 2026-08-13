@@ -399,3 +399,12 @@ class TerminalPreferenceTest(CliTestBase):
         snapshot = build_snapshot([], datetime.now(timezone.utc), "0.0.0", terminal="Ghostty")
         self.assertEqual(snapshot["terminal"], "Ghostty")
         self.assertIsNone(build_snapshot([], datetime.now(timezone.utc), "0.0.0")["terminal"])
+
+    def test_sort_preference_is_persistent_and_bounded(self):
+        from src.tray_terminal import set_sort, sort_preference
+        base = self.make_temp_dir()
+        self.assertEqual(sort_preference(base), "capacity")
+        self.assertEqual(set_sort(base, "recent"), "recent")
+        self.assertEqual(sort_preference(base), "recent")
+        with self.assertRaises(ValueError):
+            set_sort(base, "anything")

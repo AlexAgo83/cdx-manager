@@ -99,6 +99,10 @@ pub fn clear_terminal(transport: &Transport) {
     let _ = run(transport.command_for(&["tray", "terminal", "clear"]));
 }
 
+pub fn set_sort(transport: &Transport, sort: &str) {
+    let _ = run(transport.command_for(&["tray", "sort", "set", sort]));
+}
+
 pub fn open_project_page() {
     const URL: &str = "https://github.com/AlexAgo83/cdx-manager";
     #[cfg(target_os = "macos")]
