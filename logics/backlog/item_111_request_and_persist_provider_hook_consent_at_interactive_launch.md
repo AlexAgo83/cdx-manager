@@ -1,10 +1,10 @@
 ## item_111_request_and_persist_provider_hook_consent_at_interactive_launch - Request and persist provider-hook consent at interactive launch
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Medium
 > Theme: Notification consent
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

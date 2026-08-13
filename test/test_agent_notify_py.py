@@ -236,9 +236,8 @@ class HookTargetTests(unittest.TestCase):
         self.assertNotEqual(one[0], two[0])
         self.assertNotEqual(one[1], two[1])
 
-    def test_headless_runs_stay_silent(self):
-        env = {agent_notify.SESSION_ENV: "work1", agent_notify.ENABLED_ENV: "0"}
-        self.assertIsNone(agent_notify.compose_notification({"cwd": "/r/a"}, env))
+    def test_a_hook_without_a_cdx_session_stays_silent(self):
+        self.assertIsNone(agent_notify.compose_notification({"cwd": "/r/a"}, {}))
 
     def test_malformed_payload_never_fails_the_caller(self):
         for bad in ("", "not json", "[1,2,3]", "null"):
@@ -412,7 +411,7 @@ class ProvisioningTests(unittest.TestCase):
         self.assertFalse(agent_notify.notifications_enabled({"name": "a", "launch": {"notify": False}}))
         self.assertTrue(agent_notify.notifications_enabled({"name": "a", "launch": {"notify": True}}))
 
-    def test_launch_env_carries_the_session_and_the_suppression(self):
+    def test_launch_env_carries_the_session_without_a_delivery_override(self):
         # CDX_HOME rides along too: a session runs with HOME redirected into its
         # own profile, so a hook that inherited the default would resolve a
         # different store than the tray companion writes into.
@@ -424,7 +423,7 @@ class ProvisioningTests(unittest.TestCase):
         )
         self.assertEqual(
             agent_notify.launch_notify_env(session, False, env=home),
-            {agent_notify.SESSION_ENV: "work1", agent_notify.ENABLED_ENV: "0", **home},
+            {agent_notify.SESSION_ENV: "work1", **home},
         )
 
 

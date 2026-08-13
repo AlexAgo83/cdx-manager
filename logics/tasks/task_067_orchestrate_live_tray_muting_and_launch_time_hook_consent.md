@@ -1,13 +1,14 @@
 ## task_067_orchestrate_live_tray_muting_and_launch_time_hook_consent - Orchestrate live tray muting and launch-time hook consent
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 95%
 > Confidence: 90%
 > Progress: 0%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Owner: Codex
 
 # AI Context
 - Summary: Deliver live muting backed by one delivery state, with explicit consent before hooks are provisioned.

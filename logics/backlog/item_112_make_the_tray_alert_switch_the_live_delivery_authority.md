@@ -1,10 +1,10 @@
 ## item_112_make_the_tray_alert_switch_the_live_delivery_authority - Make the tray alert switch the live delivery authority
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Medium
 > Theme: Interactive notification delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

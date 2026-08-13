@@ -249,13 +249,12 @@ class LaunchEnvironmentTest(CliTestBase):
         self.assertEqual(values["CDX_HOME"], "/somewhere/.cdx")
 
     def test_it_is_pinned_for_headless_runs_too(self):
-        """Headless runs share the session's home and therefore its hooks, so
-        the same mismatch would apply."""
+        """Headless runs share the hook store but cannot freeze delivery state."""
         from src.agent_notify import launch_notify_env
         session = {"name": "work", "launch": {}}
         values = launch_notify_env(session, False, env={"CDX_HOME": "/somewhere/.cdx"})
         self.assertEqual(values["CDX_HOME"], "/somewhere/.cdx")
-        self.assertEqual(values["CDX_NOTIFY"], "0")
+        self.assertNotIn("CDX_NOTIFY", values)
 
 
 class AlertMuteTest(CliTestBase):
@@ -316,6 +315,19 @@ class AlertMuteTest(CliTestBase):
         set_alerts(base, False)
         set_alerts(base, True)
         self.assertTrue(self._notify(base))
+
+    def test_a_legacy_suppression_env_cannot_override_live_unmute(self):
+        from src.tray_alerts import set_alerts
+
+        base = self.make_temp_dir()
+        set_alerts(base, False)
+        self.assertFalse(self._notify(base))
+        set_alerts(base, True)
+        ctx = self._ctx(base)
+        ctx["env"]["CDX_NOTIFY"] = "0"
+        with mock.patch.object(agent_notify, "send_desktop_notification") as direct:
+            handle_notify(['{"hook_event_name": "Stop", "cwd": "/tmp/repo"}'], ctx)
+        self.assertTrue(direct.called)
 
 
 class SpoolPathTest(CliTestBase):

@@ -6,7 +6,7 @@ Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 import os
 import shlex
 
-from ..agent_notify import notifications_enabled, provision
+from ..agent_notify import notifications_enabled, provision, supports_agent_alerts
 from ..cli_args import CAN_RESUME_USAGE, HANDOFF_USAGE, RESUME_USAGE, _parse_json_flag
 from ..cli_helpers import (
     API_SCHEMA_VERSION,
@@ -195,10 +195,23 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
     if not json_flag:
         ctx["out"](f"{_info(message, ctx['use_color'])}\n")
         _write_update_notice(ctx)
+    alerts_allowed = notifications_enabled(session)
+    if supports_agent_alerts(session["provider"]) and not alerts_allowed:
+        from ..tray_defaults import alerts_default, set_alerts_default
+        if alerts_default(ctx["service"]["base_dir"]):
+            alerts_allowed = True
+        elif ctx["stdin_is_tty"] and not json_flag:
+            ask = ctx.get("options", {}).get("input") or input
+            answer = ask("Allow CDX to install this provider's agent-alert hook? [y/N] ").strip().lower()
+            if answer in ("y", "yes"):
+                set_alerts_default(ctx["service"]["base_dir"], True)
+                from ..tray_alerts import set_alerts
+                set_alerts(ctx["service"]["base_dir"], False)
+                alerts_allowed = True
     installed = provision(
         _get_auth_home(session),
         session["provider"],
-        notifications_enabled(session),
+        alerts_allowed,
         ctx.get("env"),
         spawn_sync=ctx.get("spawn_sync"),
         base_dir=ctx["service"]["base_dir"],

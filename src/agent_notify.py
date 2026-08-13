@@ -21,7 +21,6 @@ from .tray_events import publish
 
 # Set on the provider process at launch; the hook runs as its child and inherits both.
 SESSION_ENV = "CDX_SESSION_NAME"
-ENABLED_ENV = "CDX_NOTIFY"
 PREVIEW_ENV = "CDX_NOTIFY_PREVIEW"
 
 # Our entries are recognised by the command they run, not by a marker key of our
@@ -127,10 +126,6 @@ def _is_reportable(payload, event):
 def compose_notification(payload, env=None, cwd=None):
     """Title and message for this event, or None if we should stay quiet."""
     env = os.environ if env is None else env
-    if env.get(ENABLED_ENV) == "0":
-        # Headless runs share the session's home, so they read the same hooks.
-        # Their caller already learns of completion from the return value.
-        return None
     session = env.get(SESSION_ENV)
     if not session:
         return None
@@ -309,7 +304,7 @@ def handle_notify(rest, ctx):
 
 
 def launch_notify_env(session, enabled, env=None):
-    """Env the provider is launched with, carrying who we are and whether to notify.
+    """Env the provider is launched with, carrying who we are and privacy settings.
 
     `CDX_HOME` is pinned rather than inherited, and that is what makes tray
     routing work at all. It defaults to `~/.cdx`, resolved against `HOME` — and
@@ -321,9 +316,7 @@ def launch_notify_env(session, enabled, env=None):
     """
     env = os.environ if env is None else env
     values = {SESSION_ENV: session["name"], "CDX_HOME": get_cdx_home(env)}
-    if not enabled:
-        values[ENABLED_ENV] = "0"
-    elif (session.get("launch") or {}).get("notify_preview") is True:
+    if enabled and (session.get("launch") or {}).get("notify_preview") is True:
         values[PREVIEW_ENV] = "1"
     return values
 
