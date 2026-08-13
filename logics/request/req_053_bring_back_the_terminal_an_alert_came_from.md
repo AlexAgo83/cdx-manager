@@ -1,7 +1,7 @@
 ## req_053_bring_back_the_terminal_an_alert_came_from - Bring back the terminal an alert came from
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
 > Complexity: High

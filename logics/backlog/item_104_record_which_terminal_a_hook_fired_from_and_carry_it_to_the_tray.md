@@ -1,10 +1,10 @@
 ## item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray - Record which terminal a hook fired from, and carry it to the tray
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 80%
+> Progress: 100%
 > Complexity: Medium
 > Theme: agent-alerts
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -43,6 +43,7 @@
 - request-AC1 -> This backlog slice. Proof: AC1: The hook derives a terminal program and a session identifier from its inherited environment, with an absent variable yielding no field rather than a guess.
 - request-AC6 -> This backlog slice. Proof: AC2: The values pass the existing sanitisation and length limits before entering the alert.
 - request-AC7 -> This backlog slice. Proof: AC3: structured_details documents the added fields and why they are metadata rather than content, in the same terms as what it already refuses.
+- request-AC8 -> This backlog slice. Proof: AC6: Unknown terminal kinds, control characters, oversized identifiers, and command-like values are dropped before entering the alert.
 
 # Decision framing
 - Product framing: Not needed
@@ -57,3 +58,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_064_deliver_alerts_that_lead_back_to_their_terminal`
+
+# Notes
+- Task `task_064_deliver_alerts_that_lead_back_to_their_terminal` was finished via `logics-manager flow finish task` on 2026-08-13.

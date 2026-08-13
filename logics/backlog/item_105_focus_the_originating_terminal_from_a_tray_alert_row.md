@@ -1,10 +1,10 @@
 ## item_105_focus_the_originating_terminal_from_a_tray_alert_row - Focus the originating terminal from a tray alert row
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 80%
+> Progress: 100%
 > Complexity: High
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -46,6 +46,7 @@
 - request-AC2 -> This backlog slice. Proof: AC1: An alert carrying an iTerm2 identity focuses that session and brings the application forward when its row is activated.
 - request-AC3 -> This backlog slice. Proof: AC2: A stale, unknown or unmatchable identity results in no visible change, and never focuses another window.
 - request-AC4 -> This backlog slice. Proof: AC3: An alert with no identity, or on a platform with no mechanism, draws the action disabled with a reason the operator can read.
+- request-AC9 -> This backlog slice. Proof: AC7: A malformed identity or a target that disappeared after alert receipt is unavailable or a no-op, and cannot focus a session row, preferred terminal, or recency match.
 
 # Decision framing
 - Product framing: Not needed
@@ -60,3 +61,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_064_deliver_alerts_that_lead_back_to_their_terminal`
+
+# Notes
+- Task `task_064_deliver_alerts_that_lead_back_to_their_terminal` was finished via `logics-manager flow finish task` on 2026-08-13.

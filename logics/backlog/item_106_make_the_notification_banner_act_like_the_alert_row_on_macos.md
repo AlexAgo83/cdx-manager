@@ -1,10 +1,10 @@
 ## item_106_make_the_notification_banner_act_like_the_alert_row_on_macos - Make the notification banner act like the alert row on macOS
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 80%
+> Progress: 100%
 > Complexity: Medium
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -54,3 +54,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_064_deliver_alerts_that_lead_back_to_their_terminal`
+
+# Notes
+- Task `task_064_deliver_alerts_that_lead_back_to_their_terminal` was finished via `logics-manager flow finish task` on 2026-08-13.

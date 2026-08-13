@@ -1,8 +1,8 @@
 ## prod_040_alerts_that_lead_back_to_their_terminal - Alerts that lead back to their terminal
 > Date: 2026-08-12
-> Status: Proposed
+> Status: Settled
 > Related request: `req_053_bring_back_the_terminal_an_alert_came_from`
-> Related backlog: `item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray`, `item_105_focus_the_originating_terminal_from_a_tray_alert_row`, `item_106_make_the_notification_banner_act_like_the_alert_row_on_macos`
+> Related backlog: `item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray`
 > Related task: `task_064_deliver_alerts_that_lead_back_to_their_terminal`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
@@ -43,5 +43,5 @@ flowchart LR
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_053_bring_back_the_terminal_an_alert_came_from`
+- Product back-reference: `item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray`
 - Task back-reference: `task_064_deliver_alerts_that_lead_back_to_their_terminal`
