@@ -27,8 +27,8 @@ opt-level = "z"
 # drag gtk3, libxdo and libayatana-appindicator in as hard runtime prerequisites,
 # so Linux gets ksni instead and the asset carries no C library at all.
 [target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
-muda = "0.19"
-tray-icon = "0.24"
+muda = { version = "0.19", default-features = false }
+tray-icon = { version = "0.24", default-features = false }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # tray-icon needs a running NSApplication event loop. These two provide it in a
