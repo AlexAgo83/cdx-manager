@@ -228,6 +228,12 @@ fn open_terminal_in(command: &str, preferred: Option<&str>) {
             .spawn();
         return;
     };
+    if app.eq_ignore_ascii_case("iTerm") || app.eq_ignore_ascii_case("iTerm2") {
+        let _ = std::process::Command::new("osascript")
+            .args(["-e", &iterm_script(command)])
+            .spawn();
+        return;
+    }
     match script_for(command) {
         Some(path) => {
             let spawned = std::process::Command::new("open")
@@ -237,6 +243,23 @@ fn open_terminal_in(command: &str, preferred: Option<&str>) {
         }
         None => open_terminal_in(command, None),
     }
+}
+
+/// iTerm exposes AppleScript commands for an interactive tab. Opening a script
+/// through LaunchServices runs it as a one-shot process, which iTerm closes as
+/// soon as `cdx config` returns.
+fn iterm_script(command: &str) -> String {
+    let escaped = command.replace('\\', "\\\\").replace('"', "\\\"");
+    format!(r#"tell application "iTerm2"
+if (count of windows) = 0 then
+    set targetWindow to (create window with default profile)
+else
+    set targetWindow to current window
+    tell targetWindow to create tab with default profile
+end if
+tell current session of targetWindow to write text "{escaped}"
+activate
+end tell"#)
 }
 
 /// A one-shot script carrying the command, for a terminal that has no scripting
@@ -258,4 +281,16 @@ fn script_for(command: &str) -> Option<String> {
         .ok()?;
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).ok()?;
     Some(path.to_string_lossy().into_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::iterm_script;
+
+    #[test]
+    fn iterm_opens_an_interactive_tab_and_escapes_the_command() {
+        let script = iterm_script(r#"cdx config "work""#);
+        assert!(script.contains("create tab with default profile"));
+        assert!(script.contains(r#"write text "cdx config \"work\"""#));
+    }
 }
