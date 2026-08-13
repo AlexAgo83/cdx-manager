@@ -1,10 +1,10 @@
 ## item_119_run_tray_tests_and_macos_validation_in_continuous_integration - Run tray tests and macOS validation in continuous integration
 > From version: 0.19.1
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: Medium
 > Theme: Repository reliability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

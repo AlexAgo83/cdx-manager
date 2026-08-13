@@ -1,10 +1,10 @@
 ## item_124_restore_contributor_and_logics_workflow_signal_accuracy - Restore contributor and Logics workflow signal accuracy
 > From version: 0.19.1
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: Low
 > Theme: Workflow hygiene
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

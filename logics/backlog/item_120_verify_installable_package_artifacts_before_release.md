@@ -1,10 +1,10 @@
 ## item_120_verify_installable_package_artifacts_before_release - Verify installable package artifacts before release
 > From version: 0.19.1
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: Medium
 > Theme: Release integrity
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

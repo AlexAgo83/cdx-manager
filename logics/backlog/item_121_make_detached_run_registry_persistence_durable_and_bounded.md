@@ -1,10 +1,10 @@
 ## item_121_make_detached_run_registry_persistence_durable_and_bounded - Make detached-run registry persistence durable and bounded
 > From version: 0.19.1
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: Medium
 > Theme: Runtime resilience
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

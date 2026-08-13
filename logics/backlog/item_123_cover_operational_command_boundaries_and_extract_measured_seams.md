@@ -1,10 +1,10 @@
 ## item_123_cover_operational_command_boundaries_and_extract_measured_seams - Cover operational command boundaries and extract measured seams
 > From version: 0.19.1
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: High
 > Theme: Maintainability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

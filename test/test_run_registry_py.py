@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from src.errors import CdxError
-from src.run_registry import RunRegistry
+from src.run_registry import RunRegistry, _acquire_posix_lock
 
 
 class RunRegistryTests(unittest.TestCase):
@@ -207,6 +207,19 @@ class RunRegistryTests(unittest.TestCase):
                 self._start("run-1")
 
         self.assertEqual(calls, [(3, 1), (2, 1)])
+
+    def test_posix_lock_timeout_is_actionable(self):
+        class NeverFree:
+            pass
+
+        fake_fcntl = SimpleNamespace(LOCK_EX=2, LOCK_NB=4, flock=mock.Mock(side_effect=BlockingIOError()))
+        with mock.patch("src.run_registry.time.sleep"):
+            with mock.patch.dict("sys.modules", {"fcntl": fake_fcntl}):
+                with self.assertRaises(CdxError) as caught:
+                    _acquire_posix_lock(NeverFree(), timeout_seconds=0)
+
+        self.assertIn("run registry lock", str(caught.exception))
+        self.assertEqual(caught.exception.exit_code, 75)
 
 
 if __name__ == "__main__":

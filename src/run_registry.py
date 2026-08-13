@@ -1,12 +1,12 @@
 import json
 import os
 import sys
-import tempfile
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
 from .errors import CdxError
+from .fs_utils import atomic_write
 
 
 def utc_now_iso():
@@ -53,6 +53,25 @@ def _acquire_windows_lock(handle, timeout_seconds):
             time.sleep(_LOCK_RETRY_SECONDS)
 
 
+def _acquire_posix_lock(handle, timeout_seconds):
+    """Acquire a POSIX advisory lock within the same bounded wait as Windows."""
+    import fcntl
+
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise CdxError(
+                    "Timed out waiting for the run registry lock after "
+                    f"{timeout_seconds}s. Another cdx process may be stuck holding it.",
+                    75,
+                ) from None
+            time.sleep(_LOCK_RETRY_SECONDS)
+
+
 @contextmanager
 def _registry_lock(path, timeout_seconds=REGISTRY_LOCK_TIMEOUT_SECONDS):
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -67,7 +86,7 @@ def _registry_lock(path, timeout_seconds=REGISTRY_LOCK_TIMEOUT_SECONDS):
                 msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
         else:
             import fcntl
-            fcntl.flock(handle, fcntl.LOCK_EX)
+            _acquire_posix_lock(handle, timeout_seconds)
             try:
                 yield
             finally:
@@ -89,18 +108,7 @@ def _read_registry(path):
 
 
 def _write_registry(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    fd, temp_path = tempfile.mkstemp(prefix=".runs-", suffix=".json", dir=os.path.dirname(path))
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(data, handle, indent=2, sort_keys=True)
-            handle.write("\n")
-        os.replace(temp_path, path)
-    finally:
-        try:
-            os.unlink(temp_path)
-        except FileNotFoundError:
-            pass
+    atomic_write(path, json.dumps(data, indent=2, sort_keys=True) + "\n", mode=0o600)
 
 
 def _is_pid_alive(pid):
