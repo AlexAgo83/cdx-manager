@@ -1,10 +1,10 @@
 ## item_114_prove_conditional_reset_columns_preserve_status_contracts - Prove conditional reset columns preserve status contracts
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 80%
+> Progress: 100%
 > Complexity: Low
 > Theme: Status regression safety
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -48,3 +48,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_068_orchestrate_conditional_reset_columns_in_cdx_status`
+
+# Notes
+- Task `task_068_orchestrate_conditional_reset_columns_in_cdx_status` was finished via `logics-manager flow finish task` on 2026-08-13.

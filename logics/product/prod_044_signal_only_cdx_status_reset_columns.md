@@ -1,8 +1,8 @@
 ## prod_044_signal_only_cdx_status_reset_columns - Signal-only CDX status reset columns
 > Date: 2026-08-13
-> Status: Proposed
+> Status: Settled
 > Related request: `req_057_hide_empty_reset_columns_from_cdx_status`
-> Related backlog: `item_113_derive_reset_column_visibility_from_rendered_status_data`, `item_114_prove_conditional_reset_columns_preserve_status_contracts`
+> Related backlog: `item_113_derive_reset_column_visibility_from_rendered_status_data`
 > Related task: `task_068_orchestrate_conditional_reset_columns_in_cdx_status`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
@@ -40,5 +40,5 @@ flowchart LR
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_057_hide_empty_reset_columns_from_cdx_status`
+- Product back-reference: `item_113_derive_reset_column_visibility_from_rendered_status_data`
 - Task back-reference: `task_068_orchestrate_conditional_reset_columns_in_cdx_status`

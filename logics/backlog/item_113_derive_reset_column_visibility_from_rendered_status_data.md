@@ -1,13 +1,14 @@
 ## item_113_derive_reset_column_visibility_from_rendered_status_data - Derive reset-column visibility from rendered status data
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 80%
+> Progress: 100%
 > Complexity: Low
 > Theme: Status presentation
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-13 10:42:28
 
 # AI Context
 - Summary: Derive terminal table reset columns from active renderable reset signals rather than stored row shape.
@@ -39,6 +40,8 @@
 - request-AC2 -> This backlog slice. Proof: AC2: A single row with a value restores only its matching header and cells.
 - request-AC3 -> This backlog slice. Proof: AC3: Normal and small tables remain aligned for disabled and mixed-provider rows.
 - request-AC5 -> This backlog slice. Proof: AC3: Normal and small tables remain aligned for disabled and mixed-provider rows.
+- request-AC6 -> This backlog slice. Proof: `c455604`; disabled rows do not make a reset column visible.
+- request-AC7 -> This backlog slice. Proof: `c455604`; malformed reset values do not break rendering or create columns.
 
 # Decision framing
 - Product framing: Not needed
@@ -53,3 +56,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_068_orchestrate_conditional_reset_columns_in_cdx_status`
+
+# Notes
+- Task `task_068_orchestrate_conditional_reset_columns_in_cdx_status` was finished via `logics-manager flow finish task` on 2026-08-13.

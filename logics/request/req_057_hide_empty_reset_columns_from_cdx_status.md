@@ -1,7 +1,7 @@
 ## req_057_hide_empty_reset_columns_from_cdx_status - Hide empty reset columns from cdx status
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
 > Complexity: Low
