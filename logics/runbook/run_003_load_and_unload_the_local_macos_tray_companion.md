@@ -1,4 +1,4 @@
-## run_003_load_and_unload_the_local_tray_companion - Load and unload the local tray companion
+## run_003_load_and_unload_the_local_macos_tray_companion - Load and unload the local tray companion
 > Status: Active
 > Category: support
 > Verified: 2026-08-13: load and unload passed against the local development and installed macOS companions.
@@ -6,6 +6,7 @@
 > Related backlog: (none yet)
 > Related task: (none yet)
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
+> Indicators reviewed: 2026-08-13 11:25:24
 
 # Trigger
 - A macOS or Windows tray change needs a real menu-bar smoke test against the working tree.
