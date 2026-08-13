@@ -381,14 +381,6 @@ fn session_entries_from(actions: Vec<SessionAction>) -> Vec<Entry> {
 /// beside the icon and this list are the same thing said twice.
 pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -> Vec<Entry> {
     let mut entries = Vec::new();
-    entries.push(Entry::Submenu {
-        about: ActionId::Refresh,
-        label: "Sort".into(),
-        items: [("Capacity", "capacity"), ("Reset", "reset"), ("Recent", "recent")].into_iter().map(|(label, value)| Entry::Check {
-            id: ActionId::SetSort(value.into()), label: label.into(), checked: snapshot.sort == value,
-        }).collect(),
-    });
-    entries.push(Entry::Separator);
     if snapshot.sessions.is_empty() {
         entries.push(Entry::Info("No enabled CDX sessions".into()));
     } else {
@@ -512,6 +504,13 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
         entries.push(Entry::Info(hint.clone()));
     }
     entries.push(Entry::Separator);
+    entries.push(Entry::Submenu {
+        about: ActionId::Refresh,
+        label: "Sort".into(),
+        items: [("Capacity", "capacity"), ("Reset", "reset"), ("Recent", "recent")].into_iter().map(|(label, value)| Entry::Check {
+            id: ActionId::SetSort(value.into()), label: label.into(), checked: snapshot.sort == value,
+        }).collect(),
+    });
     entries.push(Entry::Check {
         id: ActionId::ToggleAlerts,
         label: "Agent alerts".into(),
@@ -724,7 +723,9 @@ mod tests {
         let mut state = snapshot(vec![], true);
         state.sort = "recent".into();
         let entries = build_with_alerts(&state, &[]);
-        assert!(matches!(&entries[0], Entry::Submenu { label, items, .. } if label == "Sort" && items.iter().any(|entry| matches!(entry, Entry::Check { id: ActionId::SetSort(value), checked: true, .. } if value == "recent"))));
+        let sort = entries.iter().position(|entry| matches!(entry, Entry::Submenu { label, items, .. } if label == "Sort" && items.iter().any(|entry| matches!(entry, Entry::Check { id: ActionId::SetSort(value), checked: true, .. } if value == "recent")))).unwrap();
+        let alerts = entries.iter().position(|entry| matches!(entry, Entry::Check { id: ActionId::ToggleAlerts, .. })).unwrap();
+        assert_eq!(sort + 1, alerts);
     }
 
     #[test]
