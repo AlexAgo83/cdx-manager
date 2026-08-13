@@ -68,6 +68,17 @@ helper from the active user's desktop session; a temporary scheduled task with
 the user's `InteractiveToken` is acceptable, but delete that task immediately
 after it starts the companion.
 
+To exercise a Windows companion against CDX in WSL, set the transport and the
+absolute Linux executable before `load`; the helper preserves this explicit
+override instead of substituting its native checkout wrapper:
+
+```powershell
+$env:CDX_TRAY_WSL = '1'
+$env:CDX_TRAY_WSL_DISTRO = 'Ubuntu'       # omit to use the WSL default
+$env:CDX_TRAY_CDX = '/home/aagos/.local/bin/cdx'
+.\scripts\tray-dev.ps1 load
+```
+
 # Verification
 - `load` prints `Development tray loaded` only after the process command is
   `tray/target/release/CDX.app/Contents/MacOS/cdx-tray`.

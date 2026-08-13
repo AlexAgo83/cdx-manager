@@ -37,7 +37,7 @@ if ($Action -eq 'load') {
 node "$root\bin\cdx.js" %*
 "@ | Set-Content -NoNewline -Encoding ascii $wrapper
   Stop-Companion
-  $env:CDX_TRAY_CDX = $wrapper
+  if (-not $env:CDX_TRAY_CDX) { $env:CDX_TRAY_CDX = $wrapper }
   Start-Process -FilePath $binary
   Start-Sleep -Seconds 1
   $trayPid = RunningPid
