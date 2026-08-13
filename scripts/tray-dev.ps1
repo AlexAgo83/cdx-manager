@@ -9,6 +9,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $binary = Join-Path $root 'tray\target\release\cdx-tray.exe'
 $wrapper = Join-Path $root 'tray\target\release\cdx-tray-cdx.cmd'
+Set-Location $root
 
 function Invoke-DevPython([string]$code) {
   & node (Join-Path $root 'bin\python-runner.js') -c $code
