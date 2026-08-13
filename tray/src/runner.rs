@@ -174,7 +174,7 @@ fn fresh_ids(state: &Render) -> Vec<String> {
 /// the same alert is ever delivered again.
 pub fn announce(transport: &Transport, state: &Render) {
     for event in &state.fresh {
-        crate::notify::deliver(&event.title, &event.message, &event.id);
+        crate::notify::deliver(event);
     }
     events::acknowledge(transport, &fresh_ids(state));
 }

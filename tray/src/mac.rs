@@ -34,6 +34,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
     // intent as LSUIElement in the bundle, set here too so a bare binary run
     // from a terminal behaves the same way.
     app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+    crate::notify::install_delegate();
 
     let mut unread = Unread::new();
     let mut state = Render::first(&transport, &mut unread);
@@ -133,13 +134,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 Some(ActionId::Session(name)) => {
                     open_terminal_in(&format!("cdx {name}"), state.terminal.as_deref())
                 }
-                Some(ActionId::FocusTerminal { kind, id }) if kind == "iterm2" => {
-                    let script = format!("tell application \"iTerm2\"\nset targetSession to first session of first tab of first window whose id is \"{id}\"\nselect targetSession\nactivate\nend tell");
-                    if !matches!(std::process::Command::new("osascript").args(["-e", &script]).status(), Ok(status) if status.success()) {
-                        eprintln!("Originating iTerm session is unavailable");
-                    }
-                }
-                Some(ActionId::FocusTerminal { .. }) => {}
+                Some(ActionId::FocusTerminal { kind, id }) => focus_terminal(kind, id),
                 // A view, not an edit: `cdx config` prints the settings that
                 // will apply to the next launch, and the tray never claims to
                 // change an assistant already running.
@@ -193,6 +188,24 @@ pub fn run(transport: Transport) -> Result<(), String> {
         }
         let _ = &tray;
     }
+}
+
+/// Bring forward exactly the iTerm session an alert carried. There is no
+/// fallback lookup: a stale id is intentionally a no-op rather than another
+/// window becoming the accidental target.
+pub fn focus_terminal(kind: &str, id: &str) {
+    if !valid_terminal_target(kind, id) {
+        return;
+    }
+    let script = format!("tell application \"iTerm2\"\nset targetSession to first session of first tab of first window whose id is \"{id}\"\nselect targetSession\nactivate\nend tell");
+    if !matches!(std::process::Command::new("osascript").args(["-e", &script]).status(), Ok(status) if status.success()) {
+        eprintln!("Originating iTerm session is unavailable");
+    }
+}
+
+fn valid_terminal_target(kind: &str, id: &str) -> bool {
+    kind == "iterm2" && !id.is_empty() && id.len() <= 128
+        && id.chars().all(|c| c.is_ascii_alphanumeric() || "-_:".contains(c))
 }
 
 /// Open Terminal on `cdx status`, the command this menu is a summary of.
@@ -285,12 +298,20 @@ fn script_for(command: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::iterm_script;
+    use super::{iterm_script, valid_terminal_target};
 
     #[test]
     fn iterm_opens_an_interactive_tab_and_escapes_the_command() {
         let script = iterm_script(r#"cdx config "work""#);
         assert!(script.contains("create tab with default profile"));
         assert!(script.contains(r#"write text "cdx config \"work\"""#));
+    }
+
+    #[test]
+    fn terminal_focus_never_accepts_an_untrusted_target() {
+        assert!(valid_terminal_target("iterm2", "a-b_2:3"));
+        for target in [("Terminal", "a"), ("iterm2", ""), ("iterm2", "bad;command"), ("iterm2", &"a".repeat(129))] {
+            assert!(!valid_terminal_target(target.0, target.1));
+        }
     }
 }

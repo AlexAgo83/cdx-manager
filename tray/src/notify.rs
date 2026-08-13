@@ -22,10 +22,40 @@
 
 #[cfg(target_os = "macos")]
 mod imp {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+
     use objc2::msg_send;
     use objc2::rc::Retained;
-    use objc2::runtime::AnyClass;
+    use objc2::runtime::{AnyClass, AnyObject, NSObject, NSObjectProtocol};
+    use objc2::{define_class, MainThreadMarker, MainThreadOnly};
     use objc2_foundation::{NSBundle, NSString};
+
+    static TARGETS: OnceLock<Mutex<HashMap<String, (String, String)>>> = OnceLock::new();
+
+    define_class!(
+        #[unsafe(super(NSObject))]
+        #[name = "CdxNotificationDelegate"]
+        #[thread_kind = MainThreadOnly]
+        struct NotificationDelegate;
+
+        unsafe impl NSObjectProtocol for NotificationDelegate {}
+
+        impl NotificationDelegate {
+            #[unsafe(method(userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:))]
+            fn did_receive(&self, _center: &AnyObject, response: &AnyObject, completion: &block2::Block<dyn Fn()>) {
+                unsafe {
+                    let notification: Retained<AnyObject> = msg_send![response, notification];
+                    let request: Retained<AnyObject> = msg_send![&*notification, request];
+                    let identifier: Retained<NSString> = msg_send![&*request, identifier];
+                    if let Some((kind, id)) = TARGETS.get().and_then(|targets| targets.lock().ok().and_then(|targets| targets.get(&identifier.to_string()).cloned())) {
+                        crate::mac::focus_terminal(&kind, &id);
+                    }
+                }
+                completion.call(());
+            }
+        }
+    );
 
     /// What the system will let us do right now.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,6 +104,24 @@ mod imp {
             let center: Option<Retained<objc2::runtime::AnyObject>> =
                 msg_send![class, currentNotificationCenter];
             center
+        }
+    }
+
+    /// Install before the first banner is posted. `setDelegate:` does not keep
+    /// this object alive, so it is deliberately leaked for the tray process.
+    pub fn install_delegate() {
+        let Some(center) = center() else { return };
+        let Some(mtm) = MainThreadMarker::new() else { return };
+        static DELEGATE: OnceLock<usize> = OnceLock::new();
+        let raw = *DELEGATE.get_or_init(|| {
+            let delegate: Retained<NotificationDelegate> = unsafe { msg_send![mtm.alloc::<NotificationDelegate>(), init] };
+            let raw = (&*delegate as *const NotificationDelegate) as usize;
+            std::mem::forget(delegate);
+            raw
+        });
+        unsafe {
+            let delegate = &*(raw as *const NotificationDelegate);
+            let _: () = msg_send![&*center, setDelegate: delegate];
         }
     }
 
@@ -128,6 +176,14 @@ mod imp {
             ];
         }
         Ok(())
+    }
+
+    pub fn remember_target(identifier: &str, kind: &str, id: &str) {
+        let targets = TARGETS.get_or_init(|| Mutex::new(HashMap::new()));
+        if let Ok(mut targets) = targets.lock() {
+            if targets.len() >= 32 { targets.clear(); }
+            targets.insert(identifier.to_string(), (kind.to_string(), id.to_string()));
+        }
     }
 
     /// The real authorization state, asked of the system.
@@ -190,6 +246,8 @@ mod imp {
         None
     }
     pub fn request_authorization() {}
+    pub fn install_delegate() {}
+    pub fn remember_target(_identifier: &str, _kind: &str, _id: &str) {}
     pub fn post(_title: &str, _body: &str, _identifier: &str) -> Result<(), String> {
         Err("no native notification path on this platform".into())
     }
@@ -200,23 +258,28 @@ mod imp {
 
 pub use imp::{authorization, bundle_identifier, request_authorization};
 
+pub fn install_delegate() { imp::install_delegate(); }
+
 /// Deliver one alert, natively if we can and through `osascript` if we cannot.
 ///
 /// Exactly one path runs. Firing the fallback after a successful native post
 /// would double every alert, which is the failure the whole tray handoff exists
 /// to prevent.
-pub fn deliver(title: &str, body: &str, identifier: &str) {
+pub fn deliver(event: &crate::events::Event) {
+    if let (Some(kind), Some(id)) = (&event.details.terminal_kind, &event.details.terminal_id) {
+        imp::remember_target(&event.id, kind, id);
+    }
     // Authorization is checked first because `addNotificationRequest` succeeds
     // whether or not the user ever granted it: the request is accepted and the
     // banner is silently dropped. Trusting its result would mean believing an
     // alert was delivered every time, and never falling back — the one failure
     // mode that loses notifications outright.
     if imp::authorization() == imp::Authorization::Granted
-        && imp::post(title, body, identifier).is_ok()
+        && imp::post(&event.title, &event.message, &event.id).is_ok()
     {
         return;
     }
-    fallback(title, body);
+    fallback(&event.title, &event.message);
 }
 
 /// The last resort. Attributed to Script Editor rather than to CDX, which is
