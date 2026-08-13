@@ -1,10 +1,10 @@
 ## item_117_capture_and_normalize_interactive_provider_token_snapshots - Capture and normalize interactive provider token snapshots
 > From version: 0.19.1
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 75%
 > Complexity: Medium
 > Theme: Usage observability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

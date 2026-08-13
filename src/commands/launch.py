@@ -25,6 +25,7 @@ from ..cli_render import _dim, _info, _success, _warn
 from ..config import PROVIDER_CODEX
 from ..context_store import install_context_for_session, write_context
 from ..errors import CdxError
+from ..interactive_usage import extract_interactive_usage
 from ..provider_runtime import _ensure_session_authentication, _get_auth_home, _run_interactive_provider_command
 
 
@@ -264,6 +265,7 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         )
     except CdxError as error:
         run_info = getattr(error, "run_info", {}) or {}
+        _attach_interactive_usage(session, run_info)
         if runtime_run_id:
             ctx["service"]["finish_session_runtime"](
                 session["name"],
@@ -284,7 +286,7 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         "action": "resume" if resume else "launch",
         "cwd": cwd,
         "exit_code": 0,
-        **run_info,
+        **_attach_interactive_usage(session, run_info),
     })
     if json_flag:
         extra = {"session": ctx["service"]["get_session"](session["name"]), "cwd": cwd}
@@ -292,6 +294,19 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
             extra["resume"] = capability
         _write_json(ctx, _json_success("resume" if resume else "launch", message, warnings=warnings, **extra))
     return 0
+
+
+def _attach_interactive_usage(session, run_info):
+    """Attach best-effort local provider usage without affecting launch outcome."""
+    run_info = dict(run_info or {})
+    usage, provider_transcript = extract_interactive_usage(
+        session.get("provider"), _get_auth_home(session), run_info.get("started_at")
+    )
+    if usage:
+        run_info["usage"] = usage
+    if provider_transcript:
+        run_info["provider_transcript_path"] = provider_transcript
+    return run_info
 
 def handle_handoff(rest, ctx):
     json_flag, args = _parse_json_flag(rest)

@@ -112,7 +112,7 @@ The reason `cdx` exists: knowing, across every account you own, which one you ca
 ### Maintenance
 
 - **Launch history.** Inspect recent launches with provider, result, duration, working directory, launch settings, and transcript path.
-- **Aggregate usage.** `cdx stats` totals runs, token usage, and time spent per session over any period.
+- **Aggregate usage.** `cdx stats` totals runs, token usage, and time spent per session over any period. Interactive Codex and Claude launches also record provider-native token totals when their local session transcript is available.
 
 - **Disk usage and cleanup.** `cdx disk` reports `CDX_HOME` usage, `cdx disk profiles --candidates` identifies reclaimable profile caches/logs with evidence, and `cdx clean profiles ...` applies explicit cleanup actions.
 - **Health and repair.** `cdx doctor` inspects dependencies, permissions, and orphan profiles; `cdx repair` plans or applies safe fixes.
@@ -708,7 +708,7 @@ cdx run \
 
 The result includes `launcher: "cdx"`, `run_id`, selected `session`, `provider`, `exit_code`, `duration_seconds`, absolute `transcript_path`, `stdout_path`, `stderr_path`, and normalized usage token fields. Codex headless runs use `codex exec --json`; Claude headless runs use `claude --print --output-format json`. Token counts are `null` when the provider does not expose a supported JSON or JSONL usage shape.
 
-Known headless token usage is persisted in launch history and can be aggregated later:
+Known headless and completed interactive token usage is persisted in launch history and can be aggregated later. Interactive records are best-effort local data: Codex reads its latest cumulative rollout snapshot and Claude reads its assistant usage records. Cached input is retained separately from the provider's total, so it is never counted twice.
 
 ```bash
 cdx stats --since 7d --json
