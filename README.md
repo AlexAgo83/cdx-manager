@@ -74,7 +74,7 @@ The reason `cdx` exists: knowing, across every account you own, which one you ca
 
 - **Usage at a glance.** `cdx status` shows token usage, 5-hour window quota, weekly quota, last-updated timestamps, priority guidance, and the last launched session in one aligned table.
 - **Pick for me.** `cdx next` selects the best available assistant from your pinned priorities and the live quota picture, shows the reason, and prints the exact command to run.
-- **Agent notifications.** When a session finishes a turn or blocks waiting for you, cdx raises a desktop notification naming the session and the repository — so you can run several in parallel without watching any of them. Opt in per session with `cdx set <name> --notify on`.
+- **Agent notifications.** At the first interactive launch of a supported provider, cdx asks before installing its hook. Delivery starts muted; `cdx tray alerts on` enables the next event globally, with or without the tray running.
 - **Next-ready notification.** `cdx ready` schedules a native system notification for the next assistant that comes back from cooldown, then returns immediately.
 - **Passive status resolution.** Codex status is read from the local Codex app-server rate-limit API when available, with legacy transcript/history parsing kept as a fallback.
 - **Banked reset visibility.** Eligible Codex accounts show the number of manually redeemable bonus resets in `cdx status` and expose reset details in JSON output.
@@ -357,7 +357,7 @@ desktop notification naming the session and the repository:
 ✓ codex-a   cdx-manager · turn complete
 ```
 
-Off until you ask for it, per session:
+CDX asks once at the first eligible interactive launch before writing a provider hook. Consent is installation-wide, but each profile receives its hook only when it is next launched. Alert delivery then starts muted; use `cdx tray alerts on` when you want banners. The older per-session commands remain compatible:
 
 ```bash
 cdx set work1 --notify on      # turn it on for one session
@@ -545,7 +545,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx status <name> [--json] [--refresh\|--cached] [--timeout SECONDS]` | Show detailed usage breakdown for one session; `--cached` avoids live provider refreshes |
 | `cdx tray status [--json] [--refresh]` | Emit the tray snapshot: one icon state, one line per enabled session, and how fresh each figure is. Reads stored status by default; `--refresh` is the only path that probes a provider |
 | `cdx tray launch [--json]` | Start the installed tray companion, detached. Reports `tray_companion_not_installed` when nothing is recorded, or `tray_companion_missing` when the recorded companion is gone. `CDX_TRAY_BIN` points it at a locally built one |
-| `cdx tray install [--json] [--yes] [--autostart\|--no-autostart] [--alerts\|--no-alerts]` | Download the companion for this OS and architecture, verify its published checksum before unpacking, record what was written, and start it. Asks two separate questions: whether to launch it at login, and whether to notify you when an agent finishes a turn or waits for you. `--yes` answers both, each pair of flags answers one deterministically, and a non-interactive or `--json` run declines rather than acquiring a login item or writing provider hooks by accident. Accepting alerts turns them on for every supported session and for sessions created later. Refuses when no checksum is published for the asset |
+| `cdx tray install [--json] [--yes] [--autostart\|--no-autostart] [--alerts\|--no-alerts]` | Download the companion for this OS and architecture, verify its published checksum before unpacking, record what was written, and start it. It asks whether to launch at login; provider-hook consent is requested separately at the first eligible interactive session launch. Refuses when no checksum is published for the asset |
 | `cdx tray uninstall [--json]` | Remove exactly what `install` recorded, and nothing else |
 | — | `cdx update` also moves an installed companion to the new release, and says so. A companion already running keeps executing the build it started with, so it reports that too rather than leaving you to wonder why the menu looks unchanged |
 | `cdx tray autostart [on\|off\|status] [--json]` | Start the companion at login, or stop doing so. Off until asked, idempotent, and the state is read back from the platform rather than from what CDX last intended |
@@ -554,7 +554,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx tray heartbeat [--json]` | Record that a companion is alive. `cdx notify` publishes to the tray only while this is fresh, and delivers directly otherwise |
 | `cdx tray terminal [status\|set <app>\|clear] [--json]` | Choose which terminal a tray session row opens — `cdx tray terminal set iTerm`, `cdx tray terminal clear` to go back to the platform default. The value is an application name, never a command: anything that could be read as one is refused rather than sanitized. macOS opens it with `open -a`, Linux prefers it ahead of the emulators it already tries, and Windows honours `wt` because Windows Terminal is the one that documents how to be handed a command. A named terminal that is not installed falls back to the default rather than leaving the click doing nothing |
 | `cdx tray plugin [status\|enable <name>\|disable <name>\|run <action>] [--json]` | Turn a tray integration on or off, and list what is enabled. Opt-in in both directions and reversible; nothing enables one implicitly. `logics` is the only one that exists, and `status` says once when it is installed but not enabled. `run` is what the tray calls back with a card's action id and is not meant to be typed |
-| `cdx tray alerts [on\|off\|status] [--json]` | Silence agent alerts, or let them through again. These commands work with or without a running tray: with one, muted events remain in its menu; without one, delivery falls back directly to the desktop notification channel. In both cases `off` suppresses banners and `on` restores delivery for the next event. Distinct from the per-session `--notify` opt-in, which says which sessions may alert at all |
+| `cdx tray alerts [on\|off\|status] [--json]` | Silence agent alerts, or let them through again. These commands work with or without a running tray: with one, muted events remain in its menu; without one, delivery falls back directly to the desktop notification channel. In both cases `off` suppresses banners and `on` restores delivery for the next event, including hooks already running with an older launch environment. Distinct from provider-hook consent, which controls configuration writes |
 | `cdx tray doctor [--json]` | Report companion, executable, version, running instance, autostart, and the two capabilities that fail silently — whether this desktop can draw a tray icon at all, and on Windows whether the Start Menu shortcut toasts depend on exists. Reads only; it never repairs |
 | `cdx --help` | Show usage |
 | `cdx --version` | Show version |
