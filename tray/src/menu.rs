@@ -517,7 +517,7 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
     entries.push(Entry::Separator);
     entries.push(Entry::Action {
         id: ActionId::About,
-        label: format!("About ({})", snapshot.cdx_version.as_deref().unwrap_or("CDX")),
+        label: format!("About (v{})", snapshot.cdx_version.as_deref().unwrap_or("CDX")),
         enabled: true,
     });
     entries.push(Entry::Action {
@@ -712,7 +712,7 @@ mod tests {
     #[test]
     fn about_precedes_quit_and_names_the_installed_cdx_version() {
         let entries = build_with_alerts(&snapshot(vec![], true), &[]);
-        let about = entries.iter().position(|entry| matches!(entry, Entry::Action { id: ActionId::About, label, .. } if label == "About (0.18.6)")).unwrap();
+        let about = entries.iter().position(|entry| matches!(entry, Entry::Action { id: ActionId::About, label, .. } if label == "About (v0.18.6)")).unwrap();
         let quit = entries.iter().position(|entry| matches!(entry, Entry::Action { id: ActionId::Quit, .. })).unwrap();
         assert!(about < quit);
     }
