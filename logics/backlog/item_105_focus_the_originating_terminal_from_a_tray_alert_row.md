@@ -1,10 +1,10 @@
 ## item_105_focus_the_originating_terminal_from_a_tray_alert_row - Focus the originating terminal from a tray alert row
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 0%
+> Progress: 10%
 > Complexity: High
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

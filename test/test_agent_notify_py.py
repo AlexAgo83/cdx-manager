@@ -116,6 +116,10 @@ class HookTargetTests(unittest.TestCase):
         for secret in ("rm -rf", "toolu_01ABC", "transcript.jsonl", "abc123", "turn-9"):
             self.assertNotIn(secret, blob)
 
+    def test_structured_details_only_admit_a_bounded_iterm_identity(self):
+        details = agent_notify.structured_details({}, {agent_notify.SESSION_ENV: "work", "ITERM_SESSION_ID": "w0t0p0"})
+        self.assertEqual(details["terminal"], {"kind": "iterm2", "id": "w0t0p0"})
+
     def test_a_permission_reason_needs_the_preview_opt_in(self):
         payload = {
             "hook_event_name": "PermissionRequest",

@@ -53,6 +53,7 @@ pub enum ActionId {
     /// renumbers the list, and a rank would open whichever session had taken
     /// that place. The name is what the user clicked and stays what gets opened.
     Session(String),
+    FocusTerminal { kind: String, id: String },
     /// One card action, named by the id CDX published for it.
     ///
     /// Carried verbatim and handed straight back: the companion does not know
@@ -474,13 +475,14 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
                 .into_iter()
                 .map(|event| {
                     let line = crate::events::alert_line(event);
-                    match &event.details.session {
-                        Some(name) => Entry::Action {
+                    match (&event.details.terminal_kind, &event.details.terminal_id, &event.details.session) {
+                        (Some(kind), Some(id), _) => Entry::Action { id: ActionId::FocusTerminal { kind: kind.clone(), id: id.clone() }, label: line, enabled: true },
+                        (_, _, Some(name)) => Entry::Action {
                             id: ActionId::Session(name.clone()),
                             label: line,
                             enabled: true,
                         },
-                        None => Entry::Info(line),
+                        _ => Entry::Info(line),
                     }
                 })
                 .collect();

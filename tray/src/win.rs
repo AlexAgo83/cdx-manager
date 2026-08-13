@@ -164,6 +164,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 Some(ActionId::Session(name)) => {
                     open_terminal_in(&transport, name, state.terminal.as_deref())
                 }
+                Some(ActionId::FocusTerminal { .. }) => {}
                 // A view, not an edit: `cdx config` prints the settings that
                 // will apply to the next launch, through the same native or
                 // WSL routing every other tray command uses.

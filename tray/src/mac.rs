@@ -122,6 +122,11 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 Some(ActionId::Session(name)) => {
                     open_terminal_in(&format!("cdx {name}"), state.terminal.as_deref())
                 }
+                Some(ActionId::FocusTerminal { kind, id }) if kind == "iterm2" => {
+                    let script = format!("tell application \"iTerm2\"\nset targetSession to first session of first tab of first window whose id is \"{id}\"\nselect targetSession\nactivate\nend tell");
+                    let _ = std::process::Command::new("osascript").args(["-e", &script]).spawn();
+                }
+                Some(ActionId::FocusTerminal { .. }) => {}
                 // A view, not an edit: `cdx config` prints the settings that
                 // will apply to the next launch, and the tray never claims to
                 // change an assistant already running.

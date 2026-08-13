@@ -12,6 +12,8 @@
 
 use std::process::Command;
 
+use serde_json::Value;
+
 use crate::snapshot::Transport;
 
 /// How many past alerts the menu keeps. Enough to answer "what did I miss",
@@ -44,6 +46,8 @@ pub struct Details {
     /// The provider hook that fired, normalised: `stop`, `permissionrequest`,
     /// `notification`.
     pub event: Option<String>,
+    pub terminal_kind: Option<String>,
+    pub terminal_id: Option<String>,
     pub tool: Option<String>,
     /// The provider's error class on a failed turn, from its closed vocabulary.
     pub error_type: Option<String>,
@@ -125,6 +129,8 @@ pub fn parse_array(value: Option<&serde_json::Value>) -> Vec<Event> {
                     session: field("session"),
                     project: field("project"),
                     event: field("event"),
+                    terminal_kind: details.and_then(|d| d.get("terminal")).and_then(|t| t.get("kind")).and_then(Value::as_str).filter(|v| *v == "iterm2").map(str::to_string),
+                    terminal_id: details.and_then(|d| d.get("terminal")).and_then(|t| t.get("id")).and_then(Value::as_str).filter(|v| !v.is_empty() && v.len() <= 128 && v.chars().all(|c| c.is_ascii_alphanumeric() || "-_:".contains(c))).map(str::to_string),
                     tool: field("tool"),
                     error_type: field("error_type"),
                     reason: field("reason"),

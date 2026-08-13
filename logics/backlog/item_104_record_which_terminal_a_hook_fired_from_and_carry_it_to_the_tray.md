@@ -1,10 +1,10 @@
 ## item_104_record_which_terminal_a_hook_fired_from_and_carry_it_to_the_tray - Record which terminal a hook fired from, and carry it to the tray
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Medium
 > Theme: agent-alerts
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

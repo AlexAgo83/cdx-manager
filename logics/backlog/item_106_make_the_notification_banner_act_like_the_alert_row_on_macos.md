@@ -1,10 +1,10 @@
 ## item_106_make_the_notification_banner_act_like_the_alert_row_on_macos - Make the notification banner act like the alert row on macOS
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Medium
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

@@ -239,6 +239,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 redraw = true;
             }
             Some(ActionId::Session(name)) => open_terminal_in(&name, state.terminal.as_deref()),
+            Some(ActionId::FocusTerminal { .. }) => {}
             // A view, not an edit: `cdx config` prints the settings that will
             // apply to the next launch.
             Some(ActionId::SessionConfig(name)) => {

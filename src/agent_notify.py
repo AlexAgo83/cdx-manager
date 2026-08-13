@@ -54,6 +54,7 @@ _FAILURE_EVENTS = {"stopfailure"}
 _TRANSIENT_ERRORS = {"rate_limit", "overloaded", "server_error", "max_output_tokens"}
 _PREVIEW_LIMIT = 180
 _TOOL_NAME_LIMIT = 80
+_TERMINAL_ID_LIMIT = 128
 
 
 def supports_agent_alerts(provider):
@@ -196,6 +197,9 @@ def structured_details(payload, env=None, cwd=None):
         "project": os.path.basename(str(directory).rstrip("/\\")) or str(directory),
         "event": event,
     }
+    terminal_id = _notification_text(env.get("ITERM_SESSION_ID"), _TERMINAL_ID_LIMIT)
+    if terminal_id:
+        details["terminal"] = {"kind": "iterm2", "id": terminal_id}
     for key, source, limit in (
         ("tool", "tool_name", _TOOL_NAME_LIMIT),
         ("error_type", "error_type", _TOOL_NAME_LIMIT),

@@ -1,13 +1,14 @@
 ## task_064_deliver_alerts_that_lead_back_to_their_terminal - Deliver alerts that lead back to their terminal
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 95%
 > Confidence: 90%
 > Progress: 0%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Owner: Codex
 
 # AI Context
 - Summary: Carry safe terminal-origin metadata from an alert to an honest native focus action.
