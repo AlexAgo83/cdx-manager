@@ -37,9 +37,9 @@ node "$root\bin\cdx.js" %*
   $env:CDX_TRAY_CDX = $wrapper
   Start-Process -FilePath $binary
   Start-Sleep -Seconds 1
-  $pid = RunningPid
-  if (-not $pid) { throw 'Development tray did not register as running.' }
-  $command = (Get-CimInstance Win32_Process -Filter "ProcessId = $pid").CommandLine
+  $trayPid = RunningPid
+  if (-not $trayPid) { throw 'Development tray did not register as running.' }
+  $command = (Get-CimInstance Win32_Process -Filter "ProcessId = $trayPid").CommandLine
   if ($command -notlike "*$binary*") { throw "Expected development companion, got: $command" }
   Write-Output "Development tray loaded: $binary"
   exit 0
@@ -49,6 +49,6 @@ Stop-Companion
 & node (Join-Path $root 'bin\cdx.js') tray launch
 if ($LASTEXITCODE) { throw 'Could not restore the installed tray companion.' }
 Start-Sleep -Seconds 1
-$pid = RunningPid
-if (-not $pid) { throw 'Installed tray did not register as running.' }
+$trayPid = RunningPid
+if (-not $trayPid) { throw 'Installed tray did not register as running.' }
 Write-Output 'Installed tray restored.'
