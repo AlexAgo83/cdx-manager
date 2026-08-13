@@ -185,15 +185,15 @@ pub fn pct(value: Option<f64>) -> String {
 /// invisible behind a five-hour window that had just reset — and the figure
 /// silently changed meaning between two polls.
 ///
-/// Named rather than positional: "5h 40% · wk 12%" survives one of the two
+/// Named rather than positional: "wk 12% · 5h 40%" survives one of the two
 /// being absent, where a bare "40% · 12%" would not say which one went.
 pub fn windows(session: &Session) -> Vec<(&'static str, Option<f64>)> {
     let mut reported = Vec::new();
-    if session.five_hour_pct.is_some() {
-        reported.push(("5h", session.five_hour_pct));
-    }
     if session.week_pct.is_some() {
         reported.push(("wk", session.week_pct));
+    }
+    if session.five_hour_pct.is_some() {
+        reported.push(("5h", session.five_hour_pct));
     }
     // A provider that reports neither window still has a figure: CDX derives
     // `available_pct` from whatever it had, and an empty row would be a
@@ -969,10 +969,10 @@ mod tests {
         session.week_pct = Some(12.0);
         assert_eq!(
             windows(&session),
-            vec![("5h", Some(80.0)), ("wk", Some(12.0))]
+            vec![("wk", Some(12.0)), ("5h", Some(80.0))]
         );
         let line = session_line(&session);
-        assert!(line.contains("5h 80% · wk 12%"), "{line}");
+        assert!(line.contains("wk 12% · 5h 80%"), "{line}");
         // The leading gauge stays on the window that runs out first, so the
         // column the eye scans means one thing all the way down.
         assert!(line.trim_start().starts_with(&gauge(Some(12.0))), "{line}");
