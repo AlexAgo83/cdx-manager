@@ -1,10 +1,10 @@
 ## item_117_capture_and_normalize_interactive_provider_token_snapshots - Capture and normalize interactive provider token snapshots
 > From version: 0.19.1
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 75%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Usage observability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -57,3 +57,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting`
+
+# Notes
+- Task `task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting` was finished via `logics-manager flow finish task` on 2026-08-13.

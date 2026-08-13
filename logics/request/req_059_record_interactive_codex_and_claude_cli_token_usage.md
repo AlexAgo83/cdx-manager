@@ -1,13 +1,13 @@
 ## req_059_record_interactive_codex_and_claude_cli_token_usage - Record interactive Codex and Claude CLI token usage
 > From version: 0.19.1
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
 > Theme: Usage observability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-13 21:38:35
+> Indicators reviewed: 2026-08-13 21:47:47
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)
@@ -24,7 +24,7 @@
 - Current Codex rollout JSONL files emit cumulative token_count events with total_token_usage fields for input, cached input, output, reasoning output, and total tokens.
 - Current Claude transcript JSONL files include an assistant message usage object for each model response, including input, cache creation/read, and output tokens.
 - The interactive terminal transcript captured by script is presentation output and must not become the accounting source when a provider JSONL source is available.
-- CDX already provisions lifecycle hooks for interactive Codex and Claude launches, and cdx history plus cdx stats already render and aggregate persisted usage fields.
+- CDX records interactive launch completion in its existing history lifecycle, and cdx history plus cdx stats already render and aggregate persisted usage fields.
 - Provider transcript formats are implementation artifacts, so parsers must be tolerant of incomplete lines and unknown fields, report unavailable data honestly, and avoid emitting prompt, tool, or assistant content into CDX usage records.
 
 # Acceptance criteria
