@@ -1,7 +1,7 @@
 ## req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform - Let the operator choose the tray's target terminal on every platform
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
 > Complexity: Medium

@@ -1,10 +1,10 @@
 ## item_103_offer_the_terminal_choice_as_a_tray_submenu - Offer the terminal choice as a tray submenu
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -57,3 +57,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_063_deliver_a_discoverable_and_honest_tray_terminal_choice`
+
+# Notes
+- Task `task_063_deliver_a_discoverable_and_honest_tray_terminal_choice` was finished via `logics-manager flow finish task` on 2026-08-13.

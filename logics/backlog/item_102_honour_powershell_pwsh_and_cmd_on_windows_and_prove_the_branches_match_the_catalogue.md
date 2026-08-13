@@ -1,13 +1,14 @@
 ## item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue - Honour PowerShell, pwsh and cmd on Windows, and prove the branches match the catalogue
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-13 11:29:16
 
 # AI Context
 - Summary: Keep each offered Windows terminal candidate aligned with its explicit native or WSL launch branch.
@@ -40,8 +41,9 @@
 
 # AC Traceability
 - request-AC4 -> This backlog slice. Proof: AC1: Each of `wt`, `powershell`, `pwsh` and `cmd` launches the intended cdx command through its own documented invocation, under native and WSL transports alike.
-- request-AC5 -> This backlog slice. Proof: AC2: A stored name this build cannot launch still opens the default console rather than doing nothing.
+- request-AC5 -> This backlog slice. Proof: `756ff0a`; each declared Windows name has an explicit native and WSL branch.
 - request-AC6 -> This backlog slice. Proof: AC3: A contract test fails when CDX's Windows catalogue and the companion's implemented branches disagree in either direction.
+- request-AC9 -> This backlog slice. Proof: `756ff0a`; an unavailable named terminal reports failure and never substitutes another named terminal.
 
 # Decision framing
 - Product framing: Not needed
@@ -56,3 +58,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_063_deliver_a_discoverable_and_honest_tray_terminal_choice`
+
+# Notes
+- Task `task_063_deliver_a_discoverable_and_honest_tray_terminal_choice` was finished via `logics-manager flow finish task` on 2026-08-13.

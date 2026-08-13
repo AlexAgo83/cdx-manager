@@ -1,8 +1,8 @@
 ## prod_039_a_tray_whose_terminal_preference_is_discoverable_and_honest - A tray whose terminal preference is discoverable and honest
 > Date: 2026-08-12
-> Status: Proposed
+> Status: Settled
 > Related request: `req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform`
-> Related backlog: `item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates`, `item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue`, `item_103_offer_the_terminal_choice_as_a_tray_submenu`
+> Related backlog: `item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates`
 > Related task: `task_063_deliver_a_discoverable_and_honest_tray_terminal_choice`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
@@ -43,5 +43,5 @@ flowchart LR
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_052_let_the_operator_choose_the_tray_s_target_terminal_on_every_platform`
+- Product back-reference: `item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates`
 - Task back-reference: `task_063_deliver_a_discoverable_and_honest_tray_terminal_choice`

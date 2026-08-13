@@ -1,13 +1,14 @@
 ## item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates - Declare the launchable terminals in CDX and publish the candidates
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
+> Indicators reviewed: 2026-08-13 11:29:16
 
 # AI Context
 - Summary: Define the single terminal catalogue and snapshot candidates that native tray backends can honestly offer.
@@ -48,6 +49,7 @@
 - request-AC6 -> This backlog slice. Proof: AC3: The snapshot carries the candidates alongside `terminal`, with SCHEMA_MINOR bumped, and read_snapshot on a companion that predates the key is unaffected.
 - request-AC7 -> This backlog slice. Proof: AC4: `cdx tray terminal list` prints the candidates with the current choice marked and the platform default named, and `--json` returns the same data structurally.
 - request-AC8 -> This backlog slice. Proof: AC5: A name that fails valid_terminal() never reaches the snapshot or the listing, whatever detection returned.
+- request-AC10 -> This backlog slice. Proof: Tower Windows native and WSL smoke tests used their respective host transport and candidate discovery.
 
 # Decision framing
 - Product framing: Not needed
@@ -62,3 +64,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_063_deliver_a_discoverable_and_honest_tray_terminal_choice`
+
+# Notes
+- Task `task_063_deliver_a_discoverable_and_honest_tray_terminal_choice` was finished via `logics-manager flow finish task` on 2026-08-13.
