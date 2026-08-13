@@ -64,7 +64,7 @@ class InteractiveUsageTests(unittest.TestCase):
                 handle.truncate(MAX_TRANSCRIPT_BYTES + 1)
             usage, selected = extract_interactive_usage("codex", home)
             self.assertIsNone(usage)
-            self.assertEqual(selected, path)
+            self.assertEqual(os.path.normpath(selected), os.path.normpath(path))
 
     def test_candidate_cap_returns_newest_seen_transcript(self):
         with tempfile.TemporaryDirectory() as home:
@@ -75,7 +75,10 @@ class InteractiveUsageTests(unittest.TestCase):
             previous = interactive_usage.MAX_TRANSCRIPT_CANDIDATES
             interactive_usage.MAX_TRANSCRIPT_CANDIDATES = 1
             try:
-                self.assertEqual(interactive_usage._latest_transcript("codex", home, None), newer)
+                self.assertEqual(
+                    os.path.normpath(interactive_usage._latest_transcript("codex", home, None)),
+                    os.path.normpath(newer),
+                )
             finally:
                 interactive_usage.MAX_TRANSCRIPT_CANDIDATES = previous
 

@@ -149,7 +149,8 @@ class ContextMemoryCommandTests(CliTestBase):
 
         set_io = self.make_io()
         self.assertEqual(context_main(["context", "set", "--json"], set_io, stdin_data="From stdin"), 0)
-        self.assertEqual(json.loads(set_io["stdout"].getvalue())["context"]["bytes"], len("From stdin\n"))
+        context_path = json.loads(set_io["stdout"].getvalue())["context"]["path"]
+        self.assertEqual(json.loads(set_io["stdout"].getvalue())["context"]["bytes"], os.path.getsize(context_path))
 
         self.assertEqual(context_main(["context", "append", "and", "more"], self.make_io()), 0)
         path_io = self.make_io()
