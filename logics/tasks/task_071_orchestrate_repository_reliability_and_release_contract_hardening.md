@@ -21,14 +21,14 @@
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
 
 # Plan
-- [ ] 1. Establish CI and artifact verification gates before changing release workflows.
-- [ ] 2. Harden detached-run registry durability and lock timeout semantics with focused tests.
-- [ ] 3. Unify usage accounting fields and bound interactive transcript work without changing totals.
-- [ ] 4. Close measured test gaps, then extract only the seams demonstrated by those tests.
-- [ ] 5. Update contributor and Logics workflow records, run project and Logics validation, and close out with evidence.
-- [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
-- [ ] Keep commit creation under operator control; do not force one commit per micro-step.
-- [ ] GATE: do not close until lint, audit, and scaffold validation pass.
+- [x] 1. Establish CI and artifact verification gates before changing release workflows.
+- [x] 2. Harden detached-run registry durability and lock timeout semantics with focused tests.
+- [x] 3. Unify usage accounting fields and bound interactive transcript work without changing totals.
+- [x] 4. Close measured test gaps, then extract only the seams demonstrated by those tests.
+- [x] 5. Update contributor and Logics workflow records, run project and Logics validation, and close out with evidence.
+- [x] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
+- [x] Keep commit creation under operator control; do not force one commit per micro-step.
+- [x] GATE: do not close until lint, audit, and scaffold validation pass.
 
 # Backlog
 - `item_119_run_tray_tests_and_macos_validation_in_continuous_integration`
@@ -39,10 +39,10 @@
 - `item_124_restore_contributor_and_logics_workflow_signal_accuracy`
 
 # Definition of Done (DoD)
-- [ ] Generated request, product, backlog, and task docs are present.
-- [ ] Context-pack handoff is available when requested.
-- [ ] Validation passes.
-- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+- [x] Generated request, product, backlog, and task docs are present.
+- [x] Context-pack handoff is available when requested.
+- [x] Validation passes.
+- [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
 - request-AC1 -> `item_119_run_tray_tests_and_macos_validation_in_continuous_integration`. Proof deferred to slice closeout.
