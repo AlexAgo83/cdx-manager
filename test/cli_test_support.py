@@ -240,6 +240,7 @@ class CliTestBase(unittest.TestCase):
     def make_io(self):
         return {
             "stdin": {"isTTY": True},
+            "input": lambda _prompt: "n",
             "stdout": _Stream(),
             "stderr": _Stream(),
         }
@@ -306,4 +307,3 @@ class CliTestBase(unittest.TestCase):
             "auth_status": "authenticated", "available_pct": 50, "credits": None,
             "priority": 0, "reasoning_effort": "medium", **overrides,
         }
-

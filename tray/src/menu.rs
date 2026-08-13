@@ -603,7 +603,7 @@ mod tests {
 
     fn snapshot(sessions: Vec<Session>, refreshable: bool) -> Snapshot {
         Snapshot {
-            cdx_version: Some("0.18.6".into()),
+            cdx_version: Some("1.2.3".into()),
             events: Vec::new(),
             spool_path: None,
             alerts_enabled: true,
@@ -731,7 +731,7 @@ mod tests {
     #[test]
     fn about_precedes_quit_and_names_the_installed_cdx_version() {
         let entries = build_with_alerts(&snapshot(vec![], true), &[]);
-        let about = entries.iter().position(|entry| matches!(entry, Entry::Action { id: ActionId::About, label, .. } if label == "About (v0.18.6)")).unwrap();
+        let about = entries.iter().position(|entry| matches!(entry, Entry::Action { id: ActionId::About, label, .. } if label == "About (v1.2.3)")).unwrap();
         let quit = entries.iter().position(|entry| matches!(entry, Entry::Action { id: ActionId::Quit, .. })).unwrap();
         assert!(about < quit);
     }
