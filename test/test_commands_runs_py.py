@@ -209,6 +209,7 @@ class RunsCommandTests(CliTestBase):
         self.assertEqual(payload["exit_code"], 0)
         self.assertEqual(payload["usage"], {
             "input_tokens": 11,
+            "cached_input_tokens": None,
             "output_tokens": 5,
             "reasoning_tokens": 2,
             "total_tokens": 16,
@@ -410,6 +411,7 @@ class RunsCommandTests(CliTestBase):
         self.assertEqual(payload["exit_code"], 7)
         self.assertEqual(payload["usage"], {
             "input_tokens": 3,
+            "cached_input_tokens": None,
             "output_tokens": 0,
             "reasoning_tokens": None,
             "total_tokens": 3,
@@ -736,6 +738,7 @@ class RunsCommandTests(CliTestBase):
         self.assertEqual(payload["launcher"], "cdx")
         self.assertEqual(payload["usage"], {
             "input_tokens": None,
+            "cached_input_tokens": None,
             "output_tokens": None,
             "reasoning_tokens": None,
             "total_tokens": None,

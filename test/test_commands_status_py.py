@@ -465,6 +465,7 @@ class StatusCommandTests(CliTestBase):
             "started_at": recent.isoformat(),
             "usage": {
                 "input_tokens": 10,
+                "cached_input_tokens": 7,
                 "output_tokens": 4,
                 "reasoning_tokens": 2,
                 "total_tokens": 14,
@@ -505,6 +506,7 @@ class StatusCommandTests(CliTestBase):
         self.assertEqual(rows["work"]["failures"], 1)
         self.assertEqual(rows["work"]["usage_runs"], 2)
         self.assertEqual(rows["work"]["input_tokens"], 13)
+        self.assertEqual(rows["work"]["cached_input_tokens"], 7)
         self.assertEqual(rows["work"]["output_tokens"], 4)
         self.assertEqual(rows["work"]["reasoning_tokens"], 2)
         self.assertEqual(rows["work"]["total_tokens"], 17)

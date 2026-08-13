@@ -253,6 +253,7 @@ def _summarize_stats(entries):
             "duration_ms": 0,
             "usage_runs": 0,
             "input_tokens": 0,
+            "cached_input_tokens": 0,
             "output_tokens": 0,
             "reasoning_tokens": 0,
             "total_tokens": 0,
@@ -270,7 +271,7 @@ def _summarize_stats(entries):
         usage = entry.get("usage") if isinstance(entry.get("usage"), dict) else {}
         parsed_usage = {
             key: _token_value(usage, key)
-            for key in ("input_tokens", "output_tokens", "reasoning_tokens", "total_tokens")
+            for key in ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "total_tokens")
         }
         if any(value is not None for value in parsed_usage.values()):
             row["usage_runs"] += 1
@@ -295,6 +296,7 @@ def _stats_totals(rows):
         "duration_ms": sum(row["duration_ms"] for row in rows),
         "usage_runs": sum(row["usage_runs"] for row in rows),
         "input_tokens": sum(row["input_tokens"] for row in rows),
+        "cached_input_tokens": sum(row["cached_input_tokens"] for row in rows),
         "output_tokens": sum(row["output_tokens"] for row in rows),
         "reasoning_tokens": sum(row["reasoning_tokens"] for row in rows),
         "total_tokens": sum(row["total_tokens"] for row in rows),
@@ -389,7 +391,7 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
     if not rows:
         return "No launch stats for this period." if _has_history_period(period or {}) else "No launch stats."
     table = [[_style(value, "1", use_color) for value in [
-        "SESSION", "PROV.", "RUNS", "USAGE", "IN", "OUT", "REASON", "TOTAL", "TIME", "LAST"
+        "SESSION", "PROV.", "RUNS", "USAGE", "IN", "CACHE", "OUT", "REASON", "TOTAL", "TIME", "LAST"
     ]]]
     for row in rows:
         session_name = row["session_name"]
@@ -400,6 +402,7 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
             _style(str(row["launches"]), "1", use_color),
             _style(str(row["usage_runs"]), "32" if row["usage_runs"] else "2", use_color),
             _style(_format_token_count(row["input_tokens"]), "96" if row["input_tokens"] else "2", use_color),
+            _style(_format_token_count(row["cached_input_tokens"]), "96" if row["cached_input_tokens"] else "2", use_color),
             _style(_format_token_count(row["output_tokens"]), "96" if row["output_tokens"] else "2", use_color),
             _style(_format_token_count(row["reasoning_tokens"]), "95" if row["reasoning_tokens"] else "2", use_color),
             _style(_format_token_count(row["total_tokens"]), "1;96" if row["total_tokens"] else "2", use_color),

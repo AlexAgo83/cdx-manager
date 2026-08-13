@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 
-from src.interactive_usage import extract_interactive_usage
+from src.interactive_usage import MAX_TRANSCRIPT_BYTES, extract_interactive_usage
 
 
 class InteractiveUsageTests(unittest.TestCase):
@@ -55,6 +55,15 @@ class InteractiveUsageTests(unittest.TestCase):
             usage, path = extract_interactive_usage("codex", home, started)
             self.assertIsNone(usage)
             self.assertIsNone(path)
+
+    def test_oversized_transcript_is_unavailable_without_reading_it(self):
+        with tempfile.TemporaryDirectory() as home:
+            path = self._write(home, "sessions/large.jsonl", [])
+            with open(path, "wb") as handle:
+                handle.truncate(MAX_TRANSCRIPT_BYTES + 1)
+            usage, selected = extract_interactive_usage("codex", home)
+            self.assertIsNone(usage)
+            self.assertEqual(selected, path)
 
 
 if __name__ == "__main__":

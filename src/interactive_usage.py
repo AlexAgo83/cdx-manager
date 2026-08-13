@@ -3,6 +3,8 @@
 import json
 import os
 
+MAX_TRANSCRIPT_BYTES = 16 * 1024 * 1024
+MAX_TRANSCRIPT_CANDIDATES = 1000
 
 def extract_interactive_usage(provider, auth_home, started_at=None):
     """Return the newest provider-native usage after an interactive session.
@@ -14,6 +16,8 @@ def extract_interactive_usage(provider, auth_home, started_at=None):
     if not path:
         return None, None
     try:
+        if os.path.getsize(path) > MAX_TRANSCRIPT_BYTES:
+            return None, path
         with open(path, encoding="utf-8", errors="replace") as handle:
             return (_codex_usage(handle) if provider == "codex" else _claude_usage(handle)), path
     except OSError:
@@ -41,6 +45,8 @@ def _latest_transcript(provider, auth_home, started_at):
                 continue
             if cutoff is None or modified >= cutoff:
                 candidates.append((modified, path))
+                if len(candidates) > MAX_TRANSCRIPT_CANDIDATES:
+                    return None
     return max(candidates, default=(None, None))[1]
 
 

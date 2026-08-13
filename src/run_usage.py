@@ -1,6 +1,6 @@
 import json
 
-USAGE_KEYS = ("input_tokens", "output_tokens", "reasoning_tokens", "total_tokens")
+USAGE_KEYS = ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "total_tokens")
 SUPPORTED_PROVIDERS = {"claude", "codex"}
 
 
@@ -89,6 +89,11 @@ def _usage_from_dict(value):
         usage.get("cache_creation_input_tokens"),
         usage.get("cache_read_input_tokens"),
     )
+    cached_input_tokens = _int_value(
+        usage.get("cached_input_tokens"),
+        usage.get("cache_creation_input_tokens"),
+        usage.get("cache_read_input_tokens"),
+    )
     output_tokens = _int_value(usage.get("output_tokens"), usage.get("completion_tokens"))
     reasoning_tokens = _int_value(
         usage.get("reasoning_tokens"),
@@ -102,6 +107,7 @@ def _usage_from_dict(value):
 
     return {
         "input_tokens": input_tokens,
+        "cached_input_tokens": cached_input_tokens,
         "output_tokens": output_tokens,
         "reasoning_tokens": reasoning_tokens,
         "total_tokens": total_tokens,
