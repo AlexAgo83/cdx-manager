@@ -1,0 +1,572 @@
+{
+  "budgets": {
+    "max_docs": 64,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [
+    "logics/backlog/item_119_run_tray_tests_and_macos_validation_in_continuous_integration.md",
+    "logics/backlog/item_120_verify_installable_package_artifacts_before_release.md",
+    "logics/backlog/item_121_make_detached_run_registry_persistence_durable_and_bounded.md",
+    "logics/backlog/item_122_unify_and_bound_interactive_token_usage_accounting.md",
+    "logics/backlog/item_123_cover_operational_command_boundaries_and_extract_measured_seams.md",
+    "logics/backlog/item_124_restore_contributor_and_logics_workflow_signal_accuracy.md",
+    "logics/product/prod_047_reliable_delivery_and_runtime_contracts.md",
+    "logics/request/req_061_harden_repository_reliability_release_verification_and_cli_contracts.md",
+    "logics/scaffold/repository_review_reliability_release_and_cli_contracts.json",
+    "logics/tasks/task_071_orchestrate_repository_reliability_and_release_contract_hardening.md"
+  ],
+  "command": "logics-manager sync context-pack req_061_harden_repository_reliability_release_verification_and_cli_contracts item_119_run_tray_tests_and_macos_validation_in_continuous_integration item_120_verify_installable_package_artifacts_before_release item_121_make_detached_run_registry_persistence_durable_and_bounded item_122_unify_and_bound_interactive_token_usage_accounting item_123_cover_operational_command_boundaries_and_extract_measured_seams item_124_restore_contributor_and_logics_workflow_signal_accuracy task_071_orchestrate_repository_reliability_and_release_contract_hardening --mode diff-first --profile deep --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_119_run_tray_tests_and_macos_validation_in_continuous_integration",
+          "item_120_verify_installable_package_artifacts_before_release",
+          "item_121_make_detached_run_registry_persistence_durable_and_bounded",
+          "item_122_unify_and_bound_interactive_token_usage_accounting",
+          "item_123_cover_operational_command_boundaries_and_extract_measured_seams",
+          "item_124_restore_contributor_and_logics_workflow_signal_accuracy"
+        ],
+        "prod": [
+          "prod_047_reliable_delivery_and_runtime_contracts"
+        ],
+        "req": [
+          "req_061_harden_repository_reliability_release_verification_and_cli_contracts"
+        ],
+        "task": [
+          "task_071_orchestrate_repository_reliability_and_release_contract_hardening"
+        ]
+      },
+      "path": "logics/product/prod_047_reliable_delivery_and_runtime_contracts.md",
+      "ref": "prod_047_reliable_delivery_and_runtime_contracts",
+      "sections": {
+        "Goals": [
+          "- Run the tray and package paths that users receive before publication.",
+          "- Keep registry recovery bounded and durable after crashes or lock contention.",
+          "- Make token accounting fields and transcript-reading limits explicit and consistent.",
+          "- Reduce change risk in high-coupling modules through small domain extractions and targeted tests.",
+          "- Keep contributor and Logics workflow signals trustworthy."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Make CDX releases, tray validation, detached-run recovery, and interactive usage accounting reliably verifiable without introducing a new framework, service, or user-facing command."
+        ],
+        "References": [
+          "- Product back-reference: `req_061_harden_repository_reliability_release_verification_and_cli_contracts`",
+          "- Task back-reference: `task_071_orchestrate_repository_reliability_and_release_contract_hardening`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Reliable delivery and runtime contracts"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "harden, repository, reliability, release, verification, cli, contracts",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_119_run_tray_tests_and_macos_validation_in_continuous_integration",
+          "item_120_verify_installable_package_artifacts_before_release",
+          "item_121_make_detached_run_registry_persistence_durable_and_bounded",
+          "item_122_unify_and_bound_interactive_token_usage_accounting",
+          "item_123_cover_operational_command_boundaries_and_extract_measured_seams",
+          "item_124_restore_contributor_and_logics_workflow_signal_accuracy"
+        ],
+        "prod": [
+          "prod_047_reliable_delivery_and_runtime_contracts"
+        ],
+        "req": [
+          "req_061_harden_repository_reliability_release_verification_and_cli_contracts"
+        ]
+      },
+      "path": "logics/request/req_061_harden_repository_reliability_release_verification_and_cli_contracts.md",
+      "ref": "req_061_harden_repository_reliability_release_verification_and_cli_contracts",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: CI runs the Rust tray test suite and a bounded macOS tray validation in addition to existing Python checks.",
+          "- AC2: npm and PyPI distributable artifacts are built, inspected, installed in clean environments, and smoke-tested before publication.",
+          "- AC3: Release workflows pin third-party actions to immutable revisions while retaining the minimum permissions required for release work.",
+          "- AC4: Detached-run registry writes and lock acquisition are crash-safe and bounded on POSIX and Windows, with regression tests.",
+          "- AC5: Headless and interactive usage share one documented schema that preserves optional cached input without changing provider total semantics.",
+          "- AC6: Interactive transcript discovery and parsing remain fail-open but have an explicit bounded I/O path and regression tests."
+        ],
+        "Needs": [
+          "- The repository review found release, persistence, and observability paths that are locally implemented but not fully verified or consistently bounded in CI and runtime behaviour.",
+          "- CDX must preserve its existing CLI and provider contracts while making tray delivery, release artifacts, detached-run recovery, and token accounting more resilient.",
+          "- The review also found test-coverage, module-boundary, contributor-documentation, and Logics-state gaps that weaken maintenance confidence."
+        ]
+      },
+      "status": "Draft",
+      "title": "Harden repository reliability, release verification, and CLI contracts"
+    },
+    {
+      "ai_context": {
+        "keywords": "run, tray, tests, macos, validation, continuous, integration",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_119_run_tray_tests_and_macos_validation_in_continuous_integration"
+        ],
+        "prod": [
+          "prod_047_reliable_delivery_and_runtime_contracts"
+        ],
+        "req": [
+          "req_061_harden_repository_reliability_release_verification_and_cli_contracts"
+        ],
+        "task": [
+          "task_071_orchestrate_repository_reliability_and_release_contract_hardening"
+        ]
+      },
+      "path": "logics/backlog/item_119_run_tray_tests_and_macos_validation_in_continuous_integration.md",
+      "ref": "item_119_run_tray_tests_and_macos_validation_in_continuous_integration",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- CI runs cargo test --manifest-path tray/Cargo.toml on every pull request.",
+          "- A macOS job validates the tray build and tests without requiring signing secrets.",
+          "- Focused tray command tests cover the added CI-facing behaviour."
+        ],
+        "Problem": [
+          "- The Rust tray has 96 local tests but CI does not execute cargo test or build the tray.",
+          "- macOS-specific tray, notification, and terminal code has no CI lane."
+        ]
+      },
+      "status": "Ready",
+      "title": "Run tray tests and macOS validation in continuous integration"
+    },
+    {
+      "ai_context": {
+        "keywords": "verify, installable, package, artifacts, before, release",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_120_verify_installable_package_artifacts_before_release"
+        ],
+        "prod": [
+          "prod_047_reliable_delivery_and_runtime_contracts"
+        ],
+        "req": [
+          "req_061_harden_repository_reliability_release_verification_and_cli_contracts"
+        ],
+        "task": [
+          "task_071_orchestrate_repository_reliability_and_release_contract_hardening"
+        ]
+      },
+      "path": "logics/backlog/item_120_verify_installable_package_artifacts_before_release.md",
+      "ref": "item_120_verify_installable_package_artifacts_before_release",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- CI installs and invokes the packed npm artifact before a release can publish.",
+          "- CI builds, checks, installs, and invokes the wheel before a release can publish.",
+          "- Release workflow actions are pinned to immutable revisions without expanding permissions."
+        ],
+        "Problem": [
+          "- Pre-release CI only dry-runs npm packing and does not install a built npm or wheel artifact.",
+          "- Release workflows with write permissions use mutable third-party action tags."
+        ]
+      },
+      "status": "Ready",
+      "title": "Verify installable package artifacts before release"
+    },
+    {
+      "ai_context": {
+        "keywords": "detached, run, registry, persistence, durable, bounded",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_121_make_detached_run_registry_persistence_durable_and_bounded"
+        ],
+        "prod": [
+          "prod_047_reliable_delivery_and_runtime_contracts"
+        ],
+        "req": [
+          "req_061_harden_repository_reliability_release_verification_and_cli_contracts"
+        ],
+        "task": [
+          "task_071_orchestrate_repository_reliability_and_release_contract_hardening"
+        ]
+      },
+      "path": "logics/backlog/item_121_make_detached_run_registry_persistence_durable_and_bounded.md",
+      "ref": "item_121_make_detached_run_registry_persistence_durable_and_bounded",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Registry writes fsync both file content and its parent directory before reporting success where supported.",
+          "- A stuck lock holder produces a bounded, actionable error on POSIX and Windows.",
+          "- Existing concurrent run-registry behaviour remains covered by tests."
+        ],
+        "Problem": [
+          "- runs.json is the recovery source for detached work but does not fsync its file or parent directory after replacement.",
+          "- POSIX registry locking can block forever while Windows uses a bounded timeout."
+        ]
+      },
+      "status": "Ready",
+      "title": "Make detached-run registry persistence durable and bounded"
+    },
+    {
+      "ai_context": {
+        "keywords": "unify, bound, interactive, token, usage, accounting",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_122_unify_and_bound_interactive_token_usage_accounting"
+        ],
+        "prod": [
+          "prod_047_reliable_delivery_and_runtime_contracts"
+        ],
+        "req": [
+          "req_061_harden_repository_reliability_release_verification_and_cli_contracts"
+        ],
+        "task": [
+          "task_071_orchestrate_repository_reliability_and_release_contract_hardening"
+        ]
+      },
+      "path": "logics/backlog/item_122_unify_and_bound_interactive_token_usage_accounting.md",
+      "ref": "item_122_unify_and_bound_interactive_token_usage_accounting",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- cdx history and cdx stats JSON preserve cached_input_tokens when supplied without changing total_tokens.",
+          "- Interactive accounting does not delay or fail a provider exit when transcript discovery exceeds its configured safe bound.",
+          "- Malformed, oversized, or unavailable transcript data remains fail-open and is tested."
+        ],
+        "Problem": [
+          "- Interactive records carry cached_input_tokens while shared usage and stats omit it.",
+          "- Best-effort transcript accounting can scan and read unbounded provider history at interactive process exit."
+        ]
+      },
+      "status": "Ready",
+      "title": "Unify and bound interactive token usage accounting"
+    },
+    {
+      "ai_context": {
+        "keywords": "cover, operational, command, boundaries, extract, measured, seams",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_123_cover_operational_command_boundaries_and_extract_measured_seams"
+        ],
+        "prod": [
+          "prod_047_reliable_delivery_and_runtime_contracts"
+        ],
+        "req": [
+          "req_061_harden_repository_reliability_release_verification_and_cli_contracts"
+        ],
+        "task": [
+          "task_071_orchestrate_repository_reliability_and_release_contract_hardening"
+        ]
+      },
+      "path": "logics/backlog/item_123_cover_operational_command_boundaries_and_extract_measured_seams.md",
+      "ref": "item_123_cover_operational_command_boundaries_and_extract_measured_seams",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- New tests execute the identified tray and context-memory operational branches.",
+          "- Each extraction has focused regression coverage and preserves CLI output and error contracts.",
+          "- No new runtime dependency or generic command framework is introduced."
+        ],
+        "Problem": [
+          "- commands/tray.py and commands/context_memory.py each measured 43% coverage during review.",
+          "- provider_runtime.py and cli_args.py centralise unrelated branches across more than one thousand lines each."
+        ]
+      },
+      "status": "Ready",
+      "title": "Cover operational command boundaries and extract measured seams"
+    },
+    {
+      "ai_context": {
+        "keywords": "restore, contributor, logics, workflow, signal, accuracy",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_124_restore_contributor_and_logics_workflow_signal_accuracy"
+        ],
+        "prod": [
+          "prod_047_reliable_delivery_and_runtime_contracts"
+        ],
+        "req": [
+          "req_061_harden_repository_reliability_release_verification_and_cli_contracts"
+        ],
+        "task": [
+          "task_071_orchestrate_repository_reliability_and_release_contract_hardening"
+        ]
+      },
+      "path": "logics/backlog/item_124_restore_contributor_and_logics_workflow_signal_accuracy.md",
+      "ref": "item_124_restore_contributor_and_logics_workflow_signal_accuracy",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Contributor documentation names only existing test paths and required validation commands.",
+          "- The identified Done workflow records have consistent terminal progress.",
+          "- Logics lint and scoped health/audit checks pass for the changed records."
+        ],
+        "Problem": [
+          "- CONTRIBUTING.md references test/test_cli_py.py, which no longer exists.",
+          "- Workflow health reports completed backlog records whose progress remains below 100%."
+        ]
+      },
+      "status": "Ready",
+      "title": "Restore contributor and Logics workflow signal accuracy"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_119_run_tray_tests_and_macos_validation_in_continuous_integration",
+          "item_120_verify_installable_package_artifacts_before_release",
+          "item_121_make_detached_run_registry_persistence_durable_and_bounded",
+          "item_122_unify_and_bound_interactive_token_usage_accounting",
+          "item_123_cover_operational_command_boundaries_and_extract_measured_seams",
+          "item_124_restore_contributor_and_logics_workflow_signal_accuracy"
+        ],
+        "prod": [
+          "prod_047_reliable_delivery_and_runtime_contracts"
+        ],
+        "req": [
+          "req_061_harden_repository_reliability_release_verification_and_cli_contracts"
+        ],
+        "task": [
+          "task_071_orchestrate_repository_reliability_and_release_contract_hardening"
+        ]
+      },
+      "path": "logics/product/prod_047_reliable_delivery_and_runtime_contracts.md",
+      "ref": "prod_047_reliable_delivery_and_runtime_contracts",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Reliable delivery and runtime contracts"
+    },
+    {
+      "ai_context": {
+        "keywords": "orchestrate, repository, reliability, release, contract, hardening",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_119_run_tray_tests_and_macos_validation_in_continuous_integration",
+          "item_120_verify_installable_package_artifacts_before_release",
+          "item_121_make_detached_run_registry_persistence_durable_and_bounded",
+          "item_122_unify_and_bound_interactive_token_usage_accounting",
+          "item_123_cover_operational_command_boundaries_and_extract_measured_seams",
+          "item_124_restore_contributor_and_logics_workflow_signal_accuracy"
+        ],
+        "prod": [
+          "prod_047_reliable_delivery_and_runtime_contracts"
+        ],
+        "req": [
+          "req_061_harden_repository_reliability_release_verification_and_cli_contracts"
+        ],
+        "task": [
+          "task_071_orchestrate_repository_reliability_and_release_contract_hardening"
+        ]
+      },
+      "path": "logics/tasks/task_071_orchestrate_repository_reliability_and_release_contract_hardening.md",
+      "ref": "task_071_orchestrate_repository_reliability_and_release_contract_hardening",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate repository reliability and release-contract hardening"
+    }
+  ],
+  "estimates": {
+    "char_count": 15403,
+    "companion_doc_count": 1,
+    "doc_count": 9
+  },
+  "generated_at": "2026-08-13T20:08:00Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_061_harden_repository_reliability_release_verification_and_cli_contracts",
+      "item_119_run_tray_tests_and_macos_validation_in_continuous_integration",
+      "item_120_verify_installable_package_artifacts_before_release",
+      "item_121_make_detached_run_registry_persistence_durable_and_bounded",
+      "item_122_unify_and_bound_interactive_token_usage_accounting",
+      "item_123_cover_operational_command_boundaries_and_extract_measured_seams",
+      "item_124_restore_contributor_and_logics_workflow_signal_accuracy",
+      "task_071_orchestrate_repository_reliability_and_release_contract_hardening"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "deep",
+  "ref": "req_061_harden_repository_reliability_release_verification_and_cli_contracts,item_119_run_tray_tests_and_macos_validation_in_continuous_integration,item_120_verify_installable_package_artifacts_before_release,item_121_make_detached_run_registry_persistence_durable_and_bounded,item_122_unify_and_bound_interactive_token_usage_accounting,item_123_cover_operational_command_boundaries_and_extract_measured_seams,item_124_restore_contributor_and_logics_workflow_signal_accuracy,task_071_orchestrate_repository_reliability_and_release_contract_hardening",
+  "refs": [
+    "req_061_harden_repository_reliability_release_verification_and_cli_contracts",
+    "item_119_run_tray_tests_and_macos_validation_in_continuous_integration",
+    "item_120_verify_installable_package_artifacts_before_release",
+    "item_121_make_detached_run_registry_persistence_durable_and_bounded",
+    "item_122_unify_and_bound_interactive_token_usage_accounting",
+    "item_123_cover_operational_command_boundaries_and_extract_measured_seams",
+    "item_124_restore_contributor_and_logics_workflow_signal_accuracy",
+    "task_071_orchestrate_repository_reliability_and_release_contract_hardening"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.19.1"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_071_orchestrate_repository_reliability_and_release_contract_hardening.md",
+      "ref": "task_071_orchestrate_repository_reliability_and_release_contract_hardening"
+    }
+  ]
+}

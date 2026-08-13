@@ -1,0 +1,229 @@
+{
+  "title": "Harden repository reliability, release verification, and CLI contracts",
+  "references": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/build-tray-assets.yml",
+    ".github/workflows/publish-npm.yml",
+    ".github/workflows/publish-pypi.yml",
+    "CONTRIBUTING.md",
+    "README.md",
+    "src/interactive_usage.py",
+    "src/run_usage.py",
+    "src/commands/status.py",
+    "src/run_registry.py",
+    "src/session_store.py",
+    "src/provider_runtime.py",
+    "src/cli_args.py"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Repository reliability",
+    "needs": [
+      "The repository review found release, persistence, and observability paths that are locally implemented but not fully verified or consistently bounded in CI and runtime behaviour.",
+      "CDX must preserve its existing CLI and provider contracts while making tray delivery, release artifacts, detached-run recovery, and token accounting more resilient.",
+      "The review also found test-coverage, module-boundary, contributor-documentation, and Logics-state gaps that weaken maintenance confidence."
+    ],
+    "context": [
+      "Local checks on 2026-08-13 passed: npm run test:coverage reported 82% total Python coverage, npm run lint passed, cargo test --manifest-path tray/Cargo.toml passed 96 tests, and npm audit --omit=dev reported zero production vulnerabilities.",
+      "CI currently runs Python checks on Ubuntu and Windows, but it does not run the Rust tray test suite or a macOS tray lane. npm packaging is dry-run only before release and PyPI package construction occurs in the publication workflow.",
+      "The session store performs fsync-backed atomic writes, while the detached-run registry does a temp-file rename without file or directory fsync and has unbounded POSIX lock acquisition.",
+      "Interactive usage persists cached input tokens, but shared headless usage normalization and stats aggregation omit that optional field. Transcript discovery currently walks provider history and reads the selected file without an explicit I/O budget.",
+      "The scope deliberately excludes a rewrite: existing domains and helper patterns should be extracted or reused only where they reduce a measured operational risk."
+    ],
+    "acceptance_criteria": [
+      "AC1: CI runs the Rust tray test suite and a bounded macOS tray validation in addition to existing Python checks.",
+      "AC2: npm and PyPI distributable artifacts are built, inspected, installed in clean environments, and smoke-tested before publication.",
+      "AC3: Release workflows pin third-party actions to immutable revisions while retaining the minimum permissions required for release work.",
+      "AC4: Detached-run registry writes and lock acquisition are crash-safe and bounded on POSIX and Windows, with regression tests.",
+      "AC5: Headless and interactive usage share one documented schema that preserves optional cached input without changing provider total semantics.",
+      "AC6: Interactive transcript discovery and parsing remain fail-open but have an explicit bounded I/O path and regression tests.",
+      "AC7: Focused contract tests cover currently under-tested tray and context-memory operational branches.",
+      "AC8: Provider runtime and CLI argument code are split only along verified existing seams, retaining public CLI behaviour and coverage.",
+      "AC9: Contributor instructions and historical Logics progress state accurately describe the current validation and workflow contracts."
+    ]
+  },
+  "product": {
+    "title": "Reliable delivery and runtime contracts",
+    "overview": "Make CDX releases, tray validation, detached-run recovery, and interactive usage accounting reliably verifiable without introducing a new framework, service, or user-facing command.",
+    "goals": [
+      "Run the tray and package paths that users receive before publication.",
+      "Keep registry recovery bounded and durable after crashes or lock contention.",
+      "Make token accounting fields and transcript-reading limits explicit and consistent.",
+      "Reduce change risk in high-coupling modules through small domain extractions and targeted tests.",
+      "Keep contributor and Logics workflow signals trustworthy."
+    ],
+    "non_goals": [
+      "No new telemetry service, analytics database, or live token dashboard.",
+      "No rewrite of provider runtime, CLI parsing, CI, or the tray companion.",
+      "No new provider feature or change to provider-owned transcript formats.",
+      "No broad historical documentation rewrite beyond the identified guidance and workflow-state corrections."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Run tray tests and macOS validation in continuous integration",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Repository reliability",
+      "request_acs": ["AC1", "AC7"],
+      "problem": [
+        "The Rust tray has 96 local tests but CI does not execute cargo test or build the tray.",
+        "macOS-specific tray, notification, and terminal code has no CI lane."
+      ],
+      "scope_in": [
+        "Add cargo test for the tray to CI.",
+        "Add a bounded macOS lane that compiles/tests the tray and performs only safe platform-independent smoke checks.",
+        "Add targeted command-contract tests for currently uncovered tray paths."
+      ],
+      "scope_out": [
+        "Automating interactive GUI permission dialogs.",
+        "Replacing the existing Python CI matrix."
+      ],
+      "acceptance_criteria": [
+        "CI runs cargo test --manifest-path tray/Cargo.toml on every pull request.",
+        "A macOS job validates the tray build and tests without requiring signing secrets.",
+        "Focused tray command tests cover the added CI-facing behaviour."
+      ]
+    },
+    {
+      "title": "Verify installable package artifacts before release",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Release integrity",
+      "request_acs": ["AC2", "AC3"],
+      "problem": [
+        "Pre-release CI only dry-runs npm packing and does not install a built npm or wheel artifact.",
+        "Release workflows with write permissions use mutable third-party action tags."
+      ],
+      "scope_in": [
+        "Build npm and Python artifacts in CI before release publication.",
+        "Install each artifact into a clean temporary environment and execute a minimal CLI smoke test with provider shims.",
+        "Pin GitHub Action references to immutable revisions and retain readable version comments or automated update support."
+      ],
+      "scope_out": [
+        "Publishing from pull requests.",
+        "Introducing a new artifact signing system."
+      ],
+      "acceptance_criteria": [
+        "CI installs and invokes the packed npm artifact before a release can publish.",
+        "CI builds, checks, installs, and invokes the wheel before a release can publish.",
+        "Release workflow actions are pinned to immutable revisions without expanding permissions."
+      ]
+    },
+    {
+      "title": "Make detached-run registry persistence durable and bounded",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Runtime resilience",
+      "request_acs": ["AC4"],
+      "problem": [
+        "runs.json is the recovery source for detached work but does not fsync its file or parent directory after replacement.",
+        "POSIX registry locking can block forever while Windows uses a bounded timeout."
+      ],
+      "scope_in": [
+        "Reuse the existing atomic-write durability pattern for the run registry.",
+        "Use a bounded POSIX non-blocking lock acquisition compatible with the existing Windows timeout semantics.",
+        "Add crash-safety and lock-timeout regression tests."
+      ],
+      "scope_out": [
+        "Replacing JSON storage with a database.",
+        "Changing run IDs or public run-report payloads."
+      ],
+      "acceptance_criteria": [
+        "Registry writes fsync both file content and its parent directory before reporting success where supported.",
+        "A stuck lock holder produces a bounded, actionable error on POSIX and Windows.",
+        "Existing concurrent run-registry behaviour remains covered by tests."
+      ]
+    },
+    {
+      "title": "Unify and bound interactive token usage accounting",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Usage observability",
+      "request_acs": ["AC5", "AC6"],
+      "problem": [
+        "Interactive records carry cached_input_tokens while shared usage and stats omit it.",
+        "Best-effort transcript accounting can scan and read unbounded provider history at interactive process exit."
+      ],
+      "scope_in": [
+        "Add optional cached input tokens to the shared normalized usage schema, JSON history, statistics aggregation, rendering, and tests.",
+        "Preserve provider-reported totals without adding cached input into them.",
+        "Constrain transcript candidate discovery and reading with an explicit safe budget and unavailable result."
+      ],
+      "scope_out": [
+        "A cloud billing estimate or new reporting command.",
+        "Treating undocumented provider transcript schemas as stable APIs."
+      ],
+      "acceptance_criteria": [
+        "cdx history and cdx stats JSON preserve cached_input_tokens when supplied without changing total_tokens.",
+        "Interactive accounting does not delay or fail a provider exit when transcript discovery exceeds its configured safe bound.",
+        "Malformed, oversized, or unavailable transcript data remains fail-open and is tested."
+      ]
+    },
+    {
+      "title": "Cover operational command boundaries and extract measured seams",
+      "priority": "Medium",
+      "complexity": "High",
+      "theme": "Maintainability",
+      "request_acs": ["AC7", "AC8"],
+      "problem": [
+        "commands/tray.py and commands/context_memory.py each measured 43% coverage during review.",
+        "provider_runtime.py and cli_args.py centralise unrelated branches across more than one thousand lines each."
+      ],
+      "scope_in": [
+        "Add small focused tests for process, platform, persistence, stdin, and error branches identified by coverage.",
+        "Extract only existing provider/auth/launch and command-family seams while preserving imports and public CLI behaviour.",
+        "Keep the change dependency-free and avoid new abstraction layers."
+      ],
+      "scope_out": [
+        "A full CLI rewrite.",
+        "Raising coverage through unverified superficial tests."
+      ],
+      "acceptance_criteria": [
+        "New tests execute the identified tray and context-memory operational branches.",
+        "Each extraction has focused regression coverage and preserves CLI output and error contracts.",
+        "No new runtime dependency or generic command framework is introduced."
+      ]
+    },
+    {
+      "title": "Restore contributor and Logics workflow signal accuracy",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Workflow hygiene",
+      "request_acs": ["AC9"],
+      "problem": [
+        "CONTRIBUTING.md references test/test_cli_py.py, which no longer exists.",
+        "Workflow health reports completed backlog records whose progress remains below 100%."
+      ],
+      "scope_in": [
+        "Update contributor validation guidance to current command-module tests and tray checks.",
+        "Reconcile the identified Done backlog progress records through the supported Logics lifecycle operations.",
+        "Validate the updated documentation and workflow health signal."
+      ],
+      "scope_out": [
+        "Rewriting all historical release documentation.",
+        "Changing product priority or reopening completed work."
+      ],
+      "acceptance_criteria": [
+        "Contributor documentation names only existing test paths and required validation commands.",
+        "The identified Done workflow records have consistent terminal progress.",
+        "Logics lint and scoped health/audit checks pass for the changed records."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate repository reliability and release-contract hardening",
+    "plan": [
+      "Establish CI and artifact verification gates before changing release workflows.",
+      "Harden detached-run registry durability and lock timeout semantics with focused tests.",
+      "Unify usage accounting fields and bound interactive transcript work without changing totals.",
+      "Close measured test gaps, then extract only the seams demonstrated by those tests.",
+      "Update contributor and Logics workflow records, run project and Logics validation, and close out with evidence."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/repository_review_reliability_release_and_cli_contracts.json",
+    "mode": "diff-first",
+    "profile": "deep"
+  }
+}

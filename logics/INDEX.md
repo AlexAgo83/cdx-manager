@@ -66,6 +66,7 @@
 | [prod_044_signal_only_cdx_status_reset_columns](product/prod_044_signal_only_cdx_status_reset_columns.md) | Signal-only CDX status reset columns | Settled |  |  | product/prod_044_signal_only_cdx_status_reset_columns.md |
 | [prod_045_repository_oriented_logics_tray_navigation](product/prod_045_repository_oriented_logics_tray_navigation.md) | Repository-oriented Logics tray navigation | Settled |  |  | product/prod_045_repository_oriented_logics_tray_navigation.md |
 | [prod_046_interactive_cli_usage_accounting](product/prod_046_interactive_cli_usage_accounting.md) | Interactive CLI usage accounting | Settled |  |  | product/prod_046_interactive_cli_usage_accounting.md |
+| [prod_047_reliable_delivery_and_runtime_contracts](product/prod_047_reliable_delivery_and_runtime_contracts.md) | Reliable delivery and runtime contracts | Proposed |  |  | product/prod_047_reliable_delivery_and_runtime_contracts.md |
 
 ## Roadmaps
 
@@ -138,6 +139,7 @@ _None_
 | [req_058_group_logics_tray_next_actions_by_repository](request/req_058_group_logics_tray_next_actions_by_repository.md) | Group Logics tray next actions by repository | Done |  |  | request/req_058_group_logics_tray_next_actions_by_repository.md |
 | [req_059_record_interactive_codex_and_claude_cli_token_usage](request/req_059_record_interactive_codex_and_claude_cli_token_usage.md) | Record interactive Codex and Claude CLI token usage | Done |  |  | request/req_059_record_interactive_codex_and_claude_cli_token_usage.md |
 | [req_060_repository_review_findings_reliability_release_and_cli_contracts](request/req_060_repository_review_findings_reliability_release_and_cli_contracts.md) | Repository review findings: reliability, release, and CLI contracts | Draft |  |  | request/req_060_repository_review_findings_reliability_release_and_cli_contracts.md |
+| [req_061_harden_repository_reliability_release_verification_and_cli_contracts](request/req_061_harden_repository_reliability_release_verification_and_cli_contracts.md) | Harden repository reliability, release verification, and CLI contracts | Draft |  |  | request/req_061_harden_repository_reliability_release_verification_and_cli_contracts.md |
 
 ## Backlog
 
@@ -264,6 +266,12 @@ _None_
 | [item_116_render_logics_repository_groups_as_native_tray_submenus](backlog/item_116_render_logics_repository_groups_as_native_tray_submenus.md) | Render Logics repository groups as native tray submenus | Done |  | 100% | backlog/item_116_render_logics_repository_groups_as_native_tray_submenus.md |
 | [item_117_capture_and_normalize_interactive_provider_token_snapshots](backlog/item_117_capture_and_normalize_interactive_provider_token_snapshots.md) | Capture and normalize interactive provider token snapshots | Done |  | 100% | backlog/item_117_capture_and_normalize_interactive_provider_token_snapshots.md |
 | [item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics](backlog/item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics.md) | Persist interactive usage in existing CDX history and statistics | Done |  | 100% | backlog/item_118_persist_interactive_usage_in_existing_cdx_history_and_statistics.md |
+| [item_119_run_tray_tests_and_macos_validation_in_continuous_integration](backlog/item_119_run_tray_tests_and_macos_validation_in_continuous_integration.md) | Run tray tests and macOS validation in continuous integration | Ready |  | 0% | backlog/item_119_run_tray_tests_and_macos_validation_in_continuous_integration.md |
+| [item_120_verify_installable_package_artifacts_before_release](backlog/item_120_verify_installable_package_artifacts_before_release.md) | Verify installable package artifacts before release | Ready |  | 0% | backlog/item_120_verify_installable_package_artifacts_before_release.md |
+| [item_121_make_detached_run_registry_persistence_durable_and_bounded](backlog/item_121_make_detached_run_registry_persistence_durable_and_bounded.md) | Make detached-run registry persistence durable and bounded | Ready |  | 0% | backlog/item_121_make_detached_run_registry_persistence_durable_and_bounded.md |
+| [item_122_unify_and_bound_interactive_token_usage_accounting](backlog/item_122_unify_and_bound_interactive_token_usage_accounting.md) | Unify and bound interactive token usage accounting | Ready |  | 0% | backlog/item_122_unify_and_bound_interactive_token_usage_accounting.md |
+| [item_123_cover_operational_command_boundaries_and_extract_measured_seams](backlog/item_123_cover_operational_command_boundaries_and_extract_measured_seams.md) | Cover operational command boundaries and extract measured seams | Ready |  | 0% | backlog/item_123_cover_operational_command_boundaries_and_extract_measured_seams.md |
+| [item_124_restore_contributor_and_logics_workflow_signal_accuracy](backlog/item_124_restore_contributor_and_logics_workflow_signal_accuracy.md) | Restore contributor and Logics workflow signal accuracy | Ready |  | 0% | backlog/item_124_restore_contributor_and_logics_workflow_signal_accuracy.md |
 
 ## Tasks
 
@@ -344,6 +352,7 @@ _None_
 | [task_068_orchestrate_conditional_reset_columns_in_cdx_status](tasks/task_068_orchestrate_conditional_reset_columns_in_cdx_status.md) | Orchestrate conditional reset columns in cdx status | Done | Codex | 100% | tasks/task_068_orchestrate_conditional_reset_columns_in_cdx_status.md |
 | [task_069_orchestrate_repository_grouped_logics_tray_navigation](tasks/task_069_orchestrate_repository_grouped_logics_tray_navigation.md) | Orchestrate repository-grouped Logics tray navigation | Done | Codex | 100% | tasks/task_069_orchestrate_repository_grouped_logics_tray_navigation.md |
 | [task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting](tasks/task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting.md) | Orchestrate interactive Codex and Claude CLI usage accounting | Done | codex | 100% | tasks/task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting.md |
+| [task_071_orchestrate_repository_reliability_and_release_contract_hardening](tasks/task_071_orchestrate_repository_reliability_and_release_contract_hardening.md) | Orchestrate repository reliability and release-contract hardening | Ready |  | 0% | tasks/task_071_orchestrate_repository_reliability_and_release_contract_hardening.md |
 
 ## Runbooks
 
