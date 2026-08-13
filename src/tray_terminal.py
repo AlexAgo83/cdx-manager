@@ -17,6 +17,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 
 STATE_VERSION = 1
@@ -59,12 +60,15 @@ def valid_terminal(name):
     return isinstance(name, str) and bool(_NAME.match(name))
 
 
-def terminal_candidates(platform=None, which=None):
+def terminal_candidates(platform=None, which=None, available=None):
     """Known launchable applications on this host; no guessed executables."""
     platform = platform or sys.platform
     which = which or shutil.which
     names = ["Terminal", "iTerm", "Ghostty", "WezTerm"] if platform == "darwin" else (["wt", "powershell", "pwsh", "cmd"] if platform.startswith("win") else ["x-terminal-emulator", "gnome-terminal", "konsole", "xterm"])
-    return [name for name in names if platform == "darwin" or which(name)]
+    if platform == "darwin":
+        available = available or (lambda name: subprocess.run(["open", "-Ra", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0)
+        return [name for name in names if available(name)]
+    return [name for name in names if which(name)]
 
 
 def set_terminal(base_dir, name):

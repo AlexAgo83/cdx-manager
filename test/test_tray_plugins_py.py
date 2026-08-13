@@ -343,6 +343,7 @@ class TerminalPreferenceTest(CliTestBase):
     def test_candidates_are_platform_catalogue_not_commands(self):
         from src.tray_terminal import terminal_candidates
         self.assertEqual(terminal_candidates("win32", which=lambda name: name in {"wt", "pwsh"}), ["wt", "pwsh"])
+        self.assertEqual(terminal_candidates("darwin", available=lambda name: name == "iTerm"), ["iTerm"])
 
     def test_anything_that_could_be_a_command_is_refused(self):
         from src.tray_terminal import set_terminal, terminal_preference
