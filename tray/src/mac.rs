@@ -129,7 +129,9 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 }
                 Some(ActionId::FocusTerminal { kind, id }) if kind == "iterm2" => {
                     let script = format!("tell application \"iTerm2\"\nset targetSession to first session of first tab of first window whose id is \"{id}\"\nselect targetSession\nactivate\nend tell");
-                    let _ = std::process::Command::new("osascript").args(["-e", &script]).spawn();
+                    if !matches!(std::process::Command::new("osascript").args(["-e", &script]).status(), Ok(status) if status.success()) {
+                        eprintln!("Originating iTerm session is unavailable");
+                    }
                 }
                 Some(ActionId::FocusTerminal { .. }) => {}
                 // A view, not an edit: `cdx config` prints the settings that

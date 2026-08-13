@@ -479,7 +479,8 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
                 .map(|event| {
                     let line = crate::events::alert_line(event);
                     match (&event.details.terminal_kind, &event.details.terminal_id, &event.details.session) {
-                        (Some(kind), Some(id), _) => Entry::Action { id: ActionId::FocusTerminal { kind: kind.clone(), id: id.clone() }, label: line, enabled: true },
+                        (Some(kind), Some(id), _) if cfg!(target_os = "macos") => Entry::Action { id: ActionId::FocusTerminal { kind: kind.clone(), id: id.clone() }, label: line, enabled: true },
+                        (Some(_), Some(_), _) => Entry::Action { id: ActionId::AlertGroup, label: format!("{line} — terminal focus unavailable on this platform"), enabled: false },
                         (_, _, Some(name)) => Entry::Action {
                             id: ActionId::Session(name.clone()),
                             label: line,
