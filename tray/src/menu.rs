@@ -414,6 +414,16 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
                 enabled: true,
             });
         }
+        for group in &card.groups {
+            entries.push(Entry::Submenu {
+                about: ActionId::AlertGroup,
+                label: format!("  {}", group.label),
+                items: group.rows.iter().map(|row| Entry::Action {
+                    id: ActionId::Plugin { action: row.action.clone(), root: row.root.clone() },
+                    label: row.label.clone(), enabled: true,
+                }).collect(),
+            });
+        }
         for action in &card.actions {
             // Only the actions a build knows how to name are drawn. An id from
             // a newer CDX is carried in the snapshot and simply not offered,
@@ -790,6 +800,7 @@ mod tests {
                     root: None,
                 })
                 .collect(),
+            groups: Vec::new(),
             actions: actions.into_iter().map(str::to_string).collect(),
         }
     }
@@ -834,6 +845,27 @@ mod tests {
                 "logics.refresh"
             ]
         );
+    }
+
+    #[test]
+    fn a_card_renders_repository_groups_as_bounded_submenus() {
+        let mut snap = snapshot(vec![], true);
+        let mut grouped = card(vec![], vec!["logics.open"]);
+        grouped.groups = vec![crate::snapshot::PluginGroup {
+            label: "project".into(),
+            rows: vec![crate::snapshot::PluginRow {
+                label: "next: Ship it".into(),
+                action: "logics.focus:task_1".into(),
+                root: Some("/repo/project".into()),
+            }],
+        }];
+        snap.plugins = vec![grouped];
+        let entries = build_with_alerts(&snap, &[]);
+        let group = entries.iter().find_map(|entry| match entry {
+            Entry::Submenu { label, items, .. } if label.contains("project") => Some(items),
+            _ => None,
+        }).expect("repository submenu");
+        assert!(matches!(&group[0], Entry::Action { id: ActionId::Plugin { action, root }, .. } if action == "logics.focus:task_1" && root.as_deref() == Some("/repo/project")));
     }
 
     /// An id from a newer CDX is carried and simply not offered: a menu row

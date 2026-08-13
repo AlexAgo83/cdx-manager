@@ -189,15 +189,23 @@ class LogicsAdapterTest(CliTestBase):
             ("/private/b", {"blocked_docs": [{"ref": "task_2", "title": "B"}], "active_tasks": []}),
         ])
         self.assertEqual(card["summary"], "2 repositories · 1 blocked")
-        self.assertEqual(card["rows"][0]["label"], "b: blocked: B")
-        self.assertNotIn("/private", card["rows"][0]["label"])
+        self.assertEqual(card["groups"][1]["label"], "b")
+        self.assertEqual(card["groups"][1]["rows"][0]["label"], "blocked: B")
+        self.assertNotIn("/private", card["groups"][1]["rows"][0]["label"])
 
     def test_a_focused_row_keeps_its_root_out_of_the_label(self):
         card = tray_logics._card_from_status([
             ("/private/project", {"blocked_docs": [{"ref": "task_2", "title": "B"}], "active_tasks": []}),
         ])
-        self.assertEqual(card["rows"][0]["root"], "/private/project")
-        self.assertNotIn("/private", card["rows"][0]["label"])
+        self.assertEqual(card["groups"][0]["rows"][0]["root"], "/private/project")
+        self.assertNotIn("/private", card["groups"][0]["rows"][0]["label"])
+
+    def test_colliding_repository_basenames_gain_a_short_parent_label(self):
+        card = tray_logics._card_from_status([
+            ("/private/one/app", {"blocked_docs": [{"ref": "task_1", "title": "A"}], "active_tasks": []}),
+            ("/private/two/app", {"blocked_docs": [{"ref": "task_2", "title": "B"}], "active_tasks": []}),
+        ])
+        self.assertEqual([group["label"] for group in card["groups"]], ["one/app", "two/app"])
 
     def test_a_row_without_a_reference_is_dropped_rather_than_guessed(self):
         card = tray_logics.logics_card(

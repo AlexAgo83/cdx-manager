@@ -230,8 +230,16 @@ pub struct PluginCard {
     pub title: String,
     pub summary: String,
     pub rows: Vec<PluginRow>,
+    /// Optional repository-owned rows. Older cards retain their flat rows.
+    pub groups: Vec<PluginGroup>,
     /// The card-wide actions, in the order CDX listed them.
     pub actions: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginGroup {
+    pub label: String,
+    pub rows: Vec<PluginRow>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -246,6 +254,7 @@ pub struct PluginRow {
 /// The most rows a card may contribute, mirroring CDX's own bound. A menu that
 /// grew with an integration would stop being a quota menu.
 const MAX_PLUGIN_ROWS: usize = 2;
+const MAX_PLUGIN_GROUPS: usize = 5;
 
 pub fn fetch(transport: &Transport) -> Result<Snapshot, Unavailable> {
     fetch_with(transport, true)
@@ -344,6 +353,16 @@ fn plugin_card_from(value: &Value) -> Option<PluginCard> {
                     .collect()
             })
             .unwrap_or_default(),
+        groups: value.get("groups").and_then(Value::as_array).map(|groups| groups.iter().filter_map(|group| {
+            Some(PluginGroup {
+                label: group.get("label").and_then(Value::as_str).filter(|label| !label.is_empty())?.to_string(),
+                rows: group.get("rows").and_then(Value::as_array).map(|rows| rows.iter().filter_map(|row| Some(PluginRow {
+                    label: row.get("label").and_then(Value::as_str).filter(|label| !label.is_empty())?.to_string(),
+                    action: action_of(row)?,
+                    root: row.get("root").and_then(Value::as_str).filter(|root| !root.is_empty() && root.len() <= 4096 && !root.contains('\0')).map(str::to_string),
+                })).take(MAX_PLUGIN_ROWS).collect()).unwrap_or_default(),
+            })
+        }).take(MAX_PLUGIN_GROUPS).collect()).unwrap_or_default(),
         actions: value
             .get("actions")
             .and_then(Value::as_array)

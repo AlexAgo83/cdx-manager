@@ -20,6 +20,8 @@ from .logics_view import resolve_logics_manager
 from .tray_plugins import ADAPTER_TIMEOUT_SECONDS, CARD_TTL_SECONDS
 
 _PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
+_MAX_GROUPS = 5
+_MAX_ROWS_PER_GROUP = 2
 
 
 def logics_card(env=None, now=None, cache=None, runner=None, executable=None, directories=None):
@@ -98,18 +100,16 @@ def _status(env=None, runner=None, executable=None, directories=None):
 
 def _card_from_status(status, root=None):
     if isinstance(status, list):
-        cards = [(root, _card_from_status(payload, root), len(payload.get("blocked_docs") or [])) for root, payload in status]
-        cards = [(root, card, blocked) for root, card, blocked in cards if card]
-        if not cards:
+        groups = []
+        for root, payload in status:
+            card = _card_from_status(payload, root)
+            if card:
+                groups.append({"root": root, "label": _repository_label(root, [item[0] for item in status]), "rows": card["rows"][:_MAX_ROWS_PER_GROUP]})
+        groups = [group for group in groups if group["rows"]][:_MAX_GROUPS]
+        if not groups:
             return None
-        root, card, _ = sorted(cards, key=lambda item: (-item[2], -len(item[1]["rows"]), item[0] or ""))[0]
-        repository_count = len(cards)
-        blocked_count = sum(item[2] for item in cards)
-        card["summary"] = f"{repository_count} repositories · {blocked_count} blocked"
-        prefix = os.path.basename(root or "")
-        for row in card["rows"]:
-            row["label"] = f"{prefix}: {row['label']}"
-        return card
+        blocked_count = sum(len(payload.get("blocked_docs") or []) for _, payload in status if isinstance(payload, dict))
+        return {"title": "Logics", "summary": f"{len(groups)} repositories · {blocked_count} blocked", "rows": [], "groups": groups, "actions": ["logics.open", "logics.refresh"]}
     if not isinstance(status, dict):
         return None
     blocked = [doc for doc in (status.get("blocked_docs") or []) if isinstance(doc, dict)]
@@ -164,3 +164,13 @@ def _row(doc, kind, root=None):
     if root:
         row["root"] = root
     return row
+
+
+def _repository_label(root, roots):
+    """A distinct local label without leaking the full local path."""
+    name = os.path.basename(root or "") or "repository"
+    collisions = [item for item in roots if os.path.basename(item or "") == name]
+    if len(collisions) < 2:
+        return name
+    parent = os.path.basename(os.path.dirname(root or ""))
+    return f"{parent}/{name}" if parent else name

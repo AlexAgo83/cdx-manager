@@ -1,13 +1,14 @@
 ## task_069_orchestrate_repository_grouped_logics_tray_navigation - Orchestrate repository-grouped Logics tray navigation
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 95%
 > Confidence: 90%
 > Progress: 0%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Owner: Codex
 
 # AI Context
 - Summary: Render a bounded, compatible repository hierarchy for Logics next actions in the tray.

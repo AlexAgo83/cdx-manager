@@ -1,10 +1,10 @@
 ## item_115_publish_bounded_logics_repository_groups_in_the_tray_card - Publish bounded Logics repository groups in the tray card
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Medium
 > Theme: Tray data contract
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
