@@ -1,10 +1,10 @@
 ## item_103_offer_the_terminal_choice_as_a_tray_submenu - Offer the terminal choice as a tray submenu
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Medium
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

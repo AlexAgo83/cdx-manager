@@ -44,6 +44,7 @@ pub enum ActionId {
     Quit,
     /// Silence agent alerts, or let them through again.
     ToggleAlerts,
+    SetTerminal(String),
     /// Open a terminal on this session, by name.
     ///
     /// It was an index into the snapshot, which kept the id `Copy`. That only
@@ -440,6 +441,15 @@ pub fn build_with_alerts(snapshot: &Snapshot, alerts: &[crate::events::Event]) -
             }
         }
     }
+    if !snapshot.terminal_candidates.is_empty() {
+        entries.push(Entry::Submenu {
+            about: ActionId::OpenTerminal,
+            label: "Terminal for new sessions".into(),
+            items: snapshot.terminal_candidates.iter().map(|candidate| Entry::Check {
+                id: ActionId::SetTerminal(candidate.clone()), label: candidate.clone(), checked: snapshot.terminal.as_deref() == Some(candidate),
+            }).collect(),
+        });
+    }
     if !alerts.is_empty() {
         entries.push(Entry::Separator);
         entries.push(Entry::Info("Alert groups".into()));
@@ -583,6 +593,7 @@ mod tests {
             update_hint: None,
             plugins: Vec::new(),
             terminal: None,
+            terminal_candidates: Vec::new(),
             sessions,
         }
     }

@@ -16,6 +16,8 @@ platform's own launcher resolves it.
 import json
 import os
 import re
+import shutil
+import sys
 
 STATE_VERSION = 1
 # An application name or a bundle identifier, and nothing that could be read as
@@ -55,6 +57,14 @@ def terminal_preference(base_dir):
 
 def valid_terminal(name):
     return isinstance(name, str) and bool(_NAME.match(name))
+
+
+def terminal_candidates(platform=None, which=None):
+    """Known launchable applications on this host; no guessed executables."""
+    platform = platform or sys.platform
+    which = which or shutil.which
+    names = ["Terminal", "iTerm", "Ghostty", "WezTerm"] if platform == "darwin" else (["wt", "powershell", "pwsh", "cmd"] if platform.startswith("win") else ["x-terminal-emulator", "gnome-terminal", "konsole", "xterm"])
+    return [name for name in names if platform == "darwin" or which(name)]
 
 
 def set_terminal(base_dir, name):

@@ -1,10 +1,10 @@
 ## item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates - Declare the launchable terminals in CDX and publish the candidates
 > From version: 0.18.6
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Medium
 > Theme: tray-companion
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

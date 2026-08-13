@@ -46,7 +46,7 @@ from ..tray_install import (
 from ..tray_instance import companion_instance
 from ..tray_plugins import ADAPTERS, collect_cards, enabled_plugins, set_plugin_enabled
 from ..tray_terminal import REFUSAL as TERMINAL_REFUSAL
-from ..tray_terminal import clear_terminal, set_terminal, terminal_preference
+from ..tray_terminal import clear_terminal, set_terminal, terminal_candidates, terminal_preference
 
 TRAY_ACTIONS = (
     "status", "install", "launch", "uninstall", "autostart", "doctor",
@@ -138,6 +138,7 @@ def _tray_status(args, ctx):
         refreshable=not any(row.get("active") for row in rows),
         plugins=cards,
         terminal=terminal_preference(ctx["service"]["base_dir"]),
+        terminal_candidates=terminal_candidates(),
     )
     # Pending alerts ride along with the snapshot rather than costing their own
     # call. Across WSL every invocation is a `wsl.exe` crossing measured at
@@ -423,6 +424,14 @@ def _tray_terminal(args, ctx):
             set_terminal(base_dir, positional[1])
         except ValueError:
             return _refuse(ctx, parsed["json"], "tray.terminal", TERMINAL_INVALID, TERMINAL_REFUSAL)
+    elif mode == "list":
+        chosen = terminal_preference(base_dir)
+        candidates = terminal_candidates()
+        if parsed["json"]:
+            _write_json(ctx, _json_success("tray.terminal", "Listed launchable terminals", terminal=chosen, candidates=candidates, applied=False))
+            return 0
+        ctx["out"]("Launchable terminals: " + (", ".join(candidates) or "none") + "\n")
+        return 0
     elif mode != "status":
         raise CdxError(TRAY_USAGE)
 

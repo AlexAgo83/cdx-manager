@@ -14,7 +14,7 @@ use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSEventMask};
 use objc2_foundation::{NSDate, NSDefaultRunLoopMode};
 
 use crate::backend;
-use crate::events::{run_plugin_action, set_alerts};
+use crate::events::{run_plugin_action, set_alerts, set_terminal};
 use crate::mac_menu_open;
 use crate::menu::ActionId;
 use crate::runner::{announce, Render};
@@ -111,6 +111,11 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     // reflects what was actually recorded rather than what was
                     // clicked.
                     set_alerts(&transport, !state.alerts_enabled);
+                    state = Render::next(&transport, state.tick, &mut unread);
+                    redraw = true;
+                }
+                Some(ActionId::SetTerminal(name)) => {
+                    set_terminal(&transport, name);
                     state = Render::next(&transport, state.tick, &mut unread);
                     redraw = true;
                 }

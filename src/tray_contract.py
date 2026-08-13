@@ -223,7 +223,7 @@ def tooltip_for(worst):
     return "CDX · " + " · ".join(parts)
 
 
-def build_snapshot(rows, now, cdx_version, refreshable=True, plugins=None, terminal=None):
+def build_snapshot(rows, now, cdx_version, refreshable=True, plugins=None, terminal=None, terminal_candidates=None):
     """The whole contract, from the rows `cdx status` already returns.
 
     `icon` carries no session name, account, or figure: it is what shows while
@@ -263,6 +263,7 @@ def build_snapshot(rows, now, cdx_version, refreshable=True, plugins=None, termi
         # other durable tray preference already lives in CDX and a second store
         # is a second thing to keep in step.
         "terminal": terminal,
+        "terminal_candidates": list(terminal_candidates or []),
     }
 
 

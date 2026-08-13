@@ -340,6 +340,10 @@ class TerminalPreferenceTest(CliTestBase):
         clear_terminal(base)
         self.assertIsNone(terminal_preference(base))
 
+    def test_candidates_are_platform_catalogue_not_commands(self):
+        from src.tray_terminal import terminal_candidates
+        self.assertEqual(terminal_candidates("win32", which=lambda name: name in {"wt", "pwsh"}), ["wt", "pwsh"])
+
     def test_anything_that_could_be_a_command_is_refused(self):
         from src.tray_terminal import set_terminal, terminal_preference
         base = self.make_temp_dir()

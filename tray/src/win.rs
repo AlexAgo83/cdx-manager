@@ -20,7 +20,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::backend;
-use crate::events::{run_plugin_action, set_alerts};
+use crate::events::{run_plugin_action, set_alerts, set_terminal};
 use crate::menu::ActionId;
 use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
@@ -153,6 +153,11 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     // reflects what was actually recorded rather than what was
                     // clicked.
                     set_alerts(&transport, !state.alerts_enabled);
+                    state = Render::next(&transport, state.tick, &mut unread);
+                    redraw = true;
+                }
+                Some(ActionId::SetTerminal(name)) => {
+                    set_terminal(&transport, name);
                     state = Render::next(&transport, state.tick, &mut unread);
                     redraw = true;
                 }
@@ -319,6 +324,19 @@ fn open_terminal_in(transport: &Transport, arg: &str, preferred: Option<&str>) {
             return;
         }
         // Not installed, or refused to start. The default console still opens.
+    }
+    if let Some(name @ ("powershell" | "pwsh" | "cmd")) = preferred.map(|name| name.to_ascii_lowercase()).as_deref() {
+        let program = if name == "cmd" { "cmd.exe" } else if name == "pwsh" { "pwsh.exe" } else { "powershell.exe" };
+        let mut command = std::process::Command::new(program);
+        match transport {
+            Transport::Wsl { distro: Some(distro) } => command.args(["-NoExit", "-Command", &format!("wsl.exe -d {distro} -- {cdx} {arg}")]),
+            Transport::Wsl { distro: None } => command.args(["-NoExit", "-Command", &format!("wsl.exe -- {cdx} {arg}")]),
+            Transport::Native if name == "cmd" => command.args(["/k", &format!("{cdx} {arg}")]),
+            Transport::Native => command.args(["-NoExit", "-Command", &format!("{cdx} {arg}")]),
+        };
+        if command.spawn().is_ok() {
+            return;
+        }
     }
     open_terminal(transport, arg)
 }
