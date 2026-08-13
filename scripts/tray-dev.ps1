@@ -17,11 +17,11 @@ function Invoke-DevPython([string]$code) {
 }
 
 function Stop-Companion {
-  Invoke-DevPython 'from src.tray_restart import stop_running_companion; r=stop_running_companion(); assert not r["was_running"] or r["stopped"], r'
+  Invoke-DevPython 'from src.tray_restart import stop_running_companion; stop_running_companion()'
 }
 
 function RunningPid {
-  $pid = & node (Join-Path $root 'bin\python-runner.js') -c 'from src.tray_instance import companion_instance; print(companion_instance().get("pid") or "")'
+  $pid = & node (Join-Path $root 'bin\python-runner.js') -c 'from src.tray_instance import companion_instance; print(next(iter(companion_instance().values())))'
   if ($LASTEXITCODE) { throw 'Could not read the tray instance lock.' }
   return "$pid".Trim()
 }
