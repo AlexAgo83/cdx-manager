@@ -10,6 +10,9 @@ $root = Split-Path -Parent $PSScriptRoot
 $binary = Join-Path $root 'tray\target\release\cdx-tray.exe'
 $wrapper = Join-Path $root 'tray\target\release\cdx-tray-cdx.cmd'
 Set-Location $root
+if ((Get-Process -Id $PID).SessionId -eq 0) {
+  throw 'Windows tray development must run from an interactive desktop session, not an SSH/session-0 shell.'
+}
 
 function Invoke-DevPython([string]$code) {
   & node (Join-Path $root 'bin\python-runner.js') -c $code

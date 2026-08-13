@@ -62,6 +62,12 @@ After testing, restore an already installed companion:
 `unload` intentionally fails when no release companion is installed; install
 state is never guessed and a development test must not create it.
 
+The companion needs the interactive Windows desktop session. An SSH shell runs
+in session 0 and the helper refuses it. For a remote smoke test, invoke the
+helper from the active user's desktop session; a temporary scheduled task with
+the user's `InteractiveToken` is acceptable, but delete that task immediately
+after it starts the companion.
+
 # Verification
 - `load` prints `Development tray loaded` only after the process command is
   `tray/target/release/CDX.app/Contents/MacOS/cdx-tray`.
