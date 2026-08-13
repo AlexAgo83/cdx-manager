@@ -1,10 +1,10 @@
 ## task_071_orchestrate_repository_reliability_and_release_contract_hardening - Orchestrate repository reliability and release-contract hardening
 > From version: 0.19.1
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 100%
 > Confidence: 95%
-> Progress: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -58,9 +58,17 @@
 
 # Validation
 - (no validation recorded yet)
+- npm test passed on 2026-08-13: 898 tests passed
+- cargo test --manifest-path tray/Cargo.toml passed on 2026-08-13: 96 tests passed
+- command: `npm run lint` | result: passed | date: 2026-08-13
+- Finish workflow executed on 2026-08-13.
+- Linked backlog/request close verification passed.
 
 # Report
 - Not started.
+- Finished on 2026-08-13.
+- Linked backlog item(s): `item_119_run_tray_tests_and_macos_validation_in_continuous_integration`, `item_120_verify_installable_package_artifacts_before_release`, `item_121_make_detached_run_registry_persistence_durable_and_bounded`, `item_122_unify_and_bound_interactive_token_usage_accounting`, `item_123_cover_operational_command_boundaries_and_extract_measured_seams`, `item_124_restore_contributor_and_logics_workflow_signal_accuracy`
+- Related request(s): `req_061_harden_repository_reliability_release_verification_and_cli_contracts`
 
 # Links
 - Request: `req_061_harden_repository_reliability_release_verification_and_cli_contracts`

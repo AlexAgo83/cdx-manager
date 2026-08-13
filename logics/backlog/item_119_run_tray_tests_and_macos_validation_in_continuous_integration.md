@@ -1,10 +1,10 @@
 ## item_119_run_tray_tests_and_macos_validation_in_continuous_integration - Run tray tests and macOS validation in continuous integration
 > From version: 0.19.1
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Repository reliability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -51,3 +51,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_071_orchestrate_repository_reliability_and_release_contract_hardening`
+
+# Notes
+- Task `task_071_orchestrate_repository_reliability_and_release_contract_hardening` was finished via `logics-manager flow finish task` on 2026-08-13.

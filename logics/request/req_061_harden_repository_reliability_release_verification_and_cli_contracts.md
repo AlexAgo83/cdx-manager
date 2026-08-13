@@ -1,7 +1,7 @@
 ## req_061_harden_repository_reliability_release_verification_and_cli_contracts - Harden repository reliability, release verification, and CLI contracts
 > From version: 0.19.1
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 100%
 > Confidence: 95%
 > Complexity: High

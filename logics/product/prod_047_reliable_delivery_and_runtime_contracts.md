@@ -1,8 +1,8 @@
 ## prod_047_reliable_delivery_and_runtime_contracts - Reliable delivery and runtime contracts
 > Date: 2026-08-13
-> Status: Proposed
+> Status: Settled
 > Related request: `req_061_harden_repository_reliability_release_verification_and_cli_contracts`
-> Related backlog: `item_119_run_tray_tests_and_macos_validation_in_continuous_integration`, `item_120_verify_installable_package_artifacts_before_release`, `item_121_make_detached_run_registry_persistence_durable_and_bounded`, `item_122_unify_and_bound_interactive_token_usage_accounting`, `item_123_cover_operational_command_boundaries_and_extract_measured_seams`, `item_124_restore_contributor_and_logics_workflow_signal_accuracy`
+> Related backlog: `item_119_run_tray_tests_and_macos_validation_in_continuous_integration`
 > Related task: `task_071_orchestrate_repository_reliability_and_release_contract_hardening`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
@@ -44,5 +44,5 @@ flowchart LR
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_061_harden_repository_reliability_release_verification_and_cli_contracts`
+- Product back-reference: `item_119_run_tray_tests_and_macos_validation_in_continuous_integration`
 - Task back-reference: `task_071_orchestrate_repository_reliability_and_release_contract_hardening`

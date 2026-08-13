@@ -1,10 +1,10 @@
 ## item_124_restore_contributor_and_logics_workflow_signal_accuracy - Restore contributor and Logics workflow signal accuracy
 > From version: 0.19.1
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 95%
+> Progress: 100%
 > Complexity: Low
 > Theme: Workflow hygiene
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -50,3 +50,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_071_orchestrate_repository_reliability_and_release_contract_hardening`
+
+# Notes
+- Task `task_071_orchestrate_repository_reliability_and_release_contract_hardening` was finished via `logics-manager flow finish task` on 2026-08-13.
