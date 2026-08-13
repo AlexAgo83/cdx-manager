@@ -1364,6 +1364,7 @@ class RuntimePythonTests(unittest.TestCase):
 
             self.assertEqual(run_usage.extract_run_usage("claude", path), {
                 "input_tokens": 20,
+                "cached_input_tokens": 8,
                 "output_tokens": 7,
                 "reasoning_tokens": None,
                 "total_tokens": 27,
@@ -1386,6 +1387,7 @@ class RuntimePythonTests(unittest.TestCase):
 
             self.assertEqual(run_usage.extract_run_usage("codex", path), {
                 "input_tokens": 10,
+                "cached_input_tokens": None,
                 "output_tokens": 4,
                 "reasoning_tokens": 2,
                 "total_tokens": 14,
@@ -1408,6 +1410,7 @@ class RuntimePythonTests(unittest.TestCase):
 
             self.assertEqual(run_usage.extract_run_usage("codex", path), {
                 "input_tokens": 10,
+                "cached_input_tokens": None,
                 "output_tokens": 4,
                 "reasoning_tokens": 2,
                 "total_tokens": 14,
@@ -1438,6 +1441,7 @@ class RuntimePythonTests(unittest.TestCase):
 
             self.assertEqual(run_usage.extract_run_usage("codex", path), {
                 "input_tokens": 17489,
+                "cached_input_tokens": 4992,
                 "output_tokens": 9,
                 "reasoning_tokens": 3,
                 "total_tokens": 17498,
