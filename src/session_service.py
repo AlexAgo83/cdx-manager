@@ -920,6 +920,7 @@ def create_session_service(options=None):
         "record_status": partial(record_status, store),
         "record_launch_history": partial(record_launch_history, store),
         "get_launch_history": partial(get_launch_history, store),
+        "drop_unvouched_usage": store["drop_unvouched_usage"],
         "update_auth_state": partial(update_auth_state, store),
         "get_status_row": partial(get_status_row, store, base_dir, env, fetch_codex_status),
         "get_status_rows": partial(get_status_rows, store, base_dir, env, fetch_codex_status),

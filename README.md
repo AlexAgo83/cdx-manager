@@ -743,7 +743,14 @@ CDX_TOKEN_PRICES='{"gpt-6-unreleased": {"input": 3, "output": 18}}' cdx stats
 
 **Prices are the only part of this that rots on its own.** A test fails once the table has gone 90 days without review, and `scripts/check_token_prices.py` compares it against published pricing — outside the test suite, since a check that needs the network fails for reasons nobody wants in CI. A row it cannot confirm is reported as unverified, never as passing. When it finds a difference, follow [`docs/token-prices-runbook.md`](docs/token-prices-runbook.md) — which also records where each vendor's numbers actually live, and which pages refuse to be read by a script.
 
-Runs recorded before these definitions existed are shown as faithfully as their data allows: they carry no creation/read split and no model, so their cached tokens are read as cache reads for weighting and they stay unpriced. `cdx stats` derives each row's `TOTAL` from the columns it displays, so a row always adds up even while history spans both eras.
+Runs recorded before these definitions existed carry figures that are fictitious rather than imprecise — one real session reported 206.6M cached tokens for a period in which its own conversation consumed 33,608, because the old reader picked whichever transcript had the newest modification time and re-read all of it on every launch. They cannot be recomputed: a run's true usage is the increment its transcript gained while it ran, and nothing recorded that. `cdx repair` drops those figures and keeps the runs, so a period containing only such runs reads as absent rather than as a session that spent nothing:
+
+```
+cdx repair --dry-run      # says how many records carry unvouched usage
+cdx repair                # drops the figures; runs, durations and timestamps stay
+```
+
+Until that runs, such records are shown as faithfully as their data allows: they carry no creation/read split and no model, so their cached tokens are read as cache reads for weighting and they stay unpriced. `cdx stats` derives each row's `TOTAL` from the columns it displays, so a row always adds up even while history spans both eras.
 
 ```bash
 cdx stats --since 7d --json

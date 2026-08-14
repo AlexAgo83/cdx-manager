@@ -41,6 +41,16 @@ def repair_health(service, base_dir, env=None, dry_run=True, force=False):
                     detail,
                     "skipped",
                 ))
+    usage = service["drop_unvouched_usage"](dry_run=dry_run)
+    if usage["dropped"]:
+        actions.append(_action(
+            "drop_unvouched_usage",
+            f"drop token usage from {usage['dropped']} launch record"
+            f"{'s' if usage['dropped'] != 1 else ''} written before the field "
+            f"definition existed (of {usage['scanned']} scanned)",
+            None,
+            None if dry_run else "applied",
+        ))
     return {
         "dry_run": dry_run,
         "force": force,

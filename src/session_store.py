@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .errors import CdxError
+from .fs_utils import atomic_write
 
 
 def _ensure_dir(path):
@@ -280,6 +281,58 @@ def create_session_store(base_dir):
                 os.fsync(handle.fileno())
             _fsync_directory(state_dir)
 
+    def drop_unvouched_usage(dry_run=True):
+        """Strip usage from launch-history records written before the definition.
+
+        Those records are not imprecise, they are fictitious: the reader picked
+        whichever transcript had the newest mtime and re-read all of it on
+        every launch, so one session reported 206.6M cached tokens for a period
+        in which its own conversation consumed 33,608.
+
+        They cannot be recomputed -- a run's true usage is the increment its
+        transcript gained while it ran, and nothing recorded the transcript's
+        state at that moment. So the figures go and everything else stays: a
+        run that happened still happened, with its duration, status and time.
+
+        The discriminator is the absence of `cache_creation_tokens`, which
+        `normalize_usage` always emits and nothing before it did. Not the
+        absence of `usage_cumulative`: headless runs legitimately have none,
+        and keying on it would drop correct records.
+        """
+        with _file_lock(lock_file):
+            try:
+                with open(launch_history_file, encoding="utf-8") as handle:
+                    lines = handle.readlines()
+            except FileNotFoundError:
+                return {"scanned": 0, "dropped": 0, "dry_run": dry_run}
+            scanned = dropped = 0
+            rewritten = []
+            for line in lines:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    entry = json.loads(stripped)
+                except ValueError:
+                    # Unreadable lines are left exactly as they are: this
+                    # removes figures, it does not tidy the file.
+                    rewritten.append(line)
+                    continue
+                scanned += 1
+                usage = entry.get("usage")
+                if isinstance(usage, dict) and "cache_creation_tokens" not in usage:
+                    dropped += 1
+                    entry.pop("usage", None)
+                    entry.pop("usage_cumulative", None)
+                    entry["usage_dropped_reason"] = "recorded_before_field_definition"
+                    line = json.dumps(entry, separators=(",", ":")) + "\n"
+                rewritten.append(line)
+            if not dry_run and dropped:
+                _ensure_dir(state_dir)
+                atomic_write(launch_history_file, "".join(rewritten))
+                _fsync_directory(state_dir)
+            return {"scanned": scanned, "dropped": dropped, "dry_run": dry_run}
+
     def list_launch_history(session_name=None, limit=20):
         with _file_lock(lock_file):
             try:
@@ -315,5 +368,6 @@ def create_session_store(base_dir):
         "write_session_state": write_session_state,
         "update_session_state": update_session_state,
         "append_launch_history": append_launch_history,
+        "drop_unvouched_usage": drop_unvouched_usage,
         "list_launch_history": list_launch_history,
     }
