@@ -41,15 +41,15 @@ def extract_interactive_usage(provider, auth_home, started_at=None, conversation
     """
     path, match = resolve_transcript(provider, auth_home, started_at, conversation_id)
     if not path:
-        return None, None, None
+        return None, None, None, None
     try:
         if os.path.getsize(path) > MAX_TRANSCRIPT_BYTES:
-            return None, path, match
+            return None, path, match, None
         with open(path, encoding="utf-8", errors="replace") as handle:
-            usage = _codex_usage(handle) if provider == "codex" else _claude_usage(handle)
-        return usage, path, match
+            usage, model = _codex_usage(handle) if provider == "codex" else _claude_usage(handle)
+        return usage, path, match, model
     except OSError:
-        return None, path, match
+        return None, path, match, None
 
 
 def resolve_transcript(provider, auth_home, started_at=None, conversation_id=None):
@@ -129,11 +129,15 @@ def _timestamp(value):
 
 
 def _codex_usage(handle):
+    """The conversation's cumulative usage, and the model serving it latest."""
     latest = None
+    model = None
     for line in handle:
         try:
             record = json.loads(line)
             payload = record.get("payload") or {}
+            if payload.get("model"):
+                model = payload["model"]
             usage = ((payload.get("info") or {}).get("total_token_usage") or {}) if payload.get("type") == "token_count" else {}
             if not isinstance(usage, dict) or not usage:
                 continue
@@ -152,7 +156,7 @@ def _codex_usage(handle):
             )
         except (TypeError, ValueError):
             continue
-    return latest
+    return latest, model
 
 
 def _claude_usage(handle):
@@ -166,6 +170,7 @@ def _claude_usage(handle):
     """
     totals = {"input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0, "output_tokens": 0}
     seen = set()
+    model = None
     for line in handle:
         try:
             record = json.loads(line)
@@ -182,11 +187,13 @@ def _claude_usage(handle):
             totals["cache_creation_tokens"] += _number(usage.get("cache_creation_input_tokens"))
             totals["cache_read_tokens"] += _number(usage.get("cache_read_input_tokens"))
             totals["output_tokens"] += _number(usage.get("output_tokens"))
+            if message.get("model"):
+                model = message["model"]
         except (TypeError, ValueError):
             continue
     if not seen and not any(totals.values()):
-        return None
-    return normalize_usage(**totals)
+        return None, model
+    return normalize_usage(**totals), model
 
 
 def _number(value):

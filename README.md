@@ -728,6 +728,12 @@ Cached input is counted once: it is excluded from `input_tokens` and reported in
 
 Ranking on the raw total would put a session that mostly replayed a cache above one that spent far more on generation, because cache reads are typically the overwhelming majority of tokens consumed while costing a fiftieth of an output token.
 
+The **`USD~`** column turns that into money for runs whose serving model cdx recorded. It needs one number per model — the list price per million uncached input tokens — because `COST~` has already absorbed every other rate. Prices live in configuration, not in code: set `CDX_TOKEN_PRICES` to a JSON object mapping model id to dollars per million tokens to override the built-in table, whose last review date is printed with the totals. A run whose model cdx never saw stays unpriced rather than being charged at a default tier, and the totals line says how many runs were actually priced.
+
+Two caveats stated rather than hidden. A run is priced at the model serving its most recent record, so a run that switched models mid-way is priced at the newer one. And the figure is an estimate at public list prices — not an invoice, and not comparable across providers whose own prices differ.
+
+Runs recorded before these definitions existed are shown as faithfully as their data allows: they carry no creation/read split and no model, so their cached tokens are read as cache reads for weighting and they stay unpriced. `cdx stats` derives each row's `TOTAL` from the columns it displays, so a row always adds up even while history spans both eras.
+
 ```bash
 cdx stats --since 7d --json
 cdx stats work

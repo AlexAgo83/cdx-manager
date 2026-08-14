@@ -3,7 +3,14 @@
 import unittest
 
 from src.commands.status import _summarize_stats
-from src.run_usage import USAGE_WEIGHTS, normalize_usage, weighted_usage
+from src.run_usage import (
+    TOKEN_PRICES_REVIEWED,
+    USAGE_WEIGHTS,
+    estimate_cost,
+    normalize_usage,
+    token_prices,
+    weighted_usage,
+)
 
 
 def _entry(session, **parts):
@@ -49,6 +56,47 @@ class StatsRankingTests(unittest.TestCase):
         ])}
         self.assertEqual(rows["replayer"]["weighted_tokens"], 100_000)
         self.assertEqual(rows["generator"]["weighted_tokens"], 3_000_000)
+
+
+class CostEstimateTests(unittest.TestCase):
+    """Cost is the weighted figure times one number per model."""
+
+    def test_a_known_model_prices_the_weighted_figure(self):
+        usage = normalize_usage(input_tokens=1_000_000)
+        self.assertAlmostEqual(
+            estimate_cost(usage, "claude-opus-5", {"claude-opus-5": 5.0}), 5.0)
+
+    def test_cache_reads_cost_a_tenth_of_uncached_input(self):
+        self.assertAlmostEqual(
+            estimate_cost(normalize_usage(cache_read_tokens=1_000_000),
+                          "claude-opus-5", {"claude-opus-5": 5.0}),
+            0.5)
+
+    def test_an_unknown_model_is_unpriced_rather_than_assumed(self):
+        # Charging a default tier would turn "cdx does not know" into a number
+        # someone might act on.
+        usage = normalize_usage(output_tokens=1_000)
+        self.assertIsNone(estimate_cost(usage, "some-future-model", {"claude-opus-5": 5.0}))
+        self.assertIsNone(estimate_cost(usage, None, {"claude-opus-5": 5.0}))
+
+    def test_unmeasured_usage_is_unpriced(self):
+        self.assertIsNone(estimate_cost(normalize_usage(), "claude-opus-5", {"claude-opus-5": 5.0}))
+
+    def test_prices_come_from_configuration_not_a_code_edit(self):
+        table, source = token_prices({"CDX_TOKEN_PRICES": '{"claude-opus-5": 99.0}'})
+        self.assertEqual(table["claude-opus-5"], 99.0)
+        self.assertEqual(source, "CDX_TOKEN_PRICES")
+        # A model the override does not mention keeps its built-in price.
+        self.assertEqual(table["claude-haiku-4-5"], 1.0)
+
+    def test_a_malformed_override_falls_back_and_says_so(self):
+        table, source = token_prices({"CDX_TOKEN_PRICES": "not json"})
+        self.assertEqual(table["claude-opus-5"], 5.0)
+        self.assertIn("ignored", source)
+
+    def test_the_default_table_states_when_it_was_reviewed(self):
+        _table, source = token_prices({})
+        self.assertIn(TOKEN_PRICES_REVIEWED, source)
 
 
 if __name__ == "__main__":

@@ -314,7 +314,7 @@ def _attach_interactive_usage(session, run_info, history=None):
     """
     run_info = dict(run_info or {})
     started_at = run_info.get("started_at")
-    cumulative, provider_transcript, match = extract_interactive_usage(
+    cumulative, provider_transcript, match, model = extract_interactive_usage(
         session.get("provider"), _get_auth_home(session), started_at, _conversation_id(session)
     )
     if provider_transcript:
@@ -328,6 +328,12 @@ def _attach_interactive_usage(session, run_info, history=None):
         return run_info
 
     run_info["usage_cumulative"] = cumulative
+    if model:
+        # Which model actually served the run, read from the transcript rather
+        # than inferred from the session's configured launch settings -- where
+        # `model` is optional and usually unset, because the session takes the
+        # provider's default.
+        run_info["usage_model"] = model
     previous = _previous_cumulative(history, provider_transcript)
     if previous is not None:
         delta = usage_delta(cumulative, previous)

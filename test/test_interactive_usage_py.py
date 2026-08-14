@@ -27,7 +27,7 @@ class InteractiveUsageTests(unittest.TestCase):
                     "input_tokens": 110, "cached_input_tokens": 90, "output_tokens": 4,
                     "reasoning_output_tokens": 2, "total_tokens": 114}}}},
             ])
-            usage, _path, _match = extract_interactive_usage("codex", home)
+            usage, _path, _match, _model = extract_interactive_usage("codex", home)
             # Codex's own `input_tokens` includes the cached tokens, so IN is
             # the 20-token remainder and CACHE holds the 90 it contained.
             self.assertEqual(usage, {"input_tokens": 20, "cached_input_tokens": 90,
@@ -42,7 +42,7 @@ class InteractiveUsageTests(unittest.TestCase):
                 {"payload": {"type": "token_count", "info": {"total_token_usage": {
                     "input_tokens": 20, "cached_input_tokens": 90, "output_tokens": 4}}}},
             ])
-            usage, _path, _match = extract_interactive_usage("codex", home)
+            usage, _path, _match, _model = extract_interactive_usage("codex", home)
             self.assertEqual(usage["input_tokens"], 20)
             self.assertEqual(usage["total_tokens"], 114)
 
@@ -57,7 +57,7 @@ class InteractiveUsageTests(unittest.TestCase):
                 {"type": "assistant", "uuid": "two", "message": {"usage": {
                     "input_tokens": 11, "output_tokens": 13}}},
             ])
-            usage, _path, _match = extract_interactive_usage("claude", home)
+            usage, _path, _match, _model = extract_interactive_usage("claude", home)
             # The total used to read 33 -- input plus output, with the 8 cached
             # tokens dropped entirely. Cache is most of real consumption, so
             # that was not a slightly-low total but a different quantity.
@@ -72,7 +72,7 @@ class InteractiveUsageTests(unittest.TestCase):
             ])
             os.utime(old, (1, 1))
             started = datetime.now(timezone.utc).isoformat()
-            usage, path, _match = extract_interactive_usage("codex", home, started)
+            usage, path, _match, _model = extract_interactive_usage("codex", home, started)
             self.assertIsNone(usage)
             self.assertIsNone(path)
 
@@ -81,7 +81,7 @@ class InteractiveUsageTests(unittest.TestCase):
             path = self._write(home, "sessions/large.jsonl", [])
             with open(path, "wb") as handle:
                 handle.truncate(MAX_TRANSCRIPT_BYTES + 1)
-            usage, selected, _match = extract_interactive_usage("codex", home)
+            usage, selected, _match, _model = extract_interactive_usage("codex", home)
             self.assertIsNone(usage)
             self.assertEqual(os.path.normpath(selected), os.path.normpath(path))
 
@@ -148,7 +148,7 @@ class UsageDefinitionAgreementTests(unittest.TestCase):
                 }) + "\n")
 
             headless = run_usage.extract_run_usage("claude", stdout_path)
-            interactive, _path, _match = extract_interactive_usage("claude", home)
+            interactive, _path, _match, _model = extract_interactive_usage("claude", home)
             background = read_transcript_outcome(transcript)["usage"]
 
         self.assertEqual(headless, self.EXPECTED)
@@ -192,7 +192,7 @@ class ClaudeDedupTests(unittest.TestCase):
                 for record in records:
                     handle.write(json.dumps(record) + "\n")
             with open(path, encoding="utf-8") as handle:
-                return interactive_usage._claude_usage(handle)
+                return interactive_usage._claude_usage(handle)[0]
 
     def _assistant(self, uuid, message_id, request_id, output):
         return {
@@ -255,7 +255,7 @@ class TranscriptResolutionTests(unittest.TestCase):
             os.utime(mine, (1, 1))
             os.utime(theirs, (10, 10))
 
-            usage, path, match = extract_interactive_usage(
+            usage, path, match, _model = extract_interactive_usage(
                 "claude", home, None, "11111111-1111-1111-1111-111111111111")
 
             self.assertEqual(os.path.normpath(path), os.path.normpath(mine))
@@ -266,7 +266,7 @@ class TranscriptResolutionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as home:
             self._claude_transcript(home, "22222222-2222-2222-2222-222222222222", 999)
 
-            usage, path, match = extract_interactive_usage(
+            usage, path, match, _model = extract_interactive_usage(
                 "claude", home, None, "11111111-1111-1111-1111-111111111111")
 
             # Nothing found means nothing to describe: no usage, no path, and
@@ -280,7 +280,7 @@ class TranscriptResolutionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as home:
             self._claude_transcript(home, "22222222-2222-2222-2222-222222222222", 9)
 
-            usage, path, match = extract_interactive_usage("claude", home)
+            usage, path, match, _model = extract_interactive_usage("claude", home)
 
             self.assertIsNotNone(path)
             self.assertEqual(usage["output_tokens"], 9)
@@ -300,7 +300,7 @@ class TranscriptResolutionTests(unittest.TestCase):
                         "total_token_usage": {"input_tokens": 10, "cached_input_tokens": 0,
                                               "output_tokens": output}}}}) + "\n")
 
-            usage, path, match = extract_interactive_usage("codex", home, None, identifier)
+            usage, path, match, _model = extract_interactive_usage("codex", home, None, identifier)
 
             self.assertIn(identifier, os.path.basename(path))
             self.assertEqual(usage["output_tokens"], 4)

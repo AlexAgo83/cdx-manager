@@ -41,7 +41,7 @@ from ..commands.launch import handle_launch
 from ..config import PROVIDER_CLAUDE
 from ..errors import CdxError
 from ..provider_runtime import AUTH_PROBE_AUTHENTICATED, AUTH_PROBE_DEGRADED, _probe_provider_auth_status
-from ..run_usage import USAGE_KEYS, weighted_usage
+from ..run_usage import USAGE_KEYS, estimate_cost, normalize_usage, token_prices, weighted_usage
 from ..status_view import _format_status_detail, _format_status_rows, format_priority_instruction, recommend_priority_rows
 
 
@@ -175,6 +175,12 @@ def _format_launch_configs(sessions, use_color=False):
     lines.append(_dim(_format_launch_settings_hint(), use_color))
     return "\n".join(lines)
 
+def _format_usd(amount):
+    if not amount:
+        return "-"
+    return f"${amount:,.2f}" if amount >= 0.01 else "<$0.01"
+
+
 def _format_duration_ms(value):
     if value is None:
         return "-"
@@ -253,6 +259,8 @@ def _summarize_stats(entries):
             "failures": 0,
             "duration_ms": 0,
             "usage_runs": 0,
+            "cost_usd": 0.0,
+            "priced_runs": 0,
             "input_tokens": 0,
             "cached_input_tokens": 0,
             "cache_creation_tokens": 0,
@@ -280,14 +288,64 @@ def _summarize_stats(entries):
             row["usage_runs"] += 1
             for key, value in parsed_usage.items():
                 row[key] += value or 0
+            # Priced per run, against the model that served it. A run whose
+            # model cdx never saw stays unpriced rather than being charged at a
+            # default tier, and `priced_runs` says how much of the figure is
+            # actually covered.
+            cost = estimate_cost(entry.get("usage"), entry.get("usage_model"))
+            if cost is not None:
+                row["cost_usd"] += cost
+                row["priced_runs"] += 1
         started = entry.get("started_at")
         if started and (not row["last_started_at"] or started > row["last_started_at"]):
             row["last_started_at"] = started
             row["provider"] = entry.get("provider") or row["provider"]
     for row in rows.values():
-        row["weighted_tokens"] = weighted_usage(row) or 0
+        # Derive from the summed parts rather than summing each run's stored
+        # total. Records written before the definition was settled carry a
+        # total that excluded cache, and adding those to correct ones produced
+        # a row that contradicted itself -- CACHE in the hundreds of millions
+        # beside a TOTAL in the low millions.
+        #
+        # Those records also lack the creation/read split, so the fused
+        # `cached_input_tokens` is the one field both eras share. Where the
+        # split is missing it is read as cache read: that is what the
+        # overwhelming majority of cached tokens are, and weighting the whole
+        # of it at the creation rate would overstate legacy sessions by more
+        # than reading it as reads understates them.
+        split = row["cache_creation_tokens"] + row["cache_read_tokens"]
+        legacy_cache = max(0, row["cached_input_tokens"] - split)
+        derived = normalize_usage(
+            input_tokens=row["input_tokens"],
+            cache_creation_tokens=row["cache_creation_tokens"],
+            cache_read_tokens=row["cache_read_tokens"] + legacy_cache,
+            output_tokens=row["output_tokens"],
+        )
+        row["total_tokens"] = derived["total_tokens"] or 0
+        row["weighted_tokens"] = weighted_usage(derived) or 0
     for row in rows.values():
-        row["weighted_tokens"] = weighted_usage(row) or 0
+        # Derive from the summed parts rather than summing each run's stored
+        # total. Records written before the definition was settled carry a
+        # total that excluded cache, and adding those to correct ones produced
+        # a row that contradicted itself -- CACHE in the hundreds of millions
+        # beside a TOTAL in the low millions.
+        #
+        # Those records also lack the creation/read split, so the fused
+        # `cached_input_tokens` is the one field both eras share. Where the
+        # split is missing it is read as cache read: that is what the
+        # overwhelming majority of cached tokens are, and weighting the whole
+        # of it at the creation rate would overstate legacy sessions by more
+        # than reading it as reads understates them.
+        split = row["cache_creation_tokens"] + row["cache_read_tokens"]
+        legacy_cache = max(0, row["cached_input_tokens"] - split)
+        derived = normalize_usage(
+            input_tokens=row["input_tokens"],
+            cache_creation_tokens=row["cache_creation_tokens"],
+            cache_read_tokens=row["cache_read_tokens"] + legacy_cache,
+            output_tokens=row["output_tokens"],
+        )
+        row["total_tokens"] = derived["total_tokens"] or 0
+        row["weighted_tokens"] = weighted_usage(derived) or 0
     return sorted(
         rows.values(),
         # Ranked by what a session cost, not by how many tokens it moved: a
@@ -308,6 +366,8 @@ def _stats_totals(rows):
         "usage_runs": sum(row["usage_runs"] for row in rows),
         **{key: sum(row[key] for row in rows) for key in USAGE_KEYS},
         "weighted_tokens": sum(row["weighted_tokens"] for row in rows),
+        "cost_usd": sum(row["cost_usd"] for row in rows),
+        "priced_runs": sum(row["priced_runs"] for row in rows),
     }
 
 def _format_history_period(period):
@@ -399,7 +459,7 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
     if not rows:
         return "No launch stats for this period." if _has_history_period(period or {}) else "No launch stats."
     table = [[_style(value, "1", use_color) for value in [
-        "SESSION", "PROV.", "RUNS", "USAGE", "IN", "CACHE", "OUT", "REASON", "TOTAL", "COST~", "TIME", "LAST"
+        "SESSION", "PROV.", "RUNS", "USAGE", "IN", "CACHE", "OUT", "REASON", "TOTAL", "COST~", "USD~", "TIME", "LAST"
     ]]]
     for row in rows:
         session_name = row["session_name"]
@@ -415,6 +475,8 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
             _style(_format_token_count(row["reasoning_tokens"]), "95" if row["reasoning_tokens"] else "2", use_color),
             _style(_format_token_count(row["total_tokens"]), "96" if row["total_tokens"] else "2", use_color),
             _style(_format_token_count(row["weighted_tokens"]), "1;95" if row["weighted_tokens"] else "2", use_color),
+            _style(_format_usd(row["cost_usd"]) if row["priced_runs"] else "-",
+                   "1;33" if row["priced_runs"] else "2", use_color),
             _style(_format_duration_ms(row["duration_ms"]), "33" if row["duration_ms"] else "2", use_color),
             _dim(_format_relative_age(row.get("last_started_at")), use_color),
         ])
@@ -429,7 +491,10 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
             "Totals: "
             f"{totals['launches']} runs, {totals['usage_runs']} with usage, "
             f"{_format_token_count(totals['total_tokens'])} tokens "
-            f"({_format_token_count(totals['weighted_tokens'])} cost-equivalent), "
+            f"({_format_token_count(totals['weighted_tokens'])} cost-equivalent"
+            + (f", {_format_usd(totals['cost_usd'])} at list on {totals['priced_runs']} priced run"
+               f"{'s' if totals['priced_runs'] != 1 else ''} [{token_prices()[1]}]"
+               if totals["priced_runs"] else ", no run priced") + "), "
             f"{_format_duration_ms(totals['duration_ms'])}.",
             use_color,
         ),

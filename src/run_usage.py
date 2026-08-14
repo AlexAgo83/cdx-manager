@@ -130,6 +130,71 @@ def weighted_usage(usage):
     return int(round(sum(present)))
 
 
+#: List prices in dollars per million *uncached input* tokens. Every other rate
+#: is already folded into USAGE_WEIGHTS, so one number per model prices a run.
+#:
+#: This is the one genuinely perishable input in cdx's usage accounting: the
+#: ratios above hold across the lineup, but these change when a provider
+#: repricess. Override with CDX_TOKEN_PRICES (JSON, model -> dollars per MTok)
+#: rather than editing code, and treat an unknown model as unpriced instead of
+#: assuming a tier.
+DEFAULT_TOKEN_PRICES = {
+    "claude-fable-5": 10.0,
+    "claude-mythos-5": 10.0,
+    "claude-opus-5": 5.0,
+    "claude-opus-4-8": 5.0,
+    "claude-opus-4-7": 5.0,
+    "claude-opus-4-6": 5.0,
+    "claude-sonnet-5": 3.0,
+    "claude-sonnet-4-6": 3.0,
+    "claude-haiku-4-5": 1.0,
+}
+TOKEN_PRICES_REVIEWED = "2026-08-14"
+TOKEN_PRICES_ENV = "CDX_TOKEN_PRICES"
+
+
+def token_prices(env=None):
+    """The price table in force, and where it came from."""
+    import os
+
+    environment = env if env is not None else os.environ
+    raw = environment.get(TOKEN_PRICES_ENV)
+    if raw:
+        try:
+            overrides = json.loads(raw)
+        except ValueError:
+            return dict(DEFAULT_TOKEN_PRICES), f"built-in, reviewed {TOKEN_PRICES_REVIEWED} ({TOKEN_PRICES_ENV} ignored: not JSON)"
+        if isinstance(overrides, dict):
+            merged = {**DEFAULT_TOKEN_PRICES}
+            merged.update({str(k): float(v) for k, v in overrides.items()})
+            return merged, TOKEN_PRICES_ENV
+    return dict(DEFAULT_TOKEN_PRICES), f"built-in, reviewed {TOKEN_PRICES_REVIEWED}"
+
+
+def estimate_cost(usage, model, prices=None):
+    """Dollars this usage would list at, or None when it cannot be priced.
+
+    ponytail: a run is priced at one model -- the one serving its most recent
+    record -- rather than split per model. A session that switches models
+    mid-run is priced at the newer one. Upgrade path if that matters: have the
+    readers return a per-model breakdown and difference each model separately;
+    the delta machinery already generalizes to a dict.
+
+    An unknown or absent model yields None. Pricing it at a default tier would
+    turn "cdx does not know" into a number someone might believe.
+    """
+    if not model:
+        return None
+    table = prices if prices is not None else token_prices()[0]
+    rate = table.get(model)
+    if rate is None:
+        return None
+    equivalent = weighted_usage(usage)
+    if equivalent is None:
+        return None
+    return equivalent / 1_000_000 * rate
+
+
 def claude_usage_dedup_key(record):
     """What identifies one *billed* Claude API response in a transcript.
 
