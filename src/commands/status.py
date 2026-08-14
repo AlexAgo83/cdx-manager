@@ -260,6 +260,7 @@ def _summarize_stats(entries):
             "duration_ms": 0,
             "usage_runs": 0,
             "cost_usd": 0.0,
+            "weighted_tokens": 0,
             "priced_runs": 0,
             "unpriced_models": set(),
             "input_tokens": 0,
@@ -293,6 +294,11 @@ def _summarize_stats(entries):
             # model cdx never saw stays unpriced rather than being charged at a
             # default tier, and `priced_runs` says how much of the figure is
             # actually covered.
+            # Weighted per entry, not on the summed row: the output ratio is
+            # the one multiplier that differs between vendors, and a session's
+            # runs can span models.
+            row["weighted_tokens"] += weighted_usage(
+                entry.get("usage"), entry.get("usage_model")) or 0
             cost = estimate_cost(entry.get("usage"), entry.get("usage_model"))
             if cost is not None:
                 row["cost_usd"] += cost
@@ -328,7 +334,10 @@ def _summarize_stats(entries):
             output_tokens=row["output_tokens"],
         )
         row["total_tokens"] = derived["total_tokens"] or 0
-        row["weighted_tokens"] = weighted_usage(derived) or 0
+        if not row["weighted_tokens"]:
+            # Records written before the model was recorded: weigh the row as a
+            # whole, at the default ratio, rather than reporting nothing.
+            row["weighted_tokens"] = weighted_usage(derived) or 0
         row["unpriced_models"] = sorted(row["unpriced_models"])
     for row in rows.values():
         # Derive from the summed parts rather than summing each run's stored
@@ -352,7 +361,10 @@ def _summarize_stats(entries):
             output_tokens=row["output_tokens"],
         )
         row["total_tokens"] = derived["total_tokens"] or 0
-        row["weighted_tokens"] = weighted_usage(derived) or 0
+        if not row["weighted_tokens"]:
+            # Records written before the model was recorded: weigh the row as a
+            # whole, at the default ratio, rather than reporting nothing.
+            row["weighted_tokens"] = weighted_usage(derived) or 0
         row["unpriced_models"] = sorted(row["unpriced_models"])
     return sorted(
         rows.values(),

@@ -730,12 +730,18 @@ Ranking on the raw total would put a session that mostly replayed a cache above 
 
 The **`USD~`** column turns that into money for runs whose serving model cdx recorded. It needs one number per model — the list price per million uncached input tokens — because `COST~` has already absorbed every other rate. Prices live in configuration, not in code: set `CDX_TOKEN_PRICES` to a JSON object mapping model id to dollars per million tokens to override the built-in table, whose last review date is printed with the totals. A run whose model cdx never saw stays unpriced rather than being charged at a default tier, and the totals line says how many runs were actually priced.
 
-Three caveats stated rather than hidden. A run is priced at the model serving its most recent record, so a run that switched models mid-way is priced at the newer one. The figure is an estimate at public list prices — not an invoice. And the built-in table carries **Anthropic models only**: a Codex or Ollama run is measured and weighted like any other, but its `USD~` stays empty, because cdx will not ship a price it cannot vouch for. The totals line names any model it could not price, which is exactly the key `CDX_TOKEN_PRICES` needs:
+The table carries two numbers per model — uncached input and output per million tokens — and derives the cache rates from the input rate: a cache read is 0.1x it and a cache write 1.25x, a relationship that holds on both vendors. Each token class is then priced at its own rate rather than through the weighted figure, because the weighted shortcut is only correct while every model shares one output ratio, and they do not: Anthropic bills output at 5x input, OpenAI at 6x.
+
+Three caveats stated rather than hidden. A run is priced at the model serving its most recent record, so a run that switched models mid-way is priced at the newer one. The figure is an estimate at public list prices — not an invoice. And OpenAI's long-context tier, which roughly doubles both rates above a 272K-token request, is **not** modelled: cdx records tokens per run rather than per request, so it cannot tell which requests crossed that line, and long-context Codex work is under-costed.
+
+A model absent from the table stays unpriced rather than being charged a default tier, and the totals line names it — which is exactly the key `CDX_TOKEN_PRICES` wants:
 
 ```
-Totals: 26 runs, ... ($0.41 at list on 7 priced runs [built-in, reviewed 2026-08-14]; no price for gpt-5.6-terra)
-CDX_TOKEN_PRICES='{"gpt-5.6-terra": 1.25}' cdx stats
+Totals: 26 runs, ... ; no price for gpt-6-unreleased)
+CDX_TOKEN_PRICES='{"gpt-6-unreleased": {"input": 3, "output": 18}}' cdx stats
 ```
+
+**Prices are the only part of this that rots on its own.** A test fails once the table has gone 90 days without review, and `scripts/check_token_prices.py` compares it against published pricing — outside the test suite, since a check that needs the network fails for reasons nobody wants in CI. A row it cannot confirm is reported as unverified, never as passing. When it finds a difference, update `DEFAULT_TOKEN_PRICES` and `TOKEN_PRICES_REVIEWED` and cut a corrective release.
 
 Runs recorded before these definitions existed are shown as faithfully as their data allows: they carry no creation/read split and no model, so their cached tokens are read as cache reads for weighting and they stay unpriced. `cdx stats` derives each row's `TOTAL` from the columns it displays, so a row always adds up even while history spans both eras.
 

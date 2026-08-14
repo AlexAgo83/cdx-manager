@@ -87,27 +87,33 @@ def normalize_usage(input_tokens=None, cache_creation_tokens=None, cache_read_to
     return {**parts, "cached_input_tokens": cached, "total_tokens": total}
 
 
-#: What each token class costs relative to one uncached input token.
+#: What a cached token costs relative to one uncached input token.
 #:
-#: Ratios, not prices. Across the current model lineup output is 5x input on
-#: every model and the cache multipliers do not vary by model either; only the
-#: absolute price per million tokens changes between tiers. So a weighted
-#: figure needs no per-model table and cannot go stale the way a price list
-#: would -- which is exactly why cdx weights rather than prices.
-#:
-#: The cache-write multiplier is the five-minute TTL. A one-hour TTL is 2x, and
-#: nothing in a transcript says which was used, so this under-weights long-TTL
-#: writes. Cache writes are a small share of a cache-heavy session's tokens, so
-#: the error is bounded and stated rather than hidden behind a guess.
-USAGE_WEIGHTS = {
-    "input_tokens": 1.0,
-    "cache_creation_tokens": 1.25,
-    "cache_read_tokens": 0.1,
-    "output_tokens": 5.0,
-}
+#: Verified against both vendors on 2026-08-14 and identical on each: a cache
+#: read is a 90% discount on the input rate, and a cache write is 1.25x it.
+#: Anthropic's one-hour cache TTL costs 2x instead; nothing in a transcript
+#: says which TTL was used, so long-TTL writes are under-weighted. Cache writes
+#: are a small share of a cache-heavy session, so that error is bounded --
+#: stated here rather than hidden behind a single averaged number.
+CACHE_READ_MULTIPLIER = 0.1
+CACHE_WRITE_MULTIPLIER = 1.25
+
+#: What an output token costs relative to an uncached input one, when the model
+#: is unknown. Anthropic bills 5x and OpenAI 6x, so an unknown model is priced
+#: at the lower of the two: understating a cost cdx is guessing at is the safer
+#: direction.
+DEFAULT_OUTPUT_MULTIPLIER = 5.0
 
 
-def weighted_usage(usage):
+def output_multiplier(model, prices=None):
+    """This model's output-to-input price ratio."""
+    entry = (prices if prices is not None else token_prices()[0]).get(model or "")
+    if not entry:
+        return DEFAULT_OUTPUT_MULTIPLIER
+    return entry["output"] / entry["input"]
+
+
+def weighted_usage(usage, model=None, prices=None):
     """Consumption in uncached-input-equivalent tokens, or None if unknown.
 
     A raw token total ranks a cache read equal to an output token worth fifty
@@ -115,14 +121,24 @@ def weighted_usage(usage):
     tokens -- so a raw total is very nearly a measure of cache reads alone.
     That is not the ranking anyone reading `cdx stats` is looking for.
 
-    `reasoning_tokens` is deliberately absent from the weights: Codex reports
-    it as a subset of its output, and adding it would count those tokens twice.
+    The output ratio comes from the model that served the run, because it is
+    the one multiplier that differs between vendors. The cache multipliers do
+    not, so they are constants.
+
+    `reasoning_tokens` is deliberately excluded: Codex reports it as a subset
+    of its output, and counting it would bill those tokens twice.
     """
     if not isinstance(usage, dict):
         return None
+    weights = {
+        "input_tokens": 1.0,
+        "cache_creation_tokens": CACHE_WRITE_MULTIPLIER,
+        "cache_read_tokens": CACHE_READ_MULTIPLIER,
+        "output_tokens": output_multiplier(model, prices),
+    }
     present = [
         weight * usage[key]
-        for key, weight in USAGE_WEIGHTS.items()
+        for key, weight in weights.items()
         if usage.get(key) is not None
     ]
     if not present:
@@ -130,34 +146,44 @@ def weighted_usage(usage):
     return int(round(sum(present)))
 
 
-#: List prices in dollars per million *uncached input* tokens. Every other rate
-#: is already folded into USAGE_WEIGHTS, so one number per model prices a run.
+#: List prices in dollars per million tokens: uncached input and output. The
+#: cache classes are derived from the input rate by the multipliers above, an
+#: invariant that holds on both vendors, so two numbers price a model.
 #:
-#: This is the one genuinely perishable input in cdx's usage accounting: the
-#: ratios above hold across the lineup, but these change when a provider
-#: reprices. Override with CDX_TOKEN_PRICES (JSON, model -> dollars per MTok)
+#: This is the one genuinely perishable input in cdx's usage accounting.
+#: Override with CDX_TOKEN_PRICES (JSON: model -> {"input": x, "output": y})
 #: rather than editing code, and treat an unknown model as unpriced instead of
-#: assuming a tier.
+#: assuming a tier. `scripts/check_token_prices.py` re-checks this table
+#: against published pricing; a staleness test fails when nobody has.
 #:
-#: Anthropic models only, deliberately. cdx can state these with confidence; it
-#: cannot do the same for another vendor's, and a plan-based subscription makes
-#: "list price per MTok" a shakier notion there anyway. A Codex run is measured
-#: and weighted like any other -- only the currency column stays empty, and the
-#: totals line names the model so CDX_TOKEN_PRICES can fill it in. Shipping a
-#: guessed price would be the one failure this whole definition exists to
-#: prevent, committed in the column users trust most.
+#: Anthropic figures come from the vendor's own reference. OpenAI figures were
+#: taken from third-party aggregators on 2026-08-14 because openai.com refuses
+#: automated fetches; four sources agreed on $2.50/$15 for Terra and one
+#: outlier said $2/$12, so these carry more doubt than the Anthropic rows.
+#:
+#: Not modelled: OpenAI's long-context tier, which roughly doubles both rates
+#: above a 272K-token request. cdx records tokens per run, not per request, so
+#: it cannot tell which requests crossed that line -- long-context Codex work
+#: is therefore under-costed here, and knowingly so.
 DEFAULT_TOKEN_PRICES = {
-    "claude-fable-5": 10.0,
-    "claude-mythos-5": 10.0,
-    "claude-opus-5": 5.0,
-    "claude-opus-4-8": 5.0,
-    "claude-opus-4-7": 5.0,
-    "claude-opus-4-6": 5.0,
-    "claude-sonnet-5": 3.0,
-    "claude-sonnet-4-6": 3.0,
-    "claude-haiku-4-5": 1.0,
+    # Anthropic
+    "claude-fable-5": {"input": 10.0, "output": 50.0},
+    "claude-mythos-5": {"input": 10.0, "output": 50.0},
+    "claude-opus-5": {"input": 5.0, "output": 25.0},
+    "claude-opus-4-8": {"input": 5.0, "output": 25.0},
+    "claude-opus-4-7": {"input": 5.0, "output": 25.0},
+    "claude-opus-4-6": {"input": 5.0, "output": 25.0},
+    "claude-sonnet-5": {"input": 3.0, "output": 15.0},
+    "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
+    "claude-haiku-4-5": {"input": 1.0, "output": 5.0},
+    # OpenAI
+    "gpt-5.6-sol": {"input": 5.0, "output": 30.0},
+    "gpt-5.6-terra": {"input": 2.5, "output": 15.0},
+    "gpt-5.6-luna": {"input": 1.0, "output": 6.0},
 }
 TOKEN_PRICES_REVIEWED = "2026-08-14"
+#: How long a review stays fresh before the staleness test asks for another.
+TOKEN_PRICES_MAX_AGE_DAYS = 90
 TOKEN_PRICES_ENV = "CDX_TOKEN_PRICES"
 
 
@@ -174,7 +200,10 @@ def token_prices(env=None):
             return dict(DEFAULT_TOKEN_PRICES), f"built-in, reviewed {TOKEN_PRICES_REVIEWED} ({TOKEN_PRICES_ENV} ignored: not JSON)"
         if isinstance(overrides, dict):
             merged = {**DEFAULT_TOKEN_PRICES}
-            merged.update({str(k): float(v) for k, v in overrides.items()})
+            for name, entry in overrides.items():
+                if isinstance(entry, dict) and "input" in entry and "output" in entry:
+                    merged[str(name)] = {
+                        "input": float(entry["input"]), "output": float(entry["output"])}
             return merged, TOKEN_PRICES_ENV
     return dict(DEFAULT_TOKEN_PRICES), f"built-in, reviewed {TOKEN_PRICES_REVIEWED}"
 
@@ -182,25 +211,37 @@ def token_prices(env=None):
 def estimate_cost(usage, model, prices=None):
     """Dollars this usage would list at, or None when it cannot be priced.
 
+    Each token class is priced directly rather than through the weighted
+    figure. That shortcut was only correct while every model shared one
+    output-to-input ratio, and it does not: Anthropic bills 5x, OpenAI 6x, so
+    it under-costed Codex output by a fifth.
+
     ponytail: a run is priced at one model -- the one serving its most recent
     record -- rather than split per model. A session that switches models
     mid-run is priced at the newer one. Upgrade path if that matters: have the
-    readers return a per-model breakdown and difference each model separately;
-    the delta machinery already generalizes to a dict.
+    readers return a per-model breakdown and difference each model separately.
 
     An unknown or absent model yields None. Pricing it at a default tier would
     turn "cdx does not know" into a number someone might believe.
     """
-    if not model:
+    if not model or not isinstance(usage, dict):
         return None
-    table = prices if prices is not None else token_prices()[0]
-    rate = table.get(model)
+    rate = (prices if prices is not None else token_prices()[0]).get(model)
     if rate is None:
         return None
-    equivalent = weighted_usage(usage)
-    if equivalent is None:
+    per_million = {
+        "input_tokens": rate["input"],
+        "cache_read_tokens": rate["input"] * CACHE_READ_MULTIPLIER,
+        "cache_creation_tokens": rate["input"] * CACHE_WRITE_MULTIPLIER,
+        "output_tokens": rate["output"],
+    }
+    present = [
+        price * usage[key] for key, price in per_million.items()
+        if usage.get(key) is not None
+    ]
+    if not present:
         return None
-    return equivalent / 1_000_000 * rate
+    return sum(present) / 1_000_000
 
 
 def claude_usage_dedup_key(record):
