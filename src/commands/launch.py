@@ -25,7 +25,7 @@ from ..cli_render import _dim, _info, _success, _warn
 from ..config import PROVIDER_CODEX
 from ..context_store import install_context_for_session, write_context
 from ..errors import CdxError
-from ..interactive_usage import extract_interactive_usage
+from ..interactive_usage import extract_interactive_usage, transcript_predates_run, usage_delta
 from ..provider_runtime import _ensure_session_authentication, _get_auth_home, _run_interactive_provider_command
 
 
@@ -265,7 +265,9 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         )
     except CdxError as error:
         run_info = getattr(error, "run_info", {}) or {}
-        _attach_interactive_usage(session, run_info)
+        run_info = _attach_interactive_usage(
+            session, run_info, ctx["service"]["get_launch_history"](session["name"], limit=50)
+        )
         if runtime_run_id:
             ctx["service"]["finish_session_runtime"](
                 session["name"],
@@ -286,7 +288,9 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         "action": "resume" if resume else "launch",
         "cwd": cwd,
         "exit_code": 0,
-        **_attach_interactive_usage(session, run_info),
+        **_attach_interactive_usage(
+            session, run_info, ctx["service"]["get_launch_history"](session["name"], limit=50)
+        ),
     })
     if json_flag:
         extra = {"session": ctx["service"]["get_session"](session["name"]), "cwd": cwd}
@@ -296,17 +300,53 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
     return 0
 
 
-def _attach_interactive_usage(session, run_info):
-    """Attach best-effort local provider usage without affecting launch outcome."""
+def _attach_interactive_usage(session, run_info, history=None):
+    """Attach this run's own token usage without affecting launch outcome.
+
+    Both interactive readers report a cumulative figure, so what a run *stores*
+    has to be the increment over the previous run on the same transcript --
+    otherwise a resumed session re-bills its whole history on every resume, and
+    `cdx stats` sums that inflation again.
+
+    The cumulative is kept beside the delta as `usage_cumulative`: it is the
+    baseline the next run differences against, and without it a single run that
+    recorded nothing would break the chain for every run after it.
+    """
     run_info = dict(run_info or {})
-    usage, provider_transcript = extract_interactive_usage(
-        session.get("provider"), _get_auth_home(session), run_info.get("started_at")
+    started_at = run_info.get("started_at")
+    cumulative, provider_transcript = extract_interactive_usage(
+        session.get("provider"), _get_auth_home(session), started_at
     )
-    if usage:
-        run_info["usage"] = usage
     if provider_transcript:
         run_info["provider_transcript_path"] = provider_transcript
+    if not cumulative:
+        return run_info
+
+    run_info["usage_cumulative"] = cumulative
+    previous = _previous_cumulative(history, provider_transcript)
+    if previous is not None:
+        delta = usage_delta(cumulative, previous)
+        if delta is not None:
+            run_info["usage"] = delta
+        # A None delta means the transcript shrank, rotated, or was replaced.
+        # The baseline above still updates, so the next run recovers.
+    elif not transcript_predates_run(provider_transcript, started_at):
+        # First sighting of a transcript this run created: all of it is ours.
+        run_info["usage"] = cumulative
     return run_info
+
+
+def _previous_cumulative(history, transcript_path):
+    """The cumulative the last run on this same transcript left behind."""
+    if not history or not transcript_path:
+        return None
+    for entry in history:
+        if entry.get("provider_transcript_path") != transcript_path:
+            continue
+        cumulative = entry.get("usage_cumulative")
+        if isinstance(cumulative, dict):
+            return cumulative
+    return None
 
 def handle_handoff(rest, ctx):
     json_flag, args = _parse_json_flag(rest)

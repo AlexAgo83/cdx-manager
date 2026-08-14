@@ -133,3 +133,72 @@ def _number(value):
         return max(0, int(value or 0))
     except (TypeError, ValueError):
         return 0
+
+
+#: The quantities a provider actually reports. The other two fields of a usage
+#: record are derived by `normalize_usage` and must never be differenced.
+MEASURED_KEYS = (
+    "input_tokens",
+    "cache_creation_tokens",
+    "cache_read_tokens",
+    "output_tokens",
+    "reasoning_tokens",
+)
+
+
+def usage_delta(cumulative, previous):
+    """What this run added to a transcript that already held `previous`.
+
+    Both readers return a *cumulative* figure: Claude's is the sum over the
+    whole transcript file, Codex's is its own running total for the
+    conversation. Storing that on every run and summing across runs billed a
+    resumed session for its entire history once per resume -- one observed
+    session's cache read went from 2.6M to 7.6M on a single additional launch.
+
+    Returns None when the difference cannot be trusted: a transcript that
+    shrank, rotated, or was replaced produces a negative component, and there
+    is no arithmetic that recovers the truth from that. Absence is recoverable
+    on the next run; a fabricated number is not.
+    """
+    if not isinstance(cumulative, dict):
+        return None
+    if not isinstance(previous, dict):
+        return None
+    parts = {}
+    for key in MEASURED_KEYS:
+        now = cumulative.get(key)
+        before = previous.get(key)
+        if now is None:
+            parts[key] = None
+            continue
+        difference = now - (before or 0)
+        if difference < 0:
+            return None
+        parts[key] = difference
+    return normalize_usage(**parts)
+
+
+def transcript_predates_run(path, started_at):
+    """Whether this transcript already existed before the run began.
+
+    Decides what the *first* run against a given transcript may record. A
+    transcript created during the run is wholly this run's work, so its total
+    is the run's usage. One that predates the run holds history cdx never
+    measured, and attributing all of it to this run would commit the very
+    over-count the delta exists to prevent -- so that run reports absence and
+    only leaves the baseline behind for its successor.
+    """
+    cutoff = _timestamp(started_at)
+    if cutoff is None or not path:
+        return False
+    try:
+        stat = os.stat(path)
+    except OSError:
+        return False
+    # st_birthtime where the platform records it (macOS, some BSDs); st_ctime
+    # elsewhere, where it means metadata change and is an upper bound on
+    # creation -- which errs toward "predates", the conservative answer.
+    created = getattr(stat, "st_birthtime", None)
+    if created is None:
+        created = stat.st_ctime
+    return created < cutoff
