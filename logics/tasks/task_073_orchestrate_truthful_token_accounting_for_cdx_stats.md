@@ -4,7 +4,7 @@
 > Status: In progress
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 60%
+> Progress: 80%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -28,9 +28,9 @@
 - [x] 5. Normalize at the run registry boundary so the JSON surfaces publish the shared shape, then reconcile the README's token claims — the column meanings, the "never counted twice" invariant at `README.md:711`, and the headless-only description at `README.md:540` — against what the code now does.
 - [x] 6. Then fix what a run stores. The delta work depends on the definitions being settled, and it is the change that actually stops the numbers inflating on resume. Use the already-recorded `provider_transcript_path` as the anchor, establish an equivalent anchor for the background path which has none, and decide explicitly what a first run against a pre-existing transcript records.
 - [x] 7. Handle the degenerate transcript cases — shrunk, rotated, replaced — as absence rather than as arithmetic. A missing number is recoverable; a wrong one is not.
-- [ ] 8. Replace the mtime guess with conversation-id resolution last, so the delta tests are already green and any coverage change is attributable to this step alone. Reuse `find_session_transcript` (`src/provider_background.py:193`), which already does this for the background path — the outcome is one resolver, not a better second one.
-- [ ] 9. Measure coverage against real launch history before and after, and report the share of runs carrying usage rather than asserting the fix worked. Reconcile the corrected totals against the external ccusage tool run per session as HOME=<auth_home> npx ccusage --json — an independent reader of the same transcripts. Today the two differ by roughly 800x, so agreement is the strongest available evidence the fix landed.
-- [ ] 10. Keep the non-fatal guarantee under test throughout: no change here may turn a missing or unreadable transcript into a failed launch.
+- [x] 8. Replace the mtime guess with conversation-id resolution last, so the delta tests are already green and any coverage change is attributable to this step alone. Reuse `find_session_transcript` (`src/provider_background.py:193`), which already does this for the background path — the outcome is one resolver, not a better second one.
+- [x] 9. Measure coverage against real launch history before and after, and report the share of runs carrying usage rather than asserting the fix worked. Reconcile the corrected totals against the external ccusage tool run per session as HOME=<auth_home> npx ccusage --json — an independent reader of the same transcripts. Today the two differ by roughly 800x, so agreement is the strongest available evidence the fix landed.
+- [x] 10. Keep the non-fatal guarantee under test throughout: no change here may turn a missing or unreadable transcript into a failed launch.
 - [ ] 11. Weight the token classes and rank by the result, once the fields are split and the deltas are correct. Record the weights as ratios relative to uncached input with the rationale beside them — they are provider ratios, not prices, which is why no per-model table is needed and why this cannot go stale.
 - [ ] 12. Leave currency last and separate. It needs the serving model per run, read from the transcript rather than inferred from the session's configured launch settings, and it is the one part of this request carrying a perishable input. Ship the weighted ranking without it if attribution proves harder than expected — the ranking is what makes the numbers actionable.
 - [ ] 13. Run the usage, status, and runs test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.
@@ -69,6 +69,8 @@
 # Validation
 - Wave A (plan steps 1-5), 2026-08-14: `npm test` 906 passed, `npm run lint` all checks passed. Baseline before the change was 898 passed.
 - Wave B (plan steps 6-7), 2026-08-14: `npm test` 914 passed, `npm run lint` all checks passed.
+- Wave C (plan steps 8-10), 2026-08-14: `npm test` 918 passed, `npm run lint` all checks passed.
+- Coverage measured against the real store rather than asserted: before, 33 of 1006 recorded runs carried any usage (3.3%). After, 12 of 13 claude/codex sessions carry a conversation id and all 12 resolve to an existing transcript; only `work5` has no id, and it has not been launched in nine days. The post-change run-level share cannot be measured until runs accumulate under the new resolution.
 - Oracle reconciliation on one real 2741-row Claude transcript, cdx reader against an independent reader of the same bytes: exact agreement on all four measured fields (input 3321, cache creation 2671168, cache read 797566574, output 820410). Before the de-duplication fix the same file read 1.55x high.
 
 # Report
@@ -79,7 +81,10 @@
 - **Degenerate transcripts report absence, never arithmetic.** A shrunk, rotated, or replaced transcript yields a negative component, so the whole delta is voided while the baseline still advances and the next run recovers. The first run against a transcript that predates it leaves a baseline and records nothing, because attributing an unmeasured history to one run is the same over-count the delta exists to prevent, committed once instead of N times.
 - **A sixth defect fixed in passing:** the failure path in `handle_launch` called `_attach_interactive_usage` and discarded its return value, so a failed launch recorded no usage at all.
 - **One scope item was found unnecessary rather than skipped.** `item_127` asked for delta handling on the native background path. It is not needed: `provider_session_id` is the agent id the provider assigns per `--bg` invocation (`src/commands/runs.py:322`), the agent is stopped at reconcile, and each run therefore reads a transcript created for it alone. There is nothing to accumulate, so the cumulative *is* the increment. Adding a baseline store there would solve a problem the code cannot reach.
-- Waves C and D (transcript resolution by conversation id, weighting and currency) are untouched. `cdx stats` still shows historical figures for runs already in launch history: repairing those is explicitly out of scope for `item_127`.
+- **Wave C delivered** in 996380f. Resolution is by conversation id, reusing `find_session_transcript` for Claude so one rule answers the question, and matching the id Codex repeats in its rollout filename. A session whose id resolves to nothing reports absence rather than falling back to the scan, because a wrong attribution is worse than a missing one — that fallback *was* the defect. The scan survives only for sessions with no id, and the record says which of the two produced the number (`provider_transcript_match`).
+- **The scan's escape hatches were reporting guesses as measurements.** Exhausting the one-second deadline or the 1000-candidate cap used to return whichever candidate had been reached so far. Both now report absence.
+- **The non-fatal guarantee held throughout**: every change here returns absence on failure, and no path added an exception to a launch.
+- Wave D (weighting and currency) is untouched. `cdx stats` still shows historical figures for runs already in launch history: repairing those is explicitly out of scope for `item_127`.
 - Out of scope, worth its own request: `test_runtime_py.py::test_non_interactive_and_non_claude_specs_keep_claude_title_writes_untouched` reads the ambient environment, so it fails whenever the suite runs inside a Claude Code session (which exports `CLAUDE_CODE_DISABLE_TERMINAL_TITLE`). It passes under `env -u CLAUDE_CODE_DISABLE_TERMINAL_TITLE`. Pre-existing, unrelated to this task.
 
 # Links
