@@ -1,0 +1,348 @@
+{
+  "budgets": {
+    "max_docs": 12,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript.md",
+    "logics/product/prod_048_ollama_sessions_report_real_token_usage.md",
+    "logics/request/req_062_track_token_usage_for_interactive_ollama_sessions.md",
+    "logics/scaffold/track_ollama_token_usage.json",
+    "logics/tasks/task_072_orchestrate_ollama_token_usage_tracking.md"
+  ],
+  "command": "logics-manager sync context-pack req_062_track_token_usage_for_interactive_ollama_sessions item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript task_072_orchestrate_ollama_token_usage_tracking --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript"
+        ],
+        "prod": [
+          "prod_048_ollama_sessions_report_real_token_usage"
+        ],
+        "req": [
+          "req_062_track_token_usage_for_interactive_ollama_sessions"
+        ],
+        "task": [
+          "task_072_orchestrate_ollama_token_usage_tracking"
+        ]
+      },
+      "path": "logics/product/prod_048_ollama_sessions_report_real_token_usage.md",
+      "ref": "prod_048_ollama_sessions_report_real_token_usage",
+      "sections": {
+        "Goals": [
+          "- Make `cdx stats`/`cdx history` show real token counts for ollama sessions, matching the coverage claude and codex already have.",
+          "- Reuse the existing per-provider usage-parser pattern instead of building a new usage-source abstraction.",
+          "- Keep the best-effort, fail-soft contract: an ollama output-format change degrades to absent usage, never a launch failure.",
+          "- Record, rather than silently drop, the finding that antigravity usage is not retrievable with current provider surfaces."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Extend cdx's existing usage-tracking to cover interactive ollama sessions by turning on ollama's built-in verbose token-count output and parsing it from the terminal transcript cdx already captures, so `cdx stats`/`cdx history` stop showing a hardcoded zero for ollama."
+        ],
+        "References": [
+          "- Product back-reference: `req_062_track_token_usage_for_interactive_ollama_sessions`",
+          "- Task back-reference: `task_072_orchestrate_ollama_token_usage_tracking`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Ollama sessions report real token usage"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "track, token, usage, interactive, ollama, sessions",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript"
+        ],
+        "prod": [
+          "prod_048_ollama_sessions_report_real_token_usage"
+        ],
+        "req": [
+          "req_062_track_token_usage_for_interactive_ollama_sessions"
+        ]
+      },
+      "path": "logics/request/req_062_track_token_usage_for_interactive_ollama_sessions.md",
+      "ref": "req_062_track_token_usage_for_interactive_ollama_sessions",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: `ollama` is added to `run_usage.SUPPORTED_PROVIDERS` so a non-interactive ollama run's usage is no longer unconditionally suppressed.",
+          "- AC2: cdx passes `--verbose` when launching an interactive ollama session, without changing ollama's launch behavior for the user (model, prompt, and other existing args are unaffected).",
+          "- AC3: `interactive_usage.extract_interactive_usage` returns non-empty `input_tokens`/`output_tokens`/`total_tokens` for an ollama session whose captured transcript contains a `--verbose` stats block, sourced from the cdx-generated terminal transcript (not a provider-native directory scan, since none exists for ollama).",
+          "- AC4: A malformed, missing, or format-changed ollama verbose block results in `empty_usage()`-shaped absence, not an exception, consistent with the existing best-effort contract documented on `extract_interactive_usage`.",
+          "- AC5: `cdx stats` and `cdx history` show non-zero token totals for an ollama session after a real interactive run with `--verbose` output present, verified by a test with a representative captured transcript fixture.",
+          "- AC6: Existing `claude` and `codex` usage extraction behavior is unchanged; the ollama branch is additive."
+        ],
+        "Needs": [
+          "- `cdx stats` and `cdx history` report token usage for `claude` and `codex` sessions but always show zero for `ollama` sessions, even after real runs, because ollama is absent from both usage-extraction paths.",
+          "- `src/run_usage.py:4` hardcodes `SUPPORTED_PROVIDERS = {\"claude\", \"codex\"}`, so `extract_run_usage` (`src/run_usage.py:11`) returns `empty_usage()` unconditionally for `ollama` regardless of what the run actually produced.",
+          "- `src/interactive_usage.py:11`'s `extract_interactive_usage`, which is what actually feeds `cdx history`/`cdx stats` for interactive launches (called from `_attach_interactive_usage` in `src/commands/launch.py:299`), only branches on `codex` vs. everything-else-treated-as-`claude` (`src/interactive_usage.py:19`) and its `_latest_transcript` helper (`src/interactive_usage.py:29`) only knows the `codex` `sessions/` directory and the claude `.claude/projects/` directory under `auth_home` \u2014 there is no ollama case at all.",
+          "- Ollama has no provider-native transcript directory under `auth_home` the way codex and claude do: `src/provider_runtime.py:591-606` launches it as a plain `ollama run <model>` with no `HOME`/config-dir override, so there is nothing under `auth_home` to scan for a fixed-format transcript.",
+          "- Ollama's CLI does support a `--verbose` flag that prints a token-count stats block (prompt eval count, eval count) to the terminal after each response, but cdx does not currently pass that flag, and that output only ever lands in the generic terminal transcript that `_wrap_launch_with_transcript` (`src/provider_runtime.py:475`) already tees to `run_info[\"transcript_path\"]` for every provider \u2014 not in an ollama-native log file.",
+          "- A prior investigation this session also looked at extracting usage for the `antigravity` provider and found no viable source: its conversation history is stored in schema-less binary protobuf files (`~/.gemini/antigravity-cli/conversations/*.pb`) with no `.proto` definitions available to decode field numbers into token counts, and its CLI log files are plain glog output with no usage-bearing log line at any verbosity level exposed by `agy --help`. That path is a dead end for now and is explicitly out of scope for this request."
+        ]
+      },
+      "status": "Draft",
+      "title": "Track token usage for interactive ollama sessions"
+    },
+    {
+      "ai_context": {
+        "keywords": "parse, ollama, verbose, token, stats, captured, session, transcript",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript"
+        ],
+        "prod": [
+          "prod_048_ollama_sessions_report_real_token_usage"
+        ],
+        "req": [
+          "req_062_track_token_usage_for_interactive_ollama_sessions"
+        ],
+        "task": [
+          "task_072_orchestrate_ollama_token_usage_tracking"
+        ]
+      },
+      "path": "logics/backlog/item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript.md",
+      "ref": "item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Given an ollama session launched after this change, its captured transcript contains a verbose stats block.",
+          "- Given a captured transcript containing that block, `extract_interactive_usage(\"ollama\", ...)` returns non-`None` `input_tokens`, `output_tokens`, and `total_tokens`.",
+          "- Given a captured transcript without the block (or with an unrecognized format), `extract_interactive_usage(\"ollama\", ...)` returns `empty_usage()` and does not raise.",
+          "- Given the same inputs as before this change, `extract_interactive_usage(\"claude\", ...)` and `extract_interactive_usage(\"codex\", ...)` return identical results to before.",
+          "- `run_usage.extract_run_usage(\"ollama\", stdout_path)` no longer short-circuits to `empty_usage()` solely because of the provider gate.",
+          "- A test exercises `cdx stats`-equivalent aggregation and shows a non-zero total for a fixture ollama session."
+        ],
+        "Problem": [
+          "- `cdx` launches ollama without `--verbose`, so no token-count output exists anywhere to capture.",
+          "- Even with `--verbose` on, `interactive_usage.extract_interactive_usage` has no ollama branch and its `_latest_transcript` helper only knows how to walk codex's and claude's provider-native transcript directories, neither of which ollama has.",
+          "- `run_usage.SUPPORTED_PROVIDERS` also excludes ollama, so the non-interactive path would suppress its usage too if ever exercised."
+        ]
+      },
+      "status": "Ready",
+      "title": "Parse ollama's verbose token stats from the captured session transcript"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript"
+        ],
+        "prod": [
+          "prod_048_ollama_sessions_report_real_token_usage"
+        ],
+        "req": [
+          "req_062_track_token_usage_for_interactive_ollama_sessions"
+        ],
+        "task": [
+          "task_072_orchestrate_ollama_token_usage_tracking"
+        ]
+      },
+      "path": "logics/product/prod_048_ollama_sessions_report_real_token_usage.md",
+      "ref": "prod_048_ollama_sessions_report_real_token_usage",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Ollama sessions report real token usage"
+    },
+    {
+      "ai_context": {
+        "keywords": "orchestrate, ollama, token, usage, tracking",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript"
+        ],
+        "prod": [
+          "prod_048_ollama_sessions_report_real_token_usage"
+        ],
+        "req": [
+          "req_062_track_token_usage_for_interactive_ollama_sessions"
+        ],
+        "task": [
+          "task_072_orchestrate_ollama_token_usage_tracking"
+        ]
+      },
+      "path": "logics/tasks/task_072_orchestrate_ollama_token_usage_tracking.md",
+      "ref": "task_072_orchestrate_ollama_token_usage_tracking",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate ollama token usage tracking"
+    }
+  ],
+  "estimates": {
+    "char_count": 9905,
+    "companion_doc_count": 1,
+    "doc_count": 4
+  },
+  "generated_at": "2026-08-14T07:03:47Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_062_track_token_usage_for_interactive_ollama_sessions",
+      "item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript",
+      "task_072_orchestrate_ollama_token_usage_tracking"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_062_track_token_usage_for_interactive_ollama_sessions,item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript,task_072_orchestrate_ollama_token_usage_tracking",
+  "refs": [
+    "req_062_track_token_usage_for_interactive_ollama_sessions",
+    "item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript",
+    "task_072_orchestrate_ollama_token_usage_tracking"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.19.3"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_072_orchestrate_ollama_token_usage_tracking.md",
+      "ref": "task_072_orchestrate_ollama_token_usage_tracking"
+    }
+  ]
+}

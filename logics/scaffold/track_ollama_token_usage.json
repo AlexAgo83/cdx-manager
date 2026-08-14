@@ -1,0 +1,113 @@
+{
+  "title": "Track token usage for interactive ollama sessions",
+  "references": [
+    "src/interactive_usage.py",
+    "src/provider_runtime.py",
+    "src/run_usage.py",
+    "src/commands/launch.py",
+    "src/config.py",
+    "test/test_interactive_usage_py.py",
+    "test/test_run_usage_py.py",
+    "test/test_provider_runtime_helpers_py.py"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Usage tracking",
+    "needs": [
+      "`cdx stats` and `cdx history` report token usage for `claude` and `codex` sessions but always show zero for `ollama` sessions, even after real runs, because ollama is absent from both usage-extraction paths.",
+      "`src/run_usage.py:4` hardcodes `SUPPORTED_PROVIDERS = {\"claude\", \"codex\"}`, so `extract_run_usage` (`src/run_usage.py:11`) returns `empty_usage()` unconditionally for `ollama` regardless of what the run actually produced.",
+      "`src/interactive_usage.py:11`'s `extract_interactive_usage`, which is what actually feeds `cdx history`/`cdx stats` for interactive launches (called from `_attach_interactive_usage` in `src/commands/launch.py:299`), only branches on `codex` vs. everything-else-treated-as-`claude` (`src/interactive_usage.py:19`) and its `_latest_transcript` helper (`src/interactive_usage.py:29`) only knows the `codex` `sessions/` directory and the claude `.claude/projects/` directory under `auth_home` — there is no ollama case at all.",
+      "Ollama has no provider-native transcript directory under `auth_home` the way codex and claude do: `src/provider_runtime.py:591-606` launches it as a plain `ollama run <model>` with no `HOME`/config-dir override, so there is nothing under `auth_home` to scan for a fixed-format transcript.",
+      "Ollama's CLI does support a `--verbose` flag that prints a token-count stats block (prompt eval count, eval count) to the terminal after each response, but cdx does not currently pass that flag, and that output only ever lands in the generic terminal transcript that `_wrap_launch_with_transcript` (`src/provider_runtime.py:475`) already tees to `run_info[\"transcript_path\"]` for every provider — not in an ollama-native log file.",
+      "A prior investigation this session also looked at extracting usage for the `antigravity` provider and found no viable source: its conversation history is stored in schema-less binary protobuf files (`~/.gemini/antigravity-cli/conversations/*.pb`) with no `.proto` definitions available to decode field numbers into token counts, and its CLI log files are plain glog output with no usage-bearing log line at any verbosity level exposed by `agy --help`. That path is a dead end for now and is explicitly out of scope for this request."
+    ],
+    "context": [
+      "Two independent usage-extraction paths exist today: `run_usage.extract_run_usage` for detached/non-interactive `cdx run` (reads `stdout_path`, used by `src/run_command.py:186`), and `interactive_usage.extract_interactive_usage` for interactive terminal launches (reads a provider-native transcript directory under `auth_home`, used by `src/commands/launch.py:299`). The `cdx history`/`cdx stats` rows in question come from interactive launches, so `interactive_usage.py` is the path that must change; `run_usage.py`'s `SUPPORTED_PROVIDERS` gate should still be extended for parity so a future non-interactive ollama run is not silently dropped either.",
+      "`interactive_usage.py`'s existing parsers (`_codex_usage` at line 68, `_claude_usage` at line 83) read a provider-native JSON/JSONL transcript file discovered by walking a fixed directory. Ollama has no such directory, so an ollama parser cannot reuse `_latest_transcript`'s directory-walk unmodified — it needs the cdx-generated terminal transcript path instead (already computed by the caller and available as `run_info.get(\"transcript_path\")` in `src/commands/launch.py:301-304`, but not currently passed into `extract_interactive_usage`).",
+      "`extract_interactive_usage`'s docstring already states the operating philosophy to keep: \"Provider transcripts are not stable public APIs. A missing or changed record is therefore ordinary absence, never a launch failure.\" The ollama parser must fail soft (return no usage) if `--verbose`'s text format doesn't match, rather than raising.",
+      "The exact text layout of ollama's `--verbose` stats block (e.g. `prompt eval count: N token(s)`, `eval count: N token(s)`) has not been confirmed against a live run on the machine this was scoped from (no local model was pulled), so the parser's regex needs to be validated against real `ollama run <model> --verbose` output early in implementation, using whatever model is available in the dev/CI environment.",
+      "Ollama does not report cached-input or reasoning tokens, so `cached_input_tokens` and `reasoning_tokens` stay `None` for ollama the same way `empty_usage()` already models absence for other providers; `total_tokens` can be derived as the sum of prompt and eval counts when both are present.",
+      "`ponytail` mode is active for this codebase: reuse the existing usage-extraction shape (a small per-provider parser function plus one dispatch point) rather than introducing a new abstraction layer for provider usage sources."
+    ],
+    "acceptance_criteria": [
+      "AC1: `ollama` is added to `run_usage.SUPPORTED_PROVIDERS` so a non-interactive ollama run's usage is no longer unconditionally suppressed.",
+      "AC2: cdx passes `--verbose` when launching an interactive ollama session, without changing ollama's launch behavior for the user (model, prompt, and other existing args are unaffected).",
+      "AC3: `interactive_usage.extract_interactive_usage` returns non-empty `input_tokens`/`output_tokens`/`total_tokens` for an ollama session whose captured transcript contains a `--verbose` stats block, sourced from the cdx-generated terminal transcript (not a provider-native directory scan, since none exists for ollama).",
+      "AC4: A malformed, missing, or format-changed ollama verbose block results in `empty_usage()`-shaped absence, not an exception, consistent with the existing best-effort contract documented on `extract_interactive_usage`.",
+      "AC5: `cdx stats` and `cdx history` show non-zero token totals for an ollama session after a real interactive run with `--verbose` output present, verified by a test with a representative captured transcript fixture.",
+      "AC6: Existing `claude` and `codex` usage extraction behavior is unchanged; the ollama branch is additive.",
+      "AC7: The decision that `antigravity` token usage is not currently retrievable (schema-less binary protobuf transcripts, no usage-bearing log output) is recorded as an explicit non-goal, so it is not silently reattempted or mistaken for an oversight."
+    ]
+  },
+  "product": {
+    "title": "Ollama sessions report real token usage",
+    "overview": "Extend cdx's existing usage-tracking to cover interactive ollama sessions by turning on ollama's built-in verbose token-count output and parsing it from the terminal transcript cdx already captures, so `cdx stats`/`cdx history` stop showing a hardcoded zero for ollama.",
+    "goals": [
+      "Make `cdx stats`/`cdx history` show real token counts for ollama sessions, matching the coverage claude and codex already have.",
+      "Reuse the existing per-provider usage-parser pattern instead of building a new usage-source abstraction.",
+      "Keep the best-effort, fail-soft contract: an ollama output-format change degrades to absent usage, never a launch failure.",
+      "Record, rather than silently drop, the finding that antigravity usage is not retrievable with current provider surfaces."
+    ],
+    "non_goals": [
+      "No antigravity/agy usage tracking in this pass — its transcripts are schema-less binary protobuf with no available `.proto` definitions, and its CLI logs carry no usage line at any exposed verbosity; this is a documented dead end, not deferred work to pick up incidentally here.",
+      "No change to ollama's own CLI behavior beyond adding the `--verbose` flag already supported by its documented interface.",
+      "No new usage-source abstraction layer for future providers beyond what's needed for ollama.",
+      "No retroactive backfill of usage for past ollama sessions that were captured without `--verbose`."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Parse ollama's verbose token stats from the captured session transcript",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Usage tracking",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC5", "AC6", "AC7"],
+      "problem": [
+        "`cdx` launches ollama without `--verbose`, so no token-count output exists anywhere to capture.",
+        "Even with `--verbose` on, `interactive_usage.extract_interactive_usage` has no ollama branch and its `_latest_transcript` helper only knows how to walk codex's and claude's provider-native transcript directories, neither of which ollama has.",
+        "`run_usage.SUPPORTED_PROVIDERS` also excludes ollama, so the non-interactive path would suppress its usage too if ever exercised."
+      ],
+      "scope_in": [
+        "Add `--verbose` to the ollama launch args in `_build_launch_spec` (`src/provider_runtime.py:591-606`).",
+        "Add an `_ollama_usage` parser in `interactive_usage.py` alongside `_codex_usage`/`_claude_usage`, matching the `prompt eval count` / `eval count` lines from ollama's verbose stats block into `input_tokens`/`output_tokens`, with `total_tokens` as their sum and `cached_input_tokens`/`reasoning_tokens` left `None`.",
+        "Confirm the exact text layout against a real `ollama run <model> --verbose` invocation before finalizing the regex; adjust the fixture and parser to match observed output rather than assumed formatting.",
+        "Thread the cdx-generated terminal transcript path into the ollama usage lookup, since ollama has no provider-native transcript directory to walk — extend `extract_interactive_usage`'s inputs (or the call site in `src/commands/launch.py:299-306`) with the already-available `run_info[\"transcript_path\"]` for this provider only, leaving the codex/claude directory-walk path untouched.",
+        "Add `ollama` to `run_usage.SUPPORTED_PROVIDERS` (`src/run_usage.py:4`) for parity on the non-interactive path.",
+        "Fail soft to `empty_usage()` on any parse miss (missing flag output, changed format, truncated transcript), never raising.",
+        "Tests: a representative captured-transcript fixture with a verbose stats block asserting correct token extraction; a fixture without the block asserting empty usage; a regression test confirming claude/codex extraction is unaffected.",
+        "Record, in a comment near the ollama parser or in the README's usage-tracking notes, that antigravity token usage was investigated and found not retrievable (schema-less binary protobuf transcripts, no usage-bearing CLI log output), so it is a documented dead end rather than an oversight."
+      ],
+      "scope_out": [
+        "No antigravity usage parsing.",
+        "No change to how the codex/claude directory-walk transcript discovery works.",
+        "No retroactive re-parsing of previously captured ollama transcripts that predate `--verbose`."
+      ],
+      "acceptance_criteria": [
+        "Given an ollama session launched after this change, its captured transcript contains a verbose stats block.",
+        "Given a captured transcript containing that block, `extract_interactive_usage(\"ollama\", ...)` returns non-`None` `input_tokens`, `output_tokens`, and `total_tokens`.",
+        "Given a captured transcript without the block (or with an unrecognized format), `extract_interactive_usage(\"ollama\", ...)` returns `empty_usage()` and does not raise.",
+        "Given the same inputs as before this change, `extract_interactive_usage(\"claude\", ...)` and `extract_interactive_usage(\"codex\", ...)` return identical results to before.",
+        "`run_usage.extract_run_usage(\"ollama\", stdout_path)` no longer short-circuits to `empty_usage()` solely because of the provider gate.",
+        "A test exercises `cdx stats`-equivalent aggregation and shows a non-zero total for a fixture ollama session."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate ollama token usage tracking",
+    "plan": [
+      "Confirm ollama's real `--verbose` output format with a live `ollama run <model> --verbose` call in the dev/CI environment; capture a real sample as the test fixture instead of a guessed format.",
+      "Add `--verbose` to the ollama launch args in `provider_runtime.py` and confirm it doesn't alter existing prompt/model/extra-arg handling.",
+      "Add the `_ollama_usage` parser to `interactive_usage.py`, wired through the cdx-generated transcript path for ollama specifically, leaving codex/claude's directory-walk path untouched.",
+      "Add `ollama` to `run_usage.SUPPORTED_PROVIDERS`.",
+      "Write fixture-based tests: verbose block present, verbose block absent/malformed, and a claude/codex regression check.",
+      "Manually verify `cdx stats`/`cdx history` show non-zero ollama tokens after one real launch.",
+      "Record the antigravity dead-end explicitly in code comments or README near the usage-extraction code, not just in this corpus, so a future contributor doesn't re-attempt it without reading this task.",
+      "Run the full test suite, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/track_ollama_token_usage.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}
