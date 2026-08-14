@@ -112,3 +112,49 @@ class DropUnvouchedUsageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnvouchedUsageIsExcludedFromStatsTests(unittest.TestCase):
+    """The exclusion is automatic, and it says so.
+
+    An earlier draft of this work made it an explicit `cdx repair` step. That
+    was wrong: an upgrade would have left the fictitious figures on screen
+    until somebody remembered a command.
+    """
+
+    def _summarize(self, entries):
+        from src.commands.status import _summarize_stats
+
+        return {row["session_name"]: row for row in _summarize_stats(entries)}
+
+    def _legacy_entry(self):
+        return {"session_name": "digital", "provider": "claude", "status": "success",
+                "usage": {"input_tokens": 2, "cached_input_tokens": 198_926_945,
+                          "output_tokens": 4, "total_tokens": 6}}
+
+    def _current_entry(self):
+        return {"session_name": "digital", "provider": "claude", "status": "success",
+                "usage": normalize_usage(input_tokens=2, cache_read_tokens=9, output_tokens=4)}
+
+    def test_unvouched_usage_is_excluded_without_anyone_running_a_command(self):
+        rows = self._summarize([self._legacy_entry()])
+        self.assertEqual(rows["digital"]["total_tokens"], 0)
+        self.assertEqual(rows["digital"]["usage_runs"], 0)
+
+    def test_the_exclusion_is_counted_so_it_is_not_silent(self):
+        rows = self._summarize([self._legacy_entry(), self._legacy_entry()])
+        self.assertEqual(rows["digital"]["unvouched_runs"], 2)
+
+    def test_vouched_usage_in_the_same_session_still_counts(self):
+        rows = self._summarize([self._legacy_entry(), self._current_entry()])
+        self.assertEqual(rows["digital"]["unvouched_runs"], 1)
+        self.assertEqual(rows["digital"]["usage_runs"], 1)
+        self.assertEqual(rows["digital"]["cache_read_tokens"], 9)
+        self.assertEqual(rows["digital"]["total_tokens"], 15)
+
+    def test_the_stored_record_is_left_alone(self):
+        # Filtering, not mutation: if the marker ever proves wrong, nothing
+        # has been destroyed.
+        entry = self._legacy_entry()
+        self._summarize([entry])
+        self.assertEqual(entry["usage"]["cached_input_tokens"], 198_926_945)

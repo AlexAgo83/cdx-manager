@@ -276,6 +276,21 @@ def claude_usage_dedup_key(record):
     return ("uuid", uuid) if uuid else None
 
 
+def is_vouched(usage):
+    """Whether this record was written under the current field definition.
+
+    Records that predate it are not imprecise, they are fictitious: the reader
+    picked whichever transcript had the newest mtime and re-read all of it on
+    every launch. They are filtered out of aggregates rather than displayed,
+    because a wrong figure carries the same authority as a right one.
+
+    The marker is the presence of `cache_creation_tokens`, which
+    `normalize_usage` always emits and nothing before it did. Deliberately not
+    `usage_cumulative`: headless runs legitimately have none.
+    """
+    return isinstance(usage, dict) and "cache_creation_tokens" in usage
+
+
 def coerce_usage(usage):
     """Bring an already-built usage record onto the canonical shape.
 

@@ -53,19 +53,19 @@ Resumability is a checked fact rather than a stored string: a recorded conversat
 
 ### Dropping figures cdx cannot vouch for
 
-Launch history written before these definitions is fictitious rather than imprecise, and cannot be recomputed: a run's true usage is the increment its transcript gained while it ran, and nothing recorded that. `cdx repair` drops those figures and keeps the runs, so a period containing only such runs reads as absent rather than as a session that spent nothing.
+Launch history written before these definitions is fictitious rather than imprecise, and cannot be recomputed: a run's true usage is the increment its transcript gained while it ran, and nothing recorded that. They are excluded from every total automatically from this release, with the totals line naming how many runs that covered — no command to remember, and no upgrade that leaves the fiction on screen. The stored records are left intact so they stay recoverable; `cdx repair` clears them from the file for anyone who wants that.
 
 ## Upgrading
 
-Usage records gain `cache_creation_tokens` and `cache_read_tokens`; existing fields keep their names and `cached_input_tokens` remains their sum. `cdx stats --json` gains `weighted_tokens`, `cost_usd`, `priced_runs` and `unpriced_models`. Nothing was removed.
+Usage records gain `cache_creation_tokens` and `cache_read_tokens`; existing fields keep their names and `cached_input_tokens` remains their sum. `cdx stats --json` gains `weighted_tokens`, `cost_usd`, `priced_runs`, `unpriced_models` and `unvouched_runs`. Nothing was removed.
 
 `cdx can-resume --json` can now report `reason: conversation_not_found`. `resumable` stays `true` in every case that used to return it; only the strategy changes.
 
-Run `cdx repair --dry-run` after upgrading to see how many stored records carry usage from before the fix.
+Token totals will drop, in some cases sharply — one real session fell from 206.6M to 361.3K. That is the fiction leaving, not data loss: the totals line reports how many runs were excluded, and `cdx repair --dry-run` says how many stored records carry such usage.
 
 ## Known limits
 
-- Historical records stay wrong until `cdx repair` drops them; recomputation is not possible.
+- Historical figures are excluded rather than corrected; recomputation is not possible, so those runs report no usage at all.
 - OpenAI's long-context tier, which roughly doubles both rates above a 272K-token request, is not modelled: cdx records tokens per run rather than per request, so long-context Codex work is under-costed.
 - A run that switched models mid-way is priced at the model serving its most recent record.
 - OpenAI prices were taken from third-party aggregators; `openai.com` refuses automated fetches. This is why the drift check exists.

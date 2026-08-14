@@ -7,7 +7,7 @@
 > Complexity: Medium
 > Theme: Usage accounting
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 13:52:03
+> Indicators reviewed: 2026-08-14 14:02:25
 
 # AI Context
 - Summary: Launch history written before the usage definition existed is wrong by four orders of magnitude and cannot be recomputed, so it should be dropped rather than displayed.
@@ -22,6 +22,7 @@
 - A user cannot tell the two eras apart from the output. Old and new records sum into one column, so the table is neither wholly wrong nor trustworthy, which is the worst of the three available states.
 # Context
 - Recomputing is not available. A run's true usage is the increment its transcript gained while it ran, and reconstructing that needs the transcript's state at that moment -- which nothing recorded. Attributing today's totals to past runs would invent a distribution, replacing a wrong number with a fabricated one.
+- **Corrected after implementing.** This request first said the drop must not happen silently at read time, and reasoned that an explicit command was therefore required. That was the wrong trade: displaying a fictitious figure is worse than filtering it, and a filter can perfectly well announce itself. Filtering is now automatic and states how many runs it excluded; `cdx repair` still exists for cleaning the file. An upgrade that left the fiction on screen until somebody remembered a command would have missed the point of the request.
 - Dropping is available and precise. Records written before the definition existed lack the `cache_creation_tokens` key entirely, because `normalize_usage` emits the full field set and nothing else does. That is an exact discriminator, not a date heuristic.
 - Do not key the discriminator on `usage_cumulative`: headless runs legitimately have none, and using it would drop correct records.
 - The table already distinguishes runs with usage from runs without: the `USAGE` column counts them. A dropped record therefore reads as an honest absence rather than as a zero, and the drop is visible rather than silent.
@@ -32,7 +33,8 @@
 - AC2: Runs, durations, statuses, and timestamps survive the drop; only the usage figures go. A run that happened still happened.
 - AC3: Records written after the fix are untouched, identified by the presence of the full field set rather than by a date.
 - AC4: Headless records, which legitimately carry no cumulative, are not mistaken for legacy ones.
-- AC5: The operation is explicit and reversible in the sense that matters: it is not performed silently at read time, and the operator is told how many records were affected.
+- AC5: Unvouched usage is excluded automatically, without waiting for anyone to run a command -- an upgrade must not leave the fiction on screen -- and the exclusion says so, naming how many runs it covers.
+- AC7: The stored records are not mutated to achieve AC5. Filtering at read time keeps them recoverable if the discriminator ever proves wrong, and `cdx repair` remains available for operators who want the file itself cleaned.
 - AC6: `cdx stats` for a period containing only legacy runs reports absence rather than zero, so nothing reads as a session that spent nothing.
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.

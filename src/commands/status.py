@@ -41,7 +41,14 @@ from ..commands.launch import handle_launch
 from ..config import PROVIDER_CLAUDE
 from ..errors import CdxError
 from ..provider_runtime import AUTH_PROBE_AUTHENTICATED, AUTH_PROBE_DEGRADED, _probe_provider_auth_status
-from ..run_usage import USAGE_KEYS, estimate_cost, normalize_usage, token_prices, weighted_usage
+from ..run_usage import (
+    USAGE_KEYS,
+    estimate_cost,
+    is_vouched,
+    normalize_usage,
+    token_prices,
+    weighted_usage,
+)
 from ..status_view import _format_status_detail, _format_status_rows, format_priority_instruction, recommend_priority_rows
 
 
@@ -263,6 +270,7 @@ def _summarize_stats(entries):
             "weighted_tokens": 0,
             "priced_runs": 0,
             "unpriced_models": set(),
+            "unvouched_runs": 0,
             "input_tokens": 0,
             "cached_input_tokens": 0,
             "cache_creation_tokens": 0,
@@ -282,6 +290,12 @@ def _summarize_stats(entries):
         except (TypeError, ValueError):
             pass
         usage = entry.get("usage") if isinstance(entry.get("usage"), dict) else {}
+        if usage and not is_vouched(usage):
+            # Written before the definition existed, so the figures are
+            # fictitious rather than merely old. Excluded from every total and
+            # counted, so the exclusion is visible instead of silent.
+            row["unvouched_runs"] += 1
+            usage = {}
         parsed_usage = {
             key: _token_value(usage, key)
             for key in USAGE_KEYS
@@ -389,6 +403,7 @@ def _stats_totals(rows):
         "cost_usd": sum(row["cost_usd"] for row in rows),
         "priced_runs": sum(row["priced_runs"] for row in rows),
         "unpriced_models": sorted({m for row in rows for m in row["unpriced_models"]}),
+        "unvouched_runs": sum(row["unvouched_runs"] for row in rows),
     }
 
 def _format_history_period(period):
@@ -518,7 +533,11 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
                if totals["priced_runs"] else ", no run priced")
             + (f"; no price for {', '.join(totals['unpriced_models'])}"
                if totals["unpriced_models"] else "") + "), "
-            f"{_format_duration_ms(totals['duration_ms'])}.",
+            + (f"{totals['unvouched_runs']} run"
+               f"{'s' if totals['unvouched_runs'] != 1 else ''} excluded "
+               f"(recorded before cdx could measure them; cdx repair clears these), "
+               if totals["unvouched_runs"] else "")
+            + f"{_format_duration_ms(totals['duration_ms'])}.",
             use_color,
         ),
     ])

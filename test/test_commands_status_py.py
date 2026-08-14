@@ -504,18 +504,16 @@ class StatusCommandTests(CliTestBase):
         rows = {row["session_name"]: row for row in payload["stats"]}
         self.assertEqual(rows["work"]["launches"], 2)
         self.assertEqual(rows["work"]["failures"], 1)
-        self.assertEqual(rows["work"]["usage_runs"], 2)
-        self.assertEqual(rows["work"]["input_tokens"], 13)
-        self.assertEqual(rows["work"]["cached_input_tokens"], 7)
-        self.assertEqual(rows["work"]["output_tokens"], 4)
-        self.assertEqual(rows["work"]["reasoning_tokens"], 2)
-        # These fixtures are legacy-shaped: a fused `cached_input_tokens` and a
-        # stored total that excluded it. The table derives the total from the
-        # parts it displays, so it now reads 13 + 7 + 4 rather than the 17 the
-        # old records claimed -- a row whose columns did not add up.
-        self.assertEqual(rows["work"]["total_tokens"], 24)
+        # These fixtures are legacy-shaped: a fused `cached_input_tokens` and
+        # no creation/read split. Such records are excluded from every total
+        # rather than displayed -- they are fictitious, not merely old -- and
+        # counted so the exclusion is visible.
+        self.assertEqual(rows["work"]["usage_runs"], 0)
+        self.assertEqual(rows["work"]["unvouched_runs"], 2)
+        self.assertEqual(rows["work"]["total_tokens"], 0)
         self.assertEqual(rows["personal"]["usage_runs"], 0)
-        self.assertEqual(payload["totals"]["total_tokens"], 24)
+        self.assertEqual(payload["totals"]["total_tokens"], 0)
+        self.assertEqual(payload["totals"]["unvouched_runs"], 2)
 
         service["start_session_runtime"]("work", {"pid": os.getpid()})
 
@@ -529,7 +527,7 @@ class StatusCommandTests(CliTestBase):
         self.assertIn("Assistant stats:", output)
         self.assertIn("work*", output)
         self.assertIn("2h 05m", output)
-        self.assertIn("24 tokens", output)
+        self.assertIn("0 tokens", output)
 
         color_io = {**self.make_io(), "stdout": _TtyStream()}
         self.assertEqual(main(["stats", "work", "--since", "7d"], {
