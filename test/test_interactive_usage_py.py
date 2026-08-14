@@ -21,15 +21,30 @@ class InteractiveUsageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as home:
             self._write(home, "sessions/2026/08/one.jsonl", [
                 {"payload": {"type": "token_count", "info": {"total_token_usage": {
-                    "input_tokens": 10, "cached_input_tokens": 50, "output_tokens": 2,
-                    "reasoning_output_tokens": 1, "total_tokens": 12}}}},
+                    "input_tokens": 60, "cached_input_tokens": 50, "output_tokens": 2,
+                    "reasoning_output_tokens": 1, "total_tokens": 62}}}},
                 {"payload": {"type": "token_count", "info": {"total_token_usage": {
-                    "input_tokens": 20, "cached_input_tokens": 90, "output_tokens": 4,
-                    "reasoning_output_tokens": 2, "total_tokens": 24}}}},
+                    "input_tokens": 110, "cached_input_tokens": 90, "output_tokens": 4,
+                    "reasoning_output_tokens": 2, "total_tokens": 114}}}},
             ])
             usage, _path = extract_interactive_usage("codex", home)
+            # Codex's own `input_tokens` includes the cached tokens, so IN is
+            # the 20-token remainder and CACHE holds the 90 it contained.
             self.assertEqual(usage, {"input_tokens": 20, "cached_input_tokens": 90,
-                                    "output_tokens": 4, "reasoning_tokens": 2, "total_tokens": 24})
+                                    "cache_creation_tokens": None, "cache_read_tokens": 90,
+                                    "output_tokens": 4, "reasoning_tokens": 2, "total_tokens": 114})
+
+    def test_codex_cached_count_larger_than_input_is_left_alone(self):
+        # Not a subset, so the cache-inclusive assumption cannot hold for this
+        # record. Subtracting anyway would erase real input tokens.
+        with tempfile.TemporaryDirectory() as home:
+            self._write(home, "sessions/odd.jsonl", [
+                {"payload": {"type": "token_count", "info": {"total_token_usage": {
+                    "input_tokens": 20, "cached_input_tokens": 90, "output_tokens": 4}}}},
+            ])
+            usage, _path = extract_interactive_usage("codex", home)
+            self.assertEqual(usage["input_tokens"], 20)
+            self.assertEqual(usage["total_tokens"], 114)
 
     def test_sums_unique_claude_assistant_messages(self):
         with tempfile.TemporaryDirectory() as home:
@@ -43,8 +58,12 @@ class InteractiveUsageTests(unittest.TestCase):
                     "input_tokens": 11, "output_tokens": 13}}},
             ])
             usage, _path = extract_interactive_usage("claude", home)
+            # The total used to read 33 -- input plus output, with the 8 cached
+            # tokens dropped entirely. Cache is most of real consumption, so
+            # that was not a slightly-low total but a different quantity.
             self.assertEqual(usage, {"input_tokens": 13, "cached_input_tokens": 8,
-                                    "output_tokens": 20, "reasoning_tokens": None, "total_tokens": 33})
+                                    "cache_creation_tokens": 3, "cache_read_tokens": 5,
+                                    "output_tokens": 20, "reasoning_tokens": None, "total_tokens": 41})
 
     def test_ignores_malformed_records_and_old_files(self):
         with tempfile.TemporaryDirectory() as home:
@@ -85,3 +104,77 @@ class InteractiveUsageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UsageDefinitionAgreementTests(unittest.TestCase):
+    """The three readers must describe the same consumption the same way.
+
+    Before one definition existed they disagreed in every direction: the
+    headless reader counted cache in IN *and* in CACHE, the interactive reader
+    dropped cache from the total, and the background reader folded cache into
+    IN while emitting no cached field at all. All three wrote into the same
+    launch history and the same stats column, so the table mixed definitions
+    without saying so. This test is what stops that returning.
+    """
+
+    USAGE = {
+        "input_tokens": 12,
+        "cache_creation_input_tokens": 3,
+        "cache_read_input_tokens": 5,
+        "output_tokens": 7,
+    }
+    EXPECTED = {
+        "input_tokens": 12,
+        "cached_input_tokens": 8,
+        "cache_creation_tokens": 3,
+        "cache_read_tokens": 5,
+        "output_tokens": 7,
+        "reasoning_tokens": None,
+        "total_tokens": 27,
+    }
+
+    def test_headless_interactive_and_background_readers_agree(self):
+        from src import run_usage
+        from src.provider_background import read_transcript_outcome
+
+        with tempfile.TemporaryDirectory() as home:
+            stdout_path = os.path.join(home, "stdout.log")
+            with open(stdout_path, "w", encoding="utf-8") as handle:
+                json.dump({"result": "done", "usage": self.USAGE}, handle)
+
+            transcript = os.path.join(home, ".claude", "projects", "repo", "s.jsonl")
+            os.makedirs(os.path.dirname(transcript), exist_ok=True)
+            with open(transcript, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps({
+                    "type": "assistant",
+                    "uuid": "one",
+                    "message": {"content": [{"type": "text", "text": "done"}], "usage": self.USAGE},
+                }) + "\n")
+
+            headless = run_usage.extract_run_usage("claude", stdout_path)
+            interactive, _path = extract_interactive_usage("claude", home)
+            background = read_transcript_outcome(transcript)["usage"]
+
+        self.assertEqual(headless, self.EXPECTED)
+        self.assertEqual(interactive, self.EXPECTED)
+        self.assertEqual(background, self.EXPECTED)
+
+    def test_every_reader_emits_the_full_field_set(self):
+        # The background reader used to omit the cached fields entirely, so a
+        # detached run left CACHE structurally empty rather than zero.
+        from src.run_usage import USAGE_KEYS
+
+        for name, record in (("expected", self.EXPECTED),):
+            self.assertEqual(set(record), set(USAGE_KEYS), name)
+
+    def test_a_total_that_excludes_cache_is_not_produced(self):
+        from src.run_usage import normalize_usage
+
+        record = normalize_usage(input_tokens=1, cache_creation_tokens=10,
+                                 cache_read_tokens=100, output_tokens=2)
+        self.assertEqual(record["total_tokens"], 113)
+
+    def test_absence_is_not_zero(self):
+        from src.run_usage import normalize_usage
+
+        self.assertEqual(set(normalize_usage().values()), {None})

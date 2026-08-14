@@ -190,8 +190,13 @@ class TranscriptOutcomeTests(unittest.TestCase):
         outcome = read_transcript_outcome(path)
 
         self.assertEqual(outcome["result"], "OK")
-        # Cache creation and cache reads are input the account paid for.
-        self.assertEqual(outcome["usage"]["input_tokens"], 18)
+        # Cache creation and cache reads are input the account paid for, but
+        # they are not the same input: they are reported apart because they
+        # cost 1.25x and 0.1x, and IN used to swallow both.
+        self.assertEqual(outcome["usage"]["input_tokens"], 3)
+        self.assertEqual(outcome["usage"]["cache_creation_tokens"], 10)
+        self.assertEqual(outcome["usage"]["cache_read_tokens"], 5)
+        self.assertEqual(outcome["usage"]["cached_input_tokens"], 15)
         self.assertEqual(outcome["usage"]["output_tokens"], 7)
         self.assertEqual(outcome["usage"]["total_tokens"], 25)
 

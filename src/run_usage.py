@@ -1,11 +1,128 @@
+"""What a cdx usage record means, and the only place that decides it.
+
+Three code paths read provider usage -- this module for headless stdout,
+`interactive_usage` for a terminal launch, `provider_background` for a native
+background close-out -- and each used to compute the fields its own way. They
+disagreed in every direction at once: one dropped cache from the total, one
+counted it twice, one omitted the cached field entirely. All three wrote into
+the same launch history and the same `cdx stats` column, so the table mixed
+definitions without saying so.
+
+The definitions below are therefore normative, not a suggestion:
+
+  input_tokens          Uncached input only. Claude reports it this way
+                        natively; Codex does not, so its cache-inclusive count
+                        is reduced here rather than left for a reader to guess.
+  cache_creation_tokens Tokens written to the provider's prompt cache.
+  cache_read_tokens     Tokens served from it.
+  cached_input_tokens   cache_creation + cache_read. Kept because it is a
+                        published field of `cdx run --json`, and because the
+                        stats table shows one CACHE column. It is a derived
+                        sum, never a source.
+  output_tokens         Generated tokens.
+  reasoning_tokens      Reasoning counted separately by the provider. Codex
+                        reports one; Claude does not and never will -- it bills
+                        thinking as output, so those tokens are already inside
+                        output_tokens. An empty REASON column for Claude is
+                        correct, not a gap to fill.
+  total_tokens          input + cache_creation + cache_read + output. Cache is
+                        the bulk of real consumption, so a total that excludes
+                        it is not a slightly-wrong total, it is a different
+                        quantity.
+
+Cache creation and cache read are separate fields because they cost very
+differently -- 1.25x and 0.1x of uncached input -- and a weighted figure cannot
+recover the split once they are summed.
+
+Absence stays absent: `None` means "not reported", which is not zero. Only
+`normalize_usage` may derive `cached_input_tokens` and `total_tokens`, so no
+caller can invent a fourth arithmetic.
+"""
+
 import json
 
-USAGE_KEYS = ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "total_tokens")
+#: Order matters only for readability; every consumer addresses these by name.
+USAGE_KEYS = (
+    "input_tokens",
+    "cached_input_tokens",
+    "cache_creation_tokens",
+    "cache_read_tokens",
+    "output_tokens",
+    "reasoning_tokens",
+    "total_tokens",
+)
+#: The two fields `normalize_usage` derives. Never read them from a provider.
+DERIVED_USAGE_KEYS = ("cached_input_tokens", "total_tokens")
 SUPPORTED_PROVIDERS = {"claude", "codex"}
 
 
 def empty_usage():
     return {key: None for key in USAGE_KEYS}
+
+
+def normalize_usage(input_tokens=None, cache_creation_tokens=None, cache_read_tokens=None,
+                    output_tokens=None, reasoning_tokens=None):
+    """Build a usage record from the four measured quantities.
+
+    The derived fields are computed here and only here. A record whose parts are
+    all absent stays fully absent rather than becoming a row of zeros: a session
+    cdx could not measure must not read as a session that spent nothing.
+    """
+    parts = {
+        "input_tokens": _non_negative(input_tokens),
+        "cache_creation_tokens": _non_negative(cache_creation_tokens),
+        "cache_read_tokens": _non_negative(cache_read_tokens),
+        "output_tokens": _non_negative(output_tokens),
+        "reasoning_tokens": _non_negative(reasoning_tokens),
+    }
+    if all(value is None for value in parts.values()):
+        return empty_usage()
+    cached = _sum_present(parts["cache_creation_tokens"], parts["cache_read_tokens"])
+    total = _sum_present(
+        parts["input_tokens"],
+        parts["cache_creation_tokens"],
+        parts["cache_read_tokens"],
+        parts["output_tokens"],
+    )
+    return {**parts, "cached_input_tokens": cached, "total_tokens": total}
+
+
+def coerce_usage(usage):
+    """Bring an already-built usage record onto the canonical shape.
+
+    For boundaries that receive a record rather than measure one -- the run
+    registry, which publishes what it stores. Missing fields become absent
+    rather than zero, and the derived figures are recomputed from the parts, so
+    a record built before this definition existed cannot carry a stale total
+    into the JSON surfaces.
+    """
+    if not isinstance(usage, dict):
+        return None
+    record = normalize_usage(
+        input_tokens=usage.get("input_tokens"),
+        cache_creation_tokens=usage.get("cache_creation_tokens"),
+        cache_read_tokens=usage.get("cache_read_tokens"),
+        output_tokens=usage.get("output_tokens"),
+        reasoning_tokens=usage.get("reasoning_tokens"),
+    )
+    if record["cached_input_tokens"] is None:
+        # A legacy record carrying only the fused figure: keep it visible rather
+        # than dropping a number someone already recorded, but leave the split
+        # absent because it genuinely is not recoverable.
+        record["cached_input_tokens"] = _first_int(usage.get("cached_input_tokens"))
+    return record
+
+
+def _non_negative(value):
+    parsed = _first_int(value)
+    return parsed
+
+
+def _sum_present(*values):
+    present = [value for value in values if value is not None]
+    if not present:
+        return None
+    return sum(present)
 
 
 def extract_run_usage(provider, stdout_path):
@@ -79,40 +196,67 @@ def _find_usage(value):
 
 
 def _usage_from_dict(value):
+    """Map one provider usage object onto the canonical fields.
+
+    This used to fold the cache counts into `input_tokens` *and* report them
+    again as `cached_input_tokens`, so IN and CACHE both counted the same
+    tokens. The fix is not arithmetic in this function: it is that the split
+    parts go to `normalize_usage`, which owns every derived figure.
+    """
     usage = value.get("usage") if isinstance(value.get("usage"), dict) else value
     if not isinstance(usage, dict):
         return empty_usage()
 
-    input_tokens = _int_value(
-        usage.get("input_tokens"),
-        usage.get("prompt_tokens"),
-        usage.get("cache_creation_input_tokens"),
-        usage.get("cache_read_input_tokens"),
-    )
-    cached_input_tokens = _first_int(usage.get("cached_input_tokens"))
-    if cached_input_tokens is None:
-        cached_input_tokens = _int_value(
-            usage.get("cache_creation_input_tokens"),
-            usage.get("cache_read_input_tokens"),
-        )
-    output_tokens = _int_value(usage.get("output_tokens"), usage.get("completion_tokens"))
-    reasoning_tokens = _int_value(
-        usage.get("reasoning_tokens"),
-        usage.get("reasoning_output_tokens"),
-        _nested_int(usage, "output_tokens_details", "reasoning_tokens"),
-        _nested_int(usage, "completion_tokens_details", "reasoning_tokens"),
-    )
-    total_tokens = _first_int(usage.get("total_tokens"))
-    if total_tokens is None and input_tokens is not None and output_tokens is not None:
-        total_tokens = input_tokens + output_tokens
+    cache_creation = _first_int(usage.get("cache_creation_input_tokens"))
+    cache_read = _first_int(usage.get("cache_read_input_tokens"))
+    if cache_creation is None and cache_read is None:
+        # Codex reports one cached figure with no creation/read split; it is a
+        # read by construction, since nothing else could have written it.
+        cache_read = _first_int(usage.get("cached_input_tokens"))
 
-    return {
-        "input_tokens": input_tokens,
-        "cached_input_tokens": cached_input_tokens,
-        "output_tokens": output_tokens,
-        "reasoning_tokens": reasoning_tokens,
-        "total_tokens": total_tokens,
-    }
+    input_tokens = _int_value(usage.get("input_tokens"), usage.get("prompt_tokens"))
+    input_tokens = _uncached_input(input_tokens, cache_read, usage)
+
+    return normalize_usage(
+        input_tokens=input_tokens,
+        cache_creation_tokens=cache_creation,
+        cache_read_tokens=cache_read,
+        output_tokens=_int_value(usage.get("output_tokens"), usage.get("completion_tokens")),
+        reasoning_tokens=_int_value(
+            usage.get("reasoning_tokens"),
+            usage.get("reasoning_output_tokens"),
+            _nested_int(usage, "output_tokens_details", "reasoning_tokens"),
+            _nested_int(usage, "completion_tokens_details", "reasoning_tokens"),
+        ),
+    )
+
+
+def _uncached_input(input_tokens, cache_read, usage):
+    """Reduce a cache-inclusive input count to its uncached remainder.
+
+    Two dialects reach this function. Anthropic reports `input_tokens` as the
+    uncached remainder already and carries the `cache_*_input_tokens` pair.
+    OpenAI-shaped records -- Codex among them -- report a bare
+    `cached_input_tokens` that is a *subset* of `input_tokens`, so leaving it
+    alone would count those tokens in both IN and CACHE.
+
+    The subset relationship is the assumption, and it is checked rather than
+    trusted: a record where the cached count exceeds the input count cannot be
+    a subset, so that record is left alone instead of being forced to zero.
+    Guessing wrong in that direction would silently erase real input tokens,
+    which is the failure this whole definition exists to stop.
+    """
+    if input_tokens is None or not cache_read:
+        return input_tokens
+    if usage.get("cache_creation_input_tokens") is not None:
+        return input_tokens
+    if usage.get("cache_read_input_tokens") is not None:
+        return input_tokens
+    if usage.get("cached_input_tokens") is None:
+        return input_tokens
+    if cache_read > input_tokens:
+        return input_tokens
+    return input_tokens - cache_read
 
 
 def _nested_int(value, parent, child):

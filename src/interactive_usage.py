@@ -4,6 +4,8 @@ import json
 import os
 import time
 
+from .run_usage import normalize_usage
+
 MAX_TRANSCRIPT_BYTES = 16 * 1024 * 1024
 MAX_TRANSCRIPT_CANDIDATES = 1000
 MAX_TRANSCRIPT_SCAN_SECONDS = 1
@@ -72,16 +74,36 @@ def _codex_usage(handle):
             record = json.loads(line)
             payload = record.get("payload") or {}
             usage = ((payload.get("info") or {}).get("total_token_usage") or {}) if payload.get("type") == "token_count" else {}
-            candidate = _normalize(usage, cached_key="cached_input_tokens", reasoning_key="reasoning_output_tokens")
-            if candidate:
-                latest = candidate
+            if not isinstance(usage, dict) or not usage:
+                continue
+            # Codex counts cached tokens inside `input_tokens`; reduce to the
+            # uncached remainder so the field means what run_usage says it
+            # means. Same subset check as the headless reader: a cached count
+            # larger than the input count is not a subset, so that record is
+            # left alone rather than forced to zero.
+            reported_input = _number(usage.get("input_tokens"))
+            cache_read = _number(usage.get("cached_input_tokens"))
+            latest = normalize_usage(
+                input_tokens=reported_input - cache_read if cache_read <= reported_input else reported_input,
+                cache_read_tokens=cache_read,
+                output_tokens=_number(usage.get("output_tokens")),
+                reasoning_tokens=_number(usage.get("reasoning_output_tokens")) or None,
+            )
         except (TypeError, ValueError):
             continue
     return latest
 
 
 def _claude_usage(handle):
-    totals = {"input_tokens": 0, "cached_input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0}
+    """Sum Claude's per-message usage across the transcript.
+
+    Cache creation and cache read are kept apart rather than summed on the way
+    in: they cost 1.25x and 0.1x of uncached input, so fusing them here would
+    destroy the only information a cost-aware figure needs. Claude reports no
+    separate reasoning count -- thinking is billed as output and is already
+    inside `output_tokens` -- so that field stays absent by design.
+    """
+    totals = {"input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0, "output_tokens": 0}
     seen = set()
     for line in handle:
         try:
@@ -94,27 +116,14 @@ def _claude_usage(handle):
             if identifier:
                 seen.add(identifier)
             totals["input_tokens"] += _number(usage.get("input_tokens"))
-            totals["cached_input_tokens"] += _number(usage.get("cache_creation_input_tokens")) + _number(usage.get("cache_read_input_tokens"))
+            totals["cache_creation_tokens"] += _number(usage.get("cache_creation_input_tokens"))
+            totals["cache_read_tokens"] += _number(usage.get("cache_read_input_tokens"))
             totals["output_tokens"] += _number(usage.get("output_tokens"))
         except (TypeError, ValueError):
             continue
     if not seen and not any(totals.values()):
         return None
-    totals["reasoning_tokens"] = None
-    totals["total_tokens"] = totals["input_tokens"] + totals["output_tokens"]
-    return totals
-
-
-def _normalize(usage, cached_key, reasoning_key):
-    if not isinstance(usage, dict) or not usage:
-        return None
-    return {
-        "input_tokens": _number(usage.get("input_tokens")),
-        "cached_input_tokens": _number(usage.get(cached_key)),
-        "output_tokens": _number(usage.get("output_tokens")),
-        "reasoning_tokens": _number(usage.get(reasoning_key)) or None,
-        "total_tokens": _number(usage.get("total_tokens")) or None,
-    }
+    return normalize_usage(**totals)
 
 
 def _number(value):

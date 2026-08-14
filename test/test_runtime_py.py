@@ -1362,9 +1362,14 @@ class RuntimePythonTests(unittest.TestCase):
                     },
                 }, handle)
 
+            # IN is the uncached remainder only. It used to read 20 -- the 12
+            # uncached tokens plus the 8 cached ones, which CACHE then reported
+            # again -- so the same tokens were counted in two columns.
             self.assertEqual(run_usage.extract_run_usage("claude", path), {
-                "input_tokens": 20,
+                "input_tokens": 12,
                 "cached_input_tokens": 8,
+                "cache_creation_tokens": 3,
+                "cache_read_tokens": 5,
                 "output_tokens": 7,
                 "reasoning_tokens": None,
                 "total_tokens": 27,
@@ -1402,6 +1407,8 @@ class RuntimePythonTests(unittest.TestCase):
             self.assertEqual(run_usage.extract_run_usage("codex", path), {
                 "input_tokens": 10,
                 "cached_input_tokens": None,
+                "cache_creation_tokens": None,
+                "cache_read_tokens": None,
                 "output_tokens": 4,
                 "reasoning_tokens": 2,
                 "total_tokens": 14,
@@ -1425,6 +1432,8 @@ class RuntimePythonTests(unittest.TestCase):
             self.assertEqual(run_usage.extract_run_usage("codex", path), {
                 "input_tokens": 10,
                 "cached_input_tokens": None,
+                "cache_creation_tokens": None,
+                "cache_read_tokens": None,
                 "output_tokens": 4,
                 "reasoning_tokens": 2,
                 "total_tokens": 14,
@@ -1453,9 +1462,15 @@ class RuntimePythonTests(unittest.TestCase):
                     },
                 }) + "\n")
 
+            # Codex counts cached tokens inside its own `input_tokens`, so the
+            # uncached remainder is 17489 - 4992. The total is unchanged at
+            # 17498, which is the point: the split moves tokens between columns
+            # without inventing or losing any.
             self.assertEqual(run_usage.extract_run_usage("codex", path), {
-                "input_tokens": 17489,
+                "input_tokens": 12497,
                 "cached_input_tokens": 4992,
+                "cache_creation_tokens": None,
+                "cache_read_tokens": 4992,
                 "output_tokens": 9,
                 "reasoning_tokens": 3,
                 "total_tokens": 17498,

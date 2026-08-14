@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from .errors import CdxError
 from .fs_utils import atomic_write
+from .run_usage import coerce_usage
 
 
 def utc_now_iso():
@@ -315,7 +316,10 @@ class RunRegistry:
                     "stderr_path": run_info.get("stderr_path"),
                 }
             if final_payload:
-                run["usage"] = final_payload.get("usage")
+                # Normalize on the way in, not on the way out: this record is
+                # what `cdx run-status` and `cdx run-report` publish, and it
+                # used to store whichever shape the producing reader emitted.
+                run["usage"] = coerce_usage(final_payload.get("usage"))
                 run["final_payload"] = final_payload
             if error:
                 run["error"] = error

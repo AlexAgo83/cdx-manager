@@ -41,6 +41,7 @@ from ..commands.launch import handle_launch
 from ..config import PROVIDER_CLAUDE
 from ..errors import CdxError
 from ..provider_runtime import AUTH_PROBE_AUTHENTICATED, AUTH_PROBE_DEGRADED, _probe_provider_auth_status
+from ..run_usage import USAGE_KEYS
 from ..status_view import _format_status_detail, _format_status_rows, format_priority_instruction, recommend_priority_rows
 
 
@@ -254,6 +255,8 @@ def _summarize_stats(entries):
             "usage_runs": 0,
             "input_tokens": 0,
             "cached_input_tokens": 0,
+            "cache_creation_tokens": 0,
+            "cache_read_tokens": 0,
             "output_tokens": 0,
             "reasoning_tokens": 0,
             "total_tokens": 0,
@@ -271,7 +274,7 @@ def _summarize_stats(entries):
         usage = entry.get("usage") if isinstance(entry.get("usage"), dict) else {}
         parsed_usage = {
             key: _token_value(usage, key)
-            for key in ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "total_tokens")
+            for key in USAGE_KEYS
         }
         if any(value is not None for value in parsed_usage.values()):
             row["usage_runs"] += 1
@@ -295,11 +298,7 @@ def _stats_totals(rows):
         "failures": sum(row["failures"] for row in rows),
         "duration_ms": sum(row["duration_ms"] for row in rows),
         "usage_runs": sum(row["usage_runs"] for row in rows),
-        "input_tokens": sum(row["input_tokens"] for row in rows),
-        "cached_input_tokens": sum(row["cached_input_tokens"] for row in rows),
-        "output_tokens": sum(row["output_tokens"] for row in rows),
-        "reasoning_tokens": sum(row["reasoning_tokens"] for row in rows),
-        "total_tokens": sum(row["total_tokens"] for row in rows),
+        **{key: sum(row[key] for row in rows) for key in USAGE_KEYS},
     }
 
 def _format_history_period(period):

@@ -24,6 +24,7 @@ import re
 import subprocess
 
 from .config import PROVIDER_CLAUDE
+from .run_usage import normalize_usage
 
 BACKGROUND_PATH_PROVIDER = "provider_native"
 BACKGROUND_PATH_CDX = "cdx_detached"
@@ -221,7 +222,7 @@ def read_transcript_outcome(path):
     outcome = {"result": None, "usage": None}
     if not path:
         return outcome
-    totals = {"input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0, "total_tokens": 0}
+    totals = {"input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0, "output_tokens": 0}
     seen = False
     try:
         with open(path, encoding="utf-8", errors="replace") as handle:
@@ -248,16 +249,18 @@ def read_transcript_outcome(path):
                         outcome["result"] = text
                 usage = message.get("usage")
                 if isinstance(usage, dict):
+                    # Same split as the interactive reader, and for the same
+                    # reason: this path used to fold the cache into input and
+                    # emit no cached field at all, so a detached run and an
+                    # interactive one filled the same column under opposite
+                    # definitions.
                     seen = True
-                    inp = (usage.get("input_tokens") or 0) + (usage.get("cache_creation_input_tokens") or 0) \
-                        + (usage.get("cache_read_input_tokens") or 0)
-                    out = usage.get("output_tokens") or 0
-                    totals["input_tokens"] += inp
-                    totals["output_tokens"] += out
-                    totals["total_tokens"] += inp + out
+                    totals["input_tokens"] += usage.get("input_tokens") or 0
+                    totals["cache_creation_tokens"] += usage.get("cache_creation_input_tokens") or 0
+                    totals["cache_read_tokens"] += usage.get("cache_read_input_tokens") or 0
+                    totals["output_tokens"] += usage.get("output_tokens") or 0
     except OSError:
         return outcome
     if seen:
-        totals["reasoning_tokens"] = None
-        outcome["usage"] = totals
+        outcome["usage"] = normalize_usage(**totals)
     return outcome
