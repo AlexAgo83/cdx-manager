@@ -1,7 +1,7 @@
 ## req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent - Make cdx stats report the tokens a session actually spent
 > From version: 0.19.3
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: High
