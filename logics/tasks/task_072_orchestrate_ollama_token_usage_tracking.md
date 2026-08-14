@@ -3,8 +3,8 @@
 > Schema version: 1.0
 > Status: In progress
 > Understanding: 95%
-> Confidence: 90%
-> Progress: 90%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -29,7 +29,7 @@
 - [x] 5. Normalize before matching: import `_normalize_terminal_transcript` from `src/status_source.py` rather than writing a second cleanup. Verify the parser against the raw fixture from step 2, not a hand-cleaned copy of it — a parser that only works on cleaned text is one that fails in production.
 - [x] 6. Extend `_provider_flag_issues` to cover launch flags, and update the ollama case in `test/test_provider_flags_py.py`, which currently asserts nothing is mapped. Do this in the same pass as step 3: it is the flag added there that creates the unverified surface.
 - [x] 7. Write fixture-based tests: verbose block present, block absent or malformed, and a claude/codex regression check.
-- [ ] 8. Manually verify `cdx stats`/`cdx history` show non-zero ollama tokens after one real launch.
+- [x] 8. Manually verify `cdx stats`/`cdx history` show non-zero ollama tokens after one real launch.
 - [x] 9. Record the antigravity dead-end explicitly in code comments or README near the usage-extraction code, not just in this corpus, so a future contributor doesn't re-attempt it without reading this task.
 - [x] 10. Run the full test suite, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.
 - [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
@@ -50,13 +50,14 @@
 - request-AC2 -> This task. Proof: `extract_interactive_usage('ollama', ...)` reads the run's own PTY capture; `OllamaResolutionTests.test_the_runs_own_capture_is_the_source`. b5bfb64
 - request-AC3 -> This task. Proof: Parsed after `_normalize_terminal_transcript`, asserted against the raw capture; `test_escape_sequences_do_not_defeat_the_match`. b5bfb64
 - request-AC4 -> This task. Proof: A missing or changed block returns absence and never raises; `test_a_capture_without_the_block_is_absence_not_an_error`, `test_a_changed_format_degrades_to_absence`. b5bfb64
-- request-AC5 -> This task. Proof: Token counts reach a usage record from a real capture (32 in / 58 out / 90 total); `test_the_real_capture_yields_its_token_counts`. End-to-end through a live TTY session is left to a human -- see the report. b5bfb64
+- request-AC5 -> This task. Proof: `cdx stats` shows non-zero ollama tokens after a real interactive launch -- IN 34 / OUT 76 / TOTAL 110, operator-verified 2026-08-14 -- and `test_the_real_capture_yields_its_token_counts` pins the parser against a real capture. b5bfb64
 - request-AC6 -> This task. Proof: Claude and Codex extraction is untouched and the shared definition is adopted, not renegotiated; the full suite passes at 942 with the claude/codex usage tests unchanged. b5bfb64
 - request-AC7 -> This task. Proof: The provider-flag health check now covers cdx's own launch flags; `test_a_cdx_feature_flag_the_cli_lacks_is_reported`. 0dfa9ca
 - request-AC8 -> This task. Proof: The antigravity dead end is recorded in `src/interactive_usage.py`'s module docstring and in the README. b5bfb64
 
 # Validation
 - 2026-08-14: `npm test` 942 passed, `npm run lint` all checks passed. Baseline before this task was 935.
+- End-to-end verified by the operator through a real interactive launch: `cdx stats` reports `olla ollama 13 runs / 1 usage / IN 34 / OUT 76 / TOTAL 110 / COST~ 414 / USD~ -`.
 - Format confirmed against a real run rather than assumed: `script -q -F log ollama run smollm2:135m --verbose "say hi"` on ollama 0.32.11. The captured block reads `prompt eval count: 32 token(s)` / `eval count: 58 token(s)`, and the raw capture — cursor sequences and carriage returns included — is the test fixture. The model was pulled for this and removed afterwards.
 - Flag placement confirmed earlier against the same version: `ollama run MODEL [PROMPT] [flags]` accepts `--verbose` between model and prompt.
 
@@ -67,7 +68,8 @@
 - Each response contributes one `--verbose` block and they sum. No delta handling is needed: cdx writes one transcript per launch (`cdx-session-<timestamp>-<pid>.log`), so nothing accumulates across runs.
 - Ollama reports no cache and no reasoning, and its usage record carries no model: local models are in no price table, and naming one would invite pricing something that is free. The `USD~` column stays empty for these sessions by nature.
 - The antigravity dead end is recorded in `src/interactive_usage.py`'s module docstring and in the README, not only in this corpus.
-- **Step 8 needs a human.** Verifying `cdx stats` end to end requires a real interactive launch, and ollama's REPL does not return control to a non-TTY harness — the attempt hung and was killed. Everything it would exercise is covered by unit tests against the real capture; what remains unproven is only the live TTY path. Run `cdx <ollama-session>` in a terminal, answer once, exit, then `cdx stats`.
+- **Step 8 verified by the operator on 2026-08-14.** A real interactive launch of the `olla` session (smollm2:135m) through the working tree recorded `IN 34 / OUT 76 / TOTAL 110`, `COST~ 414`, with `provider_transcript_match: run_transcript` and the run's own capture named on the entry. `CACHE` and `REASON` are 0 because ollama has neither, and `USD~` is empty because a local model is in no price table — each column saying what it should.
+- A first attempt measured nothing, and the reason is worth recording: `cdx` on PATH resolves to the installed release at `~/.local/share/cdx-manager/0.19.3/`, a separate copy of the tree. That run exercised the released binary, whose transcript contained no `eval count` at all. The parser returned absence on it rather than failing, which is the contract holding on a real file. Verifying unreleased behaviour means running `node <repo>/bin/cdx.js`, not `cdx`.
 - **Out of scope, not started:** `run_usage.SUPPORTED_PROVIDERS` still excludes ollama, deliberately. Opening that gate without a text parser would change no behaviour while making the gate claim a support it cannot deliver.
 
 # Links
