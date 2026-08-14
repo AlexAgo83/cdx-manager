@@ -724,6 +724,10 @@ Every usage record, whichever path produced it, uses one set of definitions:
 
 Cached input is counted once: it is excluded from `input_tokens` and reported in the cache fields, never in both. `null` means the provider did not report the figure, which is not the same as zero.
 
+`cdx stats` also shows a **`COST~`** column and ranks sessions by it. It weights each token class by what it costs relative to one uncached input token — cache read 0.1x, cache write 1.25x, output 5x — and reports the result in uncached-input-equivalent tokens. These are ratios rather than prices: across the current model lineup output is 5x input on every model and the cache multipliers do not vary by model either, so the figure needs no per-model price table and does not go stale when prices change. It is **not** a currency amount, and it is not comparable across providers whose own prices differ. The cache-write multiplier assumes the five-minute cache TTL; a one-hour TTL costs 2x and nothing in a transcript says which was used, so long-TTL writes are slightly under-weighted.
+
+Ranking on the raw total would put a session that mostly replayed a cache above one that spent far more on generation, because cache reads are typically the overwhelming majority of tokens consumed while costing a fiftieth of an output token.
+
 ```bash
 cdx stats --since 7d --json
 cdx stats work

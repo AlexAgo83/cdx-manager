@@ -41,7 +41,7 @@ from ..commands.launch import handle_launch
 from ..config import PROVIDER_CLAUDE
 from ..errors import CdxError
 from ..provider_runtime import AUTH_PROBE_AUTHENTICATED, AUTH_PROBE_DEGRADED, _probe_provider_auth_status
-from ..run_usage import USAGE_KEYS
+from ..run_usage import USAGE_KEYS, weighted_usage
 from ..status_view import _format_status_detail, _format_status_rows, format_priority_instruction, recommend_priority_rows
 
 
@@ -284,9 +284,17 @@ def _summarize_stats(entries):
         if started and (not row["last_started_at"] or started > row["last_started_at"]):
             row["last_started_at"] = started
             row["provider"] = entry.get("provider") or row["provider"]
+    for row in rows.values():
+        row["weighted_tokens"] = weighted_usage(row) or 0
+    for row in rows.values():
+        row["weighted_tokens"] = weighted_usage(row) or 0
     return sorted(
         rows.values(),
-        key=lambda item: (item["total_tokens"], item["duration_ms"], item.get("last_started_at") or "", item["session_name"]),
+        # Ranked by what a session cost, not by how many tokens it moved: a
+        # cache read is 0.1x an uncached input token and an output token is 5x,
+        # so a raw total sorts a cache-heavy session above one that spent far
+        # more on generation.
+        key=lambda item: (item["weighted_tokens"], item["duration_ms"], item.get("last_started_at") or "", item["session_name"]),
         reverse=True,
     )
 
@@ -299,6 +307,7 @@ def _stats_totals(rows):
         "duration_ms": sum(row["duration_ms"] for row in rows),
         "usage_runs": sum(row["usage_runs"] for row in rows),
         **{key: sum(row[key] for row in rows) for key in USAGE_KEYS},
+        "weighted_tokens": sum(row["weighted_tokens"] for row in rows),
     }
 
 def _format_history_period(period):
@@ -390,7 +399,7 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
     if not rows:
         return "No launch stats for this period." if _has_history_period(period or {}) else "No launch stats."
     table = [[_style(value, "1", use_color) for value in [
-        "SESSION", "PROV.", "RUNS", "USAGE", "IN", "CACHE", "OUT", "REASON", "TOTAL", "TIME", "LAST"
+        "SESSION", "PROV.", "RUNS", "USAGE", "IN", "CACHE", "OUT", "REASON", "TOTAL", "COST~", "TIME", "LAST"
     ]]]
     for row in rows:
         session_name = row["session_name"]
@@ -404,7 +413,8 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
             _style(_format_token_count(row["cached_input_tokens"]), "96" if row["cached_input_tokens"] else "2", use_color),
             _style(_format_token_count(row["output_tokens"]), "96" if row["output_tokens"] else "2", use_color),
             _style(_format_token_count(row["reasoning_tokens"]), "95" if row["reasoning_tokens"] else "2", use_color),
-            _style(_format_token_count(row["total_tokens"]), "1;96" if row["total_tokens"] else "2", use_color),
+            _style(_format_token_count(row["total_tokens"]), "96" if row["total_tokens"] else "2", use_color),
+            _style(_format_token_count(row["weighted_tokens"]), "1;95" if row["weighted_tokens"] else "2", use_color),
             _style(_format_duration_ms(row["duration_ms"]), "33" if row["duration_ms"] else "2", use_color),
             _dim(_format_relative_age(row.get("last_started_at")), use_color),
         ])
@@ -418,7 +428,8 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
         _dim(
             "Totals: "
             f"{totals['launches']} runs, {totals['usage_runs']} with usage, "
-            f"{_format_token_count(totals['total_tokens'])} tokens, "
+            f"{_format_token_count(totals['total_tokens'])} tokens "
+            f"({_format_token_count(totals['weighted_tokens'])} cost-equivalent), "
             f"{_format_duration_ms(totals['duration_ms'])}.",
             use_color,
         ),

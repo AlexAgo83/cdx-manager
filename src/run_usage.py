@@ -87,6 +87,49 @@ def normalize_usage(input_tokens=None, cache_creation_tokens=None, cache_read_to
     return {**parts, "cached_input_tokens": cached, "total_tokens": total}
 
 
+#: What each token class costs relative to one uncached input token.
+#:
+#: Ratios, not prices. Across the current model lineup output is 5x input on
+#: every model and the cache multipliers do not vary by model either; only the
+#: absolute price per million tokens changes between tiers. So a weighted
+#: figure needs no per-model table and cannot go stale the way a price list
+#: would -- which is exactly why cdx weights rather than prices.
+#:
+#: The cache-write multiplier is the five-minute TTL. A one-hour TTL is 2x, and
+#: nothing in a transcript says which was used, so this under-weights long-TTL
+#: writes. Cache writes are a small share of a cache-heavy session's tokens, so
+#: the error is bounded and stated rather than hidden behind a guess.
+USAGE_WEIGHTS = {
+    "input_tokens": 1.0,
+    "cache_creation_tokens": 1.25,
+    "cache_read_tokens": 0.1,
+    "output_tokens": 5.0,
+}
+
+
+def weighted_usage(usage):
+    """Consumption in uncached-input-equivalent tokens, or None if unknown.
+
+    A raw token total ranks a cache read equal to an output token worth fifty
+    times more, and cache reads are typically the overwhelming majority of
+    tokens -- so a raw total is very nearly a measure of cache reads alone.
+    That is not the ranking anyone reading `cdx stats` is looking for.
+
+    `reasoning_tokens` is deliberately absent from the weights: Codex reports
+    it as a subset of its output, and adding it would count those tokens twice.
+    """
+    if not isinstance(usage, dict):
+        return None
+    present = [
+        weight * usage[key]
+        for key, weight in USAGE_WEIGHTS.items()
+        if usage.get(key) is not None
+    ]
+    if not present:
+        return None
+    return int(round(sum(present)))
+
+
 def claude_usage_dedup_key(record):
     """What identifies one *billed* Claude API response in a transcript.
 
