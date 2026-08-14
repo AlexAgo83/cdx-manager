@@ -101,3 +101,24 @@ class CostEstimateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnpricedModelReportingTests(unittest.TestCase):
+    def test_a_model_with_no_price_is_named_rather_than_silently_dashed(self):
+        # The operator asked why Codex rows showed no cost. A bare "-" cannot
+        # answer that; the model name can, and it is the key CDX_TOKEN_PRICES
+        # wants.
+        rows = _summarize_stats([
+            {**_entry("work", output_tokens=10), "usage_model": "gpt-5.6-terra"},
+            {**_entry("digital", output_tokens=10), "usage_model": "claude-opus-5"},
+        ])
+        by_name = {row["session_name"]: row for row in rows}
+        self.assertEqual(by_name["work"]["unpriced_models"], ["gpt-5.6-terra"])
+        self.assertEqual(by_name["work"]["priced_runs"], 0)
+        self.assertEqual(by_name["digital"]["unpriced_models"], [])
+        self.assertEqual(by_name["digital"]["priced_runs"], 1)
+
+    def test_a_run_with_no_model_at_all_is_not_reported_as_unpriced(self):
+        # Nothing to name, and nothing the operator could add to the table.
+        rows = _summarize_stats([_entry("work", output_tokens=10)])
+        self.assertEqual(rows[0]["unpriced_models"], [])

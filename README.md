@@ -730,7 +730,12 @@ Ranking on the raw total would put a session that mostly replayed a cache above 
 
 The **`USD~`** column turns that into money for runs whose serving model cdx recorded. It needs one number per model — the list price per million uncached input tokens — because `COST~` has already absorbed every other rate. Prices live in configuration, not in code: set `CDX_TOKEN_PRICES` to a JSON object mapping model id to dollars per million tokens to override the built-in table, whose last review date is printed with the totals. A run whose model cdx never saw stays unpriced rather than being charged at a default tier, and the totals line says how many runs were actually priced.
 
-Two caveats stated rather than hidden. A run is priced at the model serving its most recent record, so a run that switched models mid-way is priced at the newer one. And the figure is an estimate at public list prices — not an invoice, and not comparable across providers whose own prices differ.
+Three caveats stated rather than hidden. A run is priced at the model serving its most recent record, so a run that switched models mid-way is priced at the newer one. The figure is an estimate at public list prices — not an invoice. And the built-in table carries **Anthropic models only**: a Codex or Ollama run is measured and weighted like any other, but its `USD~` stays empty, because cdx will not ship a price it cannot vouch for. The totals line names any model it could not price, which is exactly the key `CDX_TOKEN_PRICES` needs:
+
+```
+Totals: 26 runs, ... ($0.41 at list on 7 priced runs [built-in, reviewed 2026-08-14]; no price for gpt-5.6-terra)
+CDX_TOKEN_PRICES='{"gpt-5.6-terra": 1.25}' cdx stats
+```
 
 Runs recorded before these definitions existed are shown as faithfully as their data allows: they carry no creation/read split and no model, so their cached tokens are read as cache reads for weighting and they stay unpriced. `cdx stats` derives each row's `TOTAL` from the columns it displays, so a row always adds up even while history spans both eras.
 

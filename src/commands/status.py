@@ -261,6 +261,7 @@ def _summarize_stats(entries):
             "usage_runs": 0,
             "cost_usd": 0.0,
             "priced_runs": 0,
+            "unpriced_models": set(),
             "input_tokens": 0,
             "cached_input_tokens": 0,
             "cache_creation_tokens": 0,
@@ -296,6 +297,11 @@ def _summarize_stats(entries):
             if cost is not None:
                 row["cost_usd"] += cost
                 row["priced_runs"] += 1
+            elif entry.get("usage_model"):
+                # Named the model but could not price it. Recording which one
+                # turns an unexplained "-" into something actionable: that
+                # string is exactly what CDX_TOKEN_PRICES needs a key for.
+                row["unpriced_models"].add(entry["usage_model"])
         started = entry.get("started_at")
         if started and (not row["last_started_at"] or started > row["last_started_at"]):
             row["last_started_at"] = started
@@ -323,6 +329,7 @@ def _summarize_stats(entries):
         )
         row["total_tokens"] = derived["total_tokens"] or 0
         row["weighted_tokens"] = weighted_usage(derived) or 0
+        row["unpriced_models"] = sorted(row["unpriced_models"])
     for row in rows.values():
         # Derive from the summed parts rather than summing each run's stored
         # total. Records written before the definition was settled carry a
@@ -346,6 +353,7 @@ def _summarize_stats(entries):
         )
         row["total_tokens"] = derived["total_tokens"] or 0
         row["weighted_tokens"] = weighted_usage(derived) or 0
+        row["unpriced_models"] = sorted(row["unpriced_models"])
     return sorted(
         rows.values(),
         # Ranked by what a session cost, not by how many tokens it moved: a
@@ -368,6 +376,7 @@ def _stats_totals(rows):
         "weighted_tokens": sum(row["weighted_tokens"] for row in rows),
         "cost_usd": sum(row["cost_usd"] for row in rows),
         "priced_runs": sum(row["priced_runs"] for row in rows),
+        "unpriced_models": sorted({m for row in rows for m in row["unpriced_models"]}),
     }
 
 def _format_history_period(period):
@@ -494,7 +503,9 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
             f"({_format_token_count(totals['weighted_tokens'])} cost-equivalent"
             + (f", {_format_usd(totals['cost_usd'])} at list on {totals['priced_runs']} priced run"
                f"{'s' if totals['priced_runs'] != 1 else ''} [{token_prices()[1]}]"
-               if totals["priced_runs"] else ", no run priced") + "), "
+               if totals["priced_runs"] else ", no run priced")
+            + (f"; no price for {', '.join(totals['unpriced_models'])}"
+               if totals["unpriced_models"] else "") + "), "
             f"{_format_duration_ms(totals['duration_ms'])}.",
             use_color,
         ),

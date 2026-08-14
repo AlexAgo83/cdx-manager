@@ -135,9 +135,17 @@ def weighted_usage(usage):
 #:
 #: This is the one genuinely perishable input in cdx's usage accounting: the
 #: ratios above hold across the lineup, but these change when a provider
-#: repricess. Override with CDX_TOKEN_PRICES (JSON, model -> dollars per MTok)
+#: reprices. Override with CDX_TOKEN_PRICES (JSON, model -> dollars per MTok)
 #: rather than editing code, and treat an unknown model as unpriced instead of
 #: assuming a tier.
+#:
+#: Anthropic models only, deliberately. cdx can state these with confidence; it
+#: cannot do the same for another vendor's, and a plan-based subscription makes
+#: "list price per MTok" a shakier notion there anyway. A Codex run is measured
+#: and weighted like any other -- only the currency column stays empty, and the
+#: totals line names the model so CDX_TOKEN_PRICES can fill it in. Shipping a
+#: guessed price would be the one failure this whole definition exists to
+#: prevent, committed in the column users trust most.
 DEFAULT_TOKEN_PRICES = {
     "claude-fable-5": 10.0,
     "claude-mythos-5": 10.0,
