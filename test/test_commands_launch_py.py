@@ -503,6 +503,39 @@ class LaunchCommandTests(CliTestBase):
         resume_args = _script_launch_args(harness.calls[-1])
         self.assertEqual(resume_args[:2], ["--resume", launched])
 
+    def test_the_two_resume_spellings_are_the_same_resume(self):
+        # `cdx resume <name>` and `cdx <name> --resume` reach handle_launch by
+        # different routes. They must resume the same conversation the same
+        # way, or a fix to one silently leaves the other broken.
+        spawned = {}
+        for form in (["resume", "work"], ["work", "--resume"]):
+            temp_dir = self.make_temp_dir()
+            harness = _AuthHarness()
+            context = {
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+                "cwd": "/tmp/repo",
+            }
+            self.assertEqual(main(["add", "claude", "work"], {**self.make_io(), **context}), 0)
+            self.assertEqual(main(["work"], {**self.make_io(), **context}), 0)
+            service = create_session_service({"base_dir": temp_dir})
+            launched = (service["get_session"]("work").get("conversation") or {}).get("id")
+
+            self.assertEqual(main(form, {**self.make_io(), **context}), 0)
+
+            spawned[tuple(form)] = _script_launch_args(harness.calls[-1])[:2]
+            self.assertEqual(spawned[tuple(form)], ["--resume", launched], form)
+            # And neither spelling replaces the conversation it just resumed.
+            self.assertEqual(
+                (service["get_session"]("work").get("conversation") or {}).get("id"),
+                launched, form)
+
+        # Each form ran against its own temp home, so the ids differ by
+        # construction -- what must match is the shape of the invocation. The
+        # assertions inside the loop already pin each form to its own launch.
+        self.assertEqual({args[0] for args in spawned.values()}, {"--resume"})
+
     def test_can_resume_reports_json_without_launching_provider(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
