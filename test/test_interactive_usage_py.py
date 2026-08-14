@@ -305,3 +305,68 @@ class TranscriptResolutionTests(unittest.TestCase):
             self.assertIn(identifier, os.path.basename(path))
             self.assertEqual(usage["output_tokens"], 4)
             self.assertEqual(match, interactive_usage.MATCH_CONVERSATION_ID)
+
+
+class CodexNewConversationTests(unittest.TestCase):
+    """Codex names its conversation only after the run has produced it.
+
+    A real turn reported no usage at all because of this: the session still
+    carried the previous conversation's id, that rollout was untouched by the
+    run, and differencing an unchanged file yields zero.
+    """
+
+    def _rollout(self, home, identifier, stamp, output):
+        root = os.path.join(home, "sessions", "2026", "08")
+        os.makedirs(root, exist_ok=True)
+        path = os.path.join(root, f"rollout-{stamp}-{identifier}.jsonl")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps({"payload": {"type": "token_count", "info": {
+                "total_token_usage": {"input_tokens": 10, "cached_input_tokens": 0,
+                                      "output_tokens": output}}}}) + "\n")
+        return path
+
+    def test_a_rollout_untouched_by_this_run_gives_way_to_the_current_one(self):
+        previous = "019ffc96-f601-7c20-b365-1a6e9ab0b5d1"
+        with tempfile.TemporaryDirectory() as home:
+            old = self._rollout(home, previous, "2026-08-13T21-26-19", 5)
+            current = self._rollout(home, "019fffde-c50c-7331-9a48-1e000138913e",
+                                    "2026-08-14T12-43-37", 69)
+            os.utime(old, (1, 1))
+            started = datetime.fromtimestamp(os.path.getmtime(current) - 5, timezone.utc)
+
+            usage, path, match, _model = extract_interactive_usage(
+                "codex", home, started.isoformat(), previous)
+
+            self.assertEqual(os.path.normpath(path), os.path.normpath(current))
+            self.assertEqual(usage["output_tokens"], 69)
+            self.assertEqual(match, interactive_usage.MATCH_RECENCY)
+
+    def test_a_rollout_this_run_did_touch_is_kept_and_named_as_an_id_match(self):
+        identifier = "019fffde-c50c-7331-9a48-1e000138913e"
+        with tempfile.TemporaryDirectory() as home:
+            current = self._rollout(home, identifier, "2026-08-14T12-43-37", 69)
+            started = datetime.fromtimestamp(os.path.getmtime(current) - 5, timezone.utc)
+
+            _usage, path, match, _model = extract_interactive_usage(
+                "codex", home, started.isoformat(), identifier)
+
+            self.assertEqual(os.path.normpath(path), os.path.normpath(current))
+            self.assertEqual(match, interactive_usage.MATCH_CONVERSATION_ID)
+
+    def test_claude_does_not_get_the_fallback(self):
+        # Claude's id is minted by cdx before the run, so a missing transcript
+        # there means something is wrong -- not that a newer file is the right
+        # answer. That fallback is exactly what billed a session against an
+        # unrelated project's transcript.
+        with tempfile.TemporaryDirectory() as home:
+            other = os.path.join(home, ".claude", "projects", "elsewhere", "other.jsonl")
+            os.makedirs(os.path.dirname(other), exist_ok=True)
+            with open(other, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps({"type": "assistant", "uuid": "u", "requestId": "r",
+                                         "message": {"id": "m", "usage": {"output_tokens": 999}}}) + "\n")
+
+            usage, path, _match, _model = extract_interactive_usage(
+                "claude", home, None, "11111111-1111-1111-1111-111111111111")
+
+            self.assertIsNone(usage)
+            self.assertIsNone(path)

@@ -98,9 +98,34 @@ def resolve_transcript(provider, auth_home, started_at=None, conversation_id=Non
     if not auth_home:
         return None, None
     if conversation_id:
-        return _transcript_for_conversation(provider, auth_home, conversation_id), MATCH_CONVERSATION_ID
+        path = _transcript_for_conversation(provider, auth_home, conversation_id)
+        if _covers_run(path, started_at) or provider != "codex":
+            return path, MATCH_CONVERSATION_ID
+        # Codex mints its conversation id itself and cdx can only read it back
+        # *after* the run, so at this point the session still names the
+        # previous conversation. Its rollout is untouched by this run, and
+        # differencing it yields a zero -- which is how a real codex turn came
+        # to report no usage at all.
+        #
+        # Falling back to recency is safe here in a way it was not for Claude:
+        # a Codex rollout lives under the session's own auth home, so the
+        # newest one touched during this run is this session's current
+        # conversation, not somebody else's file.
     path = _latest_transcript(provider, auth_home, started_at)
     return path, (MATCH_RECENCY if path else None)
+
+
+def _covers_run(path, started_at):
+    """Whether this transcript was written during the run, so it can hold it."""
+    cutoff = _timestamp(started_at)
+    if not path:
+        return False
+    if cutoff is None:
+        return True
+    try:
+        return os.path.getmtime(path) >= cutoff
+    except OSError:
+        return False
 
 
 def _transcript_for_conversation(provider, auth_home, conversation_id):
