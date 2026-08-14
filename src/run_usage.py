@@ -87,6 +87,36 @@ def normalize_usage(input_tokens=None, cache_creation_tokens=None, cache_read_to
     return {**parts, "cached_input_tokens": cached, "total_tokens": total}
 
 
+def claude_usage_dedup_key(record):
+    """What identifies one *billed* Claude API response in a transcript.
+
+    Not the record's `uuid`. A Claude Code transcript writes the same assistant
+    response under several uuids -- measured on one real 2741-row transcript:
+    2741 distinct uuids for 1765 distinct responses, so 36% of the rows were
+    repeats of a call the account paid for once. Summing per uuid inflated that
+    file's tokens by about 1.55x against an independent reader of the same
+    bytes.
+
+    The billed unit is the API response, so the key is the message id paired
+    with the request that produced it. `uuid` remains the fallback for records
+    that carry neither, which is the older transcript shape.
+
+    Returns None when the record carries no identity at all. That means "cannot
+    prove this is a repeat", and the caller must count it: two identity-less
+    records collapsing into one would discard usage that was really spent,
+    which is a worse error than counting a duplicate.
+    """
+    message = record.get("message") or {}
+    message_id = message.get("id")
+    request_id = record.get("requestId")
+    if message_id and request_id:
+        return ("api", message_id, request_id)
+    if message_id:
+        return ("message", message_id)
+    uuid = record.get("uuid")
+    return ("uuid", uuid) if uuid else None
+
+
 def coerce_usage(usage):
     """Bring an already-built usage record onto the canonical shape.
 

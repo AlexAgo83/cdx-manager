@@ -537,7 +537,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx run-tail <run_id> [--lines N] --json` | Last lines of a run's own output, while it is still running or after it finished |
 | `cdx runs [--limit N] [--since 7d\|today\|DATE] --json` | List recent runs; `--since` returns every run completed after the cursor and ignores `--limit` |
 | `cdx schema --json` | Publish the enums, mutually-exclusive argument groups, and error codes programmatic callers should validate against |
-| `cdx stats [name] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Aggregate launch counts, duration, and known headless token usage by session |
+| `cdx stats [name] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Aggregate launch counts, duration, and known token usage by session, for headless and interactive runs alike |
 | `cdx status [--json] [--refresh\|--cached] [--timeout SECONDS]` | Show token usage table for all sessions; empty credits, block, and reset columns are omitted; `--cached` skips live provider probes and returns only stored status |
 | `cdx status --small [--refresh\|--cached] [--timeout SECONDS]` / `cdx status -s [--refresh\|--cached] [--timeout SECONDS]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
 | `cdx status <name> [--json] [--refresh\|--cached] [--timeout SECONDS]` | Show detailed usage breakdown for one session; `--cached` avoids live provider refreshes |
@@ -708,7 +708,21 @@ cdx run \
 
 The result includes `launcher: "cdx"`, `run_id`, selected `session`, `provider`, `exit_code`, `duration_seconds`, absolute `transcript_path`, `stdout_path`, `stderr_path`, and normalized usage token fields. Codex headless runs use `codex exec --json`; Claude headless runs use `claude --print --output-format json`. Token counts are `null` when the provider does not expose a supported JSON or JSONL usage shape.
 
-Known headless and completed interactive token usage is persisted in launch history and can be aggregated later. Interactive records are best-effort local data: Codex reads its latest cumulative rollout snapshot and Claude reads its assistant usage records. Cached input is retained separately from the provider's total, so it is never counted twice.
+Known headless and completed interactive token usage is persisted in launch history and can be aggregated later. Interactive records are best-effort local data: Codex reads its latest cumulative rollout snapshot and Claude reads its assistant usage records.
+
+Every usage record, whichever path produced it, uses one set of definitions:
+
+| Field | Meaning |
+| --- | --- |
+| `input_tokens` | Uncached input **only**. Codex reports a cache-inclusive count natively; cdx reduces it to the remainder so the field means the same thing on every provider. |
+| `cache_creation_tokens` | Tokens written to the provider's prompt cache. |
+| `cache_read_tokens` | Tokens served from it. Kept apart from cache creation because the two cost roughly 1.25x and 0.1x of uncached input, a difference no summed figure can recover. |
+| `cached_input_tokens` | `cache_creation_tokens + cache_read_tokens`, derived. The single CACHE column in `cdx stats` shows this. |
+| `output_tokens` | Generated tokens. |
+| `reasoning_tokens` | Reasoning the provider counts separately. Codex reports one; Claude does not, because it bills thinking as output — those tokens are already inside `output_tokens`, so an empty REASON column for Claude is correct rather than missing. |
+| `total_tokens` | `input + cache_creation + cache_read + output`. Cache is typically the bulk of real consumption, so a total that left it out would not be slightly low — it would be a different quantity. |
+
+Cached input is counted once: it is excluded from `input_tokens` and reported in the cache fields, never in both. `null` means the provider did not report the figure, which is not the same as zero.
 
 ```bash
 cdx stats --since 7d --json

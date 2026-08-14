@@ -24,7 +24,7 @@ import re
 import subprocess
 
 from .config import PROVIDER_CLAUDE
-from .run_usage import normalize_usage
+from .run_usage import claude_usage_dedup_key, normalize_usage
 
 BACKGROUND_PATH_PROVIDER = "provider_native"
 BACKGROUND_PATH_CDX = "cdx_detached"
@@ -223,6 +223,9 @@ def read_transcript_outcome(path):
     if not path:
         return outcome
     totals = {"input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0, "output_tokens": 0}
+    # This path had no de-duplication at all, so a transcript that records the
+    # same billed response more than once inflated the total outright.
+    counted = set()
     seen = False
     try:
         with open(path, encoding="utf-8", errors="replace") as handle:
@@ -248,7 +251,10 @@ def read_transcript_outcome(path):
                     if text:
                         outcome["result"] = text
                 usage = message.get("usage")
-                if isinstance(usage, dict):
+                key = claude_usage_dedup_key(record) if isinstance(usage, dict) else None
+                if isinstance(usage, dict) and (key is None or key not in counted):
+                    if key is not None:
+                        counted.add(key)
                     # Same split as the interactive reader, and for the same
                     # reason: this path used to fold the cache into input and
                     # emit no cached field at all, so a detached run and an

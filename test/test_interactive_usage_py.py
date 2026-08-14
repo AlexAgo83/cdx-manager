@@ -178,3 +178,53 @@ class UsageDefinitionAgreementTests(unittest.TestCase):
         from src.run_usage import normalize_usage
 
         self.assertEqual(set(normalize_usage().values()), {None})
+
+
+class ClaudeDedupTests(unittest.TestCase):
+    """The billed unit is the API response, not the transcript row.
+
+    Measured on one real 2741-row transcript: 2741 distinct uuids for 1765
+    distinct (message id, request id) pairs. Counting per uuid inflated that
+    file by ~1.55x against an independent reader of the same bytes; keying on
+    the API response made the two agree exactly.
+    """
+
+    def _read(self, records):
+        with tempfile.TemporaryDirectory() as home:
+            path = os.path.join(home, "t.jsonl")
+            with open(path, "w", encoding="utf-8") as handle:
+                for record in records:
+                    handle.write(json.dumps(record) + "\n")
+            with open(path, encoding="utf-8") as handle:
+                return interactive_usage._claude_usage(handle)
+
+    def _assistant(self, uuid, message_id, request_id, output):
+        return {
+            "type": "assistant",
+            "uuid": uuid,
+            "requestId": request_id,
+            "message": {"id": message_id, "usage": {"input_tokens": 1, "output_tokens": output}},
+        }
+
+    def test_one_billed_response_recorded_twice_counts_once(self):
+        usage = self._read([
+            self._assistant("uuid-a", "msg_1", "req_1", 10),
+            self._assistant("uuid-b", "msg_1", "req_1", 10),
+        ])
+        self.assertEqual(usage["output_tokens"], 10)
+
+    def test_distinct_responses_still_both_count(self):
+        usage = self._read([
+            self._assistant("uuid-a", "msg_1", "req_1", 10),
+            self._assistant("uuid-b", "msg_2", "req_2", 10),
+        ])
+        self.assertEqual(usage["output_tokens"], 20)
+
+    def test_records_with_no_identity_are_never_collapsed(self):
+        # Absence of an identifier is not proof of a duplicate. Collapsing these
+        # would discard usage that was really spent.
+        usage = self._read([
+            {"type": "assistant", "message": {"usage": {"input_tokens": 1, "output_tokens": 4}}},
+            {"type": "assistant", "message": {"usage": {"input_tokens": 1, "output_tokens": 4}}},
+        ])
+        self.assertEqual(usage["output_tokens"], 8)

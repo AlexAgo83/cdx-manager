@@ -4,7 +4,7 @@ import json
 import os
 import time
 
-from .run_usage import normalize_usage
+from .run_usage import claude_usage_dedup_key, normalize_usage
 
 MAX_TRANSCRIPT_BYTES = 16 * 1024 * 1024
 MAX_TRANSCRIPT_CANDIDATES = 1000
@@ -110,10 +110,12 @@ def _claude_usage(handle):
             record = json.loads(line)
             message = record.get("message") or {}
             usage = message.get("usage") or {}
-            identifier = record.get("uuid")
-            if record.get("type") != "assistant" or not usage or (identifier and identifier in seen):
+            if record.get("type") != "assistant" or not usage:
                 continue
-            if identifier:
+            identifier = claude_usage_dedup_key(record)
+            if identifier is not None:
+                if identifier in seen:
+                    continue
                 seen.add(identifier)
             totals["input_tokens"] += _number(usage.get("input_tokens"))
             totals["cache_creation_tokens"] += _number(usage.get("cache_creation_input_tokens"))
