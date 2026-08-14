@@ -59,6 +59,23 @@ class _FakeProcess:
         self.killed = True
 
 
+def _write_provider_transcript(home, provider, identifier):
+    """Create the transcript the real provider would have written.
+
+    Resumability is a checked fact now, so a session carrying an id the
+    provider never persisted degrades to --continue / --last. Tests that mean
+    to exercise resume-by-id have to put something on disk to be found.
+    """
+    if provider == "codex":
+        path = os.path.join(home, "sessions", "2026", "08",
+                            f"rollout-2026-08-14T10-00-00-{identifier}.jsonl")
+    else:
+        path = os.path.join(home, ".claude", "projects", "repo", f"{identifier}.jsonl")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    open(path, "w").close()
+    return path
+
+
 class RuntimePythonTests(unittest.TestCase):
     def setUp(self):
         self._real_which = shutil.which
@@ -1064,11 +1081,15 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertEqual(env["CLAUDE_CODE_DISABLE_TERMINAL_TITLE"], "1")
 
     def test_interactive_claude_specs_disable_claude_title_writes(self):
+        identifier = "11111111-1111-4111-8111-111111111111"
+        home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, home, True)
+        _write_provider_transcript(home, "claude", identifier)
         session = {
             "name": "work",
             "provider": "claude",
-            "authHome": "/tmp/claude-home",
-            "conversation": {"id": "11111111-1111-4111-8111-111111111111"},
+            "authHome": home,
+            "conversation": {"id": identifier},
         }
 
         launch = provider_runtime._build_launch_spec(session, cwd="/tmp/repo")
@@ -1299,20 +1320,42 @@ class RuntimePythonTests(unittest.TestCase):
             self.assertEqual(capability["reason"], "no_recorded_conversation")
 
     def test_resume_capability_names_the_conversation_once_recorded(self):
-        session = {
-            "name": "s",
-            "provider": "claude",
-            "conversation": {"id": "11111111-2222-3333-4444-555555555555", "provenance": "imposed"},
-        }
+        identifier = "11111111-2222-3333-4444-555555555555"
+        with tempfile.TemporaryDirectory() as home:
+            transcript = os.path.join(home, ".claude", "projects", "repo", f"{identifier}.jsonl")
+            os.makedirs(os.path.dirname(transcript), exist_ok=True)
+            open(transcript, "w").close()
+            session = {
+                "name": "s",
+                "provider": "claude",
+                "authHome": home,
+                "conversation": {"id": identifier, "provenance": "imposed"},
+            }
 
-        capability = provider_runtime.get_resume_capability(session, cwd="/tmp/repo")
+            capability = provider_runtime.get_resume_capability(session, cwd="/tmp/repo")
 
         self.assertEqual(capability["strategy"], "provider_conversation_id")
         self.assertEqual(capability["provenance"], "imposed")
-        self.assertEqual(
-            capability["command_preview"],
-            ["claude", "--resume", "11111111-2222-3333-4444-555555555555"],
-        )
+        self.assertEqual(capability["command_preview"], ["claude", "--resume", identifier])
+
+    def test_a_recorded_conversation_the_provider_never_wrote_is_not_offered(self):
+        # The stored id survives a launch the provider never persisted. cdx
+        # used to name it anyway and let `claude --resume <id>` fail with "No
+        # conversation found with session ID".
+        with tempfile.TemporaryDirectory() as home:
+            session = {
+                "name": "s",
+                "provider": "claude",
+                "authHome": home,
+                "conversation": {"id": "11111111-2222-3333-4444-555555555555", "provenance": "imposed"},
+            }
+
+            capability = provider_runtime.get_resume_capability(session, cwd="/tmp/repo")
+
+        self.assertTrue(capability["resumable"])
+        self.assertEqual(capability["strategy"], "provider_continue")
+        self.assertEqual(capability["reason"], "conversation_not_found")
+        self.assertEqual(capability["command_preview"], ["claude", "--continue"])
 
     def test_resume_specs_name_the_conversation_for_both_providers(self):
         identifier = "11111111-2222-3333-4444-555555555555"
@@ -1320,18 +1363,36 @@ class RuntimePythonTests(unittest.TestCase):
             ("claude", ["--resume", identifier]),
             ("codex", ["resume", identifier]),
         ):
-            session = {
-                "name": "s",
-                "provider": provider,
-                "authHome": "/tmp/home",
-                "conversation": {"id": identifier, "provenance": "observed"},
-            }
+            with tempfile.TemporaryDirectory() as home:
+                _write_provider_transcript(home, provider, identifier)
+                session = {
+                    "name": "s",
+                    "provider": provider,
+                    "authHome": home,
+                    "conversation": {"id": identifier, "provenance": "observed"},
+                }
 
-            spec = provider_runtime._build_resume_spec(session, cwd="/tmp/repo", capture_transcript=False)
+                spec = provider_runtime._build_resume_spec(session, cwd="/tmp/repo", capture_transcript=False)
 
             self.assertEqual(spec["args"][:2], expected)
             self.assertNotIn("--continue", spec["args"])
             self.assertNotIn("--last", spec["args"])
+
+    def test_a_resume_spec_falls_back_when_the_conversation_is_gone(self):
+        identifier = "11111111-2222-3333-4444-555555555555"
+        for provider, expected in (("claude", "--continue"), ("codex", "--last")):
+            with tempfile.TemporaryDirectory() as home:
+                session = {
+                    "name": "s",
+                    "provider": provider,
+                    "authHome": home,
+                    "conversation": {"id": identifier, "provenance": "observed"},
+                }
+
+                spec = provider_runtime._build_resume_spec(session, cwd="/tmp/repo", capture_transcript=False)
+
+            self.assertIn(expected, spec["args"])
+            self.assertNotIn(identifier, spec["args"])
 
     def test_budget_argument_drops_float_artefacts(self):
         self.assertEqual(provider_runtime._format_budget_arg(5.0), "5")

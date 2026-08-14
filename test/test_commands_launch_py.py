@@ -473,6 +473,20 @@ class LaunchCommandTests(CliTestBase):
         self.assertEqual(resume_call["command"], "script")
         self.assertTrue(_script_launch_invokes(resume_call, "claude"))
 
+    def _write_conversation_transcript(self, temp_dir, name, identifier):
+        """Stand in for the transcript the real provider would have written.
+
+        The spawn harness does not run a provider, so nothing lands on disk --
+        but resumability is now a checked fact, so the check needs something to
+        find.
+        """
+        service = create_session_service({"base_dir": temp_dir})
+        home = service["get_session"](name).get("authHome")
+        path = os.path.join(home, ".claude", "projects", "repo", f"{identifier}.jsonl")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        open(path, "w").close()
+        return path
+
     def test_resume_carries_the_conversation_the_launch_created(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()
@@ -488,6 +502,7 @@ class LaunchCommandTests(CliTestBase):
         service = create_session_service({"base_dir": temp_dir})
         launched = (service["get_session"]("work").get("conversation") or {}).get("id")
         self.assertIsNotNone(launched)
+        self._write_conversation_transcript(temp_dir, "work", launched)
 
         resume_io = self.make_io()
         self.assertEqual(main(["resume", "work", "--json"], {**resume_io, **context}), 0)
@@ -521,6 +536,7 @@ class LaunchCommandTests(CliTestBase):
             self.assertEqual(main(["work"], {**self.make_io(), **context}), 0)
             service = create_session_service({"base_dir": temp_dir})
             launched = (service["get_session"]("work").get("conversation") or {}).get("id")
+            self._write_conversation_transcript(temp_dir, "work", launched)
 
             self.assertEqual(main(form, {**self.make_io(), **context}), 0)
 
@@ -1162,3 +1178,49 @@ class LaunchCommandTests(CliTestBase):
                 "spawn": spawn,
                 "spawn_sync": spawn_sync,
             })
+
+
+class ResumeDegradationTests(CliTestBase):
+    def test_a_resume_whose_conversation_vanished_falls_back_instead_of_failing(self):
+        # What the operator hit: a stored id whose conversation the provider
+        # never persisted. cdx named it anyway and the provider exited 1 with
+        # "No conversation found with session ID". Resuming the most recent
+        # conversation is the honest answer, and cdx already had that strategy.
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        context = {
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+            "cwd": "/tmp/repo",
+        }
+        self.assertEqual(main(["add", "claude", "work"], {**self.make_io(), **context}), 0)
+        self.assertEqual(main(["work"], {**self.make_io(), **context}), 0)
+        # Deliberately no transcript: the launch produced nothing durable.
+
+        resume_io = self.make_io()
+        self.assertEqual(main(["resume", "work", "--json"], {**resume_io, **context}), 0)
+
+        payload = json.loads(resume_io["stdout"].getvalue())
+        self.assertTrue(payload["resume"]["resumable"])
+        self.assertEqual(payload["resume"]["strategy"], "provider_continue")
+        self.assertEqual(payload["resume"]["reason"], "conversation_not_found")
+        self.assertEqual(_script_launch_args(harness.calls[-1])[:1], ["--continue"])
+
+    def test_can_resume_stops_promising_what_would_fail(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        context = {
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }
+        self.assertEqual(main(["add", "claude", "work"], {**self.make_io(), **context}), 0)
+        self.assertEqual(main(["work"], {**self.make_io(), **context}), 0)
+
+        io_obj = self.make_io()
+        self.assertEqual(main(["can-resume", "work", "--json"], {**io_obj, **context}), 0)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertEqual(payload["reason"], "conversation_not_found")
+        self.assertIsNone(payload["identity"])

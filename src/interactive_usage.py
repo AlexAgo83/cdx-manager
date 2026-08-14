@@ -128,6 +128,18 @@ def _covers_run(path, started_at):
         return False
 
 
+def conversation_transcript(provider, auth_home, conversation_id):
+    """The transcript file for this exact conversation, or None if it has none.
+
+    Answers "does this conversation actually exist" without the fallbacks
+    `resolve_transcript` applies: a caller asking whether a resume will work
+    must not be told yes because some *other* conversation was found.
+    """
+    if not auth_home or not conversation_id:
+        return None
+    return _transcript_for_conversation(provider, auth_home, conversation_id)
+
+
 def _transcript_for_conversation(provider, auth_home, conversation_id):
     if provider == "codex":
         return _codex_rollout_for(auth_home, conversation_id)

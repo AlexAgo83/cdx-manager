@@ -642,18 +642,44 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     }, capture_transcript=capture_transcript, env=env)
 
 
+def _conversation_is_resumable(session, provider, conversation_id):
+    """Whether the named conversation exists on disk and can be resumed.
+
+    A lookup failure reads as "not found" rather than raising: this decides
+    which of two working strategies to use, so it must never be able to fail a
+    command outright.
+    """
+    if not conversation_id:
+        return False
+    try:
+        from .interactive_usage import conversation_transcript
+
+        return bool(conversation_transcript(provider, _get_auth_home(session), conversation_id))
+    except (OSError, ImportError):
+        return False
+
+
 def _redacted_resume_command_preview(session, cwd=None):
     capability = get_resume_capability(session, cwd=cwd)
     return capability.get("command_preview")
 
 
 def get_resume_capability(session, cwd=None):
+    """What resuming this session would actually do.
+
+    The stored conversation id is a claim, not a fact: it survives a launch the
+    provider never persisted, and cdx then promised a resume that failed with
+    the provider's own raw error. The conversation is therefore looked up
+    before it is named, and a missing one degrades to the fallback each
+    provider already has rather than being offered as supported.
+    """
     provider = session.get("provider")
     cwd = cwd or os.getcwd()
     conversation = session.get("conversation") or {}
     conversation_id = _conversation_id(session)
+    known = _conversation_is_resumable(session, provider, conversation_id)
     if provider == PROVIDER_CODEX:
-        if conversation_id:
+        if known:
             return {
                 "resumable": True,
                 "provider": provider,
@@ -671,11 +697,11 @@ def get_resume_capability(session, cwd=None):
             "provenance": None,
             # Codex only reveals a conversation id once a run has written its
             # rollout, so a session that has never run legitimately has none.
-            "reason": "no_recorded_conversation",
+            "reason": "conversation_not_found" if conversation_id else "no_recorded_conversation",
             "command_preview": ["codex", "resume", "--last", "--cd", cwd],
         }
     if provider == PROVIDER_CLAUDE:
-        if conversation_id:
+        if known:
             return {
                 "resumable": True,
                 "provider": provider,
@@ -691,7 +717,7 @@ def get_resume_capability(session, cwd=None):
             "strategy": "provider_continue",
             "identity": None,
             "provenance": None,
-            "reason": "no_recorded_conversation",
+            "reason": "conversation_not_found" if conversation_id else "no_recorded_conversation",
             "command_preview": ["claude", "--continue"],
         }
     return {
@@ -718,9 +744,15 @@ def _build_resume_spec(session, cwd=None, env_override=None, capture_transcript=
         launch = session.get("launch") or {}
         # Resuming by id targets the conversation this session actually last
         # opened; --continue only means "the most recent one in this directory",
-        # which another session or another cwd can silently change.
-        conversation_id = _conversation_id(session)
-        args = ["--resume", conversation_id] if conversation_id else ["--continue"]
+        # which another session or another cwd can silently change. So the id
+        # is preferred -- but only when the capability confirmed the
+        # conversation exists, since naming one the provider never wrote just
+        # trades a vaguer resume for a failed one.
+        args = (
+            ["--resume", capability["identity"]]
+            if capability["strategy"] == "provider_conversation_id"
+            else ["--continue"]
+        )
         args += ["--name", session["name"]]
         if launch.get("model"):
             args += ["--model", _claude_cli_model(launch["model"])]
@@ -744,8 +776,13 @@ def _build_resume_spec(session, cwd=None, env_override=None, capture_transcript=
         }, capture_transcript=capture_transcript, env=env)
 
     launch = session.get("launch") or {}
-    conversation_id = _conversation_id(session)
-    args = ["resume", conversation_id] if conversation_id else ["resume", "--last"]
+    # Same rule as the Claude branch: name the conversation only when the
+    # capability confirmed its rollout exists, else fall back to --last.
+    args = (
+        ["resume", capability["identity"]]
+        if capability["strategy"] == "provider_conversation_id"
+        else ["resume", "--last"]
+    )
     args += ["--cd", cwd]
     if launch.get("model"):
         args += ["--model", launch["model"]]
