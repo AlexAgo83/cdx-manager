@@ -790,7 +790,9 @@ def _rows_by_session(rows):
 
 def _is_invalid_claude_usage_auth(error):
     text = str(error or "").lower()
-    return "http 401" in text and "invalid authentication credentials" in text
+    if "http 401" not in text:
+        return False
+    return "invalid authentication credentials" in text or "oauth access token has expired" in text
 
 def _has_valid_local_claude_auth(item, rows_by_name):
     session = item.get("session")

@@ -1055,6 +1055,42 @@ class StatusCommandTests(CliTestBase):
             text_io["stdout"].getvalue(),
         )
 
+    def test_status_keeps_claude_auth_after_expired_token_message_when_probe_succeeds(self):
+        # Regression: the provider's actual OAuth-expiry message ("OAuth access
+        # token has expired...") used to fall through to a raw 401 warning
+        # because only the older "invalid authentication credentials" phrase
+        # was recognized as a stale-quota/local-auth-still-valid case.
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("claude", "claude")
+        service["update_auth_state"]("claude", lambda auth: {
+            **auth,
+            "status": "authenticated",
+        })
+
+        def refresh(_session):
+            from src.claude_usage import ClaudeAuthInvalidError
+
+            raise ClaudeAuthInvalidError(
+                "Claude usage unavailable (HTTP 401: OAuth access token has expired. Re-authenticate to continue.)"
+            )
+
+        status_io = self.make_io()
+        self.assertEqual(main(["status", "claude", "--json", "--refresh"], {
+            **status_io,
+            "service": service,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn_sync": _AuthHarness(initial_auth={
+                service["get_session"]("claude")["authHome"]: True,
+            }).spawn_sync,
+            "refreshClaudeSessionStatus": refresh,
+        }), 0)
+        payload = json.loads(status_io["stdout"].getvalue())
+        self.assertEqual(payload["session"]["auth_status"], "authenticated")
+        self.assertEqual(payload["warnings"][0]["auth_status"], "authenticated")
+        self.assertEqual(payload["warnings"][0]["status_freshness"], "stale")
+        self.assertIn("local Claude auth is still valid", payload["warnings"][0]["message"])
+
     def test_status_rechecks_claude_auth_before_usage_refresh(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

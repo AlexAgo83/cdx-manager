@@ -129,6 +129,32 @@ def _parse_reset_epoch(value):
     return parsed.timestamp()
 
 
+CLAUDE_ACCESS_TOKEN_EXPIRY_SKEW_SECONDS = 60
+
+
+def _current_epoch_seconds():
+    return datetime.now(timezone.utc).timestamp()
+
+
+def _parse_epoch_seconds(value):
+    if value in (None, ""):
+        return None
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return _parse_reset_epoch(value)
+    # Claude CLI persists expiresAt in milliseconds since epoch.
+    return num / 1000 if num > 1e12 else num
+
+
+def _access_token_expired(creds, now=None):
+    expires_at = _parse_epoch_seconds(creds.get("expiresAt")) if isinstance(creds, dict) else None
+    if expires_at is None:
+        return False
+    now = _current_epoch_seconds() if now is None else now
+    return now >= expires_at - CLAUDE_ACCESS_TOKEN_EXPIRY_SKEW_SECONDS
+
+
 def _safe_float(value):
     if value is None:
         return None
@@ -240,5 +266,12 @@ def refresh_claude_session_status(session, auth_refresher=None):
     refresher(auth_home)
     creds = _read_claude_credentials(auth_home)
     if not creds or not creds.get("accessToken"):
+        return None
+    if _access_token_expired(creds):
+        # ponytail: `claude auth status` doesn't refresh an expired access
+        # token (verified no-op) and only a real Claude Code invocation does.
+        # Probing anyway just reproduces a 401 we can already predict
+        # offline, so skip it like the "no credentials" case above and leave
+        # the cached quota as stale rather than raising a false alert.
         return None
     return fetch_claude_rate_limit_headers(creds["accessToken"])

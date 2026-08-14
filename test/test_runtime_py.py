@@ -270,6 +270,45 @@ class RuntimePythonTests(unittest.TestCase):
             fetch.assert_called_once_with("fresh")
             self.assertEqual(result["remaining_5h_pct"], 77)
 
+    def test_refresh_claude_session_status_skips_probe_for_expired_access_token(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-claude-") as temp_dir:
+            cred_dir = os.path.join(temp_dir, ".claude")
+            os.makedirs(cred_dir, exist_ok=True)
+            with open(os.path.join(cred_dir, ".credentials.json"), "w", encoding="utf-8") as handle:
+                # expiresAt in the past, milliseconds since epoch (Claude CLI's format).
+                json.dump({"claudeAiOauth": {"accessToken": "stale", "expiresAt": 1000000}}, handle)
+            with mock.patch("src.claude_usage.fetch_claude_rate_limit_headers") as fetch:
+                result = claude_usage.refresh_claude_session_status(
+                    {"authHome": temp_dir},
+                    auth_refresher=lambda _auth_home: None,
+                )
+            fetch.assert_not_called()
+            self.assertIsNone(result)
+
+    def test_refresh_claude_session_status_probes_when_token_still_valid(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-claude-") as temp_dir:
+            cred_dir = os.path.join(temp_dir, ".claude")
+            os.makedirs(cred_dir, exist_ok=True)
+            future_ms = (claude_usage._current_epoch_seconds() + 3600) * 1000
+            with open(os.path.join(cred_dir, ".credentials.json"), "w", encoding="utf-8") as handle:
+                json.dump({"claudeAiOauth": {"accessToken": "fresh", "expiresAt": future_ms}}, handle)
+            with mock.patch("src.claude_usage.fetch_claude_rate_limit_headers", return_value={"remaining_5h_pct": 50}) as fetch:
+                result = claude_usage.refresh_claude_session_status(
+                    {"authHome": temp_dir},
+                    auth_refresher=lambda _auth_home: None,
+                )
+            fetch.assert_called_once_with("fresh")
+            self.assertEqual(result["remaining_5h_pct"], 50)
+
+    def test_access_token_expired_handles_seconds_ms_and_missing(self):
+        now = 1_700_000_000  # realistic epoch-seconds scale, so the ms heuristic applies.
+        self.assertFalse(claude_usage._access_token_expired({}))
+        self.assertTrue(claude_usage._access_token_expired({"expiresAt": now - 100}, now=now))
+        self.assertFalse(claude_usage._access_token_expired({"expiresAt": now + 300}, now=now))
+        # Same instant expressed in ms should agree with seconds.
+        self.assertTrue(claude_usage._access_token_expired({"expiresAt": (now - 100) * 1000}, now=now))
+        self.assertFalse(claude_usage._access_token_expired({"expiresAt": (now + 300) * 1000}, now=now))
+
     def test_claude_cli_credential_refresh_ignores_missing_cli(self):
         with tempfile.TemporaryDirectory(prefix="cdx-claude-") as temp_dir:
             def missing_cli(*_args, **_kwargs):
