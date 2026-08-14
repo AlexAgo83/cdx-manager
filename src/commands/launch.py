@@ -315,7 +315,10 @@ def _attach_interactive_usage(session, run_info, history=None):
     run_info = dict(run_info or {})
     started_at = run_info.get("started_at")
     cumulative, provider_transcript, match, model = extract_interactive_usage(
-        session.get("provider"), _get_auth_home(session), started_at, _conversation_id(session)
+        session.get("provider"), _get_auth_home(session), started_at, _conversation_id(session),
+        # Ollama writes no provider transcript; its only record is the PTY
+        # capture this run already took.
+        run_info.get("transcript_path"),
     )
     if provider_transcript:
         run_info["provider_transcript_path"] = provider_transcript

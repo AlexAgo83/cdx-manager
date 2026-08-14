@@ -1,4 +1,18 @@
-"""Best-effort usage readers for interactive provider sessions."""
+"""Best-effort usage readers for interactive provider sessions.
+
+Three providers report usage and one does not:
+
+- Claude and Codex write their own JSONL transcripts, resolved by the
+  conversation id cdx already holds.
+- Ollama writes nothing. Its counts exist only in `--verbose` terminal output,
+  so they are parsed out of the PTY capture cdx takes for every launch.
+- Antigravity has no retrievable source. Its conversation history is
+  schema-less binary protobuf under `~/.gemini/antigravity-cli/conversations/`
+  with no `.proto` available to decode field numbers into token counts, and its
+  logs are plain glog with no usage-bearing line at any verbosity `agy --help`
+  exposes. This was investigated and is a dead end, not an oversight -- do not
+  spend the afternoon rediscovering it.
+"""
 
 import json
 import os
@@ -6,6 +20,7 @@ import re
 import time
 
 from .run_usage import claude_usage_dedup_key, normalize_usage
+from .status_source import _normalize_terminal_transcript
 
 MAX_TRANSCRIPT_BYTES = 16 * 1024 * 1024
 MAX_TRANSCRIPT_CANDIDATES = 1000
@@ -14,14 +29,32 @@ MAX_TRANSCRIPT_SCAN_SECONDS = 1
 #: Codex repeats the conversation id at the end of each rollout filename.
 _ROLLOUT_NAME = re.compile(r"^rollout-.*-([0-9a-fA-F-]{36})\.jsonl$")
 
+#: Ollama's `--verbose` block, one per response. Captured from a real
+#: `ollama run smollm2:135m --verbose` on 0.32.11:
+#:
+#:     total duration:       1.159523666s
+#:     prompt eval count:    32 token(s)
+#:     eval count:           58 token(s)
+#:
+#: `prompt eval count` is the prompt actually evaluated for that response and
+#: `eval count` what it generated, so a multi-turn session contributes one
+#: block per turn and they sum. Ollama reports no cache and no reasoning: it is
+#: a local runner with no prompt cache to read from, so those fields stay
+#: absent rather than zero.
+_OLLAMA_PROMPT_TOKENS = re.compile(r"^\s*prompt eval count:\s*(\d+)\s*token", re.M)
+_OLLAMA_EVAL_TOKENS = re.compile(r"^\s*eval count:\s*(\d+)\s*token", re.M)
+
 #: How the transcript that produced a usage record was found. An id match is
 #: the session's own transcript by construction; a recency match is a guess
 #: that happened to be the newest file, and must not read as the same thing.
 MATCH_CONVERSATION_ID = "conversation_id"
 MATCH_RECENCY = "recency"
+#: The run's own terminal capture -- no ambiguity to resolve.
+MATCH_RUN_TRANSCRIPT = "run_transcript"
 
 
-def extract_interactive_usage(provider, auth_home, started_at=None, conversation_id=None):
+def extract_interactive_usage(provider, auth_home, started_at=None, conversation_id=None,
+                              terminal_transcript=None):
     """Return this session's provider-native usage, and how it was found.
 
     Provider transcripts are not stable public APIs.  A missing or changed
@@ -39,21 +72,29 @@ def extract_interactive_usage(provider, auth_home, started_at=None, conversation
     rather than falling back to that scan: a wrong attribution is worse than a
     missing one, and it is the failure this replaces.
     """
-    path, match = resolve_transcript(provider, auth_home, started_at, conversation_id)
+    path, match = resolve_transcript(
+        provider, auth_home, started_at, conversation_id, terminal_transcript)
     if not path:
         return None, None, None, None
     try:
         if os.path.getsize(path) > MAX_TRANSCRIPT_BYTES:
             return None, path, match, None
         with open(path, encoding="utf-8", errors="replace") as handle:
-            usage, model = _codex_usage(handle) if provider == "codex" else _claude_usage(handle)
+            usage, model = _READERS.get(provider, _claude_usage)(handle)
         return usage, path, match, model
     except OSError:
         return None, path, match, None
 
 
-def resolve_transcript(provider, auth_home, started_at=None, conversation_id=None):
+def resolve_transcript(provider, auth_home, started_at=None, conversation_id=None,
+                       terminal_transcript=None):
     """The transcript belonging to this session, and how confidently."""
+    if provider == "ollama":
+        # No provider-native transcript exists to resolve. The run's own PTY
+        # capture is the only record, and the caller already knows its path --
+        # which makes this the most certain attribution of the three, not the
+        # least: there is no file to pick wrongly.
+        return (terminal_transcript, MATCH_RUN_TRANSCRIPT) if terminal_transcript else (None, None)
     if not auth_home:
         return None, None
     if conversation_id:
@@ -84,6 +125,11 @@ def _codex_rollout_for(auth_home, conversation_id):
             if match and match.group(1).lower() == str(conversation_id).lower():
                 return os.path.join(directory, name)
     return None
+
+
+#: Which reader parses which provider's transcript. Claude is the default
+#: because its shape is what an unknown provider is most likely to resemble.
+_READERS = {}
 
 
 def _latest_transcript(provider, auth_home, started_at):
@@ -118,6 +164,10 @@ def _latest_transcript(provider, auth_home, started_at):
     return max(candidates, default=(None, None))[1]
 
 
+_READERS.update({"codex": lambda handle: _codex_usage(handle),
+                 "ollama": lambda handle: _ollama_usage(handle)})
+
+
 def _timestamp(value):
     if not value:
         return None
@@ -126,6 +176,30 @@ def _timestamp(value):
         return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
     except ValueError:
         return None
+
+
+def _ollama_usage(handle):
+    """Token counts parsed out of ollama's `--verbose` blocks.
+
+    Ollama has no provider-native transcript, so the only place these numbers
+    exist is the terminal, and the only copy of the terminal is the PTY capture
+    cdx already takes through `script`. That capture is not clean text -- a
+    real one carries cursor show/hide sequences between individual words and
+    carriage returns overwriting lines in place -- so it is normalized with the
+    same helper the handoff reader uses before any pattern is applied.
+
+    Returns no model: ollama runs locally and its models are not in any price
+    table, so naming one would only invite pricing something that is free.
+    """
+    text = _normalize_terminal_transcript(handle.read())
+    prompts = [int(value) for value in _OLLAMA_PROMPT_TOKENS.findall(text)]
+    evals = [int(value) for value in _OLLAMA_EVAL_TOKENS.findall(text)]
+    if not prompts and not evals:
+        return None, None
+    return normalize_usage(
+        input_tokens=sum(prompts) if prompts else None,
+        output_tokens=sum(evals) if evals else None,
+    ), None
 
 
 def _codex_usage(handle):

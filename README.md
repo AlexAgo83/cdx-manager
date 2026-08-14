@@ -708,7 +708,7 @@ cdx run \
 
 The result includes `launcher: "cdx"`, `run_id`, selected `session`, `provider`, `exit_code`, `duration_seconds`, absolute `transcript_path`, `stdout_path`, `stderr_path`, and normalized usage token fields. Codex headless runs use `codex exec --json`; Claude headless runs use `claude --print --output-format json`. Token counts are `null` when the provider does not expose a supported JSON or JSONL usage shape.
 
-Known headless and completed interactive token usage is persisted in launch history and can be aggregated later. Interactive records are best-effort local data: Codex reads its latest cumulative rollout snapshot and Claude reads its assistant usage records.
+Known headless and completed interactive token usage is persisted in launch history and can be aggregated later. Interactive records are best-effort local data: Codex reads its latest cumulative rollout snapshot, Claude reads its assistant usage records, and Ollama — which writes no transcript of its own — is launched with `--verbose` so its per-response token counts land in the terminal capture cdx already takes. Antigravity reports no usage: its history is schema-less binary protobuf and its logs carry no usage line, so those sessions show no tokens by nature rather than by omission.
 
 Every usage record, whichever path produced it, uses one set of definitions:
 
