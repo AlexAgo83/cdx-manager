@@ -1088,26 +1088,33 @@ class RuntimePythonTests(unittest.TestCase):
 
     def test_non_interactive_and_non_claude_specs_keep_claude_title_writes_untouched(self):
         claude = {"name": "work", "provider": "claude", "authHome": "/tmp/claude-home"}
-        headless = provider_runtime._build_headless_launch_spec(claude, cwd="/tmp/repo")
-        auth_login = provider_runtime._build_auth_action_spec(claude, "login", cwd="/tmp/repo")
-        setup_token = provider_runtime._build_auth_action_spec(claude, "setup-token", cwd="/tmp/repo")
-        login_status = provider_runtime._build_login_status_spec(claude)
+        # Every spec inherits os.environ by design, so the assertion below --
+        # that cdx does not *add* this variable -- can only be made against an
+        # environment that does not already carry it. Without this the test
+        # fails inside any shell that exports it, for a reason unrelated to the
+        # behaviour under test.
+        with mock.patch.dict(os.environ):
+            os.environ.pop("CLAUDE_CODE_DISABLE_TERMINAL_TITLE", None)
+            headless = provider_runtime._build_headless_launch_spec(claude, cwd="/tmp/repo")
+            auth_login = provider_runtime._build_auth_action_spec(claude, "login", cwd="/tmp/repo")
+            setup_token = provider_runtime._build_auth_action_spec(claude, "setup-token", cwd="/tmp/repo")
+            login_status = provider_runtime._build_login_status_spec(claude)
 
-        for env in (
-            headless["options"]["env"],
-            auth_login["options"]["env"],
-            setup_token["options"]["env"],
-            login_status["env"],
-        ):
-            self.assertNotIn("CLAUDE_CODE_DISABLE_TERMINAL_TITLE", env)
-        self.assertEqual(headless["args"][:4], ["--print", "--output-format", "json", "--name"])
-        self.assertEqual(auth_login["args"], ["auth", "login"])
+            for env in (
+                headless["options"]["env"],
+                auth_login["options"]["env"],
+                setup_token["options"]["env"],
+                login_status["env"],
+            ):
+                self.assertNotIn("CLAUDE_CODE_DISABLE_TERMINAL_TITLE", env)
+            self.assertEqual(headless["args"][:4], ["--print", "--output-format", "json", "--name"])
+            self.assertEqual(auth_login["args"], ["auth", "login"])
 
-        for provider, home in (("codex", "/tmp/codex-home"), ("antigravity", "/tmp/agy-home"), ("ollama", "/tmp/olla-home")):
-            spec = provider_runtime._build_launch_spec(
-                {"name": provider, "provider": provider, "authHome": home}, cwd="/tmp/repo")
-            self.assertNotIn(
-                "CLAUDE_CODE_DISABLE_TERMINAL_TITLE", spec["options"]["env"])
+            for provider, home in (("codex", "/tmp/codex-home"), ("antigravity", "/tmp/agy-home"), ("ollama", "/tmp/olla-home")):
+                spec = provider_runtime._build_launch_spec(
+                    {"name": provider, "provider": provider, "authHome": home}, cwd="/tmp/repo")
+                self.assertNotIn(
+                    "CLAUDE_CODE_DISABLE_TERMINAL_TITLE", spec["options"]["env"])
 
     def test_build_resume_spec_uses_codex_resume_last(self):
         session = {
