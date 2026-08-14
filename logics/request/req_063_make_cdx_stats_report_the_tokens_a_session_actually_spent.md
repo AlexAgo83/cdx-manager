@@ -7,7 +7,7 @@
 > Complexity: High
 > Theme: Usage accounting
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 10:47:01
+> Indicators reviewed: 2026-08-14 12:13:18
 
 # AI Context
 - Summary: The interactive usage reader drops cached input from the total, re-bills the whole transcript on every resume, and often measures a different session's transcript entirely.

@@ -1,14 +1,14 @@
 ## item_129_rank_sessions_by_weighted_cost_equivalent_tokens - Rank sessions by weighted cost-equivalent tokens
 > From version: 0.19.3
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95
 > Confidence: 90
 > Progress: 100%
 > Complexity: Medium
 > Theme: Usage accounting
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 10:26:31
+> Indicators reviewed: 2026-08-14 12:13:18
 
 # AI Context
 - Summary: A raw token sum ranks a cache read equal to an output token that costs fifty times more; this slice weights the four token classes by their published price ratios, which are identical across every current model and so need no price table.
@@ -60,3 +60,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Depends on the corrected arithmetic and the split cache field; it is what makes the corrected numbers actionable rather than merely accurate.
+
+# Tasks
+- `task_073_orchestrate_truthful_token_accounting_for_cdx_stats`
+
+# Notes
+- Task `task_073_orchestrate_truthful_token_accounting_for_cdx_stats` was finished via `logics-manager flow finish task` on 2026-08-14.

@@ -8,20 +8,20 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-08-14 12:10:50
+> Indicators reviewed: 2026-08-14 12:13:17
 
 # AI Context
-- Summary: Sequenced after req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent; the only real unknown left is the text layout of ollama's verbose stats block, so that is captured first and everything else follows from a real fixture.
+- Summary: Sequenced after the token-accounting request; the only real unknown left is the text layout of ollama's verbose stats block, so that is captured first and everything else follows from a real fixture.
 - Keywords: ollama, --verbose, PTY normalization, provider flag health check, sequencing
 - Use when: Implementing or sequencing req_062_track_token_usage_for_interactive_ollama_sessions.
-- Skip when: req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent is still open — this work adopts its shared definition and must not predate it.
+- Skip when: the token-accounting request is still open — this work adopts its shared definition and must not predate it.
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
-- **Blocked on req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent.** That request settles the shared usage-field definition, what a run stores, and how a transcript is resolved. Starting here first means writing a fourth reader against three divergent ones, and its single-resolver outcome would contradict ollama's separate source on arrival. Confirm task_073_orchestrate_truthful_token_accounting_for_cdx_stats is closed out before starting step 2.
+- **Blocked on the token-accounting request (`cdx stats` truthful accounting).** That request settles the shared usage-field definition, what a run stores, and how a transcript is resolved. Starting here first means writing a fourth reader against three divergent ones, and its single-resolver outcome would contradict ollama's separate source on arrival. Confirm that request's orchestration task is closed out before starting step 2.
 
 # Plan
-- [ ] 1. Confirm req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent has landed and read the shared field definition it settled. Everything below plugs into that definition rather than proposing another.
+- [ ] 1. Confirm the token-accounting request has landed and read the shared field definition it settled. Everything below plugs into that definition rather than proposing another.
 - [ ] 2. Capture ollama's real `--verbose` stats block from a live run and keep the raw output — escapes included — as the test fixture. This is the only genuinely unverified assumption in the request: the flag's placement is already settled, and `--verbose` is documented as showing timings, so whether and how the token counts appear inside that block is what the live run answers. Do not author a guessed fixture.
 - [ ] 3. Add `--verbose` to the ollama launch args as `["run", model, "--verbose"] + config_args + [prompt]`, and confirm prompt, model, and existing extra-arg handling are unaffected.
 - [ ] 4. Add the `_ollama_usage` parser to `interactive_usage.py`, wired through the cdx-generated transcript path for ollama specifically, leaving the resolution path settled by the preceding request untouched for the other providers.

@@ -1,14 +1,14 @@
 ## task_073_orchestrate_truthful_token_accounting_for_cdx_stats - Orchestrate truthful token accounting for cdx stats
 > From version: 0.19.3
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
 > Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-08-14 10:26:32
+> Indicators reviewed: 2026-08-14 12:13:18
 > Owner: claude
 
 # AI Context
@@ -34,9 +34,9 @@
 - [x] 11. Weight the token classes and rank by the result, once the fields are split and the deltas are correct. Record the weights as ratios relative to uncached input with the rationale beside them — they are provider ratios, not prices, which is why no per-model table is needed and why this cannot go stale.
 - [x] 12. Leave currency last and separate. It needs the serving model per run, read from the transcript rather than inferred from the session's configured launch settings, and it is the one part of this request carrying a perishable input. Ship the weighted ranking without it if attribution proves harder than expected — the ranking is what makes the numbers actionable.
 - [x] 13. Run the usage, status, and runs test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.
-- [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
-- [ ] Keep commit creation under operator control; do not force one commit per micro-step.
-- [ ] GATE: do not close until lint, audit, and scaffold validation pass.
+- [x] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
+- [x] Keep commit creation under operator control; do not force one commit per micro-step.
+- [x] GATE: do not close until lint, audit, and scaffold validation pass.
 
 # Backlog
 - `item_126_define_one_token_accounting_shared_by_both_usage_readers`
@@ -46,10 +46,10 @@
 - `item_130_report_token_spend_in_currency`
 
 # Definition of Done (DoD)
-- [ ] Generated request, product, backlog, and task docs are present.
-- [ ] Context-pack handoff is available when requested.
-- [ ] Validation passes.
-- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+- [x] Generated request, product, backlog, and task docs are present.
+- [x] Context-pack handoff is available when requested.
+- [x] Validation passes.
+- [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
 - request-AC1 -> This task. Proof: Claude total now covers cached input; `test_a_total_that_excludes_cache_is_not_produced` and the reader agreement fixtures. b73f5a5
@@ -73,6 +73,9 @@
 - Wave D weighting (plan step 11), 2026-08-14: `npm test` 924 passed, `npm run lint` all checks passed.
 - Coverage measured against the real store rather than asserted: before, 33 of 1006 recorded runs carried any usage (3.3%). After, 12 of 13 claude/codex sessions carry a conversation id and all 12 resolve to an existing transcript; only `work5` has no id, and it has not been launched in nine days. The post-change run-level share cannot be measured until runs accumulate under the new resolution.
 - Oracle reconciliation on one real 2741-row Claude transcript, cdx reader against an independent reader of the same bytes: exact agreement on all four measured fields (input 3321, cache creation 2671168, cache read 797566574, output 820410). Before the de-duplication fix the same file read 1.55x high.
+- command: `npm test && npm run lint` | result: passed | date: 2026-08-14
+- Finish workflow executed on 2026-08-14.
+- Linked backlog/request close verification passed.
 
 # Report
 - **Wave A delivered** in b73f5a5 and 878e570. One shared definition now lives in `src/run_usage.py` and all three readers normalize to it; cache creation and cache read are separate fields; IN is the uncached remainder on both providers; the total covers all four token classes; the run registry normalizes on the way in so the JSON surfaces publish the shared shape; the README documents the fields and no longer claims an invariant the code broke.
@@ -91,6 +94,9 @@
 - **A seventh defect, found by running the real command.** `cdx stats` summed each run's *stored* total, mixing pre-definition records that excluded cache with correct ones. On real data that produced a row contradicting itself: CACHE at 206.6M beside a TOTAL of 2.3M. Each row's total is now derived from the columns it displays, so a row always adds up while history spans both eras. Legacy records carry no creation/read split, so their fused cached figure is read as cache reads for weighting — the class that dominates it — and they stay unpriced.
 - **Out of scope, fixed anyway because it blocked honest verification:** `test_runtime_py.py::test_non_interactive_and_non_claude_specs_keep_claude_title_writes_untouched` read the ambient environment and failed inside any Claude Code session. Fixed in 5bf4389 and committed separately; the suite now passes without an `env -u` workaround. `cdx stats` still shows historical figures for runs already in launch history: repairing those is explicitly out of scope for `item_127`.
 - Out of scope, worth its own request: `test_runtime_py.py::test_non_interactive_and_non_claude_specs_keep_claude_title_writes_untouched` reads the ambient environment, so it fails whenever the suite runs inside a Claude Code session (which exports `CLAUDE_CODE_DISABLE_TERMINAL_TITLE`). It passes under `env -u CLAUDE_CODE_DISABLE_TERMINAL_TITLE`. Pre-existing, unrelated to this task.
+- Finished on 2026-08-14.
+- Linked backlog item(s): `item_126_define_one_token_accounting_shared_by_both_usage_readers`, `item_127_bill_each_run_for_its_own_tokens_instead_of_the_whole_transcript`, `item_128_read_usage_from_the_session_s_own_transcript_not_the_newest_file`, `item_129_rank_sessions_by_weighted_cost_equivalent_tokens`, `item_130_report_token_spend_in_currency`
+- Related request(s): `req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent`
 
 # Links
 - Request: `req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent`

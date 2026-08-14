@@ -6,7 +6,7 @@
 > Related task: `task_072_orchestrate_ollama_token_usage_tracking`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
-> Indicators reviewed: 2026-08-14 12:10:49
+> Indicators reviewed: 2026-08-14 12:13:17
 
 # Overview
 Extend cdx's existing usage-tracking to cover interactive ollama sessions by turning on ollama's built-in verbose token-count output and parsing it from the terminal transcript cdx already captures, so `cdx stats`/`cdx history` stop showing a hardcoded zero for ollama.
@@ -35,7 +35,7 @@ flowchart TD
 - No new usage-source abstraction layer for future providers beyond what's needed for ollama.
 - No retroactive backfill of usage for past ollama sessions that were captured without `--verbose`.
 - No support for the non-interactive path. Opening `run_usage`'s provider gate for ollama without a text parser would change no behavior while making the gate claim a support it cannot deliver; nothing runs ollama headless through cdx today, so the gate stays closed until something does.
-- No renegotiation of the shared usage-field definition — req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent settles that, and this work lands after it and adopts it.
+- No renegotiation of the shared usage-field definition — the token-accounting request settles that, and this work lands after it and adopts it.
 
 # Scope and guardrails
 - In: scaffolded request, product, backlog, orchestration task, validation, and handoff context.

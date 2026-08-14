@@ -1,12 +1,12 @@
 ## prod_049_token_numbers_a_user_can_act_on - Token numbers a user can act on
 > Date: 2026-08-14
-> Status: Proposed
+> Status: Settled
 > Related request: `req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent`
-> Related backlog: `item_126_define_one_token_accounting_shared_by_both_usage_readers`, `item_127_bill_each_run_for_its_own_tokens_instead_of_the_whole_transcript`, `item_128_read_usage_from_the_session_s_own_transcript_not_the_newest_file`
+> Related backlog: `item_126_define_one_token_accounting_shared_by_both_usage_readers`
 > Related task: `task_073_orchestrate_truthful_token_accounting_for_cdx_stats`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
-> Indicators reviewed: 2026-08-14 12:10:50
+> Indicators reviewed: 2026-08-14 12:13:18
 
 # Overview
 Make `cdx stats` an honest account of what each session spent: totals that include cached input, per-run figures that do not re-bill history on resume, measurements taken from the session's own transcript, and one column meaning across providers.
@@ -54,5 +54,5 @@ flowchart TD
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent`
+- Product back-reference: `item_126_define_one_token_accounting_shared_by_both_usage_readers`
 - Task back-reference: `task_073_orchestrate_truthful_token_accounting_for_cdx_stats`

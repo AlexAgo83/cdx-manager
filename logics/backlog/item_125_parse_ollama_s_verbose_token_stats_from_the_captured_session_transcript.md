@@ -8,13 +8,13 @@
 > Complexity: Medium
 > Theme: Usage tracking
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 12:10:50
+> Indicators reviewed: 2026-08-14 12:13:17
 
 # AI Context
-- Summary: Turn on ollama's `--verbose`, normalize the PTY capture, and parse the token counts out of it — a fourth reader plugged into the field definition req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent settles first.
+- Summary: Turn on ollama's `--verbose`, normalize the PTY capture, and parse the token counts out of it — a fourth reader plugged into the field definition the token-accounting request settles first.
 - Keywords: ollama, --verbose, prompt eval count, PTY normalization, _normalize_terminal_transcript, provider flag health check
 - Use when: Implementing ollama token extraction.
-- Skip when: req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent has not landed yet — this slice adopts its shared definition rather than predating it.
+- Skip when: the token-accounting request has not landed yet — this slice adopts its shared definition rather than predating it.
 
 # Problem
 - `cdx` launches ollama without `--verbose`, so no token-count output exists anywhere to capture.

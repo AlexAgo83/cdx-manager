@@ -1,14 +1,14 @@
 ## item_130_report_token_spend_in_currency - Report token spend in currency
 > From version: 0.19.3
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90
 > Confidence: 85
 > Progress: 100%
 > Complexity: Medium
 > Theme: Usage accounting
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 10:26:32
+> Indicators reviewed: 2026-08-14 12:13:18
 
 # AI Context
 - Summary: Turning the weighted figure into a currency amount needs only one number per model, but cdx does not currently record which model actually served each run — that gap, not the arithmetic, is the work.
@@ -62,3 +62,9 @@
 # Priority
 - Priority: Low
 - Rationale: The weighted figure already fixes the ranking, which was the actionable problem. Currency is a convenience on top, and it carries the only genuinely perishable input in the request.
+
+# Tasks
+- `task_073_orchestrate_truthful_token_accounting_for_cdx_stats`
+
+# Notes
+- Task `task_073_orchestrate_truthful_token_accounting_for_cdx_stats` was finished via `logics-manager flow finish task` on 2026-08-14.

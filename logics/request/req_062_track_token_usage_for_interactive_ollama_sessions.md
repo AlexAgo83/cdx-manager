@@ -7,13 +7,13 @@
 > Complexity: Medium
 > Theme: Usage tracking
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 10:47:01
+> Indicators reviewed: 2026-08-14 12:13:17
 
 # AI Context
 - Summary: Ollama has no provider-native transcript, so its token counts have to come from `--verbose` output parsed out of the PTY capture cdx already takes — which means normalizing terminal escapes before any regex runs.
 - Keywords: ollama, --verbose, prompt eval count, terminal transcript, PTY capture, interactive_usage, antigravity dead end
 - Use when: Adding or changing token-usage extraction for ollama.
-- Skip when: Working on claude or codex usage — that is req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent, and it lands first.
+- Skip when: Working on claude or codex usage — that is the token-accounting request, and it lands first.
 
 # Needs
 - `cdx stats` and `cdx history` report token usage for `claude` and `codex` sessions but always show zero for `ollama` sessions, even after real runs, because ollama is absent from both usage-extraction paths.
@@ -30,7 +30,7 @@
 - The exact text layout of ollama's `--verbose` stats block (e.g. `prompt eval count: N token(s)`, `eval count: N token(s)`) has not been confirmed against a live run on the machine this was scoped from (no local model was pulled), so the parser's regex needs to be validated against real `ollama run <model> --verbose` output early in implementation, using whatever model is available in the dev/CI environment.
 - Ollama does not report cached-input or reasoning tokens, so `cached_input_tokens` and `reasoning_tokens` stay `None` for ollama the same way `empty_usage()` already models absence for other providers; `total_tokens` can be derived as the sum of prompt and eval counts when both are present.
 - `ponytail` mode is active for this codebase: reuse the existing usage-extraction shape (a small per-provider parser function plus one dispatch point) rather than introducing a new abstraction layer for provider usage sources.
-- **This request follows req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent and must not land before it.** That request rewrites the same surfaces: it settles one shared field definition across every usage reader, changes what a run stores, and replaces the transcript-discovery rule. Adding a provider to that surface first means writing against a shape that is about to change, and its outcome of a single transcript resolver would immediately contradict ollama's separate source. Sequencing it second also makes this request cheaper — ollama plugs into a definition that already exists rather than negotiating with three divergent readers.
+- **This request follows the token-accounting request and must not land before it.** That request rewrites the same surfaces: it settles one shared field definition across every usage reader, changes what a run stores, and replaces the transcript-discovery rule. Adding a provider to that surface first means writing against a shape that is about to change, and its outcome of a single transcript resolver would immediately contradict ollama's separate source. Sequencing it second also makes this request cheaper — ollama plugs into a definition that already exists rather than negotiating with three divergent readers.
 - The terminal transcript is a PTY capture taken through `script`, not clean text. A single spinner frame from a real ollama invocation carries OSC and cursor-control sequences, and carriage returns overwrite lines in place. A regex run against those bytes is unreliable — but the normalizer already exists: `_normalize_terminal_transcript` (`src/status_source.py:44`) strips OSC sequences, terminal control, escapes and control characters, and turns carriage returns into newlines. It is already applied to exactly this kind of capture (`src/cli_helpers.py:343`), and `status_source` imports only `config`, so reusing it from `interactive_usage` creates no import cycle.
 - Flag placement is settled and needs no live check: `ollama run MODEL [PROMPT] [flags]` accepts `--verbose` between the model and the prompt — verified against ollama 0.32.11, which parsed the arguments and failed only on the model pull. What genuinely remains unverified is the **text layout** of the stats block, since `--verbose` is documented as "Show timings for response" and the token counts ride inside that block.
 - The non-interactive path is deliberately left alone. Adding `ollama` to `run_usage.SUPPORTED_PROVIDERS` without a text parser would change nothing — `_parse_json_records` reads only JSON, so `extract_run_usage` would still return `empty_usage()`, just by a different branch — while making the gate claim a support the parser cannot deliver. Nothing runs ollama headless through cdx today, so the honest move is to leave the gate closed and record why.
@@ -41,7 +41,7 @@
 - AC3: The stats block is parsed after terminal normalization, so escape sequences and carriage-return overwrites in the PTY capture do not defeat extraction, and the existing normalizer is reused rather than reimplemented.
 - AC4: A malformed, missing, or format-changed ollama verbose block results in `empty_usage()`-shaped absence, not an exception, consistent with the existing best-effort contract documented on `extract_interactive_usage`.
 - AC5: `cdx stats` and `cdx history` show non-zero token totals for an ollama session after a real interactive run with `--verbose` output present, verified by a test with a representative captured transcript fixture.
-- AC6: Existing `claude` and `codex` usage extraction behavior is unchanged; the ollama branch is additive, and the shared field definition settled by req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent is not renegotiated.
+- AC6: Existing `claude` and `codex` usage extraction behavior is unchanged; the ollama branch is additive, and the shared field definition settled by the token-accounting request is not renegotiated.
 - AC7: The launch flag cdx adds is covered by the provider-flag health check, so a flag cdx passes that the provider CLI does not accept is reported rather than discovered by a user — the generalized form of the gap that check was built for.
 - AC8: The decision that `antigravity` token usage is not currently retrievable (schema-less binary protobuf transcripts, no usage-bearing log output) is recorded as an explicit non-goal, so it is not silently reattempted or mistaken for an oversight.
 
