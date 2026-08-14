@@ -8,7 +8,7 @@
 > Complexity: High
 > Theme: Usage accounting
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 10:14:27
+> Indicators reviewed: 2026-08-14 10:46:26
 
 # AI Context
 - Summary: Every reader sums the whole transcript and stores that cumulative as the run's usage, so a resumed session re-bills its full history on each resume and stats sums it again.
@@ -38,6 +38,7 @@
   - No repair of usage already stored in existing launch history.
   - No change to the launch history schema beyond what recording a delta requires.
   - No change to the arithmetic definitions settled in the first item.
+  - No delta handling for ollama. Its transcripts are written per launch (`cdx-session-<timestamp>-<pid>.log`, `src/provider_runtime.py:313`), so nothing accumulates across runs and there is no cumulative to subtract. Do not generalize the delta work to that provider.
 
 # Acceptance criteria
 - Given a transcript that grows by a known amount between two launches, the second run's recorded usage equals that growth.

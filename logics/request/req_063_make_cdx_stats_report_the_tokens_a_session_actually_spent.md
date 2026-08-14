@@ -7,7 +7,7 @@
 > Complexity: High
 > Theme: Usage accounting
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 10:26:31
+> Indicators reviewed: 2026-08-14 10:47:01
 
 # AI Context
 - Summary: The interactive usage reader drops cached input from the total, re-bills the whole transcript on every resume, and often measures a different session's transcript entirely.
@@ -39,6 +39,8 @@
 - Absence of usage must stay non-fatal. The docstring on `extract_interactive_usage` is explicit that transcripts are not a stable public API and that a missing record is ordinary absence, never a launch failure. Every change here keeps that property — a stricter reader that starts failing launches is a worse outcome than a wrong number.
 - The USAGE column already counts how many runs carried usage, so the table has a built-in coverage signal. 33/1006 is the measurement of the problem, and the same column is the measurement of the fix.
 - Weighting needs ratios, not prices, and the ratios are stable in a way prices are not. Across the current model lineup output is 5x input on every model, and the cache multipliers do not vary by model either; only the absolute price per million tokens differs between tiers. A weighted figure therefore needs no per-model table and cannot go stale the way a price list would — which is what makes it a cheaper and more durable answer than reporting currency.
+- The ollama usage-tracking request touches the same surfaces and must land **after** this one, not before. It adds a fourth usage producer with no provider-native transcript, and this request's outcome of a single transcript resolver would contradict ollama's separate source if the two arrived in the wrong order. Sequenced this way, ollama plugs into a settled definition instead of negotiating with three divergent readers.
+- The REASON column is structurally empty for Claude and always will be. Anthropic bills thinking tokens as output tokens and exposes no separate field for them, so they are already inside `output_tokens`; only Codex populates a distinct reasoning count. This is correct behavior, not a gap — recorded here so it is not "fixed" into a double count.
 - Reporting currency needs one further thing cdx does not have: which model actually served a run. The launch history stores the session's configured `launch` settings, where `model` is optional and often unset because the session takes the provider's default; the provider transcript records the model per message, and a session can span more than one. That attribution gap, not the arithmetic, is what separates a weighted figure from a cost figure.
 - An independent oracle exists for verification. The external ccusage tool reads the same Claude transcripts and reports input, cache-creation, cache-read, and output separately, and because cdx isolates each session by setting `HOME` to its auth home (`_home_env_overrides`, `src/provider_runtime.py:124`), running it as HOME=<auth_home> npx ccusage --json scopes it to exactly one cdx session. Measured against the whole machine it reports roughly 4.44 billion tokens where `cdx stats` reports 5.5 million — a gap of about 800x, of which cache reads alone are 99%. This is a check to compare against during development, not a dependency to take: it is a Node tool fetched over the network, and cdx is a Python CLI that must keep reporting usage offline.
 
