@@ -4,7 +4,7 @@
 > Status: In progress
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 80%
+> Progress: 90%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -31,9 +31,9 @@
 - [x] 8. Replace the mtime guess with conversation-id resolution last, so the delta tests are already green and any coverage change is attributable to this step alone. Reuse `find_session_transcript` (`src/provider_background.py:193`), which already does this for the background path — the outcome is one resolver, not a better second one.
 - [x] 9. Measure coverage against real launch history before and after, and report the share of runs carrying usage rather than asserting the fix worked. Reconcile the corrected totals against the external ccusage tool run per session as HOME=<auth_home> npx ccusage --json — an independent reader of the same transcripts. Today the two differ by roughly 800x, so agreement is the strongest available evidence the fix landed.
 - [x] 10. Keep the non-fatal guarantee under test throughout: no change here may turn a missing or unreadable transcript into a failed launch.
-- [ ] 11. Weight the token classes and rank by the result, once the fields are split and the deltas are correct. Record the weights as ratios relative to uncached input with the rationale beside them — they are provider ratios, not prices, which is why no per-model table is needed and why this cannot go stale.
+- [x] 11. Weight the token classes and rank by the result, once the fields are split and the deltas are correct. Record the weights as ratios relative to uncached input with the rationale beside them — they are provider ratios, not prices, which is why no per-model table is needed and why this cannot go stale.
 - [ ] 12. Leave currency last and separate. It needs the serving model per run, read from the transcript rather than inferred from the session's configured launch settings, and it is the one part of this request carrying a perishable input. Ship the weighted ranking without it if attribution proves harder than expected — the ranking is what makes the numbers actionable.
-- [ ] 13. Run the usage, status, and runs test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.
+- [x] 13. Run the usage, status, and runs test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.
 - [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
 - [ ] Keep commit creation under operator control; do not force one commit per micro-step.
 - [ ] GATE: do not close until lint, audit, and scaffold validation pass.
@@ -70,6 +70,7 @@
 - Wave A (plan steps 1-5), 2026-08-14: `npm test` 906 passed, `npm run lint` all checks passed. Baseline before the change was 898 passed.
 - Wave B (plan steps 6-7), 2026-08-14: `npm test` 914 passed, `npm run lint` all checks passed.
 - Wave C (plan steps 8-10), 2026-08-14: `npm test` 918 passed, `npm run lint` all checks passed.
+- Wave D weighting (plan step 11), 2026-08-14: `npm test` 924 passed, `npm run lint` all checks passed.
 - Coverage measured against the real store rather than asserted: before, 33 of 1006 recorded runs carried any usage (3.3%). After, 12 of 13 claude/codex sessions carry a conversation id and all 12 resolve to an existing transcript; only `work5` has no id, and it has not been launched in nine days. The post-change run-level share cannot be measured until runs accumulate under the new resolution.
 - Oracle reconciliation on one real 2741-row Claude transcript, cdx reader against an independent reader of the same bytes: exact agreement on all four measured fields (input 3321, cache creation 2671168, cache read 797566574, output 820410). Before the de-duplication fix the same file read 1.55x high.
 
@@ -84,7 +85,9 @@
 - **Wave C delivered** in 996380f. Resolution is by conversation id, reusing `find_session_transcript` for Claude so one rule answers the question, and matching the id Codex repeats in its rollout filename. A session whose id resolves to nothing reports absence rather than falling back to the scan, because a wrong attribution is worse than a missing one — that fallback *was* the defect. The scan survives only for sessions with no id, and the record says which of the two produced the number (`provider_transcript_match`).
 - **The scan's escape hatches were reporting guesses as measurements.** Exhausting the one-second deadline or the 1000-candidate cap used to return whichever candidate had been reached so far. Both now report absence.
 - **The non-fatal guarantee held throughout**: every change here returns absence on failure, and no path added an exception to a launch.
-- Wave D (weighting and currency) is untouched. `cdx stats` still shows historical figures for runs already in launch history: repairing those is explicitly out of scope for `item_127`.
+- **The weighting half of wave D delivered** in 8fc3a1a. `cdx stats` gained a `COST~` column and now ranks on it: each token class weighted by its cost relative to one uncached input token (cache read 0.1x, cache write 1.25x, output 5x). Ratios rather than prices, so no per-model table exists to go stale. The five-minute cache-write TTL is assumed; a one-hour TTL costs 2x and nothing in a transcript distinguishes them, so long-TTL writes are under-weighted and the README says so rather than hiding it.
+- **Currency (`item_130`) is deliberately not started**, as plan step 12 allows. It needs model attribution cdx does not yet record, and it carries the only perishable input in the request. The weighted ranking already fixes what was actionable; currency is convenience on top.
+- **A transitional artifact, by design.** Runs already in launch history carry the old fields, so their `COST~` reflects input and output only until history rolls over — `item_127` puts retroactive repair out of scope. `cdx stats` still shows historical figures for runs already in launch history: repairing those is explicitly out of scope for `item_127`.
 - Out of scope, worth its own request: `test_runtime_py.py::test_non_interactive_and_non_claude_specs_keep_claude_title_writes_untouched` reads the ambient environment, so it fails whenever the suite runs inside a Claude Code session (which exports `CLAUDE_CODE_DISABLE_TERMINAL_TITLE`). It passes under `env -u CLAUDE_CODE_DISABLE_TERMINAL_TITLE`. Pre-existing, unrelated to this task.
 
 # Links
