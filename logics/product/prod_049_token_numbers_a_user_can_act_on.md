@@ -6,6 +6,7 @@
 > Related task: `task_073_orchestrate_truthful_token_accounting_for_cdx_stats`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-14 10:26:32
 
 # Overview
 Make `cdx stats` an honest account of what each session spent: totals that include cached input, per-run figures that do not re-bill history on resume, measurements taken from the session's own transcript, and one column meaning across providers.
@@ -14,13 +15,15 @@ Make `cdx stats` an honest account of what each session spent: totals that inclu
 - Report a total that reflects real consumption, cache included.
 - Bill each run for its own tokens and nothing else.
 - Measure the session that ran, identified rather than guessed.
-- Give IN, CACHE, OUT, and TOTAL one definition shared by both usage readers and both providers.
+- Give every token field one definition shared by all three usage readers and both providers, with cache creation and cache reads kept apart because they cost differently.
 - Raise how often usage is captured at all, so the table describes the fleet rather than a sample of it.
+- Rank sessions by what they cost rather than by raw token count, weighting the token classes by their published ratios.
+- Make a currency figure reachable once the serving model is known, without putting a perishable price table in the code.
 
 # Non-goals
-- No cost-in-currency reporting or per-model pricing.
-- No new stats columns, filters, or output formats.
-- No querying provider billing APIs — this stays local-transcript based.
+- No network price lookup or provider billing integration — usage reporting stays offline and local-transcript based.
+- No invoice reconciliation: a currency figure is an estimate at list prices, not an account statement.
+- No new filters or output formats; the only new columns are the weighted figure and, later, the cost.
 - No retroactive repair of usage already recorded in launch history.
 - No change to how launches are performed or to launch success semantics.
 

@@ -280,6 +280,8 @@ _None_
 | [item_126_define_one_token_accounting_shared_by_both_usage_readers](backlog/item_126_define_one_token_accounting_shared_by_both_usage_readers.md) | Define one token accounting shared by both usage readers | Ready |  | 0% | backlog/item_126_define_one_token_accounting_shared_by_both_usage_readers.md |
 | [item_127_bill_each_run_for_its_own_tokens_instead_of_the_whole_transcript](backlog/item_127_bill_each_run_for_its_own_tokens_instead_of_the_whole_transcript.md) | Bill each run for its own tokens instead of the whole transcript | Ready |  | 0% | backlog/item_127_bill_each_run_for_its_own_tokens_instead_of_the_whole_transcript.md |
 | [item_128_read_usage_from_the_session_s_own_transcript_not_the_newest_file](backlog/item_128_read_usage_from_the_session_s_own_transcript_not_the_newest_file.md) | Read usage from the session's own transcript, not the newest file | Ready |  | 0% | backlog/item_128_read_usage_from_the_session_s_own_transcript_not_the_newest_file.md |
+| [item_129_rank_sessions_by_weighted_cost_equivalent_tokens](backlog/item_129_rank_sessions_by_weighted_cost_equivalent_tokens.md) | Rank sessions by weighted cost-equivalent tokens | Ready |  | 0% | backlog/item_129_rank_sessions_by_weighted_cost_equivalent_tokens.md |
+| [item_130_report_token_spend_in_currency](backlog/item_130_report_token_spend_in_currency.md) | Report token spend in currency | Draft |  | 0% | backlog/item_130_report_token_spend_in_currency.md |
 
 ## Tasks
 

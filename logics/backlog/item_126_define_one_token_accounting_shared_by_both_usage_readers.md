@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Usage accounting
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 10:19:18
+> Indicators reviewed: 2026-08-14 10:26:31
 
 # AI Context
 - Summary: Three readers each encode their own arithmetic for the same five token fields; this slice writes one definition and normalizes all of them to it, including the published JSON surfaces.
@@ -23,13 +23,15 @@
 - Codex's `total_token_usage.input_tokens` is cache-inclusive by construction, Claude's is not, and both land in the same IN column with no marker.
 - `README.md:711` already asserts that cached input "is never counted twice", an invariant `run_usage` violates today, so the documentation and the code disagree about which definition is in force.
 - These fields are published, not internal: `cdx run --json` (`src/run_command.py:212`), `cdx run-status`, and `cdx run-report` (`src/commands/runs.py:483`) emit them, and `src/run_registry.py:318` stores whatever the producing reader emitted without normalizing.
+- `cached_input_tokens` fuses two things that cost very differently. `_claude_usage` sums `cache_creation_input_tokens` and `cache_read_input_tokens` into one field (`src/interactive_usage.py:97`), but relative to uncached input a cache write costs 1.25x and a cache read 0.1x — a factor of 12.5. Fused, they cannot be weighted, so any cost-aware ranking is impossible until they are separate fields.
 - There is no written definition of what each field means, so each reader encodes its own guess and no surface can be checked against anything.
 
 # Scope
 - In:
   - Write down, once and in code, what `input_tokens`, `cached_input_tokens`, `output_tokens`, `reasoning_tokens`, and `total_tokens` mean in a cdx usage record — in particular whether IN includes cache and whether TOTAL includes it.
   - Normalize all three readers to that definition: `src/run_usage.py`, `src/interactive_usage.py`, and `src/provider_background.py`. Fold the background reader's arithmetic into the shared one rather than leaving a fourth copy behind.
-  - Guarantee every usage record carries the full field set, so `cached_input_tokens` is never structurally absent depending on which path produced the run.
+  - Split `cached_input_tokens` into separate cache-creation and cache-read fields across all three readers, since the two differ by a factor of 12.5 in cost and cannot be weighted while fused. Decide whether the stats table keeps one CACHE column summing them or shows both, and state why.
+  - Guarantee every usage record carries the full field set, so no field is structurally absent depending on which path produced the run.
   - Normalize Claude and Codex records to that definition, adjusting whichever provider does not already match rather than leaving the difference for the table to paper over.
   - Fix `total_tokens` for Claude to cover cached input, and remove the within-record cache double count in `run_usage._usage_from_dict`.
   - Confirm `_summarize_stats` sorts by the corrected total and that the sort key is the same number the TOTAL column prints.
@@ -47,7 +49,8 @@
 - Given a Claude record with uncached input, cache creation, cache reads, and output, the normalized total covers all four rather than only uncached input plus output.
 - Given a headless Claude record, IN and CACHE do not both count the same cache tokens.
 - Given the same consumption read by the headless, interactive, and native-background readers, all three produce identical normalized records.
-- Given a native background run, its usage record carries `cached_input_tokens` rather than omitting the key, and its total uses the same definition as an interactive run of the same session.
+- Given a native background run, its usage record carries the cache fields rather than omitting them, and its total uses the same definition as an interactive run of the same session.
+- Given a Claude record with both cache creation and cache reads, the normalized record reports them as separate quantities that can be weighted independently, not as one fused figure.
 - Given equivalent consumption reported by Codex and by Claude, the normalized records agree field by field.
 - Given a set of sessions, the stats table orders them by the same total it prints.
 - Given a completed run, the usage in `cdx run --json`, `cdx run-status --json`, and `cdx run-report --json` matches what `cdx stats` counts for that run.

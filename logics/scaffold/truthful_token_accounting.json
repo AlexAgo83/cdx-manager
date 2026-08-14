@@ -27,6 +27,8 @@
       "The transcript being measured is frequently not the session's own. `_latest_transcript` (`src/interactive_usage.py:29`) walks all of `~/.claude/projects` and returns whichever `.jsonl` has the newest mtime after the run started, under a one-second scan deadline. The symptom is visible in the table: sessions reporting three runs with usage and a total of 8, 12, or 18 output tokens \u2014 a match against a near-empty unrelated file. Across the observed history only 33 of 1006 runs carry any usage at all.",
       "The IN column means two different things depending on the provider. Codex's `total_token_usage.input_tokens` already includes cached input; Claude's does not. The two are printed in the same column with no distinction, so no cross-provider comparison read from that table is valid.",
       "It means two different things within Claude alone, because there is a third reader. `read_transcript_outcome` (`src/provider_background.py:213`) closes out native background runs with its own arithmetic: it folds the cache fields into `input_tokens`, emits no `cached_input_tokens` key at all, and therefore produces a total that *is* cache-inclusive \u2014 the exact inverse of `_claude_usage`. Two runs of the same Claude session, one interactive and one detached, feed the same TOTAL column under opposite definitions, and the detached one leaves CACHE structurally empty.",
+      "Even a corrected total ranks sessions by the wrong thing. The four token classes cost very differently: relative to uncached input, a cache read is 0.1x, a cache write 1.25x, and an output token 5x. A raw sum treats a cache read as equal to an output token worth fifty times more \u2014 and since cache reads are around 99% of all tokens consumed in practice, a raw total is very nearly a measure of cache reads alone. The ranking that results is not the ranking a user is looking for.",
+      "`cached_input_tokens` fuses cache creation and cache reads into one field (`src/interactive_usage.py:97`), and those two differ by a factor of 12.5 in cost. No cost-aware figure can be computed until they are separate.",
       "The README already states the invariant the code violates. `README.md:711` promises that \"cached input is retained separately from the provider's total, so it is never counted twice\", which is precisely what `run_usage._usage_from_dict` does not honor. `README.md:540` still describes `cdx stats` as aggregating only headless token usage, which stopped being true when interactive recording landed."
     ],
     "context": [
@@ -40,6 +42,8 @@
       "`_attach_interactive_usage` already records `provider_transcript_path` into the run entry (`src/commands/launch.py:308`), and nothing ever reads it back. It is the natural anchor for computing a per-run delta against the previous run on the same transcript.",
       "Absence of usage must stay non-fatal. The docstring on `extract_interactive_usage` is explicit that transcripts are not a stable public API and that a missing record is ordinary absence, never a launch failure. Every change here keeps that property \u2014 a stricter reader that starts failing launches is a worse outcome than a wrong number.",
       "The USAGE column already counts how many runs carried usage, so the table has a built-in coverage signal. 33/1006 is the measurement of the problem, and the same column is the measurement of the fix.",
+      "Weighting needs ratios, not prices, and the ratios are stable in a way prices are not. Across the current model lineup output is 5x input on every model, and the cache multipliers do not vary by model either; only the absolute price per million tokens differs between tiers. A weighted figure therefore needs no per-model table and cannot go stale the way a price list would \u2014 which is what makes it a cheaper and more durable answer than reporting currency.",
+      "Reporting currency needs one further thing cdx does not have: which model actually served a run. The launch history stores the session's configured `launch` settings, where `model` is optional and often unset because the session takes the provider's default; the provider transcript records the model per message, and a session can span more than one. That attribution gap, not the arithmetic, is what separates a weighted figure from a cost figure.",
       "An independent oracle exists for verification. The external ccusage tool reads the same Claude transcripts and reports input, cache-creation, cache-read, and output separately, and because cdx isolates each session by setting `HOME` to its auth home (`_home_env_overrides`, `src/provider_runtime.py:124`), running it as HOME=<auth_home> npx ccusage --json scopes it to exactly one cdx session. Measured against the whole machine it reports roughly 4.44 billion tokens where `cdx stats` reports 5.5 million \u2014 a gap of about 800x, of which cache reads alone are 99%. This is a check to compare against during development, not a dependency to take: it is a Node tool fetched over the network, and cdx is a Python CLI that must keep reporting usage offline."
     ],
     "acceptance_criteria": [
@@ -52,7 +56,9 @@
       "AC7: All three readers \u2014 headless (`src/run_usage.py`), interactive (`src/interactive_usage.py`), and native background (`src/provider_background.py`) \u2014 produce the same field semantics for the same underlying consumption, so a session's stats do not shift meaning depending on how it was launched. Every usage record carries the full field set, including `cached_input_tokens`.",
       "AC8: The share of runs carrying usage, visible in the USAGE column, is materially higher than today's 33 of 1006 for sessions that actually produced a transcript, and a test asserts usage is captured for a normal interactive run rather than only that the code path does not crash.",
       "AC9: The usage fields published by `cdx run --json`, `cdx run-status --json`, and `cdx run-report --json` carry the same definition as the stats table, and the run registry stores that normalized shape rather than whatever the producing reader happened to emit.",
-      "AC10: The README's claims about token usage are true of the code: the \"never counted twice\" invariant at `README.md:711` holds or is restated, and the `cdx stats` description no longer limits itself to headless usage."
+      "AC10: The README's claims about token usage are true of the code: the \"never counted twice\" invariant at `README.md:711` holds or is restated, and the `cdx stats` description no longer limits itself to headless usage.",
+      "AC11: Sessions are ranked by what they cost, not by raw token count. Cache creation and cache reads are separate quantities, the four token classes are weighted by their published ratios relative to uncached input, and a session dominated by cache reads ranks below one with comparable raw totals but substantial output.",
+      "AC12: Where the serving model is known, spend can be reported in currency from configured prices; where it is not known, the cost is reported as absent rather than priced at a default tier."
     ]
   },
   "product": {
@@ -62,13 +68,15 @@
       "Report a total that reflects real consumption, cache included.",
       "Bill each run for its own tokens and nothing else.",
       "Measure the session that ran, identified rather than guessed.",
-      "Give IN, CACHE, OUT, and TOTAL one definition shared by both usage readers and both providers.",
-      "Raise how often usage is captured at all, so the table describes the fleet rather than a sample of it."
+      "Give every token field one definition shared by all three usage readers and both providers, with cache creation and cache reads kept apart because they cost differently.",
+      "Raise how often usage is captured at all, so the table describes the fleet rather than a sample of it.",
+      "Rank sessions by what they cost rather than by raw token count, weighting the token classes by their published ratios.",
+      "Make a currency figure reachable once the serving model is known, without putting a perishable price table in the code."
     ],
     "non_goals": [
-      "No cost-in-currency reporting or per-model pricing.",
-      "No new stats columns, filters, or output formats.",
-      "No querying provider billing APIs \u2014 this stays local-transcript based.",
+      "No network price lookup or provider billing integration \u2014 usage reporting stays offline and local-transcript based.",
+      "No invoice reconciliation: a currency figure is an estimate at list prices, not an account statement.",
+      "No new filters or output formats; the only new columns are the weighted figure and, later, the cost.",
       "No retroactive repair of usage already recorded in launch history.",
       "No change to how launches are performed or to launch success semantics."
     ]
@@ -94,12 +102,14 @@
         "Codex's `total_token_usage.input_tokens` is cache-inclusive by construction, Claude's is not, and both land in the same IN column with no marker.",
         "`README.md:711` already asserts that cached input \"is never counted twice\", an invariant `run_usage` violates today, so the documentation and the code disagree about which definition is in force.",
         "These fields are published, not internal: `cdx run --json` (`src/run_command.py:212`), `cdx run-status`, and `cdx run-report` (`src/commands/runs.py:483`) emit them, and `src/run_registry.py:318` stores whatever the producing reader emitted without normalizing.",
+        "`cached_input_tokens` fuses two things that cost very differently. `_claude_usage` sums `cache_creation_input_tokens` and `cache_read_input_tokens` into one field (`src/interactive_usage.py:97`), but relative to uncached input a cache write costs 1.25x and a cache read 0.1x \u2014 a factor of 12.5. Fused, they cannot be weighted, so any cost-aware ranking is impossible until they are separate fields.",
         "There is no written definition of what each field means, so each reader encodes its own guess and no surface can be checked against anything."
       ],
       "scope_in": [
         "Write down, once and in code, what `input_tokens`, `cached_input_tokens`, `output_tokens`, `reasoning_tokens`, and `total_tokens` mean in a cdx usage record \u2014 in particular whether IN includes cache and whether TOTAL includes it.",
         "Normalize all three readers to that definition: `src/run_usage.py`, `src/interactive_usage.py`, and `src/provider_background.py`. Fold the background reader's arithmetic into the shared one rather than leaving a fourth copy behind.",
-        "Guarantee every usage record carries the full field set, so `cached_input_tokens` is never structurally absent depending on which path produced the run.",
+        "Split `cached_input_tokens` into separate cache-creation and cache-read fields across all three readers, since the two differ by a factor of 12.5 in cost and cannot be weighted while fused. Decide whether the stats table keeps one CACHE column summing them or shows both, and state why.",
+        "Guarantee every usage record carries the full field set, so no field is structurally absent depending on which path produced the run.",
         "Normalize Claude and Codex records to that definition, adjusting whichever provider does not already match rather than leaving the difference for the table to paper over.",
         "Fix `total_tokens` for Claude to cover cached input, and remove the within-record cache double count in `run_usage._usage_from_dict`.",
         "Confirm `_summarize_stats` sorts by the corrected total and that the sort key is the same number the TOTAL column prints.",
@@ -118,7 +128,8 @@
         "Given a Claude record with uncached input, cache creation, cache reads, and output, the normalized total covers all four rather than only uncached input plus output.",
         "Given a headless Claude record, IN and CACHE do not both count the same cache tokens.",
         "Given the same consumption read by the headless, interactive, and native-background readers, all three produce identical normalized records.",
-        "Given a native background run, its usage record carries `cached_input_tokens` rather than omitting the key, and its total uses the same definition as an interactive run of the same session.",
+        "Given a native background run, its usage record carries the cache fields rather than omitting them, and its total uses the same definition as an interactive run of the same session.",
+        "Given a Claude record with both cache creation and cache reads, the normalized record reports them as separate quantities that can be weighted independently, not as one fused figure.",
         "Given equivalent consumption reported by Codex and by Claude, the normalized records agree field by field.",
         "Given a set of sessions, the stats table orders them by the same total it prints.",
         "Given a completed run, the usage in `cdx run --json`, `cdx run-status --json`, and `cdx run-report --json` matches what `cdx stats` counts for that run.",
@@ -208,6 +219,82 @@
         "The share of runs carrying usage measured against real launch history is reported before and after, and the after value is materially higher.",
         "Only one transcript resolver remains in the codebase; the interactive and native-background paths locate a session's transcript by the same rule."
       ]
+    },
+    {
+      "title": "Rank sessions by weighted cost-equivalent tokens",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Usage accounting",
+      "request_acs": [
+        "AC11"
+      ],
+      "problem": [
+        "Even once the arithmetic is correct, a raw token total is a misleading measure of what a session cost. The four token classes are not interchangeable: relative to uncached input, a cache read is worth 0.1x, a cache write 1.25x, and an output token 5x. A raw sum ranks a cache read equal to an output token that costs fifty times more.",
+        "The distortion is not marginal here. An independent read of one machine's transcripts showed cache reads at roughly 99% of all tokens consumed. A raw total is therefore, in practice, a measure of cache reads and almost nothing else, and the session that spent the most on output can sort below one that mostly replayed a cache.",
+        "The ratios are stable in a way absolute prices are not: across the current model lineup, output is 5x input on every model, and the cache multipliers do not vary by model either. Only the absolute price per million tokens changes between tiers. A weighting therefore needs no per-model table and cannot go stale the way a price list would.",
+        "The weighting cannot be applied until `cached_input_tokens` is split, because cache creation and cache read differ by a factor of 12.5 and are currently summed into one field. That split is `item_126`'s work; this slice depends on it."
+      ],
+      "scope_in": [
+        "Define the weights once, as ratios relative to uncached input, with the rationale recorded next to them: cache read 0.1x, cache write 1.25x, output 5x. State in the code that these are ratios and not prices, and why that distinction is what keeps the table absent.",
+        "Compute a weighted cost-equivalent figure per session from the normalized usage record.",
+        "Rank the stats table by that figure rather than by the raw total, so the session that cost the most appears first.",
+        "Surface the weighted figure in the table, keeping the four raw counts visible \u2014 the raw numbers are facts and stay; the weighted figure is the comparison.",
+        "Handle the cache-write TTL difference honestly: the 1.25x multiplier is the five-minute TTL, and a one-hour TTL is 2x. Either detect the TTL, or document which one the weighting assumes and why the error is acceptable.",
+        "Document the weighting in the README alongside the stats columns, including the fact that it is provider-relative and not a currency amount.",
+        "Add a test asserting that a session dominated by cache reads ranks below a session with comparable raw totals but substantial output."
+      ],
+      "scope_out": [
+        "No currency conversion or per-model price table \u2014 that is `item_130`.",
+        "No change to how usage is read, stored, or normalized.",
+        "No new provider integrations, and no attempt to weight Codex usage against Claude usage until the underlying field semantics agree."
+      ],
+      "acceptance_criteria": [
+        "Given a session whose tokens are overwhelmingly cache reads and one with fewer tokens but substantial output, the second ranks above the first.",
+        "Given two sessions with identical raw totals but different splits across input, cache read, cache write, and output, their weighted figures differ and the ordering follows the weighting.",
+        "Given the stats table, the ranking key is the weighted figure and the four raw counts remain visible and unmodified.",
+        "The weights are defined in exactly one place, expressed as ratios relative to uncached input, with their rationale recorded beside them.",
+        "The cache-write TTL assumption is either detected or stated explicitly, rather than left implicit in a single multiplier.",
+        "The README explains what the weighted column means and states that it is a provider-relative figure, not a cost in currency."
+      ]
+    },
+    {
+      "title": "Report token spend in currency",
+      "priority": "Low",
+      "complexity": "Medium",
+      "theme": "Usage accounting",
+      "request_acs": [
+        "AC12"
+      ],
+      "problem": [
+        "Once tokens are weighted into an input-equivalent figure (`item_129`), a currency amount is one multiplication away: the weighted figure times the model's input price per million tokens. The weighting has already absorbed every other ratio.",
+        "What blocks it is not the arithmetic but attribution: cdx does not reliably know which model served a run. The launch history stores the session's configured `launch` settings, where `model` is optional and frequently unset because the session takes the provider's default. A weighted figure attributed to the wrong price tier is worse than no figure at all.",
+        "The provider transcript does record the model per message, and a single session can span more than one model, so a run's cost is not necessarily a single tier multiplied by a single total.",
+        "Prices are the one input here that genuinely goes stale, unlike the ratios in `item_129`. Anything hardcoded will be wrong after the next price change, and cdx must keep reporting usage offline, so it cannot resolve prices over the network at read time.",
+        "Cross-provider comparison is a further open question: Codex pricing is not Anthropic's, so a single currency column spanning both providers needs each provider's own prices, not one table."
+      ],
+      "scope_in": [
+        "Establish which model served a run, reading it from the provider transcript rather than inferring it from the session's configured launch settings, and handle a run that spans several models rather than assuming one.",
+        "Record the served model on the run entry so the attribution is durable and auditable after the fact.",
+        "Put prices in configuration with a documented default, not in code, so a price change is an edit rather than a release.",
+        "Compute and display a currency figure from the weighted total and the model's input price.",
+        "Make the figure's provenance legible: state which prices were used and when they were last reviewed, so a stale number is visibly stale rather than silently wrong.",
+        "Report absence rather than a guess when the model cannot be determined or its price is unknown.",
+        "Decide explicitly whether the currency column spans providers or is Claude-only in the first pass, and state the decision."
+      ],
+      "scope_out": [
+        "No network price lookup \u2014 cdx reports usage offline.",
+        "No billing integration or invoice reconciliation; this is an estimate at list prices, not an account statement.",
+        "No change to the weighting itself, which `item_129` settles.",
+        "No retroactive costing of runs already in launch history that carry no model attribution."
+      ],
+      "acceptance_criteria": [
+        "Given a run whose transcript names the serving model, that model is recorded on the run entry and used to price it.",
+        "Given a run whose model cannot be determined, the cost is reported as absent rather than priced at a default tier.",
+        "Given a run spanning more than one model, the documented rule is applied and asserted by a test naming the expected figure.",
+        "Given a price change, updating the configured price changes the reported figures with no code edit.",
+        "The displayed cost states which price set produced it and when that set was last reviewed.",
+        "The README states that the figure is an estimate at list prices, and whether it covers one provider or both."
+      ]
     }
   ],
   "orchestration_task": {
@@ -216,13 +303,15 @@
       "Inventory every producer and consumer of a usage record before changing any of them. Producers: `run_usage`, `interactive_usage`, `provider_background`. Consumers: the stats table, the run registry, and the `cdx run` / `run-status` / `run-report` JSON payloads. The third producer was missed on the first pass of this request; assume the inventory is the deliverable, not a formality.",
       "Capture the current behavior as fixtures: a real Claude transcript with cache-heavy records, a Codex rollout with several `token_count` events, a native background close-out, and a growing-transcript pair simulating a resume. Record what each of today's three readers returns, so every later change has a baseline rather than an intention.",
       "Settle the field definitions before touching any reader \u2014 whether IN and TOTAL include cached input \u2014 and write the decision down in code and README. All three readers and both providers then normalize to that one definition; do not let the table reconcile a difference the readers should have resolved.",
-      "Fix the arithmetic: Claude's total to cover cached input, the within-record cache double count in `run_usage._usage_from_dict`, and `provider_background`'s missing `cached_input_tokens` and inverted total. Confirm the stats sort key is the same number the TOTAL column prints.",
+      "Fix the arithmetic: Claude's total to cover cached input, the within-record cache double count in `run_usage._usage_from_dict`, and `provider_background`'s missing cache fields and inverted total. Split cache creation from cache reads while you are in all three readers \u2014 they cost 1.25x and 0.1x, and the weighting later has no way to separate them after the fact. Confirm the stats sort key is the same number the TOTAL column prints.",
       "Normalize at the run registry boundary so the JSON surfaces publish the shared shape, then reconcile the README's token claims \u2014 the column meanings, the \"never counted twice\" invariant at `README.md:711`, and the headless-only description at `README.md:540` \u2014 against what the code now does.",
       "Then fix what a run stores. The delta work depends on the definitions being settled, and it is the change that actually stops the numbers inflating on resume. Use the already-recorded `provider_transcript_path` as the anchor, establish an equivalent anchor for the background path which has none, and decide explicitly what a first run against a pre-existing transcript records.",
       "Handle the degenerate transcript cases \u2014 shrunk, rotated, replaced \u2014 as absence rather than as arithmetic. A missing number is recoverable; a wrong one is not.",
       "Replace the mtime guess with conversation-id resolution last, so the delta tests are already green and any coverage change is attributable to this step alone. Reuse `find_session_transcript` (`src/provider_background.py:193`), which already does this for the background path \u2014 the outcome is one resolver, not a better second one.",
       "Measure coverage against real launch history before and after, and report the share of runs carrying usage rather than asserting the fix worked. Reconcile the corrected totals against the external ccusage tool run per session as HOME=<auth_home> npx ccusage --json \u2014 an independent reader of the same transcripts. Today the two differ by roughly 800x, so agreement is the strongest available evidence the fix landed.",
       "Keep the non-fatal guarantee under test throughout: no change here may turn a missing or unreadable transcript into a failed launch.",
+      "Weight the token classes and rank by the result, once the fields are split and the deltas are correct. Record the weights as ratios relative to uncached input with the rationale beside them \u2014 they are provider ratios, not prices, which is why no per-model table is needed and why this cannot go stale.",
+      "Leave currency last and separate. It needs the serving model per run, read from the transcript rather than inferred from the session's configured launch settings, and it is the one part of this request carrying a perishable input. Ship the weighted ranking without it if attribution proves harder than expected \u2014 the ranking is what makes the numbers actionable.",
       "Run the usage, status, and runs test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout."
     ]
   },
