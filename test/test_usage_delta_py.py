@@ -156,3 +156,46 @@ class CodexUsageDeltaTests(unittest.TestCase):
         self.assertEqual(second["usage"]["input_tokens"], 100)
         self.assertEqual(second["usage"]["cache_read_tokens"], 500)
         self.assertEqual(second["usage"]["output_tokens"], 30)
+
+
+class ModelAttributionTests(unittest.TestCase):
+    """Which model served the run, read from the transcript."""
+
+    def setUp(self):
+        self._dir = tempfile.TemporaryDirectory()
+        self.home = self._dir.name
+        self.transcript = os.path.join(self.home, ".claude", "projects", "repo", "s.jsonl")
+        os.makedirs(os.path.dirname(self.transcript), exist_ok=True)
+        self.session = {"name": "work", "provider": "claude", "authHome": self.home}
+        self.addCleanup(self._dir.cleanup)
+
+    def _append(self, message_id, model):
+        with open(self.transcript, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps({
+                "type": "assistant", "uuid": f"u-{message_id}", "requestId": f"r-{message_id}",
+                "message": {"id": message_id, "model": model,
+                            "usage": {"input_tokens": 1, "output_tokens": 2}},
+            }) + "\n")
+
+    def _run(self, history=()):
+        started = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        return _attach_interactive_usage(self.session, {"started_at": started}, list(history))
+
+    def test_the_serving_model_is_recorded_on_the_run(self):
+        self._append("m1", "claude-opus-5")
+        self.assertEqual(self._run()["usage_model"], "claude-opus-5")
+
+    def test_a_run_spanning_models_is_attributed_to_the_most_recent(self):
+        # The documented rule: one model per run, the one serving its latest
+        # record. A session that switched mid-run is priced at the newer model.
+        self._append("m1", "claude-haiku-4-5")
+        self._append("m2", "claude-opus-5")
+        self.assertEqual(self._run()["usage_model"], "claude-opus-5")
+
+    def test_a_transcript_naming_no_model_records_none(self):
+        with open(self.transcript, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps({
+                "type": "assistant", "uuid": "u", "requestId": "r",
+                "message": {"id": "m", "usage": {"input_tokens": 1, "output_tokens": 2}},
+            }) + "\n")
+        self.assertIsNone(self._run().get("usage_model"))
