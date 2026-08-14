@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-08-14 10:14:37
+> Indicators reviewed: 2026-08-14 10:19:18
 
 # AI Context
 - Summary: Sequences the three slices so definitions land before arithmetic, arithmetic before per-run deltas, and transcript resolution last, keeping each behavior change attributable to one step.
@@ -28,7 +28,7 @@
 - [ ] 6. Then fix what a run stores. The delta work depends on the definitions being settled, and it is the change that actually stops the numbers inflating on resume. Use the already-recorded `provider_transcript_path` as the anchor, establish an equivalent anchor for the background path which has none, and decide explicitly what a first run against a pre-existing transcript records.
 - [ ] 7. Handle the degenerate transcript cases — shrunk, rotated, replaced — as absence rather than as arithmetic. A missing number is recoverable; a wrong one is not.
 - [ ] 8. Replace the mtime guess with conversation-id resolution last, so the delta tests are already green and any coverage change is attributable to this step alone. Reuse `find_session_transcript` (`src/provider_background.py:193`), which already does this for the background path — the outcome is one resolver, not a better second one.
-- [ ] 9. Measure coverage against real launch history before and after, and report the share of runs carrying usage rather than asserting the fix worked.
+- [ ] 9. Measure coverage against real launch history before and after, and report the share of runs carrying usage rather than asserting the fix worked. Reconcile the corrected totals against the external ccusage tool run per session as HOME=<auth_home> npx ccusage --json — an independent reader of the same transcripts. Today the two differ by roughly 800x, so agreement is the strongest available evidence the fix landed.
 - [ ] 10. Keep the non-fatal guarantee under test throughout: no change here may turn a missing or unreadable transcript into a failed launch.
 - [ ] 11. Run the usage, status, and runs test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.
 - [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.

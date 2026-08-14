@@ -7,7 +7,7 @@
 > Complexity: High
 > Theme: Usage accounting
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 10:14:50
+> Indicators reviewed: 2026-08-14 10:19:17
 
 # AI Context
 - Summary: The interactive usage reader drops cached input from the total, re-bills the whole transcript on every resume, and often measures a different session's transcript entirely.
@@ -36,6 +36,7 @@
 - `_attach_interactive_usage` already records `provider_transcript_path` into the run entry (`src/commands/launch.py:308`), and nothing ever reads it back. It is the natural anchor for computing a per-run delta against the previous run on the same transcript.
 - Absence of usage must stay non-fatal. The docstring on `extract_interactive_usage` is explicit that transcripts are not a stable public API and that a missing record is ordinary absence, never a launch failure. Every change here keeps that property — a stricter reader that starts failing launches is a worse outcome than a wrong number.
 - The USAGE column already counts how many runs carried usage, so the table has a built-in coverage signal. 33/1006 is the measurement of the problem, and the same column is the measurement of the fix.
+- An independent oracle exists for verification. The external ccusage tool reads the same Claude transcripts and reports input, cache-creation, cache-read, and output separately, and because cdx isolates each session by setting `HOME` to its auth home (`_home_env_overrides`, `src/provider_runtime.py:124`), running it as HOME=<auth_home> npx ccusage --json scopes it to exactly one cdx session. Measured against the whole machine it reports roughly 4.44 billion tokens where `cdx stats` reports 5.5 million — a gap of about 800x, of which cache reads alone are 99%. This is a check to compare against during development, not a dependency to take: it is a Node tool fetched over the network, and cdx is a Python CLI that must keep reporting usage offline.
 
 # Acceptance criteria
 - AC1: The TOTAL reported for a Claude session accounts for cached input. A session whose transcript shows uncached input, cache creation, cache reads, and output reports a total covering all of them, not just the uncached input plus output.

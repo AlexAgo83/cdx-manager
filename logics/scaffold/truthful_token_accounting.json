@@ -39,7 +39,8 @@
       "That resolution is already written and working. `find_session_transcript` (`src/provider_background.py:193`) walks the provider auth home's per-project transcript directories looking for `<session_id>.jsonl` and is used by the native background path. The interactive reader simply does not call it. The correction is to reuse an existing function, not to author a new one \u2014 which also means the two paths currently locate the same file by two different rules.",
       "`_attach_interactive_usage` already records `provider_transcript_path` into the run entry (`src/commands/launch.py:308`), and nothing ever reads it back. It is the natural anchor for computing a per-run delta against the previous run on the same transcript.",
       "Absence of usage must stay non-fatal. The docstring on `extract_interactive_usage` is explicit that transcripts are not a stable public API and that a missing record is ordinary absence, never a launch failure. Every change here keeps that property \u2014 a stricter reader that starts failing launches is a worse outcome than a wrong number.",
-      "The USAGE column already counts how many runs carried usage, so the table has a built-in coverage signal. 33/1006 is the measurement of the problem, and the same column is the measurement of the fix."
+      "The USAGE column already counts how many runs carried usage, so the table has a built-in coverage signal. 33/1006 is the measurement of the problem, and the same column is the measurement of the fix.",
+      "An independent oracle exists for verification. The external ccusage tool reads the same Claude transcripts and reports input, cache-creation, cache-read, and output separately, and because cdx isolates each session by setting `HOME` to its auth home (`_home_env_overrides`, `src/provider_runtime.py:124`), running it as HOME=<auth_home> npx ccusage --json scopes it to exactly one cdx session. Measured against the whole machine it reports roughly 4.44 billion tokens where `cdx stats` reports 5.5 million \u2014 a gap of about 800x, of which cache reads alone are 99%. This is a check to compare against during development, not a dependency to take: it is a Node tool fetched over the network, and cdx is a Python CLI that must keep reporting usage offline."
     ],
     "acceptance_criteria": [
       "AC1: The TOTAL reported for a Claude session accounts for cached input. A session whose transcript shows uncached input, cache creation, cache reads, and output reports a total covering all of them, not just the uncached input plus output.",
@@ -104,7 +105,8 @@
         "Confirm `_summarize_stats` sorts by the corrected total and that the sort key is the same number the TOTAL column prints.",
         "Normalize on the way into the run registry (`src/run_registry.py:318`) so the JSON surfaces publish the shared shape rather than the producing reader's shape.",
         "Update the README where it describes token usage: the column meanings alongside `cdx stats`, the \"never counted twice\" claim at `README.md:711`, and the headless-only description at `README.md:540`.",
-        "Add tests over recorded fixture records from all three readers and both providers asserting the normalized fields, including a case where cache reads dominate the total."
+        "Add tests over recorded fixture records from all three readers and both providers asserting the normalized fields, including a case where cache reads dominate the total.",
+        "Reconcile the corrected numbers against the external ccusage tool as an independent oracle over the same transcripts, scoped to one session with HOME=<auth_home> npx ccusage --json, and record the comparison in the slice report. Verification only \u2014 no runtime dependency on it."
       ],
       "scope_out": [
         "No change to which transcript is read or to what a run stores \u2014 those are separate items.",
@@ -121,7 +123,8 @@
         "Given a set of sessions, the stats table orders them by the same total it prints.",
         "Given a completed run, the usage in `cdx run --json`, `cdx run-status --json`, and `cdx run-report --json` matches what `cdx stats` counts for that run.",
         "The README defines each stats column, stating explicitly whether IN and TOTAL include cached input, and no surviving README claim about token usage contradicts the code.",
-        "A test asserts the definition across all three readers and both providers from fixture records, and fails if any reader drifts from it."
+        "A test asserts the definition across all three readers and both providers from fixture records, and fails if any reader drifts from it.",
+        "Given one Claude session's transcripts, the input, cache-creation, cache-read, and output totals cdx reports for it agree with what that tool reports over the same files, and any residual difference is explained rather than tolerated."
       ]
     },
     {
@@ -218,7 +221,7 @@
       "Then fix what a run stores. The delta work depends on the definitions being settled, and it is the change that actually stops the numbers inflating on resume. Use the already-recorded `provider_transcript_path` as the anchor, establish an equivalent anchor for the background path which has none, and decide explicitly what a first run against a pre-existing transcript records.",
       "Handle the degenerate transcript cases \u2014 shrunk, rotated, replaced \u2014 as absence rather than as arithmetic. A missing number is recoverable; a wrong one is not.",
       "Replace the mtime guess with conversation-id resolution last, so the delta tests are already green and any coverage change is attributable to this step alone. Reuse `find_session_transcript` (`src/provider_background.py:193`), which already does this for the background path \u2014 the outcome is one resolver, not a better second one.",
-      "Measure coverage against real launch history before and after, and report the share of runs carrying usage rather than asserting the fix worked.",
+      "Measure coverage against real launch history before and after, and report the share of runs carrying usage rather than asserting the fix worked. Reconcile the corrected totals against the external ccusage tool run per session as HOME=<auth_home> npx ccusage --json \u2014 an independent reader of the same transcripts. Today the two differ by roughly 800x, so agreement is the strongest available evidence the fix landed.",
       "Keep the non-fatal guarantee under test throughout: no change here may turn a missing or unreadable transcript into a failed launch.",
       "Run the usage, status, and runs test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout."
     ]

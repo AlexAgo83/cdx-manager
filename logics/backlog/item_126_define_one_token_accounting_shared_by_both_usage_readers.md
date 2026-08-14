@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Usage accounting
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 10:14:27
+> Indicators reviewed: 2026-08-14 10:19:18
 
 # AI Context
 - Summary: Three readers each encode their own arithmetic for the same five token fields; this slice writes one definition and normalizes all of them to it, including the published JSON surfaces.
@@ -36,6 +36,7 @@
   - Normalize on the way into the run registry (`src/run_registry.py:318`) so the JSON surfaces publish the shared shape rather than the producing reader's shape.
   - Update the README where it describes token usage: the column meanings alongside `cdx stats`, the "never counted twice" claim at `README.md:711`, and the headless-only description at `README.md:540`.
   - Add tests over recorded fixture records from all three readers and both providers asserting the normalized fields, including a case where cache reads dominate the total.
+  - Reconcile the corrected numbers against the external ccusage tool as an independent oracle over the same transcripts, scoped to one session with HOME=<auth_home> npx ccusage --json, and record the comparison in the slice report. Verification only — no runtime dependency on it.
 - Out:
   - No change to which transcript is read or to what a run stores — those are separate items.
   - No new columns and no change to the table layout.
@@ -52,6 +53,7 @@
 - Given a completed run, the usage in `cdx run --json`, `cdx run-status --json`, and `cdx run-report --json` matches what `cdx stats` counts for that run.
 - The README defines each stats column, stating explicitly whether IN and TOTAL include cached input, and no surviving README claim about token usage contradicts the code.
 - A test asserts the definition across all three readers and both providers from fixture records, and fails if any reader drifts from it.
+- Given one Claude session's transcripts, the input, cache-creation, cache-read, and output totals cdx reports for it agree with what that tool reports over the same files, and any residual difference is explained rather than tolerated.
 
 # AC Traceability
 - request-AC1 -> This backlog slice. Proof: Given a Claude record with uncached input, cache creation, cache reads, and output, the normalized total covers all four rather than only uncached input plus output.
