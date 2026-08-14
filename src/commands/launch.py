@@ -26,7 +26,7 @@ from ..config import PROVIDER_CODEX
 from ..context_store import install_context_for_session, write_context
 from ..errors import CdxError
 from ..interactive_usage import extract_interactive_usage, transcript_predates_run, usage_delta
-from ..provider_runtime import _ensure_session_authentication, _get_auth_home, _run_interactive_provider_command
+from ..provider_runtime import _conversation_id, _ensure_session_authentication, _get_auth_home, _run_interactive_provider_command
 
 
 def _parse_launch_args(args):
@@ -314,11 +314,16 @@ def _attach_interactive_usage(session, run_info, history=None):
     """
     run_info = dict(run_info or {})
     started_at = run_info.get("started_at")
-    cumulative, provider_transcript = extract_interactive_usage(
-        session.get("provider"), _get_auth_home(session), started_at
+    cumulative, provider_transcript, match = extract_interactive_usage(
+        session.get("provider"), _get_auth_home(session), started_at, _conversation_id(session)
     )
     if provider_transcript:
         run_info["provider_transcript_path"] = provider_transcript
+        # How the transcript was found travels with the number. A recency match
+        # is a guess that happened to be the newest file; recording it the same
+        # way as an id match would let a wrong attribution read as a
+        # measurement, which is the failure this replaced.
+        run_info["provider_transcript_match"] = match
     if not cumulative:
         return run_info
 

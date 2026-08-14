@@ -116,3 +116,43 @@ class UsageDeltaArithmeticTests(unittest.TestCase):
 
     def test_any_negative_component_voids_the_whole_delta(self):
         self.assertIsNone(usage_delta({"output_tokens": 1}, {"output_tokens": 5}))
+
+
+class CodexUsageDeltaTests(unittest.TestCase):
+    """Codex's snapshot is cumulative for the conversation, so it needs the
+    same treatment -- and gets it, because the delta is computed on the record
+    the reader returns rather than inside either provider's parser."""
+
+    def setUp(self):
+        self._dir = tempfile.TemporaryDirectory()
+        self.home = self._dir.name
+        self.transcript = os.path.join(self.home, "sessions", "rollout.jsonl")
+        os.makedirs(os.path.dirname(self.transcript), exist_ok=True)
+        self.session = {"name": "work", "provider": "codex", "authHome": self.home}
+        self.addCleanup(self._dir.cleanup)
+
+    def _snapshot(self, input_tokens, cached, output):
+        with open(self.transcript, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"payload": {"type": "token_count", "info": {
+                "total_token_usage": {
+                    "input_tokens": input_tokens,
+                    "cached_input_tokens": cached,
+                    "output_tokens": output,
+                },
+            }}}) + "\n")
+
+    def _run(self, history):
+        started = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        return _attach_interactive_usage(self.session, {"started_at": started}, history)
+
+    def test_a_resumed_conversation_records_only_the_increment(self):
+        self._snapshot(1000, 400, 50)
+        first = self._run([])
+        self._snapshot(1600, 900, 80)
+        second = self._run([first])
+
+        # Uncached input went 600 -> 700, cache reads 400 -> 900, output 50 -> 80.
+        self.assertEqual(first["usage"]["input_tokens"], 600)
+        self.assertEqual(second["usage"]["input_tokens"], 100)
+        self.assertEqual(second["usage"]["cache_read_tokens"], 500)
+        self.assertEqual(second["usage"]["output_tokens"], 30)

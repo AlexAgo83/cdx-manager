@@ -27,7 +27,7 @@ class InteractiveUsageTests(unittest.TestCase):
                     "input_tokens": 110, "cached_input_tokens": 90, "output_tokens": 4,
                     "reasoning_output_tokens": 2, "total_tokens": 114}}}},
             ])
-            usage, _path = extract_interactive_usage("codex", home)
+            usage, _path, _match = extract_interactive_usage("codex", home)
             # Codex's own `input_tokens` includes the cached tokens, so IN is
             # the 20-token remainder and CACHE holds the 90 it contained.
             self.assertEqual(usage, {"input_tokens": 20, "cached_input_tokens": 90,
@@ -42,7 +42,7 @@ class InteractiveUsageTests(unittest.TestCase):
                 {"payload": {"type": "token_count", "info": {"total_token_usage": {
                     "input_tokens": 20, "cached_input_tokens": 90, "output_tokens": 4}}}},
             ])
-            usage, _path = extract_interactive_usage("codex", home)
+            usage, _path, _match = extract_interactive_usage("codex", home)
             self.assertEqual(usage["input_tokens"], 20)
             self.assertEqual(usage["total_tokens"], 114)
 
@@ -57,7 +57,7 @@ class InteractiveUsageTests(unittest.TestCase):
                 {"type": "assistant", "uuid": "two", "message": {"usage": {
                     "input_tokens": 11, "output_tokens": 13}}},
             ])
-            usage, _path = extract_interactive_usage("claude", home)
+            usage, _path, _match = extract_interactive_usage("claude", home)
             # The total used to read 33 -- input plus output, with the 8 cached
             # tokens dropped entirely. Cache is most of real consumption, so
             # that was not a slightly-low total but a different quantity.
@@ -72,7 +72,7 @@ class InteractiveUsageTests(unittest.TestCase):
             ])
             os.utime(old, (1, 1))
             started = datetime.now(timezone.utc).isoformat()
-            usage, path = extract_interactive_usage("codex", home, started)
+            usage, path, _match = extract_interactive_usage("codex", home, started)
             self.assertIsNone(usage)
             self.assertIsNone(path)
 
@@ -81,11 +81,14 @@ class InteractiveUsageTests(unittest.TestCase):
             path = self._write(home, "sessions/large.jsonl", [])
             with open(path, "wb") as handle:
                 handle.truncate(MAX_TRANSCRIPT_BYTES + 1)
-            usage, selected = extract_interactive_usage("codex", home)
+            usage, selected, _match = extract_interactive_usage("codex", home)
             self.assertIsNone(usage)
             self.assertEqual(os.path.normpath(selected), os.path.normpath(path))
 
-    def test_candidate_cap_returns_newest_seen_transcript(self):
+    def test_candidate_cap_reports_absence_rather_than_a_partial_guess(self):
+        # An inconclusive scan used to return whichever candidate it had
+        # reached, which is indistinguishable from a real measurement. A run
+        # billed against an unrelated file is worse than a run with no number.
         with tempfile.TemporaryDirectory() as home:
             older = self._write(home, "sessions/older.jsonl", [])
             newer = self._write(home, "sessions/newer.jsonl", [])
@@ -94,16 +97,9 @@ class InteractiveUsageTests(unittest.TestCase):
             previous = interactive_usage.MAX_TRANSCRIPT_CANDIDATES
             interactive_usage.MAX_TRANSCRIPT_CANDIDATES = 1
             try:
-                self.assertEqual(
-                    os.path.normpath(interactive_usage._latest_transcript("codex", home, None)),
-                    os.path.normpath(newer),
-                )
+                self.assertIsNone(interactive_usage._latest_transcript("codex", home, None))
             finally:
                 interactive_usage.MAX_TRANSCRIPT_CANDIDATES = previous
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class UsageDefinitionAgreementTests(unittest.TestCase):
@@ -152,7 +148,7 @@ class UsageDefinitionAgreementTests(unittest.TestCase):
                 }) + "\n")
 
             headless = run_usage.extract_run_usage("claude", stdout_path)
-            interactive, _path = extract_interactive_usage("claude", home)
+            interactive, _path, _match = extract_interactive_usage("claude", home)
             background = read_transcript_outcome(transcript)["usage"]
 
         self.assertEqual(headless, self.EXPECTED)
@@ -228,3 +224,84 @@ class ClaudeDedupTests(unittest.TestCase):
             {"type": "assistant", "message": {"usage": {"input_tokens": 1, "output_tokens": 4}}},
         ])
         self.assertEqual(usage["output_tokens"], 8)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class TranscriptResolutionTests(unittest.TestCase):
+    """Measure the session that ran, not whichever file was touched last.
+
+    The mtime scan this replaces is why sessions reported three runs and
+    eighteen output tokens: they were billed against an unrelated file that
+    happened to be newer.
+    """
+
+    def _claude_transcript(self, home, session_id, output):
+        path = os.path.join(home, ".claude", "projects", "some-repo", f"{session_id}.jsonl")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps({
+                "type": "assistant", "uuid": f"u-{session_id}", "requestId": f"r-{session_id}",
+                "message": {"id": f"m-{session_id}", "usage": {"input_tokens": 1, "output_tokens": output}},
+            }) + "\n")
+        return path
+
+    def test_a_newer_unrelated_transcript_does_not_win(self):
+        with tempfile.TemporaryDirectory() as home:
+            mine = self._claude_transcript(home, "11111111-1111-1111-1111-111111111111", 5)
+            theirs = self._claude_transcript(home, "22222222-2222-2222-2222-222222222222", 999)
+            os.utime(mine, (1, 1))
+            os.utime(theirs, (10, 10))
+
+            usage, path, match = extract_interactive_usage(
+                "claude", home, None, "11111111-1111-1111-1111-111111111111")
+
+            self.assertEqual(os.path.normpath(path), os.path.normpath(mine))
+            self.assertEqual(usage["output_tokens"], 5)
+            self.assertEqual(match, interactive_usage.MATCH_CONVERSATION_ID)
+
+    def test_a_known_id_with_no_transcript_reports_absence_not_a_guess(self):
+        with tempfile.TemporaryDirectory() as home:
+            self._claude_transcript(home, "22222222-2222-2222-2222-222222222222", 999)
+
+            usage, path, match = extract_interactive_usage(
+                "claude", home, None, "11111111-1111-1111-1111-111111111111")
+
+            # Nothing found means nothing to describe: no usage, no path, and
+            # no match kind. What must not happen is falling back to the scan
+            # and billing this session for another session's file.
+            self.assertIsNone(usage)
+            self.assertIsNone(path)
+            self.assertIsNone(match)
+
+    def test_no_conversation_id_falls_back_but_says_so(self):
+        with tempfile.TemporaryDirectory() as home:
+            self._claude_transcript(home, "22222222-2222-2222-2222-222222222222", 9)
+
+            usage, path, match = extract_interactive_usage("claude", home)
+
+            self.assertIsNotNone(path)
+            self.assertEqual(usage["output_tokens"], 9)
+            self.assertEqual(match, interactive_usage.MATCH_RECENCY)
+
+    def test_codex_resolves_the_rollout_carrying_its_conversation_id(self):
+        with tempfile.TemporaryDirectory() as home:
+            identifier = "33333333-3333-3333-3333-333333333333"
+            root = os.path.join(home, "sessions", "2026", "08")
+            os.makedirs(root, exist_ok=True)
+            for name, output in (
+                (f"rollout-2026-08-14T10-00-00-{identifier}.jsonl", 4),
+                ("rollout-2026-08-14T11-00-00-44444444-4444-4444-4444-444444444444.jsonl", 999),
+            ):
+                with open(os.path.join(root, name), "w", encoding="utf-8") as handle:
+                    handle.write(json.dumps({"payload": {"type": "token_count", "info": {
+                        "total_token_usage": {"input_tokens": 10, "cached_input_tokens": 0,
+                                              "output_tokens": output}}}}) + "\n")
+
+            usage, path, match = extract_interactive_usage("codex", home, None, identifier)
+
+            self.assertIn(identifier, os.path.basename(path))
+            self.assertEqual(usage["output_tokens"], 4)
+            self.assertEqual(match, interactive_usage.MATCH_CONVERSATION_ID)

@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import time
 
 from .run_usage import claude_usage_dedup_key, normalize_usage
@@ -10,22 +11,79 @@ MAX_TRANSCRIPT_BYTES = 16 * 1024 * 1024
 MAX_TRANSCRIPT_CANDIDATES = 1000
 MAX_TRANSCRIPT_SCAN_SECONDS = 1
 
-def extract_interactive_usage(provider, auth_home, started_at=None):
-    """Return the newest provider-native usage after an interactive session.
+#: Codex repeats the conversation id at the end of each rollout filename.
+_ROLLOUT_NAME = re.compile(r"^rollout-.*-([0-9a-fA-F-]{36})\.jsonl$")
+
+#: How the transcript that produced a usage record was found. An id match is
+#: the session's own transcript by construction; a recency match is a guess
+#: that happened to be the newest file, and must not read as the same thing.
+MATCH_CONVERSATION_ID = "conversation_id"
+MATCH_RECENCY = "recency"
+
+
+def extract_interactive_usage(provider, auth_home, started_at=None, conversation_id=None):
+    """Return this session's provider-native usage, and how it was found.
 
     Provider transcripts are not stable public APIs.  A missing or changed
     record is therefore ordinary absence, never a launch failure.
+
+    Resolution is by conversation id whenever the session has one: cdx mints
+    Claude's itself and passes it as `--session-id`, and observes Codex's back
+    after a run, so the session's own transcript is addressable by name. The
+    mtime scan that used to decide this returned whichever file in the whole
+    provider home was touched most recently, which is why sessions reported
+    three runs and eighteen output tokens -- they were being billed for an
+    unrelated file.
+
+    A session with an id whose transcript cannot be found reports absence
+    rather than falling back to that scan: a wrong attribution is worse than a
+    missing one, and it is the failure this replaces.
     """
-    path = _latest_transcript(provider, auth_home, started_at)
+    path, match = resolve_transcript(provider, auth_home, started_at, conversation_id)
     if not path:
-        return None, None
+        return None, None, None
     try:
         if os.path.getsize(path) > MAX_TRANSCRIPT_BYTES:
-            return None, path
+            return None, path, match
         with open(path, encoding="utf-8", errors="replace") as handle:
-            return (_codex_usage(handle) if provider == "codex" else _claude_usage(handle)), path
+            usage = _codex_usage(handle) if provider == "codex" else _claude_usage(handle)
+        return usage, path, match
     except OSError:
-        return None, path
+        return None, path, match
+
+
+def resolve_transcript(provider, auth_home, started_at=None, conversation_id=None):
+    """The transcript belonging to this session, and how confidently."""
+    if not auth_home:
+        return None, None
+    if conversation_id:
+        return _transcript_for_conversation(provider, auth_home, conversation_id), MATCH_CONVERSATION_ID
+    path = _latest_transcript(provider, auth_home, started_at)
+    return path, (MATCH_RECENCY if path else None)
+
+
+def _transcript_for_conversation(provider, auth_home, conversation_id):
+    if provider == "codex":
+        return _codex_rollout_for(auth_home, conversation_id)
+    # Reuse, not reimplement: the background path already resolved a Claude
+    # transcript by session id, and having two rules for the same lookup is
+    # how they drift apart.
+    from .provider_background import find_session_transcript
+
+    return find_session_transcript(auth_home, conversation_id)
+
+
+def _codex_rollout_for(auth_home, conversation_id):
+    """Codex repeats its conversation id in the rollout filename."""
+    root = os.path.join(auth_home, "sessions")
+    if not os.path.isdir(root):
+        return None
+    for directory, _subdirs, names in os.walk(root):
+        for name in names:
+            match = _ROLLOUT_NAME.match(name)
+            if match and match.group(1).lower() == str(conversation_id).lower():
+                return os.path.join(directory, name)
+    return None
 
 
 def _latest_transcript(provider, auth_home, started_at):
@@ -39,7 +97,10 @@ def _latest_transcript(provider, auth_home, started_at):
     deadline = time.monotonic() + MAX_TRANSCRIPT_SCAN_SECONDS
     for directory, subdirs, names in os.walk(root):
         if time.monotonic() >= deadline:
-            return max(candidates, default=(None, None))[1]
+            # An inconclusive scan is absence, not "whichever candidate we had
+            # reached". Returning a partial answer here is what made a wrong
+            # attribution indistinguishable from a real measurement.
+            return None
         if provider == "claude":
             subdirs[:] = [name for name in subdirs if name != "subagents"]
         for name in names:
@@ -53,7 +114,7 @@ def _latest_transcript(provider, auth_home, started_at):
             if cutoff is None or modified >= cutoff:
                 candidates.append((modified, path))
                 if len(candidates) > MAX_TRANSCRIPT_CANDIDATES:
-                    return max(candidates)[1]
+                    return None
     return max(candidates, default=(None, None))[1]
 
 
