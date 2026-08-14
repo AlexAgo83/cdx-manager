@@ -1,10 +1,10 @@
 ## item_129_rank_sessions_by_weighted_cost_equivalent_tokens - Rank sessions by weighted cost-equivalent tokens
 > From version: 0.19.3
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 85
 > Confidence: 80
-> Progress: 0%
+> Progress: 40%
 > Complexity: Medium
 > Theme: Usage accounting
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

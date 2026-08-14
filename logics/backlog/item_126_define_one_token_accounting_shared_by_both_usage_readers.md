@@ -1,10 +1,10 @@
 ## item_126_define_one_token_accounting_shared_by_both_usage_readers - Define one token accounting shared by both usage readers
 > From version: 0.19.3
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Status: In progress
+> Understanding: 95%
+> Confidence: 95%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Usage accounting
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

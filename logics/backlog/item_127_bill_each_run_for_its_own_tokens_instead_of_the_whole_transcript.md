@@ -1,10 +1,10 @@
 ## item_127_bill_each_run_for_its_own_tokens_instead_of_the_whole_transcript - Bill each run for its own tokens instead of the whole transcript
 > From version: 0.19.3
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 40%
 > Complexity: High
 > Theme: Usage accounting
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

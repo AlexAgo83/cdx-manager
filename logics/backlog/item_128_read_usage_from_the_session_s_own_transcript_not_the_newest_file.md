@@ -1,10 +1,10 @@
 ## item_128_read_usage_from_the_session_s_own_transcript_not_the_newest_file - Read usage from the session's own transcript, not the newest file
 > From version: 0.19.3
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 40%
 > Complexity: Medium
 > Theme: Usage accounting
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
