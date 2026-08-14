@@ -4,7 +4,7 @@
 > Status: In progress
 > Understanding: 95%
 > Confidence: 90%
-> Progress: 40%
+> Progress: 60%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -26,8 +26,8 @@
 - [x] 3. Settle the field definitions before touching any reader — whether IN and TOTAL include cached input — and write the decision down in code and README. All three readers and both providers then normalize to that one definition; do not let the table reconcile a difference the readers should have resolved.
 - [x] 4. Fix the arithmetic: Claude's total to cover cached input, the within-record cache double count in `run_usage._usage_from_dict`, and `provider_background`'s missing cache fields and inverted total. Split cache creation from cache reads while you are in all three readers — they cost 1.25x and 0.1x, and the weighting later has no way to separate them after the fact. Confirm the stats sort key is the same number the TOTAL column prints.
 - [x] 5. Normalize at the run registry boundary so the JSON surfaces publish the shared shape, then reconcile the README's token claims — the column meanings, the "never counted twice" invariant at `README.md:711`, and the headless-only description at `README.md:540` — against what the code now does.
-- [ ] 6. Then fix what a run stores. The delta work depends on the definitions being settled, and it is the change that actually stops the numbers inflating on resume. Use the already-recorded `provider_transcript_path` as the anchor, establish an equivalent anchor for the background path which has none, and decide explicitly what a first run against a pre-existing transcript records.
-- [ ] 7. Handle the degenerate transcript cases — shrunk, rotated, replaced — as absence rather than as arithmetic. A missing number is recoverable; a wrong one is not.
+- [x] 6. Then fix what a run stores. The delta work depends on the definitions being settled, and it is the change that actually stops the numbers inflating on resume. Use the already-recorded `provider_transcript_path` as the anchor, establish an equivalent anchor for the background path which has none, and decide explicitly what a first run against a pre-existing transcript records.
+- [x] 7. Handle the degenerate transcript cases — shrunk, rotated, replaced — as absence rather than as arithmetic. A missing number is recoverable; a wrong one is not.
 - [ ] 8. Replace the mtime guess with conversation-id resolution last, so the delta tests are already green and any coverage change is attributable to this step alone. Reuse `find_session_transcript` (`src/provider_background.py:193`), which already does this for the background path — the outcome is one resolver, not a better second one.
 - [ ] 9. Measure coverage against real launch history before and after, and report the share of runs carrying usage rather than asserting the fix worked. Reconcile the corrected totals against the external ccusage tool run per session as HOME=<auth_home> npx ccusage --json — an independent reader of the same transcripts. Today the two differ by roughly 800x, so agreement is the strongest available evidence the fix landed.
 - [ ] 10. Keep the non-fatal guarantee under test throughout: no change here may turn a missing or unreadable transcript into a failed launch.
@@ -68,13 +68,18 @@
 
 # Validation
 - Wave A (plan steps 1-5), 2026-08-14: `npm test` 906 passed, `npm run lint` all checks passed. Baseline before the change was 898 passed.
+- Wave B (plan steps 6-7), 2026-08-14: `npm test` 914 passed, `npm run lint` all checks passed.
 - Oracle reconciliation on one real 2741-row Claude transcript, cdx reader against an independent reader of the same bytes: exact agreement on all four measured fields (input 3321, cache creation 2671168, cache read 797566574, output 820410). Before the de-duplication fix the same file read 1.55x high.
 
 # Report
 - **Wave A delivered** in b73f5a5 and 878e570. One shared definition now lives in `src/run_usage.py` and all three readers normalize to it; cache creation and cache read are separate fields; IN is the uncached remainder on both providers; the total covers all four token classes; the run registry normalizes on the way in so the JSON surfaces publish the shared shape; the README documents the fields and no longer claims an invariant the code broke.
 - **A fifth defect surfaced during implementation and was fixed here.** The interactive reader de-duplicated on the transcript row's `uuid`, but a Claude transcript records the same billed API response under several uuids -- 2741 rows for 1765 distinct responses on the file measured, so 36% were repeats. cdx over-reported that file by 1.55x. The billed unit is `(message id, request id)`; keying on it made cdx and the oracle agree exactly. The native-background reader had no de-duplication at all and now shares the same key. This was found only because the oracle check was in the plan; no test would have caught it.
 - **An assumption was corrected rather than shipped.** The request stated that Codex counts cached tokens inside `input_tokens`. That holds for real records, but a test fixture carried `cached > input`, which cannot be a subset. Subtracting unconditionally would have erased real input tokens, so the reduction is now applied only when the subset relationship actually holds.
-- Waves B, C and D (per-run deltas, transcript resolution by conversation id, weighting and currency) are untouched. `cdx stats` still shows historical figures for runs already in launch history: repairing those is explicitly out of scope for `item_127`.
+- **Wave B delivered** in 3227d38. A run now stores the increment over the previous run on the same transcript, with the cumulative kept beside it as `usage_cumulative` -- the next run's baseline, and the reason a single unmeasured run does not break the chain for every run after it. Codex is covered by the same code without a provider branch, because the delta is taken on the record the reader returns rather than inside either parser; a test asserts it rather than assuming it.
+- **Degenerate transcripts report absence, never arithmetic.** A shrunk, rotated, or replaced transcript yields a negative component, so the whole delta is voided while the baseline still advances and the next run recovers. The first run against a transcript that predates it leaves a baseline and records nothing, because attributing an unmeasured history to one run is the same over-count the delta exists to prevent, committed once instead of N times.
+- **A sixth defect fixed in passing:** the failure path in `handle_launch` called `_attach_interactive_usage` and discarded its return value, so a failed launch recorded no usage at all.
+- **One scope item was found unnecessary rather than skipped.** `item_127` asked for delta handling on the native background path. It is not needed: `provider_session_id` is the agent id the provider assigns per `--bg` invocation (`src/commands/runs.py:322`), the agent is stopped at reconcile, and each run therefore reads a transcript created for it alone. There is nothing to accumulate, so the cumulative *is* the increment. Adding a baseline store there would solve a problem the code cannot reach.
+- Waves C and D (transcript resolution by conversation id, weighting and currency) are untouched. `cdx stats` still shows historical figures for runs already in launch history: repairing those is explicitly out of scope for `item_127`.
 - Out of scope, worth its own request: `test_runtime_py.py::test_non_interactive_and_non_claude_specs_keep_claude_title_writes_untouched` reads the ambient environment, so it fails whenever the suite runs inside a Claude Code session (which exports `CLAUDE_CODE_DISABLE_TERMINAL_TITLE`). It passes under `env -u CLAUDE_CODE_DISABLE_TERMINAL_TITLE`. Pre-existing, unrelated to this task.
 
 # Links
