@@ -52,19 +52,18 @@
 - [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
-- request-AC1 -> `item_126_define_one_token_accounting_shared_by_both_usage_readers`. Proof deferred to slice closeout.
-- request-AC2 -> `item_126_define_one_token_accounting_shared_by_both_usage_readers`. Proof deferred to slice closeout.
-- request-AC6 -> `item_126_define_one_token_accounting_shared_by_both_usage_readers`. Proof deferred to slice closeout.
-- request-AC7 -> `item_126_define_one_token_accounting_shared_by_both_usage_readers`. Proof deferred to slice closeout.
-- request-AC3 -> `item_127_bill_each_run_for_its_own_tokens_instead_of_the_whole_transcript`. Proof deferred to slice closeout.
-- request-AC5 -> `item_127_bill_each_run_for_its_own_tokens_instead_of_the_whole_transcript`. Proof deferred to slice closeout.
-- request-AC4 -> `item_128_read_usage_from_the_session_s_own_transcript_not_the_newest_file`. Proof deferred to slice closeout.
-- request-AC5 -> `item_128_read_usage_from_the_session_s_own_transcript_not_the_newest_file`. Proof deferred to slice closeout.
-- request-AC8 -> `item_128_read_usage_from_the_session_s_own_transcript_not_the_newest_file`. Proof deferred to slice closeout.
-- request-AC9 -> `item_126_define_one_token_accounting_shared_by_both_usage_readers`. Proof deferred to slice closeout.
-- request-AC10 -> `item_126_define_one_token_accounting_shared_by_both_usage_readers`. Proof deferred to slice closeout.
-- request-AC11 -> `item_129_rank_sessions_by_weighted_cost_equivalent_tokens`. Proof deferred to slice closeout.
-- request-AC12 -> `item_130_report_token_spend_in_currency`. Proof deferred to slice closeout.
+- request-AC1 -> This task. Proof: Claude total now covers cached input; `test_a_total_that_excludes_cache_is_not_produced` and the reader agreement fixtures. b73f5a5
+- request-AC2 -> This task. Proof: `_summarize_stats` ranks on the weighted figure and derives TOTAL from the displayed columns; `StatsRankingTests`. 8fc3a1a, 55b08fd
+- request-AC3 -> This task. Proof: A run stores the increment over the previous run on the same transcript; `test_the_runs_sum_to_the_transcript_total_not_a_multiple_of_it`. 3227d38
+- request-AC4 -> This task. Proof: Resolution by conversation id; `test_a_newer_unrelated_transcript_does_not_win`. 996380f
+- request-AC5 -> This task. Proof: Unresolvable or degenerate transcripts report absence and never raise; `test_a_known_id_with_no_transcript_reports_absence_not_a_guess`, `test_a_shrunken_transcript_reports_absence_rather_than_a_negative`. 996380f, 3227d38
+- request-AC6 -> This task. Proof: IN is the uncached remainder on both providers; `test_headless_interactive_and_background_readers_agree` plus the Codex subset check. b73f5a5
+- request-AC7 -> This task. Proof: All three readers normalize to one definition and carry the full field set; `UsageDefinitionAgreementTests`. b73f5a5
+- request-AC8 -> This task. Proof: Coverage measured, not asserted: 12 of 13 claude/codex sessions carry a conversation id and all 12 resolve to an existing transcript, against 33 of 1006 runs carrying usage before. 996380f
+- request-AC9 -> This task. Proof: The run registry normalizes on the way in via `coerce_usage`, so the JSON surfaces publish the shared shape; `test_commands_runs_py` payload assertions. b73f5a5
+- request-AC10 -> This task. Proof: README documents every field, the weighting and the cost estimate; the 'never counted twice' claim is now true because IN excludes cache. b73f5a5, 8fc3a1a, 55b08fd
+- request-AC11 -> This task. Proof: Cache creation and read are separate fields and the table ranks on the weighted figure; `test_a_cache_heavy_session_ranks_below_one_that_generated_more`. 8fc3a1a
+- request-AC12 -> This task. Proof: The serving model is read from the transcript and priced from configurable prices; an unknown model stays unpriced. `CostEstimateTests`, `ModelAttributionTests`. 55b08fd
 
 # Validation
 - Wave A (plan steps 1-5), 2026-08-14: `npm test` 906 passed, `npm run lint` all checks passed. Baseline before the change was 898 passed.
