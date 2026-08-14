@@ -741,7 +741,7 @@ Totals: 26 runs, ... ; no price for gpt-6-unreleased)
 CDX_TOKEN_PRICES='{"gpt-6-unreleased": {"input": 3, "output": 18}}' cdx stats
 ```
 
-**Prices are the only part of this that rots on its own.** A test fails once the table has gone 90 days without review, and `scripts/check_token_prices.py` compares it against published pricing — outside the test suite, since a check that needs the network fails for reasons nobody wants in CI. A row it cannot confirm is reported as unverified, never as passing. When it finds a difference, update `DEFAULT_TOKEN_PRICES` and `TOKEN_PRICES_REVIEWED` and cut a corrective release.
+**Prices are the only part of this that rots on its own.** A test fails once the table has gone 90 days without review, and `scripts/check_token_prices.py` compares it against published pricing — outside the test suite, since a check that needs the network fails for reasons nobody wants in CI. A row it cannot confirm is reported as unverified, never as passing. When it finds a difference, follow [`docs/token-prices-runbook.md`](docs/token-prices-runbook.md) — which also records where each vendor's numbers actually live, and which pages refuse to be read by a script.
 
 Runs recorded before these definitions existed are shown as faithfully as their data allows: they carry no creation/read split and no model, so their cached tokens are read as cache reads for weighting and they stay unpriced. `cdx stats` derives each row's `TOTAL` from the columns it displays, so a row always adds up even while history spans both eras.
 

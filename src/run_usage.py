@@ -154,7 +154,9 @@ def weighted_usage(usage, model=None, prices=None):
 #: Override with CDX_TOKEN_PRICES (JSON: model -> {"input": x, "output": y})
 #: rather than editing code, and treat an unknown model as unpriced instead of
 #: assuming a tier. `scripts/check_token_prices.py` re-checks this table
-#: against published pricing; a staleness test fails when nobody has.
+#: against published pricing and a staleness test fails when nobody has;
+#: `docs/token-prices-runbook.md` records where the numbers live and which
+#: vendor pages refuse to be read.
 #:
 #: Anthropic figures come from the vendor's own reference. OpenAI figures were
 #: taken from third-party aggregators on 2026-08-14 because openai.com refuses

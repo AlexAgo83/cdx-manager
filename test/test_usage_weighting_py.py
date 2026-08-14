@@ -161,9 +161,8 @@ class PriceTableFreshnessTests(unittest.TestCase):
         self.assertLessEqual(
             age, TOKEN_PRICES_MAX_AGE_DAYS,
             f"Token prices were last reviewed {age} days ago "
-            f"({TOKEN_PRICES_REVIEWED}). Run scripts/check_token_prices.py, then "
-            f"update DEFAULT_TOKEN_PRICES and TOKEN_PRICES_REVIEWED in "
-            f"src/run_usage.py and cut a corrective release.")
+            f"({TOKEN_PRICES_REVIEWED}). Run scripts/check_token_prices.py and "
+            f"follow docs/token-prices-runbook.md.")
 
     def test_the_review_date_is_not_in_the_future(self):
         # A future date would silence the check indefinitely.
