@@ -117,13 +117,15 @@ class LaunchConfigArgsTests(unittest.TestCase):
             ["--dangerously-skip-permissions"],
         )
 
-    def test_ollama_permission_maps_to_nothing(self):
+    def test_ollama_permission_maps_to_nothing_but_keeps_the_usage_flag(self):
+        # No permission maps to a flag, but `--verbose` is passed regardless:
+        # it is what makes token counts exist at all for this provider.
         for permission in ("full", "review", "safe", None):
             self.assertEqual(
                 _launch_config_args(
                     {"provider": PROVIDER_OLLAMA, "launch": {"permission": permission}}
                 ),
-                [],
+                ["--verbose"],
             )
 
 

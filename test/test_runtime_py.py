@@ -989,7 +989,9 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertEqual(
             spec["fallback"]["args"],
             # ollama has no permission concept; permission maps to no flags.
-            ["run", "llama3.2", "hello"],
+            # `--verbose` is cdx's own, and lands between the model and the
+            # prompt -- accepted by ollama's `run MODEL [PROMPT] [flags]`.
+            ["run", "llama3.2", "--verbose", "hello"],
         )
         self.assertEqual(spec["fallback"]["options"]["cwd"], "/tmp/repo")
         self.assertEqual(spec["fallback"]["options"]["env"]["OLLAMA_NOHISTORY"], "1")
@@ -1005,7 +1007,7 @@ class RuntimePythonTests(unittest.TestCase):
         spec = provider_runtime._build_launch_spec(session, cwd="/tmp/repo")
 
         self.assertEqual(spec["fallback"]["command"], "ollama")
-        self.assertEqual(spec["fallback"]["args"], ["run", "qwen2.5-coder:14b"])
+        self.assertEqual(spec["fallback"]["args"], ["run", "qwen2.5-coder:14b", "--verbose"])
 
     def test_build_launch_spec_does_not_inject_preferences_to_ollama(self):
         session = {
@@ -1026,7 +1028,7 @@ class RuntimePythonTests(unittest.TestCase):
             )
 
         self.assertEqual(spec["fallback"]["command"], "ollama")
-        self.assertEqual(spec["fallback"]["args"], ["run", "qwen2.5-coder:14b"])
+        self.assertEqual(spec["fallback"]["args"], ["run", "qwen2.5-coder:14b", "--verbose"])
 
     def test_linux_launch_spec_uses_util_linux_script_command_form(self):
         session = {

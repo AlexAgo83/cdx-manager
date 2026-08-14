@@ -12,6 +12,7 @@ from .cli_render import _pad_table, _style
 from .config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
 from .provider_runtime import (
     HEADLESS_CODEX_PERMISSION_ARGS,
+    LAUNCH_FEATURE_ARGS,
     LAUNCH_PERMISSION_ARGS,
     codex_auth_diagnostic,
 )
@@ -173,12 +174,17 @@ def _extract_version(text):
 
 
 def _mapped_provider_flags(provider):
-    """Every distinct flag cdx would pass to this provider, by permission.
+    """Every distinct flag cdx would pass to this provider, by reason.
 
     Read off the same mappings the launch specs use, so a permission added
     there is automatically covered here rather than quietly unverified.
     Values (a sandbox name, a config expression) are not flags and are not
     checked — only the options themselves.
+
+    Covers flags cdx passes on its own initiative as well as permission
+    mappings. Issue #8 was a mapped flag the CLI never had; a flag cdx invents
+    for a feature of its own is exactly as capable of not existing, and used to
+    pass through here unverified because it belonged to no permission.
     """
     mappings = {}
     interactive = LAUNCH_PERMISSION_ARGS.get(provider)
@@ -186,6 +192,9 @@ def _mapped_provider_flags(provider):
         # No entry at all means nobody declared this provider's mapping, which
         # is different from declaring that it has none.
         return {}
+    for flag in LAUNCH_FEATURE_ARGS.get(provider, []):
+        if flag.startswith("-"):
+            mappings.setdefault("cdx feature flags", set()).add(flag)
     for permission, args in interactive.items():
         mappings.setdefault(permission, set()).update(
             arg for arg in args if arg.startswith("-")

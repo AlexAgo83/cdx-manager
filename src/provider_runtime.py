@@ -54,6 +54,21 @@ LOGICS_PROMPT = (
     "`logics-manager flow ...` for request/backlog/task lifecycle changes; and `logics-manager mcp ...` "
     "when an MCP surface is the right fit."
 )
+#: Turns on ollama's per-response timing block, which carries the token counts.
+#: Ollama writes no provider-native transcript, so without this there is
+#: nothing anywhere to read and `cdx stats` shows a permanent zero.
+OLLAMA_USAGE_FLAG = "--verbose"
+
+#: Flags cdx passes on its own initiative -- not asked for by the user and not
+#: derived from a permission. Declared here rather than inline so the
+#: provider-flag health check can verify they exist in the installed CLI: the
+#: generalized form of GitHub issue #8, where `--experimental-yolo` was mapped
+#: for ollama and that CLI never had it. A flag cdx invents is exactly as
+#: capable of not existing as a flag it maps.
+LAUNCH_FEATURE_ARGS = {
+    PROVIDER_OLLAMA: [OLLAMA_USAGE_FLAG],
+}
+
 LAUNCH_PERMISSION_ARGS = {
     PROVIDER_CLAUDE: {
         "review": ["--permission-mode", "plan"],
@@ -439,6 +454,7 @@ def _launch_config_args(session):
         # Both read their mapping from the shared table rather than inline
         # branches, so the provider-flag health check can verify what they emit
         # instead of a hand-copied restatement of it.
+        args += LAUNCH_FEATURE_ARGS.get(provider, [])
         if permission:
             args += LAUNCH_PERMISSION_ARGS[provider].get(permission, [])
         return args
@@ -592,6 +608,11 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
         launch = session.get("launch") or {}
         model = launch.get("model") or session["name"]
         ollama_env = {**env, "OLLAMA_NOHISTORY": "1"}
+        # `--verbose` arrives through _launch_config_args from
+        # LAUNCH_FEATURE_ARGS, so the health check and the launch read one
+        # table. Placement between the model and the prompt is accepted --
+        # verified against ollama 0.32.11, which parsed the arguments and
+        # failed only on the model pull.
         args = ["run", model] + _launch_config_args(session)
         if initial_prompt:
             args.append(initial_prompt)

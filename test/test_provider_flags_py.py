@@ -77,17 +77,29 @@ class ProviderFlagTests(CliTestBase):
 
         self.assertEqual(self._flag_issue(report, "codex")["status"], "WARN")
 
-    def test_provider_with_no_mapping_reads_as_deliberate(self):
+    def test_provider_with_no_permission_mapping_still_verifies_cdx_own_flags(self):
+        # ollama maps no *permission* to a flag, but cdx passes `--verbose` on
+        # its own initiative to get token counts. Issue #8 was a mapped flag
+        # the CLI never had; a flag cdx invents is exactly as capable of not
+        # existing, so it is verified the same way.
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        service["create_session"]("local", "ollama")
+
+        report = self._health_report(service, help_text="run --verbose", check_provider_flags=True)
+
+        issue = self._flag_issue(report, "ollama")
+        self.assertEqual(issue["status"], "OK")
+        self.assertEqual(issue["detail"]["mapped"], {"cdx feature flags": ["--verbose"]})
+
+    def test_a_cdx_feature_flag_the_cli_lacks_is_reported(self):
         service = create_session_service({"base_dir": self.make_temp_dir()})
         service["create_session"]("local", "ollama")
 
         report = self._health_report(service, help_text="run", check_provider_flags=True)
 
-        # ollama maps nothing on purpose; that must not look like an
-        # unverified mapping.
         issue = self._flag_issue(report, "ollama")
-        self.assertEqual(issue["status"], "OK")
-        self.assertEqual(issue["detail"]["mapped"], {})
+        self.assertEqual(issue["status"], "FAIL")
+        self.assertEqual(issue["detail"]["missing"], {"cdx feature flags": ["--verbose"]})
 
     def test_provider_flag_check_absence_is_reported_not_omitted(self):
         service = create_session_service({"base_dir": self.make_temp_dir()})
