@@ -144,6 +144,8 @@ _None_
 | [req_061_harden_repository_reliability_release_verification_and_cli_contracts](request/req_061_harden_repository_reliability_release_verification_and_cli_contracts.md) | Harden repository reliability, release verification, and CLI contracts | Done |  |  | request/req_061_harden_repository_reliability_release_verification_and_cli_contracts.md |
 | [req_062_track_token_usage_for_interactive_ollama_sessions](request/req_062_track_token_usage_for_interactive_ollama_sessions.md) | Track token usage for interactive ollama sessions | Done |  |  | request/req_062_track_token_usage_for_interactive_ollama_sessions.md |
 | [req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent](request/req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent.md) | Make cdx stats report the tokens a session actually spent | Done |  |  | request/req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent.md |
+| [req_064_resume_names_a_conversation_that_exists](request/req_064_resume_names_a_conversation_that_exists.md) | Resume names a conversation that exists | Done |  |  | request/req_064_resume_names_a_conversation_that_exists.md |
+| [req_065_drop_token_usage_cdx_cannot_vouch_for](request/req_065_drop_token_usage_cdx_cannot_vouch_for.md) | Drop token usage cdx cannot vouch for | Done |  |  | request/req_065_drop_token_usage_cdx_cannot_vouch_for.md |
 
 ## Backlog
 
@@ -282,6 +284,8 @@ _None_
 | [item_128_read_usage_from_the_session_s_own_transcript_not_the_newest_file](backlog/item_128_read_usage_from_the_session_s_own_transcript_not_the_newest_file.md) | Read usage from the session's own transcript, not the newest file | Done |  | 100% | backlog/item_128_read_usage_from_the_session_s_own_transcript_not_the_newest_file.md |
 | [item_129_rank_sessions_by_weighted_cost_equivalent_tokens](backlog/item_129_rank_sessions_by_weighted_cost_equivalent_tokens.md) | Rank sessions by weighted cost-equivalent tokens | Done |  | 100% | backlog/item_129_rank_sessions_by_weighted_cost_equivalent_tokens.md |
 | [item_130_report_token_spend_in_currency](backlog/item_130_report_token_spend_in_currency.md) | Report token spend in currency | Done |  | 100% | backlog/item_130_report_token_spend_in_currency.md |
+| [item_131_resume_names_a_conversation_that_exists](backlog/item_131_resume_names_a_conversation_that_exists.md) | Resume names a conversation that exists | Done |  | 100% | backlog/item_131_resume_names_a_conversation_that_exists.md |
+| [item_132_drop_token_usage_cdx_cannot_vouch_for](backlog/item_132_drop_token_usage_cdx_cannot_vouch_for.md) | Drop token usage cdx cannot vouch for | Done |  | 100% | backlog/item_132_drop_token_usage_cdx_cannot_vouch_for.md |
 
 ## Tasks
 
@@ -365,6 +369,8 @@ _None_
 | [task_071_orchestrate_repository_reliability_and_release_contract_hardening](tasks/task_071_orchestrate_repository_reliability_and_release_contract_hardening.md) | Orchestrate repository reliability and release-contract hardening | Done | codex | 100% | tasks/task_071_orchestrate_repository_reliability_and_release_contract_hardening.md |
 | [task_072_orchestrate_ollama_token_usage_tracking](tasks/task_072_orchestrate_ollama_token_usage_tracking.md) | Orchestrate ollama token usage tracking | Done | claude | 100% | tasks/task_072_orchestrate_ollama_token_usage_tracking.md |
 | [task_073_orchestrate_truthful_token_accounting_for_cdx_stats](tasks/task_073_orchestrate_truthful_token_accounting_for_cdx_stats.md) | Orchestrate truthful token accounting for cdx stats | Done | claude | 100% | tasks/task_073_orchestrate_truthful_token_accounting_for_cdx_stats.md |
+| [task_074_resume_names_a_conversation_that_exists](tasks/task_074_resume_names_a_conversation_that_exists.md) | Resume names a conversation that exists | Done |  | 100% | tasks/task_074_resume_names_a_conversation_that_exists.md |
+| [task_075_drop_token_usage_cdx_cannot_vouch_for](tasks/task_075_drop_token_usage_cdx_cannot_vouch_for.md) | Drop token usage cdx cannot vouch for | Done |  | 100% | tasks/task_075_drop_token_usage_cdx_cannot_vouch_for.md |
 
 ## Runbooks
 

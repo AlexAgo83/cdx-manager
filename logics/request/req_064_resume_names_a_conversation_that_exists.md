@@ -1,13 +1,13 @@
 ## req_064_resume_names_a_conversation_that_exists - Resume names a conversation that exists
 > From version: 0.19.3
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 95
 > Confidence: 90
 > Complexity: Medium
 > Theme: Session lifecycle
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 13:51:31
+> Indicators reviewed: 2026-08-14 14:33:23
 
 # AI Context
 - Summary: A resume minted a fresh conversation id and then asked the provider to resume it, and the capability named conversations that were never written -- both fixed; recorded here because the work had no home.
@@ -26,6 +26,11 @@
 - Both resume spellings converge on the same call: `cdx resume <name>` through `handle_resume`, and `cdx <name> --resume` through the bare-name fallthrough in `src/cli.py:625`. A fix to one silently leaves the other broken unless it lands in the shared path.
 - Checking whether a conversation exists became cheap only after the token-accounting request built transcript resolution by conversation id. This request reuses that resolver rather than adding a second way to answer the same question.
 - Each provider already had a fallback for "no known conversation": `claude --continue` and `codex resume --last`. The defect was never a missing strategy, only a failure to reach the one that applied.
+# Delivery
+- Delivered in 2e708ad (a resume carries the conversation it is resuming), 313bee4 (resumability checked before the conversation is named, and the spec reads the same decision), and a984379 (both resume spellings pinned to the same behaviour). Shipped in 0.20.0.
+- Validated with `npm test` (968 passed at the time) and `npm run lint`; `cdx can-resume` on the operator's real store reports `provider_conversation_id / supported` for the two Claude and Codex sessions that carry a conversation, and GitHub CI is green on Linux, macOS and Windows.
+- No backlog slice or task exists because the work predates this record. That is the point of the doc: the change had no home, and a repository whose convention is that work is tracked should not carry a fix nobody can find.
+
 # Acceptance criteria
 - AC1: A resume carries the conversation it is resuming; no new conversation id is minted on the resume path.
 - AC2: Both `cdx resume <name>` and `cdx <name> --resume` resume the same conversation the same way.
@@ -33,10 +38,10 @@
 - AC4: What `cdx can-resume --json` reports and what `cdx resume` actually runs agree, because both read the same decision.
 - AC5: Tests assert the command produced, not only the capability reported, and stop passing an id with nothing on disk behind it.
 # Definition of Ready (DoR)
-- [ ] Problem statement is explicit and user impact is clear.
-- [ ] Scope boundaries (in/out) are explicit.
-- [ ] Acceptance criteria are testable.
-- [ ] Dependencies and known risks are listed.
+- [x] Problem statement is explicit and user impact is clear.
+- [x] Scope boundaries (in/out) are explicit.
+- [x] Acceptance criteria are testable.
+- [x] Dependencies and known risks are listed.
 
 # Companion docs
 - Product brief(s): (none yet)
@@ -51,4 +56,4 @@
 - test/test_runtime_py.py
 
 # Backlog
-- none
+- `item_131_resume_names_a_conversation_that_exists`

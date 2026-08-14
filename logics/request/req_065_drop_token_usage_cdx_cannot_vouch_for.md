@@ -1,13 +1,13 @@
 ## req_065_drop_token_usage_cdx_cannot_vouch_for - Drop token usage cdx cannot vouch for
 > From version: 0.19.3
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90
 > Confidence: 85
 > Complexity: Medium
 > Theme: Usage accounting
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 14:02:25
+> Indicators reviewed: 2026-08-14 14:33:23
 
 # AI Context
 - Summary: Launch history written before the usage definition existed is wrong by four orders of magnitude and cannot be recomputed, so it should be dropped rather than displayed.
@@ -28,6 +28,11 @@
 - The table already distinguishes runs with usage from runs without: the `USAGE` column counts them. A dropped record therefore reads as an honest absence rather than as a zero, and the drop is visible rather than silent.
 - `src/repair.py` exists and is where cdx already performs one-shot repairs to its own home, so this needs no new surface of its own.
 - The cost is real and should be stated: historical token totals disappear from `cdx stats`. They are wrong by four orders of magnitude, so losing them is a gain, but a user who had been reading them will notice.
+# Delivery
+- Delivered in 897d810 (`cdx repair` drops the figures from the file) and 68f2325 (they are excluded from every total automatically, which is what AC5 was corrected to require). Shipped in 0.20.0.
+- Validated with `npm test` and `npm run lint`, and on the operator's real store: `cdx repair --dry-run` reports 36 of 1027 records carrying unvouched usage, and `digital` falls from 206.6M cached tokens to 361.3K once they are excluded, with the totals line naming how many runs that covered.
+- The stored records are filtered rather than mutated, so `cdx repair` remains optional: it cleans the file for anyone who wants that, but nothing depends on it being run.
+
 # Acceptance criteria
 - AC1: Usage recorded before the field definition existed is no longer reported by `cdx stats`, `cdx history`, or the JSON surfaces.
 - AC2: Runs, durations, statuses, and timestamps survive the drop; only the usage figures go. A run that happened still happened.
@@ -54,4 +59,4 @@
 - test/test_commands_status_py.py
 
 # Backlog
-- none
+- `item_132_drop_token_usage_cdx_cannot_vouch_for`
