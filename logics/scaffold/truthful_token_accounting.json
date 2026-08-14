@@ -1,0 +1,202 @@
+{
+  "title": "Make cdx stats report the tokens a session actually spent",
+  "references": [
+    "src/interactive_usage.py",
+    "src/run_usage.py",
+    "src/commands/status.py",
+    "src/commands/launch.py",
+    "src/session_service.py",
+    "src/provider_runtime.py",
+    "README.md",
+    "test/test_interactive_usage_py.py",
+    "test/test_commands_status_py.py",
+    "test/test_codex_usage_py.py"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Usage accounting",
+    "needs": [
+      "`cdx stats` is the only place cdx reports what a session cost, and every number in its table is wrong for Claude sessions in a different way. A user reading it draws conclusions about spend and session ranking from figures that do not correspond to any real consumption.",
+      "The TOTAL column excludes cached input entirely. `_claude_usage` (`src/interactive_usage.py:104`) computes `total_tokens = input_tokens + output_tokens`, but for Claude `input_tokens` counts only the *uncached* prompt; the bulk of the volume sits in `cache_creation_input_tokens` and `cache_read_input_tokens`. An observed session reported IN 1.7M, CACHE 7.6M, TOTAL 1.8M — the TOTAL omits roughly 80% of what was consumed.",
+      "That same wrong TOTAL is the sort key of the stats table (`_summarize_stats`, `src/commands/status.py:286`), so the ordering of sessions by cost is wrong too, and a cache-heavy session ranks below a session that spent a fraction as much.",
+      "Usage is double-counted across runs. `_claude_usage` sums the *entire* transcript file on every launch, `_attach_interactive_usage` (`src/commands/launch.py:299`) stores that whole-file cumulative as the run's usage, and `_summarize_stats` then sums it again across runs. Two consecutive `cdx stats` calls separated by a single launch showed CACHE going 2.6M to 7.6M and OUT 44.0K to 88.9K while RUNS went 71 to 72. A resumed session re-bills its full history on every resume.",
+      "The transcript being measured is frequently not the session's own. `_latest_transcript` (`src/interactive_usage.py:29`) walks all of `~/.claude/projects` and returns whichever `.jsonl` has the newest mtime after the run started, under a one-second scan deadline. The symptom is visible in the table: sessions reporting three runs with usage and a total of 8, 12, or 18 output tokens — a match against a near-empty unrelated file. Across the observed history only 33 of 1006 runs carry any usage at all.",
+      "The IN column means two different things depending on the provider. Codex's `total_token_usage.input_tokens` already includes cached input; Claude's does not. The two are printed in the same column with no distinction, so no cross-provider comparison read from that table is valid."
+    ],
+    "context": [
+      "There are two independent usage readers. `src/run_usage.py` parses provider stdout for headless runs; `src/interactive_usage.py` reads provider transcripts after interactive runs. They disagree on the same questions: `_usage_from_dict` (`src/run_usage.py:80`) folds `cache_creation_input_tokens` and `cache_read_input_tokens` *into* `input_tokens` and also reports them as `cached_input_tokens`, double-counting the cache within one record, while `_claude_usage` keeps the two disjoint. Whatever the fix, both readers must end up on one definition or the stats table mixes them.",
+      "`_extract_usage_from_records` (`src/run_usage.py:56`) keeps the last record carrying usage rather than summing, which is right for a cumulative `result` record and wrong for per-message records. That assumption is undocumented and untested against a stream where both shapes appear.",
+      "`_summarize_stats` sums whatever each run recorded. It is correct only if each run's stored usage is that run's own increment. Fixing the arithmetic in the readers without fixing what a run *stores* leaves the double counting intact.",
+      "The transcript guess is avoidable. cdx already mints Claude's session id itself and passes it as `--session-id` (`src/provider_runtime.py:555`), and observes Codex's conversation id back after a run (`_observe_codex_conversation`, `src/session_service.py:694`). Claude writes its transcript to `<session-id>.jsonl`, so the session's own transcript is addressable by name rather than by mtime race.",
+      "`_attach_interactive_usage` already records `provider_transcript_path` into the run entry (`src/commands/launch.py:308`), and nothing ever reads it back. It is the natural anchor for computing a per-run delta against the previous run on the same transcript.",
+      "Absence of usage must stay non-fatal. The docstring on `extract_interactive_usage` is explicit that transcripts are not a stable public API and that a missing record is ordinary absence, never a launch failure. Every change here keeps that property — a stricter reader that starts failing launches is a worse outcome than a wrong number.",
+      "The USAGE column already counts how many runs carried usage, so the table has a built-in coverage signal. 33/1006 is the measurement of the problem, and the same column is the measurement of the fix."
+    ],
+    "acceptance_criteria": [
+      "AC1: The TOTAL reported for a Claude session accounts for cached input. A session whose transcript shows uncached input, cache creation, cache reads, and output reports a total covering all of them, not just the uncached input plus output.",
+      "AC2: The stats table is ordered by that corrected total, so the session that consumed the most tokens appears first.",
+      "AC3: A run records only the tokens spent during that run. Launching a session twice against a transcript that grew by a known amount produces a second run entry carrying that increment, not the transcript's running total, and `cdx stats` for the two runs sums to the transcript's total rather than to a multiple of it.",
+      "AC4: Usage is read from the transcript belonging to the session that ran, resolved from the conversation id cdx already assigns, not from whichever file in the provider's data directory was touched most recently.",
+      "AC5: When the session's own transcript cannot be resolved or read, usage is reported as absent rather than attributed from another session's file, and the launch still succeeds unchanged.",
+      "AC6: The IN column means the same thing for every provider — either cache-inclusive everywhere or cache-exclusive everywhere — and the README states which, so a reader can compare a Claude row against a Codex row.",
+      "AC7: The headless reader (`src/run_usage.py`) and the interactive reader (`src/interactive_usage.py`) produce the same field semantics for the same underlying consumption, so a session's stats do not shift meaning depending on how it was launched.",
+      "AC8: The share of runs carrying usage, visible in the USAGE column, is materially higher than today's 33 of 1006 for sessions that actually produced a transcript, and a test asserts usage is captured for a normal interactive run rather than only that the code path does not crash."
+    ]
+  },
+  "product": {
+    "title": "Token numbers a user can act on",
+    "overview": "Make `cdx stats` an honest account of what each session spent: totals that include cached input, per-run figures that do not re-bill history on resume, measurements taken from the session's own transcript, and one column meaning across providers.",
+    "goals": [
+      "Report a total that reflects real consumption, cache included.",
+      "Bill each run for its own tokens and nothing else.",
+      "Measure the session that ran, identified rather than guessed.",
+      "Give IN, CACHE, OUT, and TOTAL one definition shared by both usage readers and both providers.",
+      "Raise how often usage is captured at all, so the table describes the fleet rather than a sample of it."
+    ],
+    "non_goals": [
+      "No cost-in-currency reporting or per-model pricing.",
+      "No new stats columns, filters, or output formats.",
+      "No querying provider billing APIs — this stays local-transcript based.",
+      "No retroactive repair of usage already recorded in launch history.",
+      "No change to how launches are performed or to launch success semantics."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Define one token accounting shared by both usage readers",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Usage accounting",
+      "request_acs": [
+        "AC1",
+        "AC2",
+        "AC6",
+        "AC7"
+      ],
+      "problem": [
+        "`_claude_usage` computes `total_tokens = input_tokens + output_tokens` (`src/interactive_usage.py:104`), silently dropping cache creation and cache reads from the only figure the table headlines and sorts by.",
+        "`_usage_from_dict` (`src/run_usage.py:80`) makes the opposite mistake: it adds the cache fields into `input_tokens` *and* reports them again as `cached_input_tokens`, so IN and CACHE overlap for headless runs while they are disjoint for interactive ones.",
+        "Codex's `total_token_usage.input_tokens` is cache-inclusive by construction, Claude's is not, and both land in the same IN column with no marker.",
+        "There is no written definition of what each of the four columns means, so each reader encodes its own guess."
+      ],
+      "scope_in": [
+        "Write down, once and in code, what `input_tokens`, `cached_input_tokens`, `output_tokens`, `reasoning_tokens`, and `total_tokens` mean in a cdx usage record — in particular whether IN includes cache and whether TOTAL includes it.",
+        "Normalize Claude and Codex records to that definition, adjusting whichever provider does not already match rather than leaving the difference for the table to paper over.",
+        "Fix `total_tokens` for Claude to cover cached input, and remove the within-record cache double count in `run_usage._usage_from_dict`.",
+        "Confirm `_summarize_stats` sorts by the corrected total and that the sort key is the same number the TOTAL column prints.",
+        "Document the column meanings in the README alongside `cdx stats`.",
+        "Add tests over recorded fixture records from both providers asserting the normalized fields, including a case where cache reads dominate the total."
+      ],
+      "scope_out": [
+        "No change to which transcript is read or to what a run stores — those are separate items.",
+        "No new columns and no change to the table layout.",
+        "No currency conversion or pricing."
+      ],
+      "acceptance_criteria": [
+        "Given a Claude record with uncached input, cache creation, cache reads, and output, the normalized total covers all four rather than only uncached input plus output.",
+        "Given a headless Claude record, IN and CACHE do not both count the same cache tokens.",
+        "Given equivalent consumption reported by Codex and by Claude, the normalized records agree field by field.",
+        "Given a set of sessions, the stats table orders them by the same total it prints.",
+        "The README defines each stats column, stating explicitly whether IN and TOTAL include cached input.",
+        "A test asserts the definition for both providers from fixture records, and fails if either reader drifts from it."
+      ]
+    },
+    {
+      "title": "Bill each run for its own tokens instead of the whole transcript",
+      "priority": "High",
+      "complexity": "High",
+      "theme": "Usage accounting",
+      "request_acs": [
+        "AC3",
+        "AC5"
+      ],
+      "problem": [
+        "`_claude_usage` sums every assistant message in the transcript file, so its return is the session's running total, not the run's.",
+        "`_attach_interactive_usage` stores that running total as the run's `usage`, and `_summarize_stats` sums the stored usage across runs. A session resumed N times therefore contributes its history roughly N times over.",
+        "The observed jump — one extra run moving CACHE from 2.6M to 7.6M and OUT from 44.0K to 88.9K — is this behavior, not an anomaly.",
+        "`_codex_usage` takes the last `total_token_usage`, which is also cumulative for the conversation, so the same defect applies to resumed Codex sessions.",
+        "`provider_transcript_path` is already written into each run entry and never read, so the information needed to compute a delta is recorded but unused."
+      ],
+      "scope_in": [
+        "Make the usage stored on a run entry the increment attributable to that run.",
+        "Derive the increment from the previous run's recorded cumulative for the same transcript — the launch history already carries `provider_transcript_path` — or by bounding the transcript read to records written after the run started, whichever proves reliable for both providers.",
+        "Keep the cumulative alongside the delta if the delta cannot be derived without it, so a later run has a baseline even when an intermediate run recorded nothing.",
+        "Handle the transcript shrinking, being rotated, or being replaced without producing a negative or absurd delta — clamp and record absence rather than emitting a wrong number.",
+        "Handle the first run on a pre-existing transcript, where there is no prior baseline, in a stated way rather than by accident.",
+        "Apply the same treatment to `_codex_usage`, whose `total_token_usage` is cumulative per conversation.",
+        "Add tests driving two consecutive runs over a growing transcript fixture and asserting the second run records only the growth, and that the runs sum to the transcript total."
+      ],
+      "scope_out": [
+        "No repair of usage already stored in existing launch history.",
+        "No change to the launch history schema beyond what recording a delta requires.",
+        "No change to the arithmetic definitions settled in the first item."
+      ],
+      "acceptance_criteria": [
+        "Given a transcript that grows by a known amount between two launches, the second run's recorded usage equals that growth.",
+        "Given those two runs, `cdx stats` reports a total equal to the transcript's total, not a multiple of it.",
+        "Given a resumed session launched three times over one conversation, the summed stats equal the conversation's consumption once.",
+        "Given a transcript that shrank or was replaced since the previous run, no negative or inflated delta is recorded and the run reports absence instead.",
+        "Given a first run against a transcript that already existed, the documented rule is applied and asserted by a test naming the expected recorded value.",
+        "Given a Codex conversation resumed twice, the second run records only the increment of `total_token_usage`."
+      ]
+    },
+    {
+      "title": "Read usage from the session's own transcript, not the newest file",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Usage accounting",
+      "request_acs": [
+        "AC4",
+        "AC5",
+        "AC8"
+      ],
+      "problem": [
+        "`_latest_transcript` walks the whole provider data root and returns the `.jsonl` with the newest mtime after the run started, regardless of which session wrote it. Any concurrent session, or any unrelated file the provider touched, wins the race.",
+        "The walk is bounded by a one-second deadline and a 1000-candidate cap, both of which return an arbitrary partial result rather than reporting that the scan was inconclusive.",
+        "The consequences are visible in the table: sessions reporting several runs with usage totalling 8, 12, or 18 output tokens, and only 33 of 1006 runs carrying usage at all.",
+        "cdx already knows the identity it needs: it passes `--session-id` to Claude (`src/provider_runtime.py:555`) and observes Codex's conversation id back after each run, so the correct transcript is addressable directly."
+      ],
+      "scope_in": [
+        "Resolve the transcript from the session's recorded conversation id, matching Claude's `<session-id>.jsonl` naming and Codex's rollout naming, instead of ranking files by mtime.",
+        "Keep a narrowly-scoped fallback for sessions with no recorded conversation id, and make it distinguishable from a confident match so a wrong attribution cannot masquerade as a measurement.",
+        "Report an inconclusive scan as absence rather than returning whichever candidate was found before the deadline.",
+        "Preserve the existing guarantee that missing or unreadable usage never fails a launch.",
+        "Verify the coverage improvement against real launch history rather than assuming it, and state the before and after share of runs carrying usage.",
+        "Add tests with several transcripts present, including one written more recently by a different session, asserting the session's own transcript is the one measured."
+      ],
+      "scope_out": [
+        "No change to how conversation ids are minted or observed.",
+        "No new provider integrations.",
+        "No change to the token arithmetic or to delta computation."
+      ],
+      "acceptance_criteria": [
+        "Given several transcripts under the provider root, one of them written more recently by a different session, usage is read from the transcript matching the session's own conversation id.",
+        "Given a session with a recorded conversation id whose transcript does not exist, usage is reported absent and the launch outcome is unchanged.",
+        "Given a session with no recorded conversation id, the fallback result is marked as unconfirmed rather than presented identically to an id-matched read.",
+        "Given a provider root large enough to exhaust the scan deadline, the result is absence rather than an arbitrary partial candidate.",
+        "Given a normal interactive run, a test asserts the recorded usage is non-empty and matches the transcript's content, not merely that no exception was raised.",
+        "The share of runs carrying usage measured against real launch history is reported before and after, and the after value is materially higher."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate truthful token accounting for cdx stats",
+    "plan": [
+      "Capture the current behavior as fixtures first: a real Claude transcript with cache-heavy records, a Codex rollout with several `token_count` events, and a growing-transcript pair simulating a resume. Record what today's readers return for each, so every later change has a baseline rather than an intention.",
+      "Settle the column definitions before touching either reader — whether IN and TOTAL include cached input — and write the decision down in code and README. Both readers and both providers then normalize to that one definition; do not let the table reconcile a difference the readers should have resolved.",
+      "Fix the arithmetic: Claude's total to cover cached input, and the within-record cache double count in `run_usage._usage_from_dict`. Confirm the stats sort key is the same number the TOTAL column prints.",
+      "Then fix what a run stores. The delta work depends on the definitions being settled, and it is the change that actually stops the numbers inflating on resume. Use the already-recorded `provider_transcript_path` as the anchor, and decide explicitly what a first run against a pre-existing transcript records.",
+      "Handle the degenerate transcript cases — shrunk, rotated, replaced — as absence rather than as arithmetic. A missing number is recoverable; a wrong one is not.",
+      "Replace the mtime guess with conversation-id resolution last, so the delta tests are already green and any coverage change is attributable to this step alone.",
+      "Measure coverage against real launch history before and after, and report the share of runs carrying usage rather than asserting the fix worked.",
+      "Keep the non-fatal guarantee under test throughout: no change here may turn a missing or unreadable transcript into a failed launch.",
+      "Update the README's `cdx stats` section once, defining every column and stating the per-run semantics.",
+      "Run the usage and status test files, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/truthful_token_accounting.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}

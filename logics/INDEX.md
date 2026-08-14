@@ -68,6 +68,7 @@
 | [prod_046_interactive_cli_usage_accounting](product/prod_046_interactive_cli_usage_accounting.md) | Interactive CLI usage accounting | Settled |  |  | product/prod_046_interactive_cli_usage_accounting.md |
 | [prod_047_reliable_delivery_and_runtime_contracts](product/prod_047_reliable_delivery_and_runtime_contracts.md) | Reliable delivery and runtime contracts | Settled |  |  | product/prod_047_reliable_delivery_and_runtime_contracts.md |
 | [prod_048_ollama_sessions_report_real_token_usage](product/prod_048_ollama_sessions_report_real_token_usage.md) | Ollama sessions report real token usage | Proposed |  |  | product/prod_048_ollama_sessions_report_real_token_usage.md |
+| [prod_049_token_numbers_a_user_can_act_on](product/prod_049_token_numbers_a_user_can_act_on.md) | Token numbers a user can act on | Proposed |  |  | product/prod_049_token_numbers_a_user_can_act_on.md |
 
 ## Roadmaps
 
@@ -142,6 +143,7 @@ _None_
 | [req_060_repository_review_findings_reliability_release_and_cli_contracts](request/req_060_repository_review_findings_reliability_release_and_cli_contracts.md) | Repository review findings: reliability, release, and CLI contracts | Obsolete |  |  | request/req_060_repository_review_findings_reliability_release_and_cli_contracts.md |
 | [req_061_harden_repository_reliability_release_verification_and_cli_contracts](request/req_061_harden_repository_reliability_release_verification_and_cli_contracts.md) | Harden repository reliability, release verification, and CLI contracts | Done |  |  | request/req_061_harden_repository_reliability_release_verification_and_cli_contracts.md |
 | [req_062_track_token_usage_for_interactive_ollama_sessions](request/req_062_track_token_usage_for_interactive_ollama_sessions.md) | Track token usage for interactive ollama sessions | Draft |  |  | request/req_062_track_token_usage_for_interactive_ollama_sessions.md |
+| [req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent](request/req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent.md) | Make cdx stats report the tokens a session actually spent | Draft |  |  | request/req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent.md |
 
 ## Backlog
 
@@ -275,6 +277,9 @@ _None_
 | [item_123_cover_operational_command_boundaries_and_extract_measured_seams](backlog/item_123_cover_operational_command_boundaries_and_extract_measured_seams.md) | Cover operational command boundaries and extract measured seams | Done |  | 100% | backlog/item_123_cover_operational_command_boundaries_and_extract_measured_seams.md |
 | [item_124_restore_contributor_and_logics_workflow_signal_accuracy](backlog/item_124_restore_contributor_and_logics_workflow_signal_accuracy.md) | Restore contributor and Logics workflow signal accuracy | Done |  | 100% | backlog/item_124_restore_contributor_and_logics_workflow_signal_accuracy.md |
 | [item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript](backlog/item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript.md) | Parse ollama's verbose token stats from the captured session transcript | Ready |  | 0% | backlog/item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript.md |
+| [item_126_define_one_token_accounting_shared_by_both_usage_readers](backlog/item_126_define_one_token_accounting_shared_by_both_usage_readers.md) | Define one token accounting shared by both usage readers | Ready |  | 0% | backlog/item_126_define_one_token_accounting_shared_by_both_usage_readers.md |
+| [item_127_bill_each_run_for_its_own_tokens_instead_of_the_whole_transcript](backlog/item_127_bill_each_run_for_its_own_tokens_instead_of_the_whole_transcript.md) | Bill each run for its own tokens instead of the whole transcript | Ready |  | 0% | backlog/item_127_bill_each_run_for_its_own_tokens_instead_of_the_whole_transcript.md |
+| [item_128_read_usage_from_the_session_s_own_transcript_not_the_newest_file](backlog/item_128_read_usage_from_the_session_s_own_transcript_not_the_newest_file.md) | Read usage from the session's own transcript, not the newest file | Ready |  | 0% | backlog/item_128_read_usage_from_the_session_s_own_transcript_not_the_newest_file.md |
 
 ## Tasks
 
@@ -357,6 +362,7 @@ _None_
 | [task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting](tasks/task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting.md) | Orchestrate interactive Codex and Claude CLI usage accounting | Done | codex | 100% | tasks/task_070_orchestrate_interactive_codex_and_claude_cli_usage_accounting.md |
 | [task_071_orchestrate_repository_reliability_and_release_contract_hardening](tasks/task_071_orchestrate_repository_reliability_and_release_contract_hardening.md) | Orchestrate repository reliability and release-contract hardening | Done | codex | 100% | tasks/task_071_orchestrate_repository_reliability_and_release_contract_hardening.md |
 | [task_072_orchestrate_ollama_token_usage_tracking](tasks/task_072_orchestrate_ollama_token_usage_tracking.md) | Orchestrate ollama token usage tracking | Ready |  | 0% | tasks/task_072_orchestrate_ollama_token_usage_tracking.md |
+| [task_073_orchestrate_truthful_token_accounting_for_cdx_stats](tasks/task_073_orchestrate_truthful_token_accounting_for_cdx_stats.md) | Orchestrate truthful token accounting for cdx stats | Ready |  | 0% | tasks/task_073_orchestrate_truthful_token_accounting_for_cdx_stats.md |
 
 ## Runbooks
 
