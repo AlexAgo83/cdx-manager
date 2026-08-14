@@ -6,10 +6,24 @@
 > Related task: `task_073_orchestrate_truthful_token_accounting_for_cdx_stats`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
-> Indicators reviewed: 2026-08-14 10:26:32
+> Indicators reviewed: 2026-08-14 12:10:50
 
 # Overview
 Make `cdx stats` an honest account of what each session spent: totals that include cached input, per-run figures that do not re-bill history on resume, measurements taken from the session's own transcript, and one column meaning across providers.
+
+
+```mermaid
+flowchart TD
+    H[headless run<br/>stdout] --> D
+    I[interactive launch<br/>provider transcript] --> D
+    B[native background<br/>close-out] --> D
+    D["one field definition<br/>(run_usage)"] --> DL[per-run delta<br/>vs previous cumulative]
+    DL --> R[launch history<br/>+ run registry]
+    R --> S["cdx stats: IN / CACHE / OUT<br/>TOTAL, COST~, USD~"]
+    R --> J[cdx run --json<br/>run-status, run-report]
+    C[conversation id] -.resolves.-> I
+    M[model read from<br/>the transcript] -.prices.-> S
+```
 
 # Goals
 - Report a total that reflects real consumption, cache included.

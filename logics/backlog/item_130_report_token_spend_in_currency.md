@@ -1,10 +1,10 @@
 ## item_130_report_token_spend_in_currency - Report token spend in currency
 > From version: 0.19.3
 > Schema version: 1.0
-> Status: In progress
-> Understanding: 70
-> Confidence: 65
-> Progress: 40%
+> Status: Ready
+> Understanding: 90
+> Confidence: 85
+> Progress: 100%
 > Complexity: Medium
 > Theme: Usage accounting
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.

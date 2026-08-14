@@ -6,10 +6,22 @@
 > Related task: `task_072_orchestrate_ollama_token_usage_tracking`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
-> Indicators reviewed: 2026-08-14 10:46:41
+> Indicators reviewed: 2026-08-14 12:10:49
 
 # Overview
 Extend cdx's existing usage-tracking to cover interactive ollama sessions by turning on ollama's built-in verbose token-count output and parsing it from the terminal transcript cdx already captures, so `cdx stats`/`cdx history` stop showing a hardcoded zero for ollama.
+
+
+```mermaid
+flowchart TD
+    L["cdx launches<br/>ollama run MODEL --verbose"] --> T[PTY transcript<br/>captured by script]
+    T --> N["normalize terminal escapes<br/>(_normalize_terminal_transcript)"]
+    N --> P[parse the verbose<br/>stats block]
+    P --> U["usage record<br/>(shared definition)"]
+    U --> S[cdx stats / cdx history]
+    P -.no block or<br/>changed format.-> A[absence, never<br/>a launch failure]
+    G[antigravity] -.->|binary protobuf,<br/>no usage log| X[documented dead end]
+```
 
 # Goals
 - Make `cdx stats`/`cdx history` show real token counts for ollama sessions, matching the coverage claude and codex already have.

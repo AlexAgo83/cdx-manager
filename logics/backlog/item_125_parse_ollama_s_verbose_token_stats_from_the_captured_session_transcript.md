@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Usage tracking
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 10:47:01
+> Indicators reviewed: 2026-08-14 12:10:50
 
 # AI Context
 - Summary: Turn on ollama's `--verbose`, normalize the PTY capture, and parse the token counts out of it — a fourth reader plugged into the field definition req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent settles first.
@@ -67,6 +67,7 @@
 # Links
 - Product brief(s): `prod_048_ollama_sessions_report_real_token_usage`
 - Architecture decision(s): (none yet)
+- Blocked on: `req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent`
 - Request: `req_062_track_token_usage_for_interactive_ollama_sessions`
 - Primary task(s): `task_072_orchestrate_ollama_token_usage_tracking`
 
