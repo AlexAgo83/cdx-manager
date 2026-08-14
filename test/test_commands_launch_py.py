@@ -463,17 +463,45 @@ class LaunchCommandTests(CliTestBase):
 
         payload = json.loads(resume_io["stdout"].getvalue())
         self.assertEqual(payload["action"], "resume")
-        # The session was launched above, so it carries a conversation id and
-        # resume names it rather than falling back to --continue.
-        self.assertEqual(payload["resume"]["strategy"], "provider_conversation_id")
-        self.assertEqual(payload["resume"]["provenance"], "imposed")
+        # This session was added but never launched, so there is no
+        # conversation to name and resume falls back to --continue. It used to
+        # report `provider_conversation_id` here, but only because the resume
+        # minted an id of its own moments earlier -- and then asked the
+        # provider to resume a conversation that had never existed.
+        self.assertEqual(payload["resume"]["strategy"], "provider_continue")
         resume_call = harness.calls[-1]
         self.assertEqual(resume_call["command"], "script")
         self.assertTrue(_script_launch_invokes(resume_call, "claude"))
-        resume_args = _script_launch_args(resume_call)
-        self.assertEqual(resume_args[0], "--resume")
-        self.assertEqual(resume_args[1], payload["resume"]["identity"])
-        self.assertEqual(resume_args[2:4], ["--name", "work"])
+
+    def test_resume_carries_the_conversation_the_launch_created(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        context = {
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+            "cwd": "/tmp/repo",
+        }
+        self.assertEqual(main(["add", "claude", "work"], {**self.make_io(), **context}), 0)
+        self.assertEqual(main(["work"], {**self.make_io(), **context}), 0)
+
+        service = create_session_service({"base_dir": temp_dir})
+        launched = (service["get_session"]("work").get("conversation") or {}).get("id")
+        self.assertIsNotNone(launched)
+
+        resume_io = self.make_io()
+        self.assertEqual(main(["resume", "work", "--json"], {**resume_io, **context}), 0)
+
+        payload = json.loads(resume_io["stdout"].getvalue())
+        # The whole point: a resume must carry the conversation it is resuming.
+        # Minting a fresh id here made every claude resume fail with "No
+        # conversation found with session ID".
+        self.assertEqual(payload["resume"]["strategy"], "provider_conversation_id")
+        self.assertEqual(payload["resume"]["identity"], launched)
+        self.assertEqual(
+            (service["get_session"]("work").get("conversation") or {}).get("id"), launched)
+        resume_args = _script_launch_args(harness.calls[-1])
+        self.assertEqual(resume_args[:2], ["--resume", launched])
 
     def test_can_resume_reports_json_without_launching_provider(self):
         temp_dir = self.make_temp_dir()

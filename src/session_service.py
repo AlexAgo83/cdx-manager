@@ -789,7 +789,15 @@ def finish_session_runtime(store, name, run_id=None, payload=None):
     return outcome.get("runtime")
 
 
-def launch_session(store, name):
+def launch_session(store, name, resume=False):
+    """Mark a session launched, minting a new conversation id when appropriate.
+
+    `resume` exists because minting is exactly wrong there: a resume must carry
+    the conversation it is resuming. Without this, `cdx <session> --resume`
+    minted a fresh id, stored it, and then asked the provider to resume a
+    conversation that had never existed -- "No conversation found with session
+    ID" on every attempt, for Claude.
+    """
     session = store["get_session"](name)
     if not session:
         raise CdxError(f"Unknown session: {name}")
@@ -806,7 +814,7 @@ def launch_session(store, name):
 
     def session_updater(s):
         updated = {**s, "updatedAt": now, "lastLaunchedAt": now}
-        conversation = _conversation_identity_for_launch(s)
+        conversation = None if resume else _conversation_identity_for_launch(s)
         if conversation:
             updated["conversation"] = conversation
         return updated

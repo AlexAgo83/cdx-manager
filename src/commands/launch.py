@@ -199,7 +199,7 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
             f"Provider {session['provider']} does not support native resume through cdx."
         )
     cwd = _launch_directory(session, ctx, directory, json_flag)
-    session = ctx["service"]["launch_session"](command)
+    session = ctx["service"]["launch_session"](command, resume=resume)
     capability = _resume_capability_for_session(session, ctx) if resume else None
     if not json_flag and not ctx["stdin_is_tty"]:
         ctx["out"](f"Using directory: {cwd}\n")
