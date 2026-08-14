@@ -1,14 +1,14 @@
 ## task_072_orchestrate_ollama_token_usage_tracking - Orchestrate ollama token usage tracking
 > From version: 0.19.3
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
 > Confidence: 95%
 > Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-08-14 12:26:27
+> Indicators reviewed: 2026-08-14 12:41:27
 > Owner: claude
 
 # AI Context
@@ -32,18 +32,18 @@
 - [x] 8. Manually verify `cdx stats`/`cdx history` show non-zero ollama tokens after one real launch.
 - [x] 9. Record the antigravity dead-end explicitly in code comments or README near the usage-extraction code, not just in this corpus, so a future contributor doesn't re-attempt it without reading this task.
 - [x] 10. Run the full test suite, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.
-- [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
-- [ ] Keep commit creation under operator control; do not force one commit per micro-step.
-- [ ] GATE: do not close until lint, audit, and scaffold validation pass.
+- [x] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
+- [x] Keep commit creation under operator control; do not force one commit per micro-step.
+- [x] GATE: do not close until lint, audit, and scaffold validation pass.
 
 # Backlog
 - `item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript`
 
 # Definition of Done (DoD)
-- [ ] Generated request, product, backlog, and task docs are present.
-- [ ] Context-pack handoff is available when requested.
-- [ ] Validation passes.
-- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+- [x] Generated request, product, backlog, and task docs are present.
+- [x] Context-pack handoff is available when requested.
+- [x] Validation passes.
+- [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
 - request-AC1 -> This task. Proof: `--verbose` is passed via LAUNCH_FEATURE_ARGS; `test_ollama_permission_maps_to_nothing_but_keeps_the_usage_flag` and `test_build_launch_spec_supports_ollama`. 0dfa9ca
@@ -60,6 +60,9 @@
 - End-to-end verified by the operator through a real interactive launch: `cdx stats` reports `olla ollama 13 runs / 1 usage / IN 34 / OUT 76 / TOTAL 110 / COST~ 414 / USD~ -`.
 - Format confirmed against a real run rather than assumed: `script -q -F log ollama run smollm2:135m --verbose "say hi"` on ollama 0.32.11. The captured block reads `prompt eval count: 32 token(s)` / `eval count: 58 token(s)`, and the raw capture — cursor sequences and carriage returns included — is the test fixture. The model was pulled for this and removed afterwards.
 - Flag placement confirmed earlier against the same version: `ollama run MODEL [PROMPT] [flags]` accepts `--verbose` between model and prompt.
+- command: `npm test && npm run lint` | result: passed | date: 2026-08-14
+- Finish workflow executed on 2026-08-14.
+- Linked backlog/request close verification passed.
 
 # Report
 - **Delivered** in 0dfa9ca and b5bfb64, after the token-accounting request landed and its shared field definition existed to adopt.
@@ -71,6 +74,9 @@
 - **Step 8 verified by the operator on 2026-08-14.** A real interactive launch of the `olla` session (smollm2:135m) through the working tree recorded `IN 34 / OUT 76 / TOTAL 110`, `COST~ 414`, with `provider_transcript_match: run_transcript` and the run's own capture named on the entry. `CACHE` and `REASON` are 0 because ollama has neither, and `USD~` is empty because a local model is in no price table — each column saying what it should.
 - A first attempt measured nothing, and the reason is worth recording: `cdx` on PATH resolves to the installed release at `~/.local/share/cdx-manager/0.19.3/`, a separate copy of the tree. That run exercised the released binary, whose transcript contained no `eval count` at all. The parser returned absence on it rather than failing, which is the contract holding on a real file. Verifying unreleased behaviour means running `node <repo>/bin/cdx.js`, not `cdx`.
 - **Out of scope, not started:** `run_usage.SUPPORTED_PROVIDERS` still excludes ollama, deliberately. Opening that gate without a text parser would change no behaviour while making the gate claim a support it cannot deliver.
+- Finished on 2026-08-14.
+- Linked backlog item(s): `item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript`
+- Related request(s): `req_062_track_token_usage_for_interactive_ollama_sessions`
 
 # Links
 - Request: `req_062_track_token_usage_for_interactive_ollama_sessions`

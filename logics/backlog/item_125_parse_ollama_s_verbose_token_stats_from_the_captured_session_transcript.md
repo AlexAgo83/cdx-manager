@@ -1,14 +1,14 @@
 ## item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript - Parse ollama's verbose token stats from the captured session transcript
 > From version: 0.19.3
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 95%
 > Confidence: 95%
 > Progress: 100%
 > Complexity: Medium
 > Theme: Usage tracking
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 12:13:17
+> Indicators reviewed: 2026-08-14 12:41:26
 
 # AI Context
 - Summary: Turn on ollama's `--verbose`, normalize the PTY capture, and parse the token counts out of it — a fourth reader plugged into the field definition the token-accounting request settles first.
@@ -73,3 +73,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_072_orchestrate_ollama_token_usage_tracking`
+
+# Notes
+- Task `task_072_orchestrate_ollama_token_usage_tracking` was finished via `logics-manager flow finish task` on 2026-08-14.

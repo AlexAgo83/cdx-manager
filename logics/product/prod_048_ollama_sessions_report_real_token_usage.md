@@ -1,6 +1,6 @@
 ## prod_048_ollama_sessions_report_real_token_usage - Ollama sessions report real token usage
 > Date: 2026-08-14
-> Status: Proposed
+> Status: Settled
 > Related request: `req_062_track_token_usage_for_interactive_ollama_sessions`
 > Related backlog: `item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript`
 > Related task: `task_072_orchestrate_ollama_token_usage_tracking`
@@ -50,5 +50,5 @@ flowchart TD
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: req_062_track_token_usage_for_interactive_ollama_sessions
+- Product back-reference: `item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript`
 - Task back-reference: `task_072_orchestrate_ollama_token_usage_tracking`

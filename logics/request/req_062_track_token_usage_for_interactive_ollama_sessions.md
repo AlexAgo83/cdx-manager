@@ -1,13 +1,13 @@
 ## req_062_track_token_usage_for_interactive_ollama_sessions - Track token usage for interactive ollama sessions
 > From version: 0.19.3
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
 > Theme: Usage tracking
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-14 12:13:17
+> Indicators reviewed: 2026-08-14 12:41:27
 
 # AI Context
 - Summary: Ollama has no provider-native transcript, so its token counts have to come from `--verbose` output parsed out of the PTY capture cdx already takes — which means normalizing terminal escapes before any regex runs.
