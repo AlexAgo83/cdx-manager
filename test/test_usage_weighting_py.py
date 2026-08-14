@@ -165,9 +165,11 @@ class PriceTableFreshnessTests(unittest.TestCase):
             f"follow docs/token-prices-runbook.md.")
 
     def test_the_review_date_is_not_in_the_future(self):
-        # A future date would silence the check indefinitely.
+        # A future date would silence the check indefinitely. One day of slack,
+        # because "today" differs by timezone and a reviewer west of whoever
+        # set the date must not see a failing suite.
         reviewed = datetime.strptime(TOKEN_PRICES_REVIEWED, "%Y-%m-%d").date()
-        self.assertLessEqual(reviewed, date.today())
+        self.assertLessEqual((reviewed - date.today()).days, 1)
 
     def test_every_priced_model_carries_both_rates(self):
         for model, rate in DEFAULT_TOKEN_PRICES.items():
