@@ -1,14 +1,15 @@
 ## task_072_orchestrate_ollama_token_usage_tracking - Orchestrate ollama token usage tracking
 > From version: 0.19.3
 > Schema version: 1.0
-> Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Status: In progress
+> Understanding: 95%
+> Confidence: 90%
+> Progress: 90%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-08-14 12:13:17
+> Indicators reviewed: 2026-08-14 12:26:27
+> Owner: claude
 
 # AI Context
 - Summary: Sequenced after the token-accounting request; the only real unknown left is the text layout of ollama's verbose stats block, so that is captured first and everything else follows from a real fixture.
@@ -21,16 +22,16 @@
 - **Blocked on the token-accounting request (`cdx stats` truthful accounting).** That request settles the shared usage-field definition, what a run stores, and how a transcript is resolved. Starting here first means writing a fourth reader against three divergent ones, and its single-resolver outcome would contradict ollama's separate source on arrival. Confirm that request's orchestration task is closed out before starting step 2.
 
 # Plan
-- [ ] 1. Confirm the token-accounting request has landed and read the shared field definition it settled. Everything below plugs into that definition rather than proposing another.
-- [ ] 2. Capture ollama's real `--verbose` stats block from a live run and keep the raw output — escapes included — as the test fixture. This is the only genuinely unverified assumption in the request: the flag's placement is already settled, and `--verbose` is documented as showing timings, so whether and how the token counts appear inside that block is what the live run answers. Do not author a guessed fixture.
-- [ ] 3. Add `--verbose` to the ollama launch args as `["run", model, "--verbose"] + config_args + [prompt]`, and confirm prompt, model, and existing extra-arg handling are unaffected.
-- [ ] 4. Add the `_ollama_usage` parser to `interactive_usage.py`, wired through the cdx-generated transcript path for ollama specifically, leaving the resolution path settled by the preceding request untouched for the other providers.
-- [ ] 5. Normalize before matching: import `_normalize_terminal_transcript` from `src/status_source.py` rather than writing a second cleanup. Verify the parser against the raw fixture from step 2, not a hand-cleaned copy of it — a parser that only works on cleaned text is one that fails in production.
-- [ ] 6. Extend `_provider_flag_issues` to cover launch flags, and update the ollama case in `test/test_provider_flags_py.py`, which currently asserts nothing is mapped. Do this in the same pass as step 3: it is the flag added there that creates the unverified surface.
-- [ ] 7. Write fixture-based tests: verbose block present, block absent or malformed, and a claude/codex regression check.
+- [x] 1. Confirm the token-accounting request has landed and read the shared field definition it settled. Everything below plugs into that definition rather than proposing another.
+- [x] 2. Capture ollama's real `--verbose` stats block from a live run and keep the raw output — escapes included — as the test fixture. This is the only genuinely unverified assumption in the request: the flag's placement is already settled, and `--verbose` is documented as showing timings, so whether and how the token counts appear inside that block is what the live run answers. Do not author a guessed fixture.
+- [x] 3. Add `--verbose` to the ollama launch args as `["run", model, "--verbose"] + config_args + [prompt]`, and confirm prompt, model, and existing extra-arg handling are unaffected.
+- [x] 4. Add the `_ollama_usage` parser to `interactive_usage.py`, wired through the cdx-generated transcript path for ollama specifically, leaving the resolution path settled by the preceding request untouched for the other providers.
+- [x] 5. Normalize before matching: import `_normalize_terminal_transcript` from `src/status_source.py` rather than writing a second cleanup. Verify the parser against the raw fixture from step 2, not a hand-cleaned copy of it — a parser that only works on cleaned text is one that fails in production.
+- [x] 6. Extend `_provider_flag_issues` to cover launch flags, and update the ollama case in `test/test_provider_flags_py.py`, which currently asserts nothing is mapped. Do this in the same pass as step 3: it is the flag added there that creates the unverified surface.
+- [x] 7. Write fixture-based tests: verbose block present, block absent or malformed, and a claude/codex regression check.
 - [ ] 8. Manually verify `cdx stats`/`cdx history` show non-zero ollama tokens after one real launch.
-- [ ] 9. Record the antigravity dead-end explicitly in code comments or README near the usage-extraction code, not just in this corpus, so a future contributor doesn't re-attempt it without reading this task.
-- [ ] 10. Run the full test suite, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.
+- [x] 9. Record the antigravity dead-end explicitly in code comments or README near the usage-extraction code, not just in this corpus, so a future contributor doesn't re-attempt it without reading this task.
+- [x] 10. Run the full test suite, then `logics-manager lint --require-status` and `logics-manager audit --group-by-doc` before closeout.
 - [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
 - [ ] Keep commit creation under operator control; do not force one commit per micro-step.
 - [ ] GATE: do not close until lint, audit, and scaffold validation pass.
@@ -45,20 +46,29 @@
 - [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
-- request-AC1 -> `item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript`. Proof deferred to slice closeout.
-- request-AC2 -> `item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript`. Proof deferred to slice closeout.
-- request-AC3 -> `item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript`. Proof deferred to slice closeout.
-- request-AC4 -> `item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript`. Proof deferred to slice closeout.
-- request-AC5 -> `item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript`. Proof deferred to slice closeout.
-- request-AC6 -> `item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript`. Proof deferred to slice closeout.
-- request-AC7 -> `item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript`. Proof deferred to slice closeout.
-- request-AC8 -> `item_125_parse_ollama_s_verbose_token_stats_from_the_captured_session_transcript`. Proof deferred to slice closeout.
+- request-AC1 -> This task. Proof: `--verbose` is passed via LAUNCH_FEATURE_ARGS; `test_ollama_permission_maps_to_nothing_but_keeps_the_usage_flag` and `test_build_launch_spec_supports_ollama`. 0dfa9ca
+- request-AC2 -> This task. Proof: `extract_interactive_usage('ollama', ...)` reads the run's own PTY capture; `OllamaResolutionTests.test_the_runs_own_capture_is_the_source`. b5bfb64
+- request-AC3 -> This task. Proof: Parsed after `_normalize_terminal_transcript`, asserted against the raw capture; `test_escape_sequences_do_not_defeat_the_match`. b5bfb64
+- request-AC4 -> This task. Proof: A missing or changed block returns absence and never raises; `test_a_capture_without_the_block_is_absence_not_an_error`, `test_a_changed_format_degrades_to_absence`. b5bfb64
+- request-AC5 -> This task. Proof: Token counts reach a usage record from a real capture (32 in / 58 out / 90 total); `test_the_real_capture_yields_its_token_counts`. End-to-end through a live TTY session is left to a human -- see the report. b5bfb64
+- request-AC6 -> This task. Proof: Claude and Codex extraction is untouched and the shared definition is adopted, not renegotiated; the full suite passes at 942 with the claude/codex usage tests unchanged. b5bfb64
+- request-AC7 -> This task. Proof: The provider-flag health check now covers cdx's own launch flags; `test_a_cdx_feature_flag_the_cli_lacks_is_reported`. 0dfa9ca
+- request-AC8 -> This task. Proof: The antigravity dead end is recorded in `src/interactive_usage.py`'s module docstring and in the README. b5bfb64
 
 # Validation
-- (no validation recorded yet)
+- 2026-08-14: `npm test` 942 passed, `npm run lint` all checks passed. Baseline before this task was 935.
+- Format confirmed against a real run rather than assumed: `script -q -F log ollama run smollm2:135m --verbose "say hi"` on ollama 0.32.11. The captured block reads `prompt eval count: 32 token(s)` / `eval count: 58 token(s)`, and the raw capture — cursor sequences and carriage returns included — is the test fixture. The model was pulled for this and removed afterwards.
+- Flag placement confirmed earlier against the same version: `ollama run MODEL [PROMPT] [flags]` accepts `--verbose` between model and prompt.
 
 # Report
-- Not started.
+- **Delivered** in 0dfa9ca and b5bfb64, after the token-accounting request landed and its shared field definition existed to adopt.
+- `--verbose` now arrives through `LAUNCH_FEATURE_ARGS`, so the launch spec and the provider-flag health check read one table. That check previously covered permission mappings only: issue #8 was a mapped flag the CLI never had, and a flag cdx invents for a feature of its own is exactly as capable of not existing. It now verifies both.
+- The parser normalizes the PTY capture with `_normalize_terminal_transcript` before matching, reusing the helper the handoff reader already applies rather than writing a second cleanup. The test asserts against the **raw** capture, escapes included — a parser that only works on cleaned text is one that fails in production.
+- Each response contributes one `--verbose` block and they sum. No delta handling is needed: cdx writes one transcript per launch (`cdx-session-<timestamp>-<pid>.log`), so nothing accumulates across runs.
+- Ollama reports no cache and no reasoning, and its usage record carries no model: local models are in no price table, and naming one would invite pricing something that is free. The `USD~` column stays empty for these sessions by nature.
+- The antigravity dead end is recorded in `src/interactive_usage.py`'s module docstring and in the README, not only in this corpus.
+- **Step 8 needs a human.** Verifying `cdx stats` end to end requires a real interactive launch, and ollama's REPL does not return control to a non-TTY harness — the attempt hung and was killed. Everything it would exercise is covered by unit tests against the real capture; what remains unproven is only the live TTY path. Run `cdx <ollama-session>` in a terminal, answer once, exit, then `cdx stats`.
+- **Out of scope, not started:** `run_usage.SUPPORTED_PROVIDERS` still excludes ollama, deliberately. Opening that gate without a text parser would change no behaviour while making the gate claim a support it cannot deliver.
 
 # Links
 - Request: `req_062_track_token_usage_for_interactive_ollama_sessions`
