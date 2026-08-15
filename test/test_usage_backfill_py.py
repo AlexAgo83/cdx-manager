@@ -27,6 +27,21 @@ class UsageBackfillTests(unittest.TestCase):
             self.assertEqual(entry["usage"]["total_tokens"], 17)
             self.assertEqual(entry["usage_backfilled_reason"], "exact_current_conversation")
 
+    def test_next_launch_backfills_the_previous_conversation(self):
+        with tempfile.TemporaryDirectory() as base:
+            service = create_session_service({"base_dir": base, "env": {}})
+            session = service["create_session"]("tapion", provider="claude")
+            session = service["launch_session"]("tapion")
+            project = os.path.join(session["authHome"], ".claude", "projects", "project")
+            os.makedirs(project)
+            with open(os.path.join(project, f"{session['conversation']['id']}.jsonl"), "w", encoding="utf-8") as handle:
+                handle.write(json.dumps({"type": "assistant", "message": {"usage": {"input_tokens": 2, "output_tokens": 3}}}) + "\n")
+            service["record_launch_history"]("tapion", {"status": "success", "started_at": session["conversation"]["recordedAt"]})
+
+            service["launch_session"]("tapion")
+
+            self.assertEqual(service["get_launch_history"]("tapion", limit=1)[0]["usage"]["total_tokens"], 5)
+
 
 if __name__ == "__main__":
     unittest.main()

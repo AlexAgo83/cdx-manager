@@ -727,14 +727,17 @@ def get_launch_history(store, name=None, limit=20):
     return store["list_launch_history"](session_name=name, limit=limit)
 
 
-def backfill_interactive_usage(store, dry_run=True):
+def backfill_interactive_usage(store, name=None, dry_run=True):
     """Recover one safely attributable missing Claude launch per profile."""
     from datetime import datetime
 
     from .interactive_usage import MATCH_CONVERSATION_ID, extract_interactive_usage
 
     updates = {}
-    for session in store["list_sessions"]():
+    sessions = [store["get_session"](name)] if name else store["list_sessions"]()
+    for session in sessions:
+        if not session:
+            continue
         if session.get("provider") != PROVIDER_CLAUDE:
             continue
         conversation = session.get("conversation") or {}
@@ -844,6 +847,9 @@ def launch_session(store, name, resume=False):
         raise CdxError(f"Unknown session: {name}")
     if session.get("enabled", True) is False:
         raise CdxError(f"Session is disabled: {name}")
+    # Reconcile the prior Claude conversation before a fresh launch replaces
+    # its id. This is a single exact transcript lookup, not a global stats scan.
+    backfill_interactive_usage(store, name=name, dry_run=False)
     now = _local_now_iso()
 
     def state_updater(state):
