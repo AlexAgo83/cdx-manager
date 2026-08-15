@@ -417,6 +417,12 @@ class StatusCommandTests(CliTestBase):
             "started_at": old.isoformat(),
             "ended_at": (old + timedelta(minutes=5)).isoformat(),
         })
+        service["record_launch_history"]("work", {
+            "status": "success",
+            "duration_ms": 8 * 24 * 60 * 60 * 1000,
+            "started_at": (now - timedelta(days=8)).isoformat(),
+            "ended_at": (now - timedelta(days=1)).isoformat(),
+        })
         service["record_launch_history"]("personal", {
             "status": "failed",
             "duration_ms": 60000,
@@ -434,7 +440,7 @@ class StatusCommandTests(CliTestBase):
         payload = json.loads(summary_io["stdout"].getvalue())
         rows = {row["session_name"]: row for row in payload["summary"]}
         self.assertEqual(set(rows), {"work", "personal"})
-        self.assertEqual(rows["work"]["duration_ms"], 120000)
+        self.assertEqual(rows["work"]["duration_ms"], 8 * 24 * 60 * 60 * 1000 + 120000)
         self.assertEqual(rows["personal"]["failures"], 1)
         self.assertIsNotNone(payload["period"]["from"])
         self.assertIsNone(payload["period"]["to"])

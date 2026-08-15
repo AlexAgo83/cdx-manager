@@ -745,8 +745,8 @@ def _has_history_period(period):
     return period.get("from_ts") is not None or period.get("to_ts") is not None
 
 
-def _parse_entry_timestamp(entry):
-    value = entry.get("started_at")
+def _parse_entry_timestamp(entry, field="started_at"):
+    value = entry.get(field)
     if not value:
         return None
     text = str(value)
@@ -768,12 +768,16 @@ def _filter_history_period(entries, period):
     start = period.get("from_ts")
     end = period.get("to_ts")
     for entry in entries:
-        timestamp = _parse_entry_timestamp(entry)
-        if timestamp is None:
+        started = _parse_entry_timestamp(entry)
+        if started is None:
             continue
-        if start is not None and timestamp < start:
+        # A long run belongs to a period it overlaps, not only the day it was
+        # launched. Usage is recorded per run, so include its whole measured
+        # total rather than inventing a time-proportional split.
+        ended = _parse_entry_timestamp(entry, "ended_at") or started
+        if start is not None and ended < start:
             continue
-        if end is not None and timestamp > end:
+        if end is not None and started > end:
             continue
         filtered.append(entry)
     return filtered
