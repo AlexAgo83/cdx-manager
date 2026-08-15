@@ -333,6 +333,37 @@ def create_session_store(base_dir):
                 _fsync_directory(state_dir)
             return {"scanned": scanned, "dropped": dropped, "dry_run": dry_run}
 
+    def backfill_launch_usage(updates, dry_run=True):
+        """Apply pre-validated usage updates to otherwise empty history rows."""
+        with _file_lock(lock_file):
+            try:
+                with open(launch_history_file, encoding="utf-8") as handle:
+                    lines = handle.readlines()
+            except FileNotFoundError:
+                return {"scanned": 0, "backfilled": 0, "dry_run": dry_run}
+            scanned = backfilled = 0
+            rewritten = []
+            for line in lines:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    entry = json.loads(stripped)
+                except ValueError:
+                    rewritten.append(line)
+                    continue
+                scanned += 1
+                update = updates.get((entry.get("session_name"), entry.get("started_at")))
+                if update and not entry.get("usage"):
+                    entry.update(update)
+                    line = json.dumps(entry, separators=(",", ":")) + "\n"
+                    backfilled += 1
+                rewritten.append(line)
+            if not dry_run and backfilled:
+                atomic_write(launch_history_file, "".join(rewritten))
+                _fsync_directory(state_dir)
+            return {"scanned": scanned, "backfilled": backfilled, "dry_run": dry_run}
+
     def list_launch_history(session_name=None, limit=20):
         with _file_lock(lock_file):
             try:
@@ -369,5 +400,6 @@ def create_session_store(base_dir):
         "update_session_state": update_session_state,
         "append_launch_history": append_launch_history,
         "drop_unvouched_usage": drop_unvouched_usage,
+        "backfill_launch_usage": backfill_launch_usage,
         "list_launch_history": list_launch_history,
     }

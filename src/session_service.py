@@ -727,6 +727,47 @@ def get_launch_history(store, name=None, limit=20):
     return store["list_launch_history"](session_name=name, limit=limit)
 
 
+def backfill_interactive_usage(store, dry_run=True):
+    """Recover one safely attributable missing Claude launch per profile."""
+    from datetime import datetime
+
+    from .interactive_usage import MATCH_CONVERSATION_ID, extract_interactive_usage
+
+    updates = {}
+    for session in store["list_sessions"]():
+        if session.get("provider") != PROVIDER_CLAUDE:
+            continue
+        conversation = session.get("conversation") or {}
+        identifier = conversation.get("id")
+        recorded = conversation.get("recordedAt")
+        if not identifier or not recorded:
+            continue
+        usage, path, match, model = extract_interactive_usage(
+            PROVIDER_CLAUDE, session.get("authHome"), conversation_id=identifier
+        )
+        if not usage or match != MATCH_CONVERSATION_ID:
+            continue
+        history = store["list_launch_history"](session_name=session["name"], limit=0)
+        target = next((entry for entry in history if not entry.get("usage") and entry.get("provider_transcript_path") in (None, path)), None)
+        if not target or not target.get("started_at"):
+            continue
+        try:
+            delta = abs((datetime.fromisoformat(recorded.replace("Z", "+00:00")) - datetime.fromisoformat(target["started_at"].replace("Z", "+00:00"))).total_seconds())
+        except ValueError:
+            continue
+        if delta > 300:
+            continue
+        updates[(session["name"], target["started_at"])] = {
+            "usage": usage,
+            "usage_cumulative": usage,
+            "usage_model": model,
+            "provider_transcript_path": path,
+            "provider_transcript_match": match,
+            "usage_backfilled_reason": "exact_current_conversation",
+        }
+    return store["backfill_launch_usage"](updates, dry_run=dry_run)
+
+
 def start_session_runtime(store, name, payload=None):
     session = store["get_session"](name)
     if not session:
@@ -921,6 +962,7 @@ def create_session_service(options=None):
         "record_launch_history": partial(record_launch_history, store),
         "get_launch_history": partial(get_launch_history, store),
         "drop_unvouched_usage": store["drop_unvouched_usage"],
+        "backfill_interactive_usage": partial(backfill_interactive_usage, store),
         "update_auth_state": partial(update_auth_state, store),
         "get_status_row": partial(get_status_row, store, base_dir, env, fetch_codex_status),
         "get_status_rows": partial(get_status_rows, store, base_dir, env, fetch_codex_status),

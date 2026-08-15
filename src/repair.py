@@ -51,6 +51,15 @@ def repair_health(service, base_dir, env=None, dry_run=True, force=False):
             None,
             None if dry_run else "applied",
         ))
+    backfill = service["backfill_interactive_usage"](dry_run=dry_run)
+    if backfill["backfilled"]:
+        actions.append(_action(
+            "backfill_interactive_usage",
+            f"backfill token usage for {backfill['backfilled']} exactly matched Claude launch record"
+            f"{'s' if backfill['backfilled'] != 1 else ''} (of {backfill['scanned']} scanned)",
+            None,
+            None if dry_run else "applied",
+        ))
     return {
         "dry_run": dry_run,
         "force": force,

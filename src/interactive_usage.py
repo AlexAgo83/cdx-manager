@@ -22,7 +22,10 @@ import time
 from .run_usage import claude_usage_dedup_key, normalize_usage
 from .status_source import _normalize_terminal_transcript
 
-MAX_TRANSCRIPT_BYTES = 16 * 1024 * 1024
+# Readers stream JSONL line-by-line.  A 16 MiB cap excluded ordinary long
+# Claude sessions (for example a five-hour session at 26 MiB) without saving
+# meaningful memory; keep a bounded ceiling for genuinely pathological files.
+MAX_TRANSCRIPT_BYTES = 128 * 1024 * 1024
 MAX_TRANSCRIPT_CANDIDATES = 1000
 MAX_TRANSCRIPT_SCAN_SECONDS = 1
 
