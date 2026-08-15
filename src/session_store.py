@@ -354,7 +354,7 @@ def create_session_store(base_dir):
                     continue
                 scanned += 1
                 update = updates.get((entry.get("session_name"), entry.get("started_at")))
-                if update and not entry.get("usage"):
+                if update and (not entry.get("usage") or str(entry.get("usage_model") or "").startswith("<")):
                     entry.update(update)
                     line = json.dumps(entry, separators=(",", ":")) + "\n"
                     backfilled += 1

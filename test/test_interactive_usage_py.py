@@ -65,6 +65,15 @@ class InteractiveUsageTests(unittest.TestCase):
                                     "cache_creation_tokens": 3, "cache_read_tokens": 5,
                                     "output_tokens": 20, "reasoning_tokens": None, "total_tokens": 41})
 
+    def test_ignores_a_synthetic_model_placeholder(self):
+        with tempfile.TemporaryDirectory() as home:
+            self._write(home, ".claude/projects/repo/session.jsonl", [
+                {"type": "assistant", "uuid": "one", "message": {"model": "claude-sonnet-5", "usage": {"input_tokens": 2}}},
+                {"type": "assistant", "uuid": "two", "message": {"model": "<synthetic>", "usage": {"input_tokens": 3}}},
+            ])
+            _usage, _path, _match, model = extract_interactive_usage("claude", home)
+            self.assertEqual(model, "claude-sonnet-5")
+
     def test_ignores_malformed_records_and_old_files(self):
         with tempfile.TemporaryDirectory() as home:
             old = self._write(home, "sessions/old.jsonl", [

@@ -771,6 +771,28 @@ def backfill_interactive_usage(store, name=None, dry_run=True):
     return store["backfill_launch_usage"](updates, dry_run=dry_run)
 
 
+def refresh_interactive_usage_models(store, dry_run=True):
+    """Replace a placeholder model with the exact transcript's real model."""
+    from .interactive_usage import MATCH_CONVERSATION_ID, extract_interactive_usage
+
+    updates = {}
+    for session in store["list_sessions"]():
+        if session.get("provider") != PROVIDER_CLAUDE:
+            continue
+        identifier = ((session.get("conversation") or {}).get("id"))
+        if not identifier:
+            continue
+        _usage, path, match, model = extract_interactive_usage(
+            PROVIDER_CLAUDE, session.get("authHome"), conversation_id=identifier
+        )
+        if not path or match != MATCH_CONVERSATION_ID or not model or model.startswith("<"):
+            continue
+        for entry in store["list_launch_history"](session_name=session["name"], limit=0):
+            if entry.get("provider_transcript_path") == path and str(entry.get("usage_model") or "").startswith("<"):
+                updates[(session["name"], entry.get("started_at"))] = {"usage_model": model}
+    return store["backfill_launch_usage"](updates, dry_run=dry_run)
+
+
 def start_session_runtime(store, name, payload=None):
     session = store["get_session"](name)
     if not session:
@@ -969,6 +991,7 @@ def create_session_service(options=None):
         "get_launch_history": partial(get_launch_history, store),
         "drop_unvouched_usage": store["drop_unvouched_usage"],
         "backfill_interactive_usage": partial(backfill_interactive_usage, store),
+        "refresh_interactive_usage_models": partial(refresh_interactive_usage_models, store),
         "update_auth_state": partial(update_auth_state, store),
         "get_status_row": partial(get_status_row, store, base_dir, env, fetch_codex_status),
         "get_status_rows": partial(get_status_rows, store, base_dir, env, fetch_codex_status),

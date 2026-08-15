@@ -301,7 +301,7 @@ def _claude_usage(handle):
             totals["cache_creation_tokens"] += _number(usage.get("cache_creation_input_tokens"))
             totals["cache_read_tokens"] += _number(usage.get("cache_read_input_tokens"))
             totals["output_tokens"] += _number(usage.get("output_tokens"))
-            if message.get("model"):
+            if isinstance(message.get("model"), str) and not message["model"].startswith("<"):
                 model = message["model"]
         except (TypeError, ValueError):
             continue

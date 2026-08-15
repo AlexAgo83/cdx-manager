@@ -60,6 +60,15 @@ def repair_health(service, base_dir, env=None, dry_run=True, force=False):
             None,
             None if dry_run else "applied",
         ))
+    models = service["refresh_interactive_usage_models"](dry_run=dry_run)
+    if models["backfilled"]:
+        actions.append(_action(
+            "refresh_interactive_usage_models",
+            f"replace placeholder models on {models['backfilled']} launch record"
+            f"{'s' if models['backfilled'] != 1 else ''}",
+            None,
+            None if dry_run else "applied",
+        ))
     return {
         "dry_run": dry_run,
         "force": force,
