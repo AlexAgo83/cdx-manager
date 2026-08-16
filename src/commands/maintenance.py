@@ -9,6 +9,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 
@@ -83,20 +84,35 @@ def _directory_size_bytes(path, runner=None):
         return total
 
 def _directory_child_sizes(path, runner=None, progress=None):
-    rows = []
     try:
         names = os.listdir(path)
     except OSError:
-        return rows
+        return []
     children = [(name, os.path.join(path, name)) for name in names if os.path.isdir(os.path.join(path, name))]
-    for index, (name, child_path) in enumerate(children, start=1):
+    # `du` per profile is I/O-bound (a subprocess spawn + directory walk), so
+    # one profile's measurement doesn't block the next - same reasoning as
+    # the auth-probe fix in commands/status.py. Progress is announced from
+    # the main thread, in listing order, before dispatch: du itself only
+    # runs concurrently, so the printed order still matches `len(children)`.
+    sizes = [None] * len(children)
+    threads = []
+
+    def measure(index, child_path):
+        sizes[index] = _directory_size_bytes(child_path, runner=runner)
+
+    for index, (name, child_path) in enumerate(children):
         if progress:
-            progress("profile", name, index, len(children))
-        rows.append({
-            "name": name,
-            "path": child_path,
-            "bytes": _directory_size_bytes(child_path, runner=runner),
-        })
+            progress("profile", name, index + 1, len(children))
+        t = threading.Thread(target=measure, args=(index, child_path), daemon=True)
+        threads.append(t)
+        t.start()
+    for t in threads:
+        t.join()
+
+    rows = [
+        {"name": name, "path": child_path, "bytes": sizes[index]}
+        for index, (name, child_path) in enumerate(children)
+    ]
     rows.sort(key=lambda row: row["bytes"], reverse=True)
     for row in rows:
         row["size"] = _format_bytes(row["bytes"])
@@ -170,11 +186,15 @@ def _collect_old_logs(profile_name, profile_path, days, now=None):
     )
 
 def _collect_profile_cleanup_candidates(base_dir, *, old_log_days=30, runner=None, now=None, progress=None):
-    candidates = []
     profiles = list(_iter_profile_dirs(base_dir))
-    for index, (profile_name, profile_path) in enumerate(profiles, start=1):
-        if progress:
-            progress("candidates", profile_name, index, len(profiles))
+    # Same reasoning as _directory_child_sizes: each profile's du calls and
+    # log walk are independent I/O, so profiles scan concurrently. Each
+    # thread only appends to its own slot in `per_profile`, never a shared list.
+    per_profile = [None] * len(profiles)
+    threads = []
+
+    def scan(index, profile_name, profile_path):
+        local = []
         tmp_dir = os.path.join(profile_path, ".tmp")
         tmp_targets = [
             ("tmp-marketplaces", os.path.join(tmp_dir, "marketplaces"), "temporary marketplace cache/staging"),
@@ -198,7 +218,7 @@ def _collect_profile_cleanup_candidates(base_dir, *, old_log_days=30, runner=Non
                 mtime = datetime.fromtimestamp(os.path.getmtime(path)).isoformat()
             except OSError:
                 mtime = None
-            candidates.append(_candidate(
+            local.append(_candidate(
                 profile_name,
                 kind,
                 path,
@@ -208,7 +228,19 @@ def _collect_profile_cleanup_candidates(base_dir, *, old_log_days=30, runner=Non
             ))
         old_logs = _collect_old_logs(profile_name, profile_path, old_log_days, now=now)
         if old_logs and old_logs["bytes"] > 0:
-            candidates.append(old_logs)
+            local.append(old_logs)
+        per_profile[index] = local
+
+    for index, (profile_name, profile_path) in enumerate(profiles):
+        if progress:
+            progress("candidates", profile_name, index + 1, len(profiles))
+        t = threading.Thread(target=scan, args=(index, profile_name, profile_path), daemon=True)
+        threads.append(t)
+        t.start()
+    for t in threads:
+        t.join()
+
+    candidates = [item for local in per_profile for item in (local or [])]
     candidates.sort(key=lambda item: item["bytes"], reverse=True)
     return candidates
 
