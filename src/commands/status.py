@@ -4,6 +4,7 @@ Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 """
 
 import os
+import threading
 import time
 from datetime import datetime
 
@@ -40,7 +41,12 @@ from ..cli_render import _dim, _info, _pad_table, _style, _warn
 from ..commands.launch import handle_launch
 from ..config import PROVIDER_CLAUDE
 from ..errors import CdxError
-from ..provider_runtime import AUTH_PROBE_AUTHENTICATED, AUTH_PROBE_DEGRADED, _probe_provider_auth_status
+from ..provider_runtime import (
+    AUTH_PROBE_AUTHENTICATED,
+    AUTH_PROBE_DEGRADED,
+    AUTH_PROBE_TIMEOUT_SECONDS,
+    _probe_provider_auth_status,
+)
 from ..run_usage import (
     USAGE_KEYS,
     estimate_cost,
@@ -746,39 +752,64 @@ def handle_status(rest, ctx):
 
 def _refresh_claude_auth_states(service, target_names=None, spawn_sync=None, env_override=None):
     target_names = set(target_names or [])
+    candidates = [
+        session for session in service["list_sessions"]()
+        if session["provider"] == PROVIDER_CLAUDE
+        and session.get("enabled", True) is not False
+        and (not target_names or session["name"] in target_names)
+        and (session.get("auth") or {}).get("status") in ("authenticated", "logged_out")
+    ]
+    if not candidates:
+        return {"updated": [], "errors": []}
+
     errors = []
-    updated = []
-    for session in service["list_sessions"]():
-        if session["provider"] != PROVIDER_CLAUDE:
-            continue
-        if session.get("enabled", True) is False:
-            continue
-        if target_names and session["name"] not in target_names:
-            continue
-        if (session.get("auth") or {}).get("status") not in ("authenticated", "logged_out"):
-            continue
+    results = {}
+    threads = []
+
+    # The probe itself is the slow part (a subprocess spawn per session on a
+    # cache miss); it doesn't touch shared state, so it's safe to run
+    # concurrently, same as the sibling Claude usage refresh right after this
+    # call. Side effects (service["update_auth_state"]) still run serially,
+    # after every thread has joined.
+    def probe(session):
         try:
-            auth_status = _probe_provider_auth_status(
+            results[session["name"]] = _probe_provider_auth_status(
                 session,
                 spawn_sync=spawn_sync,
                 env_override=env_override,
             )
-            if auth_status == AUTH_PROBE_DEGRADED:
-                errors.append({
-                    "session": session["name"],
-                    "error": "Auth probe timed out; authentication status is degraded.",
-                })
-                continue
-            now = _local_now_iso()
-            service["update_auth_state"](session["name"], lambda auth, auth_status=auth_status, now=now: {
-                **auth,
-                "status": "authenticated" if auth_status == AUTH_PROBE_AUTHENTICATED else "logged_out",
-                "lastCheckedAt": now,
-                **({"lastAuthenticatedAt": now} if auth_status == AUTH_PROBE_AUTHENTICATED else {}),
-            })
-            updated.append(session["name"])
         except Exception as error:
             errors.append({"session": session["name"], "error": str(error)})
+
+    for session in candidates:
+        t = threading.Thread(target=probe, args=(session,), daemon=True)
+        threads.append(t)
+        t.start()
+    for t in threads:
+        t.join(timeout=AUTH_PROBE_TIMEOUT_SECONDS + 1)
+
+    results = dict(results)
+    errors = list(errors)
+
+    updated = []
+    now = _local_now_iso()
+    for session in candidates:
+        auth_status = results.get(session["name"])
+        if auth_status is None:
+            continue
+        if auth_status == AUTH_PROBE_DEGRADED:
+            errors.append({
+                "session": session["name"],
+                "error": "Auth probe timed out; authentication status is degraded.",
+            })
+            continue
+        service["update_auth_state"](session["name"], lambda auth, auth_status=auth_status, now=now: {
+            **auth,
+            "status": "authenticated" if auth_status == AUTH_PROBE_AUTHENTICATED else "logged_out",
+            "lastCheckedAt": now,
+            **({"lastAuthenticatedAt": now} if auth_status == AUTH_PROBE_AUTHENTICATED else {}),
+        })
+        updated.append(session["name"])
     return {"updated": updated, "errors": errors}
 
 def _rows_by_session(rows):
