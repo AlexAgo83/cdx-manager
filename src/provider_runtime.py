@@ -20,6 +20,7 @@ from .config import (
     PROVIDER_CODEX,
     PROVIDER_OLLAMA,
     REASONING_EFFORT_VALUES,
+    get_cdx_home,
     split_extra_args,
 )
 from .errors import CdxError
@@ -156,6 +157,25 @@ def _home_env_overrides(auth_home):
         overrides["HOMEDRIVE"] = os.path.splitdrive(auth_home)[0] or "C:"
         overrides["HOMEPATH"] = os.path.splitdrive(auth_home)[1] or auth_home
     return overrides
+
+
+def _shared_tool_cache_overrides(env):
+    """Pin tool download/build caches to one shared dir, outside any profile home.
+
+    Profile isolation redirects HOME to a per-profile auth_home (see
+    `_home_env_overrides`), and several dev tools resolve their cache dir from
+    HOME. Left alone, that means every profile re-downloads its own copy of
+    Playwright's browsers, npm/pip/uv packages, etc. `env` here is the ambient
+    env, before HOME gets swapped, so `get_cdx_home(env)` resolves the same
+    real per-user location regardless of which profile is launching.
+    """
+    shared_cache = os.path.join(get_cdx_home(env), "shared-cache")
+    return {
+        "PLAYWRIGHT_BROWSERS_PATH": os.path.join(shared_cache, "playwright"),
+        "NPM_CONFIG_CACHE": os.path.join(shared_cache, "npm"),
+        "PIP_CACHE_DIR": os.path.join(shared_cache, "pip"),
+        "UV_CACHE_DIR": os.path.join(shared_cache, "uv"),
+    }
 
 
 def _anthropic_profile_name():
@@ -562,6 +582,8 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     cwd = cwd or os.getcwd()
     env_override = env_override or {}
     env = {**os.environ, **env_override}
+    for key, value in _shared_tool_cache_overrides(env).items():
+        env.setdefault(key, value)
     env.update(launch_notify_env(session, notifications_enabled(session)))
     initial_prompt = _with_launch_preferences(session, initial_prompt, env=env)
     _validate_initial_prompt(initial_prompt)
