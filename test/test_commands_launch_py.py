@@ -1083,6 +1083,25 @@ class LaunchCommandTests(CliTestBase):
         self.assertIn("SIGINT", str(ctx.exception))
         self.assertEqual(seen, [2])
 
+    def test_clean_exit_prints_goodbye_line(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        main(["add", "main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        })
+
+        io_obj = self.make_io()
+        self.assertEqual(main(["main"], {
+            **io_obj,
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        }), 0)
+        self.assertIn("Session main ended", io_obj["stdout"].getvalue())
+
     def test_signal_interrupt_prints_goodbye_line(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()

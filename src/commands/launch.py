@@ -292,15 +292,18 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
                 **run_info,
             })
         raise
+    success_run_info = _attach_interactive_usage(
+        session, run_info, ctx["service"]["get_launch_history"](session["name"], limit=50)
+    )
     ctx["service"]["record_launch_history"](session["name"], {
         "status": "success",
         "action": "resume" if resume else "launch",
         "cwd": cwd,
         "exit_code": 0,
-        **_attach_interactive_usage(
-            session, run_info, ctx["service"]["get_launch_history"](session["name"], limit=50)
-        ),
+        **success_run_info,
     })
+    if not json_flag:
+        ctx["out"](f"{_goodbye_line(session, success_run_info, ctx['use_color'])}\n")
     if json_flag:
         extra = {"session": ctx["service"]["get_session"](session["name"]), "cwd": cwd}
         if capability:
@@ -310,7 +313,10 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
 
 
 def _goodbye_line(session, run_info, use_color):
-    """One line printed when a session ends by SIGINT/SIGTERM/SIGHUP.
+    """One line printed when a session ends: cleanly, or by SIGINT/SIGTERM/SIGHUP.
+
+    Not printed for a genuine provider crash (a nonzero exit that isn't one
+    of those signals) - that path already gets its own error message.
 
     Local import: `commands.status` imports `handle_launch` from this module,
     so importing it back at module scope would be circular.
