@@ -26,7 +26,14 @@ from ..config import PROVIDER_CODEX
 from ..context_store import install_context_for_session, write_context
 from ..errors import CdxError
 from ..interactive_usage import extract_interactive_usage, transcript_predates_run, usage_delta
-from ..provider_runtime import _conversation_id, _ensure_session_authentication, _get_auth_home, _run_interactive_provider_command
+from ..provider_runtime import (
+    INTERRUPT_EXIT_CODES,
+    _conversation_id,
+    _ensure_session_authentication,
+    _get_auth_home,
+    _run_interactive_provider_command,
+)
+from ..run_usage import estimate_cost
 
 
 def _parse_launch_args(args):
@@ -268,6 +275,8 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         run_info = _attach_interactive_usage(
             session, run_info, ctx["service"]["get_launch_history"](session["name"], limit=50)
         )
+        if not json_flag and error.exit_code in INTERRUPT_EXIT_CODES:
+            ctx["out"](f"{_goodbye_line(session, run_info, ctx['use_color'])}\n")
         if runtime_run_id:
             ctx["service"]["finish_session_runtime"](
                 session["name"],
@@ -298,6 +307,26 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
             extra["resume"] = capability
         _write_json(ctx, _json_success("resume" if resume else "launch", message, warnings=warnings, **extra))
     return 0
+
+
+def _goodbye_line(session, run_info, use_color):
+    """One line printed when a session ends by SIGINT/SIGTERM/SIGHUP.
+
+    Local import: `commands.status` imports `handle_launch` from this module,
+    so importing it back at module scope would be circular.
+    """
+    from .status import _format_duration_ms, _format_token_count, _format_usd
+
+    parts = [f"Session {session['name']} ended", _format_duration_ms(run_info.get("duration_ms"))]
+    usage = run_info.get("usage")
+    cost = estimate_cost(usage, run_info.get("usage_model"))
+    if cost is not None:
+        parts.append(_format_usd(cost))
+    elif isinstance(usage, dict):
+        total_tokens = sum(v for v in usage.values() if isinstance(v, (int, float)))
+        if total_tokens:
+            parts.append(f"{_format_token_count(total_tokens)} tokens")
+    return _dim(" · ".join(parts), use_color)
 
 
 def _attach_interactive_usage(session, run_info, history=None):

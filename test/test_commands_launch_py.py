@@ -1083,6 +1083,57 @@ class LaunchCommandTests(CliTestBase):
         self.assertIn("SIGINT", str(ctx.exception))
         self.assertEqual(seen, [2])
 
+    def test_signal_interrupt_prints_goodbye_line(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        main(["add", "main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        })
+
+        emitter = _SignalEmitter()
+
+        def spawn(argv, **kwargs):
+            return _Child(on_wait=lambda child: emitter.emit("SIGINT"))
+
+        io_obj = self.make_io()
+        with self.assertRaises(CdxError):
+            main(["main"], {
+                **io_obj,
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": spawn,
+                "spawn_sync": harness.spawn_sync,
+                "signalEmitter": emitter,
+            })
+        self.assertIn("Session main ended", io_obj["stdout"].getvalue())
+
+    def test_real_crash_does_not_print_goodbye_line(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        main(["add", "main"], {
+            **self.make_io(),
+            "env": {"CDX_HOME": temp_dir},
+            "spawn": harness.spawn,
+            "spawn_sync": harness.spawn_sync,
+        })
+
+        def failing_spawn(argv, **kwargs):
+            child = _Child()
+            child.returncode = 7
+            return child
+
+        io_obj = self.make_io()
+        with self.assertRaisesRegex(CdxError, "exited with code 7"):
+            main(["main"], {
+                **io_obj,
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": failing_spawn,
+                "spawn_sync": harness.spawn_sync,
+            })
+        self.assertNotIn("ended", io_obj["stdout"].getvalue())
+
     def test_codex_launch_falls_back_when_script_is_missing(self):
         temp_dir = self.make_temp_dir()
         harness = _AuthHarness()

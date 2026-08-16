@@ -1212,11 +1212,17 @@ def _probe_provider_auth(session, spawn_sync=None, env_override=None, trust_loca
     ) == AUTH_PROBE_AUTHENTICATED
 
 
+_SIGNAL_EXIT_CODES = {signal.SIGINT: 130, signal.SIGTERM: 143}
+if hasattr(signal, "SIGHUP"):
+    _SIGNAL_EXIT_CODES[signal.SIGHUP] = 129
+
+# The exit codes above, on their own: what a caller checks to tell "the user
+# killed this session" apart from "the provider process crashed on its own".
+INTERRUPT_EXIT_CODES = frozenset(_SIGNAL_EXIT_CODES.values())
+
+
 def _signal_exit_code(sig):
-    mapping = {signal.SIGINT: 130, signal.SIGTERM: 143}
-    if hasattr(signal, "SIGHUP"):
-        mapping[signal.SIGHUP] = 129
-    return mapping.get(sig, 1)
+    return _SIGNAL_EXIT_CODES.get(sig, 1)
 
 
 def _signal_name(sig):
