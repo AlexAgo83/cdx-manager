@@ -45,6 +45,8 @@ from ..provider_runtime import (
     AUTH_PROBE_AUTHENTICATED,
     AUTH_PROBE_DEGRADED,
     AUTH_PROBE_TIMEOUT_SECONDS,
+    _get_auth_home,
+    _has_local_claude_auth,
     _probe_provider_auth_status,
 )
 from ..run_usage import (
@@ -698,6 +700,7 @@ def handle_status(rest, ctx):
             ctx.get("refresh_fn"),
             target_names=args if len(args) == 1 else None,
             force=parsed["refresh"],
+            already_auth_refreshed=auth_refresh.get("probed"),
         )
     )
     refresh_errors = [
@@ -760,11 +763,20 @@ def _refresh_claude_auth_states(service, target_names=None, spawn_sync=None, env
         and (session.get("auth") or {}).get("status") in ("authenticated", "logged_out")
     ]
     if not candidates:
-        return {"updated": [], "errors": []}
+        return {"updated": [], "errors": [], "probed": set()}
 
     errors = []
     results = {}
     threads = []
+    # Sessions without a local credentials file are the ones whose probe
+    # below actually spawns `claude auth status` (see _probe_provider_auth_status);
+    # the Claude usage refresh right after this call spawns that exact same
+    # command again to refresh its own on-disk copy before reading it. Track
+    # them so the caller can skip that second, redundant spawn.
+    probed = {
+        session["name"] for session in candidates
+        if not _has_local_claude_auth(_get_auth_home(session))
+    }
 
     # The probe itself is the slow part (a subprocess spawn per session on a
     # cache miss); it doesn't touch shared state, so it's safe to run
@@ -802,6 +814,10 @@ def _refresh_claude_auth_states(service, target_names=None, spawn_sync=None, env
                 "session": session["name"],
                 "error": "Auth probe timed out; authentication status is degraded.",
             })
+            # A timed-out probe never finished running `claude auth status`,
+            # so its on-disk credentials aren't necessarily fresh - don't
+            # tell the caller this session's auth refresh can be skipped.
+            probed.discard(session["name"])
             continue
         service["update_auth_state"](session["name"], lambda auth, auth_status=auth_status, now=now: {
             **auth,
@@ -810,7 +826,13 @@ def _refresh_claude_auth_states(service, target_names=None, spawn_sync=None, env
             **({"lastAuthenticatedAt": now} if auth_status == AUTH_PROBE_AUTHENTICATED else {}),
         })
         updated.append(session["name"])
-    return {"updated": updated, "errors": errors}
+    for session in candidates:
+        if session["name"] not in results:
+            # Probe raised/never completed for this session (exception or a
+            # join() that outran an unresponsive thread); same reasoning as
+            # the degraded case above.
+            probed.discard(session["name"])
+    return {"updated": updated, "errors": errors, "probed": probed}
 
 def _rows_by_session(rows):
     return {

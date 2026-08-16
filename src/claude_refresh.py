@@ -30,8 +30,9 @@ def _is_stale(session, now=None, ttl_seconds=CLAUDE_REFRESH_TTL_SECONDS):
     return (now - updated_at.astimezone(now.tzinfo)).total_seconds() >= ttl_seconds
 
 
-def _refresh_claude_sessions(service, refresh_fn=None, target_names=None, force=False, ttl_seconds=CLAUDE_REFRESH_TTL_SECONDS):
+def _refresh_claude_sessions(service, refresh_fn=None, target_names=None, force=False, ttl_seconds=CLAUDE_REFRESH_TTL_SECONDS, already_auth_refreshed=None):
     refresh_fn = refresh_fn or refresh_claude_session_status
+    already_auth_refreshed = already_auth_refreshed or set()
     target_names = set(target_names or [])
     sessions = service["list_sessions"]()
     claude_sessions = [
@@ -52,7 +53,17 @@ def _refresh_claude_sessions(service, refresh_fn=None, target_names=None, force=
 
     def fetch(s):
         try:
-            usage = refresh_fn(s)
+            # The auth-probe phase right before this one already ran
+            # `claude auth status` for this session (see
+            # commands/status.py:_refresh_claude_auth_states), which is the
+            # exact side effect this refresh needs before reading
+            # credentials from disk. Skip re-running it - but only when
+            # refresh_fn is the real default, since a caller-injected
+            # refresh_fn (tests, mocks) may not accept auth_refresher.
+            if refresh_fn is refresh_claude_session_status and s["name"] in already_auth_refreshed:
+                usage = refresh_fn(s, auth_refresher=lambda _auth_home: None)
+            else:
+                usage = refresh_fn(s)
             if inspect.isawaitable(usage):
                 raise CdxError("Claude refresh function returned an awaitable from a sync callable.")
             if usage:
