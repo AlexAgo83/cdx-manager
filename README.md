@@ -1085,10 +1085,10 @@ managed Codex profile. It can refresh an expiring access token, but never starts
 an agent or submits a prompt. Use `cdx auth refresh all --json` when a scheduler
 needs a stable result; CDX never installs or enables that scheduler for you.
 
-For example, a user-owned daily scheduler can run:
+For example, a user-owned daily cron entry can run:
 
 ```sh
-cdx auth refresh all --json
+0 6 * * * cdx auth refresh all --json
 ```
 
 `locked` means an interactive session owns the profile refresh lock and was left
