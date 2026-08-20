@@ -13,6 +13,7 @@ from .cli_commands import (
     _directory_child_sizes,
     _directory_size_bytes,
     handle_add,
+    handle_auth,
     handle_can_resume,
     handle_clean,
     handle_config,
@@ -151,6 +152,7 @@ __all__ = [
 
 
 _COMMAND_HANDLERS = {
+    "auth": handle_auth,
     "add": handle_add,
     "cp": handle_copy,
     "clean": handle_clean,
@@ -236,6 +238,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx status <name> [--json] [--refresh|--cached] [--timeout SECONDS]', '36', use_color)}",
         f"  {_style('cdx next [--json] [--refresh]', '36', use_color)}",
         f"  {_style('cdx reset <name> [--yes] [--json]', '36', use_color)}",
+        f"  {_style('cdx auth refresh <name|all> [--json]', '36', use_color)}",
         f"  {_style('cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json', '36', use_color)}",
         f"  {_style('cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--detach] [--refresh] --json', '36', use_color)}",
         f"  {_style('cdx runs [--limit N] [--since 7d|today|DATE] --json', '36', use_color)}",

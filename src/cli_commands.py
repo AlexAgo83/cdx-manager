@@ -42,6 +42,9 @@ from .commands.auth import (  # re-export for cli.py / tests
     _confirm_reset as _confirm_reset,
 )
 from .commands.auth import (
+    handle_auth as handle_auth,
+)
+from .commands.auth import (
     handle_login as handle_login,
 )
 from .commands.auth import (
@@ -275,5 +278,4 @@ from .commands.status import (
 from .commands.tray import (
     handle_tray as handle_tray,
 )
-
 

@@ -1,14 +1,14 @@
 ## item_134_document_manual_and_scheduler_controlled_credential_maintenance - Document manual and scheduler-controlled credential maintenance
 > From version: 0.20.3
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 65%
 > Complexity: Low
 > Theme: Authentication reliability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-20 11:29:03
+> Indicators reviewed: 2026-08-20 11:54:32
 
 # AI Context
 - Summary: Document manual and opt-in scheduled operation without making CDX own host scheduling.

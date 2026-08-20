@@ -3,12 +3,14 @@
 Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 """
 
+import json
 import time
 import uuid
 
-from ..cli_args import _parse_flag_args, _parse_json_flag
+from ..cli_args import _parse_auth_args, _parse_flag_args, _parse_json_flag
 from ..cli_helpers import (
     _bootstrap_claude_setup_token,
+    _json_failure,
     _json_success,
     _local_now_iso,
     _make_notify_progress,
@@ -16,7 +18,7 @@ from ..cli_helpers import (
     _write_json,
 )
 from ..cli_render import _success, _warn
-from ..codex_usage import consume_codex_rate_limit_reset_credit
+from ..codex_usage import consume_codex_rate_limit_reset_credit, fetch_codex_rate_limit_diagnostic
 from ..config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
 from ..errors import CdxError
 from ..notify import (
@@ -32,6 +34,61 @@ from ..provider_runtime import _ensure_session_authentication, _run_interactive_
 def _confirm_reset(name):
     answer = input(f"Consume one banked Codex reset for {name}? [y/N] ")
     return answer.strip().lower() in ("y", "yes")
+
+
+def _refresh_needs_login(diagnostic):
+    """Classify known provider auth failures without returning provider text."""
+    text = json.dumps(diagnostic.get("response") or {}).lower()
+    return any(marker in text for marker in (
+        "not logged in", "unauthorized", "authentication token is expired",
+        "token_expired", "invalid_grant", "http 401",
+    ))
+
+
+def _refresh_result(session, diagnostic):
+    if diagnostic.get("ok"):
+        return {"session": session["name"], "provider": PROVIDER_CODEX, "outcome": "valid"}
+    if diagnostic.get("reason") == "auth_locked":
+        return {"session": session["name"], "provider": PROVIDER_CODEX, "outcome": "locked"}
+    if _refresh_needs_login(diagnostic):
+        return {
+            "session": session["name"], "provider": PROVIDER_CODEX,
+            "outcome": "login_required", "login_command": f"cdx login {session['name']}",
+        }
+    return {"session": session["name"], "provider": PROVIDER_CODEX, "outcome": "failed"}
+
+
+def handle_auth(rest, ctx):
+    parsed = _parse_auth_args(rest)
+    target = parsed["target"]
+    if target == "all":
+        sessions = [session for session in ctx["service"]["list_sessions"]()
+                    if session["provider"] == PROVIDER_CODEX]
+    else:
+        session = ctx["service"]["get_session"](target)
+        if not session:
+            raise CdxError(f"Unknown session: {target}")
+        if session["provider"] != PROVIDER_CODEX:
+            raise CdxError("Authentication refresh is only available for Codex sessions.")
+        sessions = [session]
+    if not sessions:
+        raise CdxError("No managed Codex sessions to refresh.")
+
+    probe = ctx["options"].get("fetchCodexRateLimitDiagnostic") or fetch_codex_rate_limit_diagnostic
+    results = [_refresh_result(session, probe(session)) for session in sessions]
+    failures = [result for result in results if result["outcome"] in ("login_required", "failed")]
+    message = "Codex authentication probe completed" if not failures else "Codex authentication probe needs attention"
+    if parsed["json"]:
+        payload = (
+            _json_failure("auth.refresh", "auth_refresh_failed", message, results=results)
+            if failures else _json_success("auth.refresh", message, results=results)
+        )
+        _write_json(ctx, payload)
+    else:
+        for result in results:
+            suffix = f"; run {result['login_command']}" if result.get("login_command") else ""
+            ctx["out"](f"{result['session']}: {result['outcome']}{suffix}\n")
+    return 1 if failures else 0
 
 def handle_ready(rest, ctx):
     """`cdx ready`: schedule an OS notification for the next session to come back.

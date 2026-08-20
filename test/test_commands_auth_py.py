@@ -36,6 +36,48 @@ from src.session_service import create_session_service
 
 class AuthCommandTests(CliTestBase):
 
+    def test_auth_refresh_uses_non_generation_probe_and_returns_safe_json(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("work")
+        calls = []
+
+        def probe(session):
+            calls.append(session["name"])
+            return {"ok": True, "status": {"raw_status_text": "never expose this"}}
+
+        io = self.make_io()
+        self.assertEqual(main(["auth", "refresh", "work", "--json"], {
+            **io, "env": {"CDX_HOME": temp_dir}, "service": service,
+            "fetchCodexRateLimitDiagnostic": probe,
+        }), 0)
+        payload = json.loads(io["stdout"].getvalue())
+        self.assertEqual(calls, ["work"])
+        self.assertEqual(payload["results"], [{"session": "work", "provider": "codex", "outcome": "valid"}])
+        self.assertNotIn("raw_status_text", io["stdout"].getvalue())
+
+    def test_auth_refresh_all_reports_locked_without_failure_and_login_required_with_remedy(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("locked")
+        service["create_session"]("expired")
+
+        def probe(session):
+            if session["name"] == "locked":
+                return {"ok": False, "reason": "auth_locked"}
+            return {"ok": False, "reason": "rate_limits_read_failed", "response": {"error": {"message": "HTTP 401"}}}
+
+        io = self.make_io()
+        self.assertEqual(main(["auth", "refresh", "all", "--json"], {
+            **io, "env": {"CDX_HOME": temp_dir}, "service": service,
+            "fetchCodexRateLimitDiagnostic": probe,
+        }), 1)
+        payload = json.loads(io["stdout"].getvalue())
+        self.assertFalse(payload["ok"])
+        results = {result["session"]: result for result in payload["results"]}
+        self.assertEqual(results["locked"]["outcome"], "locked")
+        self.assertEqual(results["expired"]["login_command"], "cdx login expired")
+
     def test_reset_consumes_banked_codex_reset_and_refreshes_status(self):
         temp_dir = self.make_temp_dir()
         status = {

@@ -1,14 +1,14 @@
 ## item_133_add_a_locked_non_generation_codex_auth_refresh_command - Add a locked non-generation Codex auth refresh command
 > From version: 0.20.3
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 65%
 > Complexity: Medium
 > Theme: Authentication reliability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-20 11:29:02
+> Indicators reviewed: 2026-08-20 11:54:32
 
 # AI Context
 - Summary: Add the one-or-all Codex command at the existing locked provider-native refresh boundary.

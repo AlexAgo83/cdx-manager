@@ -500,6 +500,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx label <name> --clear [--json]` | Clear a session label |
 | `cdx login <name> [--json]` | Re-authenticate a session (logout + login) |
 | `cdx logout <name> [--json]` | Log out of a session |
+| `cdx auth refresh <name\|all> [--json]` | Make a locked, non-generation Codex auth probe; reports `login_required` when interactive login is needed |
 | `cdx disable <name> [--json]` | Disable a session without deleting it; disabled sessions stay visible and cannot launch |
 | `cdx enable <name> [--json]` | Re-enable a disabled session |
 | `cdx config <name> [--json]` | Show persistent launch settings for a session |
@@ -1076,6 +1077,24 @@ Without `--yes`, an interactive confirmation is required. `cdx` sends an idempot
 ---
 
 ## Troubleshooting
+
+### Codex credential refresh
+
+`cdx auth refresh work` makes a provider-native, non-generation request for one
+managed Codex profile. It can refresh an expiring access token, but never starts
+an agent or submits a prompt. Use `cdx auth refresh all --json` when a scheduler
+needs a stable result; CDX never installs or enables that scheduler for you.
+
+For example, a user-owned daily scheduler can run:
+
+```sh
+cdx auth refresh all --json
+```
+
+`locked` means an interactive session owns the profile refresh lock and was left
+untouched. `login_required` means the provider rejected the local refresh token;
+run the supplied `cdx login <name>` command interactively. Hosts keep independent
+rotating credentials, so copying an auth file is not ongoing credential sync.
 
 - **`cdx <name>` fails with "not authenticated"** — run `cdx login <name>` first.
 - **One of two Codex accounts keeps asking for login** — run `cdx doctor --json` and inspect each Codex session's `codex_auth_file`, `codex_live_auth`, and `codex_stale_auth_logs` checks. If recent logs mention expired auth, repair only that isolated profile with `cdx login <name>`. Codex Business profiles can share the same `tokens.account_id`; `cdx doctor` reports `codex_shared_account_id` as a workspace-level clue, not proof that two profiles use the same user. Newly created sessions seed from the current global `~/.codex/auth.json` when one exists. For two separate Codex accounts, create or repair each session by running `cdx login <name>` for that session; `cdx login` does not log out first, so use `cdx logout <name>` explicitly only when you want to clear that isolated profile.
