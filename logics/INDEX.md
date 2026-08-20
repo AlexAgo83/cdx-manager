@@ -69,6 +69,7 @@
 | [prod_047_reliable_delivery_and_runtime_contracts](product/prod_047_reliable_delivery_and_runtime_contracts.md) | Reliable delivery and runtime contracts | Settled |  |  | product/prod_047_reliable_delivery_and_runtime_contracts.md |
 | [prod_048_ollama_sessions_report_real_token_usage](product/prod_048_ollama_sessions_report_real_token_usage.md) | Ollama sessions report real token usage | Settled |  |  | product/prod_048_ollama_sessions_report_real_token_usage.md |
 | [prod_049_token_numbers_a_user_can_act_on](product/prod_049_token_numbers_a_user_can_act_on.md) | Token numbers a user can act on | Settled |  |  | product/prod_049_token_numbers_a_user_can_act_on.md |
+| [prod_050_opt_in_codex_authentication_refresh_probes](product/prod_050_opt_in_codex_authentication_refresh_probes.md) | Opt-in Codex authentication refresh probes | Proposed |  |  | product/prod_050_opt_in_codex_authentication_refresh_probes.md |
 
 ## Roadmaps
 
@@ -146,6 +147,7 @@ _None_
 | [req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent](request/req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent.md) | Make cdx stats report the tokens a session actually spent | Done |  |  | request/req_063_make_cdx_stats_report_the_tokens_a_session_actually_spent.md |
 | [req_064_resume_names_a_conversation_that_exists](request/req_064_resume_names_a_conversation_that_exists.md) | Resume names a conversation that exists | Done |  |  | request/req_064_resume_names_a_conversation_that_exists.md |
 | [req_065_drop_token_usage_cdx_cannot_vouch_for](request/req_065_drop_token_usage_cdx_cannot_vouch_for.md) | Drop token usage cdx cannot vouch for | Done |  |  | request/req_065_drop_token_usage_cdx_cannot_vouch_for.md |
+| [req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions](request/req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions.md) | Offer opt-in refresh probes for managed Codex sessions | Draft |  |  | request/req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions.md |
 
 ## Backlog
 
@@ -286,6 +288,8 @@ _None_
 | [item_130_report_token_spend_in_currency](backlog/item_130_report_token_spend_in_currency.md) | Report token spend in currency | Done |  | 100% | backlog/item_130_report_token_spend_in_currency.md |
 | [item_131_resume_names_a_conversation_that_exists](backlog/item_131_resume_names_a_conversation_that_exists.md) | Resume names a conversation that exists | Done |  | 100% | backlog/item_131_resume_names_a_conversation_that_exists.md |
 | [item_132_drop_token_usage_cdx_cannot_vouch_for](backlog/item_132_drop_token_usage_cdx_cannot_vouch_for.md) | Drop token usage cdx cannot vouch for | Done |  | 100% | backlog/item_132_drop_token_usage_cdx_cannot_vouch_for.md |
+| [item_133_add_a_locked_non_generation_codex_auth_refresh_command](backlog/item_133_add_a_locked_non_generation_codex_auth_refresh_command.md) | Add a locked non-generation Codex auth refresh command | Ready |  | 0% | backlog/item_133_add_a_locked_non_generation_codex_auth_refresh_command.md |
+| [item_134_document_manual_and_scheduler_controlled_credential_maintenance](backlog/item_134_document_manual_and_scheduler_controlled_credential_maintenance.md) | Document manual and scheduler-controlled credential maintenance | Ready |  | 0% | backlog/item_134_document_manual_and_scheduler_controlled_credential_maintenance.md |
 
 ## Tasks
 
@@ -371,6 +375,7 @@ _None_
 | [task_073_orchestrate_truthful_token_accounting_for_cdx_stats](tasks/task_073_orchestrate_truthful_token_accounting_for_cdx_stats.md) | Orchestrate truthful token accounting for cdx stats | Done | claude | 100% | tasks/task_073_orchestrate_truthful_token_accounting_for_cdx_stats.md |
 | [task_074_resume_names_a_conversation_that_exists](tasks/task_074_resume_names_a_conversation_that_exists.md) | Resume names a conversation that exists | Done |  | 100% | tasks/task_074_resume_names_a_conversation_that_exists.md |
 | [task_075_drop_token_usage_cdx_cannot_vouch_for](tasks/task_075_drop_token_usage_cdx_cannot_vouch_for.md) | Drop token usage cdx cannot vouch for | Done |  | 100% | tasks/task_075_drop_token_usage_cdx_cannot_vouch_for.md |
+| [task_076_orchestrate_opt_in_codex_authentication_refresh_probes](tasks/task_076_orchestrate_opt_in_codex_authentication_refresh_probes.md) | Orchestrate opt-in Codex authentication refresh probes | Ready |  | 0% | tasks/task_076_orchestrate_opt_in_codex_authentication_refresh_probes.md |
 
 ## Runbooks
 
@@ -379,3 +384,5 @@ _None_
 | [run_001_testing_a_change_on_the_remote_fleet](runbook/run_001_testing_a_change_on_the_remote_fleet.md) | Testing a change on the remote fleet | Active | validation | 2026-08-11, preparing v0.18.5 — Python suite in WSL and on Windows, native Windows tray build, graceful stop, and a real companion update between published versions. | runbook/run_001_testing_a_change_on_the_remote_fleet.md |
 | [run_002_finding_out_which_cdx_and_which_home_you_are_talking_to](runbook/run_002_finding_out_which_cdx_and_which_home_you_are_talking_to.md) | Finding out which CDX and which home you are talking to | Active | support | 2026-08-11, three separate incidents in one day — a notification delivered directly while a tray was listening, a tray told to update a CDX that was current, and `cdx update` reporting success while the installation it was meant to replace stayed where it was. | runbook/run_002_finding_out_which_cdx_and_which_home_you_are_talking_to.md |
 | [run_003_load_and_unload_the_local_macos_tray_companion](runbook/run_003_load_and_unload_the_local_macos_tray_companion.md) | Load and unload the local tray companion | Active | support | 2026-08-13: load and unload passed against the local development and installed macOS companions. | runbook/run_003_load_and_unload_the_local_macos_tray_companion.md |
+| [run_004_recovering_disk_space_from_cdx_profiles](runbook/run_004_recovering_disk_space_from_cdx_profiles.md) | Recovering disk space from CDX profiles | Draft | support | 2026-08-15, reclaimed profile storage by moving unused Ollama models, caches, stale Claude Code extensions, and CDX session logs to the macOS Trash. | runbook/run_004_recovering_disk_space_from_cdx_profiles.md |
+| [run_005_maintaining_the_token_price_table](runbook/run_005_maintaining_the_token_price_table.md) | Maintaining the token price table | Draft | support | 2026-08-15, migrated from `docs/token-prices-runbook.md`. | runbook/run_005_maintaining_the_token_price_table.md |

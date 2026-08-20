@@ -1,0 +1,380 @@
+{
+  "budgets": {
+    "max_docs": 32,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [
+    "logics/backlog/item_133_add_a_locked_non_generation_codex_auth_refresh_command.md",
+    "logics/backlog/item_134_document_manual_and_scheduler_controlled_credential_maintenance.md",
+    "logics/product/prod_050_opt_in_codex_authentication_refresh_probes.md",
+    "logics/request/req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions.md",
+    "logics/scaffold/opt_in_codex_auth_refresh.json",
+    "logics/tasks/task_076_orchestrate_opt_in_codex_authentication_refresh_probes.md"
+  ],
+  "command": "logics-manager sync context-pack req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions item_133_add_a_locked_non_generation_codex_auth_refresh_command item_134_document_manual_and_scheduler_controlled_credential_maintenance task_076_orchestrate_opt_in_codex_authentication_refresh_probes --mode diff-first --profile deep --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_133_add_a_locked_non_generation_codex_auth_refresh_command",
+          "item_134_document_manual_and_scheduler_controlled_credential_maintenance"
+        ],
+        "prod": [
+          "prod_050_opt_in_codex_authentication_refresh_probes"
+        ],
+        "req": [
+          "req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions"
+        ],
+        "task": [
+          "task_076_orchestrate_opt_in_codex_authentication_refresh_probes"
+        ]
+      },
+      "path": "logics/product/prod_050_opt_in_codex_authentication_refresh_probes.md",
+      "ref": "prod_050_opt_in_codex_authentication_refresh_probes",
+      "sections": {
+        "Goals": [
+          "- Reuse the existing provider-native non-generation probe and auth lock.",
+          "- Make manual and scheduled operation scriptable through a stable JSON and exit-status contract.",
+          "- Give a direct login remedy when a refresh token can no longer be used.",
+          "- Keep credentials and conversation content entirely local and absent from output."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Give operators a small, safe CDX command to validate and refresh managed Codex credentials before an interactive session needs them, while leaving scheduling under the user's control."
+        ],
+        "References": [
+          "- Product back-reference: `req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions`",
+          "- Task back-reference: `task_076_orchestrate_opt_in_codex_authentication_refresh_probes`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Opt-in Codex authentication refresh probes"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "offer, opt, refresh, probes, managed, codex, sessions",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_133_add_a_locked_non_generation_codex_auth_refresh_command",
+          "item_134_document_manual_and_scheduler_controlled_credential_maintenance"
+        ],
+        "prod": [
+          "prod_050_opt_in_codex_authentication_refresh_probes"
+        ],
+        "req": [
+          "req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions"
+        ]
+      },
+      "path": "logics/request/req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions.md",
+      "ref": "req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: CDX exposes a documented command that accepts one managed Codex session or all managed Codex sessions and performs a real non-generation authentication/usage probe under that session's CODEX_HOME.",
+          "- AC2: The command serializes refresh attempts with the existing per-profile auth lock and reports a locked active session without racing or modifying its credentials.",
+          "- AC3: Text and JSON results distinguish valid or refreshed, locked, login-required, unsupported, and operational-failure outcomes without printing tokens, token-derived values, account identifiers, prompts, or provider output.",
+          "- AC4: A successful probe does not launch a model, submit a prompt, or consume model-generation quota; failures that require a new interactive login are actionable and non-zero for automation.",
+          "- AC5: Documentation includes one manual invocation and one clearly opt-in scheduler example, explains that hosts keep independent rotating credentials, and states that CDX does not create a scheduler automatically.",
+          "- AC6: Focused command, locking, result-contract, and documentation checks pass."
+        ],
+        "Needs": [
+          "- A copied Codex profile can retain an expired access token while another host has refreshed its local session.",
+          "- Users need one explicit CDX command to make a non-generation Codex authentication probe for one managed session or all managed Codex sessions.",
+          "- Users must be able to choose manual use or schedule that command themselves, without CDX silently installing a cron job or exposing credential material."
+        ]
+      },
+      "status": "Draft",
+      "title": "Offer opt-in refresh probes for managed Codex sessions"
+    },
+    {
+      "ai_context": {
+        "keywords": "add, locked, non, generation, codex, auth, refresh, command",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_133_add_a_locked_non_generation_codex_auth_refresh_command"
+        ],
+        "prod": [
+          "prod_050_opt_in_codex_authentication_refresh_probes"
+        ],
+        "req": [
+          "req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions"
+        ],
+        "task": [
+          "task_076_orchestrate_opt_in_codex_authentication_refresh_probes"
+        ]
+      },
+      "path": "logics/backlog/item_133_add_a_locked_non_generation_codex_auth_refresh_command.md",
+      "ref": "item_133_add_a_locked_non_generation_codex_auth_refresh_command",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: One managed Codex session and the explicit all selection route to the same locked provider-native probe.",
+          "- AC2: A lock held by an active session returns a distinct non-destructive result and does not call the provider probe.",
+          "- AC3: A rejected or expired refresh token returns login-required with a direct cdx login remedy and an automation-visible failure status.",
+          "- AC4: JSON output contains only session, provider, outcome, and safe diagnostic fields.",
+          "- AC5: Focused tests prove no model prompt or agent-run path is invoked."
+        ],
+        "Problem": [
+          "- A local auth-file check can report a session as authenticated after its access token has expired.",
+          "- Concurrent refreshes can rotate a profile refresh token underneath an active interactive session."
+        ]
+      },
+      "status": "Ready",
+      "title": "Add a locked non-generation Codex auth refresh command"
+    },
+    {
+      "ai_context": {
+        "keywords": "document, manual, scheduler, controlled, credential, maintenance",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_134_document_manual_and_scheduler_controlled_credential_maintenance"
+        ],
+        "prod": [
+          "prod_050_opt_in_codex_authentication_refresh_probes"
+        ],
+        "req": [
+          "req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions"
+        ],
+        "task": [
+          "task_076_orchestrate_opt_in_codex_authentication_refresh_probes"
+        ]
+      },
+      "path": "logics/backlog/item_134_document_manual_and_scheduler_controlled_credential_maintenance.md",
+      "ref": "item_134_document_manual_and_scheduler_controlled_credential_maintenance",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: README and command help show a manual single-session and all-session invocation.",
+          "- AC2: Documentation supplies one opt-in scheduler example and makes clear that the user owns its installation and cadence.",
+          "- AC3: Documentation says that login-required needs an interactive cdx login and never suggests exposing tokens in a scheduler.",
+          "- AC4: Documentation checks and focused command-contract tests pass."
+        ],
+        "Problem": [
+          "- Operators need a predictable manual remedy and may want a scheduler, but automatic background mutation would be surprising and can contend with active sessions.",
+          "- A copied profile is not a live credential replication channel once provider refresh-token rotation occurs."
+        ]
+      },
+      "status": "Ready",
+      "title": "Document manual and scheduler-controlled credential maintenance"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_133_add_a_locked_non_generation_codex_auth_refresh_command",
+          "item_134_document_manual_and_scheduler_controlled_credential_maintenance"
+        ],
+        "prod": [
+          "prod_050_opt_in_codex_authentication_refresh_probes"
+        ],
+        "req": [
+          "req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions"
+        ],
+        "task": [
+          "task_076_orchestrate_opt_in_codex_authentication_refresh_probes"
+        ]
+      },
+      "path": "logics/product/prod_050_opt_in_codex_authentication_refresh_probes.md",
+      "ref": "prod_050_opt_in_codex_authentication_refresh_probes",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Opt-in Codex authentication refresh probes"
+    },
+    {
+      "ai_context": {
+        "keywords": "orchestrate, opt, codex, authentication, refresh, probes",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_133_add_a_locked_non_generation_codex_auth_refresh_command",
+          "item_134_document_manual_and_scheduler_controlled_credential_maintenance"
+        ],
+        "prod": [
+          "prod_050_opt_in_codex_authentication_refresh_probes"
+        ],
+        "req": [
+          "req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions"
+        ],
+        "task": [
+          "task_076_orchestrate_opt_in_codex_authentication_refresh_probes"
+        ]
+      },
+      "path": "logics/tasks/task_076_orchestrate_opt_in_codex_authentication_refresh_probes.md",
+      "ref": "task_076_orchestrate_opt_in_codex_authentication_refresh_probes",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate opt-in Codex authentication refresh probes"
+    }
+  ],
+  "estimates": {
+    "char_count": 9139,
+    "companion_doc_count": 1,
+    "doc_count": 5
+  },
+  "generated_at": "2026-08-20T09:28:19Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions",
+      "item_133_add_a_locked_non_generation_codex_auth_refresh_command",
+      "item_134_document_manual_and_scheduler_controlled_credential_maintenance",
+      "task_076_orchestrate_opt_in_codex_authentication_refresh_probes"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "deep",
+  "ref": "req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions,item_133_add_a_locked_non_generation_codex_auth_refresh_command,item_134_document_manual_and_scheduler_controlled_credential_maintenance,task_076_orchestrate_opt_in_codex_authentication_refresh_probes",
+  "refs": [
+    "req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions",
+    "item_133_add_a_locked_non_generation_codex_auth_refresh_command",
+    "item_134_document_manual_and_scheduler_controlled_credential_maintenance",
+    "task_076_orchestrate_opt_in_codex_authentication_refresh_probes"
+  ],
+  "release": {
+    "blocking_reasons": [],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Release evidence is complete.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": null,
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "ready",
+    "target_version": "0.20.3"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_076_orchestrate_opt_in_codex_authentication_refresh_probes.md",
+      "ref": "task_076_orchestrate_opt_in_codex_authentication_refresh_probes"
+    }
+  ]
+}

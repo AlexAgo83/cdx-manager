@@ -1,0 +1,122 @@
+{
+  "title": "Offer opt-in refresh probes for managed Codex sessions",
+  "references": [
+    "README.md",
+    "src/codex_usage.py",
+    "src/provider_runtime.py",
+    "src/cli_args.py",
+    "src/commands/status.py",
+    "src/commands/maintenance.py",
+    "test/"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Authentication reliability",
+    "needs": [
+      "A copied Codex profile can retain an expired access token while another host has refreshed its local session.",
+      "Users need one explicit CDX command to make a non-generation Codex authentication probe for one managed session or all managed Codex sessions.",
+      "Users must be able to choose manual use or schedule that command themselves, without CDX silently installing a cron job or exposing credential material."
+    ],
+    "context": [
+      "Codex keeps access, refresh, and identity tokens in each profile auth.json and rotates the refresh token during a refresh.",
+      "src/codex_usage.py already serializes access to a profile auth home so a status probe cannot race an interactive Codex session and invalidate its refresh token.",
+      "The current CDX login-status probe can trust the presence of a local auth file, so it is not sufficient to prove an access token can be renewed or used.",
+      "A refresh probe must use the existing Codex local app-server or usage path that performs no model generation, and must not send a user prompt, create an agent turn, or report secrets."
+    ],
+    "acceptance_criteria": [
+      "AC1: CDX exposes a documented command that accepts one managed Codex session or all managed Codex sessions and performs a real non-generation authentication/usage probe under that session's CODEX_HOME.",
+      "AC2: The command serializes refresh attempts with the existing per-profile auth lock and reports a locked active session without racing or modifying its credentials.",
+      "AC3: Text and JSON results distinguish valid or refreshed, locked, login-required, unsupported, and operational-failure outcomes without printing tokens, token-derived values, account identifiers, prompts, or provider output.",
+      "AC4: A successful probe does not launch a model, submit a prompt, or consume model-generation quota; failures that require a new interactive login are actionable and non-zero for automation.",
+      "AC5: Documentation includes one manual invocation and one clearly opt-in scheduler example, explains that hosts keep independent rotating credentials, and states that CDX does not create a scheduler automatically.",
+      "AC6: Focused command, locking, result-contract, and documentation checks pass."
+    ]
+  },
+  "product": {
+    "title": "Opt-in Codex authentication refresh probes",
+    "overview": "Give operators a small, safe CDX command to validate and refresh managed Codex credentials before an interactive session needs them, while leaving scheduling under the user's control.",
+    "goals": [
+      "Reuse the existing provider-native non-generation probe and auth lock.",
+      "Make manual and scheduled operation scriptable through a stable JSON and exit-status contract.",
+      "Give a direct login remedy when a refresh token can no longer be used.",
+      "Keep credentials and conversation content entirely local and absent from output."
+    ],
+    "non_goals": [
+      "No automatic cron installation, cross-host credential synchronization, or copying of auth files.",
+      "No model prompt, agent launch, quota-consuming generation, or background polling daemon.",
+      "No attempt to bypass an interactive OAuth login when the provider rejects the refresh token.",
+      "No changes to authentication semantics for non-Codex providers in this request."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Add a locked non-generation Codex auth refresh command",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Authentication reliability",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC6"],
+      "problem": [
+        "A local auth-file check can report a session as authenticated after its access token has expired.",
+        "Concurrent refreshes can rotate a profile refresh token underneath an active interactive session."
+      ],
+      "scope_in": [
+        "Add the smallest CLI surface for one named Codex session and an explicit all-managed-Codex selection.",
+        "Reuse the current per-CODEX_HOME lock and provider-native non-generation app-server or usage request.",
+        "Return stable per-session text, JSON, and exit-status outcomes for valid/refreshed, locked, login-required, unsupported, and operational failure.",
+        "Add focused tests for selection, no prompt/model invocation, lock contention, safe result serialization, and automation failure semantics."
+      ],
+      "scope_out": [
+        "Reimplementing OAuth, decoding or displaying token values, or writing a second credential store.",
+        "Probing Claude, other providers, or sessions CDX does not manage.",
+        "Changing ordinary cdx status semantics beyond shared safe helpers required by this command."
+      ],
+      "acceptance_criteria": [
+        "AC1: One managed Codex session and the explicit all selection route to the same locked provider-native probe.",
+        "AC2: A lock held by an active session returns a distinct non-destructive result and does not call the provider probe.",
+        "AC3: A rejected or expired refresh token returns login-required with a direct cdx login remedy and an automation-visible failure status.",
+        "AC4: JSON output contains only session, provider, outcome, and safe diagnostic fields.",
+        "AC5: Focused tests prove no model prompt or agent-run path is invoked."
+      ]
+    },
+    {
+      "title": "Document manual and scheduler-controlled credential maintenance",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Authentication reliability",
+      "request_acs": ["AC3", "AC4", "AC5", "AC6"],
+      "problem": [
+        "Operators need a predictable manual remedy and may want a scheduler, but automatic background mutation would be surprising and can contend with active sessions.",
+        "A copied profile is not a live credential replication channel once provider refresh-token rotation occurs."
+      ],
+      "scope_in": [
+        "Document manual invocation, safe result meanings, the interactive-login fallback, and an opt-in scheduler example based on JSON and exit status.",
+        "State that the command makes no model-generation request and that CDX never creates or enables a scheduler on behalf of the user.",
+        "Explain the independent-host and rotating-refresh-token boundary concisely without prescribing auth-file copying."
+      ],
+      "scope_out": [
+        "Provisioning a system scheduler, deploying host configuration, or managing scheduler credentials.",
+        "Publishing real host names, account names, organization names, or credential examples."
+      ],
+      "acceptance_criteria": [
+        "AC1: README and command help show a manual single-session and all-session invocation.",
+        "AC2: Documentation supplies one opt-in scheduler example and makes clear that the user owns its installation and cadence.",
+        "AC3: Documentation says that login-required needs an interactive cdx login and never suggests exposing tokens in a scheduler.",
+        "AC4: Documentation checks and focused command-contract tests pass."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate opt-in Codex authentication refresh probes",
+    "plan": [
+      "Trace the existing Codex usage app-server request, auth locking, command parsing, result formatting, and provider-auth status paths.",
+      "Implement the minimal one-or-all Codex refresh command with typed safe outcomes and focused lock, failure, and no-generation checks.",
+      "Document manual operation and a user-owned scheduler example without adding scheduling machinery.",
+      "Run focused validation, complete project checks, and record implementation evidence in the Logics task."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/opt_in_codex_auth_refresh.json",
+    "mode": "diff-first",
+    "profile": "deep"
+  }
+}
