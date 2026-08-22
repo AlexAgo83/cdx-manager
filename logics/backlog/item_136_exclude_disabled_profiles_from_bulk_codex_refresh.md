@@ -1,14 +1,14 @@
 ## item_136_exclude_disabled_profiles_from_bulk_codex_refresh - Exclude disabled profiles from bulk Codex refresh
 > From version: 0.20.4
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Progress: 100%
 > Complexity: Low
 > Theme: Authentication reliability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-22 12:01:27
+> Indicators reviewed: 2026-08-22 14:15:43
 
 # AI Context
 - Summary: Keep intentionally disabled profiles out of bulk checks while retaining explicit diagnostic access.
@@ -48,3 +48,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_077_orchestrate_truthful_codex_authentication_health_signals`
+
+# Notes
+- Task `task_077_orchestrate_truthful_codex_authentication_health_signals` was finished via `logics-manager flow finish task` on 2026-08-22.

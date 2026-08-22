@@ -1,11 +1,12 @@
 ## prod_051_truthful_codex_authentication_health_signals - Truthful Codex authentication health signals
 > Date: 2026-08-22
-> Status: Proposed
+> Status: Settled
 > Related request: `req_068_harden_codex_authentication_observability`
-> Related backlog: `item_135_classify_live_codex_diagnostic_failures_safely`, `item_136_exclude_disabled_profiles_from_bulk_codex_refresh`, `item_137_make_all_locked_bulk_refresh_results_explicit`
+> Related backlog: `item_135_classify_live_codex_diagnostic_failures_safely`
 > Related task: `task_077_orchestrate_truthful_codex_authentication_health_signals`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-22 14:15:43
 
 # Overview
 Make CDX authentication diagnostics and opt-in scheduled probes tell operators whether a profile needs a login, has an operational probe failure, is intentionally disabled, or could not be verified because it is busy.
@@ -43,5 +44,5 @@ flowchart LR
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_068_harden_codex_authentication_observability`
+- Product back-reference: `item_135_classify_live_codex_diagnostic_failures_safely`
 - Task back-reference: `task_077_orchestrate_truthful_codex_authentication_health_signals`

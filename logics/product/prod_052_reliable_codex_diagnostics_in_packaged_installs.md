@@ -1,11 +1,12 @@
 ## prod_052_reliable_codex_diagnostics_in_packaged_installs - Reliable Codex diagnostics in packaged installs
 > Date: 2026-08-22
-> Status: Proposed
+> Status: Settled
 > Related request: `req_069_harden_codex_probe_process_and_package_smoke_coverage`
-> Related backlog: `item_138_drain_codex_app_server_diagnostic_stderr_safely`, `item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts`
+> Related backlog: `item_138_drain_codex_app_server_diagnostic_stderr_safely`
 > Related task: `task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-22 14:15:49
 
 # Overview
 Keep a provider diagnostic responsive under noisy subprocess output and verify that both published package forms can run the operator health command.
@@ -41,5 +42,5 @@ flowchart LR
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_069_harden_codex_probe_process_and_package_smoke_coverage`
+- Product back-reference: `item_138_drain_codex_app_server_diagnostic_stderr_safely`
 - Task back-reference: `task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes`

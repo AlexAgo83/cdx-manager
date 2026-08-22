@@ -1,13 +1,13 @@
 ## req_069_harden_codex_probe_process_and_package_smoke_coverage - Harden Codex probe process and package smoke coverage
 > From version: 0.20.4
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
 > Theme: Reliability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-22 11:59:10
+> Indicators reviewed: 2026-08-22 14:15:48
 
 # AI Context
 - Summary: Prevent subprocess backpressure from impersonating an authentication failure and verify doctor from distributable artifacts.
