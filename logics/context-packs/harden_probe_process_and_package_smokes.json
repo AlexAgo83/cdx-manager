@@ -1,0 +1,371 @@
+{
+  "budgets": {
+    "max_docs": 16,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_138_drain_codex_app_server_diagnostic_stderr_safely.md",
+    "logics/backlog/item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts.md",
+    "logics/product/prod_052_reliable_codex_diagnostics_in_packaged_installs.md",
+    "logics/request/req_069_harden_codex_probe_process_and_package_smoke_coverage.md",
+    "logics/scaffold/harden_probe_process_and_package_smokes.json",
+    "logics/tasks/task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes.md"
+  ],
+  "command": "logics-manager sync context-pack req_069_harden_codex_probe_process_and_package_smoke_coverage item_138_drain_codex_app_server_diagnostic_stderr_safely item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_138_drain_codex_app_server_diagnostic_stderr_safely",
+          "item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts"
+        ],
+        "prod": [
+          "prod_052_reliable_codex_diagnostics_in_packaged_installs"
+        ],
+        "req": [
+          "req_069_harden_codex_probe_process_and_package_smoke_coverage"
+        ],
+        "task": [
+          "task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes"
+        ]
+      },
+      "path": "logics/product/prod_052_reliable_codex_diagnostics_in_packaged_installs.md",
+      "ref": "prod_052_reliable_codex_diagnostics_in_packaged_installs",
+      "sections": {
+        "Goals": [
+          "- Eliminate stderr backpressure as a false authentication diagnostic failure.",
+          "- Verify the operational doctor command from npm and wheel artifacts before release.",
+          "- Keep CI provider-independent and credential-free."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Keep a provider diagnostic responsive under noisy subprocess output and verify that both published package forms can run the operator health command."
+        ],
+        "References": [
+          "- Product back-reference: `req_069_harden_codex_probe_process_and_package_smoke_coverage`",
+          "- Task back-reference: `task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Reliable Codex diagnostics in packaged installs"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "harden, codex, probe, process, package, smoke, coverage",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_138_drain_codex_app_server_diagnostic_stderr_safely",
+          "item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts"
+        ],
+        "prod": [
+          "prod_052_reliable_codex_diagnostics_in_packaged_installs"
+        ],
+        "req": [
+          "req_069_harden_codex_probe_process_and_package_smoke_coverage"
+        ]
+      },
+      "path": "logics/request/req_069_harden_codex_probe_process_and_package_smoke_coverage.md",
+      "ref": "req_069_harden_codex_probe_process_and_package_smoke_coverage",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: The app-server diagnostic cannot block because stderr fills while stdout is awaited; its existing timeout and token-safe error contract remain intact.",
+          "- AC2: Focused tests simulate stderr output alongside a valid JSON-RPC response and prove that the diagnostic completes.",
+          "- AC3: CI installs both packed npm and wheel artifacts and runs a controlled `cdx doctor --json` smoke using local provider shims.",
+          "- AC4: The smoke proves the packaged command can create isolated profiles and report doctor output without a real provider login or network request."
+        ],
+        "Needs": [
+          "- The Codex app-server diagnostic awaits stdout while stderr is piped but never consumed; provider diagnostics must not deadlock or time out merely because stderr is written.",
+          "- Published npm and wheel artifacts need to execute a non-destructive doctor smoke in CI, so a source-only validation cannot mask a packaging regression."
+        ]
+      },
+      "status": "Draft",
+      "title": "Harden Codex probe process and package smoke coverage"
+    },
+    {
+      "ai_context": {
+        "keywords": "drain, codex, app, server, diagnostic, stderr, safely",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_138_drain_codex_app_server_diagnostic_stderr_safely"
+        ],
+        "prod": [
+          "prod_052_reliable_codex_diagnostics_in_packaged_installs"
+        ],
+        "req": [
+          "req_069_harden_codex_probe_process_and_package_smoke_coverage"
+        ],
+        "task": [
+          "task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes"
+        ]
+      },
+      "path": "logics/backlog/item_138_drain_codex_app_server_diagnostic_stderr_safely.md",
+      "ref": "item_138_drain_codex_app_server_diagnostic_stderr_safely",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A simulated app-server can write stderr and still return the expected stdout JSON-RPC response.",
+          "- AC2: The probe retains its bounded timeout and cleanup behavior.",
+          "- AC3: No provider stderr is surfaced to callers."
+        ],
+        "Problem": [
+          "- The app-server probe pipes stderr without consuming it, which can block a child process before the expected stdout response arrives."
+        ]
+      },
+      "status": "Ready",
+      "title": "Drain Codex app-server diagnostic stderr safely"
+    },
+    {
+      "ai_context": {
+        "keywords": "smoke, test, doctor, packed, npm, wheel, artifacts",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts"
+        ],
+        "prod": [
+          "prod_052_reliable_codex_diagnostics_in_packaged_installs"
+        ],
+        "req": [
+          "req_069_harden_codex_probe_process_and_package_smoke_coverage"
+        ],
+        "task": [
+          "task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes"
+        ]
+      },
+      "path": "logics/backlog/item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts.md",
+      "ref": "item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: The packed npm installation runs `cdx doctor --json` against the local shims.",
+          "- AC2: The wheel installation runs the same smoke against the local shims.",
+          "- AC3: The job stays deterministic without network or credential access."
+        ],
+        "Problem": [
+          "- Package jobs validate only command metadata, so a packaged operational doctor regression can escape the source test matrix."
+        ]
+      },
+      "status": "Ready",
+      "title": "Smoke test doctor from packed npm and wheel artifacts"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_138_drain_codex_app_server_diagnostic_stderr_safely",
+          "item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts"
+        ],
+        "prod": [
+          "prod_052_reliable_codex_diagnostics_in_packaged_installs"
+        ],
+        "req": [
+          "req_069_harden_codex_probe_process_and_package_smoke_coverage"
+        ],
+        "task": [
+          "task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes"
+        ]
+      },
+      "path": "logics/product/prod_052_reliable_codex_diagnostics_in_packaged_installs.md",
+      "ref": "prod_052_reliable_codex_diagnostics_in_packaged_installs",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Reliable Codex diagnostics in packaged installs"
+    },
+    {
+      "ai_context": {
+        "keywords": "orchestrate, reliable, codex, diagnostics, package, smokes",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_138_drain_codex_app_server_diagnostic_stderr_safely",
+          "item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts"
+        ],
+        "prod": [
+          "prod_052_reliable_codex_diagnostics_in_packaged_installs"
+        ],
+        "req": [
+          "req_069_harden_codex_probe_process_and_package_smoke_coverage"
+        ],
+        "task": [
+          "task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes"
+        ]
+      },
+      "path": "logics/tasks/task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes.md",
+      "ref": "task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate reliable Codex diagnostics and package smokes"
+    }
+  ],
+  "estimates": {
+    "char_count": 7578,
+    "companion_doc_count": 1,
+    "doc_count": 5
+  },
+  "generated_at": "2026-08-22T09:58:46Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_069_harden_codex_probe_process_and_package_smoke_coverage",
+      "item_138_drain_codex_app_server_diagnostic_stderr_safely",
+      "item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts",
+      "task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_069_harden_codex_probe_process_and_package_smoke_coverage,item_138_drain_codex_app_server_diagnostic_stderr_safely,item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts,task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes",
+  "refs": [
+    "req_069_harden_codex_probe_process_and_package_smoke_coverage",
+    "item_138_drain_codex_app_server_diagnostic_stderr_safely",
+    "item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts",
+    "task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes"
+  ],
+  "release": {
+    "blocking_reasons": [],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Release evidence is complete.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": null,
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "ready",
+    "target_version": "0.20.4"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes.md",
+      "ref": "task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes"
+    }
+  ]
+}

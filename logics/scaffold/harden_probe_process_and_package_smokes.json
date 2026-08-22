@@ -1,0 +1,103 @@
+{
+  "title": "Harden Codex probe process and package smoke coverage",
+  "references": [
+    "src/codex_usage.py",
+    "test/test_codex_usage_py.py",
+    ".github/workflows/ci.yml",
+    "package.json",
+    "pyproject.toml"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Reliability",
+    "needs": [
+      "The Codex app-server diagnostic awaits stdout while stderr is piped but never consumed; provider diagnostics must not deadlock or time out merely because stderr is written.",
+      "Published npm and wheel artifacts need to execute a non-destructive doctor smoke in CI, so a source-only validation cannot mask a packaging regression."
+    ],
+    "context": [
+      "`src/codex_usage.py` creates the app-server process with both stdout and stderr pipes, but starts a reader thread only for stdout before awaiting JSON-RPC responses.",
+      "`.github/workflows/ci.yml` checks `cdx doctor --json` from a source install on one platform, while the packaged npm and wheel jobs only execute `--version` and `schema --json`.",
+      "The work must stay local and deterministic: no live provider account, credential, network call, or release publication is required for CI smoke coverage."
+    ],
+    "acceptance_criteria": [
+      "AC1: The app-server diagnostic cannot block because stderr fills while stdout is awaited; its existing timeout and token-safe error contract remain intact.",
+      "AC2: Focused tests simulate stderr output alongside a valid JSON-RPC response and prove that the diagnostic completes.",
+      "AC3: CI installs both packed npm and wheel artifacts and runs a controlled `cdx doctor --json` smoke using local provider shims.",
+      "AC4: The smoke proves the packaged command can create isolated profiles and report doctor output without a real provider login or network request."
+    ]
+  },
+  "product": {
+    "title": "Reliable Codex diagnostics in packaged installs",
+    "overview": "Keep a provider diagnostic responsive under noisy subprocess output and verify that both published package forms can run the operator health command.",
+    "goals": [
+      "Eliminate stderr backpressure as a false authentication diagnostic failure.",
+      "Verify the operational doctor command from npm and wheel artifacts before release.",
+      "Keep CI provider-independent and credential-free."
+    ],
+    "non_goals": [
+      "No live provider integration test, network call, release publication, or credential fixture.",
+      "No redesign of the app-server JSON-RPC protocol or provider diagnostics.",
+      "No new test framework or external CI service."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Drain Codex app-server diagnostic stderr safely",
+      "priority": "High",
+      "complexity": "Low",
+      "theme": "Reliability",
+      "request_acs": ["AC1", "AC2"],
+      "problem": [
+        "The app-server probe pipes stderr without consuming it, which can block a child process before the expected stdout response arrives."
+      ],
+      "scope_in": [
+        "Use the smallest safe stderr handling path for the existing subprocess lifecycle.",
+        "Cover a noisy stderr response and preserve existing timeout and cleanup behavior."
+      ],
+      "scope_out": [
+        "Returning provider stderr to CLI users or changing authentication result payloads."
+      ],
+      "acceptance_criteria": [
+        "AC1: A simulated app-server can write stderr and still return the expected stdout JSON-RPC response.",
+        "AC2: The probe retains its bounded timeout and cleanup behavior.",
+        "AC3: No provider stderr is surfaced to callers."
+      ]
+    },
+    {
+      "title": "Smoke test doctor from packed npm and wheel artifacts",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Release verification",
+      "request_acs": ["AC3", "AC4"],
+      "problem": [
+        "Package jobs validate only command metadata, so a packaged operational doctor regression can escape the source test matrix."
+      ],
+      "scope_in": [
+        "Extend the existing package-smoke job with controlled command shims and isolated CDX state.",
+        "Run doctor from both installed package forms."
+      ],
+      "scope_out": [
+        "Live account checks, package publication, or an additional CI platform matrix."
+      ],
+      "acceptance_criteria": [
+        "AC1: The packed npm installation runs `cdx doctor --json` against the local shims.",
+        "AC2: The wheel installation runs the same smoke against the local shims.",
+        "AC3: The job stays deterministic without network or credential access."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate reliable Codex diagnostics and package smokes",
+    "plan": [
+      "Trace the app-server subprocess streams and test doubles to select the smallest stderr handling change.",
+      "Add the noisy-stderr regression test and retain timeout and cleanup coverage.",
+      "Extend package artifact setup with minimal local provider shims and isolated state.",
+      "Run doctor from the packed npm and wheel installs, then run project and Logics validation."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/harden_probe_process_and_package_smokes.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}

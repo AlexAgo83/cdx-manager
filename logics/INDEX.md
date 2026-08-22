@@ -71,6 +71,7 @@
 | [prod_049_token_numbers_a_user_can_act_on](product/prod_049_token_numbers_a_user_can_act_on.md) | Token numbers a user can act on | Settled |  |  | product/prod_049_token_numbers_a_user_can_act_on.md |
 | [prod_050_opt_in_codex_authentication_refresh_probes](product/prod_050_opt_in_codex_authentication_refresh_probes.md) | Opt-in Codex authentication refresh probes | Proposed |  |  | product/prod_050_opt_in_codex_authentication_refresh_probes.md |
 | [prod_051_truthful_codex_authentication_health_signals](product/prod_051_truthful_codex_authentication_health_signals.md) | Truthful Codex authentication health signals | Proposed |  |  | product/prod_051_truthful_codex_authentication_health_signals.md |
+| [prod_052_reliable_codex_diagnostics_in_packaged_installs](product/prod_052_reliable_codex_diagnostics_in_packaged_installs.md) | Reliable Codex diagnostics in packaged installs | Proposed |  |  | product/prod_052_reliable_codex_diagnostics_in_packaged_installs.md |
 
 ## Roadmaps
 
@@ -151,6 +152,7 @@ _None_
 | [req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions](request/req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions.md) | Offer opt-in refresh probes for managed Codex sessions | Draft |  |  | request/req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions.md |
 | [req_067_review_findings_codex_authentication_observability](request/req_067_review_findings_codex_authentication_observability.md) | Review findings: Codex authentication observability | Draft |  |  | request/req_067_review_findings_codex_authentication_observability.md |
 | [req_068_harden_codex_authentication_observability](request/req_068_harden_codex_authentication_observability.md) | Harden Codex authentication observability | Draft |  |  | request/req_068_harden_codex_authentication_observability.md |
+| [req_069_harden_codex_probe_process_and_package_smoke_coverage](request/req_069_harden_codex_probe_process_and_package_smoke_coverage.md) | Harden Codex probe process and package smoke coverage | Draft |  |  | request/req_069_harden_codex_probe_process_and_package_smoke_coverage.md |
 
 ## Backlog
 
@@ -296,6 +298,8 @@ _None_
 | [item_135_classify_live_codex_diagnostic_failures_safely](backlog/item_135_classify_live_codex_diagnostic_failures_safely.md) | Classify live Codex diagnostic failures safely | Ready |  | 0% | backlog/item_135_classify_live_codex_diagnostic_failures_safely.md |
 | [item_136_exclude_disabled_profiles_from_bulk_codex_refresh](backlog/item_136_exclude_disabled_profiles_from_bulk_codex_refresh.md) | Exclude disabled profiles from bulk Codex refresh | Ready |  | 0% | backlog/item_136_exclude_disabled_profiles_from_bulk_codex_refresh.md |
 | [item_137_make_all_locked_bulk_refresh_results_explicit](backlog/item_137_make_all_locked_bulk_refresh_results_explicit.md) | Make all-locked bulk refresh results explicit | Ready |  | 0% | backlog/item_137_make_all_locked_bulk_refresh_results_explicit.md |
+| [item_138_drain_codex_app_server_diagnostic_stderr_safely](backlog/item_138_drain_codex_app_server_diagnostic_stderr_safely.md) | Drain Codex app-server diagnostic stderr safely | Ready |  | 0% | backlog/item_138_drain_codex_app_server_diagnostic_stderr_safely.md |
+| [item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts](backlog/item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts.md) | Smoke test doctor from packed npm and wheel artifacts | Ready |  | 0% | backlog/item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts.md |
 
 ## Tasks
 
@@ -383,6 +387,7 @@ _None_
 | [task_075_drop_token_usage_cdx_cannot_vouch_for](tasks/task_075_drop_token_usage_cdx_cannot_vouch_for.md) | Drop token usage cdx cannot vouch for | Done |  | 100% | tasks/task_075_drop_token_usage_cdx_cannot_vouch_for.md |
 | [task_076_orchestrate_opt_in_codex_authentication_refresh_probes](tasks/task_076_orchestrate_opt_in_codex_authentication_refresh_probes.md) | Orchestrate opt-in Codex authentication refresh probes | In progress | Codex | 90% | tasks/task_076_orchestrate_opt_in_codex_authentication_refresh_probes.md |
 | [task_077_orchestrate_truthful_codex_authentication_health_signals](tasks/task_077_orchestrate_truthful_codex_authentication_health_signals.md) | Orchestrate truthful Codex authentication health signals | Ready |  | 0% | tasks/task_077_orchestrate_truthful_codex_authentication_health_signals.md |
+| [task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes](tasks/task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes.md) | Orchestrate reliable Codex diagnostics and package smokes | Ready |  | 0% | tasks/task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes.md |
 
 ## Runbooks
 
