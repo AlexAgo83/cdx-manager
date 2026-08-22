@@ -750,7 +750,9 @@ class MaintenanceCommandTests(CliTestBase):
     def test_doctor_reports_locked_codex_auth_probe_as_degraded(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
-        service["create_session"]("main")
+        session = service["create_session"]("main")
+        with open(os.path.join(session["authHome"], "auth.json"), "w", encoding="utf-8") as handle:
+            json.dump({"tokens": {"refresh_token": "secret-token"}}, handle)
 
         doctor_io = self.make_io()
         with mock.patch("src.provider_runtime.fetch_codex_rate_limit_diagnostic", return_value={
