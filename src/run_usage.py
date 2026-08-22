@@ -99,9 +99,8 @@ CACHE_READ_MULTIPLIER = 0.1
 CACHE_WRITE_MULTIPLIER = 1.25
 
 #: What an output token costs relative to an uncached input one, when the model
-#: is unknown. Anthropic bills 5x and OpenAI 6x, so an unknown model is priced
-#: at the lower of the two: understating a cost cdx is guessing at is the safer
-#: direction.
+#: is unknown. Current model ratios vary, so an unknown model is priced at the
+#: low known ratio: understating a cost cdx is guessing at is the safer direction.
 DEFAULT_OUTPUT_MULTIPLIER = 5.0
 
 
@@ -155,13 +154,11 @@ def weighted_usage(usage, model=None, prices=None):
 #: rather than editing code, and treat an unknown model as unpriced instead of
 #: assuming a tier. `scripts/check_token_prices.py` re-checks this table
 #: against published pricing and a staleness test fails when nobody has;
-#: `docs/token-prices-runbook.md` records where the numbers live and which
+#: `logics/runbook/run_005_maintaining_the_token_price_table.md` records where the numbers live and which
 #: vendor pages refuse to be read.
 #:
-#: Anthropic figures come from the vendor's own reference. OpenAI figures were
-#: taken from third-party aggregators on 2026-08-14 because openai.com refuses
-#: automated fetches; four sources agreed on $2.50/$15 for Terra and one
-#: outlier said $2/$12, so these carry more doubt than the Anthropic rows.
+#: Anthropic and OpenAI figures come from the vendors' own references, checked
+#: on the review date below.
 #:
 #: Not modelled: OpenAI's long-context tier, which roughly doubles both rates
 #: above a 272K-token request. cdx records tokens per run, not per request, so
@@ -175,15 +172,29 @@ DEFAULT_TOKEN_PRICES = {
     "claude-opus-4-8": {"input": 5.0, "output": 25.0},
     "claude-opus-4-7": {"input": 5.0, "output": 25.0},
     "claude-opus-4-6": {"input": 5.0, "output": 25.0},
-    "claude-sonnet-5": {"input": 3.0, "output": 15.0},
+    "claude-opus-4-5": {"input": 5.0, "output": 25.0},
+    "claude-sonnet-5": {"input": 2.0, "output": 10.0},
     "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
+    "claude-sonnet-4-5": {"input": 3.0, "output": 15.0},
+    "claude-sonnet-4-5-20250929": {"input": 3.0, "output": 15.0},
     "claude-haiku-4-5": {"input": 1.0, "output": 5.0},
+    "claude-haiku-4-5-20251001": {"input": 1.0, "output": 5.0},
     # OpenAI
-    "gpt-5.6-sol": {"input": 5.0, "output": 30.0},
-    "gpt-5.6-terra": {"input": 2.5, "output": 15.0},
-    "gpt-5.6-luna": {"input": 1.0, "output": 6.0},
+    "gpt-5.6": {"input": 4.0, "output": 20.0},
+    "gpt-5.6-sol": {"input": 4.0, "output": 20.0},
+    "gpt-5.6-terra": {"input": 2.0, "output": 12.0},
+    "gpt-5.6-luna": {"input": 0.2, "output": 1.2},
+    "gpt-5.5": {"input": 5.0, "output": 30.0},
+    "gpt-5.5-2026-04-23": {"input": 5.0, "output": 30.0},
+    "gpt-5.4": {"input": 2.5, "output": 15.0},
+    "gpt-5.4-2026-03-05": {"input": 2.5, "output": 15.0},
+    "gpt-5.4-mini": {"input": 0.75, "output": 4.5},
+    "gpt-5.4-mini-2026-03-17": {"input": 0.75, "output": 4.5},
+    "gpt-5.4-nano": {"input": 0.2, "output": 1.25},
+    "gpt-5.4-nano-2026-03-17": {"input": 0.2, "output": 1.25},
+    "gpt-5.3-codex": {"input": 1.75, "output": 14.0},
 }
-TOKEN_PRICES_REVIEWED = "2026-08-14"
+TOKEN_PRICES_REVIEWED = "2026-08-22"
 #: How long a review stays fresh before the staleness test asks for another.
 TOKEN_PRICES_MAX_AGE_DAYS = 90
 TOKEN_PRICES_ENV = "CDX_TOKEN_PRICES"
@@ -215,8 +226,7 @@ def estimate_cost(usage, model, prices=None):
 
     Each token class is priced directly rather than through the weighted
     figure. That shortcut was only correct while every model shared one
-    output-to-input ratio, and it does not: Anthropic bills 5x, OpenAI 6x, so
-    it under-costed Codex output by a fifth.
+    output-to-input ratio, and they do not.
 
     ponytail: a run is priced at one model -- the one serving its most recent
     record -- rather than split per model. A session that switches models

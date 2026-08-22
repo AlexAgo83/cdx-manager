@@ -11,7 +11,7 @@ Run it when the staleness test asks, or before cutting a release.
 
 Exit code is 1 when a difference is found, so it can gate a release script.
 
-`docs/token-prices-runbook.md` records where the numbers actually live and
+`logics/runbook/run_005_maintaining_the_token_price_table.md` records where the numbers actually live and
 which sources refuse to be read, so the next person does not rediscover it.
 
 The vendor pages are read as text and matched loosely, because they are
@@ -40,17 +40,15 @@ SOURCES = {
     # Carries the numbers, but as a transposed table -- one column per model --
     # so an id and its price never share a line. Reported unverified, by design.
     "claude": "https://platform.claude.com/docs/en/about-claude/models/overview.md",
-    # openai.com/api/pricing answers 403 to automated fetches, so this is a
-    # third-party aggregator. Corroborate before trusting a change from it.
-    "gpt": "https://modelpricing.ai/models/openai",
+    "gpt": "https://developers.openai.com/api/docs/pricing.md",
 }
 TIMEOUT_SECONDS = 20
 
 #: Output-to-input ratios seen in the wild. A model outside this set is not
 #: necessarily wrong, but it is a structural surprise worth a human look --
-#: exactly the shape of the discovery that OpenAI bills output at 6x where
-#: Anthropic bills 5x, which a price-only check would have missed.
-KNOWN_OUTPUT_RATIOS = (5.0, 6.0)
+#: exactly the shape of the discovery that output ratios vary by model, which
+#: a price-only check would have missed.
+KNOWN_OUTPUT_RATIOS = (5.0, 6.0, 6.25, 8.0)
 
 
 def _fetch(url):
@@ -155,7 +153,7 @@ def main():
         missing = [r["model"] for r in rows if not r["priced"]]
         if missing:
             print(f"\nUnpriced and in use: {', '.join(missing)}")
-            print("See docs/token-prices-runbook.md before adding them.")
+            print("See logics/runbook/run_005_maintaining_the_token_price_table.md before adding them.")
         return 1 if missing else 0
 
     results = check()
@@ -180,7 +178,7 @@ def main():
         if differs:
             print("\nUpdate DEFAULT_TOKEN_PRICES and TOKEN_PRICES_REVIEWED in "
                   "src/run_usage.py, then cut a corrective release. "
-                  "docs/token-prices-runbook.md has the steps.")
+                  "logics/runbook/run_005_maintaining_the_token_price_table.md has the steps.")
     return 1 if any(r["status"] == "differs" for r in results) else 0
 
 

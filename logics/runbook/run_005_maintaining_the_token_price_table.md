@@ -1,7 +1,7 @@
 ## run_005_maintaining_the_token_price_table - Maintaining the token price table
 > Status: Draft
 > Category: support
-> Verified: 2026-08-15, migrated from `docs/token-prices-runbook.md`.
+> Verified: 2026-08-22, migrated from `docs/token-prices-runbook.md`.
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: (none yet)
@@ -25,20 +25,20 @@
    python3 scripts/check_token_prices.py --from-history
    ```
 
-2. Verify provider pricing. Prefer the vendor's documentation. OpenAI's price
-   page can refuse automated fetches, so corroborate an alternate source with
-   at least one independent source before changing a price. Anthropic's model
-   table is transposed; read its model and price columns manually when the
-   script reports an unverified row.
+2. Verify provider pricing. Prefer the vendor's documentation: OpenAI's API
+   pricing/model pages and Anthropic's Claude pricing/model pages carry the
+   token prices directly. Anthropic's model table can still be transposed; read
+   its model and price columns manually when the script reports an unverified
+   row.
 
 3. Update `DEFAULT_TOKEN_PRICES` in `src/run_usage.py` using the exact model
    id emitted by provider transcripts. Set `TOKEN_PRICES_REVIEWED` to today,
    even when no amount changes.
 
-4. Check the assumptions behind the estimates: cache read is `0.1x` input,
-   cache write is `1.25x`, and output is normally `5x` input for Anthropic or
-   `6x` for OpenAI. Treat a different output ratio as an accounting-assumption
-   review, not merely a table edit.
+4. Check the assumptions behind the estimates: cache read is `0.1x` input and
+   cache write is `1.25x` for the supported non-Pro rows. Output/input ratios
+   vary by model. Treat a new ratio as an accounting-assumption review, not
+   merely a table edit.
 
 5. Validate and release the correction:
 

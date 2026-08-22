@@ -30,8 +30,8 @@ class WeightedUsageTests(unittest.TestCase):
         self.assertEqual(weighted_usage(usage), 100 + 125 + 10 + 500)
 
     def test_the_output_ratio_follows_the_model_that_served_the_run(self):
-        # The one multiplier that differs between vendors: Anthropic bills 5x
-        # an input token, OpenAI 6x. Weighing Codex at 5x under-stated it.
+        # The one multiplier that differs by model is output. Weighing every
+        # Codex run at 5x under-stated Terra output.
         usage = normalize_usage(output_tokens=1000)
         self.assertEqual(weighted_usage(usage, "claude-opus-5"), 5000)
         self.assertEqual(weighted_usage(usage, "gpt-5.6-terra"), 6000)
@@ -86,7 +86,25 @@ class CostEstimateTests(unittest.TestCase):
         # output ratio. It does not, so cost prices each class at its own rate.
         usage = normalize_usage(input_tokens=1_000_000, output_tokens=1_000_000)
         self.assertAlmostEqual(estimate_cost(usage, "claude-opus-5"), 30.0)
-        self.assertAlmostEqual(estimate_cost(usage, "gpt-5.6-terra"), 17.5)
+        self.assertAlmostEqual(estimate_cost(usage, "gpt-5.6-terra"), 14.0)
+
+    def test_current_codex_and_claude_models_are_priced(self):
+        table = DEFAULT_TOKEN_PRICES
+        expected = {
+            "gpt-5.6": {"input": 4.0, "output": 20.0},
+            "gpt-5.5": {"input": 5.0, "output": 30.0},
+            "gpt-5.5-2026-04-23": {"input": 5.0, "output": 30.0},
+            "gpt-5.4": {"input": 2.5, "output": 15.0},
+            "gpt-5.4-mini": {"input": 0.75, "output": 4.5},
+            "gpt-5.4-nano": {"input": 0.2, "output": 1.25},
+            "gpt-5.3-codex": {"input": 1.75, "output": 14.0},
+            "claude-sonnet-5": {"input": 2.0, "output": 10.0},
+            "claude-sonnet-4-5": {"input": 3.0, "output": 15.0},
+            "claude-sonnet-4-5-20250929": {"input": 3.0, "output": 15.0},
+            "claude-haiku-4-5-20251001": {"input": 1.0, "output": 5.0},
+        }
+        for model, rate in expected.items():
+            self.assertEqual(table[model], rate, model)
 
     def test_an_unknown_model_is_unpriced_rather_than_assumed(self):
         # Charging a default tier would turn "cdx does not know" into a number
@@ -162,7 +180,7 @@ class PriceTableFreshnessTests(unittest.TestCase):
             age, TOKEN_PRICES_MAX_AGE_DAYS,
             f"Token prices were last reviewed {age} days ago "
             f"({TOKEN_PRICES_REVIEWED}). Run scripts/check_token_prices.py and "
-            f"follow docs/token-prices-runbook.md.")
+            f"follow logics/runbook/run_005_maintaining_the_token_price_table.md.")
 
     def test_the_review_date_is_not_in_the_future(self):
         # A future date would silence the check indefinitely. One day of slack,
