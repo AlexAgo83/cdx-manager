@@ -1,13 +1,13 @@
 ## req_067_review_findings_codex_authentication_observability - Review findings: Codex authentication observability
 > From version: 0.20.4
 > Schema version: 1.0
-> Status: Draft
+> Status: Obsolete
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
 > Theme: General
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-22 11:48:32
+> Indicators reviewed: 2026-08-22 14:36:08
 
 # AI Context
 - Summary: Make scheduled Codex authentication checks distinguish actionable login loss from operational uncertainty and ignore intentionally inactive profiles.
@@ -58,3 +58,6 @@
 
 # Backlog
 - none
+
+# Links
+- Superseded by: `req_068_harden_codex_authentication_observability`
