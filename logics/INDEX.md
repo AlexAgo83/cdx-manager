@@ -70,6 +70,7 @@
 | [prod_048_ollama_sessions_report_real_token_usage](product/prod_048_ollama_sessions_report_real_token_usage.md) | Ollama sessions report real token usage | Settled |  |  | product/prod_048_ollama_sessions_report_real_token_usage.md |
 | [prod_049_token_numbers_a_user_can_act_on](product/prod_049_token_numbers_a_user_can_act_on.md) | Token numbers a user can act on | Settled |  |  | product/prod_049_token_numbers_a_user_can_act_on.md |
 | [prod_050_opt_in_codex_authentication_refresh_probes](product/prod_050_opt_in_codex_authentication_refresh_probes.md) | Opt-in Codex authentication refresh probes | Proposed |  |  | product/prod_050_opt_in_codex_authentication_refresh_probes.md |
+| [prod_051_truthful_codex_authentication_health_signals](product/prod_051_truthful_codex_authentication_health_signals.md) | Truthful Codex authentication health signals | Proposed |  |  | product/prod_051_truthful_codex_authentication_health_signals.md |
 
 ## Roadmaps
 
@@ -149,6 +150,7 @@ _None_
 | [req_065_drop_token_usage_cdx_cannot_vouch_for](request/req_065_drop_token_usage_cdx_cannot_vouch_for.md) | Drop token usage cdx cannot vouch for | Done |  |  | request/req_065_drop_token_usage_cdx_cannot_vouch_for.md |
 | [req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions](request/req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions.md) | Offer opt-in refresh probes for managed Codex sessions | Draft |  |  | request/req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions.md |
 | [req_067_review_findings_codex_authentication_observability](request/req_067_review_findings_codex_authentication_observability.md) | Review findings: Codex authentication observability | Draft |  |  | request/req_067_review_findings_codex_authentication_observability.md |
+| [req_068_harden_codex_authentication_observability](request/req_068_harden_codex_authentication_observability.md) | Harden Codex authentication observability | Draft |  |  | request/req_068_harden_codex_authentication_observability.md |
 
 ## Backlog
 
@@ -291,6 +293,9 @@ _None_
 | [item_132_drop_token_usage_cdx_cannot_vouch_for](backlog/item_132_drop_token_usage_cdx_cannot_vouch_for.md) | Drop token usage cdx cannot vouch for | Done |  | 100% | backlog/item_132_drop_token_usage_cdx_cannot_vouch_for.md |
 | [item_133_add_a_locked_non_generation_codex_auth_refresh_command](backlog/item_133_add_a_locked_non_generation_codex_auth_refresh_command.md) | Add a locked non-generation Codex auth refresh command | In progress |  | 90% | backlog/item_133_add_a_locked_non_generation_codex_auth_refresh_command.md |
 | [item_134_document_manual_and_scheduler_controlled_credential_maintenance](backlog/item_134_document_manual_and_scheduler_controlled_credential_maintenance.md) | Document manual and scheduler-controlled credential maintenance | In progress |  | 90% | backlog/item_134_document_manual_and_scheduler_controlled_credential_maintenance.md |
+| [item_135_classify_live_codex_diagnostic_failures_safely](backlog/item_135_classify_live_codex_diagnostic_failures_safely.md) | Classify live Codex diagnostic failures safely | Ready |  | 0% | backlog/item_135_classify_live_codex_diagnostic_failures_safely.md |
+| [item_136_exclude_disabled_profiles_from_bulk_codex_refresh](backlog/item_136_exclude_disabled_profiles_from_bulk_codex_refresh.md) | Exclude disabled profiles from bulk Codex refresh | Ready |  | 0% | backlog/item_136_exclude_disabled_profiles_from_bulk_codex_refresh.md |
+| [item_137_make_all_locked_bulk_refresh_results_explicit](backlog/item_137_make_all_locked_bulk_refresh_results_explicit.md) | Make all-locked bulk refresh results explicit | Ready |  | 0% | backlog/item_137_make_all_locked_bulk_refresh_results_explicit.md |
 
 ## Tasks
 
@@ -377,6 +382,7 @@ _None_
 | [task_074_resume_names_a_conversation_that_exists](tasks/task_074_resume_names_a_conversation_that_exists.md) | Resume names a conversation that exists | Done |  | 100% | tasks/task_074_resume_names_a_conversation_that_exists.md |
 | [task_075_drop_token_usage_cdx_cannot_vouch_for](tasks/task_075_drop_token_usage_cdx_cannot_vouch_for.md) | Drop token usage cdx cannot vouch for | Done |  | 100% | tasks/task_075_drop_token_usage_cdx_cannot_vouch_for.md |
 | [task_076_orchestrate_opt_in_codex_authentication_refresh_probes](tasks/task_076_orchestrate_opt_in_codex_authentication_refresh_probes.md) | Orchestrate opt-in Codex authentication refresh probes | In progress | Codex | 90% | tasks/task_076_orchestrate_opt_in_codex_authentication_refresh_probes.md |
+| [task_077_orchestrate_truthful_codex_authentication_health_signals](tasks/task_077_orchestrate_truthful_codex_authentication_health_signals.md) | Orchestrate truthful Codex authentication health signals | Ready |  | 0% | tasks/task_077_orchestrate_truthful_codex_authentication_health_signals.md |
 
 ## Runbooks
 

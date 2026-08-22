@@ -1,0 +1,131 @@
+{
+  "title": "Harden Codex authentication observability",
+  "references": [
+    "src/commands/auth.py",
+    "src/provider_runtime.py",
+    "src/codex_usage.py",
+    "src/health.py",
+    "test/test_commands_auth_py.py",
+    "test/test_commands_maintenance_py.py",
+    "README.md"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Authentication reliability",
+    "needs": [
+      "A live Codex probe can fail because interactive login is required or because the app-server itself is unavailable; operators need those safe outcomes distinguished without provider output or credentials.",
+      "A deliberately disabled Codex session is not eligible for automatic work and must not make `cdx auth refresh all` fail.",
+      "A scheduler receiving only locked outcomes has not verified any credential, so a silent success would misrepresent the fleet state."
+    ],
+    "context": [
+      "`src/commands/auth.py` already classifies safe login-required markers for the refresh command, while `src/provider_runtime.py` currently collapses an equivalent doctor probe failure into a generic error.",
+      "The `all` target currently selects every Codex session regardless of enabled state; an explicit named target remains the correct operator escape hatch for an intentionally disabled profile.",
+      "The per-profile lock in `src/codex_usage.py` prevents concurrent refresh-token rotation. A lock is not a provider failure, but it is also not evidence of a verified credential.",
+      "The work is limited to CDX result contracts, documentation, and tests. It neither creates a scheduler nor copies credentials between hosts."
+    ],
+    "acceptance_criteria": [
+      "AC1: `cdx doctor` reports a token-safe login-required outcome for an app-server response that indicates rejected authentication, and a distinct operational failure for other probe errors.",
+      "AC2: `cdx auth refresh all` skips disabled Codex sessions; an explicit named refresh still reports the selected disabled session's outcome.",
+      "AC3: A refresh result with no valid or failed probe because every selected session is locked is explicit and non-zero for automation, while a mixed valid-and-locked result remains successful.",
+      "AC4: JSON and text contracts, documentation, and focused tests cover valid, login-required, operational failure, disabled, locked-only, and mixed locked outcomes without exposing credentials or provider output."
+    ]
+  },
+  "product": {
+    "title": "Truthful Codex authentication health signals",
+    "overview": "Make CDX authentication diagnostics and opt-in scheduled probes tell operators whether a profile needs a login, has an operational probe failure, is intentionally disabled, or could not be verified because it is busy.",
+    "goals": [
+      "Preserve safe, non-generation provider probes while making their outcomes actionable.",
+      "Prevent intentionally disabled profiles from generating false scheduler failures.",
+      "Ensure automation never mistakes an all-locked probe for confirmed credential health."
+    ],
+    "non_goals": [
+      "No scheduler installation, host-to-host credential copying, or automatic interactive login.",
+      "No provider-response, token, account, or prompt disclosure.",
+      "No change to the per-profile refresh lock or to interactive session ownership."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Classify live Codex diagnostic failures safely",
+      "priority": "High",
+      "complexity": "Low",
+      "theme": "Authentication reliability",
+      "request_acs": ["AC1", "AC4"],
+      "problem": [
+        "Doctor currently cannot distinguish a rejected refresh token from a generic app-server probe failure."
+      ],
+      "scope_in": [
+        "Reuse one token-safe classification path for refresh and doctor diagnostics.",
+        "Add focused result-contract coverage and concise user guidance."
+      ],
+      "scope_out": [
+        "Returning raw provider responses or credentials.",
+        "Changing provider authentication flows."
+      ],
+      "acceptance_criteria": [
+        "AC1: Doctor reports login-required only for the established safe auth markers and preserves a separate operational error otherwise.",
+        "AC2: The diagnostic payload contains no raw provider response or credential material.",
+        "AC3: Focused tests cover both failure categories and the project validation suite passes."
+      ]
+    },
+    {
+      "title": "Exclude disabled profiles from bulk Codex refresh",
+      "priority": "High",
+      "complexity": "Low",
+      "theme": "Authentication reliability",
+      "request_acs": ["AC2", "AC4"],
+      "problem": [
+        "A disabled profile still participates in bulk authentication refresh and can create a known false alert."
+      ],
+      "scope_in": [
+        "Filter disabled sessions only for the bulk target.",
+        "Keep explicit named probing unchanged and document the distinction."
+      ],
+      "scope_out": [
+        "Deleting sessions automatically or changing their enabled state."
+      ],
+      "acceptance_criteria": [
+        "AC1: Bulk refresh omits disabled Codex sessions.",
+        "AC2: An explicit disabled session remains probeable by name.",
+        "AC3: JSON and text tests prove the selection behavior."
+      ]
+    },
+    {
+      "title": "Make all-locked bulk refresh results explicit",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Authentication reliability",
+      "request_acs": ["AC3", "AC4"],
+      "problem": [
+        "A bulk probe with only locked sessions exits successfully even though it verified no credential."
+      ],
+      "scope_in": [
+        "Define the smallest explicit non-success outcome for an all-locked selection.",
+        "Preserve success when at least one selected profile was verified and none failed."
+      ],
+      "scope_out": [
+        "Waiting for locks, killing active sessions, or bypassing the refresh lock."
+      ],
+      "acceptance_criteria": [
+        "AC1: An all-locked bulk refresh is visible to JSON, text, and exit-code consumers.",
+        "AC2: A valid-and-locked mixed result remains successful.",
+        "AC3: Documentation explains the scheduler consequence and focused tests cover both cases."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate truthful Codex authentication health signals",
+    "plan": [
+      "Trace the existing refresh result, live diagnostic, enabled-state, and scheduler-facing exit-code paths.",
+      "Centralize the token-safe authentication-failure classification and apply it to the doctor result contract.",
+      "Filter disabled sessions only in the bulk refresh selection while retaining explicit named checks.",
+      "Define and implement the all-locked result without changing the lock ownership behavior.",
+      "Add focused contract tests, update documentation, run project validation, and record task evidence."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/harden_codex_authentication_observability.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}

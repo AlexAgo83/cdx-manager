@@ -1,0 +1,417 @@
+{
+  "budgets": {
+    "max_docs": 20,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_135_classify_live_codex_diagnostic_failures_safely.md",
+    "logics/backlog/item_136_exclude_disabled_profiles_from_bulk_codex_refresh.md",
+    "logics/backlog/item_137_make_all_locked_bulk_refresh_results_explicit.md",
+    "logics/product/prod_051_truthful_codex_authentication_health_signals.md",
+    "logics/request/req_068_harden_codex_authentication_observability.md",
+    "logics/scaffold/harden_codex_authentication_observability.json",
+    "logics/tasks/task_077_orchestrate_truthful_codex_authentication_health_signals.md"
+  ],
+  "command": "logics-manager sync context-pack req_068_harden_codex_authentication_observability item_135_classify_live_codex_diagnostic_failures_safely item_136_exclude_disabled_profiles_from_bulk_codex_refresh item_137_make_all_locked_bulk_refresh_results_explicit task_077_orchestrate_truthful_codex_authentication_health_signals --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_135_classify_live_codex_diagnostic_failures_safely",
+          "item_136_exclude_disabled_profiles_from_bulk_codex_refresh",
+          "item_137_make_all_locked_bulk_refresh_results_explicit"
+        ],
+        "prod": [
+          "prod_051_truthful_codex_authentication_health_signals"
+        ],
+        "req": [
+          "req_068_harden_codex_authentication_observability"
+        ],
+        "task": [
+          "task_077_orchestrate_truthful_codex_authentication_health_signals"
+        ]
+      },
+      "path": "logics/product/prod_051_truthful_codex_authentication_health_signals.md",
+      "ref": "prod_051_truthful_codex_authentication_health_signals",
+      "sections": {
+        "Goals": [
+          "- Preserve safe, non-generation provider probes while making their outcomes actionable.",
+          "- Prevent intentionally disabled profiles from generating false scheduler failures.",
+          "- Ensure automation never mistakes an all-locked probe for confirmed credential health."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Make CDX authentication diagnostics and opt-in scheduled probes tell operators whether a profile needs a login, has an operational probe failure, is intentionally disabled, or could not be verified because it is busy."
+        ],
+        "References": [
+          "- Product back-reference: `req_068_harden_codex_authentication_observability`",
+          "- Task back-reference: `task_077_orchestrate_truthful_codex_authentication_health_signals`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Truthful Codex authentication health signals"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "harden, codex, authentication, observability",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_135_classify_live_codex_diagnostic_failures_safely",
+          "item_136_exclude_disabled_profiles_from_bulk_codex_refresh",
+          "item_137_make_all_locked_bulk_refresh_results_explicit"
+        ],
+        "prod": [
+          "prod_051_truthful_codex_authentication_health_signals"
+        ],
+        "req": [
+          "req_068_harden_codex_authentication_observability"
+        ]
+      },
+      "path": "logics/request/req_068_harden_codex_authentication_observability.md",
+      "ref": "req_068_harden_codex_authentication_observability",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: `cdx doctor` reports a token-safe login-required outcome for an app-server response that indicates rejected authentication, and a distinct operational failure for other probe errors.",
+          "- AC2: `cdx auth refresh all` skips disabled Codex sessions; an explicit named refresh still reports the selected disabled session's outcome.",
+          "- AC3: A refresh result with no valid or failed probe because every selected session is locked is explicit and non-zero for automation, while a mixed valid-and-locked result remains successful.",
+          "- AC4: JSON and text contracts, documentation, and focused tests cover valid, login-required, operational failure, disabled, locked-only, and mixed locked outcomes without exposing credentials or provider output."
+        ],
+        "Needs": [
+          "- A live Codex probe can fail because interactive login is required or because the app-server itself is unavailable; operators need those safe outcomes distinguished without provider output or credentials.",
+          "- A deliberately disabled Codex session is not eligible for automatic work and must not make `cdx auth refresh all` fail.",
+          "- A scheduler receiving only locked outcomes has not verified any credential, so a silent success would misrepresent the fleet state."
+        ]
+      },
+      "status": "Draft",
+      "title": "Harden Codex authentication observability"
+    },
+    {
+      "ai_context": {
+        "keywords": "classify, live, codex, diagnostic, failures, safely",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_135_classify_live_codex_diagnostic_failures_safely"
+        ],
+        "prod": [
+          "prod_051_truthful_codex_authentication_health_signals"
+        ],
+        "req": [
+          "req_068_harden_codex_authentication_observability"
+        ],
+        "task": [
+          "task_077_orchestrate_truthful_codex_authentication_health_signals"
+        ]
+      },
+      "path": "logics/backlog/item_135_classify_live_codex_diagnostic_failures_safely.md",
+      "ref": "item_135_classify_live_codex_diagnostic_failures_safely",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Doctor reports login-required only for the established safe auth markers and preserves a separate operational error otherwise.",
+          "- AC2: The diagnostic payload contains no raw provider response or credential material.",
+          "- AC3: Focused tests cover both failure categories and the project validation suite passes."
+        ],
+        "Problem": [
+          "- Doctor currently cannot distinguish a rejected refresh token from a generic app-server probe failure."
+        ]
+      },
+      "status": "Ready",
+      "title": "Classify live Codex diagnostic failures safely"
+    },
+    {
+      "ai_context": {
+        "keywords": "exclude, disabled, profiles, bulk, codex, refresh",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_136_exclude_disabled_profiles_from_bulk_codex_refresh"
+        ],
+        "prod": [
+          "prod_051_truthful_codex_authentication_health_signals"
+        ],
+        "req": [
+          "req_068_harden_codex_authentication_observability"
+        ],
+        "task": [
+          "task_077_orchestrate_truthful_codex_authentication_health_signals"
+        ]
+      },
+      "path": "logics/backlog/item_136_exclude_disabled_profiles_from_bulk_codex_refresh.md",
+      "ref": "item_136_exclude_disabled_profiles_from_bulk_codex_refresh",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Bulk refresh omits disabled Codex sessions.",
+          "- AC2: An explicit disabled session remains probeable by name.",
+          "- AC3: JSON and text tests prove the selection behavior."
+        ],
+        "Problem": [
+          "- A disabled profile still participates in bulk authentication refresh and can create a known false alert."
+        ]
+      },
+      "status": "Ready",
+      "title": "Exclude disabled profiles from bulk Codex refresh"
+    },
+    {
+      "ai_context": {
+        "keywords": "all, locked, bulk, refresh, results, explicit",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_137_make_all_locked_bulk_refresh_results_explicit"
+        ],
+        "prod": [
+          "prod_051_truthful_codex_authentication_health_signals"
+        ],
+        "req": [
+          "req_068_harden_codex_authentication_observability"
+        ],
+        "task": [
+          "task_077_orchestrate_truthful_codex_authentication_health_signals"
+        ]
+      },
+      "path": "logics/backlog/item_137_make_all_locked_bulk_refresh_results_explicit.md",
+      "ref": "item_137_make_all_locked_bulk_refresh_results_explicit",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: An all-locked bulk refresh is visible to JSON, text, and exit-code consumers.",
+          "- AC2: A valid-and-locked mixed result remains successful.",
+          "- AC3: Documentation explains the scheduler consequence and focused tests cover both cases."
+        ],
+        "Problem": [
+          "- A bulk probe with only locked sessions exits successfully even though it verified no credential."
+        ]
+      },
+      "status": "Ready",
+      "title": "Make all-locked bulk refresh results explicit"
+    },
+    {
+      "ai_context": {
+        "keywords": "orchestrate, truthful, codex, authentication, health, signals",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_135_classify_live_codex_diagnostic_failures_safely",
+          "item_136_exclude_disabled_profiles_from_bulk_codex_refresh",
+          "item_137_make_all_locked_bulk_refresh_results_explicit"
+        ],
+        "prod": [
+          "prod_051_truthful_codex_authentication_health_signals"
+        ],
+        "req": [
+          "req_068_harden_codex_authentication_observability"
+        ],
+        "task": [
+          "task_077_orchestrate_truthful_codex_authentication_health_signals"
+        ]
+      },
+      "path": "logics/tasks/task_077_orchestrate_truthful_codex_authentication_health_signals.md",
+      "ref": "task_077_orchestrate_truthful_codex_authentication_health_signals",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate truthful Codex authentication health signals"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_135_classify_live_codex_diagnostic_failures_safely",
+          "item_136_exclude_disabled_profiles_from_bulk_codex_refresh",
+          "item_137_make_all_locked_bulk_refresh_results_explicit"
+        ],
+        "prod": [
+          "prod_051_truthful_codex_authentication_health_signals"
+        ],
+        "req": [
+          "req_068_harden_codex_authentication_observability"
+        ],
+        "task": [
+          "task_077_orchestrate_truthful_codex_authentication_health_signals"
+        ]
+      },
+      "path": "logics/product/prod_051_truthful_codex_authentication_health_signals.md",
+      "ref": "prod_051_truthful_codex_authentication_health_signals",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Truthful Codex authentication health signals"
+    }
+  ],
+  "estimates": {
+    "char_count": 9221,
+    "companion_doc_count": 1,
+    "doc_count": 6
+  },
+  "generated_at": "2026-08-22T09:46:50Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_068_harden_codex_authentication_observability",
+      "item_135_classify_live_codex_diagnostic_failures_safely",
+      "item_136_exclude_disabled_profiles_from_bulk_codex_refresh",
+      "item_137_make_all_locked_bulk_refresh_results_explicit",
+      "task_077_orchestrate_truthful_codex_authentication_health_signals"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_068_harden_codex_authentication_observability,item_135_classify_live_codex_diagnostic_failures_safely,item_136_exclude_disabled_profiles_from_bulk_codex_refresh,item_137_make_all_locked_bulk_refresh_results_explicit,task_077_orchestrate_truthful_codex_authentication_health_signals",
+  "refs": [
+    "req_068_harden_codex_authentication_observability",
+    "item_135_classify_live_codex_diagnostic_failures_safely",
+    "item_136_exclude_disabled_profiles_from_bulk_codex_refresh",
+    "item_137_make_all_locked_bulk_refresh_results_explicit",
+    "task_077_orchestrate_truthful_codex_authentication_health_signals"
+  ],
+  "release": {
+    "blocking_reasons": [],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Release evidence is complete.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": null,
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "ready",
+    "target_version": "0.20.4"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_077_orchestrate_truthful_codex_authentication_health_signals.md",
+      "ref": "task_077_orchestrate_truthful_codex_authentication_health_signals"
+    }
+  ]
+}
