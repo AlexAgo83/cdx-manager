@@ -1,6 +1,6 @@
 ## prod_041_stable_terminal_titles_for_cdx_managed_claude_sessions - Stable terminal titles for cdx-managed Claude sessions
 > Date: 2026-08-12
-> Status: Proposed
+> Status: Settled
 > Related request: `req_054_keep_cdx_terminal_titles_stable_while_claude_is_working`
 > Related backlog: `item_107_disable_claude_s_competing_terminal_title_writes_for_cdx_sessions`
 > Related task: `task_065_keep_the_cdx_title_stable_during_interactive_claude_actions`
