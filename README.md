@@ -1096,7 +1096,7 @@ untouched. `login_required` means the provider rejected the local refresh token;
 run the supplied `cdx login <name>` command interactively. Hosts keep independent
 rotating credentials, so copying an auth file is not ongoing credential sync.
 
-- **`cdx <name>` fails with "not authenticated"** — run `cdx login <name>` first.
+- **`cdx <name>` fails with "not authenticated"** — run `cdx login <name>` first. `cdx doctor` uses the same Codex app-server probe as `cdx auth refresh`, so a local auth file alone is never reported as live authentication.
 - **One of two Codex accounts keeps asking for login** — run `cdx doctor --json` and inspect each Codex session's `codex_auth_file`, `codex_live_auth`, and `codex_stale_auth_logs` checks. If recent logs mention expired auth, repair only that isolated profile with `cdx login <name>`. Codex Business profiles can share the same `tokens.account_id`; `cdx doctor` reports `codex_shared_account_id` as a workspace-level clue, not proof that two profiles use the same user. Newly created sessions seed from the current global `~/.codex/auth.json` when one exists. For two separate Codex accounts, create or repair each session by running `cdx login <name>` for that session; `cdx login` does not log out first, so use `cdx logout <name>` explicitly only when you want to clear that isolated profile.
 - **`cdx` says no compatible Python 3 interpreter was found** — install Python 3 and make `py -3`, `python`, or `python3` available on PATH.
 - **`cdx add` succeeds but the session does not appear** — check that `CDX_HOME` is consistent between calls; a mismatch creates two separate registries.

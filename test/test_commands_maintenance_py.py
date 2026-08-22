@@ -5,7 +5,6 @@ Moved verbatim from test_cli_py.py; see test/cli_test_support.py for fixtures.
 
 import json
 import os
-import subprocess
 from datetime import datetime, timezone
 from unittest import mock
 
@@ -671,19 +670,23 @@ class MaintenanceCommandTests(CliTestBase):
         harness = _AuthHarness(initial_auth={session["authHome"]: True})
 
         doctor_io = self.make_io()
-        self.assertEqual(main(["doctor", "--json"], {
-            **doctor_io,
-            "service": service,
-            "env": {"CDX_HOME": temp_dir},
-            "spawn_sync": harness.spawn_sync,
-        }), 0)
+        with mock.patch("src.provider_runtime.fetch_codex_rate_limit_diagnostic", return_value={
+            "ok": False, "reason": "rate_limits_read_failed",
+        }):
+            self.assertEqual(main(["doctor", "--json"], {
+                **doctor_io,
+                "service": service,
+                "env": {"CDX_HOME": temp_dir},
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
 
         payload = json.loads(doctor_io["stdout"].getvalue())
         auth_file = next(issue for issue in payload["report"]["issues"] if issue["code"] == "codex_auth_file")
         live_auth = next(issue for issue in payload["report"]["issues"] if issue["code"] == "codex_live_auth")
         self.assertTrue(auth_file["detail"]["auth_json_exists"])
         self.assertTrue(auth_file["detail"]["local_tokens_present"])
-        self.assertEqual(live_auth["detail"]["live_status"], "authenticated")
+        self.assertEqual(live_auth["detail"]["live_status"], "error")
+        self.assertIn("app-server authentication probe failed", live_auth["detail"]["live_error"])
         self.assertNotIn("secret-token", json.dumps(payload))
 
     def test_doctor_treats_shared_codex_business_account_id_as_ambiguous(self):
@@ -701,12 +704,13 @@ class MaintenanceCommandTests(CliTestBase):
         harness = _AuthHarness()
 
         doctor_io = self.make_io()
-        self.assertEqual(main(["doctor", "--json"], {
-            **doctor_io,
-            "service": service,
-            "env": {"CDX_HOME": temp_dir},
-            "spawn_sync": harness.spawn_sync,
-        }), 0)
+        with mock.patch("src.provider_runtime.fetch_codex_rate_limit_diagnostic", return_value={"ok": True}):
+            self.assertEqual(main(["doctor", "--json"], {
+                **doctor_io,
+                "service": service,
+                "env": {"CDX_HOME": temp_dir},
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
 
         payload = json.loads(doctor_io["stdout"].getvalue())
         issue = next(item for item in payload["report"]["issues"] if item["code"] == "codex_shared_account_id")
@@ -728,12 +732,13 @@ class MaintenanceCommandTests(CliTestBase):
             handle.write("HTTP 401 token_expired: authentication token is expired\n")
 
         doctor_io = self.make_io()
-        self.assertEqual(main(["doctor", "--json"], {
-            **doctor_io,
-            "service": service,
-            "env": {"CDX_HOME": temp_dir},
-            "spawn_sync": _AuthHarness().spawn_sync,
-        }), 0)
+        with mock.patch("src.provider_runtime.fetch_codex_rate_limit_diagnostic", return_value={"ok": True}):
+            self.assertEqual(main(["doctor", "--json"], {
+                **doctor_io,
+                "service": service,
+                "env": {"CDX_HOME": temp_dir},
+                "spawn_sync": _AuthHarness().spawn_sync,
+            }), 0)
 
         payload = json.loads(doctor_io["stdout"].getvalue())
         issue = next(item for item in payload["report"]["issues"] if item["code"] == "codex_stale_auth_logs")
@@ -742,26 +747,25 @@ class MaintenanceCommandTests(CliTestBase):
         self.assertIn("cdx login main", issue["message"])
         self.assertNotIn("secret-token", json.dumps(payload))
 
-    def test_doctor_reports_codex_auth_probe_timeout_as_degraded(self):
+    def test_doctor_reports_locked_codex_auth_probe_as_degraded(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
         service["create_session"]("main")
 
-        def timeout_probe(_command, _args, _spec):
-            raise subprocess.TimeoutExpired("codex", 15)
-
         doctor_io = self.make_io()
-        self.assertEqual(main(["doctor", "--json"], {
-            **doctor_io,
-            "service": service,
-            "env": {"CDX_HOME": temp_dir},
-            "spawn_sync": timeout_probe,
-        }), 0)
+        with mock.patch("src.provider_runtime.fetch_codex_rate_limit_diagnostic", return_value={
+            "ok": False, "reason": "auth_locked",
+        }):
+            self.assertEqual(main(["doctor", "--json"], {
+                **doctor_io,
+                "service": service,
+                "env": {"CDX_HOME": temp_dir},
+            }), 0)
 
         payload = json.loads(doctor_io["stdout"].getvalue())
         live_auth = next(issue for issue in payload["report"]["issues"] if issue["code"] == "codex_live_auth")
         self.assertEqual(live_auth["detail"]["live_status"], "degraded")
-        self.assertIn("Auth probe timed out", live_auth["detail"]["live_error"])
+        self.assertIn("locked by an active session", live_auth["detail"]["live_error"])
 
     def test_doctor_windows_script_warning_mentions_expected_fallback(self):
         temp_dir = self.make_temp_dir()
@@ -873,4 +877,3 @@ class MaintenanceCommandTests(CliTestBase):
 
         self.assertFalse(os.path.exists(orphan))
         self.assertTrue(os.path.isdir(os.path.join(temp_dir, "profiles", ".old.remove.orphan")))
-

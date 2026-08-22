@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 from .agent_notify import launch_notify_env, notifications_enabled
 from .claude_usage import _clean_oauth_token, _decode_jwt_claims
-from .codex_usage import codex_auth_lock
+from .codex_usage import codex_auth_lock, fetch_codex_rate_limit_diagnostic
 from .config import (
     PROVIDER_ANTIGRAVITY,
     PROVIDER_CLAUDE,
@@ -294,19 +294,18 @@ def codex_auth_diagnostic(session, spawn_sync=None, env_override=None):
         "live_status": "unknown",
         "live_error": None,
     }
-    try:
-        status = _probe_provider_auth_status(
-            session,
-            spawn_sync=spawn_sync,
-            env_override=env_override,
-            trust_local_credentials=False,
-        )
-        result["live_status"] = status
-        if status == AUTH_PROBE_DEGRADED:
-            result["live_error"] = _auth_probe_degraded_message(session)
-    except CdxError as error:
+    if not result["local_tokens_present"]:
+        result["live_status"] = AUTH_PROBE_LOGGED_OUT
+        return result
+    diagnostic = fetch_codex_rate_limit_diagnostic(session)
+    if diagnostic["ok"]:
+        result["live_status"] = AUTH_PROBE_AUTHENTICATED
+    elif diagnostic["reason"] == "auth_locked":
+        result["live_status"] = AUTH_PROBE_DEGRADED
+        result["live_error"] = "Codex authentication probe is locked by an active session."
+    else:
         result["live_status"] = "error"
-        result["live_error"] = str(error)
+        result["live_error"] = f"Codex app-server authentication probe failed ({diagnostic['reason']})."
     return result
 
 
