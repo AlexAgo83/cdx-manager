@@ -8,6 +8,7 @@
 > Complexity: High
 > Theme: Headless automation
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Indicators reviewed: 2026-08-22 14:32:17
 
 # Context
 - Derived from backlog item `item_011_use_provider_native_headless_launch_modes_for_cdx_run`.
@@ -72,6 +73,10 @@ stateDiagram-v2
 - AC5 -> Plan: launch setting mapping.
 - AC6 -> Plan: timeout and provider-start failure handling.
 - AC7 -> Plan: command construction and artifact tests.
+- request-AC2 -> This task. Proof: Implemented provider-native headless Codex and Claude launch modes while keeping cdx stdout reserved for the final JSON payload and provider stdout/stderr captured as artifacts; validated with test_runtime_py.py, run-focused test_cli_py.py, and npm run lint. Source: `task_011_implement_provider_native_headless_cdx_run_launch_modes`
+- request-AC3 -> This task. Proof: Implemented provider-native headless Codex and Claude launch modes while keeping cdx stdout reserved for the final JSON payload and provider stdout/stderr captured as artifacts; validated with test_runtime_py.py, run-focused test_cli_py.py, and npm run lint. Source: `task_011_implement_provider_native_headless_cdx_run_launch_modes`
+- request-AC6 -> This task. Proof: Implemented provider-native headless Codex and Claude launch modes while keeping cdx stdout reserved for the final JSON payload and provider stdout/stderr captured as artifacts; validated with test_runtime_py.py, run-focused test_cli_py.py, and npm run lint. Source: `task_011_implement_provider_native_headless_cdx_run_launch_modes`
+- request-AC10 -> This task. Proof: Implemented provider-native headless Codex and Claude launch modes while keeping cdx stdout reserved for the final JSON payload and provider stdout/stderr captured as artifacts; validated with test_runtime_py.py, run-focused test_cli_py.py, and npm run lint. Source: `task_011_implement_provider_native_headless_cdx_run_launch_modes`
 
 # Report
 - Implemented a dedicated headless launch spec path in `src/provider_runtime.py`.
