@@ -1,13 +1,13 @@
 ## req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions - Offer opt-in refresh probes for managed Codex sessions
 > From version: 0.20.3
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
 > Theme: Authentication reliability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-08-20 11:29:02
+> Indicators reviewed: 2026-08-22 14:35:09
 
 # AI Context
 - Summary: Define an explicit CDX-only Codex refresh probe that is safe for manual use or a user-owned scheduler.

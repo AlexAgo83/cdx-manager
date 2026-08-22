@@ -1,14 +1,14 @@
 ## item_133_add_a_locked_non_generation_codex_auth_refresh_command - Add a locked non-generation Codex auth refresh command
 > From version: 0.20.3
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 90%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Authentication reliability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-20 11:54:32
+> Indicators reviewed: 2026-08-22 14:35:10
 
 # AI Context
 - Summary: Add the one-or-all Codex command at the existing locked provider-native refresh boundary.
@@ -58,3 +58,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_076_orchestrate_opt_in_codex_authentication_refresh_probes`
+
+# Notes
+- Task `task_076_orchestrate_opt_in_codex_authentication_refresh_probes` was finished via `logics-manager flow finish task` on 2026-08-22.

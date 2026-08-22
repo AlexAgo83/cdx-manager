@@ -1,12 +1,12 @@
 ## prod_050_opt_in_codex_authentication_refresh_probes - Opt-in Codex authentication refresh probes
 > Date: 2026-08-20
-> Status: Proposed
+> Status: Settled
 > Related request: `req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions`
-> Related backlog: `item_133_add_a_locked_non_generation_codex_auth_refresh_command`, `item_134_document_manual_and_scheduler_controlled_credential_maintenance`
+> Related backlog: `item_133_add_a_locked_non_generation_codex_auth_refresh_command`
 > Related task: `task_076_orchestrate_opt_in_codex_authentication_refresh_probes`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
-> Indicators reviewed: 2026-08-20 11:29:03
+> Indicators reviewed: 2026-08-22 14:35:10
 
 # Overview
 Give operators a small, safe CDX command to validate and refresh managed Codex credentials before an interactive session needs them, while leaving scheduling under the user's control.
@@ -44,5 +44,5 @@ flowchart LR
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions`
+- Product back-reference: `item_133_add_a_locked_non_generation_codex_auth_refresh_command`
 - Task back-reference: `task_076_orchestrate_opt_in_codex_authentication_refresh_probes`
