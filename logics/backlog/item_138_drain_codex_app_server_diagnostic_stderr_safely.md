@@ -1,14 +1,14 @@
 ## item_138_drain_codex_app_server_diagnostic_stderr_safely - Drain Codex app-server diagnostic stderr safely
 > From version: 0.20.4
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Low
 > Theme: Reliability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-22 11:59:10
+> Indicators reviewed: 2026-08-22 12:18:00
 
 # AI Context
 - Summary: Remove stderr backpressure from the bounded app-server diagnostic path without exposing provider output.

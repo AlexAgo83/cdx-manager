@@ -1,14 +1,14 @@
 ## item_139_smoke_test_doctor_from_packed_npm_and_wheel_artifacts - Smoke test doctor from packed npm and wheel artifacts
 > From version: 0.20.4
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Low
 > Theme: Release verification
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-22 11:59:10
+> Indicators reviewed: 2026-08-22 12:18:00
 
 # AI Context
 - Summary: Test the operational doctor command after installation from each package artifact.

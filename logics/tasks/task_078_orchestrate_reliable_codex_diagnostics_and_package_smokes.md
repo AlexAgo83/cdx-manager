@@ -1,14 +1,15 @@
 ## task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes - Orchestrate reliable Codex diagnostics and package smokes
 > From version: 0.20.4
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-08-22 11:59:11
+> Indicators reviewed: 2026-08-22 12:18:00
+> Owner: Codex
 
 # AI Context
 - Summary: Deliver bounded app-server stream handling and package-level doctor checks with controlled local shims.
