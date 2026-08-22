@@ -148,6 +148,7 @@ _None_
 | [req_064_resume_names_a_conversation_that_exists](request/req_064_resume_names_a_conversation_that_exists.md) | Resume names a conversation that exists | Done |  |  | request/req_064_resume_names_a_conversation_that_exists.md |
 | [req_065_drop_token_usage_cdx_cannot_vouch_for](request/req_065_drop_token_usage_cdx_cannot_vouch_for.md) | Drop token usage cdx cannot vouch for | Done |  |  | request/req_065_drop_token_usage_cdx_cannot_vouch_for.md |
 | [req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions](request/req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions.md) | Offer opt-in refresh probes for managed Codex sessions | Draft |  |  | request/req_066_offer_opt_in_refresh_probes_for_managed_codex_sessions.md |
+| [req_067_review_findings_codex_authentication_observability](request/req_067_review_findings_codex_authentication_observability.md) | Review findings: Codex authentication observability | Draft |  |  | request/req_067_review_findings_codex_authentication_observability.md |
 
 ## Backlog
 
@@ -288,8 +289,8 @@ _None_
 | [item_130_report_token_spend_in_currency](backlog/item_130_report_token_spend_in_currency.md) | Report token spend in currency | Done |  | 100% | backlog/item_130_report_token_spend_in_currency.md |
 | [item_131_resume_names_a_conversation_that_exists](backlog/item_131_resume_names_a_conversation_that_exists.md) | Resume names a conversation that exists | Done |  | 100% | backlog/item_131_resume_names_a_conversation_that_exists.md |
 | [item_132_drop_token_usage_cdx_cannot_vouch_for](backlog/item_132_drop_token_usage_cdx_cannot_vouch_for.md) | Drop token usage cdx cannot vouch for | Done |  | 100% | backlog/item_132_drop_token_usage_cdx_cannot_vouch_for.md |
-| [item_133_add_a_locked_non_generation_codex_auth_refresh_command](backlog/item_133_add_a_locked_non_generation_codex_auth_refresh_command.md) | Add a locked non-generation Codex auth refresh command | Ready |  | 0% | backlog/item_133_add_a_locked_non_generation_codex_auth_refresh_command.md |
-| [item_134_document_manual_and_scheduler_controlled_credential_maintenance](backlog/item_134_document_manual_and_scheduler_controlled_credential_maintenance.md) | Document manual and scheduler-controlled credential maintenance | Ready |  | 0% | backlog/item_134_document_manual_and_scheduler_controlled_credential_maintenance.md |
+| [item_133_add_a_locked_non_generation_codex_auth_refresh_command](backlog/item_133_add_a_locked_non_generation_codex_auth_refresh_command.md) | Add a locked non-generation Codex auth refresh command | In progress |  | 90% | backlog/item_133_add_a_locked_non_generation_codex_auth_refresh_command.md |
+| [item_134_document_manual_and_scheduler_controlled_credential_maintenance](backlog/item_134_document_manual_and_scheduler_controlled_credential_maintenance.md) | Document manual and scheduler-controlled credential maintenance | In progress |  | 90% | backlog/item_134_document_manual_and_scheduler_controlled_credential_maintenance.md |
 
 ## Tasks
 
@@ -375,7 +376,7 @@ _None_
 | [task_073_orchestrate_truthful_token_accounting_for_cdx_stats](tasks/task_073_orchestrate_truthful_token_accounting_for_cdx_stats.md) | Orchestrate truthful token accounting for cdx stats | Done | claude | 100% | tasks/task_073_orchestrate_truthful_token_accounting_for_cdx_stats.md |
 | [task_074_resume_names_a_conversation_that_exists](tasks/task_074_resume_names_a_conversation_that_exists.md) | Resume names a conversation that exists | Done |  | 100% | tasks/task_074_resume_names_a_conversation_that_exists.md |
 | [task_075_drop_token_usage_cdx_cannot_vouch_for](tasks/task_075_drop_token_usage_cdx_cannot_vouch_for.md) | Drop token usage cdx cannot vouch for | Done |  | 100% | tasks/task_075_drop_token_usage_cdx_cannot_vouch_for.md |
-| [task_076_orchestrate_opt_in_codex_authentication_refresh_probes](tasks/task_076_orchestrate_opt_in_codex_authentication_refresh_probes.md) | Orchestrate opt-in Codex authentication refresh probes | Ready |  | 0% | tasks/task_076_orchestrate_opt_in_codex_authentication_refresh_probes.md |
+| [task_076_orchestrate_opt_in_codex_authentication_refresh_probes](tasks/task_076_orchestrate_opt_in_codex_authentication_refresh_probes.md) | Orchestrate opt-in Codex authentication refresh probes | In progress | Codex | 90% | tasks/task_076_orchestrate_opt_in_codex_authentication_refresh_probes.md |
 
 ## Runbooks
 
