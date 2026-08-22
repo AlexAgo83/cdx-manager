@@ -1,14 +1,14 @@
 ## item_136_exclude_disabled_profiles_from_bulk_codex_refresh - Exclude disabled profiles from bulk Codex refresh
 > From version: 0.20.4
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Low
 > Theme: Authentication reliability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-22 11:47:41
+> Indicators reviewed: 2026-08-22 12:01:27
 
 # AI Context
 - Summary: Keep intentionally disabled profiles out of bulk checks while retaining explicit diagnostic access.

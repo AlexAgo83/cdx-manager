@@ -671,7 +671,7 @@ class MaintenanceCommandTests(CliTestBase):
 
         doctor_io = self.make_io()
         with mock.patch("src.provider_runtime.fetch_codex_rate_limit_diagnostic", return_value={
-            "ok": False, "reason": "rate_limits_read_failed",
+            "ok": False, "reason": "rate_limits_read_failed", "response": {"error": {"message": "HTTP 401"}},
         }):
             self.assertEqual(main(["doctor", "--json"], {
                 **doctor_io,
@@ -685,8 +685,8 @@ class MaintenanceCommandTests(CliTestBase):
         live_auth = next(issue for issue in payload["report"]["issues"] if issue["code"] == "codex_live_auth")
         self.assertTrue(auth_file["detail"]["auth_json_exists"])
         self.assertTrue(auth_file["detail"]["local_tokens_present"])
-        self.assertEqual(live_auth["detail"]["live_status"], "error")
-        self.assertIn("app-server authentication probe failed", live_auth["detail"]["live_error"])
+        self.assertEqual(live_auth["detail"]["live_status"], "login_required")
+        self.assertIn("cdx login main", live_auth["message"])
         self.assertNotIn("secret-token", json.dumps(payload))
 
     def test_doctor_treats_shared_codex_business_account_id_as_ambiguous(self):

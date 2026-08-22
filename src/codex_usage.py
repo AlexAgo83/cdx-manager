@@ -199,6 +199,15 @@ def fetch_codex_rate_limit_diagnostic(session, timeout=5, popen_factory=None):
         return _probe_codex_rate_limit_diagnostic(session, auth_home, timeout, popen_factory)
 
 
+def diagnostic_needs_codex_login(diagnostic):
+    """Classify known auth failures without returning provider text."""
+    text = json.dumps(diagnostic.get("response") or {}).lower()
+    return any(marker in text for marker in (
+        "not logged in", "unauthorized", "authentication token is expired",
+        "token_expired", "invalid_grant", "http 401",
+    ))
+
+
 def _probe_codex_rate_limit_diagnostic(session, auth_home, timeout=5, popen_factory=None):
     diagnostic = _request_codex_app_server(
         auth_home,

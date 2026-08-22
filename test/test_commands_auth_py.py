@@ -78,6 +78,54 @@ class AuthCommandTests(CliTestBase):
         self.assertEqual(results["locked"]["outcome"], "locked")
         self.assertEqual(results["expired"]["login_command"], "cdx login expired")
 
+    def test_auth_refresh_all_skips_disabled_but_named_refresh_keeps_it_available(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("enabled")
+        service["create_session"]("disabled")
+        service["set_session_enabled"]("disabled", False)
+        calls = []
+
+        def probe(session):
+            calls.append(session["name"])
+            return {"ok": True}
+
+        bulk_io = self.make_io()
+        self.assertEqual(main(["auth", "refresh", "all", "--json"], {
+            **bulk_io, "env": {"CDX_HOME": temp_dir}, "service": service,
+            "fetchCodexRateLimitDiagnostic": probe,
+        }), 0)
+        self.assertEqual(calls, ["enabled"])
+
+        named_io = self.make_io()
+        self.assertEqual(main(["auth", "refresh", "disabled", "--json"], {
+            **named_io, "env": {"CDX_HOME": temp_dir}, "service": service,
+            "fetchCodexRateLimitDiagnostic": probe,
+        }), 0)
+        self.assertEqual(calls, ["enabled", "disabled"])
+
+    def test_auth_refresh_all_reports_all_locked_but_accepts_a_valid_mixed_result(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("locked")
+
+        locked_io = self.make_io()
+        self.assertEqual(main(["auth", "refresh", "all", "--json"], {
+            **locked_io, "env": {"CDX_HOME": temp_dir}, "service": service,
+            "fetchCodexRateLimitDiagnostic": lambda _session: {"ok": False, "reason": "auth_locked"},
+        }), 1)
+        self.assertEqual(json.loads(locked_io["stdout"].getvalue())["error"]["code"], "auth_refresh_indeterminate")
+
+        service["create_session"]("valid")
+        mixed_io = self.make_io()
+        self.assertEqual(main(["auth", "refresh", "all", "--json"], {
+            **mixed_io, "env": {"CDX_HOME": temp_dir}, "service": service,
+            "fetchCodexRateLimitDiagnostic": lambda session: (
+                {"ok": True} if session["name"] == "valid" else {"ok": False, "reason": "auth_locked"}
+            ),
+        }), 0)
+        self.assertTrue(json.loads(mixed_io["stdout"].getvalue())["ok"])
+
     def test_reset_consumes_banked_codex_reset_and_refreshes_status(self):
         temp_dir = self.make_temp_dir()
         status = {

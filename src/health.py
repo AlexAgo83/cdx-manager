@@ -337,11 +337,16 @@ def _codex_auth_issues(session, diag):
     ]
     live_status = diag.get("live_status")
     live_ok = live_status == "authenticated"
-    live_warn = live_status in ("logged_out", "error")
+    live_warn = live_status in ("logged_out", "login_required", "error")
+    live_message = (
+        f"session {name} Codex authentication requires login; run cdx login {name}"
+        if live_status == "login_required"
+        else f"session {name} live Codex auth status: {live_status}"
+    )
     issues.append(_issue(
         "OK" if live_ok else "WARN" if live_warn else "WARN",
         "codex_live_auth",
-        f"session {name} live Codex auth status: {live_status}",
+        live_message,
         {
             "session": name,
             "auth_home": diag.get("auth_home"),

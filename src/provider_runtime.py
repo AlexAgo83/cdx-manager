@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 from .agent_notify import launch_notify_env, notifications_enabled
 from .claude_usage import _clean_oauth_token, _decode_jwt_claims
-from .codex_usage import codex_auth_lock, fetch_codex_rate_limit_diagnostic
+from .codex_usage import codex_auth_lock, diagnostic_needs_codex_login, fetch_codex_rate_limit_diagnostic
 from .config import (
     PROVIDER_ANTIGRAVITY,
     PROVIDER_CLAUDE,
@@ -303,6 +303,9 @@ def codex_auth_diagnostic(session, spawn_sync=None, env_override=None):
     elif diagnostic["reason"] == "auth_locked":
         result["live_status"] = AUTH_PROBE_DEGRADED
         result["live_error"] = "Codex authentication probe is locked by an active session."
+    elif diagnostic_needs_codex_login(diagnostic):
+        result["live_status"] = "login_required"
+        result["live_error"] = f"Codex authentication requires login; run cdx login {session['name']}."
     else:
         result["live_status"] = "error"
         result["live_error"] = f"Codex app-server authentication probe failed ({diagnostic['reason']})."

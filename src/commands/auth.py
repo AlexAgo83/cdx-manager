@@ -3,7 +3,6 @@
 Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 """
 
-import json
 import time
 import uuid
 
@@ -18,7 +17,11 @@ from ..cli_helpers import (
     _write_json,
 )
 from ..cli_render import _success, _warn
-from ..codex_usage import consume_codex_rate_limit_reset_credit, fetch_codex_rate_limit_diagnostic
+from ..codex_usage import (
+    consume_codex_rate_limit_reset_credit,
+    diagnostic_needs_codex_login,
+    fetch_codex_rate_limit_diagnostic,
+)
 from ..config import PROVIDER_ANTIGRAVITY, PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_OLLAMA
 from ..errors import CdxError
 from ..notify import (
@@ -36,21 +39,12 @@ def _confirm_reset(name):
     return answer.strip().lower() in ("y", "yes")
 
 
-def _refresh_needs_login(diagnostic):
-    """Classify known provider auth failures without returning provider text."""
-    text = json.dumps(diagnostic.get("response") or {}).lower()
-    return any(marker in text for marker in (
-        "not logged in", "unauthorized", "authentication token is expired",
-        "token_expired", "invalid_grant", "http 401",
-    ))
-
-
 def _refresh_result(session, diagnostic):
     if diagnostic.get("ok"):
         return {"session": session["name"], "provider": PROVIDER_CODEX, "outcome": "valid"}
     if diagnostic.get("reason") == "auth_locked":
         return {"session": session["name"], "provider": PROVIDER_CODEX, "outcome": "locked"}
-    if _refresh_needs_login(diagnostic):
+    if diagnostic_needs_codex_login(diagnostic):
         return {
             "session": session["name"], "provider": PROVIDER_CODEX,
             "outcome": "login_required", "login_command": f"cdx login {session['name']}",
@@ -63,7 +57,7 @@ def handle_auth(rest, ctx):
     target = parsed["target"]
     if target == "all":
         sessions = [session for session in ctx["service"]["list_sessions"]()
-                    if session["provider"] == PROVIDER_CODEX]
+                    if session["provider"] == PROVIDER_CODEX and session.get("enabled", True)]
     else:
         session = ctx["service"]["get_session"](target)
         if not session:
@@ -71,24 +65,32 @@ def handle_auth(rest, ctx):
         if session["provider"] != PROVIDER_CODEX:
             raise CdxError("Authentication refresh is only available for Codex sessions.")
         sessions = [session]
-    if not sessions:
+    if not sessions and target != "all":
         raise CdxError("No managed Codex sessions to refresh.")
 
     probe = ctx["options"].get("fetchCodexRateLimitDiagnostic") or fetch_codex_rate_limit_diagnostic
     results = [_refresh_result(session, probe(session)) for session in sessions]
     failures = [result for result in results if result["outcome"] in ("login_required", "failed")]
-    message = "Codex authentication probe completed" if not failures else "Codex authentication probe needs attention"
+    all_locked = bool(results) and all(result["outcome"] == "locked" for result in results)
+    message = (
+        "Codex authentication probe needs attention" if failures
+        else "Codex authentication probe could not verify any session" if all_locked
+        else "No enabled Codex sessions to refresh" if not results
+        else "Codex authentication probe completed"
+    )
     if parsed["json"]:
         payload = (
             _json_failure("auth.refresh", "auth_refresh_failed", message, results=results)
             if failures else _json_success("auth.refresh", message, results=results)
         )
+        if all_locked:
+            payload = _json_failure("auth.refresh", "auth_refresh_indeterminate", message, results=results)
         _write_json(ctx, payload)
     else:
         for result in results:
             suffix = f"; run {result['login_command']}" if result.get("login_command") else ""
             ctx["out"](f"{result['session']}: {result['outcome']}{suffix}\n")
-    return 1 if failures else 0
+    return 1 if failures or all_locked else 0
 
 def handle_ready(rest, ctx):
     """`cdx ready`: schedule an OS notification for the next session to come back.

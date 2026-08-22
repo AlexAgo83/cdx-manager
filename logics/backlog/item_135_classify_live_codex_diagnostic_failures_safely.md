@@ -1,14 +1,14 @@
 ## item_135_classify_live_codex_diagnostic_failures_safely - Classify live Codex diagnostic failures safely
 > From version: 0.20.4
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 10%
 > Complexity: Low
 > Theme: Authentication reliability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-22 11:47:41
+> Indicators reviewed: 2026-08-22 12:01:27
 
 # AI Context
 - Summary: Share the existing safe authentication classifier so doctor distinguishes a required login from a probe failure.
