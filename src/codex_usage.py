@@ -245,7 +245,7 @@ def _request_codex_app_server(auth_home, method, params, failure_reason, timeout
             ["codex", "app-server", "--listen", "stdio://"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             env=env,
             text=True,
             bufsize=1,

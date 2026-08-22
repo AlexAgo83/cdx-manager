@@ -1,5 +1,6 @@
 import json
 import queue
+import subprocess
 import unittest
 
 from src.codex_usage import (
@@ -90,6 +91,20 @@ class CodexUsagePureTests(unittest.TestCase):
         self.assertEqual(out["credits"], 12)
         self.assertEqual(out["source_ref"], "api:codex-app-server-rate-limits")
         self.assertIsNotNone(out["reset_at"])
+
+    def test_app_server_discards_noisy_stderr(self):
+        captured = {}
+
+        def popen_factory(*args, **kwargs):
+            captured.update(kwargs)
+            return FakePopen([
+                json.dumps({"id": 1, "result": {}}) + "\n",
+                json.dumps({"id": 2, "result": {"rateLimitsByLimitId": {"codex": {}}}}) + "\n",
+            ])
+
+        fetch_codex_rate_limit_diagnostic({"authHome": "/tmp/codex"}, popen_factory=popen_factory)
+
+        self.assertIs(captured["stderr"], subprocess.DEVNULL)
 
     def test_normalize_snapshot_zero_credit_balance_is_dropped(self):
         snap = {"credits": {"balance": 0, "hasCredits": False, "unlimited": False}}

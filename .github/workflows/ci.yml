@@ -125,12 +125,26 @@ jobs:
       - name: Install build tooling
         run: python -m pip install build
 
+      - name: Set up isolated provider shims
+        run: |
+          shim_dir="$RUNNER_TEMP/cdx-shims"
+          mkdir -p "$shim_dir"
+          printf '#!/usr/bin/env sh\nif [ "$1" = login ] && [ "$2" = status ]; then echo "Logged in using ChatGPT"; fi\n' > "$shim_dir/codex"
+          printf '#!/usr/bin/env sh\nif [ "$1" = auth ] && [ "$2" = status ]; then echo "{\\"loggedIn\\": true, \\"authMethod\\": \\"oauth\\"}"; fi\n' > "$shim_dir/claude"
+          chmod +x "$shim_dir/codex" "$shim_dir/claude"
+          echo "$shim_dir" >> "$GITHUB_PATH"
+          echo "CDX_HOME=$RUNNER_TEMP/cdx-home" >> "$GITHUB_ENV"
+          echo "HOME=$RUNNER_TEMP/cdx-user" >> "$GITHUB_ENV"
+
       - name: Build and install npm package
         run: |
           npm pack --pack-destination "$RUNNER_TEMP"
           npm install --global "$RUNNER_TEMP"/cdx-manager-*.tgz
           cdx --version
           cdx schema --json
+          cdx add smoke
+          cdx add claude smoke-claude
+          cdx doctor --json
 
       - name: Build and install wheel
         run: |
@@ -139,3 +153,4 @@ jobs:
           "$RUNNER_TEMP/cdx-wheel/bin/python" -m pip install "$RUNNER_TEMP"/wheels/*.whl
           "$RUNNER_TEMP/cdx-wheel/bin/cdx" --version
           "$RUNNER_TEMP/cdx-wheel/bin/cdx" schema --json
+          "$RUNNER_TEMP/cdx-wheel/bin/cdx" doctor --json
