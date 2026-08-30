@@ -252,8 +252,28 @@ def _collect_native_handoff_transcript_paths(session):
     return _sort_recent_paths(candidates)[:HANDOFF_NATIVE_TRANSCRIPT_CANDIDATES]
 
 
-def _latest_handoff_transcript_path(session):
+def _handoff_transcript_workspace(path):
+    if not path.endswith(".jsonl"):
+        return None
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            record = json.loads(handle.readline() or "{}")
+    except (OSError, json.JSONDecodeError):
+        return None
+    if record.get("type") != "session_meta":
+        return None
+    payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
+    cwd = payload.get("cwd")
+    return os.path.realpath(cwd) if isinstance(cwd, str) and cwd else None
+
+
+def _latest_handoff_transcript_path(session, cwd=None):
     native_paths = _collect_native_handoff_transcript_paths(session)
+    if cwd:
+        workspace = os.path.realpath(cwd)
+        for path in native_paths:
+            if _handoff_transcript_workspace(path) == workspace:
+                return path
     if native_paths:
         return native_paths[0]
     return _latest_launch_transcript_path(session)

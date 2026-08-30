@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -49,6 +50,31 @@ class ReadHandoffTranscriptTest(unittest.TestCase):
             self.assertIn("[user]\nFinish the migration", content)
             self.assertIn("[assistant]\nNext: run tests", content)
             self.assertNotIn("noisy", content)
+
+    def test_prefers_current_workspace_native_transcript(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-handoff-") as root:
+            auth_home = os.path.join(root, "profile")
+            session_dir = os.path.join(auth_home, "sessions", "2026", "08", "30")
+            os.makedirs(session_dir)
+            current_workspace = os.path.join(root, "current")
+            other_workspace = os.path.join(root, "other")
+            os.makedirs(current_workspace)
+            os.makedirs(other_workspace)
+
+            current = os.path.join(session_dir, "current.jsonl")
+            other = os.path.join(session_dir, "other.jsonl")
+            with open(current, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps({"type": "session_meta", "payload": {"cwd": current_workspace}}) + "\n")
+                handle.write('{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"current work"}]}}\n')
+            with open(other, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps({"type": "session_meta", "payload": {"cwd": other_workspace}}) + "\n")
+                handle.write('{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"other work"}]}}\n')
+            os.utime(current, (1, 1))
+            os.utime(other, (2, 2))
+
+            session = {"authHome": auth_home, "sessionRoot": auth_home}
+            self.assertEqual(_latest_handoff_transcript_path(session, cwd=current_workspace), current)
+            self.assertEqual(_latest_handoff_transcript_path(session), other)
 
 
 if __name__ == "__main__":

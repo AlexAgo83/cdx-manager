@@ -430,7 +430,7 @@ def handle_handoff(rest, ctx):
     target = ctx["service"]["get_session"](target_name)
     if not target:
         raise CdxError(f"Unknown session: {target_name}")
-    transcript_path = _latest_handoff_transcript_path(source)
+    transcript_path = _latest_handoff_transcript_path(source, ctx.get("cwd"))
     if not transcript_path:
         raise CdxError(f"No transcript found for session: {source_name}")
     transcript, truncated = _read_handoff_transcript(transcript_path)

@@ -4,7 +4,7 @@
 
 <br clear="left"/>
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.20.6-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.20.7-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
 **Stop guessing which AI account still has quota.** `cdx` tracks the rate-limit window of every Codex and Claude account you own, tells you which one is usable right now, and launches it with isolated auth — in one command.
 
@@ -106,7 +106,7 @@ The reason `cdx` exists: knowing, across every account you own, which one you ca
 
 ### Context handoff
 
-- **Shared handoff context.** Keep a per-workspace Markdown context, or build one from a source session transcript, and install it into another assistant session before switching providers or accounts.
+- **Shared handoff context.** Keep a per-workspace Markdown context, or build one from a source session transcript, and install it into another assistant session before switching providers or accounts. Source transcript selection prefers the current workspace when the provider transcript records one, then falls back to the newest source-session transcript.
 - **Session transcript capture.** Every launch is recorded to a local log file via `script`, giving you a full terminal transcript for each session.
 
 ### Maintenance
