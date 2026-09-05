@@ -91,6 +91,7 @@ class CostEstimateTests(unittest.TestCase):
     def test_current_codex_and_claude_models_are_priced(self):
         table = DEFAULT_TOKEN_PRICES
         expected = {
+            "gpt-6-astra": {"input": 10.0, "output": 50.0},
             "gpt-5.6": {"input": 4.0, "output": 20.0},
             "gpt-5.5": {"input": 5.0, "output": 30.0},
             "gpt-5.5-2026-04-23": {"input": 5.0, "output": 30.0},

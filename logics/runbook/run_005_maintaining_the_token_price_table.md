@@ -1,7 +1,7 @@
 ## run_005_maintaining_the_token_price_table - Maintaining the token price table
 > Status: Draft
 > Category: support
-> Verified: 2026-08-22, migrated from `docs/token-prices-runbook.md`.
+> Verified: 2026-09-05, refreshed against OpenAI pricing/model docs for `gpt-6-astra`.
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: (none yet)

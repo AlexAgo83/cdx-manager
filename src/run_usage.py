@@ -180,6 +180,7 @@ DEFAULT_TOKEN_PRICES = {
     "claude-haiku-4-5": {"input": 1.0, "output": 5.0},
     "claude-haiku-4-5-20251001": {"input": 1.0, "output": 5.0},
     # OpenAI
+    "gpt-6-astra": {"input": 10.0, "output": 50.0},
     "gpt-5.6": {"input": 4.0, "output": 20.0},
     "gpt-5.6-sol": {"input": 4.0, "output": 20.0},
     "gpt-5.6-terra": {"input": 2.0, "output": 12.0},
@@ -194,7 +195,7 @@ DEFAULT_TOKEN_PRICES = {
     "gpt-5.4-nano-2026-03-17": {"input": 0.2, "output": 1.25},
     "gpt-5.3-codex": {"input": 1.75, "output": 14.0},
 }
-TOKEN_PRICES_REVIEWED = "2026-08-22"
+TOKEN_PRICES_REVIEWED = "2026-09-05"
 #: How long a review stays fresh before the staleness test asks for another.
 TOKEN_PRICES_MAX_AGE_DAYS = 90
 TOKEN_PRICES_ENV = "CDX_TOKEN_PRICES"
