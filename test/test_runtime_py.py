@@ -544,11 +544,12 @@ class RuntimePythonTests(unittest.TestCase):
 
     def test_home_env_overrides_sets_windows_profile_variables(self):
         with mock.patch("src.provider_runtime.sys.platform", "win32"):
-            with mock.patch(
-                "src.provider_runtime.os.path.splitdrive",
-                return_value=("C:", r"\Users\Test\AppData\Local\cdx\claude-home"),
-            ):
-                result = provider_runtime._home_env_overrides(r"C:\Users\Test\AppData\Local\cdx\claude-home")
+            with mock.patch("src.claude_usage.sys.platform", "win32"):
+                with mock.patch(
+                    "src.provider_runtime.os.path.splitdrive",
+                    return_value=("C:", r"\Users\Test\AppData\Local\cdx\claude-home"),
+                ):
+                    result = provider_runtime._home_env_overrides(r"C:\Users\Test\AppData\Local\cdx\claude-home")
 
         self.assertEqual(result["HOME"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
         self.assertEqual(result["ANTHROPIC_CONFIG_DIR"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
@@ -557,6 +558,89 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertEqual(result["USERPROFILE"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
         self.assertEqual(result["HOMEDRIVE"], "C:")
         self.assertEqual(result["HOMEPATH"], r"\Users\Test\AppData\Local\cdx\claude-home")
+        self.assertEqual(
+            result["CLAUDE_SECURESTORAGE_CONFIG_DIR"],
+            os.path.join(r"C:\Users\Test\AppData\Local\cdx\claude-home", ".claude"),
+        )
+
+    def test_secure_storage_overrides_links_the_real_keychain_on_macos(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            real_home = os.path.join(tmp, "real-home")
+            os.makedirs(os.path.join(real_home, "Library", "Keychains"))
+            auth_home = os.path.join(tmp, "profile", "claude-home")
+            os.makedirs(auth_home)
+
+            with mock.patch("src.claude_usage.sys.platform", "darwin"):
+                with mock.patch("src.claude_usage.pwd.getpwuid") as getpwuid:
+                    getpwuid.return_value = mock.Mock(pw_dir=real_home)
+                    result = claude_usage._secure_storage_overrides(auth_home)
+                    # Second call must be a no-op, not a broken nested link.
+                    again = claude_usage._secure_storage_overrides(auth_home)
+
+            link = os.path.join(auth_home, "Library", "Keychains")
+            self.assertEqual(
+                result,
+                {"CLAUDE_SECURESTORAGE_CONFIG_DIR": os.path.join(auth_home, ".claude")},
+            )
+            self.assertEqual(again, result)
+            self.assertTrue(os.path.islink(link))
+            self.assertEqual(
+                os.path.realpath(link),
+                os.path.realpath(os.path.join(real_home, "Library", "Keychains")),
+            )
+
+    def test_secure_storage_overrides_leaves_a_real_keychain_directory_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            real_home = os.path.join(tmp, "real-home")
+            os.makedirs(os.path.join(real_home, "Library", "Keychains"))
+            auth_home = os.path.join(tmp, "profile", "claude-home")
+            existing = os.path.join(auth_home, "Library", "Keychains")
+            os.makedirs(existing)
+
+            with mock.patch("src.claude_usage.sys.platform", "darwin"):
+                with mock.patch("src.claude_usage.pwd.getpwuid") as getpwuid:
+                    getpwuid.return_value = mock.Mock(pw_dir=real_home)
+                    result = claude_usage._secure_storage_overrides(auth_home)
+
+            self.assertEqual(
+                result,
+                {"CLAUDE_SECURESTORAGE_CONFIG_DIR": os.path.join(auth_home, ".claude")},
+            )
+            self.assertFalse(os.path.islink(existing))
+
+    def test_secure_storage_overrides_namespaces_without_touching_disk_off_macos(self):
+        for platform in ("win32", "linux"):
+            with self.subTest(platform=platform):
+                with tempfile.TemporaryDirectory() as tmp:
+                    auth_home = os.path.join(tmp, "profile", "claude-home")
+                    os.makedirs(auth_home)
+
+                    with mock.patch("src.claude_usage.sys.platform", platform):
+                        result = claude_usage._secure_storage_overrides(auth_home)
+
+                    self.assertEqual(
+                        result,
+                        {"CLAUDE_SECURESTORAGE_CONFIG_DIR": os.path.join(auth_home, ".claude")},
+                    )
+                    self.assertFalse(os.path.exists(os.path.join(auth_home, "Library")))
+
+    def test_secure_storage_overrides_still_namespaces_when_no_keychain_exists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            real_home = os.path.join(tmp, "real-home")
+            os.makedirs(real_home)  # no Library/Keychains at all
+            auth_home = os.path.join(tmp, "profile", "claude-home")
+            os.makedirs(auth_home)
+
+            with mock.patch("src.claude_usage.sys.platform", "darwin"):
+                with mock.patch("src.claude_usage.pwd.getpwuid") as getpwuid:
+                    getpwuid.return_value = mock.Mock(pw_dir=real_home)
+                    result = claude_usage._secure_storage_overrides(auth_home)
+
+            self.assertEqual(
+                result,
+                {"CLAUDE_SECURESTORAGE_CONFIG_DIR": os.path.join(auth_home, ".claude")},
+            )
+            self.assertFalse(os.path.exists(os.path.join(auth_home, "Library")))
 
     def test_send_windows_notification_raises_a_toast_not_a_dialog(self):
         calls = []

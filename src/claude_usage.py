@@ -8,6 +8,11 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 
+try:  # POSIX only; the keychain wiring below is macOS-specific anyway.
+    import pwd
+except ImportError:  # pragma: no cover - Windows
+    pwd = None
+
 from .errors import CdxError
 
 MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -68,6 +73,60 @@ def _read_claude_credentials(auth_home):
     return None
 
 
+def _link_macos_keychain(auth_home):
+    """Make the operator's login keychain reachable from a redirected home.
+
+    macOS resolves the login keychain through `$HOME/Library/Keychains`.
+    Profile isolation redirects HOME (see `_home_env_overrides`), so that path
+    does not exist: every Claude Code launch then raises a "Keychain Not Found"
+    dialog before falling back to a plaintext credentials file. Linking the
+    real keychain directory into the profile home restores the lookup. Failure
+    is non-fatal, and deliberately quiet: the profile simply keeps the
+    file-based credentials it already used.
+    """
+    if sys.platform != "darwin" or pwd is None:
+        return
+    try:
+        real_home = pwd.getpwuid(os.getuid()).pw_dir
+    except (KeyError, OSError):
+        return
+    source = os.path.join(real_home, "Library", "Keychains")
+    if not os.path.isdir(source):
+        return
+    link = os.path.join(auth_home, "Library", "Keychains")
+    if os.path.realpath(link) == os.path.realpath(source):
+        return
+    try:
+        os.makedirs(os.path.dirname(link), exist_ok=True)
+        if os.path.islink(link):
+            os.unlink(link)
+        os.symlink(source, link)
+    except OSError:
+        return
+
+
+def _secure_storage_overrides(auth_home):
+    """Key Claude Code's credential storage to this profile.
+
+    Claude Code names its stored credential from
+    `CLAUDE_SECURESTORAGE_CONFIG_DIR`, falling back to `CLAUDE_CONFIG_DIR`,
+    which cdx clears to keep profile credentials isolated. With neither set,
+    every profile writes the same entry, so any store shared between profiles
+    would have them overwrite each other. Only macOS reads such a store today
+    (the login keychain, reached through `/usr/bin/security`); Windows
+    Credential Manager sits behind an opt-in flag and Linux has no keyring
+    backend, so elsewhere this is inert but keeps profiles isolated should that
+    change.
+
+    The value must be the config dir Claude Code would have resolved on its own
+    -- `<home>/.claude`, since cdx leaves `CLAUDE_CONFIG_DIR` unset -- because
+    the variable overrides that directory as well as naming the entry. Any
+    other value would also move where credentials are read from.
+    """
+    _link_macos_keychain(auth_home)
+    return {"CLAUDE_SECURESTORAGE_CONFIG_DIR": os.path.join(auth_home, ".claude")}
+
+
 def _home_env_overrides(auth_home):
     overrides = {
         "HOME": auth_home,
@@ -78,6 +137,7 @@ def _home_env_overrides(auth_home):
         overrides["USERPROFILE"] = auth_home
         overrides["HOMEDRIVE"] = os.path.splitdrive(auth_home)[0] or "C:"
         overrides["HOMEPATH"] = os.path.splitdrive(auth_home)[1] or auth_home
+    overrides.update(_secure_storage_overrides(auth_home))
     return overrides
 
 

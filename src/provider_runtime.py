@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timezone
 
 from .agent_notify import launch_notify_env, notifications_enabled
-from .claude_usage import _clean_oauth_token, _decode_jwt_claims
+from .claude_usage import _clean_oauth_token, _decode_jwt_claims, _secure_storage_overrides
 from .codex_usage import codex_auth_lock, diagnostic_needs_codex_login, fetch_codex_rate_limit_diagnostic
 from .config import (
     PROVIDER_ANTIGRAVITY,
@@ -145,7 +145,9 @@ def _home_env_overrides(auth_home):
     Code builds ignore otherwise valid isolated credentials. On Windows, Node.js
     resolves the home directory via USERPROFILE (and falls back to
     HOMEDRIVE+HOMEPATH), so we set all three to ensure profile isolation works
-    regardless of the platform.
+    regardless of the platform. Redirecting the home also detaches Claude
+    Code's credential storage, which `_secure_storage_overrides` re-keys to
+    this profile.
     """
     overrides = {
         "HOME": auth_home,
@@ -156,6 +158,7 @@ def _home_env_overrides(auth_home):
         overrides["USERPROFILE"] = auth_home
         overrides["HOMEDRIVE"] = os.path.splitdrive(auth_home)[0] or "C:"
         overrides["HOMEPATH"] = os.path.splitdrive(auth_home)[1] or auth_home
+    overrides.update(_secure_storage_overrides(auth_home))
     return overrides
 
 
