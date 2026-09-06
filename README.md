@@ -911,6 +911,7 @@ cdx import backup-auth.cdx --passphrase-env CDX_BUNDLE_PASSPHRASE
 Notes:
 
 - `--include-auth` is encrypted, requires a passphrase, and exports only provider credential files rather than full profile caches, logs, or installed plugins.
+- Keychain-backed Claude authentication cannot currently be exported. If any selected profile uses it, `--include-auth` exits non-zero before writing anything, including with `--force`; text and JSON errors identify the affected profiles. Export without `--include-auth` and log in after import, or select only profiles whose authentication is file-backed. An inaccessible keychain is an explicit error, not a successful incomplete export.
 - Merge imports snapshot each existing profile before modification, preserving symlinks instead of following them. This temporarily needs space for a second copy of that profile. On failure, CDX restores the original files, record and state; if recovery also fails, the error gives the retained recovery directory containing the original metadata and any remaining profile snapshot.
 - Without `--passphrase-env`, `cdx` prompts in an interactive terminal. Non-interactive callers can pass `--passphrase-stdin` to read the passphrase from stdin (one line) instead of exposing it in the child environment.
 - `--sessions work,perso` exports or imports only a subset.

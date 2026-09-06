@@ -12,6 +12,7 @@ import shutil
 import tempfile
 
 from .backup_bundle import decode_bundle, encode_bundle
+from .claude_credentials import read_keychain_credentials
 from .config import PROVIDER_CLAUDE
 from .errors import CdxError
 from .fs_utils import atomic_write, remove_tree
@@ -169,6 +170,23 @@ def export_bundle(base_dir, store, file_path, include_auth=False, session_names=
         raise CdxError(f"Export path already exists: {file_path}")
 
     sessions = _resolve_session_subset(store, session_names)
+    if include_auth:
+        unsupported = []
+        for session in sessions:
+            if session["provider"] != PROVIDER_CLAUDE:
+                continue
+            auth_home = session.get("authHome") or _get_session_auth_home(base_dir, session["name"], session["provider"])
+            try:
+                keychain = read_keychain_credentials(auth_home)
+            except CdxError as error:
+                raise CdxError(f"Cannot export authentication for {session['name']}: {error}") from None
+            if keychain is not None:
+                unsupported.append(session["name"])
+        if unsupported:
+            raise CdxError(
+                f"Keychain authentication export is unsupported for: {', '.join(unsupported)}. "
+                "Nothing was exported. Export without --include-auth and log in after import."
+            )
     payload = {
         "schema_version": 1,
         "created_at": _local_now_iso(),

@@ -1,5 +1,6 @@
 import base64
 import copy
+import io
 import json
 import os
 import subprocess
@@ -195,6 +196,51 @@ class ProfileDataSafetyTests(unittest.TestCase):
                     claude_usage.refresh_claude_session_status(source, auth_refresher=lambda _: None)
                 self.assertNotIn("secret", str(error.exception))
         self.assertIsNone(claude_credentials.read_keychain_credentials(source["authHome"]))
+
+    def test_export_refusal_preserves_force_destination_for_mixed_profiles(self):
+        source = self.profile("keychain")
+        self.profile("files", "codex")
+        self.credential(source, "source-token")
+        bundle = self.base / "existing.cdx"
+        bundle.write_bytes(b"keep previous backup")
+        with self.assertRaisesRegex(CdxError, "unsupported for: keychain"):
+            session_backup.export_bundle(str(self.base), self.store, str(bundle), include_auth=True, passphrase="fake", force=True)
+        self.assertEqual(bundle.read_bytes(), b"keep previous backup")
+        result = session_backup.export_bundle(str(self.base), self.store, str(bundle), force=True)
+        self.assertFalse(result["include_auth"])
+
+    def test_export_refusal_has_nonzero_text_and_json_cli_outcomes(self):
+        from src.cli import cli_entry
+
+        source = self.profile("keychain")
+        self.credential(source, "synthetic-secret")
+        output = self.base / "existing.cdx"
+        output.write_bytes(b"keep previous backup")
+        for json_mode in (False, True):
+            stderr, stdout = io.StringIO(), io.StringIO()
+            argv = ["cdx", "export", str(output), "--force", "--include-auth", "--passphrase-env", "CDX_TEST_PASSPHRASE"]
+            if json_mode:
+                argv.append("--json")
+            with self.subTest(json_mode=json_mode), mock.patch("sys.argv", argv), mock.patch("sys.stderr", stderr), mock.patch("sys.stdout", stdout), mock.patch.dict(os.environ, {"CDX_HOME": str(self.base), "CDX_TEST_PASSPHRASE": "fake-passphrase"}):
+                with self.assertRaises(SystemExit) as error:
+                    cli_entry()
+                self.assertNotEqual(error.exception.code, 0)
+            diagnostic = stderr.getvalue()
+            self.assertIn("keychain", diagnostic)
+            self.assertNotIn("synthetic-secret", diagnostic + stdout.getvalue())
+            if json_mode:
+                self.assertFalse(json.loads(diagnostic)["ok"])
+            self.assertEqual(output.read_bytes(), b"keep previous backup")
+
+    def test_export_denied_keychain_never_replaces_output(self):
+        self.profile("keychain")
+        output = self.base / "existing.cdx"
+        output.write_bytes(b"keep")
+        denied = SimpleNamespace(returncode=36, stdout="synthetic-secret", stderr="synthetic-secret")
+        with mock.patch.object(claude_credentials, "_security", return_value=denied):
+            with self.assertRaisesRegex(CdxError, "Cannot export authentication for keychain"):
+                session_backup.export_bundle(str(self.base), self.store, str(output), include_auth=True, force=True, passphrase="fake")
+        self.assertEqual(output.read_bytes(), b"keep")
 
     def test_rename_moves_only_profile_authentication(self):
         source = self.profile("source")
