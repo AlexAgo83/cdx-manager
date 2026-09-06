@@ -13,6 +13,7 @@ try:  # POSIX only; the keychain wiring below is macOS-specific anyway.
 except ImportError:  # pragma: no cover - Windows
     pwd = None
 
+from .claude_credentials import read_keychain_credentials
 from .errors import CdxError
 
 MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -50,6 +51,15 @@ def _decode_jwt_claims(token):
 
 
 def _read_claude_credentials(auth_home):
+    keychain = read_keychain_credentials(auth_home)
+    if keychain is not None:
+        creds = keychain.get("claudeAiOauth")
+        if not isinstance(creds, dict):
+            return None
+        token = _clean_oauth_token(creds.get("accessToken"))
+        if not token:
+            raise CdxError("Claude keychain OAuth credential is malformed.")
+        return {**creds, "accessToken": token}
     cred_path = os.path.join(auth_home, ".claude", ".credentials.json")
     try:
         with open(cred_path, encoding="utf-8") as f:

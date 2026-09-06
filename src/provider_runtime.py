@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime, timezone
 
 from .agent_notify import launch_notify_env, notifications_enabled
+from .claude_credentials import read_keychain_credentials
 from .claude_usage import _clean_oauth_token, _decode_jwt_claims, _secure_storage_overrides
 from .codex_usage import codex_auth_lock, diagnostic_needs_codex_login, fetch_codex_rate_limit_diagnostic
 from .config import (
@@ -232,7 +233,10 @@ def _has_local_claude_auth(auth_home):
 def _read_claude_launch_oauth_token(auth_home):
     if _has_local_claude_auth(auth_home):
         return None
-    return _read_anthropic_oauth_token(auth_home)
+    token = _read_anthropic_oauth_token(auth_home)
+    if token and read_keychain_credentials(auth_home) is not None:
+        return None
+    return token
 
 
 def _has_local_codex_auth(auth_home):

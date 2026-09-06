@@ -128,6 +128,7 @@ The reason `cdx` exists: knowing, across every account you own, which one you ca
 - Environment isolation per session:
   - Codex sessions override `CODEX_HOME` to a dedicated profile directory.
   - Claude sessions override `HOME` to a dedicated profile directory and disable Claude Code commit co-author attribution by default.
+  - On macOS, Claude credentials use a profile-specific keychain entry. Quota refresh reads that entry before legacy credential files; `cdx cp` and `cdx ren` transfer only the profile's entry, never the system keychain directory. Rename refuses existing destination entries and reports any old-entry cleanup failure after the new session becomes usable.
   - Antigravity sessions launch `agy` with a dedicated `HOME` for file-based settings; Google account credentials may still be stored in the OS keyring by Antigravity itself.
   - Ollama sessions use the local Ollama server and launch `ollama run <model>`; set a model with `cdx set <name> --model <model>`.
   - New Codex sessions seed their auth home from your existing global `~/.codex/auth.json` when available, so an already logged-in Codex CLI can be reused without giving up per-session isolation afterward.
