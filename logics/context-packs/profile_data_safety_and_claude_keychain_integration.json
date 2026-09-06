@@ -1,0 +1,511 @@
+{
+  "budgets": {
+    "max_docs": 64,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_070_review_findings_profile_data_safety_and_keychain_integration prod_053_safe_profile_operations_with_isolated_claude_keychain_authentication item_140_preserve_existing_profiles_on_merge_import_failure item_141_copy_claude_profiles_without_traversing_the_system_keychain item_142_read_profile_scoped_claude_keychain_credentials_for_quota_refresh item_143_report_unsupported_keychain_credential_exports_explicitly item_144_preserve_claude_keychain_authentication_across_session_rename task_079_orchestrate_profile_data_safety_and_claude_keychain_integration --mode full --profile deep --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_140_preserve_existing_profiles_on_merge_import_failure",
+          "item_141_copy_claude_profiles_without_traversing_the_system_keychain",
+          "item_142_read_profile_scoped_claude_keychain_credentials_for_quota_refresh",
+          "item_143_report_unsupported_keychain_credential_exports_explicitly",
+          "item_144_preserve_claude_keychain_authentication_across_session_rename"
+        ],
+        "prod": [
+          "prod_053_safe_profile_operations_with_isolated_claude_keychain_authentication"
+        ],
+        "req": [
+          "req_070_review_findings_profile_data_safety_and_keychain_integration"
+        ],
+        "task": [
+          "task_079_orchestrate_profile_data_safety_and_claude_keychain_integration"
+        ]
+      },
+      "path": "logics/product/prod_053_safe_profile_operations_with_isolated_claude_keychain_authentication.md",
+      "ref": "prod_053_safe_profile_operations_with_isolated_claude_keychain_authentication",
+      "sections": {
+        "Goals": [
+          "- A failed merge preserves local credentials, history, metadata and state.",
+          "- Copies never duplicate the operator's keychain databases and only transfer the source profile credential.",
+          "- Quota lookup and rename follow the credential identity Claude actually uses.",
+          "- Unsupported auth portability is explicit before an export replaces any file."
+        ],
+        "Key product decisions": [
+          "- Start with merge rollback and link-traversal protection. Resolve and verify the provider's per-profile credential naming before implementing credential copy or rename.",
+          "- For request AC4, implement explicit unsupported-export refusal: a selected keychain-only profile prevents the entire --include-auth export, with a non-zero text/JSON outcome, before the destination is written. Metadata-only export remains available with login required after import.",
+          "- Preserve source authentication until the destination credential, filesystem and store update are usable. Refuse unrelated destination credential collisions; report recoverable cleanup failures without hiding them.",
+          "- Keep native file-backed credential behavior on other platforms. Do not add an abstraction beyond what these concrete callers require."
+        ],
+        "Overview": [
+          "- Preserve the safety and authentication guarantees of CDX profile operations after Claude credentials move into the macOS keychain. Operators must be able to copy and rename isolated profiles without traversing the system keychain, and see truthful quota and export outcomes.",
+          "```mermaid",
+          "flowchart TD",
+          "    Safety[Preserve profile data] --> Merge[Recover failed merges]",
+          "    Safety --> Copy[Prevent keychain traversal]",
+          "    Copy --> Credentials[Resolve isolated credentials]"
+        ],
+        "References": [
+          "- Product back-reference: (none yet)",
+          "- Task back-reference: (none yet)"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Safe profile operations with isolated Claude keychain authentication"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "review, findings, profile, data, safety, keychain, integration",
+        "skip when": "Implementing unrelated CLI or tray presentation changes.",
+        "summary": "Review of 20ef9d1 found destructive merge rollback and incomplete integration of Claude profile keychain storage with copy, quota refresh, export, and rename.",
+        "use when": "Evaluating follow-up work for profile data safety or macOS Claude credential handling."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_140_preserve_existing_profiles_on_merge_import_failure",
+          "item_141_copy_claude_profiles_without_traversing_the_system_keychain",
+          "item_142_read_profile_scoped_claude_keychain_credentials_for_quota_refresh",
+          "item_143_report_unsupported_keychain_credential_exports_explicitly",
+          "item_144_preserve_claude_keychain_authentication_across_session_rename"
+        ],
+        "req": [
+          "req_070_review_findings_profile_data_safety_and_keychain_integration"
+        ]
+      },
+      "path": "logics/request/req_070_review_findings_profile_data_safety_and_keychain_integration.md",
+      "ref": "req_070_review_findings_profile_data_safety_and_keychain_integration",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: An injected file/state write failure during merge leaves the original profile contents, record, and state intact.",
+          "- AC2: Copying a profile with an external keychain symlink never duplicates that directory's contents and leaves credential storage resolvable for the copied profile.",
+          "- AC3: A successful keychain-only authentication can supply the quota refresh path without requiring a plaintext credential file; missing and inaccessible credentials remain distinguishable from fresh quota data.",
+          "- AC4: Auth-inclusive export/import preserves a keychain-only profile's authentication across distinct profile roots, or explicitly reports unsupported credential portability instead of silently claiming success.",
+          "- AC5: Renaming a keychain-only profile preserves authentication under the new profile identity and keeps other profiles isolated.",
+          "- AC6: Any selected fixes add focused regression coverage for the corresponding failing scenarios; the current Python/Rust suites and lint continue to pass."
+        ],
+        "Needs": [
+          "- P1: Preserve existing profile files, session metadata, and state when an import in merge mode fails.",
+          "- P1: Prevent profile copies from following the new Library/Keychains link into the operator's system keychain directory.",
+          "- P2: Let quota refresh consume the profile's actual credential backend when Claude stores authentication only in the keychain.",
+          "- P2: Make auth-inclusive exports carry usable profile-scoped credentials, or explicitly report that those credentials cannot be exported.",
+          "- P2: Preserve profile-scoped keychain authentication when a session is renamed.",
+          "- The operator requested a ready-to-develop corpus on 2026-09-06. All five findings are now scoped for implementation; the original review evidence remains below."
+        ]
+      },
+      "status": "Ready",
+      "title": "Review findings: profile data safety and keychain integration"
+    },
+    {
+      "ai_context": {
+        "keywords": "profile, data-safety, claude, keychain, regression",
+        "skip when": "Work belongs to a sibling slice or a new secret-store architecture.",
+        "summary": "Merge failures call the destructive rollback helper without capturing the original profile or store record; an injected file write failure deletes both.",
+        "use when": "Implementing this bounded slice and its failure-path checks."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_140_preserve_existing_profiles_on_merge_import_failure"
+        ],
+        "req": [
+          "req_070_review_findings_profile_data_safety_and_keychain_integration"
+        ],
+        "task": [
+          "task_079_orchestrate_profile_data_safety_and_claude_keychain_integration"
+        ]
+      },
+      "path": "logics/backlog/item_140_preserve_existing_profiles_on_merge_import_failure.md",
+      "ref": "item_140_preserve_existing_profiles_on_merge_import_failure",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Inject a missing-file write failure and a state/store failure during merge; original profile bytes, session record and state remain unchanged.",
+          "- AC2: A failure after one imported file was created removes only new merge artifacts; pre-existing files and directories survive.",
+          "- AC3: If recovery fails, preserve recoverable data and report failure rather than deleting the only backup.",
+          "- AC4: Successful merge precedence and force-import rollback tests still pass."
+        ],
+        "Problem": [
+          "- Merge failures call the destructive rollback helper without capturing the original profile or store record; an injected file write failure deletes both."
+        ]
+      },
+      "status": "Ready",
+      "title": "Preserve existing profiles on merge import failure"
+    },
+    {
+      "ai_context": {
+        "keywords": "profile, data-safety, claude, keychain, regression",
+        "skip when": "Work belongs to a sibling slice or a new secret-store architecture.",
+        "summary": "copy_session uses copytree with default link dereferencing; the new Library/Keychains symlink causes system keychain database contents to be copied into a profile.",
+        "use when": "Implementing this bounded slice and its failure-path checks."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_141_copy_claude_profiles_without_traversing_the_system_keychain"
+        ],
+        "req": [
+          "req_070_review_findings_profile_data_safety_and_keychain_integration"
+        ],
+        "task": [
+          "task_079_orchestrate_profile_data_safety_and_claude_keychain_integration"
+        ]
+      },
+      "path": "logics/backlog/item_141_copy_claude_profiles_without_traversing_the_system_keychain.md",
+      "ref": "item_141_copy_claude_profiles_without_traversing_the_system_keychain",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A fake linked keychain with an external sentinel is never traversed or copied, including when reading that sentinel would fail.",
+          "- AC2: The copied profile resolves the intended live keychain, uses its own namespace, and can authenticate using only the source profile credential.",
+          "- AC3: An injected copy, credential-write or record-save failure preserves the original source and any existing destination profile and credential.",
+          "- AC4: Unrelated profile files and established overwrite behavior remain covered by the existing copy tests."
+        ],
+        "Problem": [
+          "- copy_session uses copytree with default link dereferencing; the new Library/Keychains symlink causes system keychain database contents to be copied into a profile."
+        ]
+      },
+      "status": "Ready",
+      "title": "Copy Claude profiles without traversing the system keychain"
+    },
+    {
+      "ai_context": {
+        "keywords": "profile, data-safety, claude, keychain, regression",
+        "skip when": "Work belongs to a sibling slice or a new secret-store architecture.",
+        "summary": "Quota refresh runs claude auth status but then reads only credential files, so keychain-only logins silently produce no quota probe.",
+        "use when": "Implementing this bounded slice and its failure-path checks."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_142_read_profile_scoped_claude_keychain_credentials_for_quota_refresh"
+        ],
+        "req": [
+          "req_070_review_findings_profile_data_safety_and_keychain_integration"
+        ],
+        "task": [
+          "task_079_orchestrate_profile_data_safety_and_claude_keychain_integration"
+        ]
+      },
+      "path": "logics/backlog/item_142_read_profile_scoped_claude_keychain_credentials_for_quota_refresh.md",
+      "ref": "item_142_read_profile_scoped_claude_keychain_credentials_for_quota_refresh",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: With only a valid profile-scoped keychain entry, the quota path calls its existing probe with that profile credential and records the returned quota.",
+          "- AC2: Distinct profiles never resolve one another's or the default global entry; a stale legacy file cannot override the credential selected by Claude.",
+          "- AC3: Missing entry, locked/denied keychain, timeout, malformed JSON and expired token produce explicit safe handling without a fresh fabricated status or secret output.",
+          "- AC4: Existing file-backed behavior on Linux/Windows remains intact and no macOS-only command runs there."
+        ],
+        "Problem": [
+          "- Quota refresh runs claude auth status but then reads only credential files, so keychain-only logins silently produce no quota probe."
+        ]
+      },
+      "status": "Ready",
+      "title": "Read profile scoped Claude keychain credentials for quota refresh"
+    },
+    {
+      "ai_context": {
+        "keywords": "profile, data-safety, claude, keychain, regression",
+        "skip when": "Work belongs to a sibling slice or a new secret-store architecture.",
+        "summary": "The auth exporter collects only files and still claims include_auth=true when a keychain-only profile contributes account metadata but no portable credential.",
+        "use when": "Implementing this bounded slice and its failure-path checks."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_143_report_unsupported_keychain_credential_exports_explicitly"
+        ],
+        "req": [
+          "req_070_review_findings_profile_data_safety_and_keychain_integration"
+        ],
+        "task": [
+          "task_079_orchestrate_profile_data_safety_and_claude_keychain_integration"
+        ]
+      },
+      "path": "logics/backlog/item_143_report_unsupported_keychain_credential_exports_explicitly.md",
+      "ref": "item_143_report_unsupported_keychain_credential_exports_explicitly",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A keychain-only profile makes --include-auth fail before writing a bundle; metadata presence does not count as exported authentication.",
+          "- AC2: For a mixed selection or --force, refusal preserves the existing destination bytes and reports affected profile names without secrets in text/JSON.",
+          "- AC3: File-backed auth export/import round trips and metadata-only exports remain successful; documentation states the unsupported keychain portability limit.",
+          "- AC4: Denied storage produces a safe diagnostic rather than a successful incomplete bundle."
+        ],
+        "Problem": [
+          "- The auth exporter collects only files and still claims include_auth=true when a keychain-only profile contributes account metadata but no portable credential."
+        ]
+      },
+      "status": "Ready",
+      "title": "Report unsupported keychain credential exports explicitly"
+    },
+    {
+      "ai_context": {
+        "keywords": "profile, data-safety, claude, keychain, regression",
+        "skip when": "Work belongs to a sibling slice or a new secret-store architecture.",
+        "summary": "Renaming a Claude profile changes authHome and therefore the secure-storage namespace, but currently migrates only the filesystem tree and store record.",
+        "use when": "Implementing this bounded slice and its failure-path checks."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_144_preserve_claude_keychain_authentication_across_session_rename"
+        ],
+        "req": [
+          "req_070_review_findings_profile_data_safety_and_keychain_integration"
+        ],
+        "task": [
+          "task_079_orchestrate_profile_data_safety_and_claude_keychain_integration"
+        ]
+      },
+      "path": "logics/backlog/item_144_preserve_claude_keychain_authentication_across_session_rename.md",
+      "ref": "item_144_preserve_claude_keychain_authentication_across_session_rename",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: A synthetic keychain-only profile remains authenticated after rename under the destination namespace; other profiles and the global entry remain unchanged.",
+          "- AC2: Destination-write, verification, directory-move and store-save failures preserve the original usable profile/credential and undo only entries created by this attempt.",
+          "- AC3: Destination entry collisions are refused before destructive mutation; source cleanup failure leaves the committed destination usable and reports the remaining old entry.",
+          "- AC4: Record focused regression evidence across all five slices and passing project lint, Python tests, Rust tests and npm packaging dry-run. Do not substitute auth-status success for quota/export/rename coverage."
+        ],
+        "Problem": [
+          "- Renaming a Claude profile changes authHome and therefore the secure-storage namespace, but currently migrates only the filesystem tree and store record."
+        ]
+      },
+      "status": "Ready",
+      "title": "Preserve Claude keychain authentication across session rename"
+    },
+    {
+      "ai_context": {
+        "keywords": "merge, rollback, keychain, copy, quota, export, rename",
+        "skip when": "Only reviewing or proposing unrelated credential features.",
+        "summary": "Implement the five bounded slices, with data preservation first and shared credential resolution before dependent lifecycle operations.",
+        "use when": "Delivering this request end to end."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_140_preserve_existing_profiles_on_merge_import_failure",
+          "item_141_copy_claude_profiles_without_traversing_the_system_keychain",
+          "item_142_read_profile_scoped_claude_keychain_credentials_for_quota_refresh",
+          "item_143_report_unsupported_keychain_credential_exports_explicitly",
+          "item_144_preserve_claude_keychain_authentication_across_session_rename"
+        ],
+        "req": [
+          "req_070_review_findings_profile_data_safety_and_keychain_integration"
+        ],
+        "task": [
+          "task_079_orchestrate_profile_data_safety_and_claude_keychain_integration"
+        ]
+      },
+      "path": "logics/tasks/task_079_orchestrate_profile_data_safety_and_claude_keychain_integration.md",
+      "ref": "task_079_orchestrate_profile_data_safety_and_claude_keychain_integration",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- This is the executable orchestration task for the five linked backlog items; it owns implementation and final validation, not merely creation of more tasks.",
+          "- The review reproduced destructive merge rollback, keychain-directory copying, absent quota probes and incomplete export collection. Rename identity loss was established by code inspection and still requires a synthetic keychain regression.",
+          "- Keep the source credential backend and namespace aligned with the installed provider. Do not hard-code an unverified service-name algorithm.",
+          "- The copy slice has two steps: High-priority non-traversal protection, then credential-copy completion after the quota slice supplies the resolver.",
+          "- Export chooses the explicit-unsupported option already allowed by the request. Full keychain portability is outside this delivery.",
+          "- No additional approval is needed for scoped implementation with fake fixtures; actual operator credential mutation is not required by the automated plan."
+        ],
+        "Validation": [
+          "- Planned focused checks: run the relevant existing test modules for each changed domain, with synthetic profile/keychain fixtures and injected failures.",
+          "- Final commands: `rtk npm run lint`; `rtk npm test`; `rtk cargo test --manifest-path tray/Cargo.toml`; `rtk npm pack --dry-run`.",
+          "- Workflow commands: `logics-manager flow validate` on the full request ref; `logics-manager lint --require-status`; `logics-manager audit --group-by-doc`.",
+          "- Prior review baseline: 989 Python and 96 Rust tests passed. This is baseline evidence, not proof that the fixes are implemented.",
+          "- No implementation validation has run for this task yet."
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate profile data safety and Claude keychain integration"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_140_preserve_existing_profiles_on_merge_import_failure",
+          "item_141_copy_claude_profiles_without_traversing_the_system_keychain",
+          "item_142_read_profile_scoped_claude_keychain_credentials_for_quota_refresh",
+          "item_143_report_unsupported_keychain_credential_exports_explicitly",
+          "item_144_preserve_claude_keychain_authentication_across_session_rename"
+        ],
+        "prod": [
+          "prod_053_safe_profile_operations_with_isolated_claude_keychain_authentication"
+        ],
+        "req": [
+          "req_070_review_findings_profile_data_safety_and_keychain_integration"
+        ],
+        "task": [
+          "task_079_orchestrate_profile_data_safety_and_claude_keychain_integration"
+        ]
+      },
+      "path": "logics/product/prod_053_safe_profile_operations_with_isolated_claude_keychain_authentication.md",
+      "ref": "prod_053_safe_profile_operations_with_isolated_claude_keychain_authentication",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Safe profile operations with isolated Claude keychain authentication"
+    }
+  ],
+  "estimates": {
+    "char_count": 18667,
+    "companion_doc_count": 1,
+    "doc_count": 8
+  },
+  "generated_at": "2026-09-06T09:40:40Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_070_review_findings_profile_data_safety_and_keychain_integration",
+      "prod_053_safe_profile_operations_with_isolated_claude_keychain_authentication",
+      "item_140_preserve_existing_profiles_on_merge_import_failure",
+      "item_141_copy_claude_profiles_without_traversing_the_system_keychain",
+      "item_142_read_profile_scoped_claude_keychain_credentials_for_quota_refresh",
+      "item_143_report_unsupported_keychain_credential_exports_explicitly",
+      "item_144_preserve_claude_keychain_authentication_across_session_rename",
+      "task_079_orchestrate_profile_data_safety_and_claude_keychain_integration"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "full",
+  "profile": "deep",
+  "ref": "req_070_review_findings_profile_data_safety_and_keychain_integration,prod_053_safe_profile_operations_with_isolated_claude_keychain_authentication,item_140_preserve_existing_profiles_on_merge_import_failure,item_141_copy_claude_profiles_without_traversing_the_system_keychain,item_142_read_profile_scoped_claude_keychain_credentials_for_quota_refresh,item_143_report_unsupported_keychain_credential_exports_explicitly,item_144_preserve_claude_keychain_authentication_across_session_rename,task_079_orchestrate_profile_data_safety_and_claude_keychain_integration",
+  "refs": [
+    "req_070_review_findings_profile_data_safety_and_keychain_integration",
+    "prod_053_safe_profile_operations_with_isolated_claude_keychain_authentication",
+    "item_140_preserve_existing_profiles_on_merge_import_failure",
+    "item_141_copy_claude_profiles_without_traversing_the_system_keychain",
+    "item_142_read_profile_scoped_claude_keychain_credentials_for_quota_refresh",
+    "item_143_report_unsupported_keychain_credential_exports_explicitly",
+    "item_144_preserve_claude_keychain_authentication_across_session_rename",
+    "task_079_orchestrate_profile_data_safety_and_claude_keychain_integration"
+  ],
+  "release": {
+    "blocking_reasons": [],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Release evidence is complete.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": null,
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "ready",
+    "target_id": null,
+    "target_version": "0.20.8",
+    "targets": []
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- Planned focused checks: run the relevant existing test modules for each changed domain, with synthetic profile/keychain fixtures and injected failures.",
+        "- Final commands: `rtk npm run lint`; `rtk npm test`; `rtk cargo test --manifest-path tray/Cargo.toml`; `rtk npm pack --dry-run`.",
+        "- Workflow commands: `logics-manager flow validate` on the full request ref; `logics-manager lint --require-status`; `logics-manager audit --group-by-doc`.",
+        "- Prior review baseline: 989 Python and 96 Rust tests passed. This is baseline evidence, not proof that the fixes are implemented.",
+        "- No implementation validation has run for this task yet."
+      ],
+      "path": "logics/tasks/task_079_orchestrate_profile_data_safety_and_claude_keychain_integration.md",
+      "ref": "task_079_orchestrate_profile_data_safety_and_claude_keychain_integration"
+    }
+  ]
+}

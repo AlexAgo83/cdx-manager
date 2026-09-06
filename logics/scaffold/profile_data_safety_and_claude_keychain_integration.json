@@ -1,0 +1,222 @@
+{
+  "title": "Profile data safety and Claude keychain integration",
+  "references": [
+    "logics/request/req_070_review_findings_profile_data_safety_and_keychain_integration.md",
+    "src/session_backup.py",
+    "src/session_store.py",
+    "src/fs_utils.py",
+    "test/test_session_service_py.py",
+    "test/test_commands_backup_py.py",
+    "src/session_service.py",
+    "src/claude_usage.py",
+    "src/provider_runtime.py",
+    "test/test_runtime_py.py",
+    "src/claude_refresh.py",
+    "src/commands/status.py",
+    "test/test_commands_status_py.py",
+    "src/commands/backup.py",
+    "src/cli_helpers.py",
+    "README.md"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Profile data safety and authentication",
+    "needs": [
+      "Merge failures call the destructive rollback helper without capturing the original profile or store record; an injected file write failure deletes both.",
+      "copy_session uses copytree with default link dereferencing; the new Library/Keychains symlink causes system keychain database contents to be copied into a profile.",
+      "Quota refresh runs claude auth status but then reads only credential files, so keychain-only logins silently produce no quota probe.",
+      "The auth exporter collects only files and still claims include_auth=true when a keychain-only profile contributes account metadata but no portable credential.",
+      "Renaming a Claude profile changes authHome and therefore the secure-storage namespace, but currently migrates only the filesystem tree and store record."
+    ],
+    "context": [
+      "Prepared from the existing req_070 review. The live corpus was created with flow split request and flow companion to preserve that request identity; do not replay request-chain over this existing corpus.",
+      "Choose explicit unsupported-auth-export refusal rather than new keychain bundle serialization."
+    ],
+    "acceptance_criteria": [
+      "AC1: Merge failure preserves original profiles and records.",
+      "AC2: Profile copy never traverses the system keychain and preserves isolated authentication.",
+      "AC3: Quota refresh resolves profile-scoped keychain authentication.",
+      "AC4: Unsupported keychain auth exports are refused explicitly before writing output.",
+      "AC5: Rename preserves isolated keychain authentication.",
+      "AC6: Focused regression checks and project validation prove the fixes."
+    ]
+  },
+  "product": {
+    "title": "Safe profile operations with isolated Claude keychain authentication",
+    "overview": "Preserve the safety and authentication guarantees of CDX profile operations after Claude credentials move into the macOS keychain. Operators must be able to copy and rename isolated profiles without traversing the system keychain, and see truthful quota and export outcomes.",
+    "goals": [
+      "A failed merge preserves local credentials, history, metadata and state.",
+      "Copies never duplicate the operator's keychain databases and only transfer the source profile credential.",
+      "Quota lookup and rename follow the credential identity Claude actually uses.",
+      "Unsupported auth portability is explicit before an export replaces any file."
+    ],
+    "non_goals": [
+      "No new secret-store framework, bundle format or keychain database export.",
+      "No host-to-host token synchronization, automatic login or background token rotation.",
+      "No wholesale cleanup of old keychain entries or copied directories."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Preserve existing profiles on merge import failure",
+      "priority": "High",
+      "complexity": "High",
+      "theme": "Profile data safety and authentication",
+      "request_acs": [
+        "AC1"
+      ],
+      "problem": [
+        "Merge failures call the destructive rollback helper without capturing the original profile or store record; an injected file write failure deletes both."
+      ],
+      "scope_in": [
+        "Trace import_bundle, _restore_import_backup, atomic_write, and store record/state writes before choosing the smallest rollback change.",
+        "Preserve original files, metadata and state on file or store failures; track only newly introduced merge artifacts or use reversible staging without dereferencing external links.",
+        "Preserve current merge precedence, successful imports, and force-import behavior; keep any recovery backup when rollback itself fails."
+      ],
+      "scope_out": [
+        "Whole-bundle transactions across multiple sessions.",
+        "Concurrent lifecycle-operation locking redesign or a new storage backend."
+      ],
+      "acceptance_criteria": [
+        "AC1: Inject a missing-file write failure and a state/store failure during merge; original profile bytes, session record and state remain unchanged.",
+        "AC2: A failure after one imported file was created removes only new merge artifacts; pre-existing files and directories survive.",
+        "AC3: If recovery fails, preserve recoverable data and report failure rather than deleting the only backup.",
+        "AC4: Successful merge precedence and force-import rollback tests still pass."
+      ]
+    },
+    {
+      "title": "Copy Claude profiles without traversing the system keychain",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Profile data safety and authentication",
+      "request_acs": [
+        "AC2"
+      ],
+      "problem": [
+        "copy_session uses copytree with default link dereferencing; the new Library/Keychains symlink causes system keychain database contents to be copied into a profile."
+      ],
+      "scope_in": [
+        "Prevent traversal of the managed Library/Keychains link during staging; preserve or recreate the link without changing unrelated profile-copy semantics.",
+        "Keep source and destination credential namespaces isolated. Copy only the source profile credential into the destination namespace when needed, never the system keychain directory.",
+        "Reuse the bounded profile credential resolver delivered by the quota slice for the credential-copy portion. Land the non-traversal protection first.",
+        "Keep destination overwrite and failure rollback behavior, including any pre-existing destination credential, consistent with filesystem/store rollback."
+      ],
+      "scope_out": [
+        "Blindly deleting an existing real Library/Keychains directory or assuming it is disposable.",
+        "Copying global keychain entries, weakening keychain access controls, or redesigning all filesystem symlinks."
+      ],
+      "acceptance_criteria": [
+        "AC1: A fake linked keychain with an external sentinel is never traversed or copied, including when reading that sentinel would fail.",
+        "AC2: The copied profile resolves the intended live keychain, uses its own namespace, and can authenticate using only the source profile credential.",
+        "AC3: An injected copy, credential-write or record-save failure preserves the original source and any existing destination profile and credential.",
+        "AC4: Unrelated profile files and established overwrite behavior remain covered by the existing copy tests."
+      ]
+    },
+    {
+      "title": "Read profile scoped Claude keychain credentials for quota refresh",
+      "priority": "Medium",
+      "complexity": "High",
+      "theme": "Profile data safety and authentication",
+      "request_acs": [
+        "AC3"
+      ],
+      "problem": [
+        "Quota refresh runs claude auth status but then reads only credential files, so keychain-only logins silently produce no quota probe."
+      ],
+      "scope_in": [
+        "Verify the installed Claude service-name derivation, account selector, credential JSON shape and precedence using local provider code or a disposable synthetic entry; record the observed provider version.",
+        "Add the minimum shared profile-scoped credential resolution needed by usage, copy, export classification and rename. Reuse the repository's token validation and file readers.",
+        "Match provider precedence when keychain and legacy files disagree; never silently select another profile or the global Claude credential.",
+        "Bound keychain subprocess timeouts and preserve distinctions between absent credentials, inaccessible storage, malformed data and provider authentication failure.",
+        "Continue using the existing quota request path; do not add another generation request, refresh-token rotation, scheduler or background worker."
+      ],
+      "scope_out": [
+        "A generic pluggable secret-store framework.",
+        "Reading all keychain entries or dumping provider responses/tokens.",
+        "Changing quota pricing, ranking policy, or adding a new provider backend."
+      ],
+      "acceptance_criteria": [
+        "AC1: With only a valid profile-scoped keychain entry, the quota path calls its existing probe with that profile credential and records the returned quota.",
+        "AC2: Distinct profiles never resolve one another's or the default global entry; a stale legacy file cannot override the credential selected by Claude.",
+        "AC3: Missing entry, locked/denied keychain, timeout, malformed JSON and expired token produce explicit safe handling without a fresh fabricated status or secret output.",
+        "AC4: Existing file-backed behavior on Linux/Windows remains intact and no macOS-only command runs there."
+      ]
+    },
+    {
+      "title": "Report unsupported keychain credential exports explicitly",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Profile data safety and authentication",
+      "request_acs": [
+        "AC4"
+      ],
+      "problem": [
+        "The auth exporter collects only files and still claims include_auth=true when a keychain-only profile contributes account metadata but no portable credential."
+      ],
+      "scope_in": [
+        "Choose the explicit-unsupported branch already allowed by request AC4: refuse the entire --include-auth export if any selected authenticated profile relies on unsupported keychain-only credentials.",
+        "Perform the profile-scoped preflight before any destination replacement, including --force; return non-zero in text and JSON with affected session names and a token-safe reason.",
+        "Explain that metadata-only export remains available and the imported profile will need login. Preserve file-backed encrypted export/import and the existing bundle format.",
+        "Treat denied or unavailable credential storage as an explicit failure, not as proof the profile is unauthenticated."
+      ],
+      "scope_out": [
+        "Keychain secret serialization, a new bundle schema, or cross-host credential migration.",
+        "Silently writing a partial auth bundle or automatically falling back to plaintext credential storage."
+      ],
+      "acceptance_criteria": [
+        "AC1: A keychain-only profile makes --include-auth fail before writing a bundle; metadata presence does not count as exported authentication.",
+        "AC2: For a mixed selection or --force, refusal preserves the existing destination bytes and reports affected profile names without secrets in text/JSON.",
+        "AC3: File-backed auth export/import round trips and metadata-only exports remain successful; documentation states the unsupported keychain portability limit.",
+        "AC4: Denied storage produces a safe diagnostic rather than a successful incomplete bundle."
+      ]
+    },
+    {
+      "title": "Preserve Claude keychain authentication across session rename",
+      "priority": "Medium",
+      "complexity": "High",
+      "theme": "Profile data safety and authentication",
+      "request_acs": [
+        "AC5",
+        "AC6"
+      ],
+      "problem": [
+        "Renaming a Claude profile changes authHome and therefore the secure-storage namespace, but currently migrates only the filesystem tree and store record."
+      ],
+      "scope_in": [
+        "Use the verified provider namespace and profile-scoped credential operations to migrate only the renamed profile's credential.",
+        "Write and verify the destination credential before removing the source; keep the source recoverable through filesystem and store commit failures.",
+        "Never overwrite an unrelated destination keychain entry silently. Preserve current file-backed rename behavior and the global/default entry.",
+        "On cleanup failure after a committed rename, keep the working destination and report the precise partial cleanup outcome.",
+        "Own final cross-slice validation evidence for request AC6; each earlier slice still supplies its own regression checks."
+      ],
+      "scope_out": [
+        "Changing all credential namespaces or adding permanent alias registries.",
+        "Deleting global or unrelated entries, or renaming the operator's live profile during automated tests.",
+        "Expanding this request into logout/remove credential lifecycle redesign."
+      ],
+      "acceptance_criteria": [
+        "AC1: A synthetic keychain-only profile remains authenticated after rename under the destination namespace; other profiles and the global entry remain unchanged.",
+        "AC2: Destination-write, verification, directory-move and store-save failures preserve the original usable profile/credential and undo only entries created by this attempt.",
+        "AC3: Destination entry collisions are refused before destructive mutation; source cleanup failure leaves the committed destination usable and reports the remaining old entry.",
+        "AC4: Record focused regression evidence across all five slices and passing project lint, Python tests, Rust tests and npm packaging dry-run. Do not substitute auth-status success for quota/export/rename coverage."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate profile data safety and Claude keychain integration",
+    "plan": [
+      "Trace merge rollback and credential consumers; confirm the local provider's keychain namespace, credential shape and precedence without inspecting operator secrets. Record version and synthetic evidence.",
+      "Wave 1 (High): implement merge rollback preservation and the non-traversal portion of profile copy. Add failure-injection checks before recording the wave outcome.",
+      "Wave 2 (enabling Medium work): implement profile-scoped credential resolution and quota refresh; finish isolated credential copy and destination rollback using the verified resolver.",
+      "Wave 3 (Medium): implement explicit unsupported-auth-export refusal, text/JSON error contracts and README guidance; verify an existing --force destination survives preflight failure.",
+      "Wave 4 (Medium): migrate renamed profile credentials with collision handling and staged commit/rollback; verify file-backed behavior and record cross-slice AC6 evidence.",
+      "Run scoped tests as each slice lands, then run final project lint, Python tests, Rust tests and npm packaging dry-run once. Record actual commands and outcomes, including unavailable platform checks.",
+      "Apply ADR 009 at each meaningful wave: update affected Logics docs and progress using the CLI, leave the repository commit-ready, and record implementation evidence against all six request ACs before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/profile_data_safety_and_claude_keychain_integration.json",
+    "mode": "full",
+    "profile": "deep"
+  }
+}
