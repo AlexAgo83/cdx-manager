@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from src import claude_credentials, claude_usage
+from src import claude_credentials, claude_usage, session_backup
 from src.backup_bundle import encode_bundle
 from src.errors import CdxError
 from src.session_store import create_session_store
@@ -71,6 +71,54 @@ class ProfileDataSafetyTests(unittest.TestCase):
         path.write_bytes(encode_bundle(payload))
         return str(path)
 
+    def test_merge_failure_preserves_original_files_record_and_state(self):
+        record = self.profile("merge", "codex")
+        root = Path(record["sessionRoot"])
+        (root / "auth.json").write_text("original")
+        state = {"status": "running", "local": "preserve"}
+        self.store["write_session_state"]("merge", state)
+        bundle = self.bundle("merge", [("added/one", "new"), ("added/two", "fail")])
+        real_write = session_backup.atomic_write
+
+        def fail(path, data, **kwargs):
+            if str(path).endswith("two"):
+                raise OSError("write failed")
+            return real_write(path, data, **kwargs)
+
+        with mock.patch.object(session_backup, "atomic_write", side_effect=fail):
+            with self.assertRaises(OSError):
+                session_backup.import_bundle(str(self.base), self.store, bundle, merge=True)
+        self.assertEqual((root / "auth.json").read_text(), "original")
+        self.assertFalse((root / "added").exists())
+        self.assertEqual(self.store["get_session"]("merge"), record)
+        self.assertEqual(self.store["read_session_state"]("merge"), state)
+
+    def test_merge_state_failure_restores_state_and_failed_recovery_keeps_snapshot(self):
+        record = self.profile("merge", "codex")
+        root = Path(record["sessionRoot"])
+        (root / "auth.json").write_text("original")
+        state = {"status": "running"}
+        self.store["write_session_state"]("merge", state)
+        bundle = self.bundle("merge", [], {"imported": True})
+        real_write = self.store["write_session_state"]
+        def fail_imported_state(name, value):
+            if value != state:
+                raise OSError("fail")
+            return real_write(name, value)
+
+        with mock.patch.dict(self.store, {"write_session_state": fail_imported_state}):
+            with self.assertRaises(OSError):
+                session_backup.import_bundle(str(self.base), self.store, bundle, merge=True)
+        self.assertEqual(self.store["read_session_state"]("merge"), state)
+        with mock.patch.dict(self.store, {"write_session_state": mock.Mock(side_effect=OSError("offline"))}):
+            with self.assertRaisesRegex(CdxError, "recovery is incomplete"):
+                session_backup.import_bundle(str(self.base), self.store, bundle, merge=True)
+        checkpoints = list((self.base / "profiles").glob(".merge.import.*/recovery.json"))
+        self.assertEqual(len(checkpoints), 1)
+        self.assertEqual(json.loads(checkpoints[0].read_text()), {"session": record, "state": state})
+        self.assertEqual((root / "auth.json").read_text(), "original")
+
+    @unittest.skipIf(os.name == "nt", "symlink creation may require Windows privileges")
     def test_keychain_quota_precedence_and_launch_token_isolation(self):
         from src.provider_runtime import _read_claude_launch_oauth_token
 

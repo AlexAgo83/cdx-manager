@@ -6,6 +6,7 @@ coupling measurement supports. Moved verbatim; re-exported by session_service.
 
 import base64
 import binascii
+import json
 import os
 import shutil
 import tempfile
@@ -151,7 +152,7 @@ def _resolve_session_subset(store, session_names):
 
 def _restore_import_backup(store, name, backup_root, session_root, old_record, old_state):
     if os.path.exists(session_root):
-        remove_tree(session_root, ignore_errors=True)
+        remove_tree(session_root)
     if backup_root and os.path.exists(backup_root):
         os.rename(backup_root, session_root)
     if old_record:
@@ -268,23 +269,38 @@ def import_bundle(base_dir, store, file_path,
         _ensure_private_dir(base_dir)
         _ensure_private_dir(os.path.join(base_dir, "profiles"))
         backup_root = None
+        recovery_dir = None
         old_record = None
         old_state = None
         preserved_profile_paths = []
-        if is_existing and force:
+        if is_existing and (force or merge):
             old_record = store["get_session"](name)
             old_state = store["read_session_state"](name)
-            preserved_profile_paths = _force_import_preserved_profile_paths(session_root)
-            if os.path.exists(session_root):
-                backup_root = tempfile.mkdtemp(prefix=f".{_encode(name)}.import.", dir=os.path.dirname(session_root))
-                os.rmdir(backup_root)
-                os.rename(session_root, backup_root)
-            is_existing = False
-        _ensure_private_dir(session_root)
-        _ensure_private_dir(auth_home)
+            if merge:
+                provider = old_record["provider"]
+                auth_home = old_record["authHome"]
+            recovery_dir = tempfile.mkdtemp(prefix=f".{_encode(name)}.import.", dir=os.path.dirname(session_root))
+            backup_root = os.path.join(recovery_dir, "profile")
+            try:
+                atomic_write(os.path.join(recovery_dir, "recovery.json"),
+                             json.dumps({"session": old_record, "state": old_state}), mode=0o600)
+                if force:
+                    preserved_profile_paths = _force_import_preserved_profile_paths(session_root)
+                    if os.path.exists(session_root):
+                        os.rename(session_root, backup_root)
+                    is_existing = False
+                elif os.path.exists(session_root):
+                    # ponytail: full profile snapshot; journal new merge files if copy cost becomes material.
+                    # Keep links as links: a Claude profile can reference the system keychain.
+                    shutil.copytree(session_root, backup_root, symlinks=True)
+            except Exception:
+                remove_tree(recovery_dir, ignore_errors=True)
+                raise
 
         existing_state_before = None
         try:
+            _ensure_private_dir(session_root)
+            _ensure_private_dir(auth_home)
             if is_existing and merge:
                 existing_record = store["get_session"](name) or {}
                 # replace_session resets the state file to defaults, so the
@@ -322,19 +338,28 @@ def import_bundle(base_dir, store, file_path,
 
             for item in decoded_profiles.get(name, []):
                 dest_path = os.path.join(session_root, item["path"])
+                # A syntactically relative path can still escape through a profile symlink.
+                root = os.path.realpath(session_root)
+                if os.path.commonpath([root, os.path.realpath(dest_path)]) != root:
+                    raise CdxError("Bundle file path escapes the session profile through a link.")
                 # In merge mode, skip files that already exist locally.
-                if is_existing and merge and os.path.exists(dest_path):
+                if is_existing and merge and os.path.lexists(dest_path):
                     continue
                 _ensure_private_dir(os.path.dirname(dest_path))
                 # Decrypted credentials: 0o600 from creation, no umask window.
                 atomic_write(dest_path, item["content"], mode=0o600)
             _restore_force_import_profile_paths(name, backup_root, session_root, preserved_profile_paths)
         except Exception:
-            _restore_import_backup(store, name, backup_root, session_root, old_record, old_state)
+            try:
+                _restore_import_backup(store, name, backup_root, session_root, old_record, old_state)
+            except Exception:
+                raise CdxError(f"Import failed and recovery is incomplete for {name}; recovery data retained at {recovery_dir or session_root}.") from None
+            if recovery_dir:
+                remove_tree(recovery_dir, ignore_errors=True)
             raise
-        finally:
-            if backup_root and os.path.exists(backup_root):
-                remove_tree(backup_root, ignore_errors=True)
+        else:
+            if recovery_dir:
+                remove_tree(recovery_dir, ignore_errors=True)
 
     return {
         "path": file_path,

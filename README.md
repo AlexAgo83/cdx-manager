@@ -911,6 +911,7 @@ cdx import backup-auth.cdx --passphrase-env CDX_BUNDLE_PASSPHRASE
 Notes:
 
 - `--include-auth` is encrypted, requires a passphrase, and exports only provider credential files rather than full profile caches, logs, or installed plugins.
+- Merge imports snapshot each existing profile before modification, preserving symlinks instead of following them. This temporarily needs space for a second copy of that profile. On failure, CDX restores the original files, record and state; if recovery also fails, the error gives the retained recovery directory containing the original metadata and any remaining profile snapshot.
 - Without `--passphrase-env`, `cdx` prompts in an interactive terminal. Non-interactive callers can pass `--passphrase-stdin` to read the passphrase from stdin (one line) instead of exposing it in the child environment.
 - `--sessions work,perso` exports or imports only a subset.
 - `--force` allows overwriting existing destination sessions during import or replacing an existing bundle file during export. Import preserves detected local `plugins/` state when the bundle does not provide it, and refuses to overwrite existing sessions from a bundle without auth payloads unless `--allow-authless-force` is also passed.
