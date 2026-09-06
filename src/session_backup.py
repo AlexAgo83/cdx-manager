@@ -309,8 +309,9 @@ def import_bundle(base_dir, store, file_path,
                     is_existing = False
                 elif os.path.exists(session_root):
                     # ponytail: full profile snapshot; journal new merge files if copy cost becomes material.
-                    # Keep links as links: a Claude profile can reference the system keychain.
-                    shutil.copytree(session_root, backup_root, symlinks=True)
+                    # Keep links as links: a Claude profile can reference the system keychain,
+                    # and a dangling one (stale plugin or npm cache) must not fail the import.
+                    shutil.copytree(session_root, backup_root, symlinks=True, ignore_dangling_symlinks=True)
             except Exception:
                 remove_tree(recovery_dir, ignore_errors=True)
                 raise
@@ -358,7 +359,11 @@ def import_bundle(base_dir, store, file_path,
                 dest_path = os.path.join(session_root, item["path"])
                 # A syntactically relative path can still escape through a profile symlink.
                 root = os.path.realpath(session_root)
-                if os.path.commonpath([root, os.path.realpath(dest_path)]) != root:
+                try:
+                    inside = os.path.commonpath([root, os.path.realpath(dest_path)]) == root
+                except ValueError:  # different drive: never inside the profile.
+                    inside = False
+                if not inside:
                     raise CdxError("Bundle file path escapes the session profile through a link.")
                 # In merge mode, skip files that already exist locally.
                 if is_existing and merge and os.path.lexists(dest_path):

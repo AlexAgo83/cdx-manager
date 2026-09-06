@@ -347,5 +347,65 @@ class ProfileDataSafetyTests(unittest.TestCase):
         self.assertFalse(self.keychain_calls)
 
 
+    def test_remove_deletes_the_profile_credential_and_frees_the_name(self):
+        gone = self.profile("gone")
+        kept = self.profile("kept")
+        gone_service = self.credential(gone, "gone-token")
+        kept_service = self.credential(kept, "kept-token")
+        session_service.remove_session(str(self.base), self.store, "gone")
+        self.assertNotIn(gone_service, self.entries)
+        self.assertIn(kept_service, self.entries)
+        # The freed name must be reusable: a stale entry would refuse the copy.
+        result = session_service.copy_session(str(self.base), self.store, "kept", "gone")
+        self.assertEqual(claude_credentials.read_keychain_credentials(result["session"]["authHome"]),
+                         self.entries[kept_service])
+
+    def test_remove_reports_a_credential_that_could_not_be_deleted(self):
+        record = self.profile("gone")
+        self.credential(record, "gone-token")
+        with mock.patch.object(claude_credentials, "_security", return_value=SimpleNamespace(returncode=1, stdout="", stderr="")):
+            with self.assertRaises(CdxError) as error:
+                session_service.remove_session(str(self.base), self.store, "gone")
+        self.assertIn("Removed session gone", str(error.exception))
+        self.assertIsNone(self.store["get_session"]("gone"))
+
+    def test_copy_over_a_claude_destination_from_another_provider_leaves_no_credential(self):
+        self.profile("codex-src", "codex")
+        dest = self.profile("claude-dest")
+        dest_service = self.credential(dest, "dest-token")
+        session_service.copy_session(str(self.base), self.store, "codex-src", "claude-dest")
+        self.assertNotIn(dest_service, self.entries)
+        self.assertEqual(self.store["get_session"]("claude-dest")["provider"], "codex")
+
+    def test_an_unusable_keychain_falls_back_to_credential_files(self):
+        from src.provider_runtime import _read_claude_launch_oauth_token
+
+        record = self.profile("locked")
+        home = Path(record["authHome"])
+        (home / ".claude").mkdir()
+        (home / ".claude" / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {"accessToken": "file-token"}}))
+        locked = SimpleNamespace(returncode=36, stdout="", stderr="keychain is locked")
+        with mock.patch.object(claude_credentials, "_security", return_value=locked):
+            with mock.patch.object(claude_usage, "fetch_claude_rate_limit_headers", return_value={"remaining_5h_pct": 40}) as probe:
+                result = claude_usage.refresh_claude_session_status(record, auth_refresher=lambda _: None)
+            probe.assert_called_once_with("file-token")
+            self.assertEqual(result["remaining_5h_pct"], 40)
+            # Launching must not die on a keychain it cannot read either.
+            (home / "credentials").mkdir()
+            (home / "credentials" / "default.json").write_text(json.dumps({"access_token": "launch-token"}))
+            (home / ".claude" / ".credentials.json").unlink()
+            self.assertEqual(_read_claude_launch_oauth_token(str(home)), "launch-token")
+
+    def test_a_custom_oauth_endpoint_blocks_writes_but_still_allows_reads(self):
+        source = self.profile("source")
+        self.credential(source, "source-token")
+        with mock.patch.dict(os.environ, {"USE_LOCAL_OAUTH": "1"}):
+            self.assertIsNotNone(claude_credentials.read_keychain_credentials(source["authHome"]))
+            with self.assertRaises(CdxError):
+                claude_credentials.write_keychain_credentials(source["authHome"], {"a": 1})
+            with self.assertRaises(CdxError):
+                claude_credentials.delete_keychain_credentials(source["authHome"])
+
+
 if __name__ == "__main__":
     unittest.main()

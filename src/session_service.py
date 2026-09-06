@@ -474,6 +474,22 @@ def set_session_enabled(store, name, enabled):
     })
 
 
+def _discard_claude_credentials(record, done):
+    """Drop a gone profile's keychain entry.
+
+    Left behind it both keeps the OAuth token alive and blocks the name: the
+    next `cdx cp`/`cdx ren` into it refuses to overwrite an entry no session
+    owns any more. The profile is already gone when this runs, so a failure
+    is reported without undoing the operation.
+    """
+    if not record or record.get("provider") != PROVIDER_CLAUDE:
+        return
+    try:
+        delete_keychain_credentials(record.get("authHome"))
+    except CdxError as error:
+        raise CdxError(f"{done}, but its Claude keychain credential could not be deleted: {error}") from None
+
+
 def remove_session(base_dir, store, name):
     session = store["get_session"](name)
     if not session:
@@ -503,6 +519,7 @@ def remove_session(base_dir, store, name):
             raise CdxError(
                 f"Removed session {name}, but failed to delete archived profile {quarantine_root}: {error}"
             ) from error
+    _discard_claude_credentials(session, f"Removed session {name}")
     return removed
 
 
@@ -520,6 +537,7 @@ def copy_session(base_dir, store, source_name, dest_name):
     if not existing and os.path.exists(dest_root):
         raise CdxError(f"Session profile already exists: {dest_name}")
     dest_auth_home = _get_session_auth_home(base_dir, dest_name, source["provider"])
+    source_auth_home = source.get("authHome") or _get_session_auth_home(base_dir, source_name, source["provider"])
     profiles_dir = os.path.dirname(dest_root)
     os.makedirs(profiles_dir, exist_ok=True)
     temp_parent = tempfile.mkdtemp(prefix=f".{_encode(dest_name)}.copy.", dir=profiles_dir)
@@ -549,14 +567,13 @@ def copy_session(base_dir, store, source_name, dest_name):
     }
     try:
         credential_copy = copy_keychain_credentials(
-            source["authHome"], dest_auth_home,
+            source_auth_home, dest_auth_home,
             overwrite=bool(existing and existing["provider"] == PROVIDER_CLAUDE),
         ) if source["provider"] == PROVIDER_CLAUDE else nullcontext()
         with credential_copy:
             if source["provider"] == PROVIDER_CLAUDE:
-                library = os.path.join(source_root, "claude-home", "Library")
-                shutil.copytree(source_root, temp_root,
-                                ignore=lambda directory, _names: ["Keychains"] if directory == library else [])
+                shutil.copytree(source_root, temp_root, symlinks=True,
+                                ignore=lambda _directory, names: [n for n in names if n == "Keychains"])
                 _link_macos_keychain(os.path.join(temp_root, "claude-home"))
             else:
                 shutil.copytree(source_root, temp_root)
@@ -571,11 +588,16 @@ def copy_session(base_dir, store, source_name, dest_name):
             if not result["ok"]:
                 raise CdxError(f"Failed to create session: {dest_name}")
             overwritten = bool(existing)
+            if existing and source["provider"] != PROVIDER_CLAUDE:
+                _discard_claude_credentials(existing, f"Replaced session {dest_name}")
     except Exception:
         if moved_temp and os.path.exists(dest_root):
             remove_tree(dest_root, ignore_errors=True)
-        if backup_root and os.path.exists(backup_root) and not os.path.exists(dest_root):
-            os.rename(backup_root, dest_root)
+        if backup_root and os.path.exists(backup_root):
+            if not os.path.exists(dest_root):
+                os.rename(backup_root, dest_root)
+            else:
+                raise CdxError(f"Copy to {dest_name} failed and its previous profile was retained at {backup_root}.") from None
         raise
     else:
         if backup_root and os.path.exists(backup_root):
@@ -602,9 +624,10 @@ def rename_session(base_dir, store, source_name, dest_name):
 
     moved_profile = False
     dest_auth_home = _get_session_auth_home(base_dir, dest_name, source["provider"])
+    source_auth_home = source.get("authHome") or _get_session_auth_home(base_dir, source_name, source["provider"])
     now = _local_now_iso()
     try:
-        credential_copy = copy_keychain_credentials(source["authHome"], dest_auth_home) if source["provider"] == PROVIDER_CLAUDE else nullcontext(False)
+        credential_copy = copy_keychain_credentials(source_auth_home, dest_auth_home) if source["provider"] == PROVIDER_CLAUDE else nullcontext(False)
         with credential_copy as copied_credential:
             if os.path.exists(source_root):
                 os.rename(source_root, dest_root)
@@ -627,7 +650,7 @@ def rename_session(base_dir, store, source_name, dest_name):
 
     if copied_credential:
         try:
-            delete_keychain_credentials(source["authHome"])
+            delete_keychain_credentials(source_auth_home)
         except CdxError:
             raise CdxError(f"Renamed session to {dest_name}, but old keychain credential cleanup failed; the new session is usable and the old entry was retained.") from None
     return result["session"]

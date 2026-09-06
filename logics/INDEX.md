@@ -155,6 +155,7 @@ _None_
 | [req_068_harden_codex_authentication_observability](request/req_068_harden_codex_authentication_observability.md) | Harden Codex authentication observability | Done |  |  | request/req_068_harden_codex_authentication_observability.md |
 | [req_069_harden_codex_probe_process_and_package_smoke_coverage](request/req_069_harden_codex_probe_process_and_package_smoke_coverage.md) | Harden Codex probe process and package smoke coverage | Done |  |  | request/req_069_harden_codex_probe_process_and_package_smoke_coverage.md |
 | [req_070_review_findings_profile_data_safety_and_keychain_integration](request/req_070_review_findings_profile_data_safety_and_keychain_integration.md) | Review findings: profile data safety and keychain integration | Done |  |  | request/req_070_review_findings_profile_data_safety_and_keychain_integration.md |
+| [req_071_post_review_hardening_of_profile_keychain_integration](request/req_071_post_review_hardening_of_profile_keychain_integration.md) | Post-review hardening of profile keychain integration | Done |  |  | request/req_071_post_review_hardening_of_profile_keychain_integration.md |
 
 ## Backlog
 
@@ -307,6 +308,7 @@ _None_
 | [item_142_read_profile_scoped_claude_keychain_credentials_for_quota_refresh](backlog/item_142_read_profile_scoped_claude_keychain_credentials_for_quota_refresh.md) | Read profile scoped Claude keychain credentials for quota refresh | Done |  | 100% | backlog/item_142_read_profile_scoped_claude_keychain_credentials_for_quota_refresh.md |
 | [item_143_report_unsupported_keychain_credential_exports_explicitly](backlog/item_143_report_unsupported_keychain_credential_exports_explicitly.md) | Report unsupported keychain credential exports explicitly | Done |  | 100% | backlog/item_143_report_unsupported_keychain_credential_exports_explicitly.md |
 | [item_144_preserve_claude_keychain_authentication_across_session_rename](backlog/item_144_preserve_claude_keychain_authentication_across_session_rename.md) | Preserve Claude keychain authentication across session rename | Done |  | 100% | backlog/item_144_preserve_claude_keychain_authentication_across_session_rename.md |
+| [item_145_post_review_hardening_of_profile_keychain_integration](backlog/item_145_post_review_hardening_of_profile_keychain_integration.md) | Post-review hardening of profile keychain integration | Done |  | 100% | backlog/item_145_post_review_hardening_of_profile_keychain_integration.md |
 
 ## Tasks
 
@@ -396,6 +398,7 @@ _None_
 | [task_077_orchestrate_truthful_codex_authentication_health_signals](tasks/task_077_orchestrate_truthful_codex_authentication_health_signals.md) | Orchestrate truthful Codex authentication health signals | Done | Codex | 100% | tasks/task_077_orchestrate_truthful_codex_authentication_health_signals.md |
 | [task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes](tasks/task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes.md) | Orchestrate reliable Codex diagnostics and package smokes | Done | Codex | 100% | tasks/task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes.md |
 | [task_079_orchestrate_profile_data_safety_and_claude_keychain_integration](tasks/task_079_orchestrate_profile_data_safety_and_claude_keychain_integration.md) | Orchestrate profile data safety and Claude keychain integration | Done | Codex | 100% | tasks/task_079_orchestrate_profile_data_safety_and_claude_keychain_integration.md |
+| [task_080_post_review_hardening_of_profile_keychain_integration](tasks/task_080_post_review_hardening_of_profile_keychain_integration.md) | Post-review hardening of profile keychain integration | Done |  | 100% | tasks/task_080_post_review_hardening_of_profile_keychain_integration.md |
 
 ## Runbooks
 

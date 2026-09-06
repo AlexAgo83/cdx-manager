@@ -17,8 +17,6 @@ KEYCHAIN_TIMEOUT_SECONDS = 5
 def _keychain_identity(auth_home):
     if not auth_home or not os.path.isabs(auth_home):
         raise CdxError("Claude keychain access requires an absolute profile home.")
-    if os.environ.get("USE_LOCAL_OAUTH") or os.environ.get("CLAUDE_CODE_CUSTOM_OAUTH_URL"):
-        raise CdxError("CDX keychain operations do not support custom Claude OAuth endpoints.")
     user = os.environ.get("USER")
     if not user:
         import pwd
@@ -28,6 +26,13 @@ def _keychain_identity(auth_home):
     config_dir = unicodedata.normalize("NFC", os.path.join(auth_home, ".claude"))
     suffix = hashlib.sha256(config_dir.encode("utf-8")).hexdigest()[:8]
     return user, f"Claude Code-credentials-{suffix}"
+
+
+def _reject_custom_oauth():
+    """Only writes are guarded: a custom endpoint stores credentials elsewhere,
+    so reading the standard entry is harmless but changing it is not."""
+    if os.environ.get("USE_LOCAL_OAUTH") or os.environ.get("CLAUDE_CODE_CUSTOM_OAUTH_URL"):
+        raise CdxError("CDX keychain operations do not support custom Claude OAuth endpoints.")
 
 
 def _security(args, *, input_text=None):
@@ -64,7 +69,20 @@ def read_keychain_credentials(auth_home):
     return data
 
 
+def peek_keychain_credentials(auth_home):
+    """The profile entry, or None when the keychain cannot answer.
+
+    For callers with a file-based fallback. Callers that would otherwise
+    report a locked keychain as a logged-out profile use the strict read.
+    """
+    try:
+        return read_keychain_credentials(auth_home)
+    except CdxError:
+        return None
+
+
 def write_keychain_credentials(auth_home, data):
+    _reject_custom_oauth()
     user, service = _keychain_identity(auth_home)
     encoded = json.dumps(data, ensure_ascii=True, separators=(",", ":")).encode("utf-8").hex()
     command = f'add-generic-password -U -a "{user}" -s "{service}" -X "{encoded}"\n'
@@ -81,6 +99,7 @@ def write_keychain_credentials(auth_home, data):
 
 
 def delete_keychain_credentials(auth_home):
+    _reject_custom_oauth()
     user, service = _keychain_identity(auth_home)
     result = _security(["delete-generic-password", "-a", user, "-s", service])
     if result.returncode not in (0, 44):

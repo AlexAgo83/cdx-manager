@@ -51,15 +51,20 @@ def _decode_jwt_claims(token):
 
 
 def _read_claude_credentials(auth_home):
-    keychain = read_keychain_credentials(auth_home)
+    # An unusable keychain is only an error when no credential file answers
+    # either: a locked keychain must not read as a logged-out profile, and
+    # must not hide a credential that is sitting on disk.
+    keychain_error = None
+    try:
+        keychain = read_keychain_credentials(auth_home)
+    except CdxError as error:
+        keychain, keychain_error = None, error
     if keychain is not None:
         creds = keychain.get("claudeAiOauth")
-        if not isinstance(creds, dict):
-            return None
-        token = _clean_oauth_token(creds.get("accessToken"))
-        if not token:
-            raise CdxError("Claude keychain OAuth credential is malformed.")
-        return {**creds, "accessToken": token}
+        token = _clean_oauth_token(creds.get("accessToken")) if isinstance(creds, dict) else None
+        if token:
+            return {**creds, "accessToken": token}
+        keychain_error = CdxError("Claude keychain OAuth credential is malformed.")
     cred_path = os.path.join(auth_home, ".claude", ".credentials.json")
     try:
         with open(cred_path, encoding="utf-8") as f:
@@ -80,6 +85,9 @@ def _read_claude_credentials(auth_home):
             return {"accessToken": token}
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
+
+    if keychain_error is not None:
+        raise keychain_error
     return None
 
 
