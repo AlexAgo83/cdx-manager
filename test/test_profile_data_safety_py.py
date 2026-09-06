@@ -371,8 +371,13 @@ class ProfileDataSafetyTests(unittest.TestCase):
     def test_other_platforms_do_not_call_security(self):
         with mock.patch.object(claude_credentials, "sys", SimpleNamespace(platform="win32")):
             self.assertIsNone(claude_credentials.read_keychain_credentials("unused"))
+            claude_credentials.delete_keychain_credentials(str(self.base))
             with claude_credentials.copy_keychain_credentials("source", "dest") as copied:
                 self.assertFalse(copied)
+            record = self.profile("elsewhere")
+            session_service.remove_session(str(self.base), self.store, "elsewhere")
+            self.assertFalse(Path(record["sessionRoot"]).exists())
+        self.assertEqual(self.keychain_calls, [])
         self.assertFalse(self.keychain_calls)
 
 

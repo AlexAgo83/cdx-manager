@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-09-06 12:25:44
+> Indicators reviewed: 2026-09-06 12:38:20
 
 # AI Context
 - Summary: Deliver keychain portability and the two recovery messages, reversing the req_070 export refusal.
@@ -38,12 +38,14 @@
 - [x] 2. Drop the export refusal and keep the unreadable-keychain error, before anything is written.
 - [x] 3. Clear a destination keychain entry when an import carries a credential for that profile.
 - [x] 4. Name the clearing command in the orphan-entry refusal, and say what to do instead when a credential is too large to transfer.
-- [x] 5. Replace the refusal tests with portability tests, keep the text/JSON CLI contract covered, and update README and changelog.
+- [x] 5. Guard credential deletion off macOS, so `cdx rm` and `cdx import` do not fail where there is no keychain.
+- [x] 6. Replace the refusal tests with portability tests, keep the text/JSON CLI contract covered, and update README and changelog.
 
 # Validation
 - `node bin/python-runner.js -m pytest test/test_profile_data_safety_py.py -q` -> 23 passed.
 - `npm run lint` -> All checks passed.
 - `npm test` -> 1012 passed.
+- CI run 34027833514 failed on ubuntu and windows only: `delete_keychain_credentials` had no platform guard, so `cdx rm` of a Claude session raised where `security` does not exist. Reproduced locally with a non-darwin harness, fixed, and re-verified with the same harness (106 passed).
 - `cargo test --manifest-path tray/Cargo.toml` -> 96 passed; 0 failed.
 - lint OK; 1012 Python tests; 96 Rust tests
 - Finish workflow executed on 2026-09-06.
@@ -51,7 +53,7 @@
 
 # AC Traceability
 - request-AC1 -> This task. Proof: `src/session_backup.py` `_collect_auth_files` emits the keychain entry under `CLAUDE_CREDENTIALS_BUNDLE_PATH`. Test: `test_export_carries_the_keychain_credential_and_import_makes_it_the_live_one`.
-- request-AC2 -> This task. Proof: `import_bundle` calls `delete_keychain_credentials` when that path was written for a Claude profile. Test: same, second half.
+- request-AC2 -> This task. Proof: `import_bundle` calls `delete_keychain_credentials` when that path was written for a Claude profile, and that function now returns early off macOS. Tests: same, second half, and `test_other_platforms_do_not_call_security`.
 - request-AC3 -> This task. Proof: the keychain entry replaces the file content for that path when both exist. Test: `test_export_prefers_the_keychain_over_a_stale_credential_file`.
 - request-AC4 -> This task. Proof: `export_bundle` wraps a `CdxError` from collection as "Cannot export authentication for <name>. Nothing was exported." before `atomic_write`. Tests: `test_export_failure_has_nonzero_text_and_json_cli_outcomes`, `test_export_denied_keychain_never_replaces_output`.
 - request-AC5 -> This task. Proof: `src/claude_credentials.py` names the service in the overwrite refusal and states the alternative in the size error.

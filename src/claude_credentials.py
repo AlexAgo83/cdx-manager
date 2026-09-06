@@ -102,6 +102,10 @@ def write_keychain_credentials(auth_home, data):
 
 
 def delete_keychain_credentials(auth_home):
+    # Same guard as the read: off macOS there is no keychain to clear, and
+    # `cdx rm`/`cdx import` must not fail on a missing `security` binary.
+    if sys.platform != "darwin" or not auth_home:
+        return
     _reject_custom_oauth()
     user, service = _keychain_identity(auth_home)
     result = _security(["delete-generic-password", "-a", user, "-s", service])
