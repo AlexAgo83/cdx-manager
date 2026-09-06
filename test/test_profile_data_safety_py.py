@@ -1,4 +1,5 @@
 import base64
+import copy
 import json
 import os
 import subprocess
@@ -8,7 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from src import claude_credentials, claude_usage, session_backup
+from src import claude_credentials, claude_usage, session_backup, session_service
 from src.backup_bundle import encode_bundle
 from src.errors import CdxError
 from src.session_store import create_session_store
@@ -28,6 +29,7 @@ class ProfileDataSafetyTests(unittest.TestCase):
             mock.patch.object(claude_credentials, "sys", SimpleNamespace(platform="darwin")),
             mock.patch.dict(os.environ, {"USER": "cdx-test", "USE_LOCAL_OAUTH": "", "CLAUDE_CODE_CUSTOM_OAUTH_URL": ""}),
             mock.patch.object(claude_credentials, "_security", side_effect=self.security),
+            mock.patch.object(session_service, "_link_macos_keychain"),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -119,6 +121,51 @@ class ProfileDataSafetyTests(unittest.TestCase):
         self.assertEqual((root / "auth.json").read_text(), "original")
 
     @unittest.skipIf(os.name == "nt", "symlink creation may require Windows privileges")
+    def test_copy_never_reads_external_keychain_and_copies_only_profile_entry(self):
+        source = self.profile("source")
+        source_service = self.credential(source, "source-token")
+        external = self.base / "fake-keychains"
+        external.mkdir()
+        (external / "login.keychain-db").write_text("external sentinel")
+        library = Path(source["authHome"]) / "Library"
+        library.mkdir()
+        (library / "Keychains").symlink_to(external, target_is_directory=True)
+        self.entries["Claude Code-credentials"] = {"global": "untouched"}
+        real_copy = session_service.shutil.copy2
+
+        def guarded_copy(src, dest, **kwargs):
+            self.assertNotIn("Keychains", str(src))
+            return real_copy(src, dest, **kwargs)
+
+        real_tree = session_service.shutil.copytree
+        def guarded_tree(*args, **kwargs):
+            if len(args) < 5:
+                kwargs["copy_function"] = guarded_copy
+            return real_tree(*args, **kwargs)
+
+        with mock.patch.object(session_service.shutil, "copytree", side_effect=guarded_tree):
+            result = session_service.copy_session(str(self.base), self.store, "source", "copied")
+        dest = result["session"]
+        self.assertEqual(claude_credentials.read_keychain_credentials(dest["authHome"]), self.entries[source_service])
+        self.assertFalse((Path(dest["authHome"]) / "Library" / "Keychains" / "login.keychain-db").exists())
+        self.assertEqual(self.entries["Claude Code-credentials"], {"global": "untouched"})
+        self.assertTrue(session_service._link_macos_keychain.called)
+
+    def test_copy_failure_restores_existing_destination_credential_and_profile(self):
+        source = self.profile("source")
+        dest = self.profile("dest")
+        self.credential(source, "source-token")
+        self.credential(dest, "dest-token")
+        before = copy.deepcopy(self.entries)
+        marker = Path(dest["authHome"]) / "marker"
+        marker.write_text("keep")
+        with mock.patch.dict(self.store, {"replace_session": mock.Mock(side_effect=OSError("store failed"))}):
+            with self.assertRaises(OSError):
+                session_service.copy_session(str(self.base), self.store, "source", "dest")
+        self.assertEqual(self.entries, before)
+        self.assertEqual(marker.read_text(), "keep")
+        self.assertEqual(self.store["get_session"]("dest"), dest)
+
     def test_keychain_quota_precedence_and_launch_token_isolation(self):
         from src.provider_runtime import _read_claude_launch_oauth_token
 
@@ -149,6 +196,67 @@ class ProfileDataSafetyTests(unittest.TestCase):
                 self.assertNotIn("secret", str(error.exception))
         self.assertIsNone(claude_credentials.read_keychain_credentials(source["authHome"]))
 
+    def test_rename_moves_only_profile_authentication(self):
+        source = self.profile("source")
+        old_service = self.credential(source, "source-token")
+        other = self.profile("other")
+        other_service = self.credential(other, "other-token")
+        renamed = session_service.rename_session(str(self.base), self.store, "source", "renamed")
+        self.assertNotIn(old_service, self.entries)
+        self.assertEqual(claude_credentials.read_keychain_credentials(renamed["authHome"])["claudeAiOauth"]["accessToken"], "source-token")
+        self.assertEqual(self.entries[other_service]["claudeAiOauth"]["accessToken"], "other-token")
+        self.assertIsNone(self.store["get_session"]("source"))
+
+    def test_rename_store_failure_and_collision_preserve_original(self):
+        source = self.profile("source")
+        self.credential(source, "source-token")
+        before = copy.deepcopy(self.entries)
+        with mock.patch.dict(self.store, {"rename_session": mock.Mock(side_effect=OSError("store failed"))}):
+            with self.assertRaises(OSError):
+                session_service.rename_session(str(self.base), self.store, "source", "renamed")
+        self.assertEqual(self.entries, before)
+        self.assertTrue(Path(source["authHome"]).is_dir())
+        self.assertEqual(self.store["get_session"]("source"), source)
+        dest_home = str(self.base / "profiles" / "renamed" / "claude-home")
+        self.entries[claude_credentials._keychain_identity(dest_home)[1]] = {"unrelated": "preserve"}
+        with self.assertRaisesRegex(CdxError, "refusing to overwrite"):
+            session_service.rename_session(str(self.base), self.store, "source", "renamed")
+        self.assertEqual(self.store["get_session"]("source"), source)
+
+    def test_rename_cleanup_failure_keeps_working_destination(self):
+        source = self.profile("source")
+        old_service = self.credential(source, "source-token")
+        with mock.patch.object(session_service, "delete_keychain_credentials", side_effect=CdxError("denied")):
+            with self.assertRaisesRegex(CdxError, "new session is usable"):
+                session_service.rename_session(str(self.base), self.store, "source", "renamed")
+        self.assertIn(old_service, self.entries)
+        renamed = self.store["get_session"]("renamed")
+        self.assertTrue(Path(renamed["authHome"]).is_dir())
+        self.assertEqual(claude_credentials.read_keychain_credentials(renamed["authHome"]), self.entries[old_service])
+
+    def test_rename_write_verification_and_directory_failures_preserve_source(self):
+        source = self.profile("source")
+        self.credential(source, "source-token")
+        before = copy.deepcopy(self.entries)
+        real_security = self.security
+
+        def deny_or_drop_write(args, *, input_text=None):
+            if args == ["-i"]:
+                return SimpleNamespace(returncode=0, stdout="", stderr="write was refused")
+            return real_security(args, input_text=input_text)
+
+        with mock.patch.object(claude_credentials, "_security", side_effect=deny_or_drop_write):
+            with self.assertRaisesRegex(CdxError, "verification failed"):
+                session_service.rename_session(str(self.base), self.store, "source", "renamed")
+        self.assertEqual(self.entries, before)
+        self.assertEqual(self.store["get_session"]("source"), source)
+        with mock.patch.object(session_service.os, "rename", side_effect=OSError("move failed")):
+            with self.assertRaises(OSError):
+                session_service.rename_session(str(self.base), self.store, "source", "renamed")
+        self.assertEqual(self.entries, before)
+        self.assertTrue(Path(source["authHome"]).is_dir())
+
+    @unittest.skipIf(os.name == "nt", "POSIX account database used by native macOS runner")
     def test_native_runner_bounds_time_and_suppresses_provider_output(self):
         import pwd
 
