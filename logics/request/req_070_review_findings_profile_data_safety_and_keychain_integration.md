@@ -7,7 +7,7 @@
 > Complexity: High
 > Theme: Profile data safety and authentication
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-09-06 11:55:44
+> Indicators reviewed: 2026-09-06 12:25:53
 
 # AI Context
 - Summary: Review of 20ef9d1 found destructive merge rollback and incomplete integration of Claude profile keychain storage with copy, quota refresh, export, and rename.
@@ -62,6 +62,8 @@
 - `rtk npm pack --dry-run`: passed.
 - A temporary Python script using only stdlib fixtures/mocks and the repository functions reproduced findings 1-4 and checked the path change underlying finding 5. Reproductions operated on synthetic profiles in temporary directories; no provider generation or real credential extraction was needed.
 - Linux/Windows execution and a full authenticated keychain export/rename round trip were not performed. Application source and existing tests are unchanged.
+
+- AC4's "explicit unsupported export" decision was superseded by `req_072_keychain_credential_portability_and_operator_recovery` before 0.20.9 shipped: the credential is now portable.
 
 # Acceptance criteria
 - AC1: An injected file/state write failure during merge leaves the original profile contents, record, and state intact.

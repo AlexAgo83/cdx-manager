@@ -88,7 +88,10 @@ def write_keychain_credentials(auth_home, data):
     command = f'add-generic-password -U -a "{user}" -s "{service}" -X "{encoded}"\n'
     # ponytail: security -i has a 4096-byte line limit; use native Security APIs if larger entries are needed.
     if len(command) > 4000:
-        raise CdxError("Claude profile credential exceeds the safe keychain transfer size.")
+        raise CdxError(
+            "Claude profile credential exceeds the safe keychain transfer size; nothing was changed. "
+            "Create the session and log in inside it instead of transferring the credential."
+        )
     # Credentials travel through stdin, never argv, shell text or error diagnostics.
     result = _security(["-i"], input_text=command)
     if result.returncode != 0:
@@ -117,7 +120,10 @@ def copy_keychain_credentials(source_home, dest_home, *, overwrite=False):
     source = read_keychain_credentials(source_home)
     previous = read_keychain_credentials(dest_home)
     if previous is not None and not overwrite:
-        raise CdxError("Destination already has a Claude keychain credential; refusing to overwrite it.")
+        raise CdxError(
+            "Destination already has a Claude keychain credential; refusing to overwrite it. "
+            f"If no session owns it, clear it with: security delete-generic-password -s '{_keychain_identity(dest_home)[1]}'"
+        )
     changed = source != previous
     try:
         if changed:

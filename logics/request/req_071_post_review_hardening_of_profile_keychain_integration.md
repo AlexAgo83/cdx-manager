@@ -7,7 +7,7 @@
 > Complexity: Medium
 > Theme: Profile data safety and authentication
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-09-06 12:15:21
+> Indicators reviewed: 2026-09-06 12:25:53
 
 # AI Context
 - Summary: Close the gaps a high-effort code review found in the req_070 keychain delivery before it ships.
@@ -23,7 +23,7 @@
 - The high finding is a leak plus a lockout: a removed session's OAuth token stays in the login keychain, and the stale entry then makes `cdx cp`/`cdx ren` refuse the freed name, with no command to clear it.
 - The medium findings share one root cause: `read_keychain_credentials` raises for a locked, denied or timed-out keychain, and three callers with a working file fallback treat that as fatal.
 - req_070 AC3 stands: a keychain failure must never be reported as a logged-out profile. Falling back is only allowed when a credential file actually answers.
-- Out of scope: exposing the keychain service name to operators, native Security APIs for oversized credentials, and keychain export portability.
+- Out of scope here: exposing the keychain service name to operators, native Security APIs for oversized credentials, and keychain export portability. All but the native APIs were then delivered by `req_072_keychain_credential_portability_and_operator_recovery`.
 
 # Acceptance criteria
 - AC1: Removing a session deletes that profile's keychain credential and no other, frees the name for reuse, and reports a deletion failure without pretending the session survived.

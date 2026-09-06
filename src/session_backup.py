@@ -12,7 +12,7 @@ import shutil
 import tempfile
 
 from .backup_bundle import decode_bundle, encode_bundle
-from .claude_credentials import read_keychain_credentials
+from .claude_credentials import delete_keychain_credentials, read_keychain_credentials
 from .config import PROVIDER_CLAUDE
 from .errors import CdxError
 from .fs_utils import atomic_write, remove_tree
@@ -57,12 +57,14 @@ def _build_export_session_record(session):
         "auth": session.get("auth"),
     }
 
+CLAUDE_CREDENTIALS_BUNDLE_PATH = "claude-home/.claude/.credentials.json"
+
 def _auth_bundle_paths(provider):
     if provider == PROVIDER_CLAUDE:
         return [
             "claude-home/configs/default.json",
             "claude-home/credentials/default.json",
-            "claude-home/.claude/.credentials.json",
+            CLAUDE_CREDENTIALS_BUNDLE_PATH,
             "claude-home/.claude.json",
             "claude-home/auth.json",
         ]
@@ -70,19 +72,26 @@ def _auth_bundle_paths(provider):
         "auth.json",
     ]
 
-def _collect_auth_files(session_root, provider, session_name=None, progress_callback=None):
+def _collect_auth_files(session_root, provider, session_name=None, progress_callback=None, auth_home=None):
     files = []
     total_bytes = 0
     if not os.path.isdir(session_root):
         return {"files": files, "file_count": 0, "bytes": 0}
+    # A keychain-backed profile has no credential file to read. Export the entry
+    # under the path Claude Code itself uses, which is the same document: the
+    # bundle stays one schema, and an import restores a usable login.
+    keychain = read_keychain_credentials(auth_home) if provider == PROVIDER_CLAUDE and auth_home else None
     for rel_path in _auth_bundle_paths(provider):
         full_path = os.path.join(session_root, rel_path)
-        if not os.path.isfile(full_path):
+        if keychain is not None and rel_path == CLAUDE_CREDENTIALS_BUNDLE_PATH:
+            raw_content = json.dumps(keychain).encode("utf-8")
+        elif os.path.isfile(full_path):
+            with open(full_path, "rb") as handle:
+                raw_content = handle.read()
+        else:
             continue
-        with open(full_path, "rb") as handle:
-            raw_content = handle.read()
-            total_bytes += len(raw_content)
-            content = base64.b64encode(raw_content).decode("ascii")
+        total_bytes += len(raw_content)
+        content = base64.b64encode(raw_content).decode("ascii")
         files.append({"path": rel_path.replace(os.sep, "/"), "data_b64": content})
         if progress_callback:
             progress_callback({
@@ -170,23 +179,6 @@ def export_bundle(base_dir, store, file_path, include_auth=False, session_names=
         raise CdxError(f"Export path already exists: {file_path}")
 
     sessions = _resolve_session_subset(store, session_names)
-    if include_auth:
-        unsupported = []
-        for session in sessions:
-            if session["provider"] != PROVIDER_CLAUDE:
-                continue
-            auth_home = session.get("authHome") or _get_session_auth_home(base_dir, session["name"], session["provider"])
-            try:
-                keychain = read_keychain_credentials(auth_home)
-            except CdxError as error:
-                raise CdxError(f"Cannot export authentication for {session['name']}: {error}") from None
-            if keychain is not None:
-                unsupported.append(session["name"])
-        if unsupported:
-            raise CdxError(
-                f"Keychain authentication export is unsupported for: {', '.join(unsupported)}. "
-                "Nothing was exported. Export without --include-auth and log in after import."
-            )
     payload = {
         "schema_version": 1,
         "created_at": _local_now_iso(),
@@ -213,7 +205,12 @@ def export_bundle(base_dir, store, file_path, include_auth=False, session_names=
             payload["states"][session["name"]] = state
         if include_auth:
             session_root = session.get("sessionRoot") or _get_session_root(base_dir, session["name"])
-            profile = _collect_auth_files(session_root, session["provider"], session["name"], progress_callback)
+            auth_home = session.get("authHome") or _get_session_auth_home(base_dir, session["name"], session["provider"])
+            try:
+                profile = _collect_auth_files(session_root, session["provider"], session["name"], progress_callback,
+                                              auth_home=auth_home)
+            except CdxError as error:
+                raise CdxError(f"Cannot export authentication for {session['name']}: {error}. Nothing was exported.") from None
             payload["profiles"][session["name"]] = profile["files"]
             profile_file_count += profile["file_count"]
             profile_bytes += profile["bytes"]
@@ -355,6 +352,7 @@ def import_bundle(base_dir, store, file_path,
             elif state is not None:
                 store["write_session_state"](name, state)
 
+            imported_paths = []
             for item in decoded_profiles.get(name, []):
                 dest_path = os.path.join(session_root, item["path"])
                 # A syntactically relative path can still escape through a profile symlink.
@@ -371,6 +369,9 @@ def import_bundle(base_dir, store, file_path,
                 _ensure_private_dir(os.path.dirname(dest_path))
                 # Decrypted credentials: 0o600 from creation, no umask window.
                 atomic_write(dest_path, item["content"], mode=0o600)
+                imported_paths.append(item["path"])
+            if provider == PROVIDER_CLAUDE and CLAUDE_CREDENTIALS_BUNDLE_PATH in imported_paths:
+                delete_keychain_credentials(auth_home)
             _restore_force_import_profile_paths(name, backup_root, session_root, preserved_profile_paths)
         except Exception:
             try:

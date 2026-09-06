@@ -197,31 +197,60 @@ class ProfileDataSafetyTests(unittest.TestCase):
                 self.assertNotIn("secret", str(error.exception))
         self.assertIsNone(claude_credentials.read_keychain_credentials(source["authHome"]))
 
-    def test_export_refusal_preserves_force_destination_for_mixed_profiles(self):
+    def test_export_carries_the_keychain_credential_and_import_makes_it_the_live_one(self):
         source = self.profile("keychain")
-        self.profile("files", "codex")
         self.credential(source, "source-token")
-        bundle = self.base / "existing.cdx"
-        bundle.write_bytes(b"keep previous backup")
-        with self.assertRaisesRegex(CdxError, "unsupported for: keychain"):
-            session_backup.export_bundle(str(self.base), self.store, str(bundle), include_auth=True, passphrase="fake", force=True)
-        self.assertEqual(bundle.read_bytes(), b"keep previous backup")
-        result = session_backup.export_bundle(str(self.base), self.store, str(bundle), force=True)
-        self.assertFalse(result["include_auth"])
+        bundle = self.base / "auth.cdx"
+        result = session_backup.export_bundle(str(self.base), self.store, str(bundle),
+                                              include_auth=True, passphrase="fake")
+        self.assertTrue(result["include_auth"])
+        self.assertEqual(result["profile_file_count"], 1)
 
-    def test_export_refusal_has_nonzero_text_and_json_cli_outcomes(self):
+        dest = self.base / "restored"
+        dest.mkdir()
+        store = create_session_store(str(dest))
+        session_backup.import_bundle(str(dest), store, str(bundle), passphrase="fake")
+        restored = store["get_session"]("keychain")
+        credentials = json.loads((Path(restored["authHome"]) / ".claude" / ".credentials.json").read_text())
+        self.assertEqual(credentials["claudeAiOauth"]["accessToken"], "source-token")
+
+        # A stale entry on the destination must not shadow the imported credential.
+        stale = self.credential(restored, "stale-token")
+        session_backup.import_bundle(str(dest), store, str(bundle), passphrase="fake", force=True)
+        self.assertNotIn(stale, self.entries)
+
+    def test_export_prefers_the_keychain_over_a_stale_credential_file(self):
+        source = self.profile("keychain")
+        self.credential(source, "live-token")
+        claude = Path(source["authHome"]) / ".claude"
+        claude.mkdir()
+        (claude / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {"accessToken": "stale-file"}}))
+        bundle = self.base / "auth.cdx"
+        session_backup.export_bundle(str(self.base), self.store, str(bundle), include_auth=True, passphrase="fake")
+        dest = self.base / "restored"
+        dest.mkdir()
+        store = create_session_store(str(dest))
+        session_backup.import_bundle(str(dest), store, str(bundle), passphrase="fake")
+        restored = store["get_session"]("keychain")
+        credentials = json.loads((Path(restored["authHome"]) / ".claude" / ".credentials.json").read_text())
+        self.assertEqual(credentials["claudeAiOauth"]["accessToken"], "live-token")
+
+    def test_export_failure_has_nonzero_text_and_json_cli_outcomes(self):
         from src.cli import cli_entry
 
         source = self.profile("keychain")
         self.credential(source, "synthetic-secret")
         output = self.base / "existing.cdx"
         output.write_bytes(b"keep previous backup")
+        denied = SimpleNamespace(returncode=36, stdout="synthetic-secret", stderr="synthetic-secret")
         for json_mode in (False, True):
             stderr, stdout = io.StringIO(), io.StringIO()
             argv = ["cdx", "export", str(output), "--force", "--include-auth", "--passphrase-env", "CDX_TEST_PASSPHRASE"]
             if json_mode:
                 argv.append("--json")
-            with self.subTest(json_mode=json_mode), mock.patch("sys.argv", argv), mock.patch("sys.stderr", stderr), mock.patch("sys.stdout", stdout), mock.patch.dict(os.environ, {"CDX_HOME": str(self.base), "CDX_TEST_PASSPHRASE": "fake-passphrase"}):
+            with self.subTest(json_mode=json_mode), mock.patch.object(claude_credentials, "_security", return_value=denied), \
+                    mock.patch("sys.argv", argv), mock.patch("sys.stderr", stderr), mock.patch("sys.stdout", stdout), \
+                    mock.patch.dict(os.environ, {"CDX_HOME": str(self.base), "CDX_TEST_PASSPHRASE": "fake-passphrase"}):
                 with self.assertRaises(SystemExit) as error:
                     cli_entry()
                 self.assertNotEqual(error.exception.code, 0)

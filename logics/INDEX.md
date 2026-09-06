@@ -156,6 +156,7 @@ _None_
 | [req_069_harden_codex_probe_process_and_package_smoke_coverage](request/req_069_harden_codex_probe_process_and_package_smoke_coverage.md) | Harden Codex probe process and package smoke coverage | Done |  |  | request/req_069_harden_codex_probe_process_and_package_smoke_coverage.md |
 | [req_070_review_findings_profile_data_safety_and_keychain_integration](request/req_070_review_findings_profile_data_safety_and_keychain_integration.md) | Review findings: profile data safety and keychain integration | Done |  |  | request/req_070_review_findings_profile_data_safety_and_keychain_integration.md |
 | [req_071_post_review_hardening_of_profile_keychain_integration](request/req_071_post_review_hardening_of_profile_keychain_integration.md) | Post-review hardening of profile keychain integration | Done |  |  | request/req_071_post_review_hardening_of_profile_keychain_integration.md |
+| [req_072_keychain_credential_portability_and_operator_recovery](request/req_072_keychain_credential_portability_and_operator_recovery.md) | Keychain credential portability and operator recovery | Done |  |  | request/req_072_keychain_credential_portability_and_operator_recovery.md |
 
 ## Backlog
 
@@ -309,6 +310,7 @@ _None_
 | [item_143_report_unsupported_keychain_credential_exports_explicitly](backlog/item_143_report_unsupported_keychain_credential_exports_explicitly.md) | Report unsupported keychain credential exports explicitly | Done |  | 100% | backlog/item_143_report_unsupported_keychain_credential_exports_explicitly.md |
 | [item_144_preserve_claude_keychain_authentication_across_session_rename](backlog/item_144_preserve_claude_keychain_authentication_across_session_rename.md) | Preserve Claude keychain authentication across session rename | Done |  | 100% | backlog/item_144_preserve_claude_keychain_authentication_across_session_rename.md |
 | [item_145_post_review_hardening_of_profile_keychain_integration](backlog/item_145_post_review_hardening_of_profile_keychain_integration.md) | Post-review hardening of profile keychain integration | Done |  | 100% | backlog/item_145_post_review_hardening_of_profile_keychain_integration.md |
+| [item_146_keychain_credential_portability_and_operator_recovery](backlog/item_146_keychain_credential_portability_and_operator_recovery.md) | Keychain credential portability and operator recovery | Done |  | 100% | backlog/item_146_keychain_credential_portability_and_operator_recovery.md |
 
 ## Tasks
 
@@ -399,6 +401,7 @@ _None_
 | [task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes](tasks/task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes.md) | Orchestrate reliable Codex diagnostics and package smokes | Done | Codex | 100% | tasks/task_078_orchestrate_reliable_codex_diagnostics_and_package_smokes.md |
 | [task_079_orchestrate_profile_data_safety_and_claude_keychain_integration](tasks/task_079_orchestrate_profile_data_safety_and_claude_keychain_integration.md) | Orchestrate profile data safety and Claude keychain integration | Done | Codex | 100% | tasks/task_079_orchestrate_profile_data_safety_and_claude_keychain_integration.md |
 | [task_080_post_review_hardening_of_profile_keychain_integration](tasks/task_080_post_review_hardening_of_profile_keychain_integration.md) | Post-review hardening of profile keychain integration | Done |  | 100% | tasks/task_080_post_review_hardening_of_profile_keychain_integration.md |
+| [task_081_keychain_credential_portability_and_operator_recovery](tasks/task_081_keychain_credential_portability_and_operator_recovery.md) | Keychain credential portability and operator recovery | Done |  | 100% | tasks/task_081_keychain_credential_portability_and_operator_recovery.md |
 
 ## Runbooks
 
