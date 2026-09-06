@@ -1,3 +1,4 @@
+import contextlib
 import io
 import json
 import os
@@ -543,26 +544,27 @@ class RuntimePythonTests(unittest.TestCase):
         ])
 
     def test_home_env_overrides_sets_windows_profile_variables(self):
-        with mock.patch("src.provider_runtime.sys.platform", "win32"):
-            with mock.patch("src.claude_usage.sys.platform", "win32"):
-                with mock.patch(
-                    "src.provider_runtime.os.path.splitdrive",
-                    return_value=("C:", r"\Users\Test\AppData\Local\cdx\claude-home"),
-                ):
-                    result = provider_runtime._home_env_overrides(r"C:\Users\Test\AppData\Local\cdx\claude-home")
+        home = r"C:\Users\Test\AppData\Local\cdx\claude-home"
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(mock.patch("src.provider_runtime.sys.platform", "win32"))
+            stack.enter_context(mock.patch("src.claude_usage.sys.platform", "win32"))
+            if os.name != "nt":
+                # os.path is shared, and ntpath.join calls splitdrive: only fake it
+                # where the real one cannot split a Windows path.
+                stack.enter_context(mock.patch("src.provider_runtime.os.path.splitdrive",
+                                               return_value=("C:", r"\Users\Test\AppData\Local\cdx\claude-home")))
+            result = provider_runtime._home_env_overrides(home)
 
-        self.assertEqual(result["HOME"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
-        self.assertEqual(result["ANTHROPIC_CONFIG_DIR"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
+        self.assertEqual(result["HOME"], home)
+        self.assertEqual(result["ANTHROPIC_CONFIG_DIR"], home)
         self.assertNotIn("CLAUDE_CONFIG_DIR", result)
         self.assertEqual(result["CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS"], "1")
-        self.assertEqual(result["USERPROFILE"], r"C:\Users\Test\AppData\Local\cdx\claude-home")
+        self.assertEqual(result["USERPROFILE"], home)
         self.assertEqual(result["HOMEDRIVE"], "C:")
         self.assertEqual(result["HOMEPATH"], r"\Users\Test\AppData\Local\cdx\claude-home")
-        self.assertEqual(
-            result["CLAUDE_SECURESTORAGE_CONFIG_DIR"],
-            os.path.join(r"C:\Users\Test\AppData\Local\cdx\claude-home", ".claude"),
-        )
+        self.assertEqual(result["CLAUDE_SECURESTORAGE_CONFIG_DIR"], os.path.join(home, ".claude"))
 
+    @unittest.skipIf(os.name == "nt", "symlinks and the POSIX account database are unavailable")
     def test_secure_storage_overrides_links_the_real_keychain_on_macos(self):
         with tempfile.TemporaryDirectory() as tmp:
             real_home = os.path.join(tmp, "real-home")
@@ -571,8 +573,7 @@ class RuntimePythonTests(unittest.TestCase):
             os.makedirs(auth_home)
 
             with mock.patch("src.claude_usage.sys.platform", "darwin"):
-                with mock.patch("src.claude_usage.pwd.getpwuid") as getpwuid:
-                    getpwuid.return_value = mock.Mock(pw_dir=real_home)
+                with mock.patch.object(claude_usage, "pwd", SimpleNamespace(getpwuid=lambda _uid: SimpleNamespace(pw_dir=real_home))):
                     result = claude_usage._secure_storage_overrides(auth_home)
                     # Second call must be a no-op, not a broken nested link.
                     again = claude_usage._secure_storage_overrides(auth_home)
@@ -589,6 +590,7 @@ class RuntimePythonTests(unittest.TestCase):
                 os.path.realpath(os.path.join(real_home, "Library", "Keychains")),
             )
 
+    @unittest.skipIf(os.name == "nt", "POSIX account database used by the macOS keychain link")
     def test_secure_storage_overrides_leaves_a_real_keychain_directory_alone(self):
         with tempfile.TemporaryDirectory() as tmp:
             real_home = os.path.join(tmp, "real-home")
@@ -598,8 +600,7 @@ class RuntimePythonTests(unittest.TestCase):
             os.makedirs(existing)
 
             with mock.patch("src.claude_usage.sys.platform", "darwin"):
-                with mock.patch("src.claude_usage.pwd.getpwuid") as getpwuid:
-                    getpwuid.return_value = mock.Mock(pw_dir=real_home)
+                with mock.patch.object(claude_usage, "pwd", SimpleNamespace(getpwuid=lambda _uid: SimpleNamespace(pw_dir=real_home))):
                     result = claude_usage._secure_storage_overrides(auth_home)
 
             self.assertEqual(
@@ -624,6 +625,7 @@ class RuntimePythonTests(unittest.TestCase):
                     )
                     self.assertFalse(os.path.exists(os.path.join(auth_home, "Library")))
 
+    @unittest.skipIf(os.name == "nt", "POSIX account database used by the macOS keychain link")
     def test_secure_storage_overrides_still_namespaces_when_no_keychain_exists(self):
         with tempfile.TemporaryDirectory() as tmp:
             real_home = os.path.join(tmp, "real-home")
@@ -632,8 +634,7 @@ class RuntimePythonTests(unittest.TestCase):
             os.makedirs(auth_home)
 
             with mock.patch("src.claude_usage.sys.platform", "darwin"):
-                with mock.patch("src.claude_usage.pwd.getpwuid") as getpwuid:
-                    getpwuid.return_value = mock.Mock(pw_dir=real_home)
+                with mock.patch.object(claude_usage, "pwd", SimpleNamespace(getpwuid=lambda _uid: SimpleNamespace(pw_dir=real_home))):
                     result = claude_usage._secure_storage_overrides(auth_home)
 
             self.assertEqual(

@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-09-06 12:38:20
+> Indicators reviewed: 2026-09-06 12:42:22
 
 # AI Context
 - Summary: Deliver keychain portability and the two recovery messages, reversing the req_070 export refusal.
@@ -46,6 +46,7 @@
 - `npm run lint` -> All checks passed.
 - `npm test` -> 1012 passed.
 - CI run 34027833514 failed on ubuntu and windows only: `delete_keychain_credentials` had no platform guard, so `cdx rm` of a Claude session raised where `security` does not exist. Reproduced locally with a non-darwin harness, fixed, and re-verified with the same harness (106 passed).
+- CI run 34028017876 then went green on ubuntu and macos and kept four windows failures inherited from `20ef9d1`, which had never run on CI: `mock.patch("src.provider_runtime.os.path.splitdrive")` also patches `ntpath.join`, and three tests patch through `claude_usage.pwd`, which is None on Windows. The splitdrive fake is now applied only off Windows, and the three macOS keychain-link tests are skipped there, as `_link_macos_keychain` needs `os.getuid`.
 - `cargo test --manifest-path tray/Cargo.toml` -> 96 passed; 0 failed.
 - lint OK; 1012 Python tests; 96 Rust tests
 - Finish workflow executed on 2026-09-06.
