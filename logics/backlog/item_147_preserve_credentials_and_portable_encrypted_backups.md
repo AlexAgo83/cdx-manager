@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Data integrity
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-09-07 09:39:34
+> Indicators reviewed: 2026-09-07 09:59:28
 
 # AI Context
 - Summary: Implements the credential and backup-format slice for req_073 findings 1-3: keychain-only merge preservation, late force-import credential rollback, and recorded-KDF encrypted bundle decoding.
@@ -58,3 +58,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop`
+
+# Notes
+- Task `task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop` was finished via `logics-manager flow finish task` on 2026-09-07.

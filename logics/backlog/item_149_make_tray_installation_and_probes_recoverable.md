@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-09-07 09:39:34
+> Indicators reviewed: 2026-09-07 09:59:28
 
 # AI Context
 - Summary: Implements the tray install recovery slice for req_073 findings 7-9: failed promotion rollback, Windows shortcut retargeting and ownership, and real macOS staged companion probing.
@@ -57,3 +57,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop`
+
+# Notes
+- Task `task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop` was finished via `logics-manager flow finish task` on 2026-09-07.

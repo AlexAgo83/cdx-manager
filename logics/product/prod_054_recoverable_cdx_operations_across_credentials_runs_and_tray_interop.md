@@ -1,12 +1,12 @@
 ## prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop - Recoverable CDX operations across credentials, runs, and tray interop
 > Date: 2026-09-07
-> Status: Proposed
+> Status: Settled
 > Related request: `req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop`
-> Related backlog: `item_147_preserve_credentials_and_portable_encrypted_backups`, `item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx`, `item_149_make_tray_installation_and_probes_recoverable`, `item_150_repair_windows_to_wsl_tray_command_and_terminal_interop`
+> Related backlog: `item_147_preserve_credentials_and_portable_encrypted_backups`
 > Related task: `task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
-> Indicators reviewed: 2026-09-07 09:28:51
+> Indicators reviewed: 2026-09-07 09:59:28
 
 # Overview
 Turn reproduced review findings into bounded fixes that keep authentication, local writes, provider processes, and tray launch surfaces recoverable across macOS, Windows, and WSL.
@@ -48,5 +48,5 @@ flowchart LR
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop`
+- Product back-reference: `item_147_preserve_credentials_and_portable_encrypted_backups`
 - Task back-reference: `task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop`

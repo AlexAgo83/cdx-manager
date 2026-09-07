@@ -26,6 +26,10 @@ mod spool;
 mod unread;
 #[cfg(target_os = "windows")]
 mod win;
+// Compiled everywhere so `cargo test` covers the Windows command shapes on any
+// host; only the Windows loop calls it, hence the allow off Windows.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+mod winterm;
 mod wsl;
 
 use menu::Entry;

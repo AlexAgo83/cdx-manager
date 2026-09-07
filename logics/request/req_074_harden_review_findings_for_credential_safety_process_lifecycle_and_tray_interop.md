@@ -1,13 +1,13 @@
 ## req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop - Harden review findings for credential safety, process lifecycle, and tray interop
 > From version: 0.20.9
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: High
 > Theme: Reliability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-09-07 09:28:51
+> Indicators reviewed: 2026-09-07 09:59:27
 
 # AI Context
 - Summary: Development-ready hardening chain for all twelve req_073 review findings across credential import, encrypted bundle portability, concurrent memory, detached/headless run lifecycle, tray update recovery, and Windows-to-WSL tray interop.

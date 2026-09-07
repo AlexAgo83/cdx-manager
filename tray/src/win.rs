@@ -25,6 +25,7 @@ use crate::menu::ActionId;
 use crate::runner::{announce, Render};
 use crate::snapshot::Transport;
 use crate::spool;
+use crate::winterm;
 use crate::unread::Unread;
 
 /// How long the loop sleeps between pumps. Short enough that a click feels
@@ -144,7 +145,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     redraw = true;
                 }
                 Some(ActionId::OpenTerminal) => {
-                    open_terminal_in(&transport, "status", state.terminal.as_deref())
+                    open_terminal_in(&transport, &["status"], state.terminal.as_deref())
                 }
                 Some(ActionId::About) => open_project_page(),
                 Some(ActionId::ToggleAlerts) => {
@@ -173,17 +174,17 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     redraw = true;
                 }
                 Some(ActionId::Session(name)) => {
-                    open_terminal_in(&transport, name, state.terminal.as_deref())
+                    open_terminal_in(&transport, &[name], state.terminal.as_deref())
                 }
                 Some(ActionId::FocusTerminal { .. }) => {}
                 // A view, not an edit: `cdx config` prints the settings that
                 // will apply to the next launch, through the same native or
                 // WSL routing every other tray command uses.
-                Some(ActionId::SessionConfig(name)) => open_terminal_in(
-                    &transport,
-                    &format!("config {name}"),
-                    state.terminal.as_deref(),
-                ),
+                // Two arguments, and they have to stay two: `wsl.exe -- cdx
+                // "config work1"` is one session name with a space in it.
+                Some(ActionId::SessionConfig(name)) => {
+                    open_terminal_in(&transport, &["config", name], state.terminal.as_deref())
+                }
                 // Handed back exactly as it arrived. The companion knows no
                 // card action and can compose none, so CDX decides what, if
                 // anything, an id means.
@@ -302,76 +303,40 @@ fn find_icon_key() -> Option<String> {
     None
 }
 
-/// Open a console on `cdx status`. When CDX lives in WSL the command has to
-/// cross the same way the status poll does, or the window would open on a host
-/// that has no `cdx`.
-/// Open a console on a cdx subcommand: the status table, or one session.
-/// Open a console on a cdx subcommand.
+/// Open a console on a cdx subcommand, honouring the terminal preference.
 ///
-/// The preference is honoured only for Windows Terminal, and that is a
-/// statement about Windows rather than a shortcut. macOS has `open -a` and
-/// Linux has `-e`: both are conventions every application follows. Windows has
-/// no equivalent — there is no way to ask an arbitrary terminal to run a
-/// command — so `wt`, which documents `wt -- <command>`, is the one that can be
-/// honoured without guessing. Anything else falls back to the console that has
-/// always opened, which is a working click rather than a broken promise.
-fn open_terminal_in(transport: &Transport, arg: &str, preferred: Option<&str>) {
+/// The command construction lives in `winterm`, which is not gated to Windows
+/// so that the argv shapes are covered by `cargo test` on any host. This is the
+/// spawning, and the reporting when a spawn fails.
+///
+/// A preference this companion cannot launch is not a dead end: the click falls
+/// back to the console that has always opened. Refusing to open anything left
+/// session and config rows inert for anyone whose stored preference came from
+/// the Linux side of a WSL transport.
+fn open_terminal_in(transport: &Transport, args: &[&str], preferred: Option<&str>) {
     let cdx = Transport::cdx_command();
-    if preferred.is_some_and(|name| name.eq_ignore_ascii_case("wt")) {
-        let mut command = std::process::Command::new("wt.exe");
-        match transport {
-            Transport::Wsl { distro: Some(name) } => {
-                command.args([
-                    "-w", "0", "nt", "--", "wsl.exe", "-d", name, "--", &cdx, arg,
-                ]);
+    if let Some(name) = preferred {
+        if let Some(spawn) = winterm::preferred_console(transport, name, &cdx, args) {
+            if std::process::Command::new(&spawn.program)
+                .args(&spawn.args)
+                .spawn()
+                .is_ok()
+            {
+                return;
             }
-            Transport::Wsl { distro: None } => {
-                command.args(["-w", "0", "nt", "--", "wsl.exe", "--", &cdx, arg]);
-            }
-            Transport::Native => {
-                command.args(["-w", "0", "nt", "--", "cmd", "/k", &format!("{cdx} {arg}")]);
-            }
+            eprintln!("Preferred terminal {name} is unavailable; opening the default console");
+        } else {
+            eprintln!("Terminal {name} cannot be opened from Windows; opening the default console");
         }
-        if command.spawn().is_ok() {
-            return;
-        }
-        eprintln!("Preferred terminal wt is unavailable");
-        return;
     }
-    if let Some(name @ ("powershell" | "pwsh" | "cmd")) = preferred.map(|name| name.to_ascii_lowercase()).as_deref() {
-        let program = if name == "cmd" { "cmd.exe" } else if name == "pwsh" { "pwsh.exe" } else { "powershell.exe" };
-        let mut command = std::process::Command::new(program);
-        match transport {
-            Transport::Wsl { distro: Some(distro) } => command.args(["-NoExit", "-Command", &format!("wsl.exe -d {distro} -- {cdx} {arg}")]),
-            Transport::Wsl { distro: None } => command.args(["-NoExit", "-Command", &format!("wsl.exe -- {cdx} {arg}")]),
-            Transport::Native if name == "cmd" => command.args(["/k", &format!("{cdx} {arg}")]),
-            Transport::Native => command.args(["-NoExit", "-Command", &format!("{cdx} {arg}")]),
-        };
-        if command.spawn().is_ok() {
-            return;
-        }
-        eprintln!("Preferred terminal {name} is unavailable");
-        return;
-    }
-    if preferred.is_some() { eprintln!("Preferred terminal is unavailable"); } else { open_terminal(transport, arg) }
+    open_terminal(transport, args);
 }
 
-fn open_terminal(transport: &Transport, arg: &str) {
+fn open_terminal(transport: &Transport, args: &[&str]) {
     // The same cdx the status poll uses. Hardcoding `cdx` here would open a
     // console on a different binary than the menu it was clicked from.
-    let cdx = Transport::cdx_command();
-    let mut command = std::process::Command::new("cmd");
-    command.args(["/c", "start", ""]);
-    match transport {
-        Transport::Wsl { distro: Some(name) } => {
-            command.args(["wsl.exe", "-d", name, "--", &cdx, arg]);
-        }
-        Transport::Wsl { distro: None } => {
-            command.args(["wsl.exe", "--", &cdx, arg]);
-        }
-        Transport::Native => {
-            command.args(["cmd", "/k", &format!("{cdx} {arg}")]);
-        }
-    }
-    let _ = command.spawn();
+    let spawn = winterm::default_console(transport, &Transport::cdx_command(), args);
+    let _ = std::process::Command::new(&spawn.program)
+        .args(&spawn.args)
+        .spawn();
 }

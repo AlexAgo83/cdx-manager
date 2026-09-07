@@ -297,7 +297,20 @@ fn fetch_with(transport: &Transport, beat: bool) -> Result<Snapshot, Unavailable
     }
     let payload: Value =
         serde_json::from_slice(&output.stdout).map_err(|_| Unavailable::NotJson)?;
-    read_snapshot(&payload)
+    let snapshot = read_snapshot(&payload);
+    // CDX serialises its terminal candidates from the host that answered the
+    // poll, and under WSL transport that host is Linux. Only this companion
+    // knows what it can actually open, so it says.
+    #[cfg(target_os = "windows")]
+    let snapshot = snapshot.map(|mut snapshot| {
+        crate::winterm::restrict(
+            &mut snapshot.terminal_candidates,
+            &mut snapshot.terminal,
+            crate::winterm::options(crate::winterm::on_path),
+        );
+        snapshot
+    });
+    snapshot
 }
 
 /// CDX publishes machine-readable error codes on failure. Reading the code

@@ -1,12 +1,13 @@
 ## req_073_review_findings_credential_import_safety_bundle_portability_and_concurrent_memory - Review findings: data integrity, process lifecycle, and tray updates
 > From version: 0.20.9
 > Schema version: 1.0
-> Status: Draft
+> Status: Obsolete
 > Understanding: 95
 > Confidence: 95
 > Complexity: Medium
 > Theme: Data integrity and portability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-09-07 09:59:49
 
 # AI Context
 - Summary: Twelve reproduced defects affect credential imports, bundle portability, concurrent memory, detached execution, process cancellation, tray updates, and Windows-to-WSL tray actions.
@@ -170,3 +171,6 @@
 
 # Backlog
 - none
+
+# Links
+- Superseded by: `req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop`

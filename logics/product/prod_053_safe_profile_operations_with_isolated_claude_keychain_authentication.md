@@ -1,6 +1,6 @@
 ## prod_053_safe_profile_operations_with_isolated_claude_keychain_authentication - Safe profile operations with isolated Claude keychain authentication
 > Date: 2026-09-06
-> Status: Proposed
+> Status: Settled
 > Related request: `req_070_review_findings_profile_data_safety_and_keychain_integration`
 > Related backlog: item_140_preserve_existing_profiles_on_merge_import_failure, item_141_copy_claude_profiles_without_traversing_the_system_keychain, item_142_read_profile_scoped_claude_keychain_credentials_for_quota_refresh, item_143_report_unsupported_keychain_credential_exports_explicitly, item_144_preserve_claude_keychain_authentication_across_session_rename
 > Related task: task_079_orchestrate_profile_data_safety_and_claude_keychain_integration
