@@ -1,10 +1,10 @@
 ## item_149_make_tray_installation_and_probes_recoverable - Make tray installation and probes recoverable
 > From version: 0.20.9
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 50%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -34,15 +34,19 @@
 - AC3: macOS staged probe fails for an unusable bundle and succeeds only for a real companion diagnostic invocation.
 
 # AC Traceability
-- request-AC7 -> This backlog slice. Proof: AC1: Promotion failure leaves the installed executable path valid and restarts a previously running companion.
-- request-AC8 -> This backlog slice. Proof: AC2: Windows shortcut TargetPath and owned paths reference the final live executable across update and uninstall flows.
-- request-AC9 -> This backlog slice. Proof: AC3: macOS staged probe fails for an unusable bundle and succeeds only for a real companion diagnostic invocation.
-- request-AC13 -> This backlog slice. Proof: AC3: macOS staged probe fails for an unusable bundle and succeeds only for a real companion diagnostic invocation.
+- request-AC7 -> This backlog slice. Proof: `test/test_tray_capability_py.py::test_a_promotion_failure_keeps_a_valid_installed_path_and_restarts_the_tray` — the recorded executable still exists after an injected rename failure, and the previously running companion is restarted on it.
+- request-AC8 -> This backlog slice. Proof: `test/test_tray_capability_py.py::test_an_update_points_the_shortcut_at_the_live_executable_and_keeps_owning_it` — the shortcut is written once, against the promoted path, and `uninstall` removes it.
+- request-AC9 -> This backlog slice. Proof: `test/test_tray_capability_py.py::test_the_staged_probe_runs_the_companion_and_refuses_an_unusable_bundle` — the probe invokes the bundle's own binary with `--print`, refuses a bundle with no runnable binary, and treats exec failures and signal deaths as launch failures while a non-zero diagnostic still passes.
+- request-AC13 -> This backlog slice. Proof: `python3 -m pytest -q` (1,023 passed) and `npm run lint` (all checks passed). Rust tray tests and native Windows/WSL checks are carried by item_150, the slice that changes `tray/src/`.
 > Shared proof: request-AC9 and request-AC13 share the same final validation wave for this slice.
 
 # Decision framing
 - Product framing: Not needed
 - Architecture framing: Not needed
+
+# Implementation
+- `src/tray_install.py`: the staged-to-live promotion is guarded and restores the retired companion, reporting a `TrayInstallError` so the caller's restart path runs; `install(record=False)` no longer writes a Start Menu shortcut and the promotion writes one against the final executable, keeping it in the record's owned paths; `probe_command` resolves the binary inside a macOS app bundle and `_probe` reads its exit status.
+- `align_companion` passes `env` through to the update and no longer lets a raw `OSError` skip its restart path.
 
 # Links
 - Product brief(s): `prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop`

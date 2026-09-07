@@ -4,7 +4,7 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 50%
+> Progress: 75%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -23,7 +23,7 @@
 # Plan
 - [x] 1. Start with credential and backup fixes because they protect authentication and restore paths.
 - [x] 2. Then repair memory appends and headless run lifecycle so accepted work and child processes stay owned by CDX.
-- [ ] 3. Then repair tray installation, shortcut, and macOS probe recovery without changing tray feature scope.
+- [x] 3. Then repair tray installation, shortcut, and macOS probe recovery without changing tray feature scope.
 - [ ] 4. Finish with Windows-to-WSL tray argv and terminal interop, including Tower smoke checks.
 - [ ] 5. For each slice, add the smallest focused regressions, run targeted tests first, then Python/Rust suites, lint, Logics validation, and scoped Tower verification before closeout.
 - [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
@@ -83,6 +83,19 @@
   terminate/reap).
   Each regression was confirmed to fail against the pre-fix behaviour before being kept.
   `python3 -m pytest -q`: 1,020 passed. `npm run lint`: all checks passed.
+- Wave 3 (item_149, recoverable tray installation and probes): a promotion that fails between the two renames puts
+  the proven companion back and reports a `TrayInstallError`, so `align_companion` restarts the tray it stopped; the
+  Windows shortcut is written by the promotion against the final executable rather than by staging against the path
+  that is about to move, and it stays in the install record's owned paths; the macOS staged probe runs the binary
+  inside the app bundle, refuses a bundle with nothing runnable in it, and separates a launch failure (exec codes,
+  death by signal) from a diagnostic that ran and reported a problem.
+  Focused regressions: `test_a_promotion_failure_keeps_a_valid_installed_path_and_restarts_the_tray`,
+  `test_an_update_points_the_shortcut_at_the_live_executable_and_keeps_owning_it`,
+  `test_the_staged_probe_runs_the_companion_and_refuses_an_unusable_bundle`.
+  All three were confirmed to fail against the pre-fix behaviour before being kept.
+  `python3 -m pytest -q`: 1,023 passed. `npm run lint`: all checks passed.
+  Rust tray tests and the native Windows/WSL checks are pending: no Rust toolchain is installed on this host, and
+  those belong to the wave 4 slice that changes `tray/src/`.
 
 # Report
 - Not started.

@@ -226,7 +226,15 @@ def install(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, targe
     # Best-effort, and after the companion is known to be on disk: the shortcut
     # points at it. A failure here does not fail the install — the tray runs
     # either way, only its toasts would go nowhere, and doctor reports that.
-    shortcut = create_shortcut(executable, env=env)
+    #
+    # Only the install that is about to be live writes it. A staged executable
+    # is going to move, and a shortcut recorded against the staged path is a
+    # broken Start Menu entry the moment it does; the promotion writes it
+    # against the final path instead.
+    shortcut = (
+        create_shortcut(executable, env=env) if record
+        else {"created": False, "path": None, "reason": "staged install; the promotion writes the shortcut"}
+    )
 
     state = {
         "version": STATE_VERSION,
@@ -292,9 +300,9 @@ def align_companion(
     try:
         result = update(
             base_dir, version,
-            download=download, ledger_path=ledger_path, target=target, probe=probe,
+            download=download, ledger_path=ledger_path, target=target, probe=probe, env=env,
         )
-    except TrayInstallError as error:
+    except (TrayInstallError, OSError) as error:
         outcome = {
             "aligned": False,
             "reason": str(error),
@@ -407,7 +415,8 @@ def staged_dir(base_dir):
     return os.path.join(state_dir(base_dir), "companion.staged")
 
 
-def update(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, target=None, probe=None):
+def update(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, target=None, probe=None,
+           env=None):
     """Replace an installed companion without ever being left with none.
 
     The order is the whole point. The replacement is downloaded, verified and
@@ -444,18 +453,43 @@ def update(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, target
     live = os.path.join(state_dir(base_dir), "companion")
     retired = previous_dir(base_dir)
     shutil.rmtree(retired, ignore_errors=True)
-    if os.path.isdir(live):
-        os.rename(live, retired)
-    os.rename(staged, live)
+    retired_live = False
+    try:
+        if os.path.isdir(live):
+            os.rename(live, retired)
+            retired_live = True
+        os.rename(staged, live)
+    except OSError as error:
+        # A failure between the two renames used to leave the recorded
+        # executable pointing at nothing: the install claimed a live companion
+        # and the path was empty. Put the proven one back, and report as a
+        # TrayInstallError so the caller's restart path runs.
+        restored = True
+        if retired_live and not os.path.isdir(live):
+            try:
+                os.rename(retired, live)
+            except OSError:
+                restored = False
+        shutil.rmtree(staged, ignore_errors=True)
+        raise TrayInstallError(
+            f"Could not promote the staged tray companion for CDX {version}: {error}. "
+            + ("The installed one was restored." if restored
+               else f"The previous companion is retained at {retired}.")
+        ) from error
     # The retired copy stays. It used to be deleted here, which left nothing to
     # go back to the moment the replacement turned out not to start — and that
     # is precisely when it is needed. The next update clears it, so at most one
     # extra copy is ever on disk.
 
+    live_executable = fresh["executable"].replace(staged, live, 1)
+    # Written now, against the path that will still exist afterwards, and
+    # recorded so uninstall keeps owning it.
+    shortcut = create_shortcut(live_executable, env=env)
     state = {
         **fresh,
-        "executable": fresh["executable"].replace(staged, live, 1),
-        "paths": [live],
+        "executable": live_executable,
+        "paths": [live] + ([shortcut["path"]] if shortcut["created"] else []),
+        "shortcut": shortcut["path"] if shortcut["created"] else None,
     }
     _record_state(base_dir, state)
     return {"state": state, "replaced": previous.get("cdx_version"), "previous_state": previous}
@@ -496,17 +530,55 @@ def restore_previous(base_dir, previous_state):
         return False
 
 
+# `--print` exits non-zero when CDX itself is unavailable, and that is a
+# diagnostic that ran, not a companion that failed to launch. These are the
+# codes that mean the program never got to run: the exec conventions for "found
+# but not executable" and "not found". Death by signal is reported as a
+# negative returncode and counts the same way.
+_PROBE_LAUNCH_FAILURE_CODES = (126, 127)
+
+
+def probe_command(executable):
+    """How to ask the companion itself for its diagnostic output.
+
+    Not `launch_command`: on macOS that hands the bundle to `open`, which takes
+    `--print` for itself and reports nothing whatsoever about the companion. The
+    binary inside the bundle is what has to run, and an app bundle with no
+    runnable binary in it is exactly the case this gate exists to refuse.
+    """
+    if platform.system() == "Darwin" and executable.endswith(".app"):
+        macos_dir = os.path.join(executable, "Contents", "MacOS")
+        try:
+            entries = sorted(os.listdir(macos_dir))
+        except OSError:
+            return None
+        for entry in entries:
+            candidate = os.path.join(macos_dir, entry)
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return [candidate]
+        return None
+    return [executable]
+
+
 def _probe(executable):
-    """Does this companion start at all? `--print` exits non-zero when CDX is
-    unavailable, which is not the question here, so any completed run counts."""
+    """Does this companion actually run?
+
+    `--print` makes it emit its snapshot and exit, so a bundle that cannot
+    launch — wrong architecture, missing library, no binary inside it — is
+    refused here rather than after the working companion is gone.
+    """
+    command = probe_command(executable)
+    if not command:
+        return False
     try:
-        subprocess.run(  # noqa: S603  (path comes from our own install state)
-            launch_command(executable) + ["--print"],
+        completed = subprocess.run(  # noqa: S603  (path comes from our own install state)
+            command + ["--print"],
             capture_output=True, timeout=20, check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return False
-    return True
+    returncode = completed.returncode
+    return not (returncode < 0 or returncode in _PROBE_LAUNCH_FAILURE_CODES)
 
 
 def interrupted_update(base_dir):

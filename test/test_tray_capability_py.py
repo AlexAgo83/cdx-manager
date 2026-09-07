@@ -6,6 +6,8 @@ Windows notification API succeed and show nothing, and a desktop with no
 StatusNotifierItem watcher lets a companion start and never appear.
 """
 import os
+from types import SimpleNamespace
+from unittest import mock
 
 from cli_test_support import CliTestBase
 
@@ -562,6 +564,120 @@ class CompanionAlignmentTest(CliTestBase):
         self.assertTrue(result["restarted"], "the proven one is running again")
         self.assertEqual(read_state(base)["cdx_version"], "1.0.0")
         self.assertEqual(len(attempts), 2)
+
+    def test_a_promotion_failure_keeps_a_valid_installed_path_and_restarts_the_tray(self):
+        """A filesystem error between the two renames used to leave the recorded
+        executable pointing at nothing, with the restart path skipped."""
+        import shutil
+
+        from src.tray_install import align_companion, read_state, staged_dir
+        base, scratch = self.make_temp_dir(), self.make_temp_dir()
+        archive, ledger = self._installed(base, scratch, "1.0.0")
+        before = read_state(base)
+        staged = staged_dir(base)
+        real_rename = os.rename
+
+        def rename(src, dst):
+            if str(src) == staged:
+                raise OSError("promotion failed")
+            return real_rename(src, dst)
+
+        started = []
+        with mock.patch("src.tray_install.os.rename", side_effect=rename):
+            result = align_companion(
+                base, "2.0.0", ledger_path=ledger, target="t",
+                download=lambda _url, dest: shutil.copyfile(archive, dest),
+                probe=lambda _executable: True,
+                stop=self.stopped,
+                start=lambda executable, **kwargs: started.append(executable) or {"started": True},
+            )
+
+        self.assertFalse(result["aligned"])
+        self.assertIn("Could not promote", result["reason"])
+        after = read_state(base)
+        self.assertEqual(after["executable"], before["executable"])
+        self.assertTrue(os.path.exists(after["executable"]), "the recorded companion is on disk")
+        self.assertEqual(after["cdx_version"], "1.0.0")
+        # We stopped it, so it comes back — on the path that still works.
+        self.assertTrue(result["restarted"])
+        self.assertEqual(started, [before["executable"]])
+
+    def test_an_update_points_the_shortcut_at_the_live_executable_and_keeps_owning_it(self):
+        """Staging writes no shortcut; the promotion writes one that survives it."""
+        import shutil
+
+        from src.tray_install import align_companion, read_state, uninstall
+        base, scratch = self.make_temp_dir(), self.make_temp_dir()
+        archive, ledger = self._installed(base, scratch, "1.0.0")
+        shortcut_path = os.path.join(self.make_temp_dir(), "CDX.lnk")
+        targets = []
+
+        def create_shortcut(executable, env=None):
+            targets.append(executable)
+            with open(shortcut_path, "w", encoding="utf-8") as handle:
+                handle.write(executable)
+            return {"created": True, "path": shortcut_path, "reason": None}
+
+        with mock.patch("src.tray_install.create_shortcut", side_effect=create_shortcut):
+            result = align_companion(
+                base, "2.0.0", ledger_path=ledger, target="t",
+                download=lambda _url, dest: shutil.copyfile(archive, dest),
+                probe=lambda _executable: True,
+                stop=self.no_tray_running, start=self.starts,
+            )
+        self.assertTrue(result["aligned"], result)
+
+        state = read_state(base)
+        # Written once, against the final path — never against companion.staged.
+        self.assertEqual(targets, [state["executable"]])
+        self.assertNotIn("companion.staged", targets[0])
+        self.assertTrue(os.path.exists(state["executable"]))
+        with open(shortcut_path, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), state["executable"])
+        # And uninstall still owns it.
+        self.assertIn(shortcut_path, state["paths"])
+        self.assertEqual(state["shortcut"], shortcut_path)
+        uninstall(base)
+        self.assertFalse(os.path.exists(shortcut_path))
+
+    def test_the_staged_probe_runs_the_companion_and_refuses_an_unusable_bundle(self):
+        from src.tray_install import _probe, probe_command
+        bundle = os.path.join(self.make_temp_dir(), "CDX.app")
+
+        with mock.patch("src.tray_install.platform.system", return_value="Darwin"):
+            # An app bundle with nothing runnable inside it never reaches a
+            # subprocess at all, which is the case the gate exists to catch.
+            self.assertIsNone(probe_command(bundle))
+            self.assertFalse(_probe(bundle))
+
+            binary = os.path.join(bundle, "Contents", "MacOS", "cdx-tray")
+            os.makedirs(os.path.dirname(binary))
+            with open(binary, "w", encoding="utf-8") as handle:
+                handle.write("#!/bin/sh\nexit 0\n")
+            os.chmod(binary, 0o755)
+            # The companion itself, not `open -a <bundle>`, which would take
+            # --print for itself and report nothing about the companion.
+            self.assertEqual(probe_command(bundle), [binary])
+
+            calls = []
+
+            def run(argv, **kwargs):
+                calls.append(argv)
+                return SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
+
+            with mock.patch("src.tray_install.subprocess.run", side_effect=run):
+                self.assertTrue(_probe(bundle))
+            self.assertEqual(calls, [[binary, "--print"]])
+
+            # A diagnostic that ran and reported a problem is not a launch
+            # failure; a program that never ran is.
+            for returncode, expected in ((3, True), (0, True), (126, False), (127, False), (-9, False)):
+                with mock.patch("src.tray_install.subprocess.run",
+                                return_value=SimpleNamespace(returncode=returncode, stdout=b"", stderr=b"")):
+                    self.assertEqual(_probe(bundle), expected, returncode)
+
+            with mock.patch("src.tray_install.subprocess.run", side_effect=OSError("exec format error")):
+                self.assertFalse(_probe(bundle))
 
     def test_a_failed_update_restarts_the_companion_it_stopped(self):
         from src.tray_install import align_companion
