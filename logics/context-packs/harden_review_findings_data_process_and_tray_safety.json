@@ -1,0 +1,516 @@
+{
+  "budgets": {
+    "max_docs": 48,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [
+    "logics/backlog/item_147_preserve_credentials_and_portable_encrypted_backups.md",
+    "logics/backlog/item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx.md",
+    "logics/backlog/item_149_make_tray_installation_and_probes_recoverable.md",
+    "logics/backlog/item_150_repair_windows_to_wsl_tray_command_and_terminal_interop.md",
+    "logics/product/prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop.md",
+    "logics/request/req_073_review_findings_credential_import_safety_bundle_portability_and_concurrent_memory.md",
+    "logics/request/req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop.md",
+    "logics/scaffold/harden_review_findings_data_process_and_tray_safety.json",
+    "logics/tasks/task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop.md"
+  ],
+  "command": "logics-manager sync context-pack req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop item_147_preserve_credentials_and_portable_encrypted_backups item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx item_149_make_tray_installation_and_probes_recoverable item_150_repair_windows_to_wsl_tray_command_and_terminal_interop task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop --mode diff-first --profile deep --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_147_preserve_credentials_and_portable_encrypted_backups",
+          "item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx",
+          "item_149_make_tray_installation_and_probes_recoverable",
+          "item_150_repair_windows_to_wsl_tray_command_and_terminal_interop"
+        ],
+        "prod": [
+          "prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop"
+        ],
+        "req": [
+          "req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop"
+        ],
+        "task": [
+          "task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop"
+        ]
+      },
+      "path": "logics/product/prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop.md",
+      "ref": "prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop",
+      "sections": {
+        "Goals": [
+          "- Preserve user credentials and backup readability during import, force rollback, and runtime changes.",
+          "- Keep background runs and local memory writes under deterministic CDX ownership.",
+          "- Make tray updates recoverable and tray actions truthful across native Windows, macOS, and Windows-hosted WSL.",
+          "- Validate the repaired paths with small regressions plus the existing project gates."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Turn reproduced review findings into bounded fixes that keep authentication, local writes, provider processes, and tray launch surfaces recoverable across macOS, Windows, and WSL."
+        ],
+        "References": [
+          "- Product back-reference: `req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop`",
+          "- Task back-reference: `task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Recoverable CDX operations across credentials, runs, and tray interop"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "harden, review, findings, credential, safety, process, lifecycle, tray, interop",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_147_preserve_credentials_and_portable_encrypted_backups",
+          "item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx",
+          "item_149_make_tray_installation_and_probes_recoverable",
+          "item_150_repair_windows_to_wsl_tray_command_and_terminal_interop"
+        ],
+        "prod": [
+          "prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop"
+        ],
+        "req": [
+          "req_073_review_findings_credential_import_safety_bundle_portability_and_concurrent_memory",
+          "req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop"
+        ]
+      },
+      "path": "logics/request/req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop.md",
+      "ref": "req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Merging an auth-bearing bundle into a keychain-only profile preserves the existing local account without deleting its credential.",
+          "- AC2: A failed force import after credential staging restores the original authentication as well as profile files, record, and state; incomplete recovery is reported explicitly.",
+          "- AC3: An encrypted bundle created through the PBKDF2 fallback decodes on a runtime with scrypt using the correct passphrase; decoding follows a validated recorded KDF and defines compatibility for legacy bundles.",
+          "- AC4: Two successful concurrent appends to the same memory scope retain both notes and the pre-existing content.",
+          "- AC5: A real detached child resolves and runs the correct CLI module for source/npm and Python-package layouts, reaches a synthetic provider, and records a terminal result.",
+          "- AC6: Interrupting a headless run terminates and reaps its owned provider process and records cancellation rather than leaving work running."
+        ],
+        "Needs": [
+          "- Import and restore operations must preserve local credentials and bundle portability across supported Python runtimes.",
+          "- Accepted local writes and launched work must either complete under CDX supervision or fail without hidden work, lost memory, or false success.",
+          "- Tray updates and Windows-to-WSL actions must leave the user with a valid companion, valid shortcuts, and commands that run the intended CDX action."
+        ]
+      },
+      "status": "Draft",
+      "title": "Harden review findings for credential safety, process lifecycle, and tray interop"
+    },
+    {
+      "ai_context": {
+        "keywords": "review, credential, import, bundle, memory, detached, cancellation, tray, shortcut, rollback, WSL, terminal",
+        "skip when": "Implementing unrelated provider features or presentation changes.",
+        "summary": "Twelve reproduced defects affect credential imports, bundle portability, concurrent memory, detached execution, process cancellation, tray updates, and Windows-to-WSL tray actions.",
+        "use when": "Evaluating follow-up work on data integrity, subprocess lifecycle, or tray update guarantees."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "req": [
+          "req_073_review_findings_credential_import_safety_bundle_portability_and_concurrent_memory"
+        ]
+      },
+      "path": "logics/request/req_073_review_findings_credential_import_safety_bundle_portability_and_concurrent_memory.md",
+      "ref": "req_073_review_findings_credential_import_safety_bundle_portability_and_concurrent_memory",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Merging an auth-bearing bundle into a keychain-only profile preserves the existing local account without deleting its credential.",
+          "- AC2: A failed force import after credential staging restores the original authentication as well as profile files, record, and state; incomplete recovery is reported explicitly.",
+          "- AC3: An encrypted bundle created through the PBKDF2 fallback decodes on a runtime with scrypt using the correct passphrase; decoding follows a validated recorded KDF and defines compatibility for legacy bundles.",
+          "- AC4: Two successful concurrent appends to the same memory scope retain both notes and the pre-existing content.",
+          "- AC5: Any selected fixes include focused regressions for these cases, and the Python/Rust suites and lint continue to pass.",
+          "- AC6: A real detached child resolves and runs the correct CLI module for source/npm and Python-package layouts, reaches a synthetic provider, and records a terminal result."
+        ],
+        "Needs": [
+          "- P1: Preserve the existing local keychain account during an import in merge mode.",
+          "- P1: Preserve or recover the original keychain credential when a force import fails after writing imported credentials.",
+          "- P2: Decode encrypted bundles with the KDF recorded by the exporter, independent of the importing runtime's capabilities.",
+          "- P2: Preserve both notes when multiple agents append to the same memory scope concurrently.",
+          "- P1: Make the detached child execute an existing CLI module from the correct package root.",
+          "- P1: Terminate and reap headless provider processes when the supervising run is interrupted."
+        ]
+      },
+      "status": "Draft",
+      "title": "Review findings: data integrity, process lifecycle, and tray updates"
+    },
+    {
+      "ai_context": {
+        "keywords": "preserve, credentials, portable, encrypted, backups",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_147_preserve_credentials_and_portable_encrypted_backups"
+        ],
+        "prod": [
+          "prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop"
+        ],
+        "req": [
+          "req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop"
+        ],
+        "task": [
+          "task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop"
+        ]
+      },
+      "path": "logics/backlog/item_147_preserve_credentials_and_portable_encrypted_backups.md",
+      "ref": "item_147_preserve_credentials_and_portable_encrypted_backups",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Merge import preserves an existing keychain-only destination credential and reports the retained local account behavior.",
+          "- AC2: Late force-import failure restores credential, files, record, and state or reports incomplete recovery.",
+          "- AC3: PBKDF2 fallback bundles decode on a scrypt-capable runtime with the same passphrase, with legacy behavior covered by tests."
+        ],
+        "Problem": [
+          "- Merge and rollback can replace or lose a keychain-only local account, and bundle decryption can ignore the exporter-recorded KDF."
+        ]
+      },
+      "status": "Ready",
+      "title": "Preserve credentials and portable encrypted backups"
+    },
+    {
+      "ai_context": {
+        "keywords": "accepted, local, writes, run, processes, owned, cdx",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx"
+        ],
+        "prod": [
+          "prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop"
+        ],
+        "req": [
+          "req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop"
+        ],
+        "task": [
+          "task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop"
+        ]
+      },
+      "path": "logics/backlog/item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx.md",
+      "ref": "item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Two concurrent successful memory appends preserve both notes.",
+          "- AC2: A real detached child reaches a synthetic provider and records a terminal result.",
+          "- AC3: SIGINT cleanup terminates and reaps the owned provider child and records cancellation."
+        ],
+        "Problem": [
+          "- Concurrent memory appends can lose accepted notes, detached runs invoke a nonexistent module, and interrupted headless runs can leave providers alive."
+        ]
+      },
+      "status": "Ready",
+      "title": "Make accepted local writes and run processes owned by CDX"
+    },
+    {
+      "ai_context": {
+        "keywords": "tray, installation, probes, recoverable",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_149_make_tray_installation_and_probes_recoverable"
+        ],
+        "prod": [
+          "prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop"
+        ],
+        "req": [
+          "req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop"
+        ],
+        "task": [
+          "task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop"
+        ]
+      },
+      "path": "logics/backlog/item_149_make_tray_installation_and_probes_recoverable.md",
+      "ref": "item_149_make_tray_installation_and_probes_recoverable",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Promotion failure leaves the installed executable path valid and restarts a previously running companion.",
+          "- AC2: Windows shortcut TargetPath and owned paths reference the final live executable across update and uninstall flows.",
+          "- AC3: macOS staged probe fails for an unusable bundle and succeeds only for a real companion diagnostic invocation."
+        ],
+        "Problem": [
+          "- Tray promotion, shortcut recording, and macOS staged probing can report success while leaving a missing executable, stale Windows shortcut, or untested app bundle."
+        ]
+      },
+      "status": "Ready",
+      "title": "Make tray installation and probes recoverable"
+    },
+    {
+      "ai_context": {
+        "keywords": "repair, windows, wsl, tray, command, terminal, interop",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_150_repair_windows_to_wsl_tray_command_and_terminal_interop"
+        ],
+        "prod": [
+          "prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop"
+        ],
+        "req": [
+          "req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop"
+        ],
+        "task": [
+          "task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop"
+        ]
+      },
+      "path": "logics/backlog/item_150_repair_windows_to_wsl_tray_command_and_terminal_interop.md",
+      "ref": "item_150_repair_windows_to_wsl_tray_command_and_terminal_interop",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Session config clicks execute cdx config <session> in the configured WSL distribution.",
+          "- AC2: Windows-to-WSL snapshots present only launchable Windows terminal options or a working default.",
+          "- AC3: cmd preference launches the selected WSL-backed CDX action instead of opening an idle shell."
+        ],
+        "Problem": [
+          "- The Windows tray can send multi-word CDX actions as one argument, offer Linux-only terminal choices from WSL, and run cmd preferences with PowerShell flags."
+        ]
+      },
+      "status": "Ready",
+      "title": "Repair Windows-to-WSL tray command and terminal interop"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_147_preserve_credentials_and_portable_encrypted_backups",
+          "item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx",
+          "item_149_make_tray_installation_and_probes_recoverable",
+          "item_150_repair_windows_to_wsl_tray_command_and_terminal_interop"
+        ],
+        "prod": [
+          "prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop"
+        ],
+        "req": [
+          "req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop"
+        ],
+        "task": [
+          "task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop"
+        ]
+      },
+      "path": "logics/product/prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop.md",
+      "ref": "prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Recoverable CDX operations across credentials, runs, and tray interop"
+    },
+    {
+      "ai_context": {
+        "keywords": "orchestrate, review, finding, hardening, across, credentials, runs, tray, interop",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_147_preserve_credentials_and_portable_encrypted_backups",
+          "item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx",
+          "item_149_make_tray_installation_and_probes_recoverable",
+          "item_150_repair_windows_to_wsl_tray_command_and_terminal_interop"
+        ],
+        "prod": [
+          "prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop"
+        ],
+        "req": [
+          "req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop"
+        ],
+        "task": [
+          "task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop"
+        ]
+      },
+      "path": "logics/tasks/task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop.md",
+      "ref": "task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate review finding hardening across credentials, runs, and tray interop"
+    }
+  ],
+  "estimates": {
+    "char_count": 15451,
+    "companion_doc_count": 1,
+    "doc_count": 8
+  },
+  "generated_at": "2026-09-07T07:27:15Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop",
+      "item_147_preserve_credentials_and_portable_encrypted_backups",
+      "item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx",
+      "item_149_make_tray_installation_and_probes_recoverable",
+      "item_150_repair_windows_to_wsl_tray_command_and_terminal_interop",
+      "task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "deep",
+  "ref": "req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop,item_147_preserve_credentials_and_portable_encrypted_backups,item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx,item_149_make_tray_installation_and_probes_recoverable,item_150_repair_windows_to_wsl_tray_command_and_terminal_interop,task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop",
+  "refs": [
+    "req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop",
+    "item_147_preserve_credentials_and_portable_encrypted_backups",
+    "item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx",
+    "item_149_make_tray_installation_and_probes_recoverable",
+    "item_150_repair_windows_to_wsl_tray_command_and_terminal_interop",
+    "task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_id": null,
+    "target_version": "0.20.9",
+    "targets": []
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop.md",
+      "ref": "task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop"
+    }
+  ]
+}

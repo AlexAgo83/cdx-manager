@@ -73,6 +73,7 @@
 | [prod_051_truthful_codex_authentication_health_signals](product/prod_051_truthful_codex_authentication_health_signals.md) | Truthful Codex authentication health signals | Settled |  |  | product/prod_051_truthful_codex_authentication_health_signals.md |
 | [prod_052_reliable_codex_diagnostics_in_packaged_installs](product/prod_052_reliable_codex_diagnostics_in_packaged_installs.md) | Reliable Codex diagnostics in packaged installs | Settled |  |  | product/prod_052_reliable_codex_diagnostics_in_packaged_installs.md |
 | [prod_053_safe_profile_operations_with_isolated_claude_keychain_authentication](product/prod_053_safe_profile_operations_with_isolated_claude_keychain_authentication.md) | Safe profile operations with isolated Claude keychain authentication | Proposed |  |  | product/prod_053_safe_profile_operations_with_isolated_claude_keychain_authentication.md |
+| [prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop](product/prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop.md) | Recoverable CDX operations across credentials, runs, and tray interop | Proposed |  |  | product/prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop.md |
 
 ## Roadmaps
 
@@ -157,6 +158,8 @@ _None_
 | [req_070_review_findings_profile_data_safety_and_keychain_integration](request/req_070_review_findings_profile_data_safety_and_keychain_integration.md) | Review findings: profile data safety and keychain integration | Done |  |  | request/req_070_review_findings_profile_data_safety_and_keychain_integration.md |
 | [req_071_post_review_hardening_of_profile_keychain_integration](request/req_071_post_review_hardening_of_profile_keychain_integration.md) | Post-review hardening of profile keychain integration | Done |  |  | request/req_071_post_review_hardening_of_profile_keychain_integration.md |
 | [req_072_keychain_credential_portability_and_operator_recovery](request/req_072_keychain_credential_portability_and_operator_recovery.md) | Keychain credential portability and operator recovery | Done |  |  | request/req_072_keychain_credential_portability_and_operator_recovery.md |
+| [req_073_review_findings_credential_import_safety_bundle_portability_and_concurrent_memory](request/req_073_review_findings_credential_import_safety_bundle_portability_and_concurrent_memory.md) | Review findings: data integrity, process lifecycle, and tray updates | Draft |  |  | request/req_073_review_findings_credential_import_safety_bundle_portability_and_concurrent_memory.md |
+| [req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop](request/req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop.md) | Harden review findings for credential safety, process lifecycle, and tray interop | Ready |  |  | request/req_074_harden_review_findings_for_credential_safety_process_lifecycle_and_tray_interop.md |
 
 ## Backlog
 
@@ -311,6 +314,10 @@ _None_
 | [item_144_preserve_claude_keychain_authentication_across_session_rename](backlog/item_144_preserve_claude_keychain_authentication_across_session_rename.md) | Preserve Claude keychain authentication across session rename | Done |  | 100% | backlog/item_144_preserve_claude_keychain_authentication_across_session_rename.md |
 | [item_145_post_review_hardening_of_profile_keychain_integration](backlog/item_145_post_review_hardening_of_profile_keychain_integration.md) | Post-review hardening of profile keychain integration | Done |  | 100% | backlog/item_145_post_review_hardening_of_profile_keychain_integration.md |
 | [item_146_keychain_credential_portability_and_operator_recovery](backlog/item_146_keychain_credential_portability_and_operator_recovery.md) | Keychain credential portability and operator recovery | Done |  | 100% | backlog/item_146_keychain_credential_portability_and_operator_recovery.md |
+| [item_147_preserve_credentials_and_portable_encrypted_backups](backlog/item_147_preserve_credentials_and_portable_encrypted_backups.md) | Preserve credentials and portable encrypted backups | Ready |  | 0% | backlog/item_147_preserve_credentials_and_portable_encrypted_backups.md |
+| [item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx](backlog/item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx.md) | Make accepted local writes and run processes owned by CDX | Ready |  | 0% | backlog/item_148_make_accepted_local_writes_and_run_processes_owned_by_cdx.md |
+| [item_149_make_tray_installation_and_probes_recoverable](backlog/item_149_make_tray_installation_and_probes_recoverable.md) | Make tray installation and probes recoverable | Ready |  | 0% | backlog/item_149_make_tray_installation_and_probes_recoverable.md |
+| [item_150_repair_windows_to_wsl_tray_command_and_terminal_interop](backlog/item_150_repair_windows_to_wsl_tray_command_and_terminal_interop.md) | Repair Windows-to-WSL tray command and terminal interop | Ready |  | 0% | backlog/item_150_repair_windows_to_wsl_tray_command_and_terminal_interop.md |
 
 ## Tasks
 
@@ -402,6 +409,7 @@ _None_
 | [task_079_orchestrate_profile_data_safety_and_claude_keychain_integration](tasks/task_079_orchestrate_profile_data_safety_and_claude_keychain_integration.md) | Orchestrate profile data safety and Claude keychain integration | Done | Codex | 100% | tasks/task_079_orchestrate_profile_data_safety_and_claude_keychain_integration.md |
 | [task_080_post_review_hardening_of_profile_keychain_integration](tasks/task_080_post_review_hardening_of_profile_keychain_integration.md) | Post-review hardening of profile keychain integration | Done |  | 100% | tasks/task_080_post_review_hardening_of_profile_keychain_integration.md |
 | [task_081_keychain_credential_portability_and_operator_recovery](tasks/task_081_keychain_credential_portability_and_operator_recovery.md) | Keychain credential portability and operator recovery | Done |  | 100% | tasks/task_081_keychain_credential_portability_and_operator_recovery.md |
+| [task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop](tasks/task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop.md) | Orchestrate review finding hardening across credentials, runs, and tray interop | Ready |  | 0% | tasks/task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop.md |
 
 ## Runbooks
 

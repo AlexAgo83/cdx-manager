@@ -1,0 +1,175 @@
+{
+  "title": "Harden review findings for credential safety, process lifecycle, and tray interop",
+  "references": [
+    "logics/request/req_073_review_findings_credential_import_safety_bundle_portability_and_concurrent_memory.md",
+    "src/session_backup.py",
+    "src/backup_bundle.py",
+    "src/context_store.py",
+    "src/commands/runs.py",
+    "src/provider_runtime.py",
+    "src/tray_install.py",
+    "src/tray_shortcut.py",
+    "tray/src/win.rs",
+    "tray/src/snapshot.rs",
+    "src/tray_terminal.py"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Reliability",
+    "needs": [
+      "Import and restore operations must preserve local credentials and bundle portability across supported Python runtimes.",
+      "Accepted local writes and launched work must either complete under CDX supervision or fail without hidden work, lost memory, or false success.",
+      "Tray updates and Windows-to-WSL actions must leave the user with a valid companion, valid shortcuts, and commands that run the intended CDX action."
+    ],
+    "context": [
+      "Review request req_073 reproduced twelve defects on the current source snapshot across macOS, Tower native Windows, and Tower Ubuntu WSL2.",
+      "Credential import findings are rooted in keychain/file precedence and rollback boundaries in src/session_backup.py plus KDF selection in src/backup_bundle.py.",
+      "Process findings are rooted in detached child module selection in src/commands/runs.py and interrupt cleanup in src/provider_runtime.py.",
+      "Tray findings are rooted in staging promotion, native shortcut ownership, macOS launch probing, and Windows-to-WSL argument and terminal selection paths.",
+      "The work must be implemented in small validated slices with focused regressions before broad suites; no live credentials, provider generations, or destructive fleet changes are required."
+    ],
+    "acceptance_criteria": [
+      "AC1: Merging an auth-bearing bundle into a keychain-only profile preserves the existing local account without deleting its credential.",
+      "AC2: A failed force import after credential staging restores the original authentication as well as profile files, record, and state; incomplete recovery is reported explicitly.",
+      "AC3: An encrypted bundle created through the PBKDF2 fallback decodes on a runtime with scrypt using the correct passphrase; decoding follows a validated recorded KDF and defines compatibility for legacy bundles.",
+      "AC4: Two successful concurrent appends to the same memory scope retain both notes and the pre-existing content.",
+      "AC5: A real detached child resolves and runs the correct CLI module for source/npm and Python-package layouts, reaches a synthetic provider, and records a terminal result.",
+      "AC6: Interrupting a headless run terminates and reaps its owned provider process and records cancellation rather than leaving work running.",
+      "AC7: A failure while promoting the staged tray preserves or restores the installed path and restarts the previous companion when it was running.",
+      "AC8: After a successful or failed tray update, the Windows shortcut points at the valid installed executable and remains covered by uninstall ownership.",
+      "AC9: The macOS staged probe actually invokes the companion, distinguishes launch failure from a valid diagnostic exit, and refuses an unusable bundle before promotion.",
+      "AC10: Windows-to-WSL tray actions that need multiple CDX arguments, including session config, execute the intended subcommand in a real WSL distribution.",
+      "AC11: A Windows tray using WSL shows only terminal preferences the Windows companion can launch, and an unsupported stored preference falls back to a working default.",
+      "AC12: A cmd terminal preference with WSL transport executes the selected CDX command through cmd /k or an equivalent verified command form.",
+      "AC13: Focused regressions, Python tests, Rust tray tests, lint, Logics validation, and scoped Tower Windows plus Ubuntu WSL checks pass before closeout."
+    ]
+  },
+  "product": {
+    "title": "Recoverable CDX operations across credentials, runs, and tray interop",
+    "overview": "Turn reproduced review findings into bounded fixes that keep authentication, local writes, provider processes, and tray launch surfaces recoverable across macOS, Windows, and WSL.",
+    "goals": [
+      "Preserve user credentials and backup readability during import, force rollback, and runtime changes.",
+      "Keep background runs and local memory writes under deterministic CDX ownership.",
+      "Make tray updates recoverable and tray actions truthful across native Windows, macOS, and Windows-hosted WSL.",
+      "Validate the repaired paths with small regressions plus the existing project gates."
+    ],
+    "non_goals": [
+      "No provider generation, live credential mutation, release publication, UI redesign, or broad tray feature expansion.",
+      "No new dependency unless an existing standard or installed primitive cannot provide the needed locking, process cleanup, or path handling.",
+      "No claim of universal Linux desktop support beyond the scoped WSL and existing tray capability contracts."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Preserve credentials and portable encrypted backups",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Data integrity",
+      "request_acs": ["AC1", "AC2", "AC3", "AC13"],
+      "problem": [
+        "Merge and rollback can replace or lose a keychain-only local account, and bundle decryption can ignore the exporter-recorded KDF."
+      ],
+      "scope_in": [
+        "Fix credential-backend collision handling for merge imports.",
+        "Snapshot and restore original keychain credentials when force import fails after credential staging.",
+        "Decode encrypted bundles according to a validated stored KDF with a defined legacy fallback.",
+        "Add focused tests for keychain-only merge, late force rollback, and PBKDF2-to-scrypt runtime portability."
+      ],
+      "scope_out": [
+        "No credential migration between real accounts, no live keychain mutation outside isolated tests, and no cryptographic format redesign beyond recorded-KDF correctness."
+      ],
+      "acceptance_criteria": [
+        "AC1: Merge import preserves an existing keychain-only destination credential and reports the retained local account behavior.",
+        "AC2: Late force-import failure restores credential, files, record, and state or reports incomplete recovery.",
+        "AC3: PBKDF2 fallback bundles decode on a scrypt-capable runtime with the same passphrase, with legacy behavior covered by tests."
+      ]
+    },
+    {
+      "title": "Make accepted local writes and run processes owned by CDX",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Process lifecycle",
+      "request_acs": ["AC4", "AC5", "AC6", "AC13"],
+      "problem": [
+        "Concurrent memory appends can lose accepted notes, detached runs invoke a nonexistent module, and interrupted headless runs can leave providers alive."
+      ],
+      "scope_in": [
+        "Serialize context memory read-modify-write for the existing append helper.",
+        "Fix detached child argv and package root resolution for source/npm and installed Python layouts.",
+        "Terminate and reap owned provider processes on supervisor interruption and record cancellation.",
+        "Add one focused regression per defect using synthetic providers and temporary state."
+      ],
+      "scope_out": [
+        "No distributed memory service, no new run scheduler, no provider CLI behavior changes, and no real provider generation during tests."
+      ],
+      "acceptance_criteria": [
+        "AC1: Two concurrent successful memory appends preserve both notes.",
+        "AC2: A real detached child reaches a synthetic provider and records a terminal result.",
+        "AC3: SIGINT cleanup terminates and reaps the owned provider child and records cancellation."
+      ]
+    },
+    {
+      "title": "Make tray installation and probes recoverable",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Desktop integration",
+      "request_acs": ["AC7", "AC8", "AC9", "AC13"],
+      "problem": [
+        "Tray promotion, shortcut recording, and macOS staged probing can report success while leaving a missing executable, stale Windows shortcut, or untested app bundle."
+      ],
+      "scope_in": [
+        "Restore the previous installed companion and restart it when staged promotion fails after retirement.",
+        "Keep Windows shortcut targets and uninstall ownership aligned with the final installed executable after successful or failed updates.",
+        "Make macOS staged probes execute the companion diagnostic path and reject launch failures.",
+        "Add temporary-archive tests and native platform smoke checks where required."
+      ],
+      "scope_out": [
+        "No automatic update daemon, no tray UI redesign, and no admin-level installer changes."
+      ],
+      "acceptance_criteria": [
+        "AC1: Promotion failure leaves the installed executable path valid and restarts a previously running companion.",
+        "AC2: Windows shortcut TargetPath and owned paths reference the final live executable across update and uninstall flows.",
+        "AC3: macOS staged probe fails for an unusable bundle and succeeds only for a real companion diagnostic invocation."
+      ]
+    },
+    {
+      "title": "Repair Windows-to-WSL tray command and terminal interop",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Platform support",
+      "request_acs": ["AC10", "AC11", "AC12", "AC13"],
+      "problem": [
+        "The Windows tray can send multi-word CDX actions as one argument, offer Linux-only terminal choices from WSL, and run cmd preferences with PowerShell flags."
+      ],
+      "scope_in": [
+        "Represent tray-launched CDX commands as argv parts rather than single shell-like strings where WSL interop needs multiple arguments.",
+        "Ensure a Windows tray using WSL exposes only Windows-launchable terminal preferences and falls back from unsupported stored values.",
+        "Run cmd preferences through a verified cmd command form for WSL actions.",
+        "Add Rust command-construction tests and Tower native Windows plus Ubuntu WSL smoke checks."
+      ],
+      "scope_out": [
+        "No support for arbitrary terminal commands, WSL GUI terminal discovery, multiple WSL distributions, or Linux desktop expansion."
+      ],
+      "acceptance_criteria": [
+        "AC1: Session config clicks execute cdx config <session> in the configured WSL distribution.",
+        "AC2: Windows-to-WSL snapshots present only launchable Windows terminal options or a working default.",
+        "AC3: cmd preference launches the selected WSL-backed CDX action instead of opening an idle shell."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate review finding hardening across credentials, runs, and tray interop",
+    "plan": [
+      "Start with credential and backup fixes because they protect authentication and restore paths.",
+      "Then repair memory appends and headless run lifecycle so accepted work and child processes stay owned by CDX.",
+      "Then repair tray installation, shortcut, and macOS probe recovery without changing tray feature scope.",
+      "Finish with Windows-to-WSL tray argv and terminal interop, including Tower smoke checks.",
+      "For each slice, add the smallest focused regressions, run targeted tests first, then Python/Rust suites, lint, Logics validation, and scoped Tower verification before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/harden_review_findings_data_process_and_tray_safety.json",
+    "mode": "diff-first",
+    "profile": "deep"
+  }
+}
