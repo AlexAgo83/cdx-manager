@@ -1592,6 +1592,46 @@ class SessionServicePythonTests(unittest.TestCase):
         with self.assertRaisesRegex(CdxError, "Invalid bundle passphrase or corrupted bundle"):
             target["import_bundle"](bundle_path, passphrase="wrong")
 
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
+    def test_encrypted_bundles_decode_with_the_kdf_their_exporter_recorded(self):
+        """A bundle written on a scrypt-less runtime must still open where scrypt exists."""
+        import hashlib
+        import json as json_module
+
+        from src import backup_bundle
+
+        class ScryptLessHashlib:
+            def __getattr__(self, name):
+                if name == "scrypt":
+                    raise AttributeError(name)
+                return getattr(hashlib, name)
+
+        payload = {"schema_version": 1, "sessions": [], "states": {}, "profiles": {}}
+        with mock.patch.object(backup_bundle, "hashlib", ScryptLessHashlib()):
+            pbkdf2_bundle = backup_bundle.encode_bundle(payload, include_auth=True, passphrase="pw123")
+        self.assertEqual(json_module.loads(pbkdf2_bundle.decode())["kdf"], "pbkdf2-hmac-sha256")
+
+        # Same bytes, same passphrase, a runtime that would have chosen scrypt.
+        self.assertTrue(hasattr(hashlib, "scrypt"))
+        self.assertEqual(backup_bundle.decode_bundle(pbkdf2_bundle, passphrase="pw123")["payload"], payload)
+
+        # And the reverse direction reports why it cannot open, instead of
+        # claiming the passphrase is wrong.
+        scrypt_bundle = backup_bundle.encode_bundle(payload, include_auth=True, passphrase="pw123")
+        self.assertEqual(json_module.loads(scrypt_bundle.decode())["kdf"], "scrypt")
+        with mock.patch.object(backup_bundle, "hashlib", ScryptLessHashlib()):
+            with self.assertRaisesRegex(CdxError, "does not provide"):
+                backup_bundle.decode_bundle(scrypt_bundle, passphrase="pw123")
+
+        # Legacy bundles recorded no usable KDF, so both derivations stay valid.
+        legacy = json_module.loads(pbkdf2_bundle.decode())
+        legacy.pop("kdf")
+        legacy_bytes = json_module.dumps(legacy).encode("utf-8")
+        self.assertEqual(backup_bundle.decode_bundle(legacy_bytes, passphrase="pw123")["payload"], payload)
+        unknown = {**json_module.loads(pbkdf2_bundle.decode()), "kdf": "argon2"}
+        with self.assertRaisesRegex(CdxError, "Unsupported bundle key derivation function"):
+            backup_bundle.decode_bundle(json_module.dumps(unknown).encode("utf-8"), passphrase="pw123")
+
     def test_import_merge_fills_missing_state_fields(self):
         source_dir = self.make_temp_dir()
         source = create_session_service({"base_dir": source_dir})

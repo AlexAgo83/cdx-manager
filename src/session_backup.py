@@ -12,7 +12,11 @@ import shutil
 import tempfile
 
 from .backup_bundle import decode_bundle, encode_bundle
-from .claude_credentials import delete_keychain_credentials, read_keychain_credentials
+from .claude_credentials import (
+    delete_keychain_credentials,
+    read_keychain_credentials,
+    write_keychain_credentials,
+)
 from .config import PROVIDER_CLAUDE
 from .errors import CdxError
 from .fs_utils import atomic_write, remove_tree
@@ -160,6 +164,19 @@ def _resolve_session_subset(store, session_names):
         selected.append(session)
     return selected
 
+def _restore_import_credential(auth_home, credential):
+    """Put the destination's own Claude credential back after a failed import.
+
+    The snapshot is held in memory for the length of the import rather than
+    written beside the profile: a rollback only has to survive this process, and
+    a plaintext token in a temporary directory would be a worse trade.
+    """
+    if credential is None:
+        return
+    if read_keychain_credentials(auth_home) == credential:
+        return
+    write_keychain_credentials(auth_home, credential)
+
 def _restore_import_backup(store, name, backup_root, session_root, old_record, old_state):
     if os.path.exists(session_root):
         remove_tree(session_root)
@@ -258,6 +275,7 @@ def import_bundle(base_dir, store, file_path,
         if missing_names:
             raise CdxError(f"Bundle does not contain requested sessions: {', '.join(missing_names)}")
     names = [item["name"] for item in imported_sessions]
+    retained_credential_names = []
 
     existing = {session["name"] for session in list_sessions(store)}
     conflicts = [name for name in names if name in existing]
@@ -313,6 +331,17 @@ def import_bundle(base_dir, store, file_path,
                 remove_tree(recovery_dir, ignore_errors=True)
                 raise
 
+        # A keychain-only profile has no credential file, so the collision with a
+        # bundle credential exists at the credential-backend level and has to be
+        # resolved there. Read it strictly: refusing an unreadable keychain is
+        # better than importing over a credential we could not preserve.
+        bundle_carries_credential = provider == PROVIDER_CLAUDE and any(
+            item["path"] == CLAUDE_CREDENTIALS_BUNDLE_PATH for item in decoded_profiles.get(name, [])
+        )
+        local_credential = None
+        if bundle_carries_credential and old_record is not None:
+            local_credential = read_keychain_credentials(auth_home)
+
         existing_state_before = None
         try:
             _ensure_private_dir(session_root)
@@ -366,6 +395,11 @@ def import_bundle(base_dir, store, file_path,
                 # In merge mode, skip files that already exist locally.
                 if is_existing and merge and os.path.lexists(dest_path):
                     continue
+                if merge and local_credential is not None and item["path"] == CLAUDE_CREDENTIALS_BUNDLE_PATH:
+                    # Merge keeps local values, and the live keychain entry is this
+                    # profile's credential even though no file represents it.
+                    retained_credential_names.append(name)
+                    continue
                 _ensure_private_dir(os.path.dirname(dest_path))
                 # Decrypted credentials: 0o600 from creation, no umask window.
                 atomic_write(dest_path, item["content"], mode=0o600)
@@ -374,10 +408,20 @@ def import_bundle(base_dir, store, file_path,
                 delete_keychain_credentials(auth_home)
             _restore_force_import_profile_paths(name, backup_root, session_root, preserved_profile_paths)
         except Exception:
+            incomplete = []
             try:
                 _restore_import_backup(store, name, backup_root, session_root, old_record, old_state)
             except Exception:
-                raise CdxError(f"Import failed and recovery is incomplete for {name}; recovery data retained at {recovery_dir or session_root}.") from None
+                incomplete.append("local files, the session record, and state")
+            try:
+                _restore_import_credential(auth_home, local_credential)
+            except Exception:
+                incomplete.append("Claude keychain authentication")
+            if incomplete:
+                raise CdxError(
+                    f"Import failed and recovery is incomplete for {name}: could not restore "
+                    f"{' and '.join(incomplete)}. Recovery data retained at {recovery_dir or session_root}."
+                ) from None
             if recovery_dir:
                 remove_tree(recovery_dir, ignore_errors=True)
             raise
@@ -389,4 +433,5 @@ def import_bundle(base_dir, store, file_path,
         "path": file_path,
         "session_names": names,
         "include_auth": bool(decoded["meta"].get("include_auth")),
+        "retained_local_credentials": retained_credential_names,
     }

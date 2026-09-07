@@ -1,14 +1,14 @@
 ## item_149_make_tray_installation_and_probes_recoverable - Make tray installation and probes recoverable
 > From version: 0.20.9
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 25%
 > Complexity: Medium
 > Theme: Desktop integration
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-09-07 09:28:51
+> Indicators reviewed: 2026-09-07 09:39:34
 
 # AI Context
 - Summary: Implements the tray install recovery slice for req_073 findings 7-9: failed promotion rollback, Windows shortcut retargeting and ownership, and real macOS staged companion probing.

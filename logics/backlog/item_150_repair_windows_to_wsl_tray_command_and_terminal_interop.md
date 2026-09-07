@@ -1,14 +1,14 @@
 ## item_150_repair_windows_to_wsl_tray_command_and_terminal_interop - Repair Windows-to-WSL tray command and terminal interop
 > From version: 0.20.9
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 25%
 > Complexity: Medium
 > Theme: Platform support
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-09-07 09:28:51
+> Indicators reviewed: 2026-09-07 09:39:34
 
 # AI Context
 - Summary: Implements the Windows-to-WSL tray interop slice for req_073 findings 10-12: argv-safe config actions, Windows-launchable terminal candidates, and cmd-compatible WSL command launch.

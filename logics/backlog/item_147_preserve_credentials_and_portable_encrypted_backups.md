@@ -1,14 +1,14 @@
 ## item_147_preserve_credentials_and_portable_encrypted_backups - Preserve credentials and portable encrypted backups
 > From version: 0.20.9
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Data integrity
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-09-07 09:28:51
+> Indicators reviewed: 2026-09-07 09:39:34
 
 # AI Context
 - Summary: Implements the credential and backup-format slice for req_073 findings 1-3: keychain-only merge preservation, late force-import credential rollback, and recorded-KDF encrypted bundle decoding.
@@ -34,15 +34,20 @@
 - AC3: PBKDF2 fallback bundles decode on a scrypt-capable runtime with the same passphrase, with legacy behavior covered by tests.
 
 # AC Traceability
-- request-AC1 -> This backlog slice. Proof: AC1: Merge import preserves an existing keychain-only destination credential and reports the retained local account behavior.
-- request-AC2 -> This backlog slice. Proof: AC2: Late force-import failure restores credential, files, record, and state or reports incomplete recovery.
-- request-AC3 -> This backlog slice. Proof: AC3: PBKDF2 fallback bundles decode on a scrypt-capable runtime with the same passphrase, with legacy behavior covered by tests.
-- request-AC13 -> This backlog slice. Proof: AC3: PBKDF2 fallback bundles decode on a scrypt-capable runtime with the same passphrase, with legacy behavior covered by tests.
+- request-AC1 -> This backlog slice. Proof: `test/test_profile_data_safety_py.py::test_merge_into_a_keychain_only_profile_keeps_the_local_account` — merge keeps the local keychain account and `import_bundle` reports it in `retained_local_credentials`.
+- request-AC2 -> This backlog slice. Proof: `test/test_profile_data_safety_py.py::test_late_force_import_failure_restores_the_original_credential` and `::test_force_import_reports_a_credential_it_could_not_restore` — rollback restores the credential with files, record, and state, and names Claude keychain authentication when it cannot.
+- request-AC3 -> This backlog slice. Proof: `test/test_session_service_py.py::test_encrypted_bundles_decode_with_the_kdf_their_exporter_recorded` — a PBKDF2 bundle decodes on a scrypt runtime, a scrypt bundle reports why a scrypt-less runtime cannot open it, and KDF-less legacy bundles still decode.
+- request-AC13 -> This backlog slice. Proof: `python3 -m pytest -q` (1,019 passed) and `npm run lint` (all checks passed) after the slice.
 > Shared proof: request-AC3 and request-AC13 share the same final validation wave for this slice.
 
 # Decision framing
 - Product framing: Not needed
 - Architecture framing: Not needed
+
+# Implementation
+- `src/backup_bundle.py`: records the exporter's KDF and derives with the recorded one; derivation failures are reported instead of being retried as a wrong passphrase.
+- `src/session_backup.py`: snapshots the destination Claude credential before an import can clear it, skips the bundle credential in merge mode when a live keychain entry represents the local account, and restores the credential during rollback.
+- `src/commands/backup.py`: `cdx import` states which sessions kept their existing local Claude authentication.
 
 # Links
 - Product brief(s): `prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop`

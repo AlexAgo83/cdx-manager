@@ -1,14 +1,15 @@
 ## task_082_orchestrate_review_finding_hardening_across_credentials_runs_and_tray_interop - Orchestrate review finding hardening across credentials, runs, and tray interop
 > From version: 0.20.9
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 25%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-09-07 09:28:51
+> Indicators reviewed: 2026-09-07 09:39:34
+> Owner: claude-code
 
 # AI Context
 - Summary: Orchestration task for implementing four linked slices that close all req_074 acceptance criteria derived from req_073 review findings.
@@ -20,7 +21,7 @@
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
 
 # Plan
-- [ ] 1. Start with credential and backup fixes because they protect authentication and restore paths.
+- [x] 1. Start with credential and backup fixes because they protect authentication and restore paths.
 - [ ] 2. Then repair memory appends and headless run lifecycle so accepted work and child processes stay owned by CDX.
 - [ ] 3. Then repair tray installation, shortcut, and macOS probe recovery without changing tray feature scope.
 - [ ] 4. Finish with Windows-to-WSL tray argv and terminal interop, including Tower smoke checks.
@@ -60,7 +61,16 @@
 - request-AC13 -> `item_150_repair_windows_to_wsl_tray_command_and_terminal_interop`. Proof deferred to slice closeout.
 
 # Validation
-- (no validation recorded yet)
+- Wave 1 (item_147, credentials and portable backups): merge into a keychain-only profile now resolves the
+  bundle-credential collision at the credential backend and reports the retained local account; a force import that
+  fails after credential staging restores the keychain entry alongside files, record, and state, and names Claude
+  keychain authentication when recovery is incomplete; encrypted bundles decode with the KDF their exporter recorded,
+  with legacy (KDF-less) bundles still accepted through either derivation.
+  Focused regressions: `test_merge_into_a_keychain_only_profile_keeps_the_local_account`,
+  `test_late_force_import_failure_restores_the_original_credential`,
+  `test_force_import_reports_a_credential_it_could_not_restore`,
+  `test_encrypted_bundles_decode_with_the_kdf_their_exporter_recorded`.
+  `python3 -m pytest -q`: 1,019 passed. `npm run lint`: all checks passed.
 
 # Report
 - Not started.

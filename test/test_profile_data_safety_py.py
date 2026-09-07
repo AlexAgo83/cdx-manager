@@ -53,6 +53,14 @@ class ProfileDataSafetyTests(unittest.TestCase):
             raise AssertionError(command)
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
+    def profile_in(self, base, store, name, provider="claude"):
+        root = Path(base) / "profiles" / name
+        home = root / "claude-home" if provider == "claude" else root
+        home.mkdir(parents=True)
+        record = {"name": name, "provider": provider, "sessionRoot": str(root), "authHome": str(home)}
+        store["add_session"](record)
+        return record
+
     def profile(self, name, provider="claude"):
         root = self.base / "profiles" / name
         home = root / "claude-home" if provider == "claude" else root
@@ -218,6 +226,73 @@ class ProfileDataSafetyTests(unittest.TestCase):
         stale = self.credential(restored, "stale-token")
         session_backup.import_bundle(str(dest), store, str(bundle), passphrase="fake", force=True)
         self.assertNotIn(stale, self.entries)
+
+    def test_merge_into_a_keychain_only_profile_keeps_the_local_account(self):
+        source = self.profile("keychain")
+        self.credential(source, "bundle-token")
+        bundle = self.base / "auth.cdx"
+        session_backup.export_bundle(str(self.base), self.store, str(bundle),
+                                     include_auth=True, passphrase="fake")
+
+        dest = self.base / "restored"
+        dest.mkdir()
+        store = create_session_store(str(dest))
+        local = self.profile_in(dest, store, "keychain")
+        local_service = self.credential(local, "local-token")
+
+        result = session_backup.import_bundle(str(dest), store, str(bundle), passphrase="fake", merge=True)
+
+        # No credential file represented the local account, so the collision had
+        # to be resolved against the keychain itself.
+        self.assertEqual(self.entries[local_service]["claudeAiOauth"]["accessToken"], "local-token")
+        self.assertFalse((Path(local["authHome"]) / ".claude" / ".credentials.json").exists())
+        self.assertEqual(result["retained_local_credentials"], ["keychain"])
+
+    def test_late_force_import_failure_restores_the_original_credential(self):
+        source = self.profile("keychain")
+        self.credential(source, "bundle-token")
+        bundle = self.base / "auth.cdx"
+        session_backup.export_bundle(str(self.base), self.store, str(bundle),
+                                     include_auth=True, passphrase="fake")
+
+        dest = self.base / "restored"
+        dest.mkdir()
+        store = create_session_store(str(dest))
+        local = self.profile_in(dest, store, "keychain")
+        local_service = self.credential(local, "local-token")
+        plugins = Path(local["sessionRoot"]) / "plugins"
+        plugins.mkdir()
+        (plugins / "sentinel").write_text("local plugin")
+        old_record = dict(store["get_session"]("keychain"))
+
+        # Fail after the destination keychain entry has already been cleared.
+        with mock.patch.object(session_backup.shutil, "copytree", side_effect=OSError("plugin copy failed")):
+            with self.assertRaisesRegex(CdxError, "Could not restore local plugin state"):
+                session_backup.import_bundle(str(dest), store, str(bundle), passphrase="fake", force=True)
+
+        self.assertEqual(self.entries[local_service]["claudeAiOauth"]["accessToken"], "local-token")
+        self.assertEqual(store["get_session"]("keychain"), old_record)
+        self.assertEqual((plugins / "sentinel").read_text(), "local plugin")
+        self.assertFalse((Path(local["authHome"]) / ".claude" / ".credentials.json").exists())
+
+    def test_force_import_reports_a_credential_it_could_not_restore(self):
+        source = self.profile("keychain")
+        self.credential(source, "bundle-token")
+        bundle = self.base / "auth.cdx"
+        session_backup.export_bundle(str(self.base), self.store, str(bundle),
+                                     include_auth=True, passphrase="fake")
+
+        dest = self.base / "restored"
+        dest.mkdir()
+        store = create_session_store(str(dest))
+        local = self.profile_in(dest, store, "keychain")
+        self.credential(local, "local-token")
+        (Path(local["sessionRoot"]) / "plugins").mkdir()
+
+        with mock.patch.object(session_backup.shutil, "copytree", side_effect=OSError("plugin copy failed")), \
+             mock.patch.object(session_backup, "write_keychain_credentials", side_effect=CdxError("denied")):
+            with self.assertRaisesRegex(CdxError, "recovery is incomplete.*Claude keychain authentication"):
+                session_backup.import_bundle(str(dest), store, str(bundle), passphrase="fake", force=True)
 
     def test_export_prefers_the_keychain_over_a_stale_credential_file(self):
         source = self.profile("keychain")

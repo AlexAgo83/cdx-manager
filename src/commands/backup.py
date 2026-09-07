@@ -109,4 +109,9 @@ def handle_import(rest, ctx):
         _write_json(ctx, payload)
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    retained = result.get("retained_local_credentials") or []
+    if retained:
+        # Merge keeps local values, so say which sessions kept their own login
+        # rather than leaving the operator to guess which credential is live.
+        ctx["out"](f"Kept the existing local Claude authentication for: {', '.join(retained)}\n")
     return 0
