@@ -4,7 +4,7 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 25%
+> Progress: 50%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -22,7 +22,7 @@
 
 # Plan
 - [x] 1. Start with credential and backup fixes because they protect authentication and restore paths.
-- [ ] 2. Then repair memory appends and headless run lifecycle so accepted work and child processes stay owned by CDX.
+- [x] 2. Then repair memory appends and headless run lifecycle so accepted work and child processes stay owned by CDX.
 - [ ] 3. Then repair tray installation, shortcut, and macOS probe recovery without changing tray feature scope.
 - [ ] 4. Finish with Windows-to-WSL tray argv and terminal interop, including Tower smoke checks.
 - [ ] 5. For each slice, add the smallest focused regressions, run targeted tests first, then Python/Rust suites, lint, Logics validation, and scoped Tower verification before closeout.
@@ -71,6 +71,18 @@
   `test_force_import_reports_a_credential_it_could_not_restore`,
   `test_encrypted_bundles_decode_with_the_kdf_their_exporter_recorded`.
   `python3 -m pytest -q`: 1,019 passed. `npm run lint`: all checks passed.
+- Wave 2 (item_148, accepted local writes and run processes): memory appends serialize their read-modify-write per
+  context path, so concurrent accepted notes all survive; the detached child names the top-level CLI module and the
+  import root that contains it, and refuses to launch when that module does not resolve; an interrupted headless run
+  terminates and reaps its provider process group and settles the registry as `cancelled` with exit code 130 and
+  error code `run_cancelled`.
+  Focused regressions: `test_concurrent_appends_keep_every_accepted_note`,
+  `test_detached_child_runs_the_cli_module_and_records_a_terminal_result` (real detached child reaching a synthetic
+  provider on PATH), `test_detached_child_command_names_the_top_level_cli_module`,
+  `test_interrupting_a_headless_run_kills_the_provider_and_records_cancellation` (real child process, real
+  terminate/reap).
+  Each regression was confirmed to fail against the pre-fix behaviour before being kept.
+  `python3 -m pytest -q`: 1,020 passed. `npm run lint`: all checks passed.
 
 # Report
 - Not started.

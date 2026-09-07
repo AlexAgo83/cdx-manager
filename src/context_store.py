@@ -2,6 +2,7 @@ import hashlib
 import os
 import shlex
 import subprocess
+import threading
 from datetime import datetime
 from urllib.parse import quote, unquote
 
@@ -105,13 +106,31 @@ def append_context(base_dir, note, cwd=None):
     return append_context_path(get_context_path(base_dir, cwd), note)
 
 
+# An append is a read-modify-write, and the write is atomic per attempt, so two
+# concurrent appends that both read the pre-existing text produce one file that
+# is missing a note the caller was told had been accepted. Parallel agents append
+# to the same scope by design, so the sequence is serialized here.
+_APPEND_LOCKS = {}
+_APPEND_LOCKS_GUARD = threading.Lock()
+
+
+def _append_lock(path):
+    key = os.path.abspath(path)
+    with _APPEND_LOCKS_GUARD:
+        lock = _APPEND_LOCKS.get(key)
+        if lock is None:
+            lock = _APPEND_LOCKS[key] = threading.Lock()
+        return lock
+
+
 def append_context_path(path, note):
     note = str(note or "").strip()
     if not note:
         raise CdxError("Memory append requires text.")
-    current = read_context_path(path).rstrip()
-    content = f"{current}\n{note}" if current else note
-    return write_context_path(path, content)
+    with _append_lock(path):
+        current = read_context_path(path).rstrip()
+        content = f"{current}\n{note}" if current else note
+        return write_context_path(path, content)
 
 
 def init_context(base_dir, cwd=None):

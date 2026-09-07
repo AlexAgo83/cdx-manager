@@ -1,8 +1,11 @@
 import os
 import tempfile
+import threading
+import time
 import unittest
 from unittest import mock
 
+from src import context_store
 from src.context_store import (
     append_context,
     append_context_path,
@@ -110,6 +113,43 @@ class ContextStorePythonTests(unittest.TestCase):
 
             with self.assertRaisesRegex(CdxError, "append requires text"):
                 append_context(temp_dir, "   ", cwd=workspace)
+
+    def test_concurrent_appends_keep_every_accepted_note(self):
+        """Both callers were told their note was accepted, so both must survive."""
+        with tempfile.TemporaryDirectory(prefix="cdx-context-") as temp_dir:
+            path = os.path.join(temp_dir, "context.md")
+            write_context(temp_dir, "Existing line", cwd=path)
+            path = get_context_path(temp_dir, cwd=path)
+            real_read = context_store.read_context_path
+
+            def slow_read(target):
+                # Widen the read-modify-write window so an unserialized append
+                # loses a note every time instead of occasionally.
+                content = real_read(target)
+                time.sleep(0.05)
+                return content
+
+            notes = ["note-one", "note-two", "note-three"]
+            errors = []
+
+            def append(note):
+                try:
+                    append_context_path(path, note)
+                except Exception as error:  # surfaced below, not swallowed
+                    errors.append(error)
+
+            with mock.patch.object(context_store, "read_context_path", side_effect=slow_read):
+                workers = [threading.Thread(target=append, args=(note,)) for note in notes]
+                for worker in workers:
+                    worker.start()
+                for worker in workers:
+                    worker.join()
+
+            self.assertEqual(errors, [])
+            with open(path, encoding="utf-8") as handle:
+                lines = handle.read().split()
+            self.assertEqual(lines[0:2], ["Existing", "line"])
+            self.assertEqual(sorted(lines[2:]), sorted(notes))
 
     def test_named_project_and_global_context_paths_are_listable(self):
         with tempfile.TemporaryDirectory(prefix="cdx-context-") as temp_dir:

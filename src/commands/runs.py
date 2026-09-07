@@ -3,6 +3,7 @@
 Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 """
 
+import importlib.util
 import os
 import subprocess
 import sys
@@ -147,9 +148,22 @@ def _cdx_self_command():
     script has no reliable executable bit on Windows (`os.access(X_OK)` is true
     for any existing file there) and a shebang script handed to CreateProcess
     does not start at all.
+
+    Named from the top-level package, not this module's own package: `cli` lives
+    beside `commands`, so `{__package__}.cli` resolves to a module that does not
+    exist. The import root is the parent of every package component, which for
+    src/commands/runs.py is the repository root rather than src/.
     """
-    package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return [sys.executable, "-m", f"{__package__}.cli"], package_root
+    package = (__package__ or "src.commands").split(".")[0]
+    module = f"{package}.cli"
+    package_root = os.path.abspath(__file__)
+    for _ in range((__package__ or "src.commands").count(".") + 2):
+        package_root = os.path.dirname(package_root)
+    if importlib.util.find_spec(module) is None:
+        # A wrong module name reports a launched run that never runs, so fail
+        # here where the caller still gets the error.
+        raise CdxError(f"Cannot launch a detached run: the cdx CLI module {module} was not found.")
+    return [sys.executable, "-m", module], package_root
 
 def _detached_spawn_options():
     """Platform flags that keep the child alive after this process exits.
@@ -751,6 +765,7 @@ def handle_run(rest, ctx):
         return error.exit_code or 1
     except CdxError as error:
         run_info = getattr(error, "run_info", None)
+        cancelled = bool(getattr(error, "cancelled", False))
         final_payload = run_result_payload(
             API_SCHEMA_VERSION,
             False,
@@ -758,14 +773,16 @@ def handle_run(rest, ctx):
             locals().get("session"),
             run_info=run_info,
             error=error,
-            error_source="cdx",
-            error_code=run_cdx_error_code(error),
+            error_source="provider" if cancelled else "cdx",
+            error_code="run_cancelled" if cancelled else run_cdx_error_code(error),
             selection_row=selection_row,
         )
         if registry and run_id:
             registry.finish(
                 run_id,
-                status="failed",
+                # A cancelled run is neither a task failure nor a timeout, and a
+                # caller has to be able to tell the three apart.
+                status="cancelled" if cancelled else "failed",
                 final_payload=final_payload,
                 run_info=run_info,
                 error=final_payload.get("error"),

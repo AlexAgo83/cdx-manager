@@ -6,9 +6,12 @@ Moved verbatim from test_cli_py.py; see test/cli_test_support.py for fixtures.
 import io
 import json
 import os
+import pathlib
 import re
+import signal
 import subprocess
 import sys
+import time
 from unittest import mock
 
 from cli_test_support import (  # noqa: F401
@@ -791,6 +794,152 @@ class RunsCommandTests(CliTestBase):
         prompt_path = spawned["argv"][spawned["argv"].index("--prompt-file") + 1]
         with open(prompt_path, encoding="utf-8") as handle:
             self.assertEqual(handle.read(), "Do it")
+
+    def test_detached_child_runs_the_cli_module_and_records_a_terminal_result(self):
+        """A launched detached run must actually execute, not just report a run id."""
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        self._authenticated_codex_session(service)
+
+        # A synthetic provider on PATH: the child has to reach it, and no real
+        # provider CLI or generation may be involved.
+        bin_dir = self.make_temp_dir()
+        if sys.platform == "win32":
+            stub = os.path.join(bin_dir, "codex.cmd")
+            with open(stub, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "@if \"%1\"==\"login\" (echo Logged in as synthetic) "
+                    "else (echo {\"synthetic\":true})\r\n@exit /b 0\r\n"
+                )
+        else:
+            stub = os.path.join(bin_dir, "codex")
+            with open(stub, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "#!/bin/sh\n"
+                    "case \"$*\" in\n"
+                    "  *'login status'*) echo 'Logged in as synthetic';;\n"
+                    "  *) echo '{\"synthetic\":true}';;\n"
+                    "esac\n"
+                )
+            os.chmod(stub, 0o755)
+
+        io_obj = self.make_io()
+        child_env = {
+            **os.environ,
+            "PATH": bin_dir + os.pathsep + os.environ.get("PATH", ""),
+            "CDX_HOME": target_dir,
+        }
+        with mock.patch.dict(os.environ, child_env, clear=True):
+            self.assertEqual(main([
+                "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--detach", "--json"
+            ], self.make_run_ctx(io_obj, service)), 0)
+
+        payload = json.loads(io_obj["stdout"].getvalue())
+        run_id = payload["run_id"]
+        registry = RunRegistry(target_dir)
+        deadline = time.time() + 60
+        run = None
+        while time.time() < deadline:
+            run = registry.get(run_id)
+            if run and run.get("status") != "running":
+                break
+            time.sleep(0.2)
+
+        launch_log = "".join(
+            path.read_text(encoding="utf-8", errors="replace")
+            for path in pathlib.Path(target_dir).rglob("*.launch.log")
+        )
+        self.assertIsNotNone(run, f"detached run never registered; launch log: {launch_log}")
+        self.assertEqual(run.get("status"), "succeeded", f"launch log: {launch_log}")
+        self.assertEqual(run.get("exit_code", run.get("run_info", {}).get("returncode")), 0,
+                         f"launch log: {launch_log}")
+        # The child owns cleanup of its staged prompt, which it only reaches
+        # once the module it was told to run actually starts.
+        self.assertNotIn("prompt.txt", launch_log)
+
+    def test_detached_child_command_names_the_top_level_cli_module(self):
+        from src.commands import runs as runs_module
+
+        command, root = runs_module._cdx_self_command()
+        self.assertEqual(command[1:], ["-m", "src.cli"])
+        # The import root is the parent of every package component, so the
+        # module it names is importable from there.
+        self.assertTrue(os.path.isfile(os.path.join(root, "src", "cli.py")))
+
+        # The installed Python-package layout resolves the same way.
+        with mock.patch.dict(runs_module.__dict__, {"__package__": "cdx_manager.commands"}), \
+             mock.patch.object(runs_module.importlib.util, "find_spec", return_value=object()):
+            installed_command, installed_root = runs_module._cdx_self_command()
+        self.assertEqual(installed_command[1:], ["-m", "cdx_manager.cli"])
+        self.assertEqual(installed_root, root)
+
+        # A module name that does not resolve must fail at launch, not silently
+        # report a run that never executes.
+        with mock.patch.object(runs_module.importlib.util, "find_spec", return_value=None):
+            with self.assertRaisesRegex(CdxError, "CLI module src.cli was not found"):
+                runs_module._cdx_self_command()
+
+    def test_interrupting_a_headless_run_kills_the_provider_and_records_cancellation(self):
+        """Ctrl-C must not leave the provider running outside its supervisor."""
+        if sys.platform == "win32":
+            self.skipTest("POSIX signal semantics; Windows interrupt handling is separate")
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        self._authenticated_codex_session(service)
+
+        pid_holder = {}
+
+        def spec(_session, **_kwargs):
+            # Only the launch specification is synthetic; the spawn, the wait,
+            # and the cleanup below are the real ones.
+            return {
+                "command": sys.executable,
+                "args": ["-c", "import time; time.sleep(120)"],
+                "options": {},
+                "label": "synthetic provider",
+            }
+
+        class _RealChildInterruptedOnce:
+            def __init__(self, argv, **kwargs):
+                self._proc = subprocess.Popen(argv, start_new_session=True, **kwargs)
+                self.pid = self._proc.pid
+                pid_holder["pid"] = self._proc.pid
+                self._interrupted = False
+
+            @property
+            def returncode(self):
+                return self._proc.returncode
+
+            def wait(self, timeout=None):
+                if not self._interrupted:
+                    # What the terminal actually does to a blocked supervisor.
+                    self._interrupted = True
+                    raise KeyboardInterrupt
+                return self._proc.wait(timeout=timeout)
+
+            def terminate(self):
+                self._proc.terminate()
+
+            def kill(self):
+                self._proc.kill()
+
+        io_obj = self.make_io()
+        with mock.patch("src.provider_runtime._build_headless_launch_spec", side_effect=spec):
+            exit_code = main([
+                "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json"
+            ], self.make_run_ctx(io_obj, service, spawn_headless=_RealChildInterruptedOnce))
+
+        self.assertEqual(exit_code, 130)
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["code"], "run_cancelled")
+
+        # Terminated and reaped: no orphan is left consuming quota.
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid_holder["pid"], signal.SIGTERM)
+
+        run = RunRegistry(target_dir).get(payload["run_id"])
+        self.assertEqual(run.get("status"), "cancelled")
 
     def test_run_detach_registers_the_run_before_returning(self):
         target_dir = self.make_temp_dir()

@@ -1023,6 +1023,7 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
 
     child = None
     timed_out = False
+    cancelled = False
     with open(paths["stdout_path"], "w", encoding="utf-8", errors="replace") as stdout_file, \
             open(paths["stderr_path"], "w", encoding="utf-8", errors="replace") as stderr_file:
         options = {k: v for k, v in spec.get("options", {}).items() if k not in ("stdio", "stdout", "stderr")}
@@ -1056,6 +1057,25 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
         except subprocess.TimeoutExpired:
             timed_out = True
             _terminate_child_tree(child)
+        except KeyboardInterrupt:
+            # The provider has its own process group, so unwinding only this
+            # supervisor would leave it consuming quota and writing to the
+            # workspace. Terminate and reap it, then report the cancellation so
+            # the run still gets a terminal record.
+            cancelled = True
+            _terminate_child_tree(child)
+
+    if cancelled:
+        _combine_headless_transcript(paths)
+        returncode = getattr(child, "returncode", None)
+        cdx_error = CdxError(f"{spec['label']} run was cancelled.", 130)
+        cdx_error.cancelled = True
+        cdx_error.run_info = {
+            **_headless_run_info(paths, spec, start_time, 130 if returncode in (None, 0) else returncode),
+            "pid": getattr(child, "pid", None),
+            "cancelled": True,
+        }
+        raise cdx_error
 
     _combine_headless_transcript(paths)
     end_time = datetime.now(timezone.utc)
