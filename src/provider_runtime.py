@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 from .agent_notify import launch_notify_env, notifications_enabled
 from .claude_credentials import peek_keychain_credentials
-from .claude_usage import _clean_oauth_token, _decode_jwt_claims, _secure_storage_overrides
+from .claude_usage import _clean_oauth_token, _decode_jwt_claims, _secure_storage_overrides, claude_profile_store_dir
 from .codex_usage import codex_auth_lock, diagnostic_needs_codex_login, fetch_codex_rate_limit_diagnostic
 from .config import (
     PROVIDER_ANTIGRAVITY,
@@ -143,7 +143,10 @@ def _home_env_overrides(auth_home):
 
     On Unix, only HOME is needed. Claude Code resolves its auth files relative
     to HOME; forcing CLAUDE_CONFIG_DIR to this directory makes current Claude
-    Code builds ignore otherwise valid isolated credentials. On Windows, Node.js
+    Code builds ignore otherwise valid isolated credentials. ANTHROPIC_CONFIG_DIR
+    does not locate credentials either -- it draws Claude Code's write-deny
+    boundary, so it names the credential directory rather than the whole home
+    (see `claude_profile_store_dir`). On Windows, Node.js
     resolves the home directory via USERPROFILE (and falls back to
     HOMEDRIVE+HOMEPATH), so we set all three to ensure profile isolation works
     regardless of the platform. Redirecting the home also detaches Claude
@@ -152,7 +155,7 @@ def _home_env_overrides(auth_home):
     """
     overrides = {
         "HOME": auth_home,
-        "ANTHROPIC_CONFIG_DIR": auth_home,
+        "ANTHROPIC_CONFIG_DIR": claude_profile_store_dir(auth_home),
         "CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS": "1",
     }
     if sys.platform == "win32":

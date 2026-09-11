@@ -222,7 +222,7 @@ class AuthCommandTests(CliTestBase):
         )
         self.assertEqual(
             setup_call["options"]["env"]["ANTHROPIC_CONFIG_DIR"],
-            os.path.join(temp_dir, "profiles", "work1", "claude-home"),
+            os.path.join(temp_dir, "profiles", "work1", "claude-home", "credentials"),
         )
         self.assertNotIn("CODEX_HOME", setup_call["options"]["env"])
         self.assertNotIn("CLAUDE_CONFIG_DIR", setup_call["options"]["env"])

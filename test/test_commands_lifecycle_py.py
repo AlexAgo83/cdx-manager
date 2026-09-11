@@ -235,7 +235,7 @@ class LifecycleCommandTests(CliTestBase):
         )
         self.assertEqual(
             launch_call["options"]["env"]["ANTHROPIC_CONFIG_DIR"],
-            os.path.join(temp_dir, "profiles", "work1", "claude-home"),
+            os.path.join(temp_dir, "profiles", "work1", "claude-home", "credentials"),
         )
         self.assertNotIn("CLAUDE_CONFIG_DIR", launch_call["options"]["env"])
         self.assertEqual(

@@ -91,6 +91,32 @@ def _read_claude_credentials(auth_home):
     return None
 
 
+def claude_profile_store_dir(auth_home):
+    """Where `ANTHROPIC_CONFIG_DIR` points: the credential directory, not the home.
+
+    Claude Code treats `ANTHROPIC_CONFIG_DIR` as the root of its profile store
+    and refuses every write beneath it, so whatever this returns is denied to
+    the agent's own file-writing tools. Pointing it at `auth_home` denied the
+    entire profile home -- `.claude/projects/*/memory`, `.claude/settings.json`,
+    `.npm`, `.cargo` -- which is far more than a sign-in store and cost agents
+    their memory and settings with no gain.
+
+    No gain, because the variable does not locate credentials: measured on
+    Claude Code 2.1.268, `HOME` alone authenticates and this variable alone does
+    not. It only draws the deny boundary, so it belongs on the directory that
+    actually holds a credential -- `_write_claude_oauth_token` puts the
+    setup-token fallback in `auth_home/credentials/default.json`.
+
+    Not covered, and deliberately: `auth_home/.claude/.credentials.json`, which
+    Claude Code writes where no OS keyring answers. It cannot be: it sits under
+    `.claude` beside the memory and settings this narrowing exists to free, and
+    `_secure_storage_overrides` explains why that directory cannot move. It
+    keeps its 0600 mode; on macOS it does not exist at all, the login keychain
+    holding the credential instead.
+    """
+    return os.path.join(auth_home, "credentials")
+
+
 def _link_macos_keychain(auth_home):
     """Make the operator's login keychain reachable from a redirected home.
 
@@ -148,7 +174,7 @@ def _secure_storage_overrides(auth_home):
 def _home_env_overrides(auth_home):
     overrides = {
         "HOME": auth_home,
-        "ANTHROPIC_CONFIG_DIR": auth_home,
+        "ANTHROPIC_CONFIG_DIR": claude_profile_store_dir(auth_home),
         "CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS": "1",
     }
     if sys.platform == "win32":

@@ -328,7 +328,8 @@ class RuntimePythonTests(unittest.TestCase):
 
         self.assertEqual(calls[0][0], ["claude", "auth", "status"])
         self.assertEqual(calls[0][1]["env"]["HOME"], "/tmp/claude-home")
-        self.assertEqual(calls[0][1]["env"]["ANTHROPIC_CONFIG_DIR"], "/tmp/claude-home")
+        self.assertEqual(calls[0][1]["env"]["ANTHROPIC_CONFIG_DIR"],
+                         os.path.join("/tmp/claude-home", "credentials"))
         self.assertNotIn("CLAUDE_CONFIG_DIR", calls[0][1]["env"])
 
     def test_normalize_codex_rate_limit_snapshot(self):
@@ -556,13 +557,37 @@ class RuntimePythonTests(unittest.TestCase):
             result = provider_runtime._home_env_overrides(home)
 
         self.assertEqual(result["HOME"], home)
-        self.assertEqual(result["ANTHROPIC_CONFIG_DIR"], home)
+        self.assertEqual(result["ANTHROPIC_CONFIG_DIR"], os.path.join(home, "credentials"))
         self.assertNotIn("CLAUDE_CONFIG_DIR", result)
         self.assertEqual(result["CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS"], "1")
         self.assertEqual(result["USERPROFILE"], home)
         self.assertEqual(result["HOMEDRIVE"], "C:")
         self.assertEqual(result["HOMEPATH"], r"\Users\Test\AppData\Local\cdx\claude-home")
         self.assertEqual(result["CLAUDE_SECURESTORAGE_CONFIG_DIR"], os.path.join(home, ".claude"))
+
+    def test_profile_store_dir_never_covers_the_whole_profile_home(self):
+        """The regression: Claude Code denies every write under ANTHROPIC_CONFIG_DIR.
+
+        Setting it to the profile home made the agent's own memory, settings and
+        tool caches unwritable, since a redirected HOME puts all of them inside it.
+        The variable does not locate credentials -- HOME does -- so it must name
+        the credential directory and nothing above it.
+        """
+        home = os.path.join("/tmp", "cdx", "claude-home")
+        store = claude_usage.claude_profile_store_dir(home)
+
+        self.assertNotEqual(store, home)
+        self.assertTrue(store.startswith(home + os.sep))
+        for owned in (".claude", os.path.join(".claude", "projects"), ".npm"):
+            self.assertFalse(os.path.join(home, owned).startswith(store + os.sep))
+
+    def test_profile_store_dir_covers_the_setup_token_credential(self):
+        """Narrowing must not stop protecting the token cdx itself writes."""
+        home = os.path.join("/tmp", "cdx", "claude-home")
+        store = claude_usage.claude_profile_store_dir(home)
+
+        self.assertTrue(
+            os.path.join(home, "credentials", "default.json").startswith(store + os.sep))
 
     @unittest.skipIf(os.name == "nt", "symlinks and the POSIX account database are unavailable")
     def test_secure_storage_overrides_links_the_real_keychain_on_macos(self):
