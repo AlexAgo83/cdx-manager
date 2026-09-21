@@ -30,8 +30,8 @@ def _native_paths(session):
         return [p for p in paths if 'subagents' not in os.path.relpath(p, home).split(os.sep)]
     if session['provider'] == 'claude':
         return sorted(set(
-            p for root in ('.claude/projects', 'projects')
-            for p in glob.glob(os.path.join(home, root, '*', '*.jsonl'))
+            p for root in (('.claude', 'projects'), ('projects',))
+            for p in glob.glob(os.path.join(home, *root, '*', '*.jsonl'))
         ))
     return []
 

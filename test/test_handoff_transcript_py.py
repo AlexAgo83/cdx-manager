@@ -179,7 +179,7 @@ def test_command_json_prepares_without_launch_auth_or_notes_mutation(command_con
     assert auth.read_text() == 'synthetic auth sentinel'
     assert command([target['name']], ctx) == 0
     assert launches[-1][1]['directory'] == os.path.realpath(tmp_path)
-    assert payload['context']['target_path'] in launches[-1][1]['initial_prompt']
+    assert json.dumps(payload['context']['target_path']) in launches[-1][1]['initial_prompt']
 
 
 def test_command_missing_source_reports_candidates_and_changes_nothing(command_context, tmp_path):
@@ -255,3 +255,15 @@ def test_entry_write_failure_preserves_previous_pointer(command_context, tmp_pat
         prepare_entry(str(tmp_path), target, str(tmp_path), source, info)
     assert load_entry(str(tmp_path), target, str(tmp_path)) == prepared
     assert len(list((tmp_path / 'target/handoffs').glob('*.json'))) == 1
+
+
+def test_claude_discovery_uses_native_windows_separators(monkeypatch):
+    import ntpath
+
+    from src import handoff
+
+    patterns = []
+    monkeypatch.setattr(handoff.os.path, 'join', ntpath.join)
+    monkeypatch.setattr(handoff.glob, 'glob', lambda pattern: patterns.append(pattern) or [])
+    handoff._native_paths({'provider': 'claude', 'authHome': r'C:\profile'})
+    assert patterns == [r'C:\profile\.claude\projects\*\*.jsonl', r'C:\profile\projects\*\*.jsonl']

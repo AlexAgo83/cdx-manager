@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-09-21 12:38:01
+> Indicators reviewed: 2026-09-21 12:45:23
 > Owner: Codex
 
 # AI Context
@@ -71,6 +71,7 @@
 - Finished on 2026-09-21.
 - Linked backlog item(s): `item_151_resolve_handoff_sources_by_native_conversation_identity_and_workspace`, `item_152_replace_truncated_handoff_context_with_a_provenance_bearing_transcript_entry`, `item_153_require_repository_instructions_and_an_evidence_based_checkpoint_before_handoff_actions`, `item_154_integrate_handoff_compatibility_and_regression_coverage_across_cli_modes`
 - Related request(s): `req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting`
+- Release CI exposed Windows-specific mixed separators in Claude transcript discovery. Joined path components natively and corrected JSON-escaped path assertions; a portable ntpath regression now covers Windows glob construction. Release remains unpublished pending green cross-platform CI.
 
 # Links
 - Request: `req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting`

@@ -311,7 +311,7 @@ class LaunchCommandTests(CliTestBase):
         target_path = payload["context"]["target_path"]
         self.assertEqual(payload["source_session"]["provider"], "claude")
         self.assertEqual(payload["target_session"]["provider"], "claude")
-        self.assertIn(target_path, payload["launch_prompt"])
+        self.assertIn(json.dumps(target_path), payload["launch_prompt"])
         self.assertIn(os.path.join("claude-home", "handoffs"), target_path)
         with open(target_path, encoding="utf-8") as handle:
             content = handle.read()
@@ -413,7 +413,7 @@ class LaunchCommandTests(CliTestBase):
         payload = json.loads(handoff_io["stdout"].getvalue())
         self.assertEqual(payload["source_session"]["provider"], "codex")
         self.assertEqual(payload["target_session"]["provider"], "claude")
-        self.assertIn(payload["context"]["target_path"], payload["launch_prompt"])
+        self.assertIn(json.dumps(payload["context"]["target_path"]), payload["launch_prompt"])
         with open(payload["context"]["target_path"], encoding="utf-8") as handle:
             self.assertEqual(json.load(handle)["transcript"]["path"], os.path.realpath(source_log))
 
