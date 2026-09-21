@@ -260,7 +260,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx resume <name> [--json]', '36', use_color)}",
         f"  {_style('cdx can-resume <name> [--json]', '36', use_color)}",
         f"  {_style('cdx handoff <name> [--json]', '36', use_color)}",
-        f"  {_style('cdx handoff <source> <target> [--json]', '36', use_color)}",
+        f"  {_style('cdx handoff <source> <target> [--source-conversation ID | --source-transcript PATH] [--json]', '36', use_color)}",
         f"  {_style('cdx add [provider] <name> [--model MODEL] [--json]', '36', use_color)}",
         f"  {_style('cdx cp <source> <dest> [--json]', '36', use_color)}",
         f"  {_style('cdx ren <source> <dest> [--json]', '36', use_color)}",

@@ -1,14 +1,15 @@
 ## task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery - Deliver reliable transcript-first handoff from source resolution through verified recovery
 > From version: 0.20.10
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 80%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-09-21 12:15:58
+> Indicators reviewed: 2026-09-21 12:26:58
+> Owner: Codex
 
 # AI Context
 - Recover from abrupt quota exhaustion without relying on the outgoing agent. Execute identity resolution, transcript transport, repository instruction recovery and CLI integration in dependency order.
@@ -60,10 +61,10 @@
 - request-AC8 -> `item_154_integrate_handoff_compatibility_and_regression_coverage_across_cli_modes`. Proof deferred to slice closeout.
 
 # Validation
-- (no validation recorded yet)
+- npm run lint: passed. npm test: 1047 passed. Focused python3 -m pytest test/test_handoff_transcript_py.py test/test_commands_launch_py.py -q: 64 passed. git diff --check: passed. Coverage includes stale recorded IDs, newer mtime on old transcripts, workspace/subagent exclusion, malformed metadata, partial JSONL tails, full early tool evidence, source rewrite detection, concurrent preparations, preserved notes/auth sentinel, JSON no-launch, pinned workspace, cancellation and explicit degraded fallback.
 
 # Report
-- Not started.
+- Implemented exact native identity/workspace selection, explicit candidate choice, complete transcript references with preparation extent and SHA-256, unique private handoff entries, preserved supplementary notes, and instruction-first recovery/checkpoint prompts. Both CLI forms and prepare-only JSON are covered. README.md is the existing CLI documentation; the scaffold reference to nonexistent docs/cli.md was corrected. Synthetic fixtures and mocked launches only; no live account or tenant operations. Existing native resume behavior is unchanged.
 
 # Links
 - Request: `req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting`

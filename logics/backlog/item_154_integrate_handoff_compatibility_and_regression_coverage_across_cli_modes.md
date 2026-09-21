@@ -1,14 +1,14 @@
 ## item_154_integrate_handoff_compatibility_and_regression_coverage_across_cli_modes - Integrate handoff compatibility and regression coverage across CLI modes
 > From version: 0.20.10
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 80%
 > Complexity: Medium
 > Theme: Handoff reliability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-09-21 12:15:44
+> Indicators reviewed: 2026-09-21 12:26:58
 
 # AI Context
 - Integrate after the three core slices. Cover both existing CLI forms, prepare-only JSON, pinned workspace, synthetic regressions and truthful notes-only/degraded recovery.

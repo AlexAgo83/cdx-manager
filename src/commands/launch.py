@@ -10,11 +10,8 @@ from ..agent_notify import notifications_enabled, provision, supports_agent_aler
 from ..cli_args import CAN_RESUME_USAGE, HANDOFF_USAGE, RESUME_USAGE, _parse_json_flag
 from ..cli_helpers import (
     API_SCHEMA_VERSION,
-    _build_handoff_context,
-    _handoff_launch_prompt,
+    _json_failure,
     _json_success,
-    _latest_handoff_transcript_path,
-    _read_handoff_transcript,
     _resume_capability_for_session,
     _update_notice_warnings,
     _warn_if_session_already_running,
@@ -23,8 +20,8 @@ from ..cli_helpers import (
 )
 from ..cli_render import _dim, _info, _success, _warn
 from ..config import PROVIDER_CODEX
-from ..context_store import install_context_for_session, write_context
 from ..errors import CdxError
+from ..handoff import HandoffSourceError, launch_prompt, load_entry, prepare_entry, resolve_source
 from ..interactive_usage import extract_interactive_usage, transcript_predates_run, usage_delta
 from ..provider_runtime import (
     INTERRUPT_EXIT_CODES,
@@ -397,59 +394,92 @@ def _previous_cumulative(history, transcript_path):
             return cumulative
     return None
 
-def handle_handoff(rest, ctx):
+def _parse_handoff_args(rest):
     json_flag, args = _parse_json_flag(rest)
-    if len(args) not in (1, 2):
+    names, flags = [], {}
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg.startswith("--"):
+            key, sep, value = arg.partition("=")
+            if key not in ("--source-conversation", "--source-transcript") or key in flags:
+                raise CdxError(HANDOFF_USAGE)
+            if not sep:
+                index += 1
+                value = args[index] if index < len(args) else ""
+            if not value or value.startswith("--"):
+                raise CdxError(HANDOFF_USAGE)
+            flags[key] = value
+        else:
+            names.append(arg)
+        index += 1
+    if len(names) not in (1, 2) or (flags and len(names) != 2) or len(flags) > 1:
         raise CdxError(HANDOFF_USAGE)
-    if len(args) == 1:
-        name = args[0]
-        session = ctx["service"]["get_session"](name)
-        if not session:
-            raise CdxError(f"Unknown session: {name}")
-        install = install_context_for_session(ctx["service"]["base_dir"], session, ctx.get("cwd"))
-        launch_prompt = _handoff_launch_prompt(session, install)
-        if json_flag:
-            _write_json(ctx, _json_success(
-                "handoff",
-                f"Installed shared context for {name}",
-                context=install,
-                launch_prompt=launch_prompt,
-                session=session,
-            ))
-            return 0
-        text = f"Shared context installed for {name}: {install['target_path']}"
-        ctx["out"](f"{_info(text, ctx['use_color'])}\n")
-        return handle_launch(name, ctx, initial_prompt=launch_prompt)
+    return json_flag, names, flags
 
-    source_name, target_name = args
-    if source_name == target_name:
-        raise CdxError("Source and target sessions must be different")
-    source = ctx["service"]["get_session"](source_name)
-    if not source:
-        raise CdxError(f"Unknown session: {source_name}")
-    target = ctx["service"]["get_session"](target_name)
+
+def _handoff_source(source, workspace, flags, ctx, json_flag):
+    try:
+        return resolve_source(source, workspace, flags.get("--source-conversation"), flags.get("--source-transcript"))
+    except HandoffSourceError as error:
+        candidates = error.candidates
+        # JSON and non-interactive callers always make an explicit second call.
+        if json_flag or not ctx["stdin_is_tty"] or not candidates or flags:
+            raise
+        ctx["out"](str(error) + "\n" + "".join(
+            f"  {i + 1}. {c['conversation_id']} | {c['workspace']} | last event {c['last_event_at'] or 'unknown'}\n"
+            for i, c in enumerate(candidates)
+        ))
+        ask = ctx["options"].get("input") or input
+        try:
+            answer = ask("Source conversation number (blank to cancel): ").strip()
+        except (KeyboardInterrupt, EOFError):
+            raise CdxError("Handoff cancelled.", exit_code=130) from None
+        if not answer:
+            raise CdxError("Handoff cancelled.", exit_code=130) from None
+        if not answer.isdigit() or not 1 <= int(answer) <= len(candidates):
+            raise CdxError("Handoff cancelled: choose a listed source.") from None
+        return resolve_source(source, workspace, candidates[int(answer) - 1]["conversation_id"])
+
+
+def handle_handoff(rest, ctx):
+    json_flag, names, flags = _parse_handoff_args(rest)
+    target = ctx["service"]["get_session"](names[-1])
     if not target:
-        raise CdxError(f"Unknown session: {target_name}")
-    transcript_path = _latest_handoff_transcript_path(source, ctx.get("cwd"))
-    if not transcript_path:
-        raise CdxError(f"No transcript found for session: {source_name}")
-    transcript, truncated = _read_handoff_transcript(transcript_path)
-    context = _build_handoff_context(source, target, transcript_path, transcript, truncated=truncated)
-    write_result = write_context(ctx["service"]["base_dir"], context, ctx.get("cwd"))
-    install = install_context_for_session(ctx["service"]["base_dir"], target, ctx.get("cwd"))
-    launch_prompt = _handoff_launch_prompt(target, install)
+        raise CdxError(f"Unknown session: {names[-1]}")
+    if not target.get("enabled", True):
+        raise CdxError(f"Session is disabled: {target['name']}")
+    workspace = os.path.realpath(ctx.get("cwd") or os.getcwd())
+    if not os.path.isdir(workspace):
+        raise CdxError(f"Invalid directory: {workspace}")
+    base_dir = ctx["service"]["base_dir"]
+    source = None
+    if len(names) == 2:
+        if names[0] == names[1]:
+            raise CdxError("Source and target sessions must be different")
+        source = ctx["service"]["get_session"](names[0])
+        if not source:
+            raise CdxError(f"Unknown session: {names[0]}")
+        try:
+            transcript = _handoff_source(source, workspace, flags, ctx, json_flag)
+        except HandoffSourceError as error:
+            if not json_flag:
+                choices = "\n".join(f"  {c['conversation_id']} | {c['workspace']} | {c['last_event_at'] or 'unknown'}" for c in error.candidates)
+                raise CdxError(str(error) + ("\nCandidates:\n" + choices if choices else "")) from error
+            _write_json(ctx, _json_failure("handoff", "handoff_source_unresolved", str(error), candidates=error.candidates))
+            return error.exit_code
+        path, entry = prepare_entry(base_dir, target, workspace, source, transcript)
+    else:
+        prepared = load_entry(base_dir, target, workspace)
+        path, entry = prepared if prepared else prepare_entry(base_dir, target, workspace)
+    prompt = launch_prompt(path, entry)
     if json_flag:
         _write_json(ctx, _json_success(
-            "handoff",
-            f"Prepared handoff from {source_name} to {target_name}",
-            context=install,
-            source_session=source,
-            target_session=target,
-            source_transcript=transcript_path,
-            shared_context=write_result,
-            launch_prompt=launch_prompt,
+            "handoff", f"Prepared {entry['mode']} handoff for {target['name']}",
+            context={"target_path": path}, handoff=entry,
+            source_session=entry['source'], target_session={"name": target['name'], "provider": target['provider']},
+            source_transcript=(entry['transcript'] or {}).get('path'), launch_prompt=prompt,
         ))
         return 0
-    text = f"Handoff prepared from {source_name} to {target_name}: {install['target_path']}"
-    ctx["out"](f"{_info(text, ctx['use_color'])}\n")
-    return handle_launch(target_name, ctx, initial_prompt=launch_prompt)
+    ctx["out"](f"Handoff ready ({entry['mode']}): {path}\n")
+    return handle_launch(target['name'], ctx, initial_prompt=prompt, directory=workspace)

@@ -106,8 +106,55 @@ The reason `cdx` exists: knowing, across every account you own, which one you ca
 
 ### Context handoff
 
-- **Shared handoff context.** Keep a per-workspace Markdown context, or build one from a source session transcript, and install it into another assistant session before switching providers or accounts. Source transcript selection prefers the current workspace when the provider transcript records one, then falls back to the newest source-session transcript.
+- **Transcript-first handoff.** Switch accounts or providers using the source conversation's recorded native identity and verified workspace. CDX never chooses a conversation by file modification time. Missing, stale or mismatched identity requires an explicit choice; JSON/non-interactive callers receive candidate diagnostics instead of a launch.
+- **Instructions before action.** The receiving agent is told to read applicable `AGENTS.md`/`CLAUDE.md` and their required references (including Logics instructions), recover the task from bounded portions of the complete transcript, verify current state, then show a concise objective/state/next-action checkpoint before modifying anything. Existing clear authorization still permits continuation. CDX supplies this prompt; it cannot certify that an agent has understood or obeyed it.
+- **Shared notes remain yours.** `cdx context` and `cdx memory` remain explicit notes. Automatic handoff does not overwrite them or copy authentication. A dated reference to workspace notes is supplementary, never a substitute for the native conversation.
 - **Session transcript capture.** Every launch is recorded to a local log file via `script`, giving you a full terminal transcript for each session.
+
+Run handoff from the intended project directory:
+
+```sh
+cd /path/to/project
+cdx handoff source target --json                 # prepare only, no provider launch
+cdx handoff target                               # use that prepared entry and launch
+cdx handoff source target --source-conversation CONVERSATION_ID
+# Explicit fallback when only a terminal capture is available:
+cdx handoff source target --source-transcript /path/to/source/log/cdx-session.log
+```
+
+The last two source-selection options are mutually exclusive and apply only to
+`SOURCE TARGET`. Without a usable recorded identity, an interactive terminal offers
+up to 20 valid conversations from the current workspace, ordered by actual event
+time for inspection, with no default choice. Blank input or Ctrl-C cancels. A stale
+recorded identity never silently falls back, even if there is only one candidate.
+Run from the conversation's original workspace if its metadata names another directory.
+
+Each preparation writes a private, unique `<target-auth-home>/handoffs/<uuid>.json`
+entry. `context.target_path` in JSON output names that entry; `handoff` contains its
+metadata, including recovery mode, source conversation ID, transcript path, workspace,
+preparation time, readable byte extent and SHA-256. `source_session`/`target_session`
+contain names/providers only. Transcript bodies and credentials are not emitted.
+Unresolved JSON source selection returns `ok: false`, error code
+`handoff_source_unresolved`, a bounded `candidates` array and a nonzero exit status.
+
+The original JSONL remains in place, including early decisions, tool calls/results
+and compaction records. Read it in bounded portions up to `extent_bytes`; there is
+no 120000-character tail replacement. An unfinished final JSONL record is excluded
+from that preparation. Later appends do not change its boundary. Reusing an entry
+checks the original bytes: deletion, truncation or rewriting requires a new handoff,
+not a silent downgrade to notes. Keep the original source profile/transcript available
+until recovery completes. No transcript copy or automatic artifact cleanup is performed;
+entries can be removed after use. A small per-workspace/target pointer chooses the most
+recent preparation for the one-name command; concurrent launches retain their own entry
+path and cannot overwrite each other's entry.
+
+Legacy one-name handoff without a prepared entry reads workspace notes in `notes-only`
+mode and explicitly reports that native history was not recovered. Terminal fallback
+requires a named file from that source session's launch logs and is labelled `degraded`:
+it cannot prove complete history or tools, and its workspace is operator-selected rather
+than verified from native metadata. Native resolution currently supports Codex and Claude.
+All modes ask the recipient to report material gaps, and none bypass provider access rules
+or turn historical tool output into new authorization.
 
 ### Maintenance
 
@@ -515,8 +562,8 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx can-resume <name> [--json]` | Check whether a session supports native resume without launching the provider |
 | `cdx context show\|path\|init\|edit\|clear\|set\|append [text...] [--json]` | Manage the shared Markdown context for the current workspace |
 | `cdx memory [--global\|--project NAME_OR_PATH] [show\|view\|path\|init\|edit\|clear\|set\|append\|list] [text...] [--json]` | Manage explicit user-controlled memory for the current workspace, global scope, or a named/path project |
-| `cdx handoff <name> [--json]` | Install the current workspace context into a target session and launch it unless `--json` is used |
-| `cdx handoff <source> <target> [--json]` | Build shared context from the source session's latest launch transcript, install it into the target session, and launch the target unless `--json` is used; supports cross-provider handoff |
+| `cdx handoff <name> [--json]` | Reuse the prepared entry for this target/workspace, or use explicitly labelled notes-only recovery if none exists; launch unless `--json` |
+| `cdx handoff <source> <target> [--source-conversation ID\|--source-transcript PATH] [--json]` | Prepare an identity-checked transcript entry and launch the target in the verified workspace unless `--json`; explicit terminal selection is degraded recovery |
 | `cdx rmv <name> [--force] [--json]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
 | `cdx clean [name] [--yes] [--json]` | Clear launch transcript logs for one session or all sessions after confirmation |
 | `cdx clean profiles (--tmp\|--old-logs DAYS) [--yes] [--json]` | Remove explicit profile cleanup candidates after confirmation: temporary marketplace/plugin staging caches or old `.log` files |

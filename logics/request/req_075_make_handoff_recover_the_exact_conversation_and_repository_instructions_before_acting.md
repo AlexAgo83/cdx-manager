@@ -1,13 +1,13 @@
 ## req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting - Make handoff recover the exact conversation and repository instructions before acting
 > From version: 0.20.10
 > Schema version: 1.0
-> Status: Draft
+> Status: Ready
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: High
 > Theme: Handoff reliability
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-09-21 12:15:44
+> Indicators reviewed: 2026-09-21 12:35:04
 
 # AI Context
 - Observed failures combine wrong native conversation selection, lossy transcript transport and missing repository instructions. Deliver the four linked slices together; private incident data must not enter fixtures.
@@ -54,7 +54,7 @@
 - src/cli_args.py
 - test/test_handoff_transcript_py.py
 - test/test_commands_launch_py.py
-- docs/cli.md
+- README.md
 - Historical background: completed native-session-identity work (backlog 064); not implementation lineage for this request.
 
 # Backlog

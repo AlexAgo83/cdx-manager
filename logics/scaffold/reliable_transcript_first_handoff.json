@@ -10,7 +10,7 @@
     "src/cli_args.py",
     "test/test_handoff_transcript_py.py",
     "test/test_commands_launch_py.py",
-    "docs/cli.md",
+    "README.md",
     "logics/backlog/item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity.md"
   ],
   "request": {

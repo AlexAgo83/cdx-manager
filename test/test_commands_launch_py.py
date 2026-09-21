@@ -189,9 +189,10 @@ class LaunchCommandTests(CliTestBase):
         payload = json.loads(handoff_io["stdout"].getvalue())
         self.assertEqual(payload["action"], "handoff")
         target_path = payload["context"]["target_path"]
-        self.assertTrue(target_path.endswith("shared-context.md"))
+        self.assertTrue(target_path.endswith(".json"))
+        self.assertEqual(payload["handoff"]["mode"], "notes-only")
         with open(target_path, encoding="utf-8") as handle:
-            self.assertIn("Next Steps: continue here", handle.read())
+            self.assertEqual(json.load(handle)["notes"]["role"], "supplementary; may be stale")
 
     def test_handoff_from_source_session_builds_context_for_target_json(self):
         temp_dir = self.make_temp_dir()
@@ -220,7 +221,7 @@ class LaunchCommandTests(CliTestBase):
             handle.write("Goal: finish the quota handoff\nNext Steps: run tests\n")
 
         handoff_io = self.make_io()
-        self.assertEqual(main(["handoff", "account1", "account2", "--json"], {
+        self.assertEqual(main(["handoff", "account1", "account2", "--source-transcript", source_log, "--json"], {
             **handoff_io,
             "env": {"CDX_HOME": temp_dir},
             "cwd": workspace,
@@ -230,13 +231,13 @@ class LaunchCommandTests(CliTestBase):
         self.assertEqual(payload["action"], "handoff")
         self.assertEqual(payload["source_session"]["name"], "account1")
         self.assertEqual(payload["target_session"]["name"], "account2")
-        self.assertEqual(payload["source_transcript"], source_log)
-        self.assertIn("Read $CODEX_HOME/shared-context.md first", payload["launch_prompt"])
+        self.assertEqual(payload["source_transcript"], os.path.realpath(source_log))
+        self.assertIn("AGENTS.md", payload["launch_prompt"])
         with open(payload["context"]["target_path"], encoding="utf-8") as handle:
             content = handle.read()
-        self.assertIn("Resume the work from `account1` in `account2`", content)
-        self.assertIn("Goal: finish the quota handoff", content)
-        self.assertIn("Next Steps: run tests", content)
+        self.assertEqual(json.loads(content)["source"]["name"], "account1")
+        self.assertEqual(json.loads(content)["transcript"]["path"], os.path.realpath(source_log))
+        self.assertNotIn("Goal: finish the quota handoff", content)
 
     def test_handoff_launches_target_with_initial_prompt(self):
         temp_dir = self.make_temp_dir()
@@ -258,7 +259,7 @@ class LaunchCommandTests(CliTestBase):
         with open(source_log, "w", encoding="utf-8") as handle:
             handle.write("Continue the implementation\n")
 
-        self.assertEqual(main(["handoff", "account1", "account2"], {
+        self.assertEqual(main(["handoff", "account1", "account2", "--source-transcript", source_log], {
             **self.make_io(),
             "env": {"CDX_HOME": temp_dir},
             "cwd": workspace,
@@ -270,7 +271,7 @@ class LaunchCommandTests(CliTestBase):
         self.assertEqual(launch_call["kind"], "spawn")
         self.assertEqual(launch_call["command"], "script")
         self.assertTrue(_script_launch_invokes(launch_call, "codex"))
-        self.assertIn("Read $CODEX_HOME/shared-context.md first", _script_launch_text(launch_call))
+        self.assertIn("AGENTS.md", _script_launch_text(launch_call))
 
     def test_handoff_from_claude_source_builds_context_for_claude_target_json(self):
         temp_dir = self.make_temp_dir()
@@ -300,7 +301,7 @@ class LaunchCommandTests(CliTestBase):
             handle.write("Claude progress\nNext Steps: continue with Claude\n")
 
         handoff_io = self.make_io()
-        self.assertEqual(main(["handoff", "claude1", "claude2", "--json"], {
+        self.assertEqual(main(["handoff", "claude1", "claude2", "--source-transcript", source_log, "--json"], {
             **handoff_io,
             "env": {"CDX_HOME": temp_dir},
             "cwd": workspace,
@@ -310,12 +311,12 @@ class LaunchCommandTests(CliTestBase):
         target_path = payload["context"]["target_path"]
         self.assertEqual(payload["source_session"]["provider"], "claude")
         self.assertEqual(payload["target_session"]["provider"], "claude")
-        self.assertIn(f"Read {target_path} first", payload["launch_prompt"])
-        self.assertTrue(target_path.endswith(os.path.join("claude-home", "shared-context.md")))
+        self.assertIn(target_path, payload["launch_prompt"])
+        self.assertIn(os.path.join("claude-home", "handoffs"), target_path)
         with open(target_path, encoding="utf-8") as handle:
             content = handle.read()
-        self.assertIn("Claude progress", content)
-        self.assertIn("Next Steps: continue with Claude", content)
+        self.assertEqual(json.loads(content)["transcript"]["path"], os.path.realpath(source_log))
+        self.assertEqual(json.loads(content)["mode"], "degraded")
 
     def test_handoff_from_claude_source_uses_native_project_jsonl_without_launch_log(self):
         temp_dir = self.make_temp_dir()
@@ -346,6 +347,7 @@ class LaunchCommandTests(CliTestBase):
         with open(native_log, "w", encoding="utf-8") as handle:
             handle.write(json.dumps({
                 "type": "user",
+                "sessionId": "session", "cwd": workspace,
                 "message": {
                     "role": "user",
                     "content": [{"type": "text", "text": "Goal: finish the Claude handoff"}],
@@ -362,7 +364,7 @@ class LaunchCommandTests(CliTestBase):
             handle.write("\n")
 
         handoff_io = self.make_io()
-        self.assertEqual(main(["handoff", "corvus", "digital", "--json"], {
+        self.assertEqual(main(["handoff", "corvus", "digital", "--source-conversation", "session", "--json"], {
             **handoff_io,
             "env": {"CDX_HOME": temp_dir},
             "cwd": workspace,
@@ -372,8 +374,8 @@ class LaunchCommandTests(CliTestBase):
         self.assertEqual(payload["source_transcript"], native_log)
         with open(payload["context"]["target_path"], encoding="utf-8") as handle:
             content = handle.read()
-        self.assertIn("[user]\nGoal: finish the Claude handoff", content)
-        self.assertIn("[assistant]\nNext Steps: run the migration tests", content)
+        self.assertEqual(json.loads(content)["transcript"]["path"], native_log)
+        self.assertEqual(json.loads(content)["mode"], "native")
 
     def test_handoff_allows_codex_to_claude_target_json(self):
         temp_dir = self.make_temp_dir()
@@ -402,7 +404,7 @@ class LaunchCommandTests(CliTestBase):
             handle.write("Codex context for Claude\n")
 
         handoff_io = self.make_io()
-        self.assertEqual(main(["handoff", "codex1", "claude1", "--json"], {
+        self.assertEqual(main(["handoff", "codex1", "claude1", "--source-transcript", source_log, "--json"], {
             **handoff_io,
             "env": {"CDX_HOME": temp_dir},
             "cwd": workspace,
@@ -411,9 +413,9 @@ class LaunchCommandTests(CliTestBase):
         payload = json.loads(handoff_io["stdout"].getvalue())
         self.assertEqual(payload["source_session"]["provider"], "codex")
         self.assertEqual(payload["target_session"]["provider"], "claude")
-        self.assertIn(f"Read {payload['context']['target_path']} first", payload["launch_prompt"])
+        self.assertIn(payload["context"]["target_path"], payload["launch_prompt"])
         with open(payload["context"]["target_path"], encoding="utf-8") as handle:
-            self.assertIn("Codex context for Claude", handle.read())
+            self.assertEqual(json.load(handle)["transcript"]["path"], os.path.realpath(source_log))
 
     def test_resume_flag_launches_codex_resume(self):
         temp_dir = self.make_temp_dir()
@@ -1028,7 +1030,7 @@ class LaunchCommandTests(CliTestBase):
         with open(source_log, "w", encoding="utf-8") as handle:
             handle.write("Continue from Claude transcript\n")
 
-        self.assertEqual(main(["handoff", "claude1", "claude2"], {
+        self.assertEqual(main(["handoff", "claude1", "claude2", "--source-transcript", source_log], {
             **self.make_io(),
             "env": {"CDX_HOME": temp_dir},
             "cwd": workspace,
@@ -1042,7 +1044,7 @@ class LaunchCommandTests(CliTestBase):
         self.assertTrue(_script_launch_invokes(launch_call, "claude"))
         self.assertEqual(_script_launch_args(launch_call)[:2], ["--name", "claude2"])
         self.assertIn("claude-home", _script_launch_text(launch_call))
-        self.assertIn("shared-context.md first", _script_launch_text(launch_call))
+        self.assertIn("handoffs", _script_launch_text(launch_call))
 
     def test_signal_emitter_interrupts_launch(self):
         temp_dir = self.make_temp_dir()

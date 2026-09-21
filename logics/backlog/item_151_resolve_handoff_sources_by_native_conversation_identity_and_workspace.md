@@ -1,14 +1,14 @@
 ## item_151_resolve_handoff_sources_by_native_conversation_identity_and_workspace - Resolve handoff sources by native conversation identity and workspace
 > From version: 0.20.10
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 80%
 > Complexity: Medium
 > Theme: Handoff reliability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-09-21 12:15:44
+> Indicators reviewed: 2026-09-21 12:26:58
 
 # AI Context
 - Start at _latest_handoff_transcript_path and reuse conversation_transcript. Claude metadata differs from Codex session_meta; validate both formats and reject subagent identity.
