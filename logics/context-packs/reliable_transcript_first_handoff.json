@@ -1,0 +1,375 @@
+{
+  "budgets": {
+    "max_docs": 16,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery --mode full --profile deep",
+  "companion_docs": [],
+  "docs": [
+    {
+      "ai_context": {},
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_151_resolve_handoff_sources_by_native_conversation_identity_and_workspace",
+          "item_152_replace_truncated_handoff_context_with_a_provenance_bearing_transcript_entry",
+          "item_153_require_repository_instructions_and_an_evidence_based_checkpoint_before_handoff_actions",
+          "item_154_integrate_handoff_compatibility_and_regression_coverage_across_cli_modes"
+        ],
+        "prod": [
+          "prod_055_reliable_transcript_first_handoff_recovery"
+        ],
+        "req": [
+          "req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting"
+        ]
+      },
+      "path": "logics/request/req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting.md",
+      "ref": "req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Codex and Claude handoff resolve the recorded source conversation identity and verify its normalized workspace; file modification time never silently overrides identity or selects a subagent, index, history file or unrelated workspace.",
+          "- AC2: Missing, stale, mismatched or ambiguous identity produces bounded candidate diagnostics and an explicit source selection path; non-interactive callers get an actionable structured error. Invalid or cancelled selection does not launch a provider or overwrite context.",
+          "- AC3: A small handoff entry document identifies source and target, provider, native conversation ID, workspace, preparation time, transcript format/path and recovery instructions. The complete source transcript remains available for bounded reads with tools and results intact; no 120000-character tail is authoritative.",
+          "- AC4: The target prompt requires applicable AGENTS.md and CLAUDE.md plus their required references such as LOGICS.md and logics/instructions.md to be read before reconstructing the task and before modifications, independently of provider auto-loading.",
+          "- AC5: Recovery reconstructs objective, latest user corrections, decisions, authorization boundaries, pending work and relevant tool evidence, then checks current repository/operational state read-only and emits a concise recovery checkpoint before acting. Clear existing authorization permits continuation without a mandatory confirmation round.",
+          "- AC6: Optional shared notes remain dated supplementary context, are not silently overwritten by automatic handoff preparation, and cannot replace source identity or live verification. Legacy one-name context handoff remains explicitly identifiable as notes-only when it has no transcript provenance."
+        ],
+        "Needs": [
+          "- An incoming agent must recover the actual source conversation, repository instructions, user decisions and unfinished work without requiring the outgoing agent to write a summary before its quota expires.",
+          "- Replace the authoritative truncated shared-context transcript with a small provenance-bearing entry document pointing to the full native transcript, followed by instruction-first recovery before changes."
+        ]
+      },
+      "status": "Draft",
+      "title": "Make handoff recover the exact conversation and repository instructions before acting"
+    },
+    {
+      "ai_context": {},
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_151_resolve_handoff_sources_by_native_conversation_identity_and_workspace"
+        ],
+        "prod": [
+          "prod_055_reliable_transcript_first_handoff_recovery"
+        ],
+        "req": [
+          "req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting"
+        ],
+        "task": [
+          "task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery"
+        ]
+      },
+      "path": "logics/backlog/item_151_resolve_handoff_sources_by_native_conversation_identity_and_workspace.md",
+      "ref": "item_151_resolve_handoff_sources_by_native_conversation_identity_and_workspace",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Exact identity wins when an older file has a newer mtime, for Codex and Claude.",
+          "- AC2: Other-workspace and nested subagent transcripts never win automatic discovery; no candidate is inferred solely from recency.",
+          "- AC3: Explicit selection validates identity and workspace; cancellation and failures produce no artifact/context/session mutation or launch."
+        ],
+        "Problem": [
+          "- mtime-based selection can pick an old conversation; Claude workspace and subagent boundaries are not enforced."
+        ]
+      },
+      "status": "Ready",
+      "title": "Resolve handoff sources by native conversation identity and workspace"
+    },
+    {
+      "ai_context": {},
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_152_replace_truncated_handoff_context_with_a_provenance_bearing_transcript_entry"
+        ],
+        "prod": [
+          "prod_055_reliable_transcript_first_handoff_recovery"
+        ],
+        "req": [
+          "req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting"
+        ],
+        "task": [
+          "task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery"
+        ]
+      },
+      "path": "logics/backlog/item_152_replace_truncated_handoff_context_with_a_provenance_bearing_transcript_entry.md",
+      "ref": "item_152_replace_truncated_handoff_context_with_a_provenance_bearing_transcript_entry",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Long source transcripts remain fully reachable, including early decisions and tool results, without a hard tail cutoff or a huge initial prompt.",
+          "- AC2: Metadata binds the entry to one source, target, workspace and preparation extent; two prepared handoffs do not overwrite each other.",
+          "- AC3: Existing workspace notes and source files remain unchanged; no credentials are copied or transcript bodies emitted in normal CLI/JSON output."
+        ],
+        "Problem": [
+          "- A 120000-character tail and subsequent tool truncation discard evidence, while generated handoffs overwrite shared notes."
+        ]
+      },
+      "status": "Ready",
+      "title": "Replace truncated handoff context with a provenance-bearing transcript entry"
+    },
+    {
+      "ai_context": {},
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_153_require_repository_instructions_and_an_evidence_based_checkpoint_before_handoff_actions"
+        ],
+        "prod": [
+          "prod_055_reliable_transcript_first_handoff_recovery"
+        ],
+        "req": [
+          "req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting"
+        ],
+        "task": [
+          "task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery"
+        ]
+      },
+      "path": "logics/backlog/item_153_require_repository_instructions_and_an_evidence_based_checkpoint_before_handoff_actions.md",
+      "ref": "item_153_require_repository_instructions_and_an_evidence_based_checkpoint_before_handoff_actions",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Prompt tests prove instruction reading precedes recovery and action for Codex and Claude, including referenced LOGICS documents.",
+          "- AC2: Recovery guidance explicitly covers user corrections, permission limits, abandoned plans, interrupted tools and outstanding work; missing evidence is disclosed.",
+          "- AC3: The checkpoint is required before modifications but is not a forced approval gate, and docs do not claim automated proof of agent comprehension."
+        ],
+        "Problem": [
+          "- Current startup tells the recipient to read shared context and continue, skipping repository procedures and verification."
+        ]
+      },
+      "status": "Ready",
+      "title": "Require repository instructions and an evidence-based checkpoint before handoff actions"
+    },
+    {
+      "ai_context": {},
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_154_integrate_handoff_compatibility_and_regression_coverage_across_cli_modes"
+        ],
+        "prod": [
+          "prod_055_reliable_transcript_first_handoff_recovery"
+        ],
+        "req": [
+          "req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting"
+        ],
+        "task": [
+          "task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery"
+        ]
+      },
+      "path": "logics/backlog/item_154_integrate_handoff_compatibility_and_regression_coverage_across_cli_modes.md",
+      "ref": "item_154_integrate_handoff_compatibility_and_regression_coverage_across_cli_modes",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Both command forms and JSON mode have documented, tested outcomes for exact-source, notes-only and degraded cases.",
+          "- AC2: End-to-end synthetic tests reproduce the observed old-conversation selection and missing-instruction prompt failures and prevent their recurrence.",
+          "- AC3: Authentication is unchanged, source resolution failures do not launch or replace context, and every launch uses the verified workspace.",
+          "- AC4: CLI docs include a short recovery example and limitations; project and Logics checks pass with AC evidence ready for closeout."
+        ],
+        "Problem": [
+          "- Both CLI forms, JSON preparation, provider differences and shared-note compatibility need an explicit end-to-end contract."
+        ]
+      },
+      "status": "Ready",
+      "title": "Integrate handoff compatibility and regression coverage across CLI modes"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_151_resolve_handoff_sources_by_native_conversation_identity_and_workspace",
+          "item_152_replace_truncated_handoff_context_with_a_provenance_bearing_transcript_entry",
+          "item_153_require_repository_instructions_and_an_evidence_based_checkpoint_before_handoff_actions",
+          "item_154_integrate_handoff_compatibility_and_regression_coverage_across_cli_modes"
+        ],
+        "prod": [
+          "prod_055_reliable_transcript_first_handoff_recovery"
+        ],
+        "req": [
+          "req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting"
+        ],
+        "task": [
+          "task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery"
+        ]
+      },
+      "path": "logics/product/prod_055_reliable_transcript_first_handoff_recovery.md",
+      "ref": "prod_055_reliable_transcript_first_handoff_recovery",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Reliable transcript-first handoff recovery"
+    },
+    {
+      "ai_context": {},
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_151_resolve_handoff_sources_by_native_conversation_identity_and_workspace",
+          "item_152_replace_truncated_handoff_context_with_a_provenance_bearing_transcript_entry",
+          "item_153_require_repository_instructions_and_an_evidence_based_checkpoint_before_handoff_actions",
+          "item_154_integrate_handoff_compatibility_and_regression_coverage_across_cli_modes"
+        ],
+        "prod": [
+          "prod_055_reliable_transcript_first_handoff_recovery"
+        ],
+        "req": [
+          "req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting"
+        ],
+        "task": [
+          "task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery"
+        ]
+      },
+      "path": "logics/tasks/task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery.md",
+      "ref": "task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Deliver reliable transcript-first handoff from source resolution through verified recovery"
+    }
+  ],
+  "estimates": {
+    "char_count": 11087,
+    "companion_doc_count": 0,
+    "doc_count": 7
+  },
+  "generated_at": "2026-09-21T10:15:59Z",
+  "handoff": {
+    "companion_doc_count": 0,
+    "enabled": false,
+    "source_refs": [
+      "req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting",
+      "task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery"
+    ],
+    "validation_summary_count": 0
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "full",
+  "profile": "deep",
+  "ref": "req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting,task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery",
+  "refs": [
+    "req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting",
+    "task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different commit (release)",
+      "changelog: evidence targets a different commit (release)",
+      "release_checksums: evidence targets a different commit (release)",
+      "local_validation: evidence targets a different commit (release)",
+      "git_push: evidence targets a different commit (release)",
+      "ci: evidence targets a different commit (release)"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different commit (release)",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different commit (release)",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit (release)",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit (release)",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit (release)",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit (release)",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit (release)",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_id": null,
+    "target_version": "0.20.10",
+    "targets": []
+  },
+  "validation_summary": []
+}

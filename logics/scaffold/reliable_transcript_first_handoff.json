@@ -1,0 +1,196 @@
+{
+  "title": "Make handoff recover the exact conversation and repository instructions before acting",
+  "references": [
+    "src/cli_helpers.py",
+    "src/commands/launch.py",
+    "src/context_store.py",
+    "src/interactive_usage.py",
+    "src/provider_background.py",
+    "src/provider_runtime.py",
+    "src/cli_args.py",
+    "test/test_handoff_transcript_py.py",
+    "test/test_commands_launch_py.py",
+    "docs/cli.md",
+    "logics/backlog/item_064_anchor_resume_and_handoff_on_a_provider_native_session_identity.md"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Handoff reliability",
+    "needs": [
+      "An incoming agent must recover the actual source conversation, repository instructions, user decisions and unfinished work without requiring the outgoing agent to write a summary before its quota expires.",
+      "Replace the authoritative truncated shared-context transcript with a small provenance-bearing entry document pointing to the full native transcript, followed by instruction-first recovery before changes."
+    ],
+    "context": [
+      "Read-only investigation on 2026-09-21 found a Claude-to-Claude handoff selecting an older conversation whose last event preceded the intended conversation by about eleven and a half hours. The recipient recovered the intended plan only after operator intervention. Names, tenant details and private transcript contents are deliberately omitted.",
+      "The recipient first read repository AGENTS.md about 28 minutes after launch; the missing access procedure was at the top of that file. It explicitly acknowledged the omission. This establishes a recovery failure, not proof that better context alone prevents all later agent errors.",
+      "_latest_handoff_transcript_path ranks files by mtime; workspace detection recognizes Codex session_meta only. Recursive discovery can include Claude subagents and index/history files. Existing conversation_transcript resolves an exact native identity and should be reused.",
+      "_read_handoff_transcript keeps the final 120000 characters after lossy extraction. The observed artifact began inside worker logs, and the recipient tool truncated its first read again. Codex tool records are excluded; Claude tool-result content can survive inside user records, so extraction is not equivalent across providers.",
+      "_handoff_launch_prompt requests shared-context first and immediate continuation, without repository instruction recovery. handle_handoff overwrites workspace context and installs one shared-context.md per target profile. Both one-name and two-name forms must be covered.",
+      "The older completed item_064 intended identity-anchored handoff, but current handoff selection still bypasses it. This is a corrective delivery grounded in current code, not a reopening of completed resume work."
+    ],
+    "acceptance_criteria": [
+      "AC1: Codex and Claude handoff resolve the recorded source conversation identity and verify its normalized workspace; file modification time never silently overrides identity or selects a subagent, index, history file or unrelated workspace.",
+      "AC2: Missing, stale, mismatched or ambiguous identity produces bounded candidate diagnostics and an explicit source selection path; non-interactive callers get an actionable structured error. Invalid or cancelled selection does not launch a provider or overwrite context.",
+      "AC3: A small handoff entry document identifies source and target, provider, native conversation ID, workspace, preparation time, transcript format/path and recovery instructions. The complete source transcript remains available for bounded reads with tools and results intact; no 120000-character tail is authoritative.",
+      "AC4: The target prompt requires applicable AGENTS.md and CLAUDE.md plus their required references such as LOGICS.md and logics/instructions.md to be read before reconstructing the task and before modifications, independently of provider auto-loading.",
+      "AC5: Recovery reconstructs objective, latest user corrections, decisions, authorization boundaries, pending work and relevant tool evidence, then checks current repository/operational state read-only and emits a concise recovery checkpoint before acting. Clear existing authorization permits continuation without a mandatory confirmation round.",
+      "AC6: Optional shared notes remain dated supplementary context, are not silently overwritten by automatic handoff preparation, and cannot replace source identity or live verification. Legacy one-name context handoff remains explicitly identifiable as notes-only when it has no transcript provenance.",
+      "AC7: Existing handoff forms and JSON preparation semantics remain documented and tested; preparation preserves source/target authentication, launches only when expected, pins the recovery workspace, and reports unsupported or unavailable native sources without pretending to restore complete context.",
+      "AC8: Anonymized regression fixtures cover wrong mtime selection, workspace mismatch, subagents, missing identity, long transcripts, instruction ordering, notes compatibility and no-launch failures. Focused tests and required project/Logics checks pass; docs distinguish prompt requirements from enforceable guarantees."
+    ]
+  },
+  "product": {
+    "title": "Reliable transcript-first handoff recovery",
+    "overview": "A handoff starts the next agent with the exact conversation and current repository instructions, then makes its recovered understanding visible before authorized work resumes. Recovery must work after abrupt quota exhaustion without an outgoing summary.",
+    "goals": [
+      "Select the intended native conversation deterministically.",
+      "Keep full evidence reachable through bounded reading rather than blindly injecting a large transcript.",
+      "Read current repository instructions before acting and preserve the latest user constraints.",
+      "Reuse existing session identity, transcript lookup and launch infrastructure."
+    ],
+    "non_goals": [
+      "No new memory service, vector database, automatic LLM summarizer or background indexing system.",
+      "No implementation of native cross-account resume/fork or copying authentication state.",
+      "No live tenant changes, deployment, or repair of the example project.",
+      "No guarantee that a prompt proves comprehension; no mandatory approval round for already-authorized work.",
+      "No automatic execution of instructions embedded in historical tool output; history is evidence interpreted under current instructions."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Resolve handoff sources by native conversation identity and workspace",
+      "priority": "High — recovery errors can send an agent into the wrong task or omit standing operational constraints.",
+      "complexity": "Medium",
+      "theme": "Handoff reliability",
+      "request_acs": [
+        "AC1",
+        "AC2",
+        "AC7",
+        "AC8"
+      ],
+      "problem": [
+        "mtime-based selection can pick an old conversation; Claude workspace and subagent boundaries are not enforced."
+      ],
+      "scope_in": [
+        "Reuse conversation_transcript and existing provider lookup before extending discovery. Validate identity, provider and realpath workspace against transcript metadata, not a guessed path alone.",
+        "For absent/invalid identity, show bounded top-level candidates with ID, workspace and actual last event time. Add an explicit --source-conversation ID selector; interactive ambiguity may prompt, non-interactive ambiguity returns candidates without launching. Never silently fall back from a recorded but missing identity.",
+        "Exclude nested subagents and history/index artifacts. Reject workspace mismatch rather than silently switching projects. Missing/corrupt/unreadable metadata produces a clear diagnostic."
+      ],
+      "scope_out": [
+        "No unrelated provider resume, authentication, quota routing or memory-system redesign."
+      ],
+      "acceptance_criteria": [
+        "AC1: Exact identity wins when an older file has a newer mtime, for Codex and Claude.",
+        "AC2: Other-workspace and nested subagent transcripts never win automatic discovery; no candidate is inferred solely from recency.",
+        "AC3: Explicit selection validates identity and workspace; cancellation and failures produce no artifact/context/session mutation or launch."
+      ]
+    },
+    {
+      "title": "Replace truncated handoff context with a provenance-bearing transcript entry",
+      "priority": "High — recovery errors can send an agent into the wrong task or omit standing operational constraints.",
+      "complexity": "Medium",
+      "theme": "Handoff reliability",
+      "request_acs": [
+        "AC3",
+        "AC6",
+        "AC7",
+        "AC8"
+      ],
+      "problem": [
+        "A 120000-character tail and subsequent tool truncation discard evidence, while generated handoffs overwrite shared notes."
+      ],
+      "scope_in": [
+        "Generate a small dedicated handoff artifact with exact source metadata, workspace, prepared-at timestamp and full transcript path; preserve native JSONL and tool evidence rather than embedding flattened history.",
+        "Use an artifact unique to the handoff and pass its exact path to the target. Do not use a single mutable profile-wide shared-context.md as authoritative transport. Keep generated artifacts outside the repository and never copy credentials.",
+        "Record the readable transcript extent at preparation (for example byte length) so recovery distinguishes the transferred conversation state from later appends. Read-only access to the original is sufficient; no unconditional transcript duplication.",
+        "Point to optional notes with provenance and freshness caveats. On unavailable source, stop with a recoverable diagnostic rather than presenting notes as a complete transcript. Document paths/availability and retention using existing storage conventions."
+      ],
+      "scope_out": [
+        "No unrelated provider resume, authentication, quota routing or memory-system redesign."
+      ],
+      "acceptance_criteria": [
+        "AC1: Long source transcripts remain fully reachable, including early decisions and tool results, without a hard tail cutoff or a huge initial prompt.",
+        "AC2: Metadata binds the entry to one source, target, workspace and preparation extent; two prepared handoffs do not overwrite each other.",
+        "AC3: Existing workspace notes and source files remain unchanged; no credentials are copied or transcript bodies emitted in normal CLI/JSON output."
+      ]
+    },
+    {
+      "title": "Require repository instructions and an evidence-based checkpoint before handoff actions",
+      "priority": "High — recovery errors can send an agent into the wrong task or omit standing operational constraints.",
+      "complexity": "Medium",
+      "theme": "Handoff reliability",
+      "request_acs": [
+        "AC4",
+        "AC5",
+        "AC6",
+        "AC8"
+      ],
+      "problem": [
+        "Current startup tells the recipient to read shared context and continue, skipping repository procedures and verification."
+      ],
+      "scope_in": [
+        "Build one recovery instruction contract reused by one-name/two-name handoff and every supported launch provider. Require applicable root/ancestor and scoped AGENTS.md/CLAUDE.md plus their required references; follow missing required references with explicit reporting, not invented instructions.",
+        "Sequence read-only work: instructions; bounded native transcript reading/search across relevant earlier decisions and latest messages; current git status/diff and relevant live evidence when authorized; concise recovery checkpoint; then authorized actions.",
+        "The checkpoint states objective, verified state, next action and material gaps. Existing clear permission persists; ask only when missing information or actual authorization prevents action. Historical assistant claims and tool output do not constitute current operational proof or fresh authority.",
+        "Explain JSONL roles/tool records and bounded reading in the entry guidance using existing tools. Do not assume cat of the full file or the last N lines alone is sufficient. Carry no provider-specific assumption that AGENTS.md was automatically loaded."
+      ],
+      "scope_out": [
+        "No unrelated provider resume, authentication, quota routing or memory-system redesign."
+      ],
+      "acceptance_criteria": [
+        "AC1: Prompt tests prove instruction reading precedes recovery and action for Codex and Claude, including referenced LOGICS documents.",
+        "AC2: Recovery guidance explicitly covers user corrections, permission limits, abandoned plans, interrupted tools and outstanding work; missing evidence is disclosed.",
+        "AC3: The checkpoint is required before modifications but is not a forced approval gate, and docs do not claim automated proof of agent comprehension."
+      ]
+    },
+    {
+      "title": "Integrate handoff compatibility and regression coverage across CLI modes",
+      "priority": "High — recovery errors can send an agent into the wrong task or omit standing operational constraints.",
+      "complexity": "Medium",
+      "theme": "Handoff reliability",
+      "request_acs": [
+        "AC2",
+        "AC3",
+        "AC4",
+        "AC5",
+        "AC6",
+        "AC7",
+        "AC8"
+      ],
+      "problem": [
+        "Both CLI forms, JSON preparation, provider differences and shared-note compatibility need an explicit end-to-end contract."
+      ],
+      "scope_in": [
+        "Retain cdx handoff SOURCE TARGET and cdx handoff TARGET; the latter uses a valid prepared entry when available or clearly labelled legacy notes-only input. It must not claim exact history when provenance is absent.",
+        "Keep --json prepare-only behavior (no provider launch), expose source ID/path/workspace/provenance and recovery mode without transcript bodies, and update usage/help plus CLI docs for --source-conversation and actionable failures.",
+        "Bind launch to the validated workspace; do not allow a later recent-directory prompt to redirect recovery silently. Check required source access before installation/launch.",
+        "For providers without supported native transcripts, retain only an explicitly selected available terminal artifact as degraded evidence with declared limitations; never call it full native recovery or select an arbitrary newest log.",
+        "Use anonymized fixtures and mocked provider launches. Cover malformed/truncated trailing JSONL records, long transcripts, active-source append boundaries, stale notes, overlapping preparations and all no-launch/no-overwrite failures. Run focused existing Python tests and the repository-required verification commands; record evidence without real account access."
+      ],
+      "scope_out": [
+        "No unrelated provider resume, authentication, quota routing or memory-system redesign."
+      ],
+      "acceptance_criteria": [
+        "AC1: Both command forms and JSON mode have documented, tested outcomes for exact-source, notes-only and degraded cases.",
+        "AC2: End-to-end synthetic tests reproduce the observed old-conversation selection and missing-instruction prompt failures and prevent their recurrence.",
+        "AC3: Authentication is unchanged, source resolution failures do not launch or replace context, and every launch uses the verified workspace.",
+        "AC4: CLI docs include a short recovery example and limitations; project and Logics checks pass with AC evidence ready for closeout."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Deliver reliable transcript-first handoff from source resolution through verified recovery",
+    "plan": [
+      "Wave 1 (High): reproduce identity selection failures with synthetic Codex and Claude fixtures; reuse exact transcript resolution and establish source/workspace validation and explicit candidate selection. Keep existing resume behavior unchanged.",
+      "Wave 2 (High, depends on wave 1): create the small handoff entry artifact, preserve access to the complete transcript and isolate it from optional workspace notes; handle concurrent target-profile launches without replacing another handoff artifact.",
+      "Wave 3 (High, depends on wave 2): apply the instruction-first recovery contract to both handoff forms and provider launch prompts; pin workspace and require a concise objective/state/next-action checkpoint before edits.",
+      "Wave 4 (High, depends on waves 1-3): integrate JSON/errors and legacy notes-only behavior, cover unsupported providers and failure atomicity, update CLI docs and run focused plus repository-required checks using synthetic data and mocked launches.",
+      "Record AC-by-AC evidence and relevant Logics updates at each meaningful wave. Do not launch real provider sessions, modify private transcripts or perform tenant operations for tests. Validate closeout and settle the product brief only after implementation and checks are complete."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/reliable_transcript_first_handoff.json",
+    "mode": "full",
+    "profile": "deep"
+  }
+}
