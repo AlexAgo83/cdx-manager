@@ -1,12 +1,12 @@
 ## prod_055_reliable_transcript_first_handoff_recovery - Reliable transcript-first handoff recovery
 > Date: 2026-09-21
-> Status: Proposed
+> Status: Settled
 > Related request: `req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting`
-> Related backlog: `item_151_resolve_handoff_sources_by_native_conversation_identity_and_workspace`, `item_152_replace_truncated_handoff_context_with_a_provenance_bearing_transcript_entry`, `item_153_require_repository_instructions_and_an_evidence_based_checkpoint_before_handoff_actions`, `item_154_integrate_handoff_compatibility_and_regression_coverage_across_cli_modes`
+> Related backlog: `item_151_resolve_handoff_sources_by_native_conversation_identity_and_workspace`
 > Related task: `task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
-> Indicators reviewed: 2026-09-21 12:15:44
+> Indicators reviewed: 2026-09-21 12:38:02
 
 # Overview
 A handoff starts the next agent with the exact conversation and current repository instructions, then makes its recovered understanding visible before authorized work resumes. Recovery must work after abrupt quota exhaustion without an outgoing summary.
@@ -37,7 +37,7 @@ A handoff starts the next agent with the exact conversation and current reposito
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_075_make_handoff_recover_the_exact_conversation_and_repository_instructions_before_acting`
+- Product back-reference: `item_151_resolve_handoff_sources_by_native_conversation_identity_and_workspace`
 - Task back-reference: `task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery`
 
 # Recovery overview

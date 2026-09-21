@@ -41,7 +41,7 @@
           "- Replace the authoritative truncated shared-context transcript with a small provenance-bearing entry document pointing to the full native transcript, followed by instruction-first recovery before changes."
         ]
       },
-      "status": "Ready",
+      "status": "Done",
       "title": "Make handoff recover the exact conversation and repository instructions before acting"
     },
     {
@@ -74,7 +74,7 @@
           "- mtime-based selection can pick an old conversation; Claude workspace and subagent boundaries are not enforced."
         ]
       },
-      "status": "In progress",
+      "status": "Done",
       "title": "Resolve handoff sources by native conversation identity and workspace"
     },
     {
@@ -107,7 +107,7 @@
           "- A 120000-character tail and subsequent tool truncation discard evidence, while generated handoffs overwrite shared notes."
         ]
       },
-      "status": "In progress",
+      "status": "Done",
       "title": "Replace truncated handoff context with a provenance-bearing transcript entry"
     },
     {
@@ -140,7 +140,7 @@
           "- Current startup tells the recipient to read shared context and continue, skipping repository procedures and verification."
         ]
       },
-      "status": "In progress",
+      "status": "Done",
       "title": "Require repository instructions and an evidence-based checkpoint before handoff actions"
     },
     {
@@ -174,7 +174,7 @@
           "- Both CLI forms, JSON preparation, provider differences and shared-note compatibility need an explicit end-to-end contract."
         ]
       },
-      "status": "In progress",
+      "status": "Done",
       "title": "Integrate handoff compatibility and regression coverage across CLI modes"
     },
     {
@@ -182,10 +182,7 @@
       "kind": "product",
       "linked_refs": {
         "item": [
-          "item_151_resolve_handoff_sources_by_native_conversation_identity_and_workspace",
-          "item_152_replace_truncated_handoff_context_with_a_provenance_bearing_transcript_entry",
-          "item_153_require_repository_instructions_and_an_evidence_based_checkpoint_before_handoff_actions",
-          "item_154_integrate_handoff_compatibility_and_regression_coverage_across_cli_modes"
+          "item_151_resolve_handoff_sources_by_native_conversation_identity_and_workspace"
         ],
         "prod": [
           "prod_055_reliable_transcript_first_handoff_recovery"
@@ -201,7 +198,7 @@
       "ref": "prod_055_reliable_transcript_first_handoff_recovery",
       "schema_version": "1.0",
       "sections": {},
-      "status": "Proposed",
+      "status": "Settled",
       "title": "Reliable transcript-first handoff recovery"
     },
     {
@@ -232,19 +229,22 @@
           "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
         ],
         "Validation": [
-          "- npm run lint: passed. npm test: 1047 passed. Focused python3 -m pytest test/test_handoff_transcript_py.py test/test_commands_launch_py.py -q: 64 passed. git diff --check: passed. Coverage includes stale recorded IDs, newer mtime on old transcripts, workspace/subagent exclusion, malformed metadata, partial JSONL tails, full early tool evidence, source rewrite detection, concurrent preparations, preserved notes/auth sentinel, JSON no-launch, pinned workspace, cancellation and explicit degraded fallback."
+          "- npm run lint: passed. npm test: 1047 passed. Focused python3 -m pytest test/test_handoff_transcript_py.py test/test_commands_launch_py.py -q: 64 passed. git diff --check: passed. Coverage includes stale recorded IDs, newer mtime on old transcripts, workspace/subagent exclusion, malformed metadata, partial JSONL tails, full early tool evidence, source rewrite detection, concurrent preparations, preserved notes/auth sentinel, JSON no-launch, pinned workspace, cancellation and explicit degraded fallback.",
+          "- command: `npm test && npm run lint` | result: passed | date: 2026-09-21 | note: 1047 tests passed; lint passed. Implementation commit 79fff94. No real provider sessions or tenant operations used.",
+          "- Finish workflow executed on 2026-09-21.",
+          "- Linked backlog/request close verification passed."
         ]
       },
-      "status": "In progress",
+      "status": "Done",
       "title": "Deliver reliable transcript-first handoff from source resolution through verified recovery"
     }
   ],
   "estimates": {
-    "char_count": 11595,
+    "char_count": 11585,
     "companion_doc_count": 0,
     "doc_count": 7
   },
-  "generated_at": "2026-09-21T10:35:56Z",
+  "generated_at": "2026-09-21T10:38:25Z",
   "handoff": {
     "companion_doc_count": 0,
     "enabled": false,

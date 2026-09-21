@@ -1,14 +1,14 @@
 ## item_152_replace_truncated_handoff_context_with_a_provenance_bearing_transcript_entry - Replace truncated handoff context with a provenance-bearing transcript entry
 > From version: 0.20.10
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 80%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Handoff reliability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-09-21 12:26:58
+> Indicators reviewed: 2026-09-21 12:38:02
 
 # AI Context
 - Separate generated recovery metadata from user-maintained context_store notes. The native transcript remains the evidence source; each handoff gets its own entry path and preparation extent.
@@ -49,3 +49,9 @@
 # Priority
 - Priority: High
 - Rationale: Recovery errors can send an agent into the wrong task or omit standing operational constraints.
+
+# Tasks
+- `task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery`
+
+# Notes
+- Task `task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery` was finished via `logics-manager flow finish task` on 2026-09-21.
