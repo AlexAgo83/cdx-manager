@@ -386,7 +386,8 @@ def _codex_fast_enabled(launch):
 def _codex_fast_config_args(launch):
     if _codex_fast_enabled(launch):
         return ["-c", 'service_tier="fast"', "-c", "features.fast_mode=true"]
-    return ["-c", 'service_tier="flex"', "-c", "features.fast_mode=false"]
+    # flex is rejected by the API for current models; omit the tier to get the default
+    return ["-c", "features.fast_mode=false"]
 
 
 def _normalize_reasoning_effort(reasoning_effort=None, power=None, usage="Unsupported reasoning effort."):

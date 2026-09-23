@@ -86,7 +86,7 @@ class LaunchPowerTests(unittest.TestCase):
 
     def test_codex_fast_config_args(self):
         self.assertIn('service_tier="fast"', _codex_fast_config_args({"fast": True, "fastMode": "service_tier"}))
-        self.assertIn('service_tier="flex"', _codex_fast_config_args({}))
+        self.assertNotIn('service_tier', ' '.join(_codex_fast_config_args({})))
 
 
 class LaunchConfigArgsTests(unittest.TestCase):

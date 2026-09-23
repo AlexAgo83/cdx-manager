@@ -1080,7 +1080,7 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertIn('model_reasoning_effort="medium"', args)
         self.assertIn("workspace-write", args)
         self.assertIn("never", args)
-        self.assertIn('service_tier="flex"', args)
+        self.assertNotIn('service_tier', ' '.join(args))
         self.assertIn("features.fast_mode=false", args)
 
     def test_build_launch_spec_enables_codex_fast_only_with_service_tier_marker(self):
@@ -1110,7 +1110,7 @@ class RuntimePythonTests(unittest.TestCase):
         args = spec["fallback"]["args"]
 
         self.assertIn('model_reasoning_effort="low"', args)
-        self.assertIn('service_tier="flex"', args)
+        self.assertNotIn('service_tier', ' '.join(args))
         self.assertIn("features.fast_mode=false", args)
 
     def test_build_launch_spec_supports_antigravity(self):
@@ -1376,7 +1376,7 @@ class RuntimePythonTests(unittest.TestCase):
             spec = provider_runtime._build_headless_launch_spec(session, cwd="/tmp/repo", initial_prompt="do it")
 
             self.assertIn(f'model_reasoning_effort="{power}"', spec["args"])
-            self.assertIn('service_tier="flex"', spec["args"])
+            self.assertNotIn('service_tier', ' '.join(spec["args"]))
 
     def test_build_headless_launch_spec_injects_rtk_preference(self):
         session = {
