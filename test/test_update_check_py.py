@@ -130,7 +130,7 @@ class UpdateCheckPythonTests(unittest.TestCase):
         self.assertEqual(first["tool"], "logics-manager")
         self.assertEqual(first["latest_version"], "2.4.0")
         self.assertEqual(first["current_version"], "2.3.0")
-        self.assertEqual(first["update_command"], "logics-manager self-update")
+        self.assertEqual(first["update_command"], "logics-manager update")
         self.assertFalse(first["cached"])
         self.assertTrue(second["cached"])
         self.assertFalse(third["cached"])

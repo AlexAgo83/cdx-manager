@@ -229,7 +229,7 @@ def check_logics_manager_for_update(base_dir, env=None, now_fn=None, runner=None
                 "tool": "logics-manager",
                 "latest_version": latest_version,
                 "current_version": current_version,
-                "update_command": "logics-manager self-update",
+                "update_command": "logics-manager update",
                 "url": cached.get("url"),
                 "cached": True,
             }
@@ -255,7 +255,7 @@ def check_logics_manager_for_update(base_dir, env=None, now_fn=None, runner=None
             "tool": "logics-manager",
             "latest_version": latest_version,
             "current_version": current_version,
-            "update_command": "logics-manager self-update",
+            "update_command": "logics-manager update",
             "url": payload["url"],
             "cached": False,
         }

@@ -111,7 +111,7 @@ class ViewCommandTests(CliTestBase):
                 "tool": "logics-manager",
                 "latest_version": "9.9.9",
                 "current_version": "1.0.0",
-                "update_command": "logics-manager self-update",
+                "update_command": "logics-manager update",
                 "url": "https://example.invalid/logics-manager",
             }
 
@@ -126,5 +126,5 @@ class ViewCommandTests(CliTestBase):
         payload = json.loads(io_obj["stdout"].getvalue())
         self.assertTrue(payload["viewer"]["available"])
         self.assertEqual(payload["viewer"]["update"]["latest_version"], "9.9.9")
-        self.assertEqual(payload["warnings"][0]["update_command"], "logics-manager self-update")
+        self.assertEqual(payload["warnings"][0]["update_command"], "logics-manager update")
 
