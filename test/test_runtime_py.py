@@ -5,6 +5,7 @@ import os
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import unittest
 import urllib.error
@@ -1059,10 +1060,48 @@ class RuntimePythonTests(unittest.TestCase):
 
         spec = provider_runtime._build_launch_spec(session, cwd="/tmp/repo", initial_prompt="resume")
 
-        prompt = spec["fallback"]["args"][-1]
-        self.assertIn("prefer RTK wrappers", prompt)
-        self.assertIn("rtk <command>", prompt)
-        self.assertTrue(prompt.endswith("resume"))
+        args = spec["fallback"]["args"]
+        self.assertEqual(args[-1], "resume")
+        config = next(arg for arg in args if arg.startswith("developer_instructions="))
+        self.assertIn("prefer RTK wrappers", config)
+        self.assertIn("rtk <command>", config)
+        self.assertEqual(args[args.index(config) - 1], "-c")
+
+    def test_build_launch_spec_passes_preferences_as_claude_system_prompt_not_a_turn(self):
+        session = {
+            "name": "main",
+            "provider": "claude",
+            "authHome": "/tmp/claude-home",
+            "launch": {"rtk": True},
+        }
+
+        spec = provider_runtime._build_launch_spec(session, cwd="/tmp/repo")
+
+        args = spec["fallback"]["args"]
+        system_prompt = args[args.index("--append-system-prompt") + 1]
+        self.assertIn("prefer RTK wrappers", system_prompt)
+        # Nothing after the system prompt: a bare launch must not submit a turn.
+        self.assertEqual(args[-1], system_prompt)
+        self.assertEqual(sum("prefer RTK wrappers" in arg for arg in args), 1)
+
+    def test_build_resume_spec_does_not_submit_preferences_as_a_turn(self):
+        session = {
+            "name": "main",
+            "provider": "claude",
+            "authHome": "/tmp/claude-home",
+            "launch": {"rtk": True},
+        }
+
+        with mock.patch.object(
+            provider_runtime,
+            "get_resume_capability",
+            return_value={"resumable": True, "strategy": "continue", "identity": None},
+        ):
+            spec = provider_runtime._build_resume_spec(session, cwd="/tmp/repo")
+
+        args = spec["fallback"]["args"]
+        self.assertIn("--append-system-prompt", args)
+        self.assertEqual(args[-1], args[args.index("--append-system-prompt") + 1])
 
     def test_build_launch_spec_uses_codex_model_setting(self):
         session = {
@@ -1388,10 +1427,69 @@ class RuntimePythonTests(unittest.TestCase):
 
         spec = provider_runtime._build_headless_launch_spec(session, cwd="/tmp/repo", initial_prompt="do it")
 
-        prompt = spec["args"][-1]
-        self.assertIn("prefer RTK wrappers", prompt)
-        self.assertIn("rtk <command>", prompt)
-        self.assertTrue(prompt.endswith("do it"))
+        args = spec["args"]
+        self.assertEqual(args[-1], "do it")
+        config = next(arg for arg in args if arg.startswith("developer_instructions="))
+        self.assertIn("prefer RTK wrappers", config)
+        self.assertIn("rtk <command>", config)
+        self.assertEqual(spec["sensitive_args"], ["do it"])
+
+    def _codex_rtk_session(self, config_text=None):
+        auth_home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, auth_home, True)
+        if config_text is not None:
+            with open(os.path.join(auth_home, "config.toml"), "w", encoding="utf-8") as handle:
+                handle.write(config_text)
+        return {"name": "main", "provider": "codex", "authHome": auth_home, "launch": {"rtk": True}}
+
+    @staticmethod
+    def _codex_developer_instructions(args):
+        config = next(arg for arg in args if arg.startswith("developer_instructions="))
+        return json.loads(config[len("developer_instructions="):])
+
+    def test_codex_guidance_is_appended_to_configured_developer_instructions(self):
+        if sys.version_info < (3, 11):
+            self.skipTest("reading config.toml needs tomllib")
+        session = self._codex_rtk_session('model = "x"\ndeveloper_instructions = """Mine.\nKeep me."""\n')
+
+        spec = provider_runtime._build_headless_launch_spec(session, cwd="/tmp/repo", initial_prompt="do it")
+
+        instructions = self._codex_developer_instructions(spec["args"])
+        self.assertTrue(instructions.startswith("Mine.\nKeep me.\n\n"))
+        self.assertIn("prefer RTK wrappers", instructions)
+
+    def test_codex_guidance_is_skipped_when_configured_instructions_are_unreadable(self):
+        session = self._codex_rtk_session('developer_instructions = "Mine."\n')
+
+        with mock.patch.dict(sys.modules, {"tomllib": None, "tomli": None}):
+            spec = provider_runtime._build_headless_launch_spec(session, cwd="/tmp/repo", initial_prompt="do it")
+
+        self.assertFalse(any(arg.startswith("developer_instructions=") for arg in spec["args"]))
+        self.assertEqual(spec["args"][-1], "do it")
+
+    def test_codex_guidance_ignores_a_config_without_developer_instructions(self):
+        session = self._codex_rtk_session('model = "x"\n')
+
+        with mock.patch.dict(sys.modules, {"tomllib": None, "tomli": None}):
+            spec = provider_runtime._build_headless_launch_spec(session, cwd="/tmp/repo", initial_prompt="do it")
+
+        instructions = self._codex_developer_instructions(spec["args"])
+        self.assertTrue(instructions.startswith("When running noisy shell commands"))
+
+    def test_antigravity_launch_carries_no_guidance_turn(self):
+        session = {"name": "gemi", "provider": "antigravity", "authHome": "/tmp/agy-home", "launch": {"rtk": True}}
+
+        spec = provider_runtime._build_launch_spec(session, cwd="/tmp/repo")
+
+        self.assertNotIn("--prompt-interactive", spec["fallback"]["args"])
+        self.assertFalse(any("prefer RTK wrappers" in arg for arg in spec["fallback"]["args"]))
+
+    def test_oversized_launch_guidance_is_named_in_the_error(self):
+        session = {"name": "main", "provider": "claude", "authHome": "/tmp/claude-home", "launch": {"rtk": True}}
+
+        with mock.patch.object(provider_runtime, "RTK_PROMPT", "x" * 40000):
+            with self.assertRaisesRegex(CdxError, "launch guidance exceeds"):
+                provider_runtime._build_launch_spec(session, cwd="/tmp/repo")
 
     def test_build_headless_launch_spec_uses_claude_print_json(self):
         session = {

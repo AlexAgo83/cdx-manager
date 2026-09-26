@@ -71,6 +71,15 @@ LAUNCH_FEATURE_ARGS = {
     PROVIDER_OLLAMA: [OLLAMA_USAGE_FLAG],
 }
 
+#: How each provider receives cdx's standing guidance (RTK, logics-manager) as
+#: instructions rather than as a first user message. A provider absent here
+#: gets no guidance. Declared as a table so the provider-flag health check can
+#: verify these options exist in the installed CLI.
+PREFERENCE_INSTRUCTION_ARGS = {
+    PROVIDER_CLAUDE: ["--append-system-prompt"],
+    PROVIDER_CODEX: ["-c"],
+}
+
 LAUNCH_PERMISSION_ARGS = {
     PROVIDER_CLAUDE: {
         "review": ["--permission-mode", "plan"],
@@ -575,19 +584,71 @@ def _logics_enabled(session, env=None):
     return _logics_manager_available(path=env.get("PATH"))
 
 
-def _with_launch_preferences(session, initial_prompt=None, env=None):
-    if session["provider"] == PROVIDER_OLLAMA:
-        return initial_prompt
+def _launch_preferences(session, env=None):
+    """The standing guidance cdx adds to a session, or None.
+
+    It goes to the provider as instructions, never as the conversation's
+    first message: a positional prompt is submitted as a user turn, so a bare
+    `cdx <session>` used to open with guidance the user never typed and a
+    model reply to it. Ollama has no instruction channel and gets none;
+    Antigravity has none either (`--prompt-interactive` is a user turn).
+    """
+    if session["provider"] not in PREFERENCE_INSTRUCTION_ARGS:
+        return None
     prompts = []
     if _rtk_enabled(session):
         prompts.append(RTK_PROMPT)
     if _logics_enabled(session, env=env):
         prompts.append(LOGICS_PROMPT)
-    if not prompts:
-        return initial_prompt
-    if initial_prompt:
-        prompts.append(initial_prompt)
-    return "\n\n".join(prompts)
+    return "\n\n".join(prompts) or None
+
+
+def _codex_configured_developer_instructions(auth_home):
+    """(readable, value) for `developer_instructions` in the profile's config.
+
+    A `-c developer_instructions=...` override replaces the configured value
+    outright, so cdx has to know it to append rather than erase it. `readable`
+    is False only when the key is present but cannot be parsed (no TOML reader
+    on Python < 3.11 without tomli): the caller then leaves it alone.
+    """
+    try:
+        with open(os.path.join(auth_home, "config.toml"), encoding="utf-8") as handle:
+            text = handle.read()
+    except OSError:
+        return True, None
+    if "developer_instructions" not in text:
+        return True, None
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib
+        except ImportError:
+            return False, None
+    try:
+        value = tomllib.loads(text).get("developer_instructions")
+    except ValueError:
+        # Codex refuses an unparsable config itself; there is nothing to keep.
+        return True, None
+    return True, value if isinstance(value, str) and value.strip() else None
+
+
+def _launch_preference_args(session, env=None):
+    preferences = _launch_preferences(session, env=env)
+    _validate_initial_prompt(preferences, label="launch guidance")
+    if not preferences:
+        return []
+    if session["provider"] == PROVIDER_CLAUDE:
+        return ["--append-system-prompt", preferences]
+    readable, configured = _codex_configured_developer_instructions(_get_auth_home(session))
+    if not readable:
+        # Better to go without cdx's guidance than to erase the user's own.
+        return []
+    if configured:
+        preferences = f"{configured.rstrip()}\n\n{preferences}"
+    # json.dumps yields a valid TOML basic string, which is how codex parses
+    # a `-c` value.
+    return ["-c", f"developer_instructions={json.dumps(preferences)}"]
 
 
 def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None, capture_transcript=True):
@@ -598,8 +659,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     for key, value in _shared_tool_cache_overrides(env).items():
         env.setdefault(key, value)
     env.update(launch_notify_env(session, notifications_enabled(session)))
-    initial_prompt = _with_launch_preferences(session, initial_prompt, env=env)
-    _validate_initial_prompt(initial_prompt)
+    preference_args = _launch_preference_args(session, env=env)
     if session["provider"] == PROVIDER_CLAUDE:
         launch = session.get("launch") or {}
         args = ["--name", session["name"]]
@@ -609,6 +669,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
         if launch.get("model"):
             args += ["--model", _claude_cli_model(launch["model"])]
         args += _launch_config_args(session)
+        args += preference_args
         args += _extra_args(session)
         if initial_prompt:
             args.append(initial_prompt)
@@ -665,6 +726,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     if launch.get("model"):
         args += ["--model", launch["model"]]
     args += _launch_config_args(session)
+    args += preference_args
     if initial_prompt:
         args.append(initial_prompt)
     return _wrap_launch_with_transcript(session, {
@@ -772,8 +834,7 @@ def _build_resume_spec(session, cwd=None, env_override=None, capture_transcript=
     if not capability["resumable"]:
         raise CdxError(f"Provider {session.get('provider')} does not support native resume through cdx.")
 
-    resume_prompt = _with_launch_preferences(session, env=env)
-    _validate_initial_prompt(resume_prompt)
+    preference_args = _launch_preference_args(session, env=env)
 
     if session["provider"] == PROVIDER_CLAUDE:
         launch = session.get("launch") or {}
@@ -792,9 +853,8 @@ def _build_resume_spec(session, cwd=None, env_override=None, capture_transcript=
         if launch.get("model"):
             args += ["--model", _claude_cli_model(launch["model"])]
         args += _launch_config_args(session)
+        args += preference_args
         args += _extra_args(session)
-        if resume_prompt:
-            args.append(resume_prompt)
         auth_home = _get_auth_home(session)
         claude_env = _claude_env(env, auth_home, own_terminal_title=True)
         oauth_token = _read_claude_launch_oauth_token(auth_home)
@@ -822,9 +882,8 @@ def _build_resume_spec(session, cwd=None, env_override=None, capture_transcript=
     if launch.get("model"):
         args += ["--model", launch["model"]]
     args += _launch_config_args(session)
+    args += preference_args
     args += _extra_args(session)
-    if resume_prompt:
-        args.append(resume_prompt)
     return _wrap_launch_with_transcript(session, {
         "command": "codex",
         "args": args,
@@ -835,12 +894,12 @@ def _build_resume_spec(session, cwd=None, env_override=None, capture_transcript=
     }, capture_transcript=capture_transcript, env=env)
 
 
-def _validate_initial_prompt(initial_prompt):
+def _validate_initial_prompt(initial_prompt, label="initial_prompt"):
     if initial_prompt is not None:
         if not isinstance(initial_prompt, str):
-            raise CdxError("initial_prompt must be a string.")
+            raise CdxError(f"{label} must be a string.")
         if len(initial_prompt) > 32768:
-            raise CdxError("initial_prompt exceeds maximum allowed length.")
+            raise CdxError(f"{label} exceeds maximum allowed length.")
 
 
 def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_prompt=None):
@@ -850,8 +909,7 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
     # Headless runs read the same home, and so the same hooks, as an interactive
     # launch. Their caller already learns of completion from the return value.
     env.update(launch_notify_env(session, enabled=False))
-    initial_prompt = _with_launch_preferences(session, initial_prompt, env=env)
-    _validate_initial_prompt(initial_prompt)
+    preference_args = _launch_preference_args(session, env=env)
     launch = session.get("launch") or {}
     power = _launch_power(session)
     permission = launch.get("permission")
@@ -872,6 +930,7 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
         if launch.get("fallback_model"):
             args += ["--fallback-model", _claude_fallback_model(launch["fallback_model"])]
         args += _launch_config_args(session)
+        args += preference_args
         args += _extra_args(session)
         if initial_prompt:
             args.append(initial_prompt)
@@ -897,6 +956,7 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
         args += _codex_fast_config_args(launch)
         if permission:
             args += HEADLESS_CODEX_PERMISSION_ARGS.get(permission, [])
+        args += preference_args
         if initial_prompt:
             args.append(initial_prompt)
         return {

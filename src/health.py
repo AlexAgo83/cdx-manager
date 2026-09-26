@@ -14,6 +14,7 @@ from .provider_runtime import (
     HEADLESS_CODEX_PERMISSION_ARGS,
     LAUNCH_FEATURE_ARGS,
     LAUNCH_PERMISSION_ARGS,
+    PREFERENCE_INSTRUCTION_ARGS,
     codex_auth_diagnostic,
 )
 from .status_source import _extract_account_identity
@@ -195,6 +196,8 @@ def _mapped_provider_flags(provider):
     for flag in LAUNCH_FEATURE_ARGS.get(provider, []):
         if flag.startswith("-"):
             mappings.setdefault("cdx feature flags", set()).add(flag)
+    for flag in PREFERENCE_INSTRUCTION_ARGS.get(provider, []):
+        mappings.setdefault("cdx feature flags", set()).add(flag)
     for permission, args in interactive.items():
         mappings.setdefault(permission, set()).update(
             arg for arg in args if arg.startswith("-")
