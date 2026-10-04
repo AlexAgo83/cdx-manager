@@ -8,7 +8,7 @@
 > Complexity: Medium
 > Theme: Handoff identity
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:34:02
+> Indicators reviewed: 2026-10-04 17:38:53
 
 # AI Context
 - Summary: req_079 finding 1: duplicate IDs select the first filesystem match; the interactive chooser discards its chosen path and re-resolves only the ID.
@@ -70,3 +70,4 @@
 - Recorded or explicit conversation IDs are matched against all eligible native files. Duplicate matches return their exact paths and require an exact native selector or interactive choice. Interactive selection rechecks the selected file's digest and byte extent before preparing the pointer.
 - `--source-native-transcript` validates top-level profile ownership and workspace separately from degraded terminal selection. Existing pointer integrity and no-launch checks remain in the handoff suite.
 - Regressions: `test_duplicate_native_identity_requires_exact_path`, `test_interactive_duplicate_choice_preserves_selected_file`, and `test_exact_native_path_cli_prepares_selected_source`.
+- `test_changed_interactive_choice_does_not_prepare_or_launch` verifies that a source changed between display and selection leaves the prepared pointer absent and never launches the target.

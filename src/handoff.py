@@ -161,7 +161,10 @@ def resolve_source(session, workspace, conversation_id=None, terminal_path=None,
         allowed = {os.path.realpath(p) for p in paths}
         if path not in allowed:
             raise HandoffSourceError('Native transcript must be a top-level source file in the source profile.')
-        info = inspect_transcript(path, session['provider'])
+        try:
+            info = inspect_transcript(path, session['provider'])
+        except CdxError as error:
+            raise HandoffSourceError(str(error)) from error
         if info['workspace'] != workspace:
             raise HandoffSourceError('Native transcript workspace does not match the target workspace.')
         info['provenance'] = 'explicit_native_path'

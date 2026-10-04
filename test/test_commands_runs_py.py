@@ -1538,6 +1538,10 @@ class RunsCommandTests(CliTestBase):
         self.assertEqual(first[0]["run_id"], second[0]["run_id"])
         self.assertEqual(first[0]["usage_model"], "gpt-6-sol")
         self.assertEqual(second[0]["usage_model"], "gpt-6-luna")
+        from src.commands.status import _stats_totals, _summarize_stats
+        totals = _stats_totals(_summarize_stats([*first, *second]))
+        self.assertEqual((totals["input_tokens"], totals["output_tokens"]), (300, 30))
+        self.assertEqual((totals["launches"], totals["priced_runs"]), (2, 2))
 
     def test_failover_reports_exhausting_every_account_distinctly(self):
         target_dir = self.make_temp_dir()

@@ -536,6 +536,8 @@ class StatusCommandTests(CliTestBase):
         self.assertEqual(rows["personal"]["usage_runs"], 0)
         self.assertEqual(payload["totals"]["total_tokens"], 0)
         self.assertEqual(payload["totals"]["unvouched_runs"], 2)
+        self.assertEqual(payload["accounting"]["launches_unit"], "history_attempts")
+        self.assertEqual(payload["accounting"]["period_policy"], "whole_run_overlap")
 
         service["start_session_runtime"]("work", {"pid": os.getpid()})
 

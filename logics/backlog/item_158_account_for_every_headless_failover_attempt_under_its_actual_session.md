@@ -8,7 +8,7 @@
 > Complexity: High
 > Theme: Usage attribution
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:33:12
+> Indicators reviewed: 2026-10-04 17:38:53
 
 # AI Context
 - Summary: req_078 finding 1: the loop overwrites run_info and records final-attempt usage under the original session.
@@ -66,3 +66,4 @@
 # Implementation evidence
 - Each blocking headless attempt writes one history row with its actual session, run ID, attempt number, outcome, duration and usage before failover advances. The registry remains one logical run. Provider launch exceptions with run information also write one failed attempt.
 - `test_failover_continues_the_task_on_the_next_account` verifies A=100/10 and B=200/20 in separate session histories with one shared run ID and registry entry.
+- The same regression aggregates both histories to 300 input and 30 output tokens, two launch attempts and two priced model observations.

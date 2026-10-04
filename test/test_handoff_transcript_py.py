@@ -293,6 +293,21 @@ def test_interactive_duplicate_choice_preserves_selected_file(command_context, t
     assert entry['transcript']['path'] == str(first)
 
 
+def test_changed_interactive_choice_does_not_prepare_or_launch(command_context, tmp_path):
+    command, ctx, _output, launches, source, target, path = command_context
+    source.pop('conversation')
+    ctx['stdin_is_tty'] = True
+    def change_then_choose(_prompt):
+        with path.open('a') as handle:
+            handle.write(json.dumps({'type': 'assistant', 'message': {'role': 'assistant'}}) + '\n')
+        return '1'
+    ctx['options']['input'] = change_then_choose
+    with pytest.raises(CdxError, match='changed during selection'):
+        command([source['name'], target['name']], ctx)
+    assert not launches
+    assert load_entry(str(tmp_path), target, str(tmp_path)) is None
+
+
 @pytest.mark.parametrize('args', [[], ['one', 'two', 'three'], ['one', '--source-conversation', ID],
                                  ['one', 'two', '--source-conversation'], ['one', 'two', '--bad'],
                                  ['one', 'two', '--source-conversation', ID, '--source-transcript', 'path']])
