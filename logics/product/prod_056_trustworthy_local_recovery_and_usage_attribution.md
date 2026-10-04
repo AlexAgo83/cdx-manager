@@ -1,11 +1,12 @@
 ## prod_056_trustworthy_local_recovery_and_usage_attribution - Trustworthy local recovery and usage attribution
 > Date: 2026-10-04
-> Status: Proposed
+> Status: Settled
 > Related request: `req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery`
-> Related backlog: `item_156_preserve_live_profiles_on_early_force_import_credential_failures`, `item_157_serialize_memory_appends_across_independent_cli_processes`, `item_158_account_for_every_headless_failover_attempt_under_its_actual_session`, `item_159_measure_interactive_usage_at_real_launch_boundaries_without_a_history_cap`, `item_160_validate_custom_token_rates_and_support_undefined_relative_weights`, `item_161_persist_observed_model_attribution_for_headless_usage_pricing`, `item_162_clarify_stats_period_and_cost_contracts_and_remove_duplicate_finalization`, `item_163_bind_handoff_selection_to_one_exact_native_source_file`, `item_164_treat_profile_paths_literally_in_native_and_terminal_transcript_discovery`
+> Related backlog: `item_156_preserve_live_profiles_on_early_force_import_credential_failures`
 > Related task: `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-10-04 17:41:51
 
 # Overview
 Keep accepted local changes recoverable, account for usage at the correct execution boundaries, and recover work from exactly the selected source evidence.
@@ -63,5 +64,5 @@ flowchart TD
 - No product decision blocks starting the chain. Exact additive JSON field names and internal lock helper choice remain bounded implementation details, constrained by the contracts above.
 
 # References
-- Product back-reference: `req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery`
+- Product back-reference: `item_156_preserve_live_profiles_on_early_force_import_credential_failures`
 - Task back-reference: `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff`

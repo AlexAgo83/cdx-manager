@@ -1,14 +1,14 @@
 ## item_156_preserve_live_profiles_on_early_force_import_credential_failures - Preserve live profiles on early force import credential failures
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 85%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Profile recovery
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:17:36
+> Indicators reviewed: 2026-10-04 17:41:51
 
 # AI Context
 - Summary: req_077 finding 1: src/session_backup.py moves the live profile before a fallible keychain read outside rollback protection. A refusal leaves the registered live path absent.
@@ -33,9 +33,11 @@
 - AC3: Failure diagnostics preserve actionable recovery information and contain no credential values.
 
 # AC Traceability
-- request-AC1 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC11 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC12 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
+- request-AC1 -> This backlog slice. Proof: Implemented in `947fafe`; `test_early_force_import_keychain_denial_preserves_live_profile` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC11 -> This backlog slice. Proof: Implemented in `947fafe`; `test_early_force_import_keychain_denial_preserves_live_profile` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC12 -> This backlog slice. Proof: Implemented in `947fafe`; `test_early_force_import_keychain_denial_preserves_live_profile` passed in the 1076-test Python suite. See Implementation evidence below.
+
+> Shared proof: AC1, AC11, AC12
 
 # Decision framing
 - Product framing: Covered by the linked shared brief; this slice changes a user-visible reliability or reporting guarantee.
@@ -66,3 +68,9 @@
 - The live Claude credential is read before a forced profile move. A denied read now leaves the profile sentinel, record, state and credential unchanged.
 - Regression: `test_early_force_import_keychain_denial_preserves_live_profile`; existing late rollback and incomplete-recovery tests remain in the same focused run.
 - Wave 1 focused run: `node bin/python-runner.js -m pytest -q test/test_profile_data_safety_py.py test/test_commands_backup_py.py` — 37 passed.
+
+# Tasks
+- `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff`
+
+# Notes
+- Task `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff` was finished via `logics-manager flow finish task` on 2026-10-04.

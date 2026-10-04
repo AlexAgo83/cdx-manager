@@ -1,14 +1,14 @@
 ## item_158_account_for_every_headless_failover_attempt_under_its_actual_session - Account for every headless failover attempt under its actual session
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 85%
+> Progress: 100%
 > Complexity: High
 > Theme: Usage attribution
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:38:53
+> Indicators reviewed: 2026-10-04 17:41:51
 
 # AI Context
 - Summary: req_078 finding 1: the loop overwrites run_info and records final-attempt usage under the original session.
@@ -34,9 +34,11 @@
 - AC3: Existing non-failover and registry occupancy contracts stay intact.
 
 # AC Traceability
-- request-AC3 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC11 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC12 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
+- request-AC3 -> This backlog slice. Proof: Implemented in `0b34fb3`; `test_failover_continues_the_task_on_the_next_account` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC11 -> This backlog slice. Proof: Implemented in `0b34fb3`; `test_failover_continues_the_task_on_the_next_account` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC12 -> This backlog slice. Proof: Implemented in `0b34fb3`; `test_failover_continues_the_task_on_the_next_account` passed in the 1076-test Python suite. See Implementation evidence below.
+
+> Shared proof: AC3, AC11, AC12
 
 # Decision framing
 - Product framing: Covered by the linked shared brief; this slice changes a user-visible reliability or reporting guarantee.
@@ -67,3 +69,9 @@
 - Each blocking headless attempt writes one history row with its actual session, run ID, attempt number, outcome, duration and usage before failover advances. The registry remains one logical run. Provider launch exceptions with run information also write one failed attempt.
 - `test_failover_continues_the_task_on_the_next_account` verifies A=100/10 and B=200/20 in separate session histories with one shared run ID and registry entry.
 - The same regression aggregates both histories to 300 input and 30 output tokens, two launch attempts and two priced model observations.
+
+# Tasks
+- `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff`
+
+# Notes
+- Task `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff` was finished via `logics-manager flow finish task` on 2026-10-04.

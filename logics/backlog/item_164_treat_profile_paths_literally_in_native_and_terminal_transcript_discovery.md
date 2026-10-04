@@ -1,14 +1,14 @@
 ## item_164_treat_profile_paths_literally_in_native_and_terminal_transcript_discovery - Treat profile paths literally in native and terminal transcript discovery
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 85%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Filesystem portability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:34:02
+> Indicators reviewed: 2026-10-04 17:41:51
 
 # AI Context
 - Summary: req_079 finding 2: authHome is embedded unescaped in glob patterns, so literal brackets hide valid transcripts. The timestamped terminal fallback uses the same pattern construction.
@@ -34,10 +34,12 @@
 - AC3: Metacharacter handling does not admit outside paths, nested subagents or unrelated workspace transcripts.
 
 # AC Traceability
-- request-AC9 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC10 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC11 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC12 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
+- request-AC9 -> This backlog slice. Proof: Implemented in `0b34fb3`; `test_literal_profile_path_discovers_native_source` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC10 -> This backlog slice. Proof: Implemented in `0b34fb3`; `test_literal_profile_path_discovers_native_source` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC11 -> This backlog slice. Proof: Implemented in `0b34fb3`; `test_literal_profile_path_discovers_native_source` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC12 -> This backlog slice. Proof: Implemented in `0b34fb3`; `test_literal_profile_path_discovers_native_source` passed in the 1076-test Python suite. See Implementation evidence below.
+
+> Shared proof: AC9, AC10, AC11, AC12
 
 # Decision framing
 - Product framing: Covered by the linked shared brief; this slice changes a user-visible reliability or reporting guarantee.
@@ -67,3 +69,9 @@
 # Implementation evidence
 - Native and terminal discovery escape literal profile prefixes before adding glob wildcards. Native discovery also excludes symlink targets outside the source profile and retains existing subagent exclusions.
 - `test_literal_profile_path_discovers_native_source` covers Codex and Claude under `profiles[team]`; `test_literal_profile_path_accepts_owned_terminal_capture` covers timestamped terminal fallback; the exact-path test rejects out-of-profile symlinks.
+
+# Tasks
+- `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff`
+
+# Notes
+- Task `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff` was finished via `logics-manager flow finish task` on 2026-10-04.

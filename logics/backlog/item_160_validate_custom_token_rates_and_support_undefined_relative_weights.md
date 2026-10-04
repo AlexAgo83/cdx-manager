@@ -1,14 +1,14 @@
 ## item_160_validate_custom_token_rates_and_support_undefined_relative_weights - Validate custom token rates and support undefined relative weights
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 85%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Pricing robustness
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:33:12
+> Indicators reviewed: 2026-10-04 17:41:51
 
 # AI Context
 - Summary: req_078 finding 3: zero, nonnumeric, negative and nonfinite overrides are not handled consistently; weighted ratios divide by input price.
@@ -34,9 +34,11 @@
 - AC3: Valid existing default and override computations remain numerically unchanged.
 
 # AC Traceability
-- request-AC5 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC11 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC12 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
+- request-AC5 -> This backlog slice. Proof: Implemented in `0b34fb3`; `test_zero_input_price_keeps_currency_but_not_undefined_weights` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC11 -> This backlog slice. Proof: Implemented in `0b34fb3`; `test_zero_input_price_keeps_currency_but_not_undefined_weights` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC12 -> This backlog slice. Proof: Implemented in `0b34fb3`; `test_zero_input_price_keeps_currency_but_not_undefined_weights` passed in the 1076-test Python suite. See Implementation evidence below.
+
+> Shared proof: AC5, AC11, AC12
 
 # Decision framing
 - Product framing: Covered by the linked shared brief; this slice changes a user-visible reliability or reporting guarantee.
@@ -66,3 +68,9 @@
 # Implementation evidence
 - `CDX_TOKEN_PRICES` now rejects malformed JSON, missing fields and nonnumeric, negative or nonfinite rates with a named error. A zero input price retains direct USD pricing while undefined relative weights are excluded from `COST~` and counted as uncovered.
 - `test_invalid_override_rates_fail_actionably` and `test_zero_input_price_keeps_currency_but_not_undefined_weights` cover the boundaries.
+
+# Tasks
+- `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff`
+
+# Notes
+- Task `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff` was finished via `logics-manager flow finish task` on 2026-10-04.

@@ -1,14 +1,14 @@
 ## item_157_serialize_memory_appends_across_independent_cli_processes - Serialize memory appends across independent CLI processes
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 85%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Memory integrity
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:17:36
+> Indicators reviewed: 2026-10-04 17:41:51
 
 # AI Context
 - Summary: req_077 finding 2: process-local threading locks allow two successful CLI writers to replace one another's notes.
@@ -33,9 +33,11 @@
 - AC3: POSIX and Windows locking paths are covered by platform-appropriate checks; no timing-only flaky assertion.
 
 # AC Traceability
-- request-AC2 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC11 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC12 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
+- request-AC2 -> This backlog slice. Proof: Implemented in `947fafe`; `test_independent_processes_keep_every_accepted_note` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC11 -> This backlog slice. Proof: Implemented in `947fafe`; `test_independent_processes_keep_every_accepted_note` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC12 -> This backlog slice. Proof: Implemented in `947fafe`; `test_independent_processes_keep_every_accepted_note` passed in the 1076-test Python suite. See Implementation evidence below.
+
+> Shared proof: AC2, AC11, AC12
 
 # Decision framing
 - Product framing: Covered by the linked shared brief; this slice changes a user-visible reliability or reporting guarantee.
@@ -66,3 +68,9 @@
 - Memory appends now hold a stable sidecar file lock across read, modify and atomic replacement. The existing registry lock primitive supplies bounded POSIX and Windows acquisition; a thread lock continues to serialize same-process writers.
 - Regressions: `test_independent_processes_keep_every_accepted_note` uses two child processes, and `test_append_lock_failure_never_reports_success_or_changes_memory` checks the failure boundary.
 - Wave 1 focused run: `node bin/python-runner.js -m pytest -q test/test_context_store_py.py test/test_commands_context_memory_py.py test/test_run_registry_py.py test/test_profile_data_safety_py.py test/test_commands_backup_py.py` — 68 passed. Native Windows execution remains for platform validation.
+
+# Tasks
+- `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff`
+
+# Notes
+- Task `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff` was finished via `logics-manager flow finish task` on 2026-10-04.

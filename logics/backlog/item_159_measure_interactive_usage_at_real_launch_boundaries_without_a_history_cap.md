@@ -1,14 +1,14 @@
 ## item_159_measure_interactive_usage_at_real_launch_boundaries_without_a_history_cap - Measure interactive usage at real launch boundaries without a history cap
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 85%
+> Progress: 100%
 > Complexity: High
 > Theme: Usage measurement
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:37:04
+> Indicators reviewed: 2026-10-04 17:41:51
 
 # AI Context
 - Summary: req_078 finding 2: previous end snapshots include intervening unmanaged activity; callers also supply only the last 50 history rows.
@@ -35,9 +35,11 @@
 - AC4: Existing sequential resume, identity, normalization and shrink regressions pass.
 
 # AC Traceability
-- request-AC4 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC11 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC12 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
+- request-AC4 -> This backlog slice. Proof: Implemented in `7581e17`; `test_launch_boundary_excludes_intervening_transcript_growth` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC11 -> This backlog slice. Proof: Implemented in `7581e17`; `test_launch_boundary_excludes_intervening_transcript_growth` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC12 -> This backlog slice. Proof: Implemented in `7581e17`; `test_launch_boundary_excludes_intervening_transcript_growth` passed in the 1076-test Python suite. See Implementation evidence below.
+
+> Shared proof: AC4, AC11, AC12
 
 # Decision framing
 - Product framing: Covered by the linked shared brief; this slice changes a user-visible reliability or reporting guarantee.
@@ -68,3 +70,9 @@
 - Native cumulative usage is sampled before launch for a known conversation identity, then differenced at exit. A newly created transcript can use its own total; an existing unmatched transcript is marked uncertain and remains unmeasured. History lookup no longer stops at 50 rows.
 - `test_launch_boundary_excludes_intervening_transcript_growth` verifies that 50 intervening tokens are excluded from a 20-token run. `test_prior_cumulative_beyond_fifty_history_rows_is_found` covers the old lookup cap.
 - A detected second live runtime on the same session marks attribution `overlapping_session` and leaves usage absent; `test_overlapping_session_leaves_usage_unattributed` covers that boundary.
+
+# Tasks
+- `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff`
+
+# Notes
+- Task `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff` was finished via `logics-manager flow finish task` on 2026-10-04.

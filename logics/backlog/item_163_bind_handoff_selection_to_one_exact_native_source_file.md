@@ -1,14 +1,14 @@
 ## item_163_bind_handoff_selection_to_one_exact_native_source_file - Bind handoff selection to one exact native source file
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 85%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Handoff identity
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:38:53
+> Indicators reviewed: 2026-10-04 17:41:51
 
 # AI Context
 - Summary: req_079 finding 1: duplicate IDs select the first filesystem match; the interactive chooser discards its chosen path and re-resolves only the ID.
@@ -36,10 +36,12 @@
 - AC4: Reuse still refuses changed/truncated/deleted source bytes, tolerates append beyond extent, and retains instruction-first recovery wording.
 
 # AC Traceability
-- request-AC8 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC10 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC11 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC12 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
+- request-AC8 -> This backlog slice. Proof: Implemented in `9bfd7cc`; `test_changed_interactive_choice_does_not_prepare_or_launch` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC10 -> This backlog slice. Proof: Implemented in `9bfd7cc`; `test_changed_interactive_choice_does_not_prepare_or_launch` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC11 -> This backlog slice. Proof: Implemented in `9bfd7cc`; `test_changed_interactive_choice_does_not_prepare_or_launch` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC12 -> This backlog slice. Proof: Implemented in `9bfd7cc`; `test_changed_interactive_choice_does_not_prepare_or_launch` passed in the 1076-test Python suite. See Implementation evidence below.
+
+> Shared proof: AC8, AC10, AC11, AC12
 
 # Decision framing
 - Product framing: Covered by the linked shared brief; this slice changes a user-visible reliability or reporting guarantee.
@@ -71,3 +73,9 @@
 - `--source-native-transcript` validates top-level profile ownership and workspace separately from degraded terminal selection. Existing pointer integrity and no-launch checks remain in the handoff suite.
 - Regressions: `test_duplicate_native_identity_requires_exact_path`, `test_interactive_duplicate_choice_preserves_selected_file`, and `test_exact_native_path_cli_prepares_selected_source`.
 - `test_changed_interactive_choice_does_not_prepare_or_launch` verifies that a source changed between display and selection leaves the prepared pointer absent and never launches the target.
+
+# Tasks
+- `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff`
+
+# Notes
+- Task `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff` was finished via `logics-manager flow finish task` on 2026-10-04.

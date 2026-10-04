@@ -1,14 +1,14 @@
 ## item_161_persist_observed_model_attribution_for_headless_usage_pricing - Persist observed model attribution for headless usage pricing
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 85%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Headless observability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:33:13
+> Indicators reviewed: 2026-10-04 17:41:51
 
 # AI Context
 - Summary: req_078 secondary observation: headless usage is stored without usage_model, leaving supported usage unpriced even when serving-model evidence is available.
@@ -34,10 +34,12 @@
 - AC3: Model data and usage remain paired to their actual failover attempt, including failures with usage.
 
 # AC Traceability
-- request-AC6 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC3 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC11 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
-- request-AC12 -> This backlog slice. Proof deferred to implementation closeout; record the concrete regression and command result.
+- request-AC6 -> This backlog slice. Proof: Implemented in `0b34fb3`; `test_headless_model_must_be_observed_and_unmixed` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC3 -> This backlog slice. Proof: Implemented in `0b34fb3`; `test_headless_model_must_be_observed_and_unmixed` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC11 -> This backlog slice. Proof: Implemented in `0b34fb3`; `test_headless_model_must_be_observed_and_unmixed` passed in the 1076-test Python suite. See Implementation evidence below.
+- request-AC12 -> This backlog slice. Proof: Implemented in `0b34fb3`; `test_headless_model_must_be_observed_and_unmixed` passed in the 1076-test Python suite. See Implementation evidence below.
+
+> Shared proof: AC6, AC3, AC11, AC12
 
 # Decision framing
 - Product framing: Covered by the linked shared brief; this slice changes a user-visible reliability or reporting guarantee.
@@ -67,3 +69,9 @@
 # Implementation evidence
 - Blocking headless output and delegated Claude transcript closeout now carry a serving model only when one model is observed alongside usage. Mixed or missing observed models remain unpriced; configured requested model is not used as evidence.
 - The failover regression verifies per-attempt models; `test_headless_model_must_be_observed_and_unmixed` and `test_model_attribution_requires_one_observed_model` cover missing and mixed reports.
+
+# Tasks
+- `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff`
+
+# Notes
+- Task `task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff` was finished via `logics-manager flow finish task` on 2026-10-04.
