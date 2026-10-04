@@ -6,13 +6,14 @@ Prepared locally on 2026-10-04. The checked-in release notes are `changelogs/CHA
 
 - Recovery and persistence hardening across force imports, concurrent appends, failover accounting, interactive usage, model pricing, and exact handoff source selection.
 - Version metadata and README badge aligned to 0.21.0.
+- The README now presents the product briefly; detailed guidance lives in linked `docs/` guides included in the npm package.
 - Corrected the existing v0.20.14 GitHub release title to **CDX Manager 0.20.14** so the release list follows the established naming pattern.
 
 ## Local receipts
 
 - `rtk npm test`: 1076 passed.
 - `rtk npm run lint`, `logics-manager lint --require-status`, `logics-manager audit --group-by-doc`, and `git diff --check`: passed.
-- `npm --cache /private/tmp/cdx-npm-cache pack --dry-run --json`: 173 files, including `VERSION` and the 0.21.0 changelog.
+- `npm --cache /private/tmp/cdx-npm-cache pack --dry-run --json`: 185 files after the docs split, including `VERSION`, the 0.21.0 changelog, and the new guides.
 - `python3 -m build --outdir /tmp/cdx-0.21.0-dist`: sdist and wheel built; `python3 -m twine check` passed for both.
 - `npm run release:validate`: version declarations agree. It reports no 0.21.0 checksum entry yet, as expected before publication; this is not checksum proof.
 - The v0.20.14 GitHub release title was corrected and verified as **CDX Manager 0.20.14**.

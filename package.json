@@ -30,6 +30,7 @@
     "!bin/**/*.pyc",
     "checksums",
     "changelogs",
+    "docs",
     "src",
     "!src/**/__pycache__",
     "!src/**/*.pyc",

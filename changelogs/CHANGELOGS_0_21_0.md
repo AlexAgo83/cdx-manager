@@ -8,6 +8,10 @@
 - Bind handoff recovery to one exact native source file, improve native and terminal transcript discovery, and remove duplicate finalization paths.
 - Add regression coverage for persistence, failover totals, usage boundaries, and handoff source selection.
 
+## Documentation
+
+- Turn the README into a short product overview and move detailed setup, feature, CLI, operation, and technical guidance into linked guides shipped with the npm package.
+
 ## Validation
 
 - Python tests, project lint, Logics lint/audit, npm package inspection, and Python package build and metadata checks are part of release preparation. Publication and version-specific checksum verification remain separate release gates.
