@@ -1,0 +1,475 @@
+{
+  "budgets": {
+    "max_docs": 16,
+    "max_docs_per_ref": 8
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff --mode summary-only --profile deep --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_156_preserve_live_profiles_on_early_force_import_credential_failures",
+          "item_157_serialize_memory_appends_across_independent_cli_processes",
+          "item_158_account_for_every_headless_failover_attempt_under_its_actual_session",
+          "item_159_measure_interactive_usage_at_real_launch_boundaries_without_a_history_cap",
+          "item_160_validate_custom_token_rates_and_support_undefined_relative_weights",
+          "item_161_persist_observed_model_attribution_for_headless_usage_pricing",
+          "item_162_clarify_stats_period_and_cost_contracts_and_remove_duplicate_finalization",
+          "item_163_bind_handoff_selection_to_one_exact_native_source_file",
+          "item_164_treat_profile_paths_literally_in_native_and_terminal_transcript_discovery"
+        ],
+        "prod": [
+          "prod_056_trustworthy_local_recovery_and_usage_attribution"
+        ],
+        "req": [
+          "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery"
+        ],
+        "task": [
+          "task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff"
+        ]
+      },
+      "path": "logics/product/prod_056_trustworthy_local_recovery_and_usage_attribution.md",
+      "ref": "prod_056_trustworthy_local_recovery_and_usage_attribution",
+      "status": "Proposed",
+      "title": "Trustworthy local recovery and usage attribution"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "harden, reviewed, data, integrity, stats, accounting, handoff, recovery",
+        "skip when": "Adding worktree management, new providers, billing reconstruction or live telemetry.",
+        "summary": "Consolidates seven reproduced defects and secondary coverage gaps from three audits into nine ordered implementation slices; preserves intentional reporting and handoff limits.",
+        "use when": "Delivering profile/memory integrity, stats attribution or exact-source handoff corrections from the October review."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_156_preserve_live_profiles_on_early_force_import_credential_failures",
+          "item_157_serialize_memory_appends_across_independent_cli_processes",
+          "item_158_account_for_every_headless_failover_attempt_under_its_actual_session",
+          "item_159_measure_interactive_usage_at_real_launch_boundaries_without_a_history_cap",
+          "item_160_validate_custom_token_rates_and_support_undefined_relative_weights",
+          "item_161_persist_observed_model_attribution_for_headless_usage_pricing",
+          "item_162_clarify_stats_period_and_cost_contracts_and_remove_duplicate_finalization",
+          "item_163_bind_handoff_selection_to_one_exact_native_source_file",
+          "item_164_treat_profile_paths_literally_in_native_and_terminal_transcript_discovery"
+        ],
+        "prod": [
+          "prod_056_trustworthy_local_recovery_and_usage_attribution"
+        ],
+        "req": [
+          "req_077_review_findings_cross_process_memory_writes_and_early_import_recovery",
+          "req_078_review_findings_stats_attribution_and_pricing_input_validation",
+          "req_079_review_findings_handoff_source_ambiguity_and_literal_profile_paths",
+          "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery"
+        ]
+      },
+      "path": "logics/request/req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery.md",
+      "ref": "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery",
+      "schema_version": "1.0",
+      "status": "Ready",
+      "title": "Harden reviewed data integrity, stats accounting and handoff recovery"
+    },
+    {
+      "ai_context": {
+        "keywords": "audit, memory, multiprocessing, append, force import, keychain, rollback",
+        "skip when": "Changing provider features, pricing, or tray presentation.",
+        "summary": "Two reproduced residual data-integrity defects remain after earlier hardening: memory append locks cover threads but not CLI processes, and a force import moves the live profile before a keychain read outside rollback protection.",
+        "use when": "Assessing follow-up work on accepted memory writes or failed backup imports."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "req": [
+          "req_077_review_findings_cross_process_memory_writes_and_early_import_recovery",
+          "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery"
+        ]
+      },
+      "path": "logics/request/req_077_review_findings_cross_process_memory_writes_and_early_import_recovery.md",
+      "ref": "req_077_review_findings_cross_process_memory_writes_and_early_import_recovery",
+      "schema_version": "1.0",
+      "status": "Obsolete",
+      "title": "Review findings: cross-process memory writes and early import recovery"
+    },
+    {
+      "ai_context": {
+        "keywords": "stats, usage, failover, baseline, pricing, audit",
+        "skip when": "Changing live quota percentages or provider authentication.",
+        "summary": "Stats accounting has reproduced gaps in failover attribution, interactive run boundaries, and custom price validation; core normalization and sequential-resume tests pass.",
+        "use when": "Assessing correctness of per-session token totals and estimated costs."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "req": [
+          "req_078_review_findings_stats_attribution_and_pricing_input_validation",
+          "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery"
+        ]
+      },
+      "path": "logics/request/req_078_review_findings_stats_attribution_and_pricing_input_validation.md",
+      "ref": "req_078_review_findings_stats_attribution_and_pricing_input_validation",
+      "schema_version": "1.0",
+      "status": "Obsolete",
+      "title": "Review findings: stats attribution and pricing input validation"
+    },
+    {
+      "ai_context": {
+        "keywords": "handoff, transcript, identity, ambiguity, selection, glob, paths",
+        "skip when": "Changing usage accounting, pricing, or provider authentication.",
+        "summary": "Reproduced handoff source-selection ambiguity and glob metacharacter failures despite the existing exact-transcript regression suite passing.",
+        "use when": "Reviewing exact source resolution and interactive candidate selection."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "req": [
+          "req_079_review_findings_handoff_source_ambiguity_and_literal_profile_paths",
+          "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery"
+        ]
+      },
+      "path": "logics/request/req_079_review_findings_handoff_source_ambiguity_and_literal_profile_paths.md",
+      "ref": "req_079_review_findings_handoff_source_ambiguity_and_literal_profile_paths",
+      "schema_version": "1.0",
+      "status": "Obsolete",
+      "title": "Review findings: handoff source ambiguity and literal profile paths"
+    },
+    {
+      "ai_context": {
+        "keywords": "preserve, live, profiles, early, force, import, credential, failures",
+        "skip when": "Working outside this slice or adding deferred worktree management.",
+        "summary": "req_077 finding 1: src/session_backup.py moves the live profile before a fallible keychain read outside rollback protection. A refusal leaves the registered live path absent.",
+        "use when": "Implementing preserve live profiles on early force import credential failures."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_156_preserve_live_profiles_on_early_force_import_credential_failures"
+        ],
+        "prod": [
+          "prod_056_trustworthy_local_recovery_and_usage_attribution"
+        ],
+        "req": [
+          "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery"
+        ],
+        "task": [
+          "task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff"
+        ]
+      },
+      "path": "logics/backlog/item_156_preserve_live_profiles_on_early_force_import_credential_failures.md",
+      "ref": "item_156_preserve_live_profiles_on_early_force_import_credential_failures",
+      "schema_version": "1.0",
+      "status": "Ready",
+      "title": "Preserve live profiles on early force import credential failures"
+    },
+    {
+      "ai_context": {
+        "keywords": "serialize, memory, appends, across, independent, cli, processes",
+        "skip when": "Working outside this slice or adding deferred worktree management.",
+        "summary": "req_077 finding 2: process-local threading locks allow two successful CLI writers to replace one another's notes.",
+        "use when": "Implementing serialize memory appends across independent cli processes."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_157_serialize_memory_appends_across_independent_cli_processes"
+        ],
+        "prod": [
+          "prod_056_trustworthy_local_recovery_and_usage_attribution"
+        ],
+        "req": [
+          "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery"
+        ],
+        "task": [
+          "task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff"
+        ]
+      },
+      "path": "logics/backlog/item_157_serialize_memory_appends_across_independent_cli_processes.md",
+      "ref": "item_157_serialize_memory_appends_across_independent_cli_processes",
+      "schema_version": "1.0",
+      "status": "Ready",
+      "title": "Serialize memory appends across independent CLI processes"
+    },
+    {
+      "ai_context": {
+        "keywords": "account, headless, failover, attempt, under, actual, session",
+        "skip when": "Working outside this slice or adding deferred worktree management.",
+        "summary": "req_078 finding 1: the loop overwrites run_info and records final-attempt usage under the original session.",
+        "use when": "Implementing account for every headless failover attempt under its actual session."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_158_account_for_every_headless_failover_attempt_under_its_actual_session"
+        ],
+        "prod": [
+          "prod_056_trustworthy_local_recovery_and_usage_attribution"
+        ],
+        "req": [
+          "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery"
+        ],
+        "task": [
+          "task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff"
+        ]
+      },
+      "path": "logics/backlog/item_158_account_for_every_headless_failover_attempt_under_its_actual_session.md",
+      "ref": "item_158_account_for_every_headless_failover_attempt_under_its_actual_session",
+      "schema_version": "1.0",
+      "status": "Ready",
+      "title": "Account for every headless failover attempt under its actual session"
+    },
+    {
+      "ai_context": {
+        "keywords": "measure, interactive, usage, real, launch, boundaries, history, cap",
+        "skip when": "Working outside this slice or adding deferred worktree management.",
+        "summary": "req_078 finding 2: previous end snapshots include intervening unmanaged activity; callers also supply only the last 50 history rows.",
+        "use when": "Implementing measure interactive usage at real launch boundaries without a history cap."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_159_measure_interactive_usage_at_real_launch_boundaries_without_a_history_cap"
+        ],
+        "prod": [
+          "prod_056_trustworthy_local_recovery_and_usage_attribution"
+        ],
+        "req": [
+          "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery"
+        ],
+        "task": [
+          "task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff"
+        ]
+      },
+      "path": "logics/backlog/item_159_measure_interactive_usage_at_real_launch_boundaries_without_a_history_cap.md",
+      "ref": "item_159_measure_interactive_usage_at_real_launch_boundaries_without_a_history_cap",
+      "schema_version": "1.0",
+      "status": "Ready",
+      "title": "Measure interactive usage at real launch boundaries without a history cap"
+    },
+    {
+      "ai_context": {
+        "keywords": "orchestrate, review, hardening, across, persistence, stats, handoff",
+        "skip when": "Merely reviewing the reports or implementing deferred multi-worktree features.",
+        "summary": "Execute nine correction slices in five delivery waves, prioritizing data integrity and recording regressions for every review finding before closeout.",
+        "use when": "Starting the consolidated correction chain or checking cross-slice dependencies and final evidence."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_156_preserve_live_profiles_on_early_force_import_credential_failures",
+          "item_157_serialize_memory_appends_across_independent_cli_processes",
+          "item_158_account_for_every_headless_failover_attempt_under_its_actual_session",
+          "item_159_measure_interactive_usage_at_real_launch_boundaries_without_a_history_cap",
+          "item_160_validate_custom_token_rates_and_support_undefined_relative_weights",
+          "item_161_persist_observed_model_attribution_for_headless_usage_pricing",
+          "item_162_clarify_stats_period_and_cost_contracts_and_remove_duplicate_finalization",
+          "item_163_bind_handoff_selection_to_one_exact_native_source_file",
+          "item_164_treat_profile_paths_literally_in_native_and_terminal_transcript_discovery"
+        ],
+        "prod": [
+          "prod_056_trustworthy_local_recovery_and_usage_attribution"
+        ],
+        "req": [
+          "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery"
+        ],
+        "task": [
+          "task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff"
+        ]
+      },
+      "path": "logics/tasks/task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff.md",
+      "ref": "task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff",
+      "schema_version": "1.0",
+      "status": "Ready",
+      "title": "Orchestrate review hardening across persistence, stats and handoff"
+    },
+    {
+      "ai_context": {
+        "keywords": "validate, custom, token, rates, support, undefined, relative, weights",
+        "skip when": "Working outside this slice or adding deferred worktree management.",
+        "summary": "req_078 finding 3: zero, nonnumeric, negative and nonfinite overrides are not handled consistently; weighted ratios divide by input price.",
+        "use when": "Implementing validate custom token rates and support undefined relative weights."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_160_validate_custom_token_rates_and_support_undefined_relative_weights"
+        ],
+        "prod": [
+          "prod_056_trustworthy_local_recovery_and_usage_attribution"
+        ],
+        "req": [
+          "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery"
+        ],
+        "task": [
+          "task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff"
+        ]
+      },
+      "path": "logics/backlog/item_160_validate_custom_token_rates_and_support_undefined_relative_weights.md",
+      "ref": "item_160_validate_custom_token_rates_and_support_undefined_relative_weights",
+      "schema_version": "1.0",
+      "status": "Ready",
+      "title": "Validate custom token rates and support undefined relative weights"
+    },
+    {
+      "ai_context": {
+        "keywords": "persist, observed, model, attribution, headless, usage, pricing",
+        "skip when": "Working outside this slice or adding deferred worktree management.",
+        "summary": "req_078 secondary observation: headless usage is stored without usage_model, leaving supported usage unpriced even when serving-model evidence is available.",
+        "use when": "Implementing persist observed model attribution for headless usage pricing."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_161_persist_observed_model_attribution_for_headless_usage_pricing"
+        ],
+        "prod": [
+          "prod_056_trustworthy_local_recovery_and_usage_attribution"
+        ],
+        "req": [
+          "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery"
+        ],
+        "task": [
+          "task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff"
+        ]
+      },
+      "path": "logics/backlog/item_161_persist_observed_model_attribution_for_headless_usage_pricing.md",
+      "ref": "item_161_persist_observed_model_attribution_for_headless_usage_pricing",
+      "schema_version": "1.0",
+      "status": "Ready",
+      "title": "Persist observed model attribution for headless usage pricing"
+    }
+  ],
+  "estimates": {
+    "char_count": 14576,
+    "companion_doc_count": 1,
+    "doc_count": 11
+  },
+  "generated_at": "2026-10-04T15:09:47Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery",
+      "task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "summary-only",
+  "profile": "deep",
+  "ref": "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery,task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff",
+  "refs": [
+    "req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery",
+    "task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff"
+  ],
+  "release": {
+    "blocking_reasons": [],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Release evidence is complete.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": null,
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "ready",
+    "target_id": null,
+    "target_version": "0.20.14",
+    "targets": []
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff.md",
+      "ref": "task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff"
+    }
+  ]
+}

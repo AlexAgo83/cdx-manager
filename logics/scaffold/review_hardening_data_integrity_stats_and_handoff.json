@@ -1,0 +1,351 @@
+{
+  "title": "Harden reviewed data integrity, stats accounting and handoff recovery",
+  "references": [
+    "logics/request/req_077_review_findings_cross_process_memory_writes_and_early_import_recovery.md",
+    "logics/request/req_078_review_findings_stats_attribution_and_pricing_input_validation.md",
+    "logics/request/req_079_review_findings_handoff_source_ambiguity_and_literal_profile_paths.md",
+    "src/session_backup.py",
+    "src/context_store.py",
+    "src/session_store.py",
+    "src/commands/runs.py",
+    "src/commands/launch.py",
+    "src/commands/status.py",
+    "src/run_usage.py",
+    "src/interactive_usage.py",
+    "src/handoff.py",
+    "src/provider_runtime.py",
+    "src/provider_background.py",
+    "README.md"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Review hardening",
+    "needs": [
+      "Deliver all seven reproduced defects captured in req_077, req_078 and req_079, with traceable regressions.",
+      "Address secondary model attribution, history-window and duplicate-finalization gaps; make intentional reporting and handoff limits explicit rather than silently changing semantics."
+    ],
+    "context": [
+      "User authorized a complete ready-to-dev corpus and commit on 2026-10-04, not implementation. The worktree/workspace feature discussion is explicitly deferred.",
+      "Reviewed baseline 47d36cc / 0.20.14. Initial full suite: 1058 Python tests, 104 Rust tests; focused stats 181 and handoff 76 passed despite synthetic defect reproductions. These are baseline results, not proof of fixes.",
+      "Consolidate the three review requests into this delivery chain while preserving their evidence. Existing completed hardening remains historical; new regressions cover remaining boundaries.",
+      "ADR 030 framing: these changes affect product truth, data ownership and multi-layer recovery, so one product brief and linked slices are appropriate; no separate architectural abstraction is proposed."
+    ],
+    "acceptance_criteria": [
+      "AC1: A failed initial credential read during force import preserves the original live profile, record, state and credentials; incomplete recovery is explicitly located without exposing secrets.",
+      "AC2: Independent CLI processes appending to the same memory scope retain every accepted note; lock failure is bounded and never reports a successful lost write.",
+      "AC3: All usage-bearing failover attempts retain their own session attribution, measured usage and duration while the registry keeps one logical run; reporting does not double count attempts.",
+      "AC4: Interactive usage excludes transcript growth before launch, preserves attribution confidence for unknown or overlapping boundaries, and does not depend on a 50-entry history window.",
+      "AC5: Custom prices accept only finite nonnegative rates, reject invalid configuration actionably, and handle a zero-input price without division errors or invented relative weights.",
+      "AC6: Headless history preserves provider-reported model identity or supported per-model usage, prices supported evidence, and leaves unknown attribution explicitly unpriced rather than assuming the requested model was served.",
+      "AC7: Stats has one row-finalization path and makes period overlap, partial price coverage, model-relative weighting, current-table repricing and mixed-model estimates explicit in documented text/JSON contracts.",
+      "AC8: Duplicate source identities never silently select an arbitrary native transcript; interactive and non-interactive selection can bind one exact validated native file.",
+      "AC9: Native discovery and explicit terminal fallback work with literal glob metacharacters in supported profile paths without admitting unrelated files or subagents.",
+      "AC10: Handoff retains full source evidence, private unique entries, source-byte checks, instruction-first recovery, and clear disclosure that source availability and agent comprehension are not guaranteed.",
+      "AC11: Synthetic regressions cover all seven reproduced defects and the secondary headless, history-window and contract gaps; appropriate Python, Rust, lint and workflow validations pass without live provider calls.",
+      "AC12: Each original review finding and secondary observation has a named implementation slice or an explicit preserved limitation with validation, and the source reviews remain available as evidence."
+    ]
+  },
+  "product": {
+    "title": "Trustworthy local recovery and usage attribution",
+    "overview": "Keep accepted local changes recoverable, account for usage at the correct execution boundaries, and recover work from exactly the selected source evidence.",
+    "goals": [
+      "Preserve original profiles and accepted notes under failure or concurrent writers.",
+      "Attribute consumption to actual attempts, sessions and measurable intervals with explicit uncertainty.",
+      "Make custom rates and estimated-cost presentation robust and understandable.",
+      "Bind handoff to the chosen source and support literal filesystem paths without weakening provenance."
+    ],
+    "non_goals": [
+      "No worktree management, persistent session-to-branch association or new parallel-workspace feature.",
+      "No invoicing engine, live token meter, telemetry service, provider calls, speculative database or background service.",
+      "No retroactive reconstruction of old unmeasured tokens or fabricated split of run totals across clock intervals.",
+      "No promise of automatic cross-workspace handoff, transcript archival, or proof of target-agent comprehension.",
+      "No new provider pricing refresh or per-request long-context/TTL/service-tier reconstruction without evidence."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Preserve live profiles on early force import credential failures",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Profile recovery",
+      "request_acs": [
+        "AC1",
+        "AC11",
+        "AC12"
+      ],
+      "problem": [
+        "req_077 finding 1: src/session_backup.py moves the live profile before a fallible keychain read outside rollback protection. A refusal leaves the registered live path absent."
+      ],
+      "scope_in": [
+        "Priority rationale: restore safety of an operation that can disrupt an existing authenticated session.",
+        "Complete the credential preflight before destructive movement, or encompass all post-move failures in the existing rollback boundary; reuse current recovery helpers.",
+        "Preserve original files, metadata, state and credential backend on early and late failures. If recovery fails, retain recovery data and report its location without secret material.",
+        "Add failure injection at the initial read, directory move and rollback boundaries using temporary profiles and mocked credential access."
+      ],
+      "scope_out": [
+        "No unrelated refactor, new service, or live provider/credential operation."
+      ],
+      "acceptance_criteria": [
+        "AC1: The reproduced early keychain denial leaves the profile sentinel at the original path and record/state unchanged.",
+        "AC2: Existing merge credential precedence, late rollback and incomplete-recovery regressions remain green.",
+        "AC3: Failure diagnostics preserve actionable recovery information and contain no credential values."
+      ]
+    },
+    {
+      "title": "Serialize memory appends across independent CLI processes",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Memory integrity",
+      "request_acs": [
+        "AC2",
+        "AC11",
+        "AC12"
+      ],
+      "problem": [
+        "req_077 finding 2: process-local threading locks allow two successful CLI writers to replace one another's notes."
+      ],
+      "scope_in": [
+        "Priority rationale: prevent silent loss of accepted user or agent notes before lower-priority reporting work.",
+        "Use a stable per-memory-file filesystem lock across the read-modify-write sequence, covering current, named-project and global scopes on supported platforms.",
+        "Reuse a suitable existing locking primitive if its semantics fit; bound lock acquisition, release on process exit, and never lock only the replaced data-file inode.",
+        "Test real independent processes with controlled overlap and unique notes; retain the existing thread regression. Synchronization must not deadlock a corrected serialized reader."
+      ],
+      "scope_out": [
+        "No unrelated refactor, new service, or live provider/credential operation."
+      ],
+      "acceptance_criteria": [
+        "AC1: At least two successful independent appends preserve initial text and all accepted notes exactly once.",
+        "AC2: Lock timeout or write failure returns an actionable error without reporting success or corrupting existing content.",
+        "AC3: POSIX and Windows locking paths are covered by platform-appropriate checks; no timing-only flaky assertion."
+      ]
+    },
+    {
+      "title": "Account for every headless failover attempt under its actual session",
+      "priority": "Medium",
+      "complexity": "High",
+      "theme": "Usage attribution",
+      "request_acs": [
+        "AC3",
+        "AC11",
+        "AC12"
+      ],
+      "problem": [
+        "req_078 finding 1: the loop overwrites run_info and records final-attempt usage under the original session."
+      ],
+      "scope_in": [
+        "Priority rationale: correct session attribution and missing consumption before refining presentation.",
+        "Preserve attempt accounting with run identity and attempt identity; retain session, timestamps, duration, status and normalized usage before advancing.",
+        "Keep one logical registry run and its occupancies. Define stats launches as existing history execution records, with each failover attempt counted once; document the distinction from logical runs.",
+        "Prevent an extra final summary history record from duplicating attempt tokens. Preserve nullable unknown usage; cover success, exhaustion, successor-auth failure, cancellation and timeout.",
+        "Coordinate the history shape with the headless model slice; extend existing additive JSON conventions and retain readability of old history."
+      ],
+      "scope_out": [
+        "No unrelated refactor, new service, or live provider/credential operation."
+      ],
+      "acceptance_criteria": [
+        "AC1: Synthetic A=100 input/10 output then B=200/20 yields A=100/10 and B=200/20, aggregate 300/30, one logical run, and no duplicate final usage.",
+        "AC2: Failed earlier attempts retain durations and terminal outcomes even if a later attempt cannot start.",
+        "AC3: Existing non-failover and registry occupancy contracts stay intact."
+      ]
+    },
+    {
+      "title": "Measure interactive usage at real launch boundaries without a history cap",
+      "priority": "Medium",
+      "complexity": "High",
+      "theme": "Usage measurement",
+      "request_acs": [
+        "AC4",
+        "AC11",
+        "AC12"
+      ],
+      "problem": [
+        "req_078 finding 2: previous end snapshots include intervening unmanaged activity; callers also supply only the last 50 history rows."
+      ],
+      "scope_in": [
+        "Priority rationale: prevent incorrect attribution to a run and reporting period.",
+        "Capture a starting snapshot at the pre-provider launch boundary when the intended transcript is identifiable; compute the ending increment against that snapshot.",
+        "Use exact identity where possible. Newly created transcripts can use a proven empty baseline; if discovery or concurrent writers make ownership uncertain, leave measured usage absent and record a bounded reason instead of guessing.",
+        "Remove the arbitrary 50-entry dependency for any necessary historical lookup; avoid rescanning all transcripts or introducing a daemon/database.",
+        "Cover source/npm and installed package call paths, normal exit, errors, resume, transcript rotation/shrink and first-sighting cases. Keep unknown different from zero."
+      ],
+      "scope_out": [
+        "No unrelated refactor, new service, or live provider/credential operation."
+      ],
+      "acceptance_criteria": [
+        "AC1: A prior 10-token run, 50 intervening tokens and 20 new tokens records 20 for the new run, not 70.",
+        "AC2: Resuming after more than 50 other history entries preserves a valid current-launch baseline and correct measured delta.",
+        "AC3: Overlapping or unresolvable transcript ownership is detected or explicitly reported as uncertain; no confident cross-run attribution is invented.",
+        "AC4: Existing sequential resume, identity, normalization and shrink regressions pass."
+      ]
+    },
+    {
+      "title": "Validate custom token rates and support undefined relative weights",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Pricing robustness",
+      "request_acs": [
+        "AC5",
+        "AC11",
+        "AC12"
+      ],
+      "problem": [
+        "req_078 finding 3: zero, nonnumeric, negative and nonfinite overrides are not handled consistently; weighted ratios divide by input price."
+      ],
+      "scope_in": [
+        "Priority rationale: prevent reporting exceptions and misleading monetary results from documented configuration.",
+        "Validate each supplied rate as a finite nonnegative number, explicitly rejecting booleans and malformed structures; surface actionable configuration errors in text and JSON without tracebacks.",
+        "For zero-input tariffs, compute USD directly from valid rates; mark COST~ unavailable where its ratio is undefined. Preserve free USD=0 as priced rather than missing.",
+        "Adapt aggregation, sorting and rendering to explicit unavailable weighted values without fallback inventing a paid denominator or crashing. Describe partial weighting when combining known and undefined weights.",
+        "Resolve the price table once per stats calculation and use that same table/provenance for per-entry totals and footer; preserve documented cache-read override behavior."
+      ],
+      "scope_out": [
+        "No unrelated refactor, new service, or live provider/credential operation."
+      ],
+      "acceptance_criteria": [
+        "AC1: Invalid string, negative, NaN/infinity and malformed entries produce a named actionable error and valid JSON on --json.",
+        "AC2: Zero-input models can report a finite nonnegative USD cost while relative weight is explicitly unavailable; all-zero free tariffs remain supported.",
+        "AC3: Valid existing default and override computations remain numerically unchanged."
+      ]
+    },
+    {
+      "title": "Persist observed model attribution for headless usage pricing",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Headless observability",
+      "request_acs": [
+        "AC6",
+        "AC3",
+        "AC11",
+        "AC12"
+      ],
+      "problem": [
+        "req_078 secondary observation: headless usage is stored without usage_model, leaving supported usage unpriced even when serving-model evidence is available."
+      ],
+      "scope_in": [
+        "Priority rationale: close measured price-coverage gaps after attempt accounting is stable.",
+        "Extract model identity from supported provider output or the exact run transcript alongside normalized usage, including per-model output where actually provided.",
+        "Persist attribution per attempt and expose it through history/stats without storing conversation content. Never infer serving identity solely from configured --model.",
+        "For genuinely mixed models, use a supported measured breakdown if available; otherwise preserve and explicitly label the documented estimate or leave unavailable attribution unpriced.",
+        "Cover normal headless runs and the existing detached/background completion paths that feed reporting; avoid adding unsupported provider promises."
+      ],
+      "scope_out": [
+        "No unrelated refactor, new service, or live provider/credential operation."
+      ],
+      "acceptance_criteria": [
+        "AC1: A synthetic headless response naming a supported model and usage becomes a priced history/stat row under the correct session.",
+        "AC2: Missing/unknown serving model stays explicitly unpriced; a requested model alone is not evidence.",
+        "AC3: Model data and usage remain paired to their actual failover attempt, including failures with usage."
+      ]
+    },
+    {
+      "title": "Clarify stats period and cost contracts and remove duplicate finalization",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Stats contract",
+      "request_acs": [
+        "AC7",
+        "AC11",
+        "AC12"
+      ],
+      "problem": [
+        "req_078 secondary observations: duplicated finalization; overlapping periods are non-additive; relative weights are not dollars; partial coverage and approximate tariffs need explicit interpretation."
+      ],
+      "scope_in": [
+        "Priority rationale: stabilize interpretation after measurement/pricing changes, without replacing the accounting model.",
+        "Remove the duplicate row-finalization loop and retain one normalization path, validated against representative existing history.",
+        "Preserve whole-run overlap filtering; document and expose that daily windows can double-include a crossing run. Do not fabricate proportional token splits.",
+        "Document live/completed coverage, unknown versus zero, usage_runs/priced_runs, attempt versus logical-run counts, weighted availability and price provenance. Use additive JSON metadata where the existing payload cannot convey these distinctions.",
+        "Keep model-relative COST~ and its existing ordering policy explicit rather than claiming USD ranking; keep partial unpriced coverage visible.",
+        "Preserve documented current-table repricing and mixed-model/long-context/service-tier/cache-TTL limitations; label estimates, not invoices. No independent rate refresh is part of this scope."
+      ],
+      "scope_out": [
+        "No unrelated refactor, new service, or live provider/credential operation."
+      ],
+      "acceptance_criteria": [
+        "AC1: One finalization pass yields unchanged valid totals; absent measurements and undefined weights remain distinguishable from zero.",
+        "AC2: A cross-midnight fixture demonstrates documented non-additivity in adjacent periods and a single inclusion in their combined period.",
+        "AC3: Text, JSON schema/tests and README consistently describe partial model pricing, current-table provenance and completed/attempt accounting."
+      ]
+    },
+    {
+      "title": "Bind handoff selection to one exact native source file",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Handoff identity",
+      "request_acs": [
+        "AC8",
+        "AC10",
+        "AC11",
+        "AC12"
+      ],
+      "problem": [
+        "req_079 finding 1: duplicate IDs select the first filesystem match; the interactive chooser discards its chosen path and re-resolves only the ID."
+      ],
+      "scope_in": [
+        "Priority rationale: prevent unintended historical context from reaching the target agent.",
+        "Validate all eligible identity/workspace matches before accepting an ID. Return actionable ambiguity when more than one qualifies.",
+        "Preserve and revalidate the exact candidate descriptor selected interactively; show enough path metadata to distinguish duplicate identities.",
+        "Provide an explicit native path selector (for example --source-native-transcript PATH) distinct from the existing degraded --source-transcript terminal option. Validate ownership, top-level eligibility, identity and workspace, and keep selectors mutually exclusive.",
+        "Preserve no-launch/no-mutation failure behavior, JSON preparation semantics, byte-integrity checks and target auth isolation. Extend CLI help/schema/docs/tests together.",
+        "Keep source availability and prompt-compliance limits explicit; preserve full original evidence rather than introducing copied/truncated summaries."
+      ],
+      "scope_out": [
+        "No unrelated refactor, new service, or live provider/credential operation."
+      ],
+      "acceptance_criteria": [
+        "AC1: Two valid files with one ID and different digests yield ambiguity for recorded/explicit-ID selection.",
+        "AC2: Selecting candidate A prepares A even when native traversal would first find B; non-interactive exact-file selection has equivalent validation.",
+        "AC3: Out-of-profile, sidechain, wrong-workspace, changed and cancelled selection cannot launch or replace a valid prepared pointer.",
+        "AC4: Reuse still refuses changed/truncated/deleted source bytes, tolerates append beyond extent, and retains instruction-first recovery wording."
+      ]
+    },
+    {
+      "title": "Treat profile paths literally in native and terminal transcript discovery",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Filesystem portability",
+      "request_acs": [
+        "AC9",
+        "AC10",
+        "AC11",
+        "AC12"
+      ],
+      "problem": [
+        "req_079 finding 2: authHome is embedded unescaped in glob patterns, so literal brackets hide valid transcripts. The timestamped terminal fallback uses the same pattern construction."
+      ],
+      "scope_in": [
+        "Priority rationale: restore handoff availability for valid profile paths without broadening file eligibility.",
+        "Escape literal prefixes with standard-library glob.escape before adding wildcards, or reuse literal directory traversal; inspect related native/terminal discovery callers for the same root cause.",
+        "Cover both supported native provider layouts and timestamped terminal capture discovery, retaining legacy terminal log behavior.",
+        "Validate paths containing brackets and other filesystem-supported metacharacters; retain Windows-native separators and normalize workspace consistently.",
+        "No fallback to unrelated newest files; wrong source selection must still fail closed."
+      ],
+      "scope_out": [
+        "No unrelated refactor, new service, or live provider/credential operation."
+      ],
+      "acceptance_criteria": [
+        "AC1: Both native providers resolve an existing exact conversation beneath a profiles[team] directory.",
+        "AC2: An explicit timestamped terminal capture beneath the same literal path is accepted as degraded recovery only when owned by the source.",
+        "AC3: Metacharacter handling does not admit outside paths, nested subagents or unrelated workspace transcripts."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate review hardening across persistence, stats and handoff",
+    "plan": [
+      "Wave 0: read the three review evidence docs and this chain; reproduce each relevant defect with synthetic temporary data. Map every request AC and secondary observation to a slice. Do not label baseline passing tests as delivery proof.",
+      "Wave 1 (High): preserve force-import recovery boundaries, then serialize memory writes across processes. Validate focused failure-injection and real-process regressions before proceeding.",
+      "Wave 2 (Medium): define and implement failover attempt accounting, then interactive start/end measurement including the history-window gap. Keep registry logical-run identity distinct from history attempts and explicit uncertainty.",
+      "Wave 3 (Medium, after accounting): validate price overrides and undefined relative weights, capture observed headless models per attempt, then consolidate stats finalization and align text/JSON/documentation contracts.",
+      "Wave 4 (Medium): make transcript discovery literal-path-safe, then bind exact native handoff selection and duplicate-ID diagnostics. Preserve preparation boundaries and no-launch failure behavior.",
+      "Wave 5: run npm run lint, npm run test:coverage and cargo test --manifest-path tray/Cargo.toml; run npm pack --dry-run for CLI packaging checks. Use supported-platform CI or targeted equivalent evidence for cross-process locking and path portability. Report unavailable platform proof honestly.",
+      "At each wave update indicators/progress through Logics CLI and record exact test commands/results and request-to-backlog-to-test traceability. Keep execution and regression fixtures free of real credentials, private transcripts and live provider calls.",
+      "Closeout: verify AC1-AC12 and the seven findings plus secondary observations are covered. Run flow validate-closeout, required lint/audit and closeout; settle the linked product brief. Follow user authorization for implementation commits; do not push or publish as part of this chain."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/review_hardening_data_integrity_stats_and_handoff.json",
+    "mode": "summary-only",
+    "profile": "deep"
+  }
+}
