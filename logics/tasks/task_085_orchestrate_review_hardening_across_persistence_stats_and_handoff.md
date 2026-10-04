@@ -1,14 +1,15 @@
 ## task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff - Orchestrate review hardening across persistence, stats and handoff
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: High
 > Theme: Review hardening
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:09:29
+> Indicators reviewed: 2026-10-04 17:17:36
+> Owner: Codex
 
 # AI Context
 - Summary: Execute nine correction slices in five delivery waves, prioritizing data integrity and recording regressions for every review finding before closeout.
@@ -21,7 +22,7 @@
 
 # Plan
 - [ ] 1. Wave 0: read the three review evidence docs and this chain; reproduce each relevant defect with synthetic temporary data. Map every request AC and secondary observation to a slice. Do not label baseline passing tests as delivery proof.
-- [ ] 2. Wave 1 (High): preserve force-import recovery boundaries, then serialize memory writes across processes. Validate focused failure-injection and real-process regressions before proceeding.
+- [x] 2. Wave 1 (High): preserve force-import recovery boundaries, then serialize memory writes across processes. Validate focused failure-injection and real-process regressions before proceeding.
 - [ ] 3. Wave 2 (Medium): define and implement failover attempt accounting, then interactive start/end measurement including the history-window gap. Keep registry logical-run identity distinct from history attempts and explicit uncertainty.
 - [ ] 4. Wave 3 (Medium, after accounting): validate price overrides and undefined relative weights, capture observed headless models per attempt, then consolidate stats finalization and align text/JSON/documentation contracts.
 - [ ] 5. Wave 4 (Medium): make transcript discovery literal-path-safe, then bind exact native handoff selection and duplicate-ID diagnostics. Preserve preparation boundaries and no-launch failure behavior.
@@ -82,7 +83,7 @@
 - request-AC12 -> `item_164_treat_profile_paths_literally_in_native_and_terminal_transcript_discovery`. Proof deferred to slice closeout.
 
 # Validation
-- (no validation recorded yet)
+- Wave 1: `node bin/python-runner.js -m pytest -q test/test_context_store_py.py test/test_commands_context_memory_py.py test/test_run_registry_py.py test/test_profile_data_safety_py.py test/test_commands_backup_py.py` — 68 passed; targeted Ruff checks passed. Native Windows validation is pending.
 
 # Report
 - Not started.

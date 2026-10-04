@@ -28,7 +28,7 @@ REGISTRY_LOCK_TIMEOUT_SECONDS = 120
 _LOCK_RETRY_SECONDS = 0.05
 
 
-def _acquire_windows_lock(handle, timeout_seconds):
+def _acquire_windows_lock(handle, timeout_seconds, label="run registry"):
     """Block until the byte is locked, or give up with a nameable error.
 
     Uses the non-blocking form and does the waiting here, so the wait is
@@ -47,14 +47,14 @@ def _acquire_windows_lock(handle, timeout_seconds):
         except OSError:
             if time.monotonic() >= deadline:
                 raise CdxError(
-                    "Timed out waiting for the run registry lock after "
+                    f"Timed out waiting for the {label} lock after "
                     f"{timeout_seconds}s. Another cdx process may be stuck holding it.",
                     75,
                 ) from None
             time.sleep(_LOCK_RETRY_SECONDS)
 
 
-def _acquire_posix_lock(handle, timeout_seconds):
+def _acquire_posix_lock(handle, timeout_seconds, label="run registry"):
     """Acquire a POSIX advisory lock within the same bounded wait as Windows."""
     import fcntl
 
@@ -66,7 +66,7 @@ def _acquire_posix_lock(handle, timeout_seconds):
         except OSError:
             if time.monotonic() >= deadline:
                 raise CdxError(
-                    "Timed out waiting for the run registry lock after "
+                    f"Timed out waiting for the {label} lock after "
                     f"{timeout_seconds}s. Another cdx process may be stuck holding it.",
                     75,
                 ) from None
@@ -74,12 +74,12 @@ def _acquire_posix_lock(handle, timeout_seconds):
 
 
 @contextmanager
-def _registry_lock(path, timeout_seconds=REGISTRY_LOCK_TIMEOUT_SECONDS):
+def _registry_lock(path, timeout_seconds=REGISTRY_LOCK_TIMEOUT_SECONDS, label="run registry"):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path + ".lock", "a") as handle:
         if sys.platform == "win32":
             import msvcrt
-            _acquire_windows_lock(handle, timeout_seconds)
+            _acquire_windows_lock(handle, timeout_seconds, label)
             try:
                 yield
             finally:
@@ -87,7 +87,7 @@ def _registry_lock(path, timeout_seconds=REGISTRY_LOCK_TIMEOUT_SECONDS):
                 msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
         else:
             import fcntl
-            _acquire_posix_lock(handle, timeout_seconds)
+            _acquire_posix_lock(handle, timeout_seconds, label)
             try:
                 yield
             finally:

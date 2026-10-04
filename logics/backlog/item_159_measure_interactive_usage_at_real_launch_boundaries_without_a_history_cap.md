@@ -1,14 +1,14 @@
 ## item_159_measure_interactive_usage_at_real_launch_boundaries_without_a_history_cap - Measure interactive usage at real launch boundaries without a history cap
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: High
 > Theme: Usage measurement
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:09:28
+> Indicators reviewed: 2026-10-04 17:14:10
 
 # AI Context
 - Summary: req_078 finding 2: previous end snapshots include intervening unmanaged activity; callers also supply only the last 50 history rows.

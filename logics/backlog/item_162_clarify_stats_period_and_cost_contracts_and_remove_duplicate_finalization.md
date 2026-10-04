@@ -1,14 +1,14 @@
 ## item_162_clarify_stats_period_and_cost_contracts_and_remove_duplicate_finalization - Clarify stats period and cost contracts and remove duplicate finalization
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: Medium
 > Theme: Stats contract
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:09:28
+> Indicators reviewed: 2026-10-04 17:14:10
 
 # AI Context
 - Summary: req_078 secondary observations: duplicated finalization; overlapping periods are non-additive; relative weights are not dollars; partial coverage and approximate tariffs need explicit interpretation.

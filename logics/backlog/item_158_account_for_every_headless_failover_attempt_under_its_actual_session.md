@@ -1,14 +1,14 @@
 ## item_158_account_for_every_headless_failover_attempt_under_its_actual_session - Account for every headless failover attempt under its actual session
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: High
 > Theme: Usage attribution
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:09:28
+> Indicators reviewed: 2026-10-04 17:14:10
 
 # AI Context
 - Summary: req_078 finding 1: the loop overwrites run_info and records final-attempt usage under the original session.

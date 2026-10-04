@@ -1,14 +1,14 @@
 ## item_163_bind_handoff_selection_to_one_exact_native_source_file - Bind handoff selection to one exact native source file
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: Medium
 > Theme: Handoff identity
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:09:28
+> Indicators reviewed: 2026-10-04 17:14:10
 
 # AI Context
 - Summary: req_079 finding 1: duplicate IDs select the first filesystem match; the interactive chooser discards its chosen path and re-resolves only the ID.

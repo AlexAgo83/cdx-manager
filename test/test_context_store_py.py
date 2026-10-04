@@ -1,8 +1,11 @@
 import os
+import subprocess
+import sys
 import tempfile
 import threading
 import time
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from src import context_store
@@ -150,6 +153,63 @@ class ContextStorePythonTests(unittest.TestCase):
                 lines = handle.read().split()
             self.assertEqual(lines[0:2], ["Existing", "line"])
             self.assertEqual(sorted(lines[2:]), sorted(notes))
+
+    def test_independent_processes_keep_every_accepted_note(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-context-process-") as temp_dir:
+            path = os.path.join(temp_dir, "context.md")
+            write_context_path = context_store.write_context_path
+            write_context_path(path, "initial")
+            script = """
+import sys, time
+from pathlib import Path
+from src import context_store as c
+path, note, marker, release = sys.argv[1:]
+real_read = c.read_context_path
+def controlled_read(target):
+    Path(marker).touch()
+    while not Path(release).exists():
+        time.sleep(.01)
+    return real_read(target)
+c.read_context_path = controlled_read
+c.append_context_path(path, note)
+"""
+            first_marker = os.path.join(temp_dir, "first-ready")
+            second_marker = os.path.join(temp_dir, "second-ready")
+            first_release = os.path.join(temp_dir, "first-release")
+            second_release = os.path.join(temp_dir, "second-release")
+            first = subprocess.Popen([sys.executable, "-c", script, path, "first", first_marker, first_release])
+            second = None
+            try:
+                deadline = time.monotonic() + 5
+                while not os.path.exists(first_marker) and time.monotonic() < deadline:
+                    time.sleep(.01)
+                self.assertTrue(os.path.exists(first_marker))
+                second = subprocess.Popen([sys.executable, "-c", script, path, "second", second_marker, second_release])
+                # An unlocked reader reaches the marker; a locked reader waits.
+                deadline = time.monotonic() + .5
+                while not os.path.exists(second_marker) and time.monotonic() < deadline:
+                    time.sleep(.01)
+                Path(first_release).touch()
+                self.assertEqual(first.wait(timeout=5), 0)
+                Path(second_release).touch()
+                self.assertEqual(second.wait(timeout=5), 0)
+            finally:
+                Path(first_release).touch()
+                Path(second_release).touch()
+                for process in (first, second):
+                    if process and process.poll() is None:
+                        process.kill()
+                        process.wait()
+            self.assertEqual(set(open(path, encoding="utf-8").read().splitlines()), {"initial", "first", "second"})
+
+    def test_append_lock_failure_never_reports_success_or_changes_memory(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-context-lock-") as temp_dir:
+            path = os.path.join(temp_dir, "context.md")
+            context_store.write_context_path(path, "initial")
+            with mock.patch.object(context_store, "_registry_lock", side_effect=CdxError("memory lock timeout")):
+                with self.assertRaisesRegex(CdxError, "memory lock timeout"):
+                    append_context_path(path, "lost")
+            self.assertEqual(context_store.read_context_path(path), "initial\n")
 
     def test_named_project_and_global_context_paths_are_listable(self):
         with tempfile.TemporaryDirectory(prefix="cdx-context-") as temp_dir:

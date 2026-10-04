@@ -306,12 +306,20 @@ def import_bundle(base_dir, store, file_path,
         old_record = None
         old_state = None
         preserved_profile_paths = []
+        # Read the live credential before moving its profile: a denied keychain
+        # read must leave the registered session untouched.
+        local_credential = None
         if is_existing and (force or merge):
             old_record = store["get_session"](name)
             old_state = store["read_session_state"](name)
             if merge:
                 provider = old_record["provider"]
                 auth_home = old_record["authHome"]
+            bundle_carries_credential = provider == PROVIDER_CLAUDE and any(
+                item["path"] == CLAUDE_CREDENTIALS_BUNDLE_PATH for item in decoded_profiles.get(name, [])
+            )
+            if bundle_carries_credential:
+                local_credential = read_keychain_credentials(old_record["authHome"])
             recovery_dir = tempfile.mkdtemp(prefix=f".{_encode(name)}.import.", dir=os.path.dirname(session_root))
             backup_root = os.path.join(recovery_dir, "profile")
             try:
@@ -335,13 +343,6 @@ def import_bundle(base_dir, store, file_path,
         # bundle credential exists at the credential-backend level and has to be
         # resolved there. Read it strictly: refusing an unreadable keychain is
         # better than importing over a credential we could not preserve.
-        bundle_carries_credential = provider == PROVIDER_CLAUDE and any(
-            item["path"] == CLAUDE_CREDENTIALS_BUNDLE_PATH for item in decoded_profiles.get(name, [])
-        )
-        local_credential = None
-        if bundle_carries_credential and old_record is not None:
-            local_credential = read_keychain_credentials(auth_home)
-
         existing_state_before = None
         try:
             _ensure_private_dir(session_root)

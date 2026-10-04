@@ -1,14 +1,14 @@
 ## item_156_preserve_live_profiles_on_early_force_import_credential_failures - Preserve live profiles on early force import credential failures
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Profile recovery
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:09:28
+> Indicators reviewed: 2026-10-04 17:17:36
 
 # AI Context
 - Summary: req_077 finding 1: src/session_backup.py moves the live profile before a fallible keychain read outside rollback protection. A refusal leaves the registered live path absent.
@@ -61,3 +61,8 @@
 - Start with `node bin/python-runner.js -m pytest -q test/test_profile_data_safety_py.py test/test_commands_backup_py.py`.
 - Add the smallest regression that fails on the reviewed defect; these existing suites alone are not proof of the fix.
 - Finish with repository lint and the orchestration task cross-slice validation. Keep all fixture data synthetic and temporary.
+
+# Implementation evidence
+- The live Claude credential is read before a forced profile move. A denied read now leaves the profile sentinel, record, state and credential unchanged.
+- Regression: `test_early_force_import_keychain_denial_preserves_live_profile`; existing late rollback and incomplete-recovery tests remain in the same focused run.
+- Wave 1 focused run: `node bin/python-runner.js -m pytest -q test/test_profile_data_safety_py.py test/test_commands_backup_py.py` — 37 passed.

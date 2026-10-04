@@ -1,14 +1,14 @@
 ## item_164_treat_profile_paths_literally_in_native_and_terminal_transcript_discovery - Treat profile paths literally in native and terminal transcript discovery
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: Medium
 > Theme: Filesystem portability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:09:28
+> Indicators reviewed: 2026-10-04 17:14:10
 
 # AI Context
 - Summary: req_079 finding 2: authHome is embedded unescaped in glob patterns, so literal brackets hide valid transcripts. The timestamped terminal fallback uses the same pattern construction.

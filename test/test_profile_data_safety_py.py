@@ -275,6 +275,32 @@ class ProfileDataSafetyTests(unittest.TestCase):
         self.assertEqual((plugins / "sentinel").read_text(), "local plugin")
         self.assertFalse((Path(local["authHome"]) / ".claude" / ".credentials.json").exists())
 
+    def test_early_force_import_keychain_denial_preserves_live_profile(self):
+        source = self.profile("keychain")
+        self.credential(source, "bundle-token")
+        bundle = self.base / "auth.cdx"
+        session_backup.export_bundle(str(self.base), self.store, str(bundle),
+                                     include_auth=True, passphrase="fake")
+        dest = self.base / "restored"
+        dest.mkdir()
+        store = create_session_store(str(dest))
+        local = self.profile_in(dest, store, "keychain")
+        service = self.credential(local, "local-token")
+        sentinel = Path(local["sessionRoot"]) / "sentinel"
+        sentinel.write_text("original")
+        store["write_session_state"]("keychain", {"local": "preserve"})
+        before_record = store["get_session"]("keychain")
+        before_state = store["read_session_state"]("keychain")
+
+        with mock.patch.object(session_backup, "read_keychain_credentials", side_effect=CdxError("denied")):
+            with self.assertRaisesRegex(CdxError, "denied"):
+                session_backup.import_bundle(str(dest), store, str(bundle), passphrase="fake", force=True)
+
+        self.assertEqual(sentinel.read_text(), "original")
+        self.assertEqual(store["get_session"]("keychain"), before_record)
+        self.assertEqual(store["read_session_state"]("keychain"), before_state)
+        self.assertEqual(self.entries[service]["claudeAiOauth"]["accessToken"], "local-token")
+
     def test_force_import_reports_a_credential_it_could_not_restore(self):
         source = self.profile("keychain")
         self.credential(source, "bundle-token")

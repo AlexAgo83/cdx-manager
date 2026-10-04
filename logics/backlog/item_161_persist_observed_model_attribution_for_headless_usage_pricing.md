@@ -1,14 +1,14 @@
 ## item_161_persist_observed_model_attribution_for_headless_usage_pricing - Persist observed model attribution for headless usage pricing
 > From version: 0.20.14
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 20%
 > Complexity: Medium
 > Theme: Headless observability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:09:28
+> Indicators reviewed: 2026-10-04 17:14:10
 
 # AI Context
 - Summary: req_078 secondary observation: headless usage is stored without usage_model, leaving supported usage unpriced even when serving-model evidence is available.

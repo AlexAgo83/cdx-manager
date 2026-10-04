@@ -8,6 +8,7 @@ from urllib.parse import quote, unquote
 
 from .errors import CdxError
 from .fs_utils import atomic_write
+from .run_registry import _registry_lock
 from .session_store import _ensure_dir
 
 DEFAULT_CONTEXT_TEMPLATE = """# Shared Context
@@ -127,7 +128,7 @@ def append_context_path(path, note):
     note = str(note or "").strip()
     if not note:
         raise CdxError("Memory append requires text.")
-    with _append_lock(path):
+    with _append_lock(path), _registry_lock(path, timeout_seconds=10, label="memory"):
         current = read_context_path(path).rstrip()
         content = f"{current}\n{note}" if current else note
         return write_context_path(path, content)
