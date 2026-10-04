@@ -8,7 +8,7 @@
 > Complexity: High
 > Theme: Usage measurement
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:33:12
+> Indicators reviewed: 2026-10-04 17:37:04
 
 # AI Context
 - Summary: req_078 finding 2: previous end snapshots include intervening unmanaged activity; callers also supply only the last 50 history rows.
@@ -67,3 +67,4 @@
 # Implementation evidence
 - Native cumulative usage is sampled before launch for a known conversation identity, then differenced at exit. A newly created transcript can use its own total; an existing unmatched transcript is marked uncertain and remains unmeasured. History lookup no longer stops at 50 rows.
 - `test_launch_boundary_excludes_intervening_transcript_growth` verifies that 50 intervening tokens are excluded from a 20-token run. `test_prior_cumulative_beyond_fifty_history_rows_is_found` covers the old lookup cap.
+- A detected second live runtime on the same session marks attribution `overlapping_session` and leaves usage absent; `test_overlapping_session_leaves_usage_unattributed` covers that boundary.

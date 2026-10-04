@@ -8,7 +8,7 @@
 > Complexity: High
 > Theme: Review hardening
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:34:02
+> Indicators reviewed: 2026-10-04 17:37:04
 > Owner: Codex
 
 # AI Context
@@ -21,7 +21,7 @@
 - Implement the linked slices against the reviewed baseline, retain the three audit reports as evidence, and settle the linked product brief only when the corrections are verified.
 
 # Plan
-- [ ] 1. Wave 0: read the three review evidence docs and this chain; reproduce each relevant defect with synthetic temporary data. Map every request AC and secondary observation to a slice. Do not label baseline passing tests as delivery proof.
+- [x] 1. Wave 0: read the three review evidence docs and this chain; reproduce each relevant defect with synthetic temporary data. Map every request AC and secondary observation to a slice. Do not label baseline passing tests as delivery proof.
 - [x] 2. Wave 1 (High): preserve force-import recovery boundaries, then serialize memory writes across processes. Validate focused failure-injection and real-process regressions before proceeding.
 - [x] 3. Wave 2 (Medium): define and implement failover attempt accounting, then interactive start/end measurement including the history-window gap. Keep registry logical-run identity distinct from history attempts and explicit uncertainty.
 - [x] 4. Wave 3 (Medium, after accounting): validate price overrides and undefined relative weights, capture observed headless models per attempt, then consolidate stats finalization and align text/JSON/documentation contracts.

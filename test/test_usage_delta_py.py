@@ -74,10 +74,12 @@ class UsageDeltaTests(unittest.TestCase):
         self.assertEqual(summed, runs[-1]["usage_cumulative"]["total_tokens"])
 
     def test_launch_boundary_excludes_intervening_transcript_growth(self):
+        self.session["conversation"] = {"id": "s"}
         self._append([_assistant("previous", 10)])
         previous = self._run([])
         self._append([_assistant("between", 50)])
-        baseline, path, _, _ = extract_interactive_usage("claude", self.home)
+        baseline, path, match, _ = extract_interactive_usage("claude", self.home, conversation_id="s")
+        self.assertEqual(match, "conversation_id")
         self._append([_assistant("during", 20)])
         run = _attach_interactive_usage(
             self.session,
@@ -95,6 +97,15 @@ class UsageDeltaTests(unittest.TestCase):
         unrelated = [{"provider_transcript_path": f"other-{i}.jsonl"} for i in range(60)]
         run = self._run([*unrelated, previous])
         self.assertEqual(run["usage"]["output_tokens"], 20)
+
+    def test_overlapping_session_leaves_usage_unattributed(self):
+        self._append([_assistant("during", 20)])
+        run = _attach_interactive_usage(
+            self.session, {"started_at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()},
+            [], baseline=(None, None), uncertain_reason="overlapping_session",
+        )
+        self.assertIsNone(run.get("usage"))
+        self.assertEqual(run["usage_attribution"], "overlapping_session")
 
     def test_a_shrunken_transcript_reports_absence_rather_than_a_negative(self):
         self._append([_assistant("m1", 5), _assistant("m2", 7)])

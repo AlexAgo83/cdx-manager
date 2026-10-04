@@ -191,6 +191,8 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
     if force_json is not None:
         json_flag = force_json
     warnings = _update_notice_warnings(ctx)
+    active_runtime = ctx["service"].get("active_session_runtime")
+    overlap_at_start = bool(active_runtime and active_runtime(command))
     _warn_if_session_already_running(command, ctx)
     session = ctx["service"]["get_session"](command)
     if not session:
@@ -265,6 +267,11 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
     )
     if baseline_match != "conversation_id":
         baseline = baseline_path = None
+    def overlap_reason():
+        current = active_runtime(session["name"]) if active_runtime else None
+        if overlap_at_start or (runtime_run_id and current and current.get("runId") != runtime_run_id):
+            return "overlapping_session"
+        return None
     try:
         run_info = _run_interactive_provider_command(
             session, "resume" if resume else "launch", spawn=ctx.get("spawn"), cwd=cwd, env_override=ctx.get("env"),
@@ -279,6 +286,7 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         run_info = _attach_interactive_usage(
             session, run_info, ctx["service"]["get_launch_history"](session["name"], limit=None),
             baseline=(baseline_path, baseline),
+            uncertain_reason=overlap_reason(),
         )
         if not json_flag and error.exit_code in INTERRUPT_EXIT_CODES:
             ctx["out"](f"{_goodbye_line(session, run_info, ctx['use_color'])}\n")
@@ -300,6 +308,7 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
     success_run_info = _attach_interactive_usage(
         session, run_info, ctx["service"]["get_launch_history"](session["name"], limit=None),
         baseline=(baseline_path, baseline),
+        uncertain_reason=overlap_reason(),
     )
     ctx["service"]["record_launch_history"](session["name"], {
         "status": "success",
@@ -341,7 +350,7 @@ def _goodbye_line(session, run_info, use_color):
     return _dim(" · ".join(parts), use_color)
 
 
-def _attach_interactive_usage(session, run_info, history=None, baseline=None):
+def _attach_interactive_usage(session, run_info, history=None, baseline=None, uncertain_reason=None):
     """Attach this run's own token usage without affecting launch outcome.
 
     Both interactive readers report a cumulative figure, so what a run *stores*
@@ -378,6 +387,9 @@ def _attach_interactive_usage(session, run_info, history=None, baseline=None):
         # `model` is optional and usually unset, because the session takes the
         # provider's default.
         run_info["usage_model"] = model
+    if uncertain_reason:
+        run_info["usage_attribution"] = uncertain_reason
+        return run_info
     baseline_path, baseline_usage = baseline or (None, None)
     if baseline_usage is not None and baseline_path == provider_transcript:
         previous = baseline_usage
