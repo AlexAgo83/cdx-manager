@@ -44,7 +44,7 @@ from ..provider_runtime import (
 from ..run_command import read_run_prompt, run_cdx_error_code, run_launch_payload, run_result_payload
 from ..run_failover import MAX_FAILOVER_TRANSITIONS, failover_reason
 from ..run_registry import RunRegistry, build_code_review_report
-from ..run_usage import extract_run_usage
+from ..run_usage import extract_run_observation
 from ..session_ranking import FACTOR_DESCRIPTIONS, rank_sessions, selection_policy
 from ..status_view import _now_timestamp, _priority_reset_timestamp
 
@@ -390,10 +390,20 @@ def _reconcile_background_runs(ctx):
                 status=status,
                 final_payload={
                     "usage": outcome["usage"],
+                    "usage_model": outcome["usage_model"],
                     "result": outcome["result"],
                     "background_path": BACKGROUND_PATH_PROVIDER,
                 },
             )
+            ctx["service"]["record_launch_history"](session["name"], {
+                "status": "success" if status == "succeeded" else "failed",
+                "action": "run",
+                "run_id": run["run_id"],
+                "attempt": 1,
+                "cwd": run.get("cwd"),
+                "usage": outcome["usage"],
+                "usage_model": outcome["usage_model"],
+            })
         except Exception:
             continue
 
@@ -645,8 +655,19 @@ def handle_run(rest, ctx):
                 spawn=ctx.get("spawn_headless") or ctx.get("spawn"),
                 run_id=run_id,
             )
-            usage = extract_run_usage(run_session.get("provider"), run_info.get("stdout_path"))
-            run_info = {**run_info, "usage": usage}
+            usage, usage_model = extract_run_observation(
+                run_session.get("provider"), run_info.get("stdout_path"),
+            )
+            run_info = {**run_info, "usage": usage, "usage_model": usage_model}
+            ctx["service"]["record_launch_history"](run_session["name"], {
+                "status": "success" if run_info.get("returncode") == 0 else "failed",
+                "action": "run",
+                "run_id": run_id,
+                "attempt": len(attempted),
+                "cwd": cwd,
+                "exit_code": run_info.get("returncode"),
+                **run_info,
+            })
             if run_info.get("returncode") == 0 or not parsed.get("failover"):
                 break
             reason = failover_reason(
@@ -714,12 +735,6 @@ def handle_run(rest, ctx):
                 run_info=run_info,
                 task_report=task_report,
             )
-            ctx["service"]["record_launch_history"](session["name"], {
-                "status": "success",
-                "cwd": cwd,
-                "exit_code": 0,
-                **run_info,
-            })
             _write_json(ctx, final_payload)
             return 0
         if failover_error_code == "failover_exhausted":
@@ -754,18 +769,25 @@ def handle_run(rest, ctx):
             error=final_payload.get("error"),
             task_report=build_code_review_report(run_id, final_payload) if parsed.get("kind") == "code-review" else None,
         )
-        ctx["service"]["record_launch_history"](session["name"], {
-            "status": "failed",
-            "cwd": cwd,
-            "error": str(error),
-            "exit_code": error.exit_code,
-            **run_info,
-        })
         _write_json(ctx, final_payload)
         return error.exit_code or 1
     except CdxError as error:
         run_info = getattr(error, "run_info", None)
         cancelled = bool(getattr(error, "cancelled", False))
+        if run_info and run_id:
+            usage, usage_model = extract_run_observation(
+                run_session.get("provider"), run_info.get("stdout_path"),
+            )
+            run_info = {**run_info, "usage": usage, "usage_model": usage_model}
+            ctx["service"]["record_launch_history"](run_session["name"], {
+                "status": "failed",
+                "action": "run",
+                "run_id": run_id,
+                "attempt": len(attempted) if "attempted" in locals() else 1,
+                "cwd": cwd,
+                "exit_code": error.exit_code,
+                **run_info,
+            })
         final_payload = run_result_payload(
             API_SCHEMA_VERSION,
             False,

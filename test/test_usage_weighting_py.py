@@ -1,9 +1,13 @@
 """Rank sessions by what they cost, not by how many tokens they moved."""
 
+import json
+import tempfile
 import unittest
 from datetime import date, datetime
+from pathlib import Path
 
 from src.commands.status import _summarize_stats
+from src.errors import CdxError
 from src.run_usage import (
     CACHE_READ_MULTIPLIER,
     CACHE_WRITE_MULTIPLIER,
@@ -11,6 +15,7 @@ from src.run_usage import (
     TOKEN_PRICES_MAX_AGE_DAYS,
     TOKEN_PRICES_REVIEWED,
     estimate_cost,
+    extract_run_observation,
     normalize_usage,
     output_multiplier,
     token_prices,
@@ -102,6 +107,29 @@ class CostEstimateTests(unittest.TestCase):
         self.assertAlmostEqual(estimate_cost(usage, "claude-opus-5"), 30.0)
         self.assertAlmostEqual(estimate_cost(usage, "gpt-5.6-terra"), 14.0)
 
+    def test_invalid_override_rates_fail_actionably(self):
+        for bad in ('"nope"', '-1', '1e999', 'null'):
+            with self.subTest(bad=bad), self.assertRaisesRegex(CdxError, "CDX_TOKEN_PRICES.*input"):
+                token_prices({"CDX_TOKEN_PRICES": '{"custom":{"input":' + bad + ',"output":1}}'})
+
+    def test_zero_input_price_keeps_currency_but_not_undefined_weights(self):
+        prices, _ = token_prices({"CDX_TOKEN_PRICES": '{"custom":{"input":0,"output":2}}'})
+        usage = normalize_usage(input_tokens=100, output_tokens=10)
+        self.assertAlmostEqual(estimate_cost(usage, "custom", prices), 0.00002)
+        self.assertIsNone(weighted_usage(usage, "custom", prices))
+
+    def test_headless_model_must_be_observed_and_unmixed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "stdout.jsonl"
+            record = {"type": "usage", "usage": {"input_tokens": 4, "output_tokens": 2}}
+            path.write_text(json.dumps(record) + "\n")
+            self.assertIsNone(extract_run_observation("codex", str(path))[1])
+            path.write_text(json.dumps({**record, "model": "gpt-6-sol"}) + "\n")
+            self.assertEqual(extract_run_observation("codex", str(path))[1], "gpt-6-sol")
+            with path.open("a") as handle:
+                handle.write(json.dumps({**record, "model": "gpt-6-luna"}) + "\n")
+            self.assertIsNone(extract_run_observation("codex", str(path))[1])
+
     def test_current_codex_and_claude_models_are_priced(self):
         table = DEFAULT_TOKEN_PRICES
         expected = {
@@ -173,10 +201,9 @@ class CostEstimateTests(unittest.TestCase):
         # A model the override does not mention keeps its built-in price.
         self.assertEqual(table["claude-haiku-4-5"]["input"], 1.0)
 
-    def test_a_malformed_override_falls_back_and_says_so(self):
-        table, source = token_prices({"CDX_TOKEN_PRICES": "not json"})
-        self.assertEqual(table["claude-opus-5"]["input"], 5.0)
-        self.assertIn("ignored", source)
+    def test_a_malformed_override_is_rejected_actionably(self):
+        with self.assertRaisesRegex(CdxError, "CDX_TOKEN_PRICES must be a JSON object"):
+            token_prices({"CDX_TOKEN_PRICES": "not json"})
 
     def test_the_default_table_states_when_it_was_reviewed(self):
         _table, source = token_prices({})

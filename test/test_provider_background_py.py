@@ -200,6 +200,19 @@ class TranscriptOutcomeTests(unittest.TestCase):
         self.assertEqual(outcome["usage"]["output_tokens"], 7)
         self.assertEqual(outcome["usage"]["total_tokens"], 25)
 
+    def test_model_attribution_requires_one_observed_model(self):
+        path = self._transcript([{"type": "assistant", "message": {
+            "model": "claude-sonnet-5", "content": [{"type": "text", "text": "done"}],
+            "usage": {"input_tokens": 2, "output_tokens": 3},
+        }}])
+        self.assertEqual(read_transcript_outcome(path)["usage_model"], "claude-sonnet-5")
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"type": "assistant", "message": {
+                "model": "claude-opus-5", "content": [{"type": "text", "text": "more"}],
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            }}) + "\n")
+        self.assertIsNone(read_transcript_outcome(path)["usage_model"])
+
     def test_an_unreadable_or_missing_transcript_yields_nothing(self):
         for path in (None, "/nonexistent.jsonl", self._transcript([])):
             outcome = read_transcript_outcome(path)

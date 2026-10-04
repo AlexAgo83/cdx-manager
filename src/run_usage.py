@@ -40,6 +40,9 @@ caller can invent a fourth arithmetic.
 """
 
 import json
+import math
+
+from .errors import CdxError
 
 #: Order matters only for readability; every consumer addresses these by name.
 USAGE_KEYS = (
@@ -109,15 +112,19 @@ def output_multiplier(model, prices=None):
     entry = (prices if prices is not None else token_prices()[0]).get(model or "")
     if not entry:
         return DEFAULT_OUTPUT_MULTIPLIER
-    return entry["output"] / entry["input"]
+    return entry["output"] / entry["input"] if entry["input"] else None
 
 
 def cache_read_multiplier(model, prices=None):
     """This model's cache-read/input ratio, with the legacy fallback."""
     entry = (prices if prices is not None else token_prices()[0]).get(model or "")
-    if not entry or "cache_read" not in entry:
+    if not entry:
         return CACHE_READ_MULTIPLIER
-    return entry["cache_read"] / entry["input"]
+    if not entry["input"]:
+        return None
+    if "cache_read" not in entry:
+        return CACHE_READ_MULTIPLIER
+    return entry["cache_read"] / entry["input"] if entry["input"] else None
 
 
 def weighted_usage(usage, model=None, prices=None):
@@ -142,11 +149,13 @@ def weighted_usage(usage, model=None, prices=None):
         "cache_read_tokens": cache_read_multiplier(model, prices),
         "output_tokens": output_multiplier(model, prices),
     }
-    present = [
-        weight * usage[key]
-        for key, weight in weights.items()
-        if usage.get(key) is not None
-    ]
+    present = []
+    for key, weight in weights.items():
+        value = usage.get(key)
+        if value is not None:
+            if weight is None and value:
+                return None
+            present.append((weight or 0) * value)
     if not present:
         return None
     return int(round(sum(present)))
@@ -224,17 +233,26 @@ def token_prices(env=None):
     if raw:
         try:
             overrides = json.loads(raw)
-        except ValueError:
-            return dict(DEFAULT_TOKEN_PRICES), f"built-in, reviewed {TOKEN_PRICES_REVIEWED} ({TOKEN_PRICES_ENV} ignored: not JSON)"
-        if isinstance(overrides, dict):
-            merged = {**DEFAULT_TOKEN_PRICES}
-            for name, entry in overrides.items():
-                if isinstance(entry, dict) and "input" in entry and "output" in entry:
-                    merged[str(name)] = {
-                        "input": float(entry["input"]), "output": float(entry["output"])}
-                    if "cache_read" in entry:
-                        merged[str(name)]["cache_read"] = float(entry["cache_read"])
-            return merged, TOKEN_PRICES_ENV
+        except ValueError as error:
+            raise CdxError(f"{TOKEN_PRICES_ENV} must be a JSON object of model rates.") from error
+        if not isinstance(overrides, dict):
+            raise CdxError(f"{TOKEN_PRICES_ENV} must be a JSON object of model rates.")
+        merged = {**DEFAULT_TOKEN_PRICES}
+        for name, entry in overrides.items():
+            if not isinstance(entry, dict) or not {"input", "output"} <= entry.keys():
+                raise CdxError(f"{TOKEN_PRICES_ENV}: {name} requires input and output rates.")
+            rates = {}
+            for key in ("input", "output", "cache_read"):
+                if key not in entry:
+                    continue
+                value = entry[key]
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    value = float("nan")
+                if not math.isfinite(value) or value < 0:
+                    raise CdxError(f"{TOKEN_PRICES_ENV}: {name}.{key} must be a finite nonnegative rate.")
+                rates[key] = value
+            merged[str(name)] = rates
+        return merged, TOKEN_PRICES_ENV
     return dict(DEFAULT_TOKEN_PRICES), f"built-in, reviewed {TOKEN_PRICES_REVIEWED}"
 
 
@@ -245,10 +263,8 @@ def estimate_cost(usage, model, prices=None):
     figure. That shortcut was only correct while every model shared one
     output-to-input ratio, and they do not.
 
-    ponytail: a run is priced at one model -- the one serving its most recent
-    record -- rather than split per model. A session that switches models
-    mid-run is priced at the newer one. Upgrade path if that matters: have the
-    readers return a per-model breakdown and difference each model separately.
+    A run with mixed observed models and no measured per-model breakdown has
+    no usage_model, so its usage remains visible but unpriced.
 
     An unknown or absent model yields None. Pricing it at a default tier would
     turn "cdx does not know" into a number someone might believe.
@@ -357,26 +373,41 @@ def _sum_present(*values):
 
 
 def extract_run_usage(provider, stdout_path):
+    return extract_run_observation(provider, stdout_path)[0]
+
+
+def extract_run_observation(provider, stdout_path):
     if not stdout_path or not provider:
-        return empty_usage()
+        return empty_usage(), None
     if provider not in SUPPORTED_PROVIDERS:
-        return empty_usage()
+        return empty_usage(), None
     try:
         with open(stdout_path, encoding="utf-8", errors="replace") as handle:
             text = handle.read()
     except OSError:
-        return empty_usage()
+        return empty_usage(), None
     if not text.strip():
-        return empty_usage()
+        return empty_usage(), None
 
     records = _parse_json_records(text)
     if not records:
-        return empty_usage()
+        return empty_usage(), None
 
     usage = _extract_usage_from_records(records)
     if not _has_usage(usage):
-        return empty_usage()
-    return usage
+        return empty_usage(), None
+    models = set()
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        message = record.get("message")
+        model = record.get("model") or (message.get("model") if isinstance(message, dict) else None)
+        if isinstance(model, str) and model and _has_usage(_find_usage(record)):
+            models.add(model)
+        model_usage = record.get("modelUsage")
+        if isinstance(model_usage, dict):
+            models.update(model_usage)
+    return usage, next(iter(models)) if len(models) == 1 else None
 
 
 def _parse_json_records(text):

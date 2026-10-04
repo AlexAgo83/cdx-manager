@@ -4,11 +4,11 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 20%
+> Progress: 85%
 > Complexity: Medium
 > Theme: Headless observability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:14:10
+> Indicators reviewed: 2026-10-04 17:33:13
 
 # AI Context
 - Summary: req_078 secondary observation: headless usage is stored without usage_model, leaving supported usage unpriced even when serving-model evidence is available.
@@ -63,3 +63,7 @@
 - Start with `node bin/python-runner.js -m pytest -q test/test_commands_runs_py.py test/test_provider_background_py.py test/test_usage_weighting_py.py`.
 - Add the smallest regression that fails on the reviewed defect; these existing suites alone are not proof of the fix.
 - Finish with repository lint and the orchestration task cross-slice validation. Keep all fixture data synthetic and temporary.
+
+# Implementation evidence
+- Blocking headless output and delegated Claude transcript closeout now carry a serving model only when one model is observed alongside usage. Mixed or missing observed models remain unpriced; configured requested model is not used as evidence.
+- The failover regression verifies per-attempt models; `test_headless_model_must_be_observed_and_unmixed` and `test_model_attribution_requires_one_observed_model` cover missing and mixed reports.

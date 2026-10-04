@@ -515,7 +515,7 @@ def _list_launch_transcript_paths(session, glob_fn=None):
     log_dir = _get_launch_transcript_dir(session)
     if not os.path.isdir(log_dir):
         return []
-    paths = set(glob_fn(os.path.join(log_dir, "cdx-session*.log")))
+    paths = set(glob_fn(os.path.join(glob.escape(log_dir), "cdx-session*.log")))
     legacy = _get_launch_transcript_path(session)
     if os.path.exists(legacy):
         paths.add(legacy)

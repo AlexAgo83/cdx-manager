@@ -457,6 +457,22 @@ class StatusCommandTests(CliTestBase):
         self.assertIn("work", output)
         self.assertNotIn("5m00s", output)
 
+    def test_cross_midnight_run_is_whole_in_each_overlapping_period(self):
+        from src.cli_args import _filter_history_period
+        from src.run_usage import normalize_usage
+
+        start = datetime(2026, 5, 28, 23, 59).astimezone()
+        end = start + timedelta(minutes=2)
+        entry = {"session_name": "work", "provider": "codex", "status": "success",
+                 "started_at": start.isoformat(), "ended_at": end.isoformat(),
+                 "usage": normalize_usage(input_tokens=10, output_tokens=2)}
+        midnight = (start + timedelta(minutes=1)).timestamp()
+        periods = ({"from_ts": start.timestamp(), "to_ts": midnight},
+                   {"from_ts": midnight, "to_ts": end.timestamp()},
+                   {"from_ts": start.timestamp(), "to_ts": end.timestamp()})
+        for period in periods:
+            self.assertEqual(_filter_history_period([entry], period), [entry])
+
     def test_stats_aggregates_known_usage_by_session(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

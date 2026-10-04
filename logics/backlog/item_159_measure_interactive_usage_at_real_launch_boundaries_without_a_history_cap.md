@@ -4,11 +4,11 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 20%
+> Progress: 85%
 > Complexity: High
 > Theme: Usage measurement
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:14:10
+> Indicators reviewed: 2026-10-04 17:33:12
 
 # AI Context
 - Summary: req_078 finding 2: previous end snapshots include intervening unmanaged activity; callers also supply only the last 50 history rows.
@@ -63,3 +63,7 @@
 - Start with `node bin/python-runner.js -m pytest -q test/test_usage_delta_py.py test/test_interactive_usage_py.py test/test_commands_launch_py.py test/test_usage_backfill_py.py`.
 - Add the smallest regression that fails on the reviewed defect; these existing suites alone are not proof of the fix.
 - Finish with repository lint and the orchestration task cross-slice validation. Keep all fixture data synthetic and temporary.
+
+# Implementation evidence
+- Native cumulative usage is sampled before launch for a known conversation identity, then differenced at exit. A newly created transcript can use its own total; an existing unmatched transcript is marked uncertain and remains unmeasured. History lookup no longer stops at 50 rows.
+- `test_launch_boundary_excludes_intervening_transcript_growth` verifies that 50 intervening tokens are excluded from a 20-token run. `test_prior_cumulative_beyond_fifty_history_rows_is_found` covers the old lookup cap.

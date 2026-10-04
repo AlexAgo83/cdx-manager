@@ -1505,7 +1505,13 @@ class RunsCommandTests(CliTestBase):
                 kwargs["stdout"].write(json.dumps(
                     {"type": "error", "message": "Your workspace is out of credits. Add credits to continue."}
                 ) + "\n")
+                kwargs["stdout"].write(json.dumps({"type": "usage", "model": "gpt-6-sol", "usage": {
+                    "input_tokens": 100, "output_tokens": 10,
+                }}) + "\n")
                 return _HeadlessChild(1)
+            kwargs["stdout"].write(json.dumps({"type": "usage", "model": "gpt-6-luna", "usage": {
+                "input_tokens": 200, "output_tokens": 20,
+            }}) + "\n")
             return _HeadlessChild(0)
 
         io_obj = self.make_io()
@@ -1523,6 +1529,15 @@ class RunsCommandTests(CliTestBase):
         self.assertEqual(
             [item["session"] for item in runs[0]["occupancies"]], ["work1", "work2"]
         )
+        first = service["get_launch_history"]("work1", limit=10)
+        second = service["get_launch_history"]("work2", limit=10)
+        self.assertEqual([(row["attempt"], row["usage"]["input_tokens"], row["usage"]["output_tokens"])
+                          for row in first], [(1, 100, 10)])
+        self.assertEqual([(row["attempt"], row["usage"]["input_tokens"], row["usage"]["output_tokens"])
+                          for row in second], [(2, 200, 20)])
+        self.assertEqual(first[0]["run_id"], second[0]["run_id"])
+        self.assertEqual(first[0]["usage_model"], "gpt-6-sol")
+        self.assertEqual(second[0]["usage_model"], "gpt-6-luna")
 
     def test_failover_reports_exhausting_every_account_distinctly(self):
         target_dir = self.make_temp_dir()

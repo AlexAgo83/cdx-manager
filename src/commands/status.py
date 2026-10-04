@@ -276,6 +276,8 @@ def _summarize_stats(entries):
             "usage_runs": 0,
             "cost_usd": 0.0,
             "weighted_tokens": 0,
+            "weighted_runs": 0,
+            "unweighted_runs": 0,
             "priced_runs": 0,
             "unpriced_models": set(),
             "unvouched_runs": 0,
@@ -318,8 +320,12 @@ def _summarize_stats(entries):
             # actually covered.
             # Weighted per entry, not on the summed row: output and cache-read
             # ratios vary by model, and a session's runs can span models.
-            row["weighted_tokens"] += weighted_usage(
-                entry.get("usage"), entry.get("usage_model")) or 0
+            weighted = weighted_usage(entry.get("usage"), entry.get("usage_model"))
+            if weighted is None:
+                row["unweighted_runs"] += 1
+            else:
+                row["weighted_tokens"] += weighted
+                row["weighted_runs"] += 1
             cost = estimate_cost(entry.get("usage"), entry.get("usage_model"))
             if cost is not None:
                 row["cost_usd"] += cost
@@ -355,37 +361,6 @@ def _summarize_stats(entries):
             output_tokens=row["output_tokens"],
         )
         row["total_tokens"] = derived["total_tokens"] or 0
-        if not row["weighted_tokens"]:
-            # Records written before the model was recorded: weigh the row as a
-            # whole, at the default ratio, rather than reporting nothing.
-            row["weighted_tokens"] = weighted_usage(derived) or 0
-        row["unpriced_models"] = sorted(row["unpriced_models"])
-    for row in rows.values():
-        # Derive from the summed parts rather than summing each run's stored
-        # total. Records written before the definition was settled carry a
-        # total that excluded cache, and adding those to correct ones produced
-        # a row that contradicted itself -- CACHE in the hundreds of millions
-        # beside a TOTAL in the low millions.
-        #
-        # Those records also lack the creation/read split, so the fused
-        # `cached_input_tokens` is the one field both eras share. Where the
-        # split is missing it is read as cache read: that is what the
-        # overwhelming majority of cached tokens are, and weighting the whole
-        # of it at the creation rate would overstate legacy sessions by more
-        # than reading it as reads understates them.
-        split = row["cache_creation_tokens"] + row["cache_read_tokens"]
-        legacy_cache = max(0, row["cached_input_tokens"] - split)
-        derived = normalize_usage(
-            input_tokens=row["input_tokens"],
-            cache_creation_tokens=row["cache_creation_tokens"],
-            cache_read_tokens=row["cache_read_tokens"] + legacy_cache,
-            output_tokens=row["output_tokens"],
-        )
-        row["total_tokens"] = derived["total_tokens"] or 0
-        if not row["weighted_tokens"]:
-            # Records written before the model was recorded: weigh the row as a
-            # whole, at the default ratio, rather than reporting nothing.
-            row["weighted_tokens"] = weighted_usage(derived) or 0
         row["unpriced_models"] = sorted(row["unpriced_models"])
     return sorted(
         rows.values(),
@@ -407,6 +382,8 @@ def _stats_totals(rows):
         "usage_runs": sum(row["usage_runs"] for row in rows),
         **{key: sum(row[key] for row in rows) for key in USAGE_KEYS},
         "weighted_tokens": sum(row["weighted_tokens"] for row in rows),
+        "weighted_runs": sum(row["weighted_runs"] for row in rows),
+        "unweighted_runs": sum(row["unweighted_runs"] for row in rows),
         "cost_usd": sum(row["cost_usd"] for row in rows),
         "priced_runs": sum(row["priced_runs"] for row in rows),
         "unpriced_models": sorted({m for row in rows for m in row["unpriced_models"]}),
@@ -517,7 +494,8 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
             _style(_format_token_count(row["output_tokens"]), "96" if row["output_tokens"] else "2", use_color),
             _style(_format_token_count(row["reasoning_tokens"]), "95" if row["reasoning_tokens"] else "2", use_color),
             _style(_format_token_count(row["total_tokens"]), "96" if row["total_tokens"] else "2", use_color),
-            _style(_format_token_count(row["weighted_tokens"]), "1;95" if row["weighted_tokens"] else "2", use_color),
+            _style(_format_token_count(row["weighted_tokens"]) if row["weighted_runs"] else "-",
+                   "1;95" if row["weighted_runs"] else "2", use_color),
             _style(_format_usd(row["cost_usd"]) if row["priced_runs"] else "-",
                    "1;33" if row["priced_runs"] else "2", use_color),
             _style(_format_duration_ms(row["duration_ms"]), "33" if row["duration_ms"] else "2", use_color),
@@ -534,7 +512,9 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
             "Totals: "
             f"{totals['launches']} runs, {totals['usage_runs']} with usage, "
             f"{_format_token_count(totals['total_tokens'])} tokens "
-            f"({_format_token_count(totals['weighted_tokens'])} cost-equivalent"
+            f"({_format_token_count(totals['weighted_tokens']) if totals['weighted_runs'] else '-'} cost-equivalent"
+            + (f" on {totals['weighted_runs']}/{totals['usage_runs']} measured runs"
+               if totals["usage_runs"] else "")
             + (f", {_format_usd(totals['cost_usd'])} at list on {totals['priced_runs']} priced run"
                f"{'s' if totals['priced_runs'] != 1 else ''} [{token_prices()[1]}]"
                if totals["priced_runs"] else ", no run priced")
@@ -630,6 +610,13 @@ def handle_stats(rest, ctx):
             period=_public_history_period(parsed["period"]),
             stats=rows,
             totals=totals,
+            accounting={
+                "launches_unit": "history_attempts",
+                "period_policy": "whole_run_overlap",
+                "weighted_coverage": "weighted_runs/usage_runs",
+                "price_coverage": "priced_runs/usage_runs",
+                "price_basis": token_prices()[1],
+            },
         ))
         return 0
     active_sessions = _active_session_names(ctx)

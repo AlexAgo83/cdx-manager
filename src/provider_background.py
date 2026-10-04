@@ -219,13 +219,14 @@ def read_transcript_outcome(path):
     records the same facts here. Usage is summed across assistant messages
     because a session can hold several turns.
     """
-    outcome = {"result": None, "usage": None}
+    outcome = {"result": None, "usage": None, "usage_model": None}
     if not path:
         return outcome
     totals = {"input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0, "output_tokens": 0}
     # This path had no de-duplication at all, so a transcript that records the
     # same billed response more than once inflated the total outright.
     counted = set()
+    models = set()
     seen = False
     try:
         with open(path, encoding="utf-8", errors="replace") as handle:
@@ -261,6 +262,8 @@ def read_transcript_outcome(path):
                     # interactive one filled the same column under opposite
                     # definitions.
                     seen = True
+                    if isinstance(message.get("model"), str) and message["model"]:
+                        models.add(message["model"])
                     totals["input_tokens"] += usage.get("input_tokens") or 0
                     totals["cache_creation_tokens"] += usage.get("cache_creation_input_tokens") or 0
                     totals["cache_read_tokens"] += usage.get("cache_read_input_tokens") or 0
@@ -269,4 +272,6 @@ def read_transcript_outcome(path):
         return outcome
     if seen:
         outcome["usage"] = normalize_usage(**totals)
+        if len(models) == 1:
+            outcome["usage_model"] = next(iter(models))
     return outcome

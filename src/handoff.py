@@ -11,7 +11,6 @@ from uuid import uuid4
 from .context_store import get_context_path, read_context
 from .errors import CdxError
 from .fs_utils import atomic_write
-from .interactive_usage import conversation_transcript
 from .provider_runtime import _get_auth_home, _list_launch_transcript_paths
 
 CANDIDATE_LIMIT = 20
@@ -25,13 +24,19 @@ class HandoffSourceError(CdxError):
 
 def _native_paths(session):
     home = _get_auth_home(session)
+    root = os.path.realpath(home)
+    def owned(path):
+        try:
+            return os.path.commonpath((root, os.path.realpath(path))) == root
+        except ValueError:
+            return False
     if session['provider'] == 'codex':
-        paths = glob.glob(os.path.join(home, 'sessions', '**', '*.jsonl'), recursive=True)
-        return [p for p in paths if 'subagents' not in os.path.relpath(p, home).split(os.sep)]
+        paths = glob.glob(os.path.join(glob.escape(home), 'sessions', '**', '*.jsonl'), recursive=True)
+        return [p for p in paths if owned(p) and 'subagents' not in os.path.relpath(p, home).split(os.sep)]
     if session['provider'] == 'claude':
         return sorted(set(
-            p for root in (('.claude', 'projects'), ('projects',))
-            for p in glob.glob(os.path.join(home, *root, '*', '*.jsonl'))
+            p for layout in (('.claude', 'projects'), ('projects',))
+            for p in glob.glob(os.path.join(glob.escape(home), *layout, '*', '*.jsonl')) if owned(p)
         ))
     return []
 
@@ -119,7 +124,7 @@ def source_candidates(session, workspace):
     return sorted(candidates, key=lambda c: (c['last_event_at'] or '', c['path']), reverse=True)[:CANDIDATE_LIMIT]
 
 
-def resolve_source(session, workspace, conversation_id=None, terminal_path=None):
+def resolve_source(session, workspace, conversation_id=None, terminal_path=None, native_path=None):
     workspace = os.path.realpath(workspace)
     if terminal_path:
         path = os.path.realpath(terminal_path)
@@ -150,26 +155,34 @@ def resolve_source(session, workspace, conversation_id=None, terminal_path=None)
     reason = 'No recorded conversation identity.'
     if session['provider'] not in ('codex', 'claude'):
         raise HandoffSourceError('No supported native transcript for this provider. Select a known launch log with --source-transcript PATH for degraded recovery.')
+    paths = _native_paths(session)
+    if native_path:
+        path = os.path.realpath(native_path)
+        allowed = {os.path.realpath(p) for p in paths}
+        if path not in allowed:
+            raise HandoffSourceError('Native transcript must be a top-level source file in the source profile.')
+        info = inspect_transcript(path, session['provider'])
+        if info['workspace'] != workspace:
+            raise HandoffSourceError('Native transcript workspace does not match the target workspace.')
+        info['provenance'] = 'explicit_native_path'
+        return info
     if selected:
         if not isinstance(selected, str) or not re.fullmatch(r'[A-Za-z0-9_-]+', selected):
             raise HandoffSourceError('Invalid source conversation ID.')
-        path = conversation_transcript(session['provider'], _get_auth_home(session), selected)
-        # The native resolver may walk nested subagent directories; only top-level
-        # conversations are eligible for handoff, even when explicitly named.
-        paths = _native_paths(session)
-        if not path:
-            matches = [p for p in paths if os.path.basename(p) == selected + '.jsonl']
-            path = matches[0] if len(matches) == 1 else None
         reason = f'Conversation {selected} is missing or is not a top-level source.'
-        if path in paths:
+        matches = []
+        for path in paths:
             try:
                 info = inspect_transcript(path, session['provider'])
-                if info['conversation_id'] != selected or info['workspace'] != workspace:
-                    raise CdxError(f'Conversation identity or workspace mismatch: {selected}')
-                info['provenance'] = 'explicit_identity' if conversation_id else 'recorded_identity'
-                return info
-            except CdxError as error:
-                reason = str(error)
+            except CdxError:
+                continue
+            if info['conversation_id'] == selected and info['workspace'] == workspace:
+                matches.append(info)
+        if len(matches) > 1:
+            raise HandoffSourceError(f'Conversation {selected} has multiple native transcripts; select --source-native-transcript PATH.', matches)
+        if matches:
+            matches[0]['provenance'] = 'explicit_identity' if conversation_id else 'recorded_identity'
+            return matches[0]
     candidates = source_candidates(session, workspace)
     raise HandoffSourceError(
         reason + ' Select the intended ID with --source-conversation ID; no recency fallback is used.',

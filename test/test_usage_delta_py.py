@@ -7,7 +7,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 from src.commands.launch import _attach_interactive_usage
-from src.interactive_usage import usage_delta
+from src.interactive_usage import extract_interactive_usage, usage_delta
 
 
 def _assistant(message_id, output):
@@ -72,6 +72,29 @@ class UsageDeltaTests(unittest.TestCase):
 
         summed = sum(run["usage"]["total_tokens"] for run in runs)
         self.assertEqual(summed, runs[-1]["usage_cumulative"]["total_tokens"])
+
+    def test_launch_boundary_excludes_intervening_transcript_growth(self):
+        self._append([_assistant("previous", 10)])
+        previous = self._run([])
+        self._append([_assistant("between", 50)])
+        baseline, path, _, _ = extract_interactive_usage("claude", self.home)
+        self._append([_assistant("during", 20)])
+        run = _attach_interactive_usage(
+            self.session,
+            {"started_at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()},
+            [previous],
+            baseline=(path, baseline),
+        )
+        self.assertEqual(run["usage"]["output_tokens"], 20)
+        self.assertEqual(run["usage_attribution"], "launch_boundary")
+
+    def test_prior_cumulative_beyond_fifty_history_rows_is_found(self):
+        self._append([_assistant("previous", 10)])
+        previous = self._run([])
+        self._append([_assistant("current", 20)])
+        unrelated = [{"provider_transcript_path": f"other-{i}.jsonl"} for i in range(60)]
+        run = self._run([*unrelated, previous])
+        self.assertEqual(run["usage"]["output_tokens"], 20)
 
     def test_a_shrunken_transcript_reports_absence_rather_than_a_negative(self):
         self._append([_assistant("m1", 5), _assistant("m2", 7)])

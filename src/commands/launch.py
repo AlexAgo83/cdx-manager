@@ -258,6 +258,13 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
                 {"status": "stopped", "returncode": info.get("returncode")},
             )
 
+    # A resumed transcript may grow outside CDX between launches. Capture its
+    # cumulative value immediately before starting the provider.
+    baseline, baseline_path, baseline_match, _ = extract_interactive_usage(
+        session.get("provider"), _get_auth_home(session), None, _conversation_id(session),
+    )
+    if baseline_match != "conversation_id":
+        baseline = baseline_path = None
     try:
         run_info = _run_interactive_provider_command(
             session, "resume" if resume else "launch", spawn=ctx.get("spawn"), cwd=cwd, env_override=ctx.get("env"),
@@ -270,7 +277,8 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
     except CdxError as error:
         run_info = getattr(error, "run_info", {}) or {}
         run_info = _attach_interactive_usage(
-            session, run_info, ctx["service"]["get_launch_history"](session["name"], limit=50)
+            session, run_info, ctx["service"]["get_launch_history"](session["name"], limit=None),
+            baseline=(baseline_path, baseline),
         )
         if not json_flag and error.exit_code in INTERRUPT_EXIT_CODES:
             ctx["out"](f"{_goodbye_line(session, run_info, ctx['use_color'])}\n")
@@ -290,7 +298,8 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
             })
         raise
     success_run_info = _attach_interactive_usage(
-        session, run_info, ctx["service"]["get_launch_history"](session["name"], limit=50)
+        session, run_info, ctx["service"]["get_launch_history"](session["name"], limit=None),
+        baseline=(baseline_path, baseline),
     )
     ctx["service"]["record_launch_history"](session["name"], {
         "status": "success",
@@ -332,7 +341,7 @@ def _goodbye_line(session, run_info, use_color):
     return _dim(" · ".join(parts), use_color)
 
 
-def _attach_interactive_usage(session, run_info, history=None):
+def _attach_interactive_usage(session, run_info, history=None, baseline=None):
     """Attach this run's own token usage without affecting launch outcome.
 
     Both interactive readers report a cumulative figure, so what a run *stores*
@@ -369,7 +378,16 @@ def _attach_interactive_usage(session, run_info, history=None):
         # `model` is optional and usually unset, because the session takes the
         # provider's default.
         run_info["usage_model"] = model
-    previous = _previous_cumulative(history, provider_transcript)
+    baseline_path, baseline_usage = baseline or (None, None)
+    if baseline_usage is not None and baseline_path == provider_transcript:
+        previous = baseline_usage
+        run_info["usage_attribution"] = "launch_boundary"
+    elif baseline is not None:
+        previous = None
+        run_info["usage_attribution"] = "new_transcript" if not transcript_predates_run(
+            provider_transcript, started_at) else "uncertain_transcript"
+    else:
+        previous = _previous_cumulative(history, provider_transcript)
     if previous is not None:
         delta = usage_delta(cumulative, previous)
         if delta is not None:
@@ -402,7 +420,7 @@ def _parse_handoff_args(rest):
         arg = args[index]
         if arg.startswith("--"):
             key, sep, value = arg.partition("=")
-            if key not in ("--source-conversation", "--source-transcript") or key in flags:
+            if key not in ("--source-conversation", "--source-transcript", "--source-native-transcript") or key in flags:
                 raise CdxError(HANDOFF_USAGE)
             if not sep:
                 index += 1
@@ -420,14 +438,15 @@ def _parse_handoff_args(rest):
 
 def _handoff_source(source, workspace, flags, ctx, json_flag):
     try:
-        return resolve_source(source, workspace, flags.get("--source-conversation"), flags.get("--source-transcript"))
+        return resolve_source(source, workspace, flags.get("--source-conversation"),
+                              flags.get("--source-transcript"), flags.get("--source-native-transcript"))
     except HandoffSourceError as error:
         candidates = error.candidates
         # JSON and non-interactive callers always make an explicit second call.
         if json_flag or not ctx["stdin_is_tty"] or not candidates or flags:
             raise
         ctx["out"](str(error) + "\n" + "".join(
-            f"  {i + 1}. {c['conversation_id']} | {c['workspace']} | last event {c['last_event_at'] or 'unknown'}\n"
+            f"  {i + 1}. {c['conversation_id']} | {c['path']} | {c['workspace']} | last event {c['last_event_at'] or 'unknown'}\n"
             for i, c in enumerate(candidates)
         ))
         ask = ctx["options"].get("input") or input
@@ -439,7 +458,11 @@ def _handoff_source(source, workspace, flags, ctx, json_flag):
             raise CdxError("Handoff cancelled.", exit_code=130) from None
         if not answer.isdigit() or not 1 <= int(answer) <= len(candidates):
             raise CdxError("Handoff cancelled: choose a listed source.") from None
-        return resolve_source(source, workspace, candidates[int(answer) - 1]["conversation_id"])
+        chosen = candidates[int(answer) - 1]
+        exact = resolve_source(source, workspace, native_path=chosen["path"])
+        if (exact["sha256"], exact["extent_bytes"]) != (chosen["sha256"], chosen["extent_bytes"]):
+            raise HandoffSourceError("Selected native transcript changed during selection.") from None
+        return exact
 
 
 def handle_handoff(rest, ctx):
@@ -464,7 +487,7 @@ def handle_handoff(rest, ctx):
             transcript = _handoff_source(source, workspace, flags, ctx, json_flag)
         except HandoffSourceError as error:
             if not json_flag:
-                choices = "\n".join(f"  {c['conversation_id']} | {c['workspace']} | {c['last_event_at'] or 'unknown'}" for c in error.candidates)
+                choices = "\n".join(f"  {c['conversation_id']} | {c['path']} | {c['workspace']} | {c['last_event_at'] or 'unknown'}" for c in error.candidates)
                 raise CdxError(str(error) + ("\nCandidates:\n" + choices if choices else "")) from error
             _write_json(ctx, _json_failure("handoff", "handoff_source_unresolved", str(error), candidates=error.candidates))
             return error.exit_code

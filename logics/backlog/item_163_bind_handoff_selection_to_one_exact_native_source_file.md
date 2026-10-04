@@ -4,11 +4,11 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 20%
+> Progress: 85%
 > Complexity: Medium
 > Theme: Handoff identity
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:14:10
+> Indicators reviewed: 2026-10-04 17:34:02
 
 # AI Context
 - Summary: req_079 finding 1: duplicate IDs select the first filesystem match; the interactive chooser discards its chosen path and re-resolves only the ID.
@@ -65,3 +65,8 @@
 - Start with `node bin/python-runner.js -m pytest -q test/test_handoff_transcript_py.py test/test_commands_launch_py.py test/test_cli_contract_py.py`.
 - Add the smallest regression that fails on the reviewed defect; these existing suites alone are not proof of the fix.
 - Finish with repository lint and the orchestration task cross-slice validation. Keep all fixture data synthetic and temporary.
+
+# Implementation evidence
+- Recorded or explicit conversation IDs are matched against all eligible native files. Duplicate matches return their exact paths and require an exact native selector or interactive choice. Interactive selection rechecks the selected file's digest and byte extent before preparing the pointer.
+- `--source-native-transcript` validates top-level profile ownership and workspace separately from degraded terminal selection. Existing pointer integrity and no-launch checks remain in the handoff suite.
+- Regressions: `test_duplicate_native_identity_requires_exact_path`, `test_interactive_duplicate_choice_preserves_selected_file`, and `test_exact_native_path_cli_prepares_selected_source`.

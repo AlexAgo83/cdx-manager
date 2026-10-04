@@ -4,11 +4,11 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 20%
+> Progress: 85%
 > Complexity: Medium
 > Theme: Stats contract
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:14:10
+> Indicators reviewed: 2026-10-04 17:33:13
 
 # AI Context
 - Summary: req_078 secondary observations: duplicated finalization; overlapping periods are non-additive; relative weights are not dollars; partial coverage and approximate tariffs need explicit interpretation.
@@ -63,3 +63,7 @@
 - Start with `node bin/python-runner.js -m pytest -q test/test_commands_status_py.py test/test_usage_weighting_py.py test/test_unvouched_usage_py.py`.
 - Add the smallest regression that fails on the reviewed defect; these existing suites alone are not proof of the fix.
 - Finish with repository lint and the orchestration task cross-slice validation. Keep all fixture data synthetic and temporary.
+
+# Implementation evidence
+- Removed the duplicate row-finalization loop. `weighted_runs` and `unweighted_runs` expose partial relative-cost coverage; JSON `accounting` describes attempt counts, whole-run period overlap and price source. README now distinguishes attempt history, live/completed coverage, partial USD pricing and current-table repricing.
+- `test_cross_midnight_run_is_whole_in_each_overlapping_period` validates non-additive adjacent periods; the existing stats and weighting suites verify totals and presentation.

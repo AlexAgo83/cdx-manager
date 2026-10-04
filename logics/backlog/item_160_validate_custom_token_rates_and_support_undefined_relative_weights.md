@@ -4,11 +4,11 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 20%
+> Progress: 85%
 > Complexity: Medium
 > Theme: Pricing robustness
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:14:10
+> Indicators reviewed: 2026-10-04 17:33:12
 
 # AI Context
 - Summary: req_078 finding 3: zero, nonnumeric, negative and nonfinite overrides are not handled consistently; weighted ratios divide by input price.
@@ -62,3 +62,7 @@
 - Start with `node bin/python-runner.js -m pytest -q test/test_usage_weighting_py.py test/test_commands_status_py.py`.
 - Add the smallest regression that fails on the reviewed defect; these existing suites alone are not proof of the fix.
 - Finish with repository lint and the orchestration task cross-slice validation. Keep all fixture data synthetic and temporary.
+
+# Implementation evidence
+- `CDX_TOKEN_PRICES` now rejects malformed JSON, missing fields and nonnumeric, negative or nonfinite rates with a named error. A zero input price retains direct USD pricing while undefined relative weights are excluded from `COST~` and counted as uncovered.
+- `test_invalid_override_rates_fail_actionably` and `test_zero_input_price_keeps_currency_but_not_undefined_weights` cover the boundaries.

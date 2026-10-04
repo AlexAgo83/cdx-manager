@@ -4,11 +4,11 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 20%
+> Progress: 85%
 > Complexity: High
 > Theme: Review hardening
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:17:36
+> Indicators reviewed: 2026-10-04 17:34:02
 > Owner: Codex
 
 # AI Context
@@ -23,9 +23,9 @@
 # Plan
 - [ ] 1. Wave 0: read the three review evidence docs and this chain; reproduce each relevant defect with synthetic temporary data. Map every request AC and secondary observation to a slice. Do not label baseline passing tests as delivery proof.
 - [x] 2. Wave 1 (High): preserve force-import recovery boundaries, then serialize memory writes across processes. Validate focused failure-injection and real-process regressions before proceeding.
-- [ ] 3. Wave 2 (Medium): define and implement failover attempt accounting, then interactive start/end measurement including the history-window gap. Keep registry logical-run identity distinct from history attempts and explicit uncertainty.
-- [ ] 4. Wave 3 (Medium, after accounting): validate price overrides and undefined relative weights, capture observed headless models per attempt, then consolidate stats finalization and align text/JSON/documentation contracts.
-- [ ] 5. Wave 4 (Medium): make transcript discovery literal-path-safe, then bind exact native handoff selection and duplicate-ID diagnostics. Preserve preparation boundaries and no-launch failure behavior.
+- [x] 3. Wave 2 (Medium): define and implement failover attempt accounting, then interactive start/end measurement including the history-window gap. Keep registry logical-run identity distinct from history attempts and explicit uncertainty.
+- [x] 4. Wave 3 (Medium, after accounting): validate price overrides and undefined relative weights, capture observed headless models per attempt, then consolidate stats finalization and align text/JSON/documentation contracts.
+- [x] 5. Wave 4 (Medium): make transcript discovery literal-path-safe, then bind exact native handoff selection and duplicate-ID diagnostics. Preserve preparation boundaries and no-launch failure behavior.
 - [ ] 6. Wave 5: run npm run lint, npm run test:coverage and cargo test --manifest-path tray/Cargo.toml; run npm pack --dry-run for CLI packaging checks. Use supported-platform CI or targeted equivalent evidence for cross-process locking and path portability. Report unavailable platform proof honestly.
 - [ ] 7. At each wave update indicators/progress through Logics CLI and record exact test commands/results and request-to-backlog-to-test traceability. Keep execution and regression fixtures free of real credentials, private transcripts and live provider calls.
 - [ ] 8. Closeout: verify AC1-AC12 and the seven findings plus secondary observations are covered. Run flow validate-closeout, required lint/audit and closeout; settle the linked product brief. Follow user authorization for implementation commits; do not push or publish as part of this chain.
@@ -84,6 +84,8 @@
 
 # Validation
 - Wave 1: `node bin/python-runner.js -m pytest -q test/test_context_store_py.py test/test_commands_context_memory_py.py test/test_run_registry_py.py test/test_profile_data_safety_py.py test/test_commands_backup_py.py` — 68 passed; targeted Ruff checks passed. Native Windows validation is pending.
+- Waves 2 and 3: `node bin/python-runner.js -m pytest -q test/test_commands_runs_py.py test/test_run_failover_py.py test/test_usage_delta_py.py test/test_interactive_usage_py.py test/test_commands_launch_py.py test/test_usage_backfill_py.py test/test_usage_weighting_py.py test/test_commands_status_py.py test/test_unvouched_usage_py.py test/test_provider_background_py.py` — 270 passed; targeted Ruff checks passed.
+- Wave 4: `node bin/python-runner.js -m pytest -q test/test_handoff_transcript_py.py test/test_commands_launch_py.py test/test_cli_contract_py.py test/test_provider_runtime_helpers_py.py` — 126 passed; targeted Ruff checks passed.
 
 # Report
 - Not started.

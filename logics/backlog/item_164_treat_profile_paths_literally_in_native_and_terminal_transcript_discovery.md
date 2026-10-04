@@ -4,11 +4,11 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 20%
+> Progress: 85%
 > Complexity: Medium
 > Theme: Filesystem portability
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:14:10
+> Indicators reviewed: 2026-10-04 17:34:02
 
 # AI Context
 - Summary: req_079 finding 2: authHome is embedded unescaped in glob patterns, so literal brackets hide valid transcripts. The timestamped terminal fallback uses the same pattern construction.
@@ -63,3 +63,7 @@
 - Start with `node bin/python-runner.js -m pytest -q test/test_handoff_transcript_py.py test/test_commands_launch_py.py test/test_provider_runtime_helpers_py.py`.
 - Add the smallest regression that fails on the reviewed defect; these existing suites alone are not proof of the fix.
 - Finish with repository lint and the orchestration task cross-slice validation. Keep all fixture data synthetic and temporary.
+
+# Implementation evidence
+- Native and terminal discovery escape literal profile prefixes before adding glob wildcards. Native discovery also excludes symlink targets outside the source profile and retains existing subagent exclusions.
+- `test_literal_profile_path_discovers_native_source` covers Codex and Claude under `profiles[team]`; `test_literal_profile_path_accepts_owned_terminal_capture` covers timestamped terminal fallback; the exact-path test rejects out-of-profile symlinks.

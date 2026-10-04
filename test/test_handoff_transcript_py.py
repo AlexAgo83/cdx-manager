@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -53,6 +54,44 @@ def test_identity_wins_over_mtime_and_no_missing_identity_fallback(tmp_path, pro
     session.pop('conversation')
     with pytest.raises(HandoffSourceError):
         resolve_source(session, str(tmp_path))  # Even a single candidate needs explicit selection.
+
+
+@pytest.mark.parametrize('provider', ['codex', 'claude'])
+def test_literal_profile_path_discovers_native_source(tmp_path, provider):
+    session, path = native(tmp_path / 'profiles[team]', provider, tmp_path)
+    assert resolve_source(session, str(tmp_path))['path'] == str(path)
+
+
+def test_duplicate_native_identity_requires_exact_path(tmp_path):
+    session, first = native(tmp_path, 'codex', tmp_path)
+    second = first.parent / f'rollout-2026-09-22T00-00-00-{ID}.jsonl'
+    shutil.copyfile(first, second)
+    with second.open('a') as handle:
+        handle.write(json.dumps({'type': 'response_item', 'payload': {'type': 'message',
+                          'role': 'user', 'content': [{'type': 'input_text', 'text': 'different'}]}}) + '\n')
+    with pytest.raises(HandoffSourceError, match='multiple native transcripts') as error:
+        resolve_source(session, str(tmp_path))
+    assert {candidate['path'] for candidate in error.value.candidates} == {str(first), str(second)}
+    assert resolve_source(session, str(tmp_path), native_path=str(first))['sha256'] != \
+        resolve_source(session, str(tmp_path), native_path=str(second))['sha256']
+    with pytest.raises(HandoffSourceError, match='top-level'):
+        resolve_source(session, str(tmp_path), native_path=str(tmp_path / 'other.jsonl'))
+    outside = tmp_path / 'outside.jsonl'
+    shutil.copyfile(first, outside)
+    link = first.parent / f'rollout-2026-09-23T00-00-00-{ID}.jsonl'
+    link.symlink_to(outside)
+    with pytest.raises(HandoffSourceError, match='top-level'):
+        resolve_source(session, str(tmp_path), native_path=str(link))
+
+
+def test_literal_profile_path_accepts_owned_terminal_capture(tmp_path):
+    home = tmp_path / 'profiles[team]'
+    log = home / 'log'
+    log.mkdir(parents=True)
+    capture = log / 'cdx-session-20261004.log'
+    capture.write_text('synthetic terminal capture')
+    session = {'name': 'source', 'provider': 'ollama', 'authHome': str(home)}
+    assert resolve_source(session, str(tmp_path), terminal_path=str(capture))['mode'] == 'degraded'
 
 
 @pytest.mark.parametrize('provider', ['codex', 'claude'])
@@ -182,6 +221,13 @@ def test_command_json_prepares_without_launch_auth_or_notes_mutation(command_con
     assert json.dumps(payload['context']['target_path']) in launches[-1][1]['initial_prompt']
 
 
+def test_exact_native_path_cli_prepares_selected_source(command_context, tmp_path):
+    command, ctx, output, launches, source, target, path = command_context
+    assert command([source['name'], target['name'], '--source-native-transcript', str(path), '--json'], ctx) == 0
+    assert json.loads(output[-1])['handoff']['transcript']['provenance'] == 'explicit_native_path'
+    assert not launches
+
+
 def test_command_missing_source_reports_candidates_and_changes_nothing(command_context, tmp_path):
     command, ctx, output, launches, source, target, _path = command_context
     source['conversation']['id'] = OTHER_ID
@@ -226,6 +272,25 @@ def test_command_interactive_selection_and_stale_entry_does_not_fall_back(comman
     with pytest.raises(CdxError, match='unavailable'):
         command([target['name']], ctx)
     assert len(launches) == 1
+
+
+def test_interactive_duplicate_choice_preserves_selected_file(command_context, tmp_path):
+    command, ctx, _output, launches, source, target, first = command_context
+    second = first.parent / f'rollout-2026-09-22T00-00-00-{ID}.jsonl'
+    shutil.copyfile(first, second)
+    with second.open('a') as handle:
+        handle.write(json.dumps({'type': 'response_item', 'payload': {'type': 'message',
+                          'role': 'user', 'content': [{'type': 'input_text', 'text': 'second'}]}}) + '\n')
+    ctx['stdin_is_tty'] = True
+    with pytest.raises(HandoffSourceError) as duplicate:
+        resolve_source(source, str(tmp_path))
+    choice = next(i for i, candidate in enumerate(duplicate.value.candidates, 1)
+                  if candidate['path'] == str(first))
+    ctx['options']['input'] = lambda _prompt: str(choice)
+    assert command([source['name'], target['name']], ctx) == 0
+    assert len(launches) == 1
+    _entry_path, entry = load_entry(str(tmp_path), target, str(tmp_path))
+    assert entry['transcript']['path'] == str(first)
 
 
 @pytest.mark.parametrize('args', [[], ['one', 'two', 'three'], ['one', '--source-conversation', ID],

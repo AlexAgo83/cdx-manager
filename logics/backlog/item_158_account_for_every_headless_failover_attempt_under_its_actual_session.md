@@ -4,11 +4,11 @@
 > Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 20%
+> Progress: 85%
 > Complexity: High
 > Theme: Usage attribution
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:14:10
+> Indicators reviewed: 2026-10-04 17:33:12
 
 # AI Context
 - Summary: req_078 finding 1: the loop overwrites run_info and records final-attempt usage under the original session.
@@ -62,3 +62,7 @@
 - Start with `node bin/python-runner.js -m pytest -q test/test_commands_runs_py.py test/test_run_failover_py.py test/test_commands_status_py.py`.
 - Add the smallest regression that fails on the reviewed defect; these existing suites alone are not proof of the fix.
 - Finish with repository lint and the orchestration task cross-slice validation. Keep all fixture data synthetic and temporary.
+
+# Implementation evidence
+- Each blocking headless attempt writes one history row with its actual session, run ID, attempt number, outcome, duration and usage before failover advances. The registry remains one logical run. Provider launch exceptions with run information also write one failed attempt.
+- `test_failover_continues_the_task_on_the_next_account` verifies A=100/10 and B=200/20 in separate session histories with one shared run ID and registry entry.

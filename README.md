@@ -118,11 +118,13 @@ cd /path/to/project
 cdx handoff source target --json                 # prepare only, no provider launch
 cdx handoff target                               # use that prepared entry and launch
 cdx handoff source target --source-conversation CONVERSATION_ID
+# Exact native file when several transcripts share an identity:
+cdx handoff source target --source-native-transcript /path/to/source/sessions/rollout.jsonl
 # Explicit fallback when only a terminal capture is available:
 cdx handoff source target --source-transcript /path/to/source/log/cdx-session.log
 ```
 
-The last two source-selection options are mutually exclusive and apply only to
+The three source-selection options are mutually exclusive and apply only to
 `SOURCE TARGET`. Without a usable recorded identity, an interactive terminal offers
 up to 20 valid conversations from the current workspace, ordered by actual event
 time for inspection, with no default choice. Blank input or Ctrl-C cancels. A stale
@@ -563,7 +565,7 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 | `cdx context show\|path\|init\|edit\|clear\|set\|append [text...] [--json]` | Manage the shared Markdown context for the current workspace |
 | `cdx memory [--global\|--project NAME_OR_PATH] [show\|view\|path\|init\|edit\|clear\|set\|append\|list] [text...] [--json]` | Manage explicit user-controlled memory for the current workspace, global scope, or a named/path project |
 | `cdx handoff <name> [--json]` | Reuse the prepared entry for this target/workspace, or use explicitly labelled notes-only recovery if none exists; launch unless `--json` |
-| `cdx handoff <source> <target> [--source-conversation ID\|--source-transcript PATH] [--json]` | Prepare an identity-checked transcript entry and launch the target in the verified workspace unless `--json`; explicit terminal selection is degraded recovery |
+| `cdx handoff <source> <target> [--source-conversation ID\|--source-native-transcript PATH\|--source-transcript PATH] [--json]` | Prepare an identity-checked transcript entry and launch the target in the verified workspace unless `--json`; exact native selection resolves duplicate IDs, while explicit terminal selection is degraded recovery |
 | `cdx rmv <name> [--force] [--json]` | Remove a session and its auth data (prompts for confirmation unless `--force`) |
 | `cdx clean [name] [--yes] [--json]` | Clear launch transcript logs for one session or all sessions after confirmation |
 | `cdx clean profiles (--tmp\|--old-logs DAYS) [--yes] [--json]` | Remove explicit profile cleanup candidates after confirmation: temporary marketplace/plugin staging caches or old `.log` files |
@@ -781,7 +783,11 @@ The **`USD~`** column turns that into money for runs whose serving model cdx rec
 
 The table requires `input` and `output` prices in USD per million tokens and accepts an optional `cache_read` price in the same units. Without it, cache reads cost 0.1x input; cache writes assume 1.25x input. GPT-6.1 Sol and Claude Opus 5.5 use 0.05x cache reads, while Claude Fable/Mythos 5.1 use 0.025x. Both `COST~` and `USD~` honor those rates. `CDX_TOKEN_PRICES` replaces the supplied model row: a two-field override keeps the legacy 0.1x fallback; include `cache_read` to override it (including zero).
 
-Three caveats stated rather than hidden. A run is priced at the model serving its most recent record, so a run that switched models mid-way is priced at the newer one. The figure uses standard public list prices, excluding Fast/priority, Batch/Flex, regional premiums, and tool fees — not an invoice. And OpenAI's long-context tier, which increases rates above a 272K-token request, is **not** modelled: cdx records tokens per run rather than per request, so it cannot tell which requests crossed that line, and long-context Codex work is under-costed.
+Override rates must be finite and nonnegative. A zero input rate can still yield `USD~`, but ratios relative to input are undefined; `COST~` then shows `-` for an uncovered session. JSON keeps the numeric `weighted_tokens` sum for covered runs and reports `weighted_runs` and `unweighted_runs` so partial coverage is visible.
+
+The figure uses standard public list prices, excluding Fast/priority, Batch/Flex, regional premiums, and tool fees — not an invoice. When a run changes models without a measured per-model token split, its USD estimate is unavailable rather than assigning all tokens to one model. OpenAI's long-context tier, which increases rates above a 272K-token request, is **not** modelled: cdx records tokens per run rather than per request, so it cannot tell which requests crossed that line, and long-context Codex work is under-costed.
+
+`cdx stats` counts completed history attempts. A headless failover has one logical run in `cdx runs` but one history row per attempted session, including failed attempts that reported usage. Period filtering includes the entire run in every period it overlaps, so adjacent daily results can both include a run crossing midnight; adding daily totals may exceed a combined period. JSON `accounting` names this policy and the current price-table source. `usage_runs` and `priced_runs` show how much of the token total has a dollar estimate. Live runs are absent until their history row is written, and unknown usage is different from measured zero.
 
 The built-in price table ships with **cdx-manager**. Run `cdx update` to receive new model prices; updating Codex or Claude alone does not refresh it. Then check `cdx --version` and `cdx stats --json`. Existing runs with a recorded model are recalculated using the new table when stats are read. `CDX_TOKEN_PRICES` overrides still take precedence. Maintainers: follow [the model and pricing update runbook](logics/runbook/run_005_maintaining_the_token_price_table.md) for source checks, tests, release preparation and installed-version verification.
 
