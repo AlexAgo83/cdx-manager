@@ -1,11 +1,17 @@
 ## run_004_recovering_disk_space_from_cdx_profiles - Recovering disk space from CDX profiles
-> Status: Draft
+> Status: Active
 > Category: support
 > Verified: 2026-08-15, reclaimed profile storage by moving unused Ollama models, caches, stale Claude Code extensions, and CDX session logs to the macOS Trash.
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: (none yet)
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
+
+# Lifecycle review 2026-10-04
+The successful cleanup recorded in Verified was left in Draft. Activated this
+runbook after checking disk command scope and profile isolation in the source.
+The original cleanup verification date is retained; no files were moved during
+this release review.
 
 # Trigger
 - `cdx disk` reports unexpectedly high usage.
@@ -25,8 +31,10 @@
    du -sh "$HOME/.cdx/profiles"/* | sort -h
    ```
 
-   `cdx disk` measures `~/.cdx`; Codex conversation history is separate at
-   `~/.codex/sessions`.
+   `cdx disk` measures the configured CDX home (normally `~/.cdx`). Native
+   Codex profiles keep their sessions under their own `CODEX_HOME`, typically
+   `~/.cdx/profiles/<profile>/sessions`; standalone Codex can use
+   `~/.codex/sessions`. Confirm the target before measuring or moving files.
 
 2. Inspect a Claude-backed profile before changing it:
 

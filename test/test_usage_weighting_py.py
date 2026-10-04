@@ -58,6 +58,20 @@ class WeightedUsageTests(unittest.TestCase):
 
 
 class StatsRankingTests(unittest.TestCase):
+    def test_new_opus_runs_are_priced_and_cache_discounts_affect_ranking(self):
+        rows = _summarize_stats([
+            {**_entry("new-opus", cache_read_tokens=1_000_000),
+             "usage_model": "claude-opus-5-5"},
+            {**_entry("old-opus", cache_read_tokens=1_000_000),
+             "usage_model": "claude-opus-5"},
+        ])
+        self.assertEqual([row["session_name"] for row in rows], ["old-opus", "new-opus"])
+        new = rows[1]
+        self.assertEqual(new["weighted_tokens"], 50_000)
+        self.assertAlmostEqual(new["cost_usd"], 0.2)
+        self.assertEqual(new["priced_runs"], 1)
+        self.assertEqual(new["unpriced_models"], [])
+
     def test_a_cache_heavy_session_ranks_below_one_that_generated_more(self):
         # Equal raw totals, opposite costs. Ranking on the raw total put the
         # replayed cache first, which is the ordering this fixes.
@@ -91,6 +105,13 @@ class CostEstimateTests(unittest.TestCase):
     def test_current_codex_and_claude_models_are_priced(self):
         table = DEFAULT_TOKEN_PRICES
         expected = {
+            "gpt-6.1-sol": {"input": 2.0, "output": 10.0, "cache_read": 0.1},
+            "gpt-6-sol": {"input": 2.0, "output": 10.0},
+            "gpt-6-luna": {"input": 0.1, "output": 0.5},
+            "claude-fable-5-1": {"input": 10.0, "output": 50.0, "cache_read": 0.25},
+            "claude-mythos-5-1": {"input": 10.0, "output": 50.0, "cache_read": 0.25},
+            "claude-opus-5-5": {"input": 4.0, "output": 20.0, "cache_read": 0.2},
+            "claude-sonnet-5-5": {"input": 2.0, "output": 10.0},
             "gpt-6-astra": {"input": 10.0, "output": 50.0},
             "gpt-5.6": {"input": 4.0, "output": 20.0},
             "gpt-5.5": {"input": 5.0, "output": 30.0},
@@ -106,6 +127,33 @@ class CostEstimateTests(unittest.TestCase):
         }
         for model, rate in expected.items():
             self.assertEqual(table[model], rate, model)
+
+    def test_new_cache_discounts_reach_currency_and_weighted_stats(self):
+        usage = normalize_usage(input_tokens=1_000_000, output_tokens=1_000_000,
+                                cache_read_tokens=1_000_000, cache_creation_tokens=1_000_000)
+        for model, cost, weighted in (
+            ("gpt-6.1-sol", 14.6, 7_300_000),
+            ("gpt-6-sol", 14.7, 7_350_000),
+            ("gpt-6-luna", 0.735, 7_350_000),
+            ("claude-opus-5-5", 29.2, 7_300_000),
+            ("claude-fable-5-1", 72.75, 7_275_000),
+            ("claude-mythos-5-1", 72.75, 7_275_000),
+            ("claude-sonnet-5-5", 14.7, 7_350_000),
+        ):
+            with self.subTest(model=model):
+                self.assertAlmostEqual(estimate_cost(usage, model), cost)
+                self.assertEqual(weighted_usage(usage, model), weighted)
+
+    def test_cache_override_supports_explicit_zero_and_legacy_two_rate_rows(self):
+        usage = normalize_usage(cache_read_tokens=1_000_000)
+        for row, cost, weighted in (
+            ('{"input": 2, "output": 10, "cache_read": 0.04}', 0.04, 20_000),
+            ('{"input": 2, "output": 10, "cache_read": 0}', 0, 0),
+            ('{"input": 2, "output": 10}', 0.2, 100_000),
+        ):
+            table, _ = token_prices({"CDX_TOKEN_PRICES": '{"gpt-6.1-sol":' + row + '}'})
+            self.assertAlmostEqual(estimate_cost(usage, "gpt-6.1-sol", table), cost)
+            self.assertEqual(weighted_usage(usage, "gpt-6.1-sol", table), weighted)
 
     def test_an_unknown_model_is_unpriced_rather_than_assumed(self):
         # Charging a default tier would turn "cdx does not know" into a number
@@ -192,6 +240,10 @@ class PriceTableFreshnessTests(unittest.TestCase):
 
     def test_every_priced_model_carries_both_rates(self):
         for model, rate in DEFAULT_TOKEN_PRICES.items():
-            self.assertEqual(set(rate), {"input", "output"}, model)
+            self.assertTrue({"input", "output"} <= set(rate), model)
+            self.assertTrue(set(rate) <= {"input", "output", "cache_read"}, model)
             self.assertGreater(rate["input"], 0, model)
             self.assertGreaterEqual(rate["output"], rate["input"], model)
+            if "cache_read" in rate:
+                self.assertGreaterEqual(rate["cache_read"], 0, model)
+                self.assertLessEqual(rate["cache_read"], rate["input"], model)

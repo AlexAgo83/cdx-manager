@@ -316,9 +316,8 @@ def _summarize_stats(entries):
             # model cdx never saw stays unpriced rather than being charged at a
             # default tier, and `priced_runs` says how much of the figure is
             # actually covered.
-            # Weighted per entry, not on the summed row: the output ratio is
-            # the one multiplier that differs between vendors, and a session's
-            # runs can span models.
+            # Weighted per entry, not on the summed row: output and cache-read
+            # ratios vary by model, and a session's runs can span models.
             row["weighted_tokens"] += weighted_usage(
                 entry.get("usage"), entry.get("usage_model")) or 0
             cost = estimate_cost(entry.get("usage"), entry.get("usage_model"))

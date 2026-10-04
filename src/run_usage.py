@@ -89,8 +89,8 @@ def normalize_usage(input_tokens=None, cache_creation_tokens=None, cache_read_to
 
 #: What a cached token costs relative to one uncached input token.
 #:
-#: Verified against both vendors on 2026-08-14 and identical on each: a cache
-#: read is a 90% discount on the input rate, and a cache write is 1.25x it.
+#: Defaults for rows without an explicit cache-read price. Newer models can
+#: discount reads further; both stats and currency use the table's rate.
 #: Anthropic's one-hour cache TTL costs 2x instead; nothing in a transcript
 #: says which TTL was used, so long-TTL writes are under-weighted. Cache writes
 #: are a small share of a cache-heavy session, so that error is bounded --
@@ -112,6 +112,14 @@ def output_multiplier(model, prices=None):
     return entry["output"] / entry["input"]
 
 
+def cache_read_multiplier(model, prices=None):
+    """This model's cache-read/input ratio, with the legacy fallback."""
+    entry = (prices if prices is not None else token_prices()[0]).get(model or "")
+    if not entry or "cache_read" not in entry:
+        return CACHE_READ_MULTIPLIER
+    return entry["cache_read"] / entry["input"]
+
+
 def weighted_usage(usage, model=None, prices=None):
     """Consumption in uncached-input-equivalent tokens, or None if unknown.
 
@@ -120,9 +128,8 @@ def weighted_usage(usage, model=None, prices=None):
     tokens -- so a raw total is very nearly a measure of cache reads alone.
     That is not the ranking anyone reading `cdx stats` is looking for.
 
-    The output ratio comes from the model that served the run, because it is
-    the one multiplier that differs between vendors. The cache multipliers do
-    not, so they are constants.
+    Output and cache-read ratios come from the model that served the run.
+    Cache writes retain the five-minute TTL assumption.
 
     `reasoning_tokens` is deliberately excluded: Codex reports it as a subset
     of its output, and counting it would bill those tokens twice.
@@ -132,7 +139,7 @@ def weighted_usage(usage, model=None, prices=None):
     weights = {
         "input_tokens": 1.0,
         "cache_creation_tokens": CACHE_WRITE_MULTIPLIER,
-        "cache_read_tokens": CACHE_READ_MULTIPLIER,
+        "cache_read_tokens": cache_read_multiplier(model, prices),
         "output_tokens": output_multiplier(model, prices),
     }
     present = [
@@ -160,12 +167,16 @@ def weighted_usage(usage, model=None, prices=None):
 #: Anthropic and OpenAI figures come from the vendors' own references, checked
 #: on the review date below.
 #:
-#: Not modelled: OpenAI's long-context tier, which roughly doubles both rates
+#: Not modelled: OpenAI's long-context tier, which increases the rates
 #: above a 272K-token request. cdx records tokens per run, not per request, so
 #: it cannot tell which requests crossed that line -- long-context Codex work
 #: is therefore under-costed here, and knowingly so.
 DEFAULT_TOKEN_PRICES = {
     # Anthropic
+    "claude-fable-5-1": {"input": 10.0, "output": 50.0, "cache_read": 0.25},
+    "claude-mythos-5-1": {"input": 10.0, "output": 50.0, "cache_read": 0.25},
+    "claude-opus-5-5": {"input": 4.0, "output": 20.0, "cache_read": 0.2},
+    "claude-sonnet-5-5": {"input": 2.0, "output": 10.0},
     "claude-fable-5": {"input": 10.0, "output": 50.0},
     "claude-mythos-5": {"input": 10.0, "output": 50.0},
     "claude-opus-5": {"input": 5.0, "output": 25.0},
@@ -180,6 +191,9 @@ DEFAULT_TOKEN_PRICES = {
     "claude-haiku-4-5": {"input": 1.0, "output": 5.0},
     "claude-haiku-4-5-20251001": {"input": 1.0, "output": 5.0},
     # OpenAI
+    "gpt-6.1-sol": {"input": 2.0, "output": 10.0, "cache_read": 0.1},
+    "gpt-6-sol": {"input": 2.0, "output": 10.0},
+    "gpt-6-luna": {"input": 0.1, "output": 0.5},
     "gpt-6-astra": {"input": 10.0, "output": 50.0},
     "gpt-5.6": {"input": 4.0, "output": 20.0},
     "gpt-5.6-sol": {"input": 4.0, "output": 20.0},
@@ -195,7 +209,7 @@ DEFAULT_TOKEN_PRICES = {
     "gpt-5.4-nano-2026-03-17": {"input": 0.2, "output": 1.25},
     "gpt-5.3-codex": {"input": 1.75, "output": 14.0},
 }
-TOKEN_PRICES_REVIEWED = "2026-09-05"
+TOKEN_PRICES_REVIEWED = "2026-10-04"
 #: How long a review stays fresh before the staleness test asks for another.
 TOKEN_PRICES_MAX_AGE_DAYS = 90
 TOKEN_PRICES_ENV = "CDX_TOKEN_PRICES"
@@ -218,6 +232,8 @@ def token_prices(env=None):
                 if isinstance(entry, dict) and "input" in entry and "output" in entry:
                     merged[str(name)] = {
                         "input": float(entry["input"]), "output": float(entry["output"])}
+                    if "cache_read" in entry:
+                        merged[str(name)]["cache_read"] = float(entry["cache_read"])
             return merged, TOKEN_PRICES_ENV
     return dict(DEFAULT_TOKEN_PRICES), f"built-in, reviewed {TOKEN_PRICES_REVIEWED}"
 
@@ -244,7 +260,7 @@ def estimate_cost(usage, model, prices=None):
         return None
     per_million = {
         "input_tokens": rate["input"],
-        "cache_read_tokens": rate["input"] * CACHE_READ_MULTIPLIER,
+        "cache_read_tokens": rate.get("cache_read", rate["input"] * CACHE_READ_MULTIPLIER),
         "cache_creation_tokens": rate["input"] * CACHE_WRITE_MULTIPLIER,
         "output_tokens": rate["output"],
     }
