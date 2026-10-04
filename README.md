@@ -4,7 +4,7 @@
 
 <br clear="left"/>
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.20.14-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.21.0-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
 **Stop guessing which AI account still has quota.** `cdx` tracks the rate-limit window of every Codex and Claude account you own, tells you which one is usable right now, and launches it with isolated auth — in one command.
 
@@ -320,6 +320,7 @@ Security note:
 
 Release maintainer note:
 
+- Name the GitHub Release `CDX Manager X.Y.Z` (for example, `CDX Manager 0.21.0`); use `vX.Y.Z` for its tag and the checked-in versioned changelog for its notes.
 - Before publishing npm or PyPI packages, run `npm run release:validate`.
 - The release tag must match `package.json`, `pyproject.toml`, `src/cli.py`, and `VERSION`.
 - `checksums/release-archives.json` must include the matching `vX.Y.Z` entry with both `github_tarball_sha256` and `github_zip_sha256`.
