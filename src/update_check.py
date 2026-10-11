@@ -78,7 +78,7 @@ def _fetch_latest_release(env=None):
         LATEST_RELEASE_URL,
         headers=headers,
     )
-    with urllib.request.urlopen(request, timeout=5) as response:
+    with urllib.request.urlopen(request, timeout=2) as response:
         payload = json.loads(response.read().decode("utf-8"))
     return {
         "latest_version": str(payload.get("tag_name") or "").lstrip("v"),
@@ -185,6 +185,12 @@ def check_for_update(base_dir, current_version, env=None, now_fn=None):
 
     latest = fetch_latest_release(env=env)
     if not latest:
+        # A failure is cached like a success, keeping the last known version:
+        # otherwise a slow network makes every cdx command wait on GitHub again.
+        try:
+            _write_cache(path, {**cached, "checked_at": now_ts})
+        except OSError:
+            pass
         return None
 
     payload = {

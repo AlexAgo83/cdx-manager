@@ -40,7 +40,7 @@ class UpdateCheckPythonTests(unittest.TestCase):
 
         self.assertEqual(latest["latest_version"], "1.2.3")
         self.assertEqual(captured["headers"]["Authorization"], "Bearer secret-token")
-        self.assertEqual(captured["timeout"], 5)
+        self.assertEqual(captured["timeout"], 2)
 
     def test_fetch_latest_release_or_raise_describes_rate_limit(self):
         error = urllib.error.HTTPError(
@@ -76,6 +76,20 @@ class UpdateCheckPythonTests(unittest.TestCase):
         self.assertTrue(second["cached"])
         self.assertEqual(third["latest_version"], "1.2.3")
         self.assertFalse(third["cached"])
+
+    def test_check_for_update_caches_a_failed_fetch(self):
+        with tempfile.TemporaryDirectory(prefix="cdx-update-check-") as temp_dir:
+            with mock.patch("src.update_check.fetch_latest_release") as fetch:
+                fetch.return_value = {"latest_version": "1.2.3", "url": "https://example.test/release"}
+                check_for_update(temp_dir, "1.0.0", now_fn=lambda: 1000)
+                fetch.return_value = None
+                failed = check_for_update(temp_dir, "1.0.0", now_fn=lambda: 4600)
+                after = check_for_update(temp_dir, "1.0.0", now_fn=lambda: 4601)
+
+        self.assertEqual(fetch.call_count, 2)
+        self.assertIsNone(failed)
+        self.assertEqual(after["latest_version"], "1.2.3")
+        self.assertTrue(after["cached"])
 
     def test_check_for_update_can_be_disabled(self):
         with tempfile.TemporaryDirectory(prefix="cdx-update-check-") as temp_dir:
