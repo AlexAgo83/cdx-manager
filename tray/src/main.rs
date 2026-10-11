@@ -134,7 +134,7 @@ fn main() {
 /// Held for the whole run and released on the way out, so Quit frees it and a
 /// crash leaves a pid file that the next launch recognises as stale.
 fn run_tray(transport: Transport) {
-    let _lock = match instance::Lock::acquire() {
+    let lock = match instance::Lock::acquire() {
         Ok(lock) => lock,
         Err(pid) => {
             eprintln!(
@@ -144,6 +144,7 @@ fn run_tray(transport: Transport) {
             std::process::exit(3);
         }
     };
+    lock.keep_alive();
     // Asked once, at startup. The answer arrives asynchronously, so the first
     // alert of a fresh install may fall back to osascript and every one after
     // it comes from the bundle. Blocking a menu bar app on a permission dialog

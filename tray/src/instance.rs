@@ -135,15 +135,42 @@ impl Lock {
         match holder_at(&path) {
             Held::Running(pid) => Err(pid),
             Held::Stale | Held::Free => {
-                if let Some(parent) = path.parent() {
-                    let _ = fs::create_dir_all(parent);
-                }
-                if let Ok(mut file) = fs::File::create(&path) {
-                    let _ = write!(file, "{}", std::process::id());
-                }
+                write_pid(&path);
                 Ok(Lock { path })
             }
         }
+    }
+
+    /// Put the pid file back if something removed it under a live companion.
+    ///
+    /// macOS purges files untouched for about three days from the per-user
+    /// temp dir, and a companion runs for weeks. Without its lock CDX sees no
+    /// tray, so an update replaces the binary but never stops the old process.
+    /// Only a missing file is restored: one naming another pid is left alone.
+    pub fn restore(&self) {
+        if !self.path.exists() {
+            write_pid(&self.path);
+        }
+    }
+
+    /// `restore` once a minute, for the life of the process.
+    pub fn keep_alive(&self) {
+        let lock = Lock {
+            path: self.path.clone(),
+        };
+        std::thread::spawn(move || loop {
+            std::thread::sleep(std::time::Duration::from_secs(60));
+            lock.restore();
+        });
+    }
+}
+
+fn write_pid(path: &std::path::Path) {
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if let Ok(mut file) = fs::File::create(path) {
+        let _ = write!(file, "{}", std::process::id());
     }
 }
 
@@ -216,7 +243,17 @@ mod tests {
             Held::Stale,
             "a truncated file must be reclaimable"
         );
-        Lock::acquire_at(path.clone()).expect("a stale lock is reclaimed, not fatal");
+        let lock = Lock::acquire_at(path.clone()).expect("a stale lock is reclaimed, not fatal");
+
+        // Purged under a live companion, directory and all: put back.
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+        lock.restore();
+        assert_eq!(holder_at(&path), Held::Running(std::process::id()));
+        // Taken over by another pid: left alone.
+        fs::write(&path, "4000000000").unwrap();
+        lock.restore();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "4000000000");
+        std::mem::forget(lock);
         let _ = fs::remove_dir_all(path.parent().unwrap());
     }
 }
