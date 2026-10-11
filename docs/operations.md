@@ -29,7 +29,7 @@ Notes:
 
 ## Release checklist
 
-- Name the GitHub Release `CDX Manager X.Y.Z` (for example, `CDX Manager 0.21.0`); use `vX.Y.Z` for its tag and the checked-in versioned changelog for its notes.
+- Name the GitHub Release exactly as its tag, `vX.Y.Z` (for example, `v0.21.1`); use the checked-in versioned changelog for its notes.
 - Before publishing npm or PyPI packages, run `npm run release:validate`.
 - The release tag must match `package.json`, `pyproject.toml`, `src/cli.py`, and `VERSION`.
 - `checksums/release-archives.json` must include the matching `vX.Y.Z` entry with both `github_tarball_sha256` and `github_zip_sha256`.
