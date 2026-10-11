@@ -23,6 +23,8 @@ npm run lint
 3. Run the full local validation pipeline (see below).
 4. Open a pull request against `main`.
 
+Releases: the GitHub release title is exactly its tag, `vX.Y.Z`, nothing else. The `Upload release checksums` workflow resets it on publish. See [docs/operations.md](docs/operations.md).
+
 ## Local Validation
 
 Run before every commit:
