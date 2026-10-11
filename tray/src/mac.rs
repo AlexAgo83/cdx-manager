@@ -165,14 +165,21 @@ pub fn run(transport: Transport) -> Result<(), String> {
         }
 
         if redraw {
-            actions = backend::update_tray(
-                &tray,
-                &state.icon_state,
-                &state.tooltip,
-                unread.marker(),
-                &state.entries,
-                &state.rows,
-            )?;
+            // Drained here, not by the pump's pool above: every redraw builds a
+            // fresh NSMenu and NSImage, and anything autoreleased outside a pool
+            // on this hand-rolled loop is never freed. It grew to 19 GB in a week.
+            let (drawn, installed) = autoreleasepool(|_| {
+                let drawn = backend::update_tray(
+                    &tray,
+                    &state.icon_state,
+                    &state.tooltip,
+                    unread.marker(),
+                    &state.entries,
+                    &state.rows,
+                );
+                (drawn, mac_menu_open::installed())
+            });
+            actions = drawn?;
             // No enabled session means no reason to ask again. Wake up rarely
             // rather than never, so enabling one later is eventually noticed.
             due = Instant::now() + state.delay.unwrap_or(Render::IDLE_WAKEUP);
@@ -183,7 +190,7 @@ pub fn run(transport: Transport) -> Result<(), String> {
             // The menu was rebuilt, so the delegate has to be set on the new
             // one. A draw that could not install it stops the clearing rather
             // than clearing against a menu nobody is watching.
-            observing = mac_menu_open::installed();
+            observing = installed;
             announce(&transport, &state);
         }
         let _ = &tray;
