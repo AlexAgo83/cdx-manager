@@ -35,7 +35,7 @@ from contextlib import nullcontext
 from functools import partial
 
 from .claude_credentials import copy_keychain_credentials, delete_keychain_credentials
-from .claude_usage import _link_macos_keychain
+from .claude_usage import _link_real_home_dirs
 from .codex_usage import fetch_codex_rate_limits
 from .config import (
     MAX_LAUNCH_BUDGET_USD,
@@ -573,8 +573,9 @@ def copy_session(base_dir, store, source_name, dest_name):
         with credential_copy:
             if source["provider"] == PROVIDER_CLAUDE:
                 shutil.copytree(source_root, temp_root, symlinks=True,
-                                ignore=lambda _directory, names: [n for n in names if n == "Keychains"])
-                _link_macos_keychain(os.path.join(temp_root, "claude-home"))
+                                ignore=lambda directory, names: [n for n in names if n == "Keychains" or (
+                                    n == "Chrome" and os.path.islink(os.path.join(directory, n)))])
+                _link_real_home_dirs(os.path.join(temp_root, "claude-home"))
             else:
                 shutil.copytree(source_root, temp_root)
             if existing:

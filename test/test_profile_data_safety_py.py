@@ -30,7 +30,7 @@ class ProfileDataSafetyTests(unittest.TestCase):
             mock.patch.object(claude_credentials, "sys", SimpleNamespace(platform="darwin")),
             mock.patch.dict(os.environ, {"USER": "cdx-test", "USE_LOCAL_OAUTH": "", "CLAUDE_CODE_CUSTOM_OAUTH_URL": ""}),
             mock.patch.object(claude_credentials, "_security", side_effect=self.security),
-            mock.patch.object(session_service, "_link_macos_keychain"),
+            mock.patch.object(session_service, "_link_real_home_dirs"),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -158,7 +158,7 @@ class ProfileDataSafetyTests(unittest.TestCase):
         self.assertEqual(claude_credentials.read_keychain_credentials(dest["authHome"]), self.entries[source_service])
         self.assertFalse((Path(dest["authHome"]) / "Library" / "Keychains" / "login.keychain-db").exists())
         self.assertEqual(self.entries["Claude Code-credentials"], {"global": "untouched"})
-        self.assertTrue(session_service._link_macos_keychain.called)
+        self.assertTrue(session_service._link_real_home_dirs.called)
 
     def test_copy_failure_restores_existing_destination_credential_and_profile(self):
         source = self.profile("source")

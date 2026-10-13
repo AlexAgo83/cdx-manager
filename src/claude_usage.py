@@ -117,36 +117,52 @@ def claude_profile_store_dir(auth_home):
     return os.path.join(auth_home, "credentials")
 
 
-def _link_macos_keychain(auth_home):
-    """Make the operator's login keychain reachable from a redirected home.
+# Real-home directories a redirected profile home must still reach on macOS.
+# Keychains: the login keychain (else a "Keychain Not Found" dialog on every launch).
+# Chrome: Claude in Chrome looks for its extension and installs its native-messaging
+# host under $HOME/Library/Application Support/Google/Chrome; without the link,
+# `claude --chrome` sees no extension and Chrome never finds the host.
+# Linux keeps Chrome under ~/.config (XDG), also resolved from HOME. Windows needs
+# nothing: the host is registered in the registry and Chrome lives in
+# %LOCALAPPDATA%, which profile isolation does not redirect.
+_MACOS_SHARED_DIRS = (
+    ("Library", "Keychains"),
+    ("Library", "Application Support", "Google", "Chrome"),
+)
+_LINUX_SHARED_DIRS = ((".config", "google-chrome"),)
 
-    macOS resolves the login keychain through `$HOME/Library/Keychains`.
-    Profile isolation redirects HOME (see `_home_env_overrides`), so that path
-    does not exist: every Claude Code launch then raises a "Keychain Not Found"
-    dialog before falling back to a plaintext credentials file. Linking the
-    real keychain directory into the profile home restores the lookup. Failure
-    is non-fatal, and deliberately quiet: the profile simply keeps the
-    file-based credentials it already used.
+
+def _link_real_home_dirs(auth_home):
+    """Link the real-home directories in `_MACOS_SHARED_DIRS` (or `_LINUX_SHARED_DIRS`) into a redirected home.
+
+    Profile isolation redirects HOME (see `_home_env_overrides`), so these
+    paths do not exist in the profile home. A real directory already there is
+    left alone. Failure is non-fatal, and deliberately quiet: the profile
+    simply keeps working without that integration.
     """
-    if sys.platform != "darwin" or pwd is None:
+    shared = _MACOS_SHARED_DIRS if sys.platform == "darwin" else _LINUX_SHARED_DIRS if sys.platform.startswith("linux") else ()
+    if not shared or pwd is None:
         return
     try:
         real_home = pwd.getpwuid(os.getuid()).pw_dir
     except (KeyError, OSError):
         return
-    source = os.path.join(real_home, "Library", "Keychains")
-    if not os.path.isdir(source):
-        return
-    link = os.path.join(auth_home, "Library", "Keychains")
-    if os.path.realpath(link) == os.path.realpath(source):
-        return
-    try:
-        os.makedirs(os.path.dirname(link), exist_ok=True)
-        if os.path.islink(link):
-            os.unlink(link)
-        os.symlink(source, link)
-    except OSError:
-        return
+    for parts in shared:
+        source = os.path.join(real_home, *parts)
+        if not os.path.isdir(source):
+            continue
+        link = os.path.join(auth_home, *parts)
+        if os.path.realpath(link) == os.path.realpath(source):
+            continue
+        if os.path.exists(link) and not os.path.islink(link):
+            continue
+        try:
+            os.makedirs(os.path.dirname(link), exist_ok=True)
+            if os.path.islink(link):
+                os.unlink(link)
+            os.symlink(source, link)
+        except OSError:
+            continue
 
 
 def _secure_storage_overrides(auth_home):
@@ -167,7 +183,7 @@ def _secure_storage_overrides(auth_home):
     the variable overrides that directory as well as naming the entry. Any
     other value would also move where credentials are read from.
     """
-    _link_macos_keychain(auth_home)
+    _link_real_home_dirs(auth_home)
     return {"CLAUDE_SECURESTORAGE_CONFIG_DIR": os.path.join(auth_home, ".claude")}
 
 

@@ -616,6 +616,42 @@ class RuntimePythonTests(unittest.TestCase):
                 os.path.realpath(os.path.join(real_home, "Library", "Keychains")),
             )
 
+    @unittest.skipIf(os.name == "nt", "symlinks and the POSIX account database are unavailable")
+    def test_secure_storage_overrides_links_the_real_chrome_profile_for_claude_in_chrome(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            real_home = os.path.join(tmp, "real-home")
+            chrome = os.path.join(real_home, "Library", "Application Support", "Google", "Chrome")
+            os.makedirs(chrome)
+            auth_home = os.path.join(tmp, "profile", "claude-home")
+            os.makedirs(auth_home)
+
+            with mock.patch("src.claude_usage.sys.platform", "darwin"):
+                with mock.patch.object(claude_usage, "pwd", SimpleNamespace(getpwuid=lambda _uid: SimpleNamespace(pw_dir=real_home))):
+                    claude_usage._secure_storage_overrides(auth_home)
+                    claude_usage._secure_storage_overrides(auth_home)
+
+            link = os.path.join(auth_home, "Library", "Application Support", "Google", "Chrome")
+            self.assertTrue(os.path.islink(link))
+            self.assertEqual(os.path.realpath(link), os.path.realpath(chrome))
+            # no Keychains in the real home: nothing linked for it
+            self.assertFalse(os.path.lexists(os.path.join(auth_home, "Library", "Keychains")))
+
+    @unittest.skipIf(os.name == "nt", "symlinks and the POSIX account database are unavailable")
+    def test_secure_storage_overrides_links_the_real_chrome_config_on_linux(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            real_home = os.path.join(tmp, "real-home")
+            chrome = os.path.join(real_home, ".config", "google-chrome")
+            os.makedirs(chrome)
+            auth_home = os.path.join(tmp, "profile", "claude-home")
+            os.makedirs(auth_home)
+
+            with mock.patch("src.claude_usage.sys.platform", "linux"):
+                with mock.patch.object(claude_usage, "pwd", SimpleNamespace(getpwuid=lambda _uid: SimpleNamespace(pw_dir=real_home))):
+                    claude_usage._secure_storage_overrides(auth_home)
+
+            link = os.path.join(auth_home, ".config", "google-chrome")
+            self.assertEqual(os.path.realpath(link), os.path.realpath(chrome))
+
     @unittest.skipIf(os.name == "nt", "POSIX account database used by the macOS keychain link")
     def test_secure_storage_overrides_leaves_a_real_keychain_directory_alone(self):
         with tempfile.TemporaryDirectory() as tmp:
