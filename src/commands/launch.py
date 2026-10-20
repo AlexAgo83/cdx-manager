@@ -30,31 +30,45 @@ from ..provider_runtime import (
     _get_auth_home,
     _run_interactive_provider_command,
 )
+from ..run_command import PROMPT_STDIN, read_run_prompt
 from ..run_usage import estimate_cost
+
+LAUNCH_USAGE = "Usage: cdx <name> [--dir PATH] [--prompt TEXT|--prompt-file PATH] [--resume] [--json]"
 
 
 def _parse_launch_args(args):
-    """Return the per-launch directory and ordinary launch flags."""
-    directory = None
+    """Return the per-launch directory, initial prompt source and ordinary launch flags."""
+    values = {"--dir": None, "--prompt": None, "--prompt-file": None}
     cleaned = []
     index = 0
     while index < len(args):
         arg = args[index]
-        if arg == "--dir":
-            if directory is not None or index + 1 >= len(args):
-                raise CdxError("Usage: cdx <name> [--dir PATH] [--resume] [--json]")
-            directory = args[index + 1]
-            index += 2
-            continue
-        if arg.startswith("--dir="):
-            if directory is not None or not arg.split("=", 1)[1]:
-                raise CdxError("Usage: cdx <name> [--dir PATH] [--resume] [--json]")
-            directory = arg.split("=", 1)[1]
+        flag, sep, inline = arg.partition("=")
+        if flag not in values:
+            cleaned.append(arg)
             index += 1
             continue
-        cleaned.append(arg)
-        index += 1
-    return directory, cleaned
+        if sep:
+            value, index = inline, index + 1
+        elif index + 1 < len(args):
+            value, index = args[index + 1], index + 2
+        else:
+            raise CdxError(LAUNCH_USAGE)
+        if values[flag] is not None or not value:
+            raise CdxError(LAUNCH_USAGE)
+        values[flag] = value
+    if values["--prompt"] is not None and values["--prompt-file"] is not None:
+        raise CdxError("cdx <name>: --prompt and --prompt-file are mutually exclusive.")
+    if values["--prompt-file"] == PROMPT_STDIN:
+        raise CdxError("cdx <name>: --prompt-file - is not supported; the interactive session needs standard input.")
+    prompt = {"prompt": values["--prompt"], "prompt_file": values["--prompt-file"]}
+    return values["--dir"], cleaned, prompt
+
+
+def _read_launch_prompt(prompt):
+    if prompt["prompt"] is None and prompt["prompt_file"] is None:
+        return None
+    return read_run_prompt(prompt)
 
 
 def _launch_directory(session, ctx, explicit, json_flag):
@@ -154,7 +168,9 @@ def handle_can_resume(rest, ctx):
     return 0
 
 def handle_resume(rest, ctx):
-    directory, rest = _parse_launch_args(rest)
+    directory, rest, prompt = _parse_launch_args(rest)
+    if prompt["prompt"] is not None or prompt["prompt_file"] is not None:
+        raise CdxError("cdx resume: --prompt and --prompt-file are not supported when resuming.")
     json_flag, args = _parse_json_flag(rest)
     if len(args) != 1:
         raise CdxError(RESUME_USAGE)

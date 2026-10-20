@@ -161,6 +161,64 @@ class LaunchCommandTests(CliTestBase):
             })
         self.assertEqual(harness.calls, [])
 
+    def _launch_with(self, *args):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        io = {**self.make_io(), "env": {"CDX_HOME": temp_dir}, "cwd": temp_dir,
+              "spawn": harness.spawn, "spawn_sync": harness.spawn_sync}
+        self.assertEqual(main(["add", "main"], io), 0)
+        harness.calls.clear()
+        return temp_dir, harness, lambda *extra: main(["main", *args, *extra], io)
+
+    def test_launch_passes_prompt_as_initial_message(self):
+        _temp_dir, harness, launch = self._launch_with("--prompt", "fix the review threads")
+        self.assertEqual(launch(), 0)
+
+        launch_call = [call for call in harness.calls if call["kind"] == "spawn" and call["command"] == "script"][-1]
+        self.assertEqual(_script_launch_args(launch_call)[-1], "fix the review threads")
+
+    def test_launch_reads_prompt_file_and_accepts_inline_spelling(self):
+        temp_dir, harness, launch = self._launch_with()
+        prompt_path = os.path.join(temp_dir, "prompt.md")
+        with open(prompt_path, "w", encoding="utf-8") as handle:
+            handle.write("from a file")
+        self.assertEqual(launch(f"--prompt-file={prompt_path}"), 0)
+
+        launch_call = [call for call in harness.calls if call["kind"] == "spawn" and call["command"] == "script"][-1]
+        self.assertEqual(_script_launch_args(launch_call)[-1], "from a file")
+
+    def test_launch_rejects_invalid_prompt_options_before_provider_starts(self):
+        cases = [
+            (["--prompt", "a", "--prompt-file", "b"], "mutually exclusive"),
+            (["--prompt", "a", "--prompt", "b"], "Usage: cdx <name>"),
+            (["--prompt"], "Usage: cdx <name>"),
+            (["--prompt-file", "-"], "needs standard input"),
+            (["--prompt", "a", "--resume"], "not supported with --resume"),
+        ]
+        for args, message in cases:
+            with self.subTest(args=args):
+                _temp_dir, harness, launch = self._launch_with(*args)
+                with self.assertRaisesRegex(CdxError, message):
+                    launch()
+                self.assertEqual(harness.calls, [])
+
+    def test_launch_rejects_prompt_for_ollama_session(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        io = {**self.make_io(), "env": {"CDX_HOME": temp_dir}, "cwd": temp_dir,
+              "spawn": harness.spawn, "spawn_sync": harness.spawn_sync}
+        self.assertEqual(main(["add", "ollama", "local", "--model", "llama3.2"], io), 0)
+        harness.calls.clear()
+        with self.assertRaisesRegex(CdxError, "not supported for Ollama"):
+            main(["local", "--prompt", "hi"], io)
+        self.assertEqual(harness.calls, [])
+
+    def test_resume_command_rejects_prompt(self):
+        temp_dir, harness, _launch = self._launch_with()
+        with self.assertRaisesRegex(CdxError, "not supported when resuming"):
+            main(["resume", "main", "--prompt", "a"], {**self.make_io(), "env": {"CDX_HOME": temp_dir}})
+        self.assertEqual(harness.calls, [])
+
     def test_handoff_installs_context_for_target_session_json(self):
         temp_dir = self.make_temp_dir()
         workspace = os.path.join(temp_dir, "repo")
