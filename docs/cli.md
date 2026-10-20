@@ -8,7 +8,7 @@
 | `cdx --json` | List all sessions as a machine-readable JSON payload |
 | `cdx <name>` | Launch a session (checks auth first) |
 | `cdx <name> [--json]` | Launch a session; `--json` returns a structured success payload after the interactive run ends |
-| `cdx <name> --prompt TEXT` / `cdx <name> --prompt-file PATH` | Launch a session that starts on this first message (not with `--resume`; `--prompt-file -` is refused because the session needs standard input) |
+| `cdx <name> --prompt TEXT` / `cdx <name> --prompt-file PATH` | Launch a session that starts on this first message (not with `--resume` or Ollama sessions; `--prompt-file -` is refused because the session needs standard input; a relative `--prompt-file` path is read from the current directory, not `--dir`) |
 | `cdx <name> -r` / `cdx <name> --resume` | Resume the provider-native conversation for a session when supported |
 | `cdx add [provider] <name> [--model MODEL] [--json]` | Register a new session (`provider`: `codex`, `claude`, `antigravity`, or `ollama`; Ollama requires `--model`) |
 | `cdx cp <source> <dest> [--json]` | Copy a session into another session name, overwriting the destination if it exists |

@@ -202,6 +202,17 @@ class LaunchCommandTests(CliTestBase):
                     launch()
                 self.assertEqual(harness.calls, [])
 
+    def test_launch_rejects_prompt_for_ollama_session(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness()
+        io = {**self.make_io(), "env": {"CDX_HOME": temp_dir}, "cwd": temp_dir,
+              "spawn": harness.spawn, "spawn_sync": harness.spawn_sync}
+        self.assertEqual(main(["add", "ollama", "local", "--model", "llama3.2"], io), 0)
+        harness.calls.clear()
+        with self.assertRaisesRegex(CdxError, "not supported for Ollama"):
+            main(["local", "--prompt", "hi"], io)
+        self.assertEqual(harness.calls, [])
+
     def test_resume_command_rejects_prompt(self):
         temp_dir, harness, _launch = self._launch_with()
         with self.assertRaisesRegex(CdxError, "not supported when resuming"):

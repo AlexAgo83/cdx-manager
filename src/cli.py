@@ -70,6 +70,7 @@ from .cli_render import (
     _visible_len,
     format_error,
 )
+from .config import PROVIDER_OLLAMA
 from .errors import CdxError
 from .provider_runtime import (
     LOG_ROTATE_BYTES,
@@ -628,8 +629,12 @@ def main(argv, options=None):
     directory, launch_args, prompt = _parse_launch_args(rest)
     if all(arg in ("--json", "-r", "--resume") for arg in launch_args):
         resume = "-r" in launch_args or "--resume" in launch_args
-        if resume and (prompt["prompt"] is not None or prompt["prompt_file"] is not None):
+        has_prompt = prompt["prompt"] is not None or prompt["prompt_file"] is not None
+        if resume and has_prompt:
             raise CdxError("cdx <name>: --prompt and --prompt-file are not supported with --resume.")
+        # `ollama run MODEL PROMPT` answers once and exits instead of opening a session.
+        if has_prompt and (ctx["service"]["get_session"](command) or {}).get("provider") == PROVIDER_OLLAMA:
+            raise CdxError("cdx <name>: --prompt and --prompt-file are not supported for Ollama sessions.")
         return handle_launch(command, ctx, initial_prompt=_read_launch_prompt(prompt), resume=resume,
                              directory=directory)
 
