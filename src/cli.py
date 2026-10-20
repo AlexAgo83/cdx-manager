@@ -288,6 +288,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx set <name> --notify on', '36', use_color)}  # agent finishes or needs attention",
         f"  {_style('cdx ready', '36', use_color)}  # next session to become ready",
         f"  {_style('cdx <name> [--json]', '36', use_color)}",
+        f"  {_style('cdx <name> --prompt TEXT|--prompt-file PATH', '36', use_color)}  # start with a first message",
         f"  {_style('cdx --help', '36', use_color)}",
         f"  {_style('cdx --version', '36', use_color)}",
     ])
@@ -623,10 +624,14 @@ def main(argv, options=None):
     if handler:
         return handler(rest, ctx)
 
-    from .commands.launch import _parse_launch_args
-    directory, launch_args = _parse_launch_args(rest)
+    from .commands.launch import _parse_launch_args, _read_launch_prompt
+    directory, launch_args, prompt = _parse_launch_args(rest)
     if all(arg in ("--json", "-r", "--resume") for arg in launch_args):
-        return handle_launch(command, ctx, resume=("-r" in launch_args or "--resume" in launch_args), directory=directory)
+        resume = "-r" in launch_args or "--resume" in launch_args
+        if resume and (prompt["prompt"] is not None or prompt["prompt_file"] is not None):
+            raise CdxError("cdx <name>: --prompt and --prompt-file are not supported with --resume.")
+        return handle_launch(command, ctx, initial_prompt=_read_launch_prompt(prompt), resume=resume,
+                             directory=directory)
 
     raise CdxError(f"Unknown command: {command}. Use cdx --help.")
 
