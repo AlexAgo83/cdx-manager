@@ -137,6 +137,21 @@ REDACTED_PROMPT_ARG = "[prompt redacted]"
 # Documented Claude Code switch that stops it from setting and clearing the
 # terminal title, leaving cdx's shared title keeper as the only writer.
 CLAUDE_DISABLE_TERMINAL_TITLE_ENV = "CLAUDE_CODE_DISABLE_TERMINAL_TITLE"
+# Set by a running Claude Code session for its own child processes. When cdx is
+# started from inside one (a hook, or a terminal or script it spawned), the new
+# claude inherits them, treats itself as a child session and turns transcript
+# saving off, which breaks resume and usage backfill.
+CLAUDE_PARENT_SESSION_ENV = (
+    "CLAUDECODE",
+    "CLAUDE_CODE_CHILD_SESSION",
+    "CLAUDE_CODE_SESSION_ID",
+    "CLAUDE_CODE_SESSION_ATTENDED",
+    "CLAUDE_CODE_ENTRYPOINT",
+    "CLAUDE_CODE_EXECPATH",
+    "CLAUDE_CODE_MESSAGING_SOCKET",
+    "CLAUDE_CODE_MESSAGING_TOKEN",
+    "CLAUDE_PID",
+)
 CLAUDE_CLI_MODEL_ALIASES = {
     "claude-sonnet": "sonnet",
     "claude-opus": "opus",
@@ -216,6 +231,8 @@ def _claude_env(base_env, auth_home, own_terminal_title=False):
     env = {**base_env, **_home_env_overrides(auth_home)}
     env.pop("CLAUDE_CONFIG_DIR", None)
     env.pop("CODEX_HOME", None)
+    for key in CLAUDE_PARENT_SESSION_ENV:
+        env.pop(key, None)
     env.setdefault("ANTHROPIC_PROFILE", _anthropic_profile_name())
     if own_terminal_title:
         env[CLAUDE_DISABLE_TERMINAL_TITLE_ENV] = "1"

@@ -1304,6 +1304,19 @@ class RuntimePythonTests(unittest.TestCase):
 
         self.assertEqual(env["CLAUDE_CODE_DISABLE_TERMINAL_TITLE"], "1")
 
+    def test_claude_env_drops_markers_inherited_from_a_parent_claude_session(self):
+        inherited = {key: "1" for key in provider_runtime.CLAUDE_PARENT_SESSION_ENV}
+        for own_terminal_title in (True, False):
+            with self.subTest(own_terminal_title=own_terminal_title):
+                env = provider_runtime._claude_env(
+                    {**inherited, "CLAUDE_CODE_DISABLE_AUTOUPDATER": "1"},
+                    "/tmp/claude-home",
+                    own_terminal_title=own_terminal_title,
+                )
+
+                self.assertFalse(set(provider_runtime.CLAUDE_PARENT_SESSION_ENV) & set(env))
+                self.assertEqual(env["CLAUDE_CODE_DISABLE_AUTOUPDATER"], "1")
+
     def test_interactive_claude_specs_disable_claude_title_writes(self):
         identifier = "11111111-1111-4111-8111-111111111111"
         home = tempfile.mkdtemp()
