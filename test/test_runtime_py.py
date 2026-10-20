@@ -1232,7 +1232,7 @@ class RuntimePythonTests(unittest.TestCase):
             # ollama has no permission concept; permission maps to no flags.
             # `--verbose` is cdx's own, and lands between the model and the
             # prompt -- accepted by ollama's `run MODEL [PROMPT] [flags]`.
-            ["run", "llama3.2", "--verbose", "hello"],
+            ["run", "llama3.2", "--verbose", "--", "hello"],
         )
         self.assertEqual(spec["fallback"]["options"]["cwd"], "/tmp/repo")
         self.assertEqual(spec["fallback"]["options"]["env"]["OLLAMA_NOHISTORY"], "1")
@@ -1271,6 +1271,14 @@ class RuntimePythonTests(unittest.TestCase):
         self.assertEqual(spec["fallback"]["command"], "ollama")
         self.assertEqual(spec["fallback"]["args"], ["run", "qwen2.5-coder:14b", "--verbose"])
 
+    def test_prompt_starting_with_a_dash_is_not_read_as_an_option(self):
+        for provider in ("claude", "codex", "ollama"):
+            session = {"name": "s", "provider": provider, "authHome": "/tmp/home", "launch": {"model": "m"}}
+            for build in (provider_runtime._build_launch_spec, provider_runtime._build_headless_launch_spec):
+                with self.subTest(provider=provider, build=build.__name__):
+                    spec = build(session, cwd="/tmp/repo", initial_prompt="-h")
+                    self.assertEqual(spec.get("fallback", spec)["args"][-2:], ["--", "-h"])
+
     def test_linux_launch_spec_uses_util_linux_script_command_form(self):
         session = {
             "name": "claude",
@@ -1283,7 +1291,7 @@ class RuntimePythonTests(unittest.TestCase):
 
         self.assertEqual(spec["command"], "script")
         self.assertEqual(spec["args"][:3], ["-q", "-f", "-c"])
-        self.assertIn("claude --name claude 'resume this'", spec["args"][3])
+        self.assertIn("claude --name claude -- 'resume this'", spec["args"][3])
         self.assertTrue(spec["args"][4].endswith(".log"))
 
     def test_claude_env_disables_claude_title_writes_only_when_cdx_owns_the_title(self):

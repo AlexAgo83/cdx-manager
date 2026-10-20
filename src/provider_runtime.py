@@ -689,7 +689,8 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
         args += preference_args
         args += _extra_args(session)
         if initial_prompt:
-            args.append(initial_prompt)
+            # `--` keeps a prompt that starts with `-` from being read as an option.
+            args += ["--", initial_prompt]
         auth_home = _get_auth_home(session)
         claude_env = _claude_env(env, auth_home, own_terminal_title=True)
         oauth_token = _read_claude_launch_oauth_token(auth_home)
@@ -728,7 +729,8 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
         # failed only on the model pull.
         args = ["run", model] + _launch_config_args(session)
         if initial_prompt:
-            args.append(initial_prompt)
+            # `--` keeps a prompt that starts with `-` from being read as an option.
+            args += ["--", initial_prompt]
         return _wrap_launch_with_transcript(session, {
             "command": "ollama",
             "args": args,
@@ -745,7 +747,8 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     args += _launch_config_args(session)
     args += preference_args
     if initial_prompt:
-        args.append(initial_prompt)
+        # `--` keeps a prompt that starts with `-` from being read as an option.
+        args += ["--", initial_prompt]
     return _wrap_launch_with_transcript(session, {
         "command": "codex",
         "args": args,
@@ -950,7 +953,8 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
         args += preference_args
         args += _extra_args(session)
         if initial_prompt:
-            args.append(initial_prompt)
+            # `--` keeps a prompt that starts with `-` from being read as an option.
+            args += ["--", initial_prompt]
         auth_home = _get_auth_home(session)
         claude_env = _claude_env(env, auth_home)
         oauth_token = _read_claude_launch_oauth_token(auth_home)
@@ -975,7 +979,8 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
             args += HEADLESS_CODEX_PERMISSION_ARGS.get(permission, [])
         args += preference_args
         if initial_prompt:
-            args.append(initial_prompt)
+            # `--` keeps a prompt that starts with `-` from being read as an option.
+            args += ["--", initial_prompt]
         return {
             "command": "codex",
             "args": args,
