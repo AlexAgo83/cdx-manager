@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timezone
 
 from .agent_notify import launch_notify_env, notifications_enabled
-from .claude_credentials import peek_keychain_credentials
+from .claude_credentials import has_full_claude_login, peek_keychain_credentials
 from .claude_usage import _clean_oauth_token, _decode_jwt_claims, _secure_storage_overrides, claude_profile_store_dir
 from .codex_usage import codex_auth_lock, diagnostic_needs_codex_login, fetch_codex_rate_limit_diagnostic
 from .config import (
@@ -233,7 +233,12 @@ def _claude_env(base_env, auth_home, own_terminal_title=False):
     env.pop("CODEX_HOME", None)
     for key in CLAUDE_PARENT_SESSION_ENV:
         env.pop(key, None)
-    env.setdefault("ANTHROPIC_PROFILE", _anthropic_profile_name())
+    # An Anthropic profile supplies an inference-only credential, which hides
+    # claude.ai connectors; a profile holding a real login must not set one.
+    if has_full_claude_login(auth_home):
+        env.pop("ANTHROPIC_PROFILE", None)
+    else:
+        env.setdefault("ANTHROPIC_PROFILE", _anthropic_profile_name())
     if own_terminal_title:
         env[CLAUDE_DISABLE_TERMINAL_TITLE_ENV] = "1"
     return env
@@ -260,7 +265,7 @@ def _has_local_claude_auth(auth_home):
 
 
 def _read_claude_launch_oauth_token(auth_home):
-    if _has_local_claude_auth(auth_home):
+    if has_full_claude_login(auth_home) or _has_local_claude_auth(auth_home):
         return None
     token = _read_anthropic_oauth_token(auth_home)
     if token and peek_keychain_credentials(auth_home) is not None:

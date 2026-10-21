@@ -9,6 +9,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
+from .claude_credentials import claude_auth_type
 from .claude_usage import _decode_jwt_claims
 from .config import PROVIDER_CLAUDE, PROVIDER_CODEX, get_cdx_home
 from .errors import CdxError
@@ -284,6 +285,7 @@ def _status_row_from_session(store, s):
         "cwd": runtime.get("cwd") if runtime else None,
         "status": "enabled" if enabled else "disabled",
         "auth_status": (s.get("auth") or {}).get("status") or "unknown",
+        "auth_type": claude_auth_type(s["authHome"]) if s["provider"] == PROVIDER_CLAUDE and s.get("authHome") else None,
         "auth_checked_at": _to_local_iso((s.get("auth") or {}).get("lastCheckedAt")),
         "remaining_5h_pct": _normalize_pct_value(row_status.get("remaining_5h_pct")) if row_status else None,
         "remaining_week_pct": _normalize_pct_value(row_status.get("remaining_week_pct")) if row_status else None,
