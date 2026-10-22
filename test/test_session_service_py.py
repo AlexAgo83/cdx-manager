@@ -1632,6 +1632,26 @@ class SessionServicePythonTests(unittest.TestCase):
         with self.assertRaisesRegex(CdxError, "Unsupported bundle key derivation function"):
             backup_bundle.decode_bundle(json_module.dumps(unknown).encode("utf-8"), passphrase="pw123")
 
+    def test_bundles_record_their_kdf_cost_and_old_costs_still_decode(self):
+        import json as json_module
+
+        from src import backup_bundle
+        payload = {"schema_version": 1, "sessions": [], "states": {}, "profiles": {}}
+        bundle = json_module.loads(backup_bundle.encode_bundle(payload, include_auth=True, passphrase="pw").decode())
+        self.assertEqual(bundle["kdf_params"], backup_bundle._default_params(bundle["kdf"]))
+
+        # A bundle exported before `kdf_params` existed used the old cost.
+        with mock.patch.dict(backup_bundle._SCRYPT_PARAMS, backup_bundle._LEGACY_SCRYPT_PARAMS), \
+                mock.patch.dict(backup_bundle._PBKDF2_PARAMS, backup_bundle._LEGACY_PBKDF2_PARAMS):
+            old = json_module.loads(backup_bundle.encode_bundle(payload, include_auth=True, passphrase="pw").decode())
+        old.pop("kdf_params")
+        self.assertEqual(backup_bundle.decode_bundle(json_module.dumps(old).encode(), passphrase="pw")["payload"], payload)
+
+        # A crafted cost is refused before any derivation runs.
+        crafted = {**bundle, "kdf_params": {"n": 2 ** 30, "r": 8, "p": 1, "iterations": 10 ** 12}}
+        with self.assertRaisesRegex(CdxError, "key derivation parameters"):
+            backup_bundle.decode_bundle(json_module.dumps(crafted).encode(), passphrase="pw")
+
     def test_import_merge_fills_missing_state_fields(self):
         source_dir = self.make_temp_dir()
         source = create_session_service({"base_dir": source_dir})

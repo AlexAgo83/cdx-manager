@@ -419,11 +419,11 @@ def _normalize_reasoning_effort(reasoning_effort=None, power=None, usage="Unsupp
     if alias == "":
         raise CdxError(usage)
     if effort and effort not in REASONING_EFFORT_VALUES:
-        raise CdxError(f"Unsupported reasoning effort: {reasoning_effort}")
+        raise CdxError(f"Unsupported reasoning effort: {reasoning_effort}", code="invalid_reasoning_effort")
     if alias and alias not in REASONING_EFFORT_VALUES:
         raise CdxError(f"Unsupported power: {power}")
     if effort and alias and effort != alias:
-        raise CdxError("--reasoning-effort and --power must match when both are provided.")
+        raise CdxError("--reasoning-effort and --power must match when both are provided.", code="invalid_reasoning_effort")
     resolved = effort or alias
     if not resolved:
         return {}
@@ -1111,12 +1111,12 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
             )
         except FileNotFoundError as error:
             _combine_headless_transcript(paths)
-            cdx_error = CdxError(f"{spec['label']} CLI not found on PATH: {spec['command']}", 127)
+            cdx_error = CdxError(f"{spec['label']} CLI not found on PATH: {spec['command']}", 127, code="provider_cli_not_found")
             cdx_error.run_info = _headless_run_info(paths, spec, start_time, 127)
             raise cdx_error from error
         except OSError as error:
             _combine_headless_transcript(paths)
-            cdx_error = CdxError(f"Failed to start {spec['label']}: {error}", 126)
+            cdx_error = CdxError(f"Failed to start {spec['label']}: {error}", 126, code="provider_start_failed")
             cdx_error.run_info = _headless_run_info(paths, spec, start_time, 126)
             raise cdx_error from error
         try:

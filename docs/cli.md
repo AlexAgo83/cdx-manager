@@ -23,7 +23,7 @@
 | `cdx config <name> [--json]` | Show persistent launch settings for a session |
 | `cdx configs [--json]` | Show persistent launch settings for all sessions in one table |
 | `cdx power\|perm\|fast\|model <name\|all\|provider:PROVIDER\|a,b> <value\|default> [--json]` | Shortcut commands for setting or clearing one launch setting |
-| `cdx set <name>\|--sessions all\|a,b\|--provider PROVIDER [--power minimal\|low\|medium\|high\|xhigh] [--permission review\|default\|auto\|full] [--fast on\|off] [--rtk on\|off] [--logics on\|off] [--model MODEL] [--fallback-model MODEL[,MODEL...]] [--budget USD] [--extra-args 'ARGS'] [--priority 0..100] [--json]` | Persist launch settings for one or more sessions |
+| `cdx set <name>\|--sessions all\|a,b\|--provider PROVIDER [--power minimal\|low\|medium\|high\|xhigh] [--permission review\|default\|auto\|full] [--fast on\|off] [--rtk on\|off] [--logics on\|off] [--notify on\|off] [--notify-preview on\|off] [--model MODEL] [--fallback-model MODEL[,MODEL...]] [--budget USD] [--extra-args 'ARGS'] [--priority 0..100] [--json]` | Persist launch settings for one or more sessions |
 | `cdx unset <name>\|--sessions all\|a,b\|--provider PROVIDER (--power\|--permission\|--fast\|--rtk\|--logics\|--model\|--fallback-model\|--budget\|--extra-args\|--priority\|--all) [--json]` | Remove persisted launch settings and fall back to provider defaults |
 | `cdx history [name] [--limit N] [--summary] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Show recent launch history or aggregate total launch time per assistant, optionally filtered by period |
 | `cdx last [--json]` | Launch the most recent existing session from launch history |

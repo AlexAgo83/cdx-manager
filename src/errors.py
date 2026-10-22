@@ -1,7 +1,11 @@
 class CdxError(Exception):
-    def __init__(self, message, exit_code=1):
+    def __init__(self, message, exit_code=1, *, code=None):
         super().__init__(message)
         self.exit_code = exit_code
+        # Machine-readable code for `cdx run --json`; when absent, callers fall
+        # back to classifying the message (run_command.run_cdx_error_code).
+        if code is not None:
+            self.code = code
 
 
 class CdxArgumentError(CdxError):

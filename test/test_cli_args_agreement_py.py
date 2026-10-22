@@ -148,3 +148,23 @@ def _parse_example_args(args):
 
         self.assertEqual(declared, {"detach", "failover"})
         self.assertEqual(forgotten, {"failover"})
+
+
+class SchemaCodesTests(unittest.TestCase):
+    def test_every_emitted_run_tray_logics_and_update_code_is_published(self):
+        """A caller validating against `cdx schema` must not meet an unknown code."""
+        import glob
+        import re
+
+        from src.cli_args import cdx_schema
+        schema = cdx_schema()
+        published = {code for codes in schema["error_codes"].values() for code in codes}
+        published |= set(schema["warning_codes"])
+        root = os.path.join(os.path.dirname(__file__), "..", "src")
+        emitted = set()
+        pattern = re.compile(r'(?:"code":\s*|code=|^[A-Z_]+ = )"((?:tray|logics|update|run|claude)_[a-z_]+)"', re.M)
+        for path in glob.glob(os.path.join(root, "*.py")) + glob.glob(os.path.join(root, "commands", "*.py")):
+            with open(path, encoding="utf-8") as handle:
+                emitted |= set(pattern.findall(handle.read()))
+        not_codes = {"run_transcript"}  # interactive_usage match kind, not an error code
+        self.assertEqual(emitted - published - not_codes, set())

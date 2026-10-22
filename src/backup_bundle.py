@@ -11,10 +11,16 @@ BUNDLE_SCHEMA_VERSION = 1
 _SALT_BYTES = 16
 _NONCE_BYTES = 16
 _AEAD_NONCE_BYTES = 12
-_SCRYPT_N = 2 ** 14
-_SCRYPT_R = 8
-_SCRYPT_P = 1
-_PBKDF2_ITERATIONS = 200000
+# New bundles record their KDF cost in `kdf_params`, at OWASP-level costs
+# (scrypt N=2^17, PBKDF2-SHA256 600k). Bundles without the field were written
+# at the earlier costs, which stay readable. Recorded costs are capped so a
+# crafted bundle cannot make an import burn minutes of CPU or gigabytes of RAM.
+_SCRYPT_PARAMS = {"n": 2 ** 17, "r": 8, "p": 1}
+_PBKDF2_PARAMS = {"iterations": 600000}
+_LEGACY_SCRYPT_PARAMS = {"n": 2 ** 14, "r": 8, "p": 1}
+_LEGACY_PBKDF2_PARAMS = {"iterations": 200000}
+_MAX_SCRYPT_N = 2 ** 20
+_MAX_PBKDF2_ITERATIONS = 10_000_000
 _AEAD_ALGORITHM = "aes-256-gcm"
 _LEGACY_ALGORITHM = "sha256-xor-hmac"
 _KDF_SCRYPT = "scrypt"
@@ -78,19 +84,49 @@ def _bundle_kdf_candidates(wrapper):
     return [recorded]
 
 
-def _derive_key_material(passphrase, salt, kdf):
+def _default_params(kdf):
+    return dict(_SCRYPT_PARAMS if kdf == _KDF_SCRYPT else _PBKDF2_PARAMS)
+
+
+def _bundle_kdf_params(wrapper, kdf):
+    """The recorded cost, or the pre-`kdf_params` cost for older bundles."""
+    recorded = wrapper.get("kdf_params")
+    if recorded is None:
+        return dict(_LEGACY_SCRYPT_PARAMS if kdf == _KDF_SCRYPT else _LEGACY_PBKDF2_PARAMS)
+    if not isinstance(recorded, dict) or ("n" in recorded) != (kdf == _KDF_SCRYPT):
+        return None  # recorded for the other KDF: not this candidate
+    try:
+        if kdf == _KDF_SCRYPT:
+            params = {key: int(recorded[key]) for key in ("n", "r", "p")}
+            valid = (2 <= params["n"] <= _MAX_SCRYPT_N and params["n"] & (params["n"] - 1) == 0
+                     and 1 <= params["r"] <= 32 and 1 <= params["p"] <= 16)
+        else:
+            params = {"iterations": int(recorded["iterations"])}
+            valid = 1 <= params["iterations"] <= _MAX_PBKDF2_ITERATIONS
+    except (TypeError, ValueError, KeyError):
+        valid = False
+    if not valid:
+        raise CdxError("Unsupported bundle key derivation parameters.")
+    return params
+
+
+def _derive_key_material(passphrase, salt, kdf, params=None):
+    params = params or _default_params(kdf)
     if kdf == _KDF_SCRYPT:
         if not _available_kdf(_KDF_SCRYPT):
             raise CdxError(
                 "This bundle records the scrypt key derivation function, which this Python runtime "
                 "does not provide. Decode it with a Python built against OpenSSL scrypt support."
             )
+        n, r, p = params["n"], params["r"], params["p"]
         return hashlib.scrypt(
             passphrase,
             salt=salt,
-            n=_SCRYPT_N,
-            r=_SCRYPT_R,
-            p=_SCRYPT_P,
+            n=n,
+            r=r,
+            p=p,
+            # scrypt needs 128*r*n bytes; OpenSSL's 32 MiB default refuses N=2^17.
+            maxmem=2 * 128 * r * n * p + 1024 * 1024,
             dklen=64,
         )
     if kdf == _KDF_PBKDF2:
@@ -98,23 +134,23 @@ def _derive_key_material(passphrase, salt, kdf):
             "sha256",
             passphrase,
             salt,
-            _PBKDF2_ITERATIONS,
+            params["iterations"],
             dklen=64,
         )
     raise CdxError("Unsupported bundle key derivation function.")
 
 
-def _derive_keys(passphrase, salt, kdf=None):
+def _derive_keys(passphrase, salt, kdf=None, params=None):
     if not passphrase:
         raise CdxError("A non-empty passphrase is required for bundles that include auth data.")
     if isinstance(passphrase, str):
         passphrase = passphrase.encode("utf-8")
-    key_material = _derive_key_material(passphrase, salt, kdf or _default_kdf())
+    key_material = _derive_key_material(passphrase, salt, kdf or _default_kdf(), params)
     return key_material[:32], key_material[32:]
 
 
-def _derive_aead_key(passphrase, salt, kdf=None):
-    enc_key, _mac_key = _derive_keys(passphrase, salt, kdf)
+def _derive_aead_key(passphrase, salt, kdf=None, params=None):
+    enc_key, _mac_key = _derive_keys(passphrase, salt, kdf, params)
     return enc_key
 
 
@@ -152,11 +188,13 @@ def encode_bundle(payload, include_auth=False, passphrase=None):
         salt = os.urandom(_SALT_BYTES)
         nonce = os.urandom(_AEAD_NONCE_BYTES)
         kdf = _default_kdf()
-        aesgcm = _load_aesgcm()(_derive_aead_key(passphrase, salt, kdf))
+        params = _default_params(kdf)
+        aesgcm = _load_aesgcm()(_derive_aead_key(passphrase, salt, kdf, params))
         ciphertext = aesgcm.encrypt(nonce, payload_bytes, None)
         wrapper.update({
             "encryption": _AEAD_ALGORITHM,
             "kdf": kdf,
+            "kdf_params": params,
             "salt": _b64_encode(salt),
             "nonce": _b64_encode(nonce),
             "payload": _b64_encode(ciphertext),
@@ -186,9 +224,12 @@ def decode_bundle(data, passphrase=None):
             payload_bytes = None
             failure = None
             for kdf in kdf_candidates:
+                params = _bundle_kdf_params(wrapper, kdf)
+                if params is None:
+                    continue
                 # Derivation errors are about the bundle, not the passphrase, so
                 # they must escape rather than be retried as a bad secret.
-                cipher = aead(_derive_aead_key(passphrase, salt, kdf))
+                cipher = aead(_derive_aead_key(passphrase, salt, kdf, params))
                 try:
                     payload_bytes = cipher.decrypt(nonce, ciphertext, None)
                     break
@@ -200,7 +241,10 @@ def decode_bundle(data, passphrase=None):
             expected_mac = _b64_decode(wrapper.get("hmac_sha256", ""))
             payload_bytes = None
             for kdf in kdf_candidates:
-                enc_key, mac_key = _derive_keys(passphrase, salt, kdf)
+                params = _bundle_kdf_params(wrapper, kdf)
+                if params is None:
+                    continue
+                enc_key, mac_key = _derive_keys(passphrase, salt, kdf, params)
                 actual_mac = hmac.new(mac_key, nonce + ciphertext, hashlib.sha256).digest()
                 if hmac.compare_digest(actual_mac, expected_mac):
                     payload_bytes = _xor_keystream(ciphertext, enc_key, nonce)

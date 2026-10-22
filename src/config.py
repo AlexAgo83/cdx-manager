@@ -82,3 +82,17 @@ def get_cdx_home(env=None):
     if env is None:
         env = os.environ
     return env.get("CDX_HOME", str(Path.home() / ".cdx"))
+
+
+def parse_on_off(value, label):
+    """Shared by `cdx set` flags and stored launch settings."""
+    from .errors import CdxError
+
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in ("on", "true", "1", "yes"):
+        return True
+    if text in ("off", "false", "0", "no"):
+        return False
+    raise CdxError(f"Unsupported {label} value: {value} (on|off)")

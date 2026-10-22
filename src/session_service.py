@@ -49,6 +49,9 @@ from .config import (
     normalize_permission,
     split_extra_args,
 )
+from .config import (
+    parse_on_off as _parse_on_off,
+)
 from .errors import CdxError
 from .fs_utils import atomic_write, remove_tree
 from .session_backup import (  # noqa: F401  (re-exported for callers and tests)
@@ -148,17 +151,6 @@ def _seed_codex_auth_from_global(auth_home, env=None):
 _ON_OFF_SETTINGS = {"fast": "fast", "rtk": "rtk", "logics": "logics", "notify": "notify", "notify_preview": "notify preview"}
 
 
-def _parse_on_off(value, label):
-    if isinstance(value, bool):
-        return value
-    text = str(value).strip().lower()
-    if text in ("on", "true", "1", "yes"):
-        return True
-    if text in ("off", "false", "0", "no"):
-        return False
-    raise CdxError(f"Unsupported {label} value: {value}")
-
-
 def _has_control_chars(text):
     return any(ord(ch) < 32 or ord(ch) == 127 for ch in text)
 
@@ -175,7 +167,7 @@ def _normalize_launch_settings(settings, mark_fast_service_tier=True):
     if "reasoning_effort" in settings and settings["reasoning_effort"] is not None:
         effort = str(settings["reasoning_effort"]).strip().lower()
         if effort not in LAUNCH_REASONING_EFFORT_VALUES:
-            raise CdxError(f"Unsupported reasoning effort: {settings['reasoning_effort']}")
+            raise CdxError(f"Unsupported reasoning effort: {settings['reasoning_effort']}", code="invalid_reasoning_effort")
         normalized["reasoning_effort"] = effort
     if "permission" in settings and settings["permission"] is not None:
         # Accepts the provider-native aliases (workspace-write, read-only,
@@ -868,7 +860,7 @@ def launch_session(store, name, resume=False):
     if not session:
         raise CdxError(f"Unknown session: {name}")
     if session.get("enabled", True) is False:
-        raise CdxError(f"Session is disabled: {name}")
+        raise CdxError(f"Session is disabled: {name}", code="session_disabled")
     # Reconcile the prior Claude conversation before a fresh launch replaces
     # its id. This is a single exact transcript lookup, not a global stats scan.
     backfill_interactive_usage(store, name=name, dry_run=False)
