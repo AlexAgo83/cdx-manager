@@ -9,7 +9,7 @@ import asyncio
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .claude_credentials import delete_keychain_credentials
 from .cli_render import _dim, _info, _pad_table, _style, _warn
@@ -238,6 +238,8 @@ def _write_claude_oauth_token(auth_home, token):
         "version": "1.0",
         "type": "oauth_token",
         "access_token": token,
+        # Read by claude_credentials.setup_token_expires_at for the expiry warning.
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     # atomic_write keeps the token 0o600 from creation — no umask window.
     atomic_write(cred_path, json.dumps(payload, indent=2) + "\n", mode=0o600)

@@ -184,7 +184,7 @@ class NotifyPythonTests(unittest.TestCase):
 
         with self.subTest("darwin"):
             with mock.patch("sys.platform", "darwin"):
-                with mock.patch("src.notify.os.path.expanduser", return_value="/tmp/cdx-home"):
+                with mock.patch("src.notify._operator_home", return_value="/tmp/cdx-home"):
                     with mock.patch("src.notify.os.getuid", return_value=501, create=True):
                         schedule = schedule_notification_event(
                             "/tmp/cdx",
@@ -216,7 +216,7 @@ class NotifyPythonTests(unittest.TestCase):
         }
 
         with mock.patch("sys.platform", "darwin"):
-            with mock.patch("src.notify.os.path.expanduser", return_value="/tmp/cdx-home"):
+            with mock.patch("src.notify._operator_home", return_value="/tmp/cdx-home"):
                 with mock.patch("src.notify.os.getuid", return_value=501, create=True):
                     schedule = schedule_notification_event(
                         "/tmp/cdx",

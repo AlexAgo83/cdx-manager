@@ -95,3 +95,31 @@ class AuthTypeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SetupTokenExpiryTests(unittest.TestCase):
+    def _token(self, home, **extra):
+        _write(os.path.join(home, "credentials", "default.json"), {"access_token": "tok", **extra})
+
+    def test_created_at_sets_the_expiry_and_mtime_is_the_fallback(self):
+        with tempfile.TemporaryDirectory() as home:
+            self.assertIsNone(claude_credentials.setup_token_days_left(home))
+            self._token(home, created_at="2026-01-01T00:00:00+00:00")
+            now = claude_credentials.setup_token_expires_at(home) - 10 * 86400
+            self.assertEqual(claude_credentials.setup_token_days_left(home, now=now), 10)
+            self._token(home)
+            self.assertEqual(claude_credentials.setup_token_days_left(home), 364)
+
+    def test_status_and_doctor_warn_only_when_renewal_is_due(self):
+        from src.health import _claude_setup_token_issues
+        from src.status_view import _auth_type_label
+        self.assertEqual(_auth_type_label({"auth_type": "setup-token", "auth_expires_in_days": 200}), ("setup-token", False))
+        self.assertEqual(_auth_type_label({"auth_type": "setup-token", "auth_expires_in_days": 12}), ("setup-token 12d", True))
+        self.assertEqual(_auth_type_label({"auth_type": "setup-token", "auth_expires_in_days": -1}), ("setup-token expired", True))
+        with tempfile.TemporaryDirectory() as home:
+            self._token(home, created_at="2025-11-01T00:00:00+00:00")
+            with mock.patch("src.claude_credentials.peek_keychain_credentials", return_value=None), \
+                    mock.patch("src.claude_credentials.setup_token_days_left", return_value=5):
+                issues = _claude_setup_token_issues({"name": "work", "authHome": home})
+        self.assertEqual(issues[0]["code"], "claude_setup_token_expiry")
+        self.assertIn("cdx login work", issues[0]["message"])

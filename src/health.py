@@ -110,6 +110,8 @@ def collect_health_report(service, base_dir, env=None, spawn_sync=None, check_pr
         state_path = _state_file_path(base_dir, name)
         if not os.path.isfile(state_path):
             issues.append(_issue("FAIL", "missing_state", f"session {name} state file is missing", state_path, True))
+        if session.get("provider") == PROVIDER_CLAUDE:
+            issues.extend(_claude_setup_token_issues(session))
         if session.get("provider") == PROVIDER_CODEX:
             diag = codex_auth_diagnostic(session, spawn_sync=spawn_sync, env_override=env)
             diag["observed_account"] = _recent_codex_observed_account(diag.get("auth_home"))
@@ -372,6 +374,22 @@ def _codex_auth_issues(session, diag):
             },
         ))
     return issues
+
+
+def _claude_setup_token_issues(session):
+    from .claude_credentials import SETUP_TOKEN_WARN_DAYS, claude_auth_type, setup_token_days_left
+
+    home = session.get("authHome")
+    if not home or claude_auth_type(home) != "setup-token":
+        return []
+    days = setup_token_days_left(home)
+    if days is None or days > SETUP_TOKEN_WARN_DAYS:
+        return []
+    name = session["name"]
+    when = "has expired" if days < 0 else f"expires in {days} day(s)"
+    return [_issue("WARN", "claude_setup_token_expiry",
+                   f"session {name} Claude setup-token {when}; run cdx login {name}",
+                   {"session": name, "days_left": days})]
 
 
 def _codex_shared_account_id_issues(codex_diagnostics):
