@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from src.errors import CdxError
-from src.update_manager import build_update_plan, detect_installation, verify_updated_command
+from src.update_manager import _version_check_env, build_update_plan, detect_installation, verify_updated_command
 
 
 class UpdateManagerPythonTests(unittest.TestCase):
@@ -69,6 +69,14 @@ class UpdateManagerPythonTests(unittest.TestCase):
         with mock.patch("src.update_manager.subprocess.run", return_value=SimpleNamespace(stdout=" M src/cli.py\n", returncode=0)):
             with self.assertRaisesRegex(CdxError, "uncommitted changes"):
                 build_update_plan(package_root=source_root)
+
+    def test_version_check_keeps_the_home_but_not_secrets(self):
+        # Without USERPROFILE, Windows Python cannot find the home directory and
+        # the checked `cdx -v` prints a traceback instead of its version.
+        env = _version_check_env({"PATH": "/bin", "USERPROFILE": "C:\\Users\\a", "HOME": "/home/a",
+                                  "CDX_HOME": "/home/a/.cdx", "ACCESS_TOKEN": "secret"})
+        self.assertEqual(env, {"PATH": "/bin", "USERPROFILE": "C:\\Users\\a", "HOME": "/home/a",
+                               "CDX_HOME": "/home/a/.cdx"})
 
     def test_verify_updated_command_reports_path_version_mismatch(self):
         bin_dir = os.path.join(self.make_temp_dir(), "bin")

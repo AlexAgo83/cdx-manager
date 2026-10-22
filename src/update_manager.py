@@ -216,7 +216,11 @@ def _version_check_env(env):
     source = env or os.environ
     allowed = {
         key: source[key]
-        for key in ("PATH", "PATHEXT", "SystemRoot", "COMSPEC", "WINDIR")
+        # The home variables let the child find its home directory: without
+        # USERPROFILE, Windows Python's Path.home() raises and `cdx -v` prints
+        # a traceback instead of the version.
+        for key in ("PATH", "PATHEXT", "SystemRoot", "COMSPEC", "WINDIR",
+                    "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "CDX_HOME")
         if source.get(key)
     }
     return allowed
