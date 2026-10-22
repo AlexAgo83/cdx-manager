@@ -90,18 +90,19 @@ def _format_status_rows(rows, use_color=False, small=False):
     credits_visible = any(r.get("credits") is not None for r in active_rows)
     has_provider = len({r["provider"] for r in rows}) > 1 and not small
     has_label = any(r.get("label") for r in rows) and not small
+    type_visible = any(r.get("auth_type") for r in active_rows) and not small
     if small:
         headers = ["SESSION", "STATUS", "OK", "5H", "WEEK"] + [name for name, visible in zip(["RESETS", "RESET 5H", "RESET WEEK"], reset_visible) if visible]
     elif has_provider:
         headers = ["SESSION", "PROV."]
         if has_label:
             headers.append("LABEL")
-        headers += ["STATUS", "AUTH", "OK", "5H", "WEEK"] + (["BLOCK"] if block_visible else []) + (["CR"] if credits_visible else []) + [name for name, visible in zip(["RESETS", "RESET 5H", "RESET WEEK"], reset_visible) if visible] + ["UPDATED"]
+        headers += ["STATUS", "AUTH"] + (["TYPE"] if type_visible else []) + ["OK", "5H", "WEEK"] + (["BLOCK"] if block_visible else []) + (["CR"] if credits_visible else []) + [name for name, visible in zip(["RESETS", "RESET 5H", "RESET WEEK"], reset_visible) if visible] + ["UPDATED"]
     else:
         headers = ["SESSION"]
         if has_label:
             headers.append("LABEL")
-        headers += ["STATUS", "AUTH", "OK", "5H", "WEEK"] + (["BLOCK"] if block_visible else []) + (["CR"] if credits_visible else []) + [name for name, visible in zip(["RESETS", "RESET 5H", "RESET WEEK"], reset_visible) if visible] + ["UPDATED"]
+        headers += ["STATUS", "AUTH"] + (["TYPE"] if type_visible else []) + ["OK", "5H", "WEEK"] + (["BLOCK"] if block_visible else []) + (["CR"] if credits_visible else []) + [name for name, visible in zip(["RESETS", "RESET 5H", "RESET WEEK"], reset_visible) if visible] + ["UPDATED"]
     if not rows:
         if small:
             return "SESSION  STATUS  OK  5H  WEEK  RESETS  RESET 5H  RESET WEEK\nNo saved sessions yet."
@@ -130,6 +131,8 @@ def _format_status_rows(rows, use_color=False, small=False):
             auth = _format_auth_status(r)
             auth_color = "32" if auth == "logged" else "31" if auth == "logged out" else "2"
             base.append(_style(auth, auth_color, use_color))
+            if type_visible:
+                base.append(_style(r.get("auth_type") or "-", "2", use_color))
         if r.get("enabled", True) is False:
             usage_columns = [_style("-", "2", use_color)] * 6
         else:
@@ -365,6 +368,7 @@ def _format_status_detail(row, use_color=False):
         f"{_style('Provider:', '1', use_color)} {row.get('provider') or 'n/a'}",
         f"{_style('Status:', '1', use_color)} {_style(row.get('status') or ('enabled' if row.get('enabled', True) else 'disabled'), '2' if row.get('enabled', True) is False else '32', use_color)}",
         f"{_style('Auth:', '1', use_color)} {_style(auth, auth_color, use_color)}",
+        *([f"{_style('Auth type:', '1', use_color)} {row['auth_type']}"] if row.get("auth_type") else []),
         f"{_style('Available:', '1', use_color)} {_style_pct(row.get('available_pct'), use_color)}",
         f"{_style('5h left:', '1', use_color)} {_style_pct(row.get('remaining_5h_pct'), use_color)}",
         f"{_style('Week left:', '1', use_color)} {_style_pct(row.get('remaining_week_pct'), use_color)}",
