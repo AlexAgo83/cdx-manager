@@ -107,7 +107,7 @@ def _default_spawn_sync(argv, env=None):
         completed = subprocess.run(
             argv,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=_CAPABILITY_PROBE_TIMEOUT_SECONDS,
             env=env,
             check=False,

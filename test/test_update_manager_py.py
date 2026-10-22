@@ -117,3 +117,17 @@ class RunUpdatePlanTests(unittest.TestCase):
 
         self.assertEqual(len(results), 1)
         self.assertIsNone(results[0]["returncode"])
+
+
+class HomelessVersionTests(unittest.TestCase):
+    def test_version_and_cdx_home_do_not_need_a_home_directory(self):
+        # Windows without USERPROFILE: Path.home() raises RuntimeError.
+        import io
+
+        from src.cli import main
+        from src.config import get_cdx_home
+        with mock.patch("src.config.Path.home", side_effect=RuntimeError("Could not determine home directory.")):
+            self.assertEqual(get_cdx_home({"CDX_HOME": "/x/.cdx"}), "/x/.cdx")
+            out = io.StringIO()
+            self.assertEqual(main(["-v"], {"env": {}, "stdout": out}), 0)
+            self.assertRegex(out.getvalue(), r"^\d+\.\d+\.\d+")

@@ -101,6 +101,17 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(settings["theme"], "dark")
         self.assertIs(settings["includeCoAuthoredBy"], False)
 
+    def test_create_claude_session_leaves_an_unparseable_settings_file_alone(self):
+        temp_dir = self.make_temp_dir()
+        settings_dir = os.path.join(temp_dir, "profiles", "work1", "claude-home", ".claude")
+        os.makedirs(settings_dir, exist_ok=True)
+        path = os.path.join(settings_dir, "settings.json")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write('{"theme": "dark",')  # mid-edit by the user
+        create_session_service({"base_dir": temp_dir})["create_session"]("work1", "claude")
+        with open(path, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), '{"theme": "dark",')
+
     def test_create_session_uses_private_directory_permissions_on_unix(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

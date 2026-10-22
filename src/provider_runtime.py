@@ -1283,7 +1283,7 @@ def _probe_provider_auth_status(session, spawn_sync=None, env_override=None, tru
             result = subprocess.run(
                 [command] + spec["args"],
                 env=spec["env"],
-                capture_output=True, text=True,
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
                 timeout=AUTH_PROBE_TIMEOUT_SECONDS,
             )
             output = (result.stdout or "") + (result.stderr or "")

@@ -143,7 +143,7 @@ def _installed_logics_manager_version(env=None, runner=None):
         result = runner(
             [executable, "--version"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=2,
             env=env,
         )

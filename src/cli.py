@@ -533,7 +533,6 @@ def main(argv, options=None):
     stderr = options.get("stderr", sys.stderr)
     stdin_is_tty = options.get("stdin", {}).get("isTTY", hasattr(sys.stdin, "isatty") and sys.stdin.isatty())
     use_color = _should_use_color(env, stdout)
-    service = options.get("service") or create_session_service({"env": env})
     spawn = options.get("spawn")
     spawn_sync = options.get("spawn_sync")
     refresh_fn = options.get("refreshClaudeSessionStatus")
@@ -558,6 +557,10 @@ def main(argv, options=None):
             raise CdxError("Usage: cdx --version")
         out(f"{_print_version()}\n")
         return 0
+
+    # Built after --help/--version: those must answer even where the home
+    # directory cannot be resolved (a service or task with a minimal environment).
+    service = options.get("service") or create_session_service({"env": env})
 
     if argv == ["--json"]:
         rows = service["format_list_rows"]()

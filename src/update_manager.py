@@ -43,7 +43,7 @@ def _is_git_dirty(package_root):
         result = subprocess.run(
             ["git", "-C", str(package_root), "status", "--porcelain"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             check=False,
         )
     except FileNotFoundError as error:
@@ -248,7 +248,7 @@ def verify_updated_command(target_version, runner=None, env=None):
             env=_version_check_env(env),
             check=False,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
         )
     except OSError as error:
         return {

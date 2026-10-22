@@ -53,9 +53,9 @@ impl Transport {
         matches!(self, Transport::Wsl { .. })
     }
 
-    /// Which `cdx` to run. `wsl.exe -- cdx` resolves against WSL's
-    /// non-interactive PATH, which often omits `~/.local/bin`, so an absolute
-    /// path has to be expressible. Measured on a real host before adding this.
+    /// Which `cdx` to run. Over WSL it resolves through a login shell's PATH;
+    /// a non-login one often omits `~/.local/bin` (on one host it found a stale
+    /// system-wide cdx 0.12.1 instead), and an absolute path stays expressible.
     pub fn cdx_command() -> String {
         setting("CDX_TRAY_CDX").unwrap_or_else(|| "cdx".to_string())
     }
@@ -90,7 +90,12 @@ impl Transport {
                 if let Some(name) = distro {
                     cmd.args(["-d", name]);
                 }
-                cmd.args(["--", &cdx]);
+                // Not `wsl.exe --`: that hands the raw Windows command line to
+                // the distro's shell, which splits and expands it (`$(...)` in a
+                // repository path or Logics reference would run). `-e` passes
+                // argv untouched; the login shell only supplies PATH, so the
+                // user's cdx is found rather than a stale system-wide one.
+                cmd.args(["-e", "bash", "-lc", "exec \"$0\" \"$@\"", &cdx]);
                 cmd.args(args);
                 cmd
             }
@@ -742,6 +747,24 @@ mod tests {
         assert_eq!(setting("CDX_TRAY_TEST_SETTING"), None);
         std::env::remove_var("CDX_TRAY_TEST_SETTING");
         assert_eq!(setting("CDX_TRAY_TEST_SETTING"), None);
+    }
+
+    #[test]
+    fn wsl_arguments_reach_cdx_without_a_shell_reading_them() {
+        let root = "/home/a/my repo $(id)";
+        let cmd = Transport::Wsl {
+            distro: Some("Ubuntu".into()),
+        }
+        .command_for(&["tray", "plugin", "run", "x", "--root", root]);
+        let args: Vec<String> = cmd
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let expected = [
+            "-d", "Ubuntu", "-e", "bash", "-lc", "exec \"$0\" \"$@\"", "cdx", "tray", "plugin",
+            "run", "x", "--root", root,
+        ];
+        assert_eq!(args, expected);
     }
 
     #[test]
