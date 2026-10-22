@@ -107,9 +107,17 @@ CACHE_WRITE_MULTIPLIER = 1.25
 DEFAULT_OUTPUT_MULTIPLIER = 5.0
 
 
+def price_entry(model, prices=None):
+    """This model's rates. Claude Code records a context variant such as
+    `claude-opus-5-5[1m]`, which is billed at the base model's rates."""
+    table = prices if prices is not None else token_prices()[0]
+    model = model or ""
+    return table.get(model) or table.get(model.split("[", 1)[0])
+
+
 def output_multiplier(model, prices=None):
     """This model's output-to-input price ratio."""
-    entry = (prices if prices is not None else token_prices()[0]).get(model or "")
+    entry = price_entry(model, prices)
     if not entry:
         return DEFAULT_OUTPUT_MULTIPLIER
     return entry["output"] / entry["input"] if entry["input"] else None
@@ -117,7 +125,7 @@ def output_multiplier(model, prices=None):
 
 def cache_read_multiplier(model, prices=None):
     """This model's cache-read/input ratio, with the legacy fallback."""
-    entry = (prices if prices is not None else token_prices()[0]).get(model or "")
+    entry = price_entry(model, prices)
     if not entry:
         return CACHE_READ_MULTIPLIER
     if not entry["input"]:
@@ -185,7 +193,7 @@ DEFAULT_TOKEN_PRICES = {
     "claude-fable-5-1": {"input": 10.0, "output": 50.0, "cache_read": 0.25},
     "claude-mythos-5-1": {"input": 10.0, "output": 50.0, "cache_read": 0.25},
     "claude-opus-5-5": {"input": 4.0, "output": 20.0, "cache_read": 0.2},
-    "claude-sonnet-5-5": {"input": 2.0, "output": 10.0},
+    "claude-sonnet-5-5": {"input": 2.0, "output": 10.0, "cache_read": 0.1},
     "claude-fable-5": {"input": 10.0, "output": 50.0},
     "claude-mythos-5": {"input": 10.0, "output": 50.0},
     "claude-opus-5": {"input": 5.0, "output": 25.0},
@@ -197,6 +205,9 @@ DEFAULT_TOKEN_PRICES = {
     "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
     "claude-sonnet-4-5": {"input": 3.0, "output": 15.0},
     "claude-sonnet-4-5-20250929": {"input": 3.0, "output": 15.0},
+    # ponytail: Haiku 5.5 costs 5x for prompts over 100K tokens; a run's usage
+    # does not say how its prompts were sized, so this is the base tier.
+    "claude-haiku-5-5": {"input": 0.1, "output": 0.5, "cache_read": 0.01},
     "claude-haiku-4-5": {"input": 1.0, "output": 5.0},
     "claude-haiku-4-5-20251001": {"input": 1.0, "output": 5.0},
     # OpenAI
@@ -218,7 +229,7 @@ DEFAULT_TOKEN_PRICES = {
     "gpt-5.4-nano-2026-03-17": {"input": 0.2, "output": 1.25},
     "gpt-5.3-codex": {"input": 1.75, "output": 14.0},
 }
-TOKEN_PRICES_REVIEWED = "2026-10-04"
+TOKEN_PRICES_REVIEWED = "2026-10-22"
 #: How long a review stays fresh before the staleness test asks for another.
 TOKEN_PRICES_MAX_AGE_DAYS = 90
 TOKEN_PRICES_ENV = "CDX_TOKEN_PRICES"
@@ -271,7 +282,7 @@ def estimate_cost(usage, model, prices=None):
     """
     if not model or not isinstance(usage, dict):
         return None
-    rate = (prices if prices is not None else token_prices()[0]).get(model)
+    rate = price_entry(model, prices)
     if rate is None:
         return None
     per_million = {
