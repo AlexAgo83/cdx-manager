@@ -81,6 +81,57 @@ def peek_keychain_credentials(auth_home):
         return None
 
 
+INFERENCE_SCOPE = "user:inference"
+
+
+def is_full_claude_login(credentials):
+    """True for a claude.ai login, False for an inference-only credential.
+
+    A setup-token can only make model requests, so Claude Code never loads
+    claude.ai connectors with it. A real `/login` stores a refresh token and
+    scopes beyond inference. Only the shape is inspected, never the values.
+    """
+    oauth = credentials.get("claudeAiOauth") if isinstance(credentials, dict) else None
+    if not isinstance(oauth, dict) or not oauth.get("accessToken"):
+        return False
+    scopes = oauth.get("scopes")
+    extra_scopes = isinstance(scopes, list) and any(
+        isinstance(scope, str) and scope != INFERENCE_SCOPE for scope in scopes
+    )
+    return bool(oauth.get("refreshToken")) or extra_scopes
+
+
+def read_claude_login_file(auth_home):
+    try:
+        with open(os.path.join(auth_home, ".claude", ".credentials.json"), encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def has_full_claude_login(auth_home):
+    """Whether the profile holds a claude.ai login: the profile's
+    `.credentials.json` (Linux, Windows) or its keychain entry (macOS)."""
+    if not auth_home:
+        return False
+    return is_full_claude_login(read_claude_login_file(auth_home)) or is_full_claude_login(
+        peek_keychain_credentials(auth_home)
+    )
+
+
+def claude_auth_type(auth_home):
+    """`full-login`, `setup-token`, or None when the profile holds neither."""
+    if has_full_claude_login(auth_home):
+        return "full-login"
+    try:
+        with open(os.path.join(auth_home, "credentials", "default.json"), encoding="utf-8") as handle:
+            token = json.load(handle).get("access_token")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return "setup-token" if token else None
+
+
 def write_keychain_credentials(auth_home, data):
     _reject_custom_oauth()
     user, service = _keychain_identity(auth_home)
