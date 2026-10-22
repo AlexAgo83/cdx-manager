@@ -7,6 +7,8 @@ all. Every rule below exists to keep one of those from happening.
 import io
 import json
 import os
+import tempfile
+import unittest
 from unittest import mock
 
 from cli_test_support import CliTestBase
@@ -350,3 +352,31 @@ class SpoolPathTest(CliTestBase):
         })
         snapshot = json.loads(io_obj["stdout"].getvalue())["snapshot"]
         self.assertEqual(snapshot["spool_path"], events_path(temp_dir))
+
+
+class SpoolRaceTests(unittest.TestCase):
+    def test_acknowledging_never_drops_an_event_published_meanwhile(self):
+        import threading
+
+        from src.tray_events import acknowledge, events_path, publish, write_heartbeat
+        with tempfile.TemporaryDirectory() as base:
+            write_heartbeat(base)
+            published, stop = [], threading.Event()
+
+            def acker():
+                while not stop.is_set():
+                    acknowledge(base, ["nothing-to-ack"])
+
+            threads = [threading.Thread(target=acker) for _ in range(3)]
+            for thread in threads:
+                thread.start()
+            for index in range(150):
+                if publish(base, "t", "m", event_id=f"e{index}"):
+                    published.append(f"e{index}")
+            stop.set()
+            for thread in threads:
+                thread.join()
+            with open(events_path(base), encoding="utf-8") as handle:  # raw: read_events caps at 32
+                seen = {json.loads(line)["id"] for line in handle if line.strip()}
+            self.assertEqual(set(published) - seen, set())
+            self.assertEqual(len(published), 150)

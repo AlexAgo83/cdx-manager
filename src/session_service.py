@@ -26,7 +26,6 @@ the re-exports as unused and callers importing through this module break.
 `test_session_service_facade_still_exposes_every_name_its_callers_import`
 guards that.
 """
-import json
 import os
 import shutil
 import tempfile
@@ -53,7 +52,7 @@ from .config import (
     parse_on_off as _parse_on_off,
 )
 from .errors import CdxError
-from .fs_utils import atomic_write, remove_tree
+from .fs_utils import remove_tree
 from .session_backup import (  # noqa: F401  (re-exported for callers and tests)
     _FORCE_IMPORT_PRESERVED_PROFILE_PATHS,
     _auth_bundle_paths,
@@ -252,24 +251,18 @@ def _parse_status_timeout_seconds(value):
 
 
 def _ensure_claude_attribution_disabled(auth_home):
-    settings_dir = os.path.join(auth_home, ".claude")
-    settings_path = os.path.join(settings_dir, "settings.json")
-    try:
-        os.makedirs(settings_dir, exist_ok=True)
-        with open(settings_path, encoding="utf-8") as handle:
-            settings = json.load(handle)
-    except FileNotFoundError:
-        settings = {}
-    except (OSError, json.JSONDecodeError):
-        settings = {}
-    if not isinstance(settings, dict):
-        settings = {}
-    settings["includeCoAuthoredBy"] = False
-    try:
-        atomic_write(settings_path, json.dumps(settings, indent=2, sort_keys=True) + "\n", mode=0o644)
-    except OSError:
+    # Same reader/writer as the notification hooks: an unparseable file is the
+    # user's and is left alone, a symlink stays a symlink, the mode is kept.
+    from .agent_notify import _read_json, _write_json
+
+    settings_path = os.path.join(auth_home, ".claude", "settings.json")
+    settings = _read_json(settings_path)
+    if settings is None:
         return False
-    return True
+    if settings.get("includeCoAuthoredBy") is False:
+        return True
+    settings["includeCoAuthoredBy"] = False
+    return _write_json(settings_path, settings)
 
 
 def _normalize_session_label(label):

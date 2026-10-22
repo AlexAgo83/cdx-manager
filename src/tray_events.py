@@ -24,6 +24,8 @@ import json
 import os
 import time
 
+from .errors import CdxError
+
 SCHEMA_VERSION = 1
 # The tray heartbeats once per poll: 30s native, 60s across WSL. This window has
 # to clear the slowest of those with room for a late tick, or a live tray reads
@@ -130,12 +132,13 @@ def publish(base_dir, title, message, kind="complete", now=None, event_id=None, 
         path = events_path(base_dir)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         line = json.dumps(event, ensure_ascii=False) + "\n"
-        # O_APPEND makes this atomic against other hooks firing at the same
-        # instant, which a read-modify-write of a JSON array would not be.
-        with open(path, "a", encoding="utf-8") as handle:
+        # O_APPEND keeps concurrent hooks apart; the lock keeps this append
+        # out of acknowledge()'s read-and-replace, which would otherwise
+        # overwrite it and lose the notification.
+        with _spool_lock(path), open(path, "a", encoding="utf-8") as handle:
             handle.write(line)
         return True
-    except OSError:
+    except (OSError, CdxError):
         return False
 
 
@@ -171,6 +174,11 @@ def read_events(base_dir, include_acknowledged=False):
     return events[-MAX_SPOOLED_EVENTS:]
 
 
+# A hook must never stall an agent's turn on this lock; giving up only means
+# the alert is delivered directly instead.
+SPOOL_LOCK_TIMEOUT_SECONDS = 2
+
+
 def acknowledge(base_dir, ids, now=None):
     """Mark events consumed, idempotently, and compact when it is worth it.
 
@@ -183,6 +191,17 @@ def acknowledge(base_dir, ids, now=None):
     if not wanted:
         return {"acknowledged": 0, "compacted": False}
 
+    with _spool_lock(events_path(base_dir)):
+        return _acknowledge_locked(base_dir, wanted, now)
+
+
+def _spool_lock(path):
+    from .run_registry import _registry_lock
+
+    return _registry_lock(path, timeout_seconds=SPOOL_LOCK_TIMEOUT_SECONDS, label="tray events")
+
+
+def _acknowledge_locked(base_dir, wanted, now):
     try:
         with open(events_path(base_dir), encoding="utf-8") as handle:
             lines = handle.readlines()

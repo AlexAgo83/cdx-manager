@@ -81,7 +81,9 @@ def normalize_permission(value):
 def get_cdx_home(env=None):
     if env is None:
         env = os.environ
-    return env.get("CDX_HOME", str(Path.home() / ".cdx"))
+    # `or`, not a get() default: the default is evaluated eagerly, and
+    # Path.home() raises on Windows when USERPROFILE is missing.
+    return env.get("CDX_HOME") or str(Path.home() / ".cdx")
 
 
 def parse_on_off(value, label):

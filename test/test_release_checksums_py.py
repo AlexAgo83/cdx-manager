@@ -159,3 +159,13 @@ class ReleaseChecksumsTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "does not match project version"):
                 validate_release_checksums(root, tag="v9.9.9")
+
+
+class WindowsLauncherTests(unittest.TestCase):
+    def test_launcher_returns_the_python_exit_code(self):
+        # Inside a parenthesized block cmd expands %ERRORLEVEL% before the block
+        # runs, so `exit /b %ERRORLEVEL%` there always returned 0.
+        powershell = (ROOT / "install.ps1").read_text(encoding="utf-8")
+        launcher = powershell.split('$launcher = @"', 1)[1].split('"@', 1)[0]
+        self.assertNotIn("(", launcher)
+        self.assertEqual(launcher.count("exit /b %ERRORLEVEL%"), 2)

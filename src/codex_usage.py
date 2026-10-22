@@ -247,7 +247,7 @@ def _request_codex_app_server(auth_home, method, params, failure_reason, timeout
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             env=env,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             bufsize=1,
         )
         thread = threading.Thread(target=_reader_thread, args=(process.stdout, output), daemon=True)
