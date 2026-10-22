@@ -84,3 +84,17 @@ def get_cdx_home(env=None):
     # `or`, not a get() default: the default is evaluated eagerly, and
     # Path.home() raises on Windows when USERPROFILE is missing.
     return env.get("CDX_HOME") or str(Path.home() / ".cdx")
+
+
+def parse_on_off(value, label):
+    """Shared by `cdx set` flags and stored launch settings."""
+    from .errors import CdxError
+
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in ("on", "true", "1", "yes"):
+        return True
+    if text in ("off", "false", "0", "no"):
+        return False
+    raise CdxError(f"Unsupported {label} value: {value} (on|off)")

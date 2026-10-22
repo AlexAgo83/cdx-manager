@@ -265,7 +265,7 @@ def _spawn_detached_run(parsed, prompt, artifacts, ctx, session_name, cwd):
         # Surface as a CdxError so handle_run's own handler marks the already
         # registered run failed, instead of letting a raw OSError escape as an
         # unhandled traceback on a --json call.
-        raise CdxError(f"Failed to start detached cdx run: {error}", 126) from error
+        raise CdxError(f"Failed to start detached cdx run: {error}", 126, code="provider_start_failed") from error
     return {
         "pid": getattr(child, "pid", None),
         "launch_log_path": launch_log_path,
@@ -526,7 +526,7 @@ def handle_run(rest, ctx):
             if not session:
                 raise CdxError(f"Unknown session: {parsed['name']}")
             if session.get("enabled", True) is False:
-                raise CdxError(f"Session is disabled: {parsed['name']}")
+                raise CdxError(f"Session is disabled: {parsed['name']}", code="session_disabled")
         else:
             selected = _select_headless_session(
                 ctx,
@@ -552,7 +552,7 @@ def handle_run(rest, ctx):
 
         cwd = os.path.abspath(parsed["cwd"])
         if not os.path.isdir(cwd):
-            raise CdxError(f"Invalid cwd: {parsed['cwd']}")
+            raise CdxError(f"Invalid cwd: {parsed['cwd']}", code="invalid_cwd")
         prompt = read_run_prompt(parsed, stdin=ctx.get("prompt_stdin"))
         _consume_detached_prompt_file(parsed, detached_run_id)
         launch_updates = {}

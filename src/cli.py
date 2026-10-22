@@ -6,6 +6,7 @@ import sys
 from datetime import datetime, timezone
 
 from .agent_notify import handle_notify
+from .cli_args import SET_USAGE
 from .cli_commands import (
     API_SCHEMA_VERSION,
     STATUS_USAGE,
@@ -247,7 +248,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx config <name> [--json]', '36', use_color)}",
         f"  {_style('cdx configs [--json]', '36', use_color)}",
         f"  {_style('cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]', '36', use_color)}",
-        f"  {_style('cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--notify on|off] [--notify-preview on|off] [--model MODEL] [--priority 0..100] [--json]', '36', use_color)}",
+        f"  {_style(SET_USAGE[len('Usage: '):], '36', use_color)}",
         f"  {_style('cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--logics|--notify|--notify-preview|--model|--priority|--all) [--json]', '36', use_color)}",
         f"  {_style('cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]', '36', use_color)}",
         f"  {_style('cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]', '36', use_color)}",

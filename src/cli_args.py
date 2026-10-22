@@ -16,6 +16,7 @@ from .config import (
     PROVIDERS,
     REASONING_EFFORT_VALUES,
     normalize_permission,
+    parse_on_off,
 )
 from .errors import CdxArgumentError, CdxError
 from .provider_runtime import _normalize_reasoning_effort
@@ -32,7 +33,7 @@ CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set|append [text..
 MEMORY_USAGE = "Usage: cdx memory [--global|--project NAME_OR_PATH] [show|view|path|init|edit|clear|set|append|list] [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--source-conversation ID | --source-native-transcript PATH | --source-transcript PATH] [--json]"
 LABEL_USAGE = "Usage: cdx label <name> <label> [--json] | cdx label <name> --clear [--json]"
-SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--model MODEL] [--fallback-model MODEL[,MODEL...]] [--budget USD] [--extra-args 'ARGS'] [--priority 0..100] [--json]"
+SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--notify on|off] [--notify-preview on|off] [--model MODEL] [--fallback-model MODEL[,MODEL...]] [--budget USD] [--extra-args 'ARGS'] [--priority 0..100] [--json]"
 UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--reasoning-effort|--permission|--fast|--rtk|--logics|--model|--fallback-model|--budget|--extra-args|--priority|--all) [--json]"
 SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
@@ -213,13 +214,12 @@ def _parse_toggle_args(args, usage):
     return {"name": parsed["names"][0], "json": parsed["json"]}
 
 
-def _parse_fast_value(value):
-    text = str(value).strip().lower()
-    if text in ("on", "true", "1", "yes"):
-        return True
-    if text in ("off", "false", "0", "no"):
-        return False
-    raise CdxError(SET_USAGE)
+def _parse_fast_value(value, label="fast"):
+    return parse_on_off(value, label)
+
+
+def _on_off(label):
+    return lambda value: parse_on_off(value, label)
 
 
 def _parse_priority_value(value):
@@ -248,10 +248,10 @@ def _parse_set_args(args):
         "--power": {"key": "power", "type": "str", "default": None},
         "--permission": {"key": "permission", "type": "str", "default": None},
         "--fast": {"key": "fast", "type": "str", "default": None, "transform": _parse_fast_value},
-        "--rtk": {"key": "rtk", "type": "str", "default": None, "transform": _parse_fast_value},
-        "--logics": {"key": "logics", "type": "str", "default": None, "transform": _parse_fast_value},
-        "--notify": {"key": "notify", "type": "str", "default": None, "transform": _parse_fast_value},
-        "--notify-preview": {"key": "notify_preview", "type": "str", "default": None, "transform": _parse_fast_value},
+        "--rtk": {"key": "rtk", "type": "str", "default": None, "transform": _on_off("rtk")},
+        "--logics": {"key": "logics", "type": "str", "default": None, "transform": _on_off("logics")},
+        "--notify": {"key": "notify", "type": "str", "default": None, "transform": _on_off("notify")},
+        "--notify-preview": {"key": "notify_preview", "type": "str", "default": None, "transform": _on_off("notify preview")},
         "--model": {"key": "model", "type": "str", "default": None},
         "--fallback-model": {"key": "fallback_model", "type": "str", "default": None},
         "--budget": {"key": "budget", "type": "str", "default": None, "transform": _parse_budget_value},
@@ -510,7 +510,13 @@ def cdx_schema():
                 "provider_start_failed",
                 "provider_failed",
                 "provider_timeout",
+                "run_cancelled",
+                "invalid_request",
                 "cdx_error",
+            ],
+            # The error code on a run record the stale sweep closed.
+            "run_record": [
+                "stale_process",
             ],
             "run_lookup": [
                 "run_not_found",
@@ -522,6 +528,26 @@ def cdx_schema():
             "network_disabled_by_permission",
             "session_selected_without_status",
             "limit_ignored_with_since",
+            "claude_auth_probe_failed",
+            "claude_refresh_failed",
+            "disk_cleanup_available",
+            "update_available",
+            "logics_manager_update_available",
+            "update_version_check_failed",
+            "update_version_mismatch",
+            "logics_manager_missing",
+            "logics_viewer_failed",
+            "logics_viewer_root_invalid",
+            "tray_autostart_unsupported",
+            "tray_companion_missing",
+            "tray_companion_not_aligned",
+            "tray_companion_not_available",
+            "tray_companion_not_installed",
+            "tray_companion_restart_pending",
+            "tray_companion_updated",
+            "tray_plugin_action_unknown",
+            "tray_plugin_unknown",
+            "tray_terminal_invalid",
         ],
     }
 

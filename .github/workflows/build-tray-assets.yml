@@ -60,7 +60,7 @@ jobs:
           if [[ "${{ matrix.target }}" == *musl* ]]; then
             export RUSTFLAGS="-C linker=rust-lld -C link-self-contained=yes"
           fi
-          cargo build --release --manifest-path tray/Cargo.toml --target ${{ matrix.target }}
+          cargo build --release --locked --manifest-path tray/Cargo.toml --target ${{ matrix.target }}
 
       # The identity is a self-signed certificate, exported from the build
       # machine's keychain. adr_005 rejects ad-hoc signing outright: it changes
