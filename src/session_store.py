@@ -1,7 +1,6 @@
 import json
 import os
 import sys
-import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -34,23 +33,8 @@ def _read_json(file_path, fallback):
 
 
 def _write_json(file_path, value):
-    directory = os.path.dirname(file_path)
-    _ensure_dir(directory)
-    fd, temp_path = tempfile.mkstemp(prefix=f".{os.path.basename(file_path)}.", suffix=".tmp", dir=directory)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(value, f, indent=2)
-            f.write("\n")
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(temp_path, file_path)
-        _fsync_directory(directory)
-    except Exception:
-        try:
-            os.unlink(temp_path)
-        except FileNotFoundError:
-            pass
-        raise
+    _ensure_dir(os.path.dirname(file_path))
+    atomic_write(file_path, json.dumps(value, indent=2) + "\n")
 
 
 def _fsync_directory(directory):

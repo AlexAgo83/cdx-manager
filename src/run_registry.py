@@ -164,6 +164,22 @@ def _refresh_stale_runs(data):
     return changed
 
 
+# Every update rewrites the whole registry under the lock, so it must not grow
+# with every run ever made. Running runs are always kept; runs are newest first.
+MAX_FINISHED_RUNS = 500
+
+
+def _prune_finished_runs(data):
+    kept, finished = [], 0
+    for run in data["runs"]:
+        if run.get("status") != "running":
+            finished += 1
+            if finished > MAX_FINISHED_RUNS:
+                continue
+        kept.append(run)
+    data["runs"] = kept
+
+
 def _base_record(run_id, *, kind, session, provider, model, cwd, artifacts=None):
     return {
         "run_id": run_id,
@@ -218,6 +234,7 @@ class RunRegistry:
             data["runs"] = [run for run in data["runs"] if run.get("run_id") != run_id]
             record = _base_record(run_id, kind=kind, session=session, provider=provider, model=model, cwd=cwd, artifacts=artifacts)
             data["runs"].insert(0, record)
+            _prune_finished_runs(data)
             _write_registry(self.path, data)
         return record
 

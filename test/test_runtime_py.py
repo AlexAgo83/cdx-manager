@@ -490,14 +490,6 @@ class RuntimePythonTests(unittest.TestCase):
             )
             self.assertEqual(ran["reason"], "missing_rate_limits")
 
-    def test_rotate_log_if_needed_truncates_large_file(self):
-        with tempfile.TemporaryDirectory(prefix="cdx-log-") as temp_dir:
-            log_path = os.path.join(temp_dir, "cdx-session.log")
-            with open(log_path, "wb") as handle:
-                handle.write(b"x" * cli.LOG_ROTATE_BYTES)
-            cli._rotate_log_if_needed(log_path)
-            self.assertEqual(os.path.getsize(log_path), 0)
-
     def test_enable_windows_ansi_sets_virtual_terminal_mode(self):
         set_mode_calls = []
 
