@@ -136,8 +136,7 @@ class NotifyPythonTests(unittest.TestCase):
         self.assertEqual(calls[0][0][0], "systemd-run")
         self.assertIn("--user", calls[0][0])
         self.assertIn("/usr/local/bin/cdx", calls[0][0])
-        self.assertIn("--once", calls[0][0])
-        self.assertIn("--refresh", calls[0][0])
+        self.assertEqual(calls[0][0][-4:], ["/usr/local/bin/cdx", "ready", "--fire", "main"])
 
     def test_schedule_notification_event_treats_existing_systemd_unit_as_success(self):
         def spawn_sync(argv, **kwargs):

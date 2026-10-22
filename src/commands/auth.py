@@ -100,6 +100,12 @@ def handle_ready(rest, ctx):
     unreachable once `cdx ready` became the only entry point.
     """
     parsed = parse_ready_args(rest)
+    if parsed["mode"] == "fire":
+        send_desktop_notification(
+            "cdx", f"{parsed['fire']} reset time reached; it should be usable again",
+            spawn_sync=ctx.get("spawn_sync"), env=ctx.get("env"),
+        )
+        return 0
     event = resolve_notify_event(
         ctx["service"]["get_status_rows"](
             progress_callback=None if parsed["json"] else _make_notify_progress(ctx),

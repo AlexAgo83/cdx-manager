@@ -2162,6 +2162,7 @@ class SessionServicePythonTests(unittest.TestCase):
         fake_msvcrt = SimpleNamespace(
             LK_LOCK=1,
             LK_UNLCK=2,
+            LK_NBLCK=3,
             locking=lambda fd, mode, length: calls.append((fd, mode, length)),
         )
 
@@ -2170,8 +2171,9 @@ class SessionServicePythonTests(unittest.TestCase):
                 store = create_session_store(temp_dir)
                 store["list_sessions"]()
 
+        # Non-blocking attempts under cdx's own deadline, not LK_LOCK's ten tries.
         self.assertEqual(len(calls), 2)
-        self.assertEqual(calls[0][1:], (1, 1))
+        self.assertEqual(calls[0][1:], (3, 1))
         self.assertEqual(calls[1][1:], (2, 1))
 
 

@@ -102,3 +102,19 @@ class ReadyCommandTests(CliTestBase):
         with self.assertRaisesRegex(CdxError, "Usage: cdx ready"):
             main(["ready", "--once"], self.make_io())
 
+
+    def test_scheduled_job_argv_shows_the_notification(self):
+        """The argv a scheduler stores must, when run, put a banner on screen."""
+        from src.notify import _scheduled_notify_argv
+        argv = _scheduled_notify_argv({"session": "main"}, {"CDX_BIN": "cdx"})
+        calls = []
+        with mock.patch("sys.platform", "linux"), \
+                mock.patch("src.notify.shutil.which", side_effect=lambda command, path=None: command == "notify-send"):
+            code = main(argv[1:], {
+                **self.make_io(),
+                "env": {"PATH": "/usr/bin", "DISPLAY": ":0"},
+                "spawn_sync": lambda command, **kwargs: calls.append(command) or subprocess.CompletedProcess(command, 0, "", ""),
+            })
+        self.assertEqual(code, 0)
+        self.assertEqual(calls[0][:3], ["notify-send", "-a", "cdx"])
+        self.assertIn("main", calls[0][-1])

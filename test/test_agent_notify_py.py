@@ -263,6 +263,12 @@ class HookTargetTests(unittest.TestCase):
     def test_hook_command_resolves_rather_than_using_the_bare_name(self):
         self.assertEqual(agent_notify.resolve_hook_command({"CDX_BIN": "C:\\cdx.cmd"}), "C:\\cdx.cmd")
 
+    def test_hook_command_quotes_a_path_with_a_space(self):
+        command = agent_notify.resolve_hook_command({"CDX_BIN": "C:\\Users\\Jean Dupont\\cdx.cmd"})
+        self.assertEqual(command, '"C:\\Users\\Jean Dupont\\cdx.cmd"')
+        # Still recognised as ours, so a later launch replaces it instead of adding a second hook.
+        self.assertTrue(agent_notify._is_ours({"hooks": [{"command": f"{command} notify"}]}))
+
 
 class ProvisioningTests(unittest.TestCase):
     def setUp(self):
@@ -433,3 +439,20 @@ class ProvisioningTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SettingsWriteTests(unittest.TestCase):
+    @unittest.skipIf(os.name == "nt", "symlinks need privileges on Windows")
+    def test_a_symlinked_settings_file_stays_a_symlink(self):
+        with tempfile.TemporaryDirectory() as root:
+            real = os.path.join(root, "dotfiles-settings.json")
+            with open(real, "w", encoding="utf-8") as handle:
+                handle.write("{}\n")
+            os.chmod(real, 0o600)
+            link = os.path.join(root, "settings.json")
+            os.symlink(real, link)
+            self.assertTrue(agent_notify._write_json(link, {"hooks": {}}))
+            self.assertTrue(os.path.islink(link))
+            with open(real, encoding="utf-8") as handle:
+                self.assertEqual(json.load(handle), {"hooks": {}})
+            self.assertEqual(os.stat(real).st_mode & 0o777, 0o600)

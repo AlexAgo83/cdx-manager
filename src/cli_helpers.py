@@ -11,6 +11,7 @@ import os
 import re
 from datetime import datetime
 
+from .claude_credentials import delete_keychain_credentials
 from .cli_render import _dim, _info, _pad_table, _style, _warn
 from .errors import CdxError
 from .fs_utils import atomic_write
@@ -244,7 +245,7 @@ def _write_claude_oauth_token(auth_home, token):
 
 def _bootstrap_claude_setup_token(session, ctx):
     ctx["out"](
-        "Claude login did not create isolated credentials; falling back to claude setup-token.\n"
+        "Minting a long-lived Claude setup-token for this session.\n"
     )
     run_info = _run_interactive_provider_command(
         session,
@@ -277,11 +278,14 @@ def _bootstrap_claude_setup_token(session, ctx):
         )
     auth_home = session.get("authHome") or ""
     cred_path = _write_claude_oauth_token(auth_home, token)
-    # ponytail: drop short-lived claude login creds so the ~1yr token wins at launch (provider_runtime _read_claude_launch_oauth_token)
+    # A profile /login wins over the setup-token at launch (see
+    # provider_runtime._read_claude_launch_oauth_token), so drop it on every
+    # platform: the file on Linux/Windows, the profile keychain entry on macOS.
     try:
         os.remove(os.path.join(auth_home, ".claude", ".credentials.json"))
     except OSError:
         pass
+    delete_keychain_credentials(auth_home)
     return cred_path
 
 def _format_launch_config(session, use_color=False):
