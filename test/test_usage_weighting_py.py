@@ -139,7 +139,8 @@ class CostEstimateTests(unittest.TestCase):
             "claude-fable-5-1": {"input": 10.0, "output": 50.0, "cache_read": 0.25},
             "claude-mythos-5-1": {"input": 10.0, "output": 50.0, "cache_read": 0.25},
             "claude-opus-5-5": {"input": 4.0, "output": 20.0, "cache_read": 0.2},
-            "claude-sonnet-5-5": {"input": 2.0, "output": 10.0},
+            "claude-sonnet-5-5": {"input": 2.0, "output": 10.0, "cache_read": 0.1},
+            "claude-haiku-5-5": {"input": 0.1, "output": 0.5, "cache_read": 0.01},
             "gpt-6-astra": {"input": 10.0, "output": 50.0},
             "gpt-5.6": {"input": 4.0, "output": 20.0},
             "gpt-5.5": {"input": 5.0, "output": 30.0},
@@ -166,7 +167,8 @@ class CostEstimateTests(unittest.TestCase):
             ("claude-opus-5-5", 29.2, 7_300_000),
             ("claude-fable-5-1", 72.75, 7_275_000),
             ("claude-mythos-5-1", 72.75, 7_275_000),
-            ("claude-sonnet-5-5", 14.7, 7_350_000),
+            ("claude-sonnet-5-5", 14.6, 7_300_000),
+            ("claude-haiku-5-5", 0.735, 7_350_000),
         ):
             with self.subTest(model=model):
                 self.assertAlmostEqual(estimate_cost(usage, model), cost)
@@ -182,6 +184,11 @@ class CostEstimateTests(unittest.TestCase):
             table, _ = token_prices({"CDX_TOKEN_PRICES": '{"gpt-6.1-sol":' + row + '}'})
             self.assertAlmostEqual(estimate_cost(usage, "gpt-6.1-sol", table), cost)
             self.assertEqual(weighted_usage(usage, "gpt-6.1-sol", table), weighted)
+
+    def test_a_context_variant_is_priced_as_its_base_model(self):
+        usage = normalize_usage(input_tokens=1_000_000, output_tokens=1_000_000)
+        self.assertAlmostEqual(estimate_cost(usage, "claude-opus-5-5[1m]"), estimate_cost(usage, "claude-opus-5-5"))
+        self.assertEqual(output_multiplier("claude-opus-5-5[1m]"), 5.0)
 
     def test_an_unknown_model_is_unpriced_rather_than_assumed(self):
         # Charging a default tier would turn "cdx does not know" into a number
