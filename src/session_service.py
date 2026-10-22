@@ -145,6 +145,24 @@ def _seed_codex_auth_from_global(auth_home, env=None):
     return True
 
 
+_ON_OFF_SETTINGS = {"fast": "fast", "rtk": "rtk", "logics": "logics", "notify": "notify", "notify_preview": "notify preview"}
+
+
+def _parse_on_off(value, label):
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in ("on", "true", "1", "yes"):
+        return True
+    if text in ("off", "false", "0", "no"):
+        return False
+    raise CdxError(f"Unsupported {label} value: {value}")
+
+
+def _has_control_chars(text):
+    return any(ord(ch) < 32 or ord(ch) == 127 for ch in text)
+
+
 def _normalize_launch_settings(settings, mark_fast_service_tier=True):
     normalized = {}
     if not settings:
@@ -172,77 +190,16 @@ def _normalize_launch_settings(settings, mark_fast_service_tier=True):
                 f"Unsupported permission: {settings['permission']} (allowed values: {allowed})"
             )
         normalized["permission"] = permission
-    if "fast" in settings and settings["fast"] is not None:
-        value = settings["fast"]
-        if isinstance(value, bool):
-            normalized["fast"] = value
-        else:
-            text = str(value).strip().lower()
-            if text in ("on", "true", "1", "yes"):
-                normalized["fast"] = True
-            elif text in ("off", "false", "0", "no"):
-                normalized["fast"] = False
-            else:
-                raise CdxError(f"Unsupported fast value: {settings['fast']}")
-        if normalized["fast"] is True and mark_fast_service_tier:
-            normalized["fastMode"] = "service_tier"
-        else:
-            normalized.pop("fastMode", None)
-        if settings.get("fastMode") == "service_tier" and normalized["fast"] is True:
-            normalized["fastMode"] = "service_tier"
-    if "rtk" in settings and settings["rtk"] is not None:
-        value = settings["rtk"]
-        if isinstance(value, bool):
-            normalized["rtk"] = value
-        else:
-            text = str(value).strip().lower()
-            if text in ("on", "true", "1", "yes"):
-                normalized["rtk"] = True
-            elif text in ("off", "false", "0", "no"):
-                normalized["rtk"] = False
-            else:
-                raise CdxError(f"Unsupported rtk value: {settings['rtk']}")
-    if "logics" in settings and settings["logics"] is not None:
-        value = settings["logics"]
-        if isinstance(value, bool):
-            normalized["logics"] = value
-        else:
-            text = str(value).strip().lower()
-            if text in ("on", "true", "1", "yes"):
-                normalized["logics"] = True
-            elif text in ("off", "false", "0", "no"):
-                normalized["logics"] = False
-            else:
-                raise CdxError(f"Unsupported logics value: {settings['logics']}")
-    if "notify" in settings and settings["notify"] is not None:
-        value = settings["notify"]
-        if isinstance(value, bool):
-            normalized["notify"] = value
-        else:
-            text = str(value).strip().lower()
-            if text in ("on", "true", "1", "yes"):
-                normalized["notify"] = True
-            elif text in ("off", "false", "0", "no"):
-                normalized["notify"] = False
-            else:
-                raise CdxError(f"Unsupported notify value: {settings['notify']}")
-    if "notify_preview" in settings and settings["notify_preview"] is not None:
-        value = settings["notify_preview"]
-        if isinstance(value, bool):
-            normalized["notify_preview"] = value
-        else:
-            text = str(value).strip().lower()
-            if text in ("on", "true", "1", "yes"):
-                normalized["notify_preview"] = True
-            elif text in ("off", "false", "0", "no"):
-                normalized["notify_preview"] = False
-            else:
-                raise CdxError(f"Unsupported notify preview value: {settings['notify_preview']}")
+    for key, label in _ON_OFF_SETTINGS.items():
+        if key in settings and settings[key] is not None:
+            normalized[key] = _parse_on_off(settings[key], label)
+    if normalized.get("fast") is True and (mark_fast_service_tier or settings.get("fastMode") == "service_tier"):
+        normalized["fastMode"] = "service_tier"
     if "model" in settings and settings["model"] is not None:
         model = str(settings["model"]).strip()
         if not model:
             raise CdxError("Model cannot be empty.")
-        if len(model) > MAX_LAUNCH_MODEL_LENGTH or any(ord(ch) < 32 or ord(ch) == 127 for ch in model):
+        if len(model) > MAX_LAUNCH_MODEL_LENGTH or _has_control_chars(model):
             raise CdxError("Model contains unsupported characters.")
         normalized["model"] = model
     if "fallback_model" in settings and settings["fallback_model"] is not None:
@@ -255,14 +212,14 @@ def _normalize_launch_settings(settings, mark_fast_service_tier=True):
         if any(not element for element in elements):
             raise CdxError("Fallback model cannot contain an empty entry.")
         for element in elements:
-            if len(element) > MAX_LAUNCH_MODEL_LENGTH or any(ord(ch) < 32 or ord(ch) == 127 for ch in element):
+            if len(element) > MAX_LAUNCH_MODEL_LENGTH or _has_control_chars(element):
                 raise CdxError("Fallback model contains unsupported characters.")
         normalized["fallback_model"] = ",".join(elements)
     if "extra_args" in settings and settings["extra_args"] is not None:
         extra = str(settings["extra_args"]).strip()
         if not extra:
             raise CdxError("Extra args cannot be empty.")
-        if len(extra) > MAX_LAUNCH_EXTRA_ARGS_LENGTH or any(ord(ch) < 32 or ord(ch) == 127 for ch in extra):
+        if len(extra) > MAX_LAUNCH_EXTRA_ARGS_LENGTH or _has_control_chars(extra):
             raise CdxError("Extra args contain unsupported characters.")
         # Parsed here, not at launch: a string that cannot be split into argv
         # should be rejected when it is set, not when a run fails days later.
@@ -329,7 +286,7 @@ def _normalize_session_label(label):
         raise CdxError("Session label is required")
     if len(text) > MAX_SESSION_LABEL_LENGTH:
         raise CdxError(f"Session label is too long (max {MAX_SESSION_LABEL_LENGTH} characters)")
-    if any(ord(ch) < 32 or ord(ch) == 127 for ch in text):
+    if _has_control_chars(text):
         raise CdxError("Session label cannot contain control characters")
     return text
 
