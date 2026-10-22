@@ -6,8 +6,9 @@ per-user temporary directory, then `cdx-tray/companion.pid`.
 """
 import os
 import platform
-import subprocess
 import tempfile
+
+from .session_helpers import _process_is_running
 
 
 def lock_path(env=None):
@@ -20,20 +21,8 @@ def lock_path(env=None):
 
 
 def _is_alive(pid):
-    if platform.system() == "Windows":
-        result = subprocess.run(
-            ["tasklist", "/fi", f"PID eq {pid}", "/nh"],
-            capture_output=True, text=True, check=False,
-        )
-        return str(pid) in result.stdout
-    try:
-        os.kill(pid, 0)
-    except (ProcessLookupError, ValueError):
-        return False
-    except PermissionError:
-        # Alive, owned by someone else. Still a reason not to start a second.
-        return True
-    return True
+    # Alive includes owned by someone else: still a reason not to start a second.
+    return _process_is_running(pid)
 
 
 def companion_instance(env=None):

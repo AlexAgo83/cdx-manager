@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .errors import CdxError
 from .fs_utils import atomic_write
+from .run_registry import REGISTRY_LOCK_TIMEOUT_SECONDS, _acquire_posix_lock, _acquire_windows_lock
 
 
 def _ensure_dir(path):
@@ -71,11 +72,8 @@ def _file_lock(lock_path):
     with open(lock_path, "a", encoding="utf-8") as lock:
         if sys.platform == "win32":
             import msvcrt
-            try:
-                lock.seek(0)
-                msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
-            except OSError as error:
-                raise CdxError(f"Failed to lock session store: {error}") from error
+            # Bounded wait, not LK_LOCK's ten one-second tries (see run_registry).
+            _acquire_windows_lock(lock, REGISTRY_LOCK_TIMEOUT_SECONDS, "session store")
             try:
                 yield
             finally:
@@ -89,10 +87,7 @@ def _file_lock(lock_path):
                 import fcntl
             except ImportError as error:
                 raise CdxError("Session store locking requires fcntl on this platform") from error
-            try:
-                fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-            except OSError as error:
-                raise CdxError(f"Failed to lock session store: {error}") from error
+            _acquire_posix_lock(lock, REGISTRY_LOCK_TIMEOUT_SECONDS, "session store")
             try:
                 yield
             finally:

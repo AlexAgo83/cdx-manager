@@ -98,6 +98,10 @@ def _process_is_running(pid):
         return False
     if pid <= 0:
         return False
+    if sys.platform == "win32":
+        # os.kill(pid, 0) is not a probe on Windows: signal 0 is CTRL_C_EVENT,
+        # so it would send Ctrl+C to the process group instead of asking.
+        return _windows_process_is_running(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -107,6 +111,20 @@ def _process_is_running(pid):
     except OSError:
         return False
     return True
+
+
+def _windows_process_is_running(pid):
+    import ctypes
+
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return kernel32.GetLastError() == 5  # ERROR_ACCESS_DENIED: alive, someone else's
+    try:
+        code = ctypes.c_ulong()
+        return bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == 259  # STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
 
 def _normalize_provider(provider):
     value = provider or DEFAULT_PROVIDER

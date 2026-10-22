@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from .errors import CdxError
 from .fs_utils import atomic_write
 from .run_usage import coerce_usage
+from .session_helpers import _process_is_running
 
 
 def utc_now_iso():
@@ -113,13 +114,7 @@ def _write_registry(path, data):
 
 
 def _is_pid_alive(pid):
-    if not pid:
-        return False
-    try:
-        os.kill(int(pid), 0)
-        return True
-    except (OSError, ValueError):
-        return False
+    return _process_is_running(pid)
 
 
 def _completed_after(run, since):

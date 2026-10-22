@@ -23,6 +23,9 @@ def parse_ready_args(args):
     blocking wait loop — reachable through a `cdx notify` that no longer exists.
     `cdx ready` always schedules the next-ready event, so none of it could run.
     """
+    if len(args) == 2 and args[0] == "--fire":
+        # Internal: what a scheduled job runs when the reset time arrives.
+        return {"name": None, "mode": "fire", "fire": args[1], "json": False, "refresh": False, "schedule": False}
     unknown = [arg for arg in args if arg not in ("--refresh", "--json")]
     if unknown:
         raise CdxError(READY_USAGE)
@@ -243,7 +246,7 @@ def schedule_notification_event(base_dir, parsed, event, spawn_sync=None, env=No
             "target_timestamp": target_timestamp,
         }
 
-    argv = _scheduled_notify_argv(parsed, env)
+    argv = _scheduled_notify_argv(event, env)
     if sys.platform == "darwin":
         result = _schedule_macos_launchd(base_dir, parsed, event, argv, spawn_sync, env)
     elif sys.platform == "win32":
@@ -255,17 +258,11 @@ def schedule_notification_event(base_dir, parsed, event, spawn_sync=None, env=No
     return result
 
 
-def _scheduled_notify_argv(parsed, env):
+def _scheduled_notify_argv(event, env):
     executable = env.get("CDX_BIN") or shutil.which("cdx", path=env.get("PATH")) or "cdx"
-    argv = [executable, "notify"]
-    if parsed["mode"] == "at-reset":
-        argv.append(parsed["name"])
-        argv.append("--at-reset")
-    else:
-        argv.append("--next-ready")
-    argv.append("--once")
-    argv.append("--refresh")
-    return argv
+    # `cdx notify` is the agent-hook target now and stays silent without a hook
+    # payload, so the job names the notification it has to show.
+    return [executable, "ready", "--fire", event.get("session") or "cdx"]
 
 
 def _schedule_macos_launchd(base_dir, parsed, event, argv, spawn_sync, env):

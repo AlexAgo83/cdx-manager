@@ -278,14 +278,17 @@ class AuthCommandTests(CliTestBase):
         harness.calls.clear()
 
         login_io = self.make_io()
-        self.assertEqual(main([
-            "login", "work1", "--json"
-        ], {
-            **login_io,
-            "env": {"CDX_HOME": temp_dir},
-            "spawn": harness.spawn,
-            "spawn_sync": harness.spawn_sync,
-        }), 0)
+        with mock.patch("src.cli_helpers.delete_keychain_credentials") as delete_keychain:
+            self.assertEqual(main([
+                "login", "work1", "--json"
+            ], {
+                **login_io,
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
+        # A profile /login would win over the new setup-token at launch.
+        delete_keychain.assert_called_once_with(os.path.join(temp_dir, "profiles", "work1", "claude-home"))
 
         script_call = next(
             call for call in harness.calls
@@ -315,14 +318,15 @@ class AuthCommandTests(CliTestBase):
         }), 0)
         harness.calls.clear()
 
-        self.assertEqual(main([
-            "login", "work1", "--setup-token", "--json"
-        ], {
-            **self.make_io(),
-            "env": {"CDX_HOME": temp_dir},
-            "spawn": harness.spawn,
-            "spawn_sync": harness.spawn_sync,
-        }), 0)
+        with mock.patch("src.cli_helpers.delete_keychain_credentials"):
+            self.assertEqual(main([
+                "login", "work1", "--setup-token", "--json"
+            ], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            }), 0)
 
         script_launches = [
             call for call in harness.calls

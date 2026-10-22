@@ -15,6 +15,7 @@ import shutil
 import subprocess
 
 from .config import get_cdx_home
+from .fs_utils import atomic_write
 from .notify import notification_channel, send_desktop_notification
 from .tray_alerts import alerts_enabled
 from .tray_events import publish
@@ -71,7 +72,11 @@ def resolve_hook_command(env=None):
     the provider inherits.
     """
     env = env or os.environ
-    return env.get("CDX_BIN") or shutil.which("cdx", path=env.get("PATH")) or "cdx"
+    path = env.get("CDX_BIN") or shutil.which("cdx", path=env.get("PATH")) or "cdx"
+    # Hooks run through a shell, so a space in the path ("C:\\Users\\Jean Dupont",
+    # a macOS home with a space) would split it. Double quotes read the same in
+    # sh, Git Bash and cmd.exe; a path without whitespace stays as it was.
+    return f'"{path}"' if any(ch.isspace() for ch in path) else path
 
 
 def read_hook_payload(args, stdin_text=None):
@@ -547,11 +552,16 @@ def _read_json(path):
 
 
 def _write_json(path, document):
+    # Atomic, because Claude Code may rewrite the same settings file at the same
+    # moment. Through realpath so a symlinked settings.json stays a symlink, and
+    # with the file's own mode so a user-tightened file is not loosened.
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as handle:
-            json.dump(document, handle, indent=2)
-            handle.write("\n")
+        target = os.path.realpath(path)
+        try:
+            mode = os.stat(target).st_mode & 0o777
+        except FileNotFoundError:
+            mode = 0o644
+        atomic_write(target, json.dumps(document, indent=2) + "\n", mode=mode)
     except OSError:
         # An unwritable home is a skipped provisioning step, not a failed launch.
         return False
