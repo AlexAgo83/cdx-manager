@@ -9,7 +9,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
-from .claude_credentials import claude_auth_type
+from .claude_credentials import claude_auth_type, setup_token_days_left
 from .claude_usage import _decode_jwt_claims
 from .config import PROVIDER_CLAUDE, PROVIDER_CODEX, get_cdx_home
 from .errors import CdxError
@@ -270,6 +270,7 @@ def _status_row_from_session(store, s):
     enabled = s.get("enabled", True) is not False
     row_status = status if enabled else None
     runtime = _session_runtime(store, s["name"])
+    auth_type = claude_auth_type(s["authHome"]) if s["provider"] == PROVIDER_CLAUDE and s.get("authHome") else None
     return {
         "session_name": s["name"],
         "label": s.get("label"),
@@ -285,7 +286,8 @@ def _status_row_from_session(store, s):
         "cwd": runtime.get("cwd") if runtime else None,
         "status": "enabled" if enabled else "disabled",
         "auth_status": (s.get("auth") or {}).get("status") or "unknown",
-        "auth_type": claude_auth_type(s["authHome"]) if s["provider"] == PROVIDER_CLAUDE and s.get("authHome") else None,
+        "auth_type": auth_type,
+        "auth_expires_in_days": setup_token_days_left(s["authHome"]) if auth_type == "setup-token" else None,
         "auth_checked_at": _to_local_iso((s.get("auth") or {}).get("lastCheckedAt")),
         "remaining_5h_pct": _normalize_pct_value(row_status.get("remaining_5h_pct")) if row_status else None,
         "remaining_week_pct": _normalize_pct_value(row_status.get("remaining_week_pct")) if row_status else None,

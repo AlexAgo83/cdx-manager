@@ -132,6 +132,40 @@ def claude_auth_type(auth_home):
     return "setup-token" if token else None
 
 
+# `claude setup-token` mints a token valid for one year. Tokens minted before
+# cdx recorded `created_at` fall back to the file's mtime, which a copy or a
+# backup import resets, so their date can read later than it really is.
+SETUP_TOKEN_LIFETIME_SECONDS = 365 * 24 * 3600
+SETUP_TOKEN_WARN_DAYS = 30
+
+
+def setup_token_expires_at(auth_home):
+    """Epoch seconds when the profile's setup-token expires, or None."""
+    path = os.path.join(auth_home or "", "credentials", "default.json")
+    try:
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+        if not isinstance(data, dict) or not data.get("access_token"):
+            return None
+        created = data.get("created_at")
+        if isinstance(created, str):
+            from datetime import datetime
+            created = datetime.fromisoformat(created.replace("Z", "+00:00")).timestamp()
+        elif not isinstance(created, (int, float)):
+            created = os.path.getmtime(path)
+    except (OSError, ValueError):
+        return None
+    return created + SETUP_TOKEN_LIFETIME_SECONDS
+
+
+def setup_token_days_left(auth_home, now=None):
+    expires = setup_token_expires_at(auth_home)
+    if expires is None:
+        return None
+    import time
+    return int((expires - (time.time() if now is None else now)) // 86400)
+
+
 def write_keychain_credentials(auth_home, data):
     _reject_custom_oauth()
     user, service = _keychain_identity(auth_home)

@@ -74,6 +74,17 @@ def _format_credits(value, empty="n/a"):
         return str(value)
 
 
+def _auth_type_label(row):
+    """`setup-token`, or with its remaining days once renewal is due."""
+    from .claude_credentials import SETUP_TOKEN_WARN_DAYS
+
+    label = row.get("auth_type") or "-"
+    days = row.get("auth_expires_in_days")
+    if days is None or days > SETUP_TOKEN_WARN_DAYS:
+        return label, False
+    return (f"{label} expired" if days < 0 else f"{label} {days}d"), True
+
+
 def _format_status_rows(rows, use_color=False, small=False):
     active_rows = [r for r in rows if r.get("enabled", True) is not False]
     def positive(value):
@@ -132,7 +143,8 @@ def _format_status_rows(rows, use_color=False, small=False):
             auth_color = "32" if auth == "logged" else "31" if auth == "logged out" else "2"
             base.append(_style(auth, auth_color, use_color))
             if type_visible:
-                base.append(_style(r.get("auth_type") or "-", "2", use_color))
+                label, warn = _auth_type_label(r)
+                base.append(_style(label, "33" if warn else "2", use_color))
         if r.get("enabled", True) is False:
             usage_columns = [_style("-", "2", use_color)] * 6
         else:
@@ -368,7 +380,7 @@ def _format_status_detail(row, use_color=False):
         f"{_style('Provider:', '1', use_color)} {row.get('provider') or 'n/a'}",
         f"{_style('Status:', '1', use_color)} {_style(row.get('status') or ('enabled' if row.get('enabled', True) else 'disabled'), '2' if row.get('enabled', True) is False else '32', use_color)}",
         f"{_style('Auth:', '1', use_color)} {_style(auth, auth_color, use_color)}",
-        *([f"{_style('Auth type:', '1', use_color)} {row['auth_type']}"] if row.get("auth_type") else []),
+        *([f"{_style('Auth type:', '1', use_color)} {_auth_type_label(row)[0]}"] if row.get("auth_type") else []),
         f"{_style('Available:', '1', use_color)} {_style_pct(row.get('available_pct'), use_color)}",
         f"{_style('5h left:', '1', use_color)} {_style_pct(row.get('remaining_5h_pct'), use_color)}",
         f"{_style('Week left:', '1', use_color)} {_style_pct(row.get('remaining_week_pct'), use_color)}",

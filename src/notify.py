@@ -270,7 +270,7 @@ def _schedule_macos_launchd(base_dir, parsed, event, argv, spawn_sync, env):
     schedule_dir = os.path.join(base_dir, "state", "notifications")
     os.makedirs(schedule_dir, mode=0o700, exist_ok=True)
     script_path = os.path.join(schedule_dir, f"{label}.sh")
-    launch_agents = os.path.join(os.path.expanduser("~"), "Library", "LaunchAgents")
+    launch_agents = os.path.join(_operator_home(), "Library", "LaunchAgents")
     os.makedirs(launch_agents, exist_ok=True)
     plist_path = os.path.join(launch_agents, f"{label}.plist")
     target = _round_up_to_next_minute(datetime.fromtimestamp(event["target_timestamp"]).astimezone())
@@ -293,6 +293,14 @@ def _schedule_macos_launchd(base_dir, parsed, event, argv, spawn_sync, env):
             return {"scheduled": True, "existing": True, "backend": "launchd", "id": label, "path": plist_path}
         raise CdxError(f"Failed to schedule notification with launchd: {result['error']}")
     return {"scheduled": True, "existing": False, "backend": "launchd", "id": label, "path": plist_path}
+
+
+def _operator_home():
+    """The operator's real home. Inside a cdx session HOME is the profile home,
+    whose LaunchAgents folder launchd never reads."""
+    import pwd
+
+    return pwd.getpwuid(os.getuid()).pw_dir
 
 
 def _macos_schedule_script(argv, env, label, plist_path, script_path):
