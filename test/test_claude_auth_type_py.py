@@ -108,7 +108,9 @@ class SetupTokenExpiryTests(unittest.TestCase):
             now = claude_credentials.setup_token_expires_at(home) - 10 * 86400
             self.assertEqual(claude_credentials.setup_token_days_left(home, now=now), 10)
             self._token(home)
-            self.assertEqual(claude_credentials.setup_token_days_left(home), 364)
+            # Clock passed explicitly: Windows can stamp mtime a hair after time.time().
+            minted = os.path.getmtime(os.path.join(home, "credentials", "default.json"))
+            self.assertEqual(claude_credentials.setup_token_days_left(home, now=minted + 3600), 364)
 
     def test_status_and_doctor_warn_only_when_renewal_is_due(self):
         from src.health import _claude_setup_token_issues
