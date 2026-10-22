@@ -685,26 +685,6 @@ def _refuse(ctx, as_json, action, code, message):
     return 0
 
 
-def _companion_action(action, args, ctx):
-    parsed = _parse_flag_args(args, {
-        "--json": {"key": "json", "type": "bool", "default": False},
-    }, TRAY_USAGE, positionals_key="args", max_positionals=0)
-    message = (
-        f"cdx tray {action} is defined but no tray companion ships with CDX {ctx['version']}. "
-        "Nothing was installed, started, or changed."
-    )
-    if parsed["json"]:
-        _write_json(ctx, _json_success(
-            f"tray.{action}",
-            message,
-            warnings=[{"code": COMPANION_UNAVAILABLE, "message": message}],
-            applied=False,
-        ))
-        return 0
-    ctx["out"](f"{_warn(message, ctx['use_color'])}\n")
-    return 0
-
-
 def _pct(value):
     return "?" if value is None else f"{int(value)}%"
 
