@@ -147,7 +147,7 @@ def _seed_codex_auth_from_global(auth_home, env=None):
     return True
 
 
-_ON_OFF_SETTINGS = {"fast": "fast", "rtk": "rtk", "logics": "logics", "notify": "notify", "notify_preview": "notify preview"}
+_ON_OFF_SETTINGS = {"fast": "fast", "rtk": "rtk", "logics": "logics", "notify": "notify", "notify_preview": "notify preview", "scrub_env": "scrub env"}
 
 
 def _has_control_chars(text):
@@ -319,7 +319,7 @@ def unset_launch_settings(store, name, keys):
         raise CdxError("At least one launch setting is required.")
     allowed = {
         "power", "reasoning_effort", "reasoningEffort", "permission", "fast", "rtk", "logics", "notify", "notify_preview",
-        "model", "fallback_model", "budget", "extra_args", "priority",
+        "scrub_env", "model", "fallback_model", "budget", "extra_args", "priority",
     }
     unknown = [key for key in keys if key not in allowed]
     if unknown:
