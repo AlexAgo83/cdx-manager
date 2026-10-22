@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timezone
 
 from .agent_notify import launch_notify_env, notifications_enabled
-from .claude_credentials import peek_keychain_credentials
+from .claude_credentials import peek_keychain_credentials, read_claude_login_file
 from .claude_usage import _clean_oauth_token, _decode_jwt_claims, _secure_storage_overrides, claude_profile_store_dir
 from .codex_usage import codex_auth_lock, diagnostic_needs_codex_login, fetch_codex_rate_limit_diagnostic
 from .config import (
@@ -26,7 +26,6 @@ from .config import (
 )
 from .errors import CdxError
 
-LOG_ROTATE_BYTES = 10 * 1024 * 1024  # 10 MB
 TERMINAL_TITLE_SEPARATOR = " — "
 # Providers redraw their own title while their TUI runs, so a single write at
 # launch does not survive. Re-asserting on this interval takes the title back
@@ -250,12 +249,8 @@ def _read_anthropic_oauth_token(auth_home):
 
 
 def _has_local_claude_auth(auth_home):
-    try:
-        with open(os.path.join(auth_home, ".claude", ".credentials.json"), encoding="utf-8") as handle:
-            credentials = json.load(handle)
-    except (FileNotFoundError, OSError, json.JSONDecodeError):
-        return False
-    oauth = credentials.get("claudeAiOauth") if isinstance(credentials, dict) else None
+    credentials = read_claude_login_file(auth_home)
+    oauth = credentials.get("claudeAiOauth") if credentials else None
     return bool(isinstance(oauth, dict) and _clean_oauth_token(oauth.get("accessToken")))
 
 
@@ -539,14 +534,6 @@ def _list_launch_transcript_paths(session, glob_fn=None):
     return sorted(paths)
 
 
-def _rotate_log_if_needed(log_path):
-    try:
-        if os.path.getsize(log_path) >= LOG_ROTATE_BYTES:
-            open(log_path, "w").close()
-    except OSError:
-        pass
-
-
 def _wrap_launch_with_transcript(session, spec, capture_transcript=True, env=None):
     if not capture_transcript:
         return spec
@@ -555,7 +542,6 @@ def _wrap_launch_with_transcript(session, spec, capture_transcript=True, env=Non
     script_args = env.get("CDX_SCRIPT_ARGS")
     transcript_path = _build_launch_transcript_path(session)
     os.makedirs(os.path.dirname(transcript_path), exist_ok=True)
-    _rotate_log_if_needed(transcript_path)
     if script_args:
         args = shlex.split(script_args)
         if "{transcript}" in args:

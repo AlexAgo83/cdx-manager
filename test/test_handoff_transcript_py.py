@@ -347,3 +347,17 @@ def test_claude_discovery_uses_native_windows_separators(monkeypatch):
     monkeypatch.setattr(handoff.glob, 'glob', lambda pattern: patterns.append(pattern) or [])
     handoff._native_paths({'provider': 'claude', 'authHome': r'C:\profile'})
     assert patterns == [r'C:\profile\.claude\projects\*\*.jsonl', r'C:\profile\projects\*\*.jsonl']
+
+
+def test_prepare_drops_only_week_old_entries(tmp_path):
+    base = str(tmp_path)
+    session, _ = native(tmp_path, 'claude', tmp_path)
+    source = resolve_source(session, base)
+    target = {'name': 'target', 'provider': 'codex', 'authHome': str(tmp_path / 'target')}
+    old_path, _ = prepare_entry(base, target, base, session, source)
+    recent_path, _ = prepare_entry(base, target, base, session, source)
+    week_ago = os.path.getmtime(old_path) - 8 * 24 * 3600
+    os.utime(old_path, (week_ago, week_ago))
+    newest, _ = prepare_entry(base, target, base, session, source)
+    assert not os.path.exists(old_path)
+    assert os.path.isfile(recent_path) and os.path.isfile(newest)

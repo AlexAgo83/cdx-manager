@@ -12,6 +12,7 @@ import signal
 import subprocess
 import sys
 import time
+import unittest
 from unittest import mock
 
 from cli_test_support import (  # noqa: F401
@@ -1601,3 +1602,15 @@ class RunsCommandTests(CliTestBase):
 
         payload = json.loads(io_obj["stdout"].getvalue())
         self.assertEqual(payload["error"]["code"], "mutually_exclusive_arguments")
+
+
+class RunRegistryPruneTests(unittest.TestCase):
+    def test_start_keeps_running_runs_and_the_newest_finished_ones(self):
+        from src import run_registry
+        data = {"runs": [{"run_id": "live", "status": "running"}]
+                + [{"run_id": f"done{i}", "status": "succeeded"} for i in range(run_registry.MAX_FINISHED_RUNS + 5)]}
+        run_registry._prune_finished_runs(data)
+        ids = [run["run_id"] for run in data["runs"]]
+        self.assertEqual(ids[0], "live")
+        self.assertEqual(len(ids), run_registry.MAX_FINISHED_RUNS + 1)
+        self.assertEqual(ids[-1], f"done{run_registry.MAX_FINISHED_RUNS - 1}")

@@ -72,10 +72,6 @@ from .cli_render import (
 )
 from .config import PROVIDER_OLLAMA
 from .errors import CdxError
-from .provider_runtime import (
-    LOG_ROTATE_BYTES,
-    _rotate_log_if_needed,
-)
 from .session_service import create_session_service
 from .status_view import (
     _format_blocking_quota,
@@ -138,13 +134,11 @@ VERSION = _resolve_version()
 # them here documents that and stops F401 from treating them as dead imports.
 __all__ = [
     "STATUS_USAGE",
-    "LOG_ROTATE_BYTES",
     "_format_blocking_quota",
     "_format_reset_time",
     "_format_status_detail",
     "_format_status_rows",
     "_pad_table",
-    "_rotate_log_if_needed",
     "_visible_len",
     "cli_entry",
     "format_json_error",

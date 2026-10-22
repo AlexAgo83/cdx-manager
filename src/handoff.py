@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import time
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -231,7 +232,30 @@ def prepare_entry(base_dir, target, workspace, source=None, transcript=None):
     except OSError:
         os.unlink(path)
         raise
+    _drop_old_entries(os.path.dirname(path), keep=path)
     return path, entry
+
+
+# A launch reads its entry right after preparing it, and concurrent prepares
+# each keep their own, so only entries well past any launch are removed.
+HANDOFF_ENTRY_MAX_AGE_SECONDS = 7 * 24 * 3600
+
+
+def _drop_old_entries(directory, keep, now=None):
+    cutoff = (time.time() if now is None else now) - HANDOFF_ENTRY_MAX_AGE_SECONDS
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        return
+    for name in names:
+        candidate = os.path.join(directory, name)
+        if not name.endswith('.json') or candidate == keep:
+            continue
+        try:
+            if os.path.getmtime(candidate) < cutoff:
+                os.unlink(candidate)
+        except OSError:
+            pass
 
 
 def load_entry(base_dir, target, workspace):
