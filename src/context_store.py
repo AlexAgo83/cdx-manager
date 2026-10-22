@@ -90,7 +90,11 @@ def read_context_path(path):
 
 
 def write_context(base_dir, content, cwd=None):
-    return write_context_path(get_context_path(base_dir, cwd), content)
+    # Same lock as append: otherwise an append that read the old text can land
+    # after this write and resurrect it, or this write can drop the append.
+    path = get_context_path(base_dir, cwd)
+    with _append_lock(path), _registry_lock(path, timeout_seconds=10, label="memory"):
+        return write_context_path(path, content)
 
 
 def write_context_path(path, content):
@@ -155,11 +159,12 @@ def clear_context(base_dir, cwd=None):
 
 
 def clear_context_path(path):
-    try:
-        os.remove(path)
-        removed = True
-    except FileNotFoundError:
-        removed = False
+    with _append_lock(path), _registry_lock(path, timeout_seconds=10, label="memory"):
+        try:
+            os.remove(path)
+            removed = True
+        except FileNotFoundError:
+            removed = False
     return {"path": path, "removed": removed}
 
 

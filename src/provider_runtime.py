@@ -1056,6 +1056,32 @@ def _signal_child_group(child, sig):
         return False
 
 
+def _raise_keyboard_interrupt(_signum, _frame):
+    raise KeyboardInterrupt
+
+
+def _route_termination_to_interrupt():
+    """Make SIGTERM and SIGHUP raise KeyboardInterrupt; returns what to restore."""
+    previous = {}
+    for name in ("SIGTERM", "SIGHUP"):
+        sig = getattr(signal, name, None)
+        if sig is None:
+            continue
+        try:
+            previous[sig] = signal.signal(sig, _raise_keyboard_interrupt)
+        except (ValueError, OSError):  # not the main thread, or not settable here
+            pass
+    return previous
+
+
+def _restore_signal_handlers(previous):
+    for sig, handler in previous.items():
+        try:
+            signal.signal(sig, handler)
+        except (ValueError, OSError):
+            pass
+
+
 def _terminate_child_tree(child):
     if not _signal_child_group(child, signal.SIGTERM):
         try:
@@ -1119,6 +1145,10 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
             cdx_error = CdxError(f"Failed to start {spec['label']}: {error}", 126)
             cdx_error.run_info = _headless_run_info(paths, spec, start_time, 126)
             raise cdx_error from error
+        # SIGTERM/SIGHUP (kill, systemctl stop, a closed SSH session) unwind
+        # like Ctrl+C: the provider's own process group would otherwise outlive
+        # this supervisor and keep its run "running" forever.
+        previous_handlers = _route_termination_to_interrupt()
         try:
             if timeout_seconds is None:
                 child.wait()
@@ -1136,6 +1166,8 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
             # the run still gets a terminal record.
             cancelled = True
             _terminate_child_tree(child)
+        finally:
+            _restore_signal_handlers(previous_handlers)
 
     if cancelled:
         _combine_headless_transcript(paths)

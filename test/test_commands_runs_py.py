@@ -942,6 +942,51 @@ class RunsCommandTests(CliTestBase):
         run = RunRegistry(target_dir).get(payload["run_id"])
         self.assertEqual(run.get("status"), "cancelled")
 
+    def test_sigterm_to_a_headless_run_kills_the_provider_too(self):
+        """kill, systemctl stop or a closed SSH session must not orphan the provider."""
+        if sys.platform == "win32":
+            self.skipTest("POSIX signal semantics")
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        self._authenticated_codex_session(service)
+        pid_holder = {}
+
+        def spec(_session, **_kwargs):
+            return {"command": sys.executable, "args": ["-c", "import time; time.sleep(120)"],
+                    "options": {}, "label": "synthetic provider"}
+
+        class _RealChildTerminatedOnce:
+            def __init__(self, argv, **kwargs):
+                self._proc = subprocess.Popen(argv, start_new_session=True, **kwargs)
+                self.pid = pid_holder["pid"] = self._proc.pid
+                self._signalled = False
+
+            @property
+            def returncode(self):
+                return self._proc.returncode
+
+            def wait(self, timeout=None):
+                if not self._signalled:
+                    self._signalled = True
+                    os.kill(os.getpid(), signal.SIGTERM)  # what `kill <supervisor>` does
+                return self._proc.wait(timeout=timeout)
+
+            def terminate(self):
+                self._proc.terminate()
+
+            def kill(self):
+                self._proc.kill()
+
+        previous = signal.getsignal(signal.SIGTERM)
+        io_obj = self.make_io()
+        with mock.patch("src.provider_runtime._build_headless_launch_spec", side_effect=spec):
+            exit_code = main(["run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json"],
+                             self.make_run_ctx(io_obj, service, spawn_headless=_RealChildTerminatedOnce))
+        self.assertEqual(exit_code, 130)
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid_holder["pid"], signal.SIGTERM)
+        self.assertIs(signal.getsignal(signal.SIGTERM), previous)
+
     def test_run_detach_registers_the_run_before_returning(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})

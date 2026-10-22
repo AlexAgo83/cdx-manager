@@ -1623,7 +1623,8 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(json_module.loads(pbkdf2_bundle.decode())["kdf"], "pbkdf2-hmac-sha256")
 
         # Same bytes, same passphrase, a runtime that would have chosen scrypt.
-        self.assertTrue(hasattr(hashlib, "scrypt"))
+        if not hasattr(hashlib, "scrypt"):
+            self.skipTest("this interpreter was built without hashlib.scrypt")
         self.assertEqual(backup_bundle.decode_bundle(pbkdf2_bundle, passphrase="pw123")["payload"], payload)
 
         # And the reverse direction reports why it cannot open, instead of
