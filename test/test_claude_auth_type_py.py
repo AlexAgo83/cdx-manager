@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from src import claude_credentials
+from src import claude_credentials, provider_runtime
 from src.status_view import _format_status_detail, _format_status_rows
 
 FULL = {"claudeAiOauth": {"accessToken": "a", "refreshToken": "r", "scopes": ["user:inference", "user:profile"]}}
@@ -125,3 +125,19 @@ class SetupTokenExpiryTests(unittest.TestCase):
                 issues = _claude_setup_token_issues({"name": "work", "authHome": home})
         self.assertEqual(issues[0]["code"], "claude_setup_token_expiry")
         self.assertIn("cdx login work", issues[0]["message"])
+
+
+class ScrubEnvTests(unittest.TestCase):
+    def test_scrub_env_reaches_claude_launches_only_when_on(self):
+        from src.session_service import create_session_service
+        with tempfile.TemporaryDirectory() as base:
+            service = create_session_service({"base_dir": base})
+            service["create_session"]("work", "claude")
+            session = service["get_session"]("work")
+            spec = provider_runtime._build_headless_launch_spec(session, cwd=base)
+            self.assertNotIn(provider_runtime.CLAUDE_SCRUB_ENV, spec["options"]["env"])
+            service["set_launch_settings"]("work", {"scrub_env": "on"})
+            session = service["get_session"]("work")
+            for build in (provider_runtime._build_headless_launch_spec, provider_runtime._build_launch_spec):
+                self.assertEqual(build(session, cwd=base)["options"]["env"][provider_runtime.CLAUDE_SCRUB_ENV], "1")
+            self.assertEqual(provider_runtime._scrub_env({"provider": "codex", "launch": {"scrub_env": True}}), {})

@@ -573,6 +573,19 @@ def _rtk_enabled(session):
     return (session.get("launch") or {}).get("rtk") is True
 
 
+# Claude Code passes credentials (including the setup-token cdx injects) to
+# the Bash commands, hooks and MCP servers it starts unless this is set. Opt-in:
+# it also strips other secrets an agent may need and, on Linux, isolates Bash
+# from host processes (`ps`, `kill`).
+CLAUDE_SCRUB_ENV = "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"
+
+
+def _scrub_env(session):
+    if session.get("provider") == PROVIDER_CLAUDE and (session.get("launch") or {}).get("scrub_env") is True:
+        return {CLAUDE_SCRUB_ENV: "1"}
+    return {}
+
+
 def _logics_manager_available(path=None):
     return shutil.which("logics-manager", path=path) is not None
 
@@ -662,6 +675,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     for key, value in _shared_tool_cache_overrides(env).items():
         env.setdefault(key, value)
     env.update(launch_notify_env(session, notifications_enabled(session)))
+    env.update(_scrub_env(session))
     preference_args = _launch_preference_args(session, env=env)
     if session["provider"] == PROVIDER_CLAUDE:
         launch = session.get("launch") or {}
@@ -915,6 +929,7 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
     # Headless runs read the same home, and so the same hooks, as an interactive
     # launch. Their caller already learns of completion from the return value.
     env.update(launch_notify_env(session, enabled=False))
+    env.update(_scrub_env(session))
     preference_args = _launch_preference_args(session, env=env)
     launch = session.get("launch") or {}
     power = _launch_power(session)
