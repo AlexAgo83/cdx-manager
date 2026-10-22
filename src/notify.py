@@ -215,8 +215,13 @@ def windows_aumid(env=None):
     return _POWERSHELL_AUMID
 
 
+# PowerShell also ends a single-quoted string on the typographic quotes
+# U+2018..U+201B, so each must be doubled like ASCII ' (French "l’agent").
+_POWERSHELL_QUOTES = "'\u2018\u2019\u201a\u201b"
+
+
 def _escape_powershell(value):
-    return str(value).replace("'", "''")
+    return "".join(ch * 2 if ch in _POWERSHELL_QUOTES else ch for ch in str(value))
 
 
 def _escape_applescript(value):
@@ -370,23 +375,23 @@ def _schedule_linux(parsed, event, argv, spawn_sync, env):
 def _schedule_windows_task(parsed, event, argv, spawn_sync, env):
     name = _schedule_id("cdx-manager-notify", parsed, event)
     target = datetime.fromtimestamp(event["target_timestamp"]).astimezone()
-    command = subprocess.list2cmdline([str(part) for part in argv])
-    result = _run_scheduler_command([
-        "schtasks",
-        "/Create",
-        "/SC",
-        "ONCE",
-        "/TN",
-        name,
-        "/TR",
-        command,
-        "/ST",
-        target.strftime("%H:%M"),
-        "/SD",
-        target.strftime("%m/%d/%Y"),
-        "/F",
-        "/Z",
-    ], spawn_sync, env)
+    # Not `schtasks /SD`: it reads the date in the user's locale format, so
+    # mm/dd/yyyy is refused on a dd/MM/yyyy (French) Windows. An invariant
+    # ISO date through Register-ScheduledTask works on every locale.
+    start = target.strftime("%Y-%m-%dT%H:%M")
+    end = (target + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M")
+    arguments = subprocess.list2cmdline([str(part) for part in argv[1:]])
+    script = (
+        "$c = [Globalization.CultureInfo]::InvariantCulture; "
+        f"$t = New-ScheduledTaskTrigger -Once -At ([datetime]::ParseExact('{start}', 'yyyy-MM-ddTHH:mm', $c)); "
+        f"$t.EndBoundary = ([datetime]::ParseExact('{end}', 'yyyy-MM-ddTHH:mm', $c)).ToString('s'); "
+        f"$a = New-ScheduledTaskAction -Execute '{_escape_powershell(argv[0])}' -Argument '{_escape_powershell(arguments)}'; "
+        "$s = New-ScheduledTaskSettingsSet -DeleteExpiredTaskAfter (New-TimeSpan -Seconds 1); "
+        f"Register-ScheduledTask -TaskName '{_escape_powershell(name)}' -Action $a -Trigger $t -Settings $s -Force | Out-Null"
+    )
+    result = _run_scheduler_command(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script], spawn_sync, env,
+    )
     if not result["ok"]:
         raise CdxError(f"Failed to schedule notification with Task Scheduler: {result['error']}")
     return {"scheduled": True, "existing": False, "backend": "schtasks", "id": name}

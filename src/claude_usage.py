@@ -214,7 +214,7 @@ def _refresh_claude_cli_credentials(auth_home, runner=None, env=None):
             command,
             env=run_env,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=CLAUDE_AUTH_STATUS_TIMEOUT_SECONDS,
             check=False,
         )

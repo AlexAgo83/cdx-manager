@@ -88,7 +88,7 @@ def _status(env=None, runner=None, executable=None, directories=None):
         try:
             completed = (runner or subprocess.run)(
                 [executable, "status", "--format", "json"], capture_output=True,
-                text=True, timeout=ADAPTER_TIMEOUT_SECONDS, check=False, **({"cwd": root} if root else {}),
+                text=True, encoding="utf-8", errors="replace", timeout=ADAPTER_TIMEOUT_SECONDS, check=False, **({"cwd": root} if root else {}),
             )
             payload = json.loads(completed.stdout) if getattr(completed, "returncode", 1) == 0 else None
         except (OSError, subprocess.SubprocessError, TypeError, ValueError):

@@ -90,15 +90,18 @@ try {
     Copy-Item -Path (Join-Path $sourceDir.FullName "*") -Destination $targetDir -Recurse -Force
 
     $launcherPath = Join-Path $binDir "cdx.cmd"
+    # No parenthesized block: cmd expands %ERRORLEVEL% when it parses a block,
+    # before py runs, so `exit /b %ERRORLEVEL%` inside one always returned 0.
     $launcher = @"
 @echo off
 set SCRIPT=%~dp0..\versions\$versionDir\bin\cdx
 where py >nul 2>nul
-if %ERRORLEVEL%==0 (
-  py -3 "%SCRIPT%" %*
-  exit /b %ERRORLEVEL%
-)
+if errorlevel 1 goto nopy
+py -3 "%SCRIPT%" %*
+exit /b %ERRORLEVEL%
+:nopy
 python "%SCRIPT%" %*
+exit /b %ERRORLEVEL%
 "@
     Set-Content -Path $launcherPath -Value $launcher -Encoding ascii
 

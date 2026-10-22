@@ -33,7 +33,7 @@ def _which(command, env):
 def _run(command, env, runner=None, timeout=15):
     runner = runner or subprocess.run
     try:
-        result = runner(command, env=env, capture_output=True, text=True, check=False, timeout=timeout)
+        result = runner(command, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired) as error:
         return {"returncode": 1, "stdout": "", "stderr": str(error)}
     if isinstance(result, dict):

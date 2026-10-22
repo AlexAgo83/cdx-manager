@@ -250,3 +250,22 @@ class NotifyPythonTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WindowsScheduleTests(unittest.TestCase):
+    def test_task_uses_an_invariant_iso_date_not_the_locale_format(self):
+        # schtasks /SD reads the user's locale (dd/MM/yyyy on French Windows)
+        # and refused the mm/dd/yyyy cdx passed.
+        from datetime import datetime
+
+        from src.notify import _schedule_windows_task
+        calls = []
+        target = datetime(2026, 12, 25, 23, 59).timestamp()
+        _schedule_windows_task({"mode": "next-ready", "name": None}, {"target_timestamp": target, "session": "main"},
+                               ["C:\\cdx.cmd", "ready", "--fire", "main"],
+                               lambda argv, **kw: calls.append(argv) or subprocess.CompletedProcess(argv, 0, "", ""), {})
+        argv = calls[0]
+        self.assertEqual(argv[:4], ["powershell", "-NoProfile", "-NonInteractive", "-Command"])
+        self.assertIn("ParseExact('2026-12-25T23:59'", argv[4])
+        self.assertIn("-Argument 'ready --fire main'", argv[4])
+        self.assertNotIn("/SD", argv)

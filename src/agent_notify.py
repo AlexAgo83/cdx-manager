@@ -486,7 +486,7 @@ def _subprocess_spawn_sync(command, args, options):
         [command, *args],
         env=options.get("env"),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         timeout=60,
     )
 

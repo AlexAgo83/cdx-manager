@@ -162,7 +162,7 @@ def _run_version_command(command, env, spawn_sync=None):
             [command, "--version"],
             env=env,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=5,
             check=False,
         )
@@ -228,7 +228,7 @@ def _provider_help_text(command, env, spawn_sync=None):
                 text = f"{getattr(result, 'stdout', '') or ''}\n{getattr(result, 'stderr', '') or ''}"
         else:
             completed = subprocess.run(
-                [command, "--help"], env=env, capture_output=True, text=True, timeout=10, check=False,
+                [command, "--help"], env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10, check=False,
             )
             text = f"{completed.stdout or ''}\n{completed.stderr or ''}"
     except (OSError, subprocess.TimeoutExpired):

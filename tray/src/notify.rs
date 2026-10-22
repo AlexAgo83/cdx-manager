@@ -349,10 +349,19 @@ fn windows_aumid() -> String {
 /// Single-quote for PowerShell, where a quote is escaped by doubling it.
 ///
 /// Session and repository names reach this, and one apostrophe would otherwise
-/// end the string and turn the rest into script.
+/// end the string and turn the rest into script. PowerShell also ends a
+/// single-quoted string on the typographic quotes U+2018..U+201B, so each is
+/// doubled like ASCII `'`.
 #[cfg(target_os = "windows")]
 fn powershell_string(value: &str) -> String {
-    value.replace('\'', "''")
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if matches!(ch, '\'' | '\u{2018}' | '\u{2019}' | '\u{201A}' | '\u{201B}') {
+            out.push(ch);
+        }
+        out.push(ch);
+    }
+    out
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -372,6 +381,15 @@ fn applescript_string(value: &str) -> String {
 #[cfg(target_os = "macos")]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn a_typographic_quote_cannot_escape_the_powershell_string() {
+        assert_eq!(
+            powershell_string("l\u{2019}agent's"),
+            "l\u{2019}\u{2019}agent''s"
+        );
+    }
 
     #[test]
     fn a_quote_cannot_escape_the_applescript_string() {
