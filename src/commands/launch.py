@@ -34,12 +34,24 @@ from ..provider_runtime import (
 from ..run_command import PROMPT_STDIN, read_run_prompt
 from ..run_usage import estimate_cost
 
-LAUNCH_USAGE = "Usage: cdx <name> [--dir PATH] [--prompt TEXT|--prompt-file PATH] [--resume] [--json]"
+LAUNCH_USAGE = "Usage: cdx <name> [--dir PATH] [--prompt TEXT|--prompt-file PATH|--task TEXT [--end-state TEXT]] [--resume] [--json]"
+
+#: The first message of a session started with --task. The end state is what the
+#: user's go-ahead covers: a bare "show me first" made sessions stop after a commit
+#: and wait for a push they could have made (cr-0w, open-project-session runbook).
+TASK_PROMPT = """Task: {task}
+
+{end_state}
+
+Before starting, read this repository's instructions (AGENTS.md, CLAUDE.md and what they reference) and use its skills where one fits; they override general habits."""
+END_STATE = """End state: {end_state}
+Reaching it is approved: take every step it needs, including the commits, pushes or pull requests it names, without asking again. Stop and ask only for a decision it does not cover."""
+NO_END_STATE = """No end state was given: stop and show the result before any commit, push or pull request."""
 
 
 def _parse_launch_args(args):
     """Return the per-launch directory, initial prompt source and ordinary launch flags."""
-    values = {"--dir": None, "--prompt": None, "--prompt-file": None}
+    values = {"--dir": None, "--prompt": None, "--prompt-file": None, "--task": None, "--end-state": None}
     cleaned = []
     index = 0
     while index < len(args):
@@ -60,6 +72,13 @@ def _parse_launch_args(args):
         values[flag] = value
     if values["--prompt"] is not None and values["--prompt-file"] is not None:
         raise CdxError("cdx <name>: --prompt and --prompt-file are mutually exclusive.")
+    if values["--end-state"] is not None and values["--task"] is None:
+        raise CdxError("cdx <name>: --end-state goes with --task.")
+    if values["--task"] is not None:
+        if values["--prompt"] is not None or values["--prompt-file"] is not None:
+            raise CdxError("cdx <name>: --task replaces --prompt and --prompt-file.")
+        end = END_STATE.format(end_state=values["--end-state"]) if values["--end-state"] else NO_END_STATE
+        values["--prompt"] = TASK_PROMPT.format(task=values["--task"], end_state=end)
     if values["--prompt-file"] == PROMPT_STDIN:
         raise CdxError("cdx <name>: --prompt-file - is not supported; the interactive session needs standard input.")
     prompt = {"prompt": values["--prompt"], "prompt_file": values["--prompt-file"]}

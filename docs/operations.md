@@ -149,6 +149,22 @@ Hand a task to a background run and keep working, without starting more runs tha
 3. Follow it: `cdx runs --json` lists runs with their label and status; `cdx run-status <run_id> --json`
    and `cdx run-tail <run_id> --json` show one of them.
 4. A run refused by the cap: wait for one to finish, or pass `--max-parallel N` for that run.
+## Starting a session on a task in another repository
+
+From a hub session or a terminal, open a session in another repository with the task and
+what you already approve, so it neither stops too early nor goes further than you meant:
+
+```bash
+cdx work --dir ~/Documents/cts --task "Fix the failing CI on main" \
+  --end-state "CI green on a pull request, merged"
+```
+
+- Write the end state as the result you will accept, naming the steps it includes (commit, push,
+  PR, merge). A vague "show me first" makes the session stop after the commit and wait for a push.
+- Leave `--end-state` out when you want to review before anything is published: the session then
+  stops before any commit, push or PR.
+- Name the repository's skill in the task when one fits ("use the implement-task skill") instead of
+  restating its steps; the session is told to read the repository's instructions anyway.
 
 ## Session retros
 
