@@ -255,7 +255,7 @@ def _print_help(use_color=False):
         f"  {_style(SET_USAGE[len('Usage: '):], '36', use_color)}",
         f"  {_style('cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--logics|--notify|--notify-preview|--model|--priority|--all) [--json]', '36', use_color)}",
         f"  {_style('cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]', '36', use_color)}",
-        f"  {_style('cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]', '36', use_color)}",
+        f"  {_style('cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--by session|project|model] [--json]', '36', use_color)}",
         f"  {_style('cdx last [--json]', '36', use_color)}",
         f"  {_style('cdx resume <name> [--json]', '36', use_color)}",
         f"  {_style('cdx can-resume <name> [--json]', '36', use_color)}",

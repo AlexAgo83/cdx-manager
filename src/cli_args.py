@@ -39,7 +39,8 @@ SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVI
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 CONFIGS_USAGE = "Usage: cdx configs [--json]"
 HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
-STATS_USAGE = "Usage: cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
+STATS_USAGE = "Usage: cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--by session|project|model] [--json]"
+STATS_GROUPS = ("session", "project", "model")
 LAST_USAGE = "Usage: cdx last [--json]"
 RESUME_USAGE = "Usage: cdx resume <name> [--json]"
 CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--json]"
@@ -851,12 +852,16 @@ def _parse_stats_args(args, now=None):
         "--since": {"key": "since", "type": "str", "default": None},
         "--from": {"key": "from", "type": "str", "default": None},
         "--to": {"key": "to", "type": "str", "default": None},
+        "--by": {"key": "by", "type": "str", "default": "session"},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, STATS_USAGE, positionals_key="names", max_positionals=1)
+    if parsed["by"] not in STATS_GROUPS:
+        raise CdxError(STATS_USAGE)
     period = _parse_history_period(parsed, now, STATS_USAGE)
     return {
         "name": parsed["names"][0] if parsed["names"] else None,
         "period": period,
+        "by": parsed["by"],
         "json": parsed["json"],
     }
 
