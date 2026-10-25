@@ -1317,6 +1317,24 @@ class RuntimePythonTests(unittest.TestCase):
                 self.assertFalse(set(provider_runtime.CLAUDE_PARENT_SESSION_ENV) & set(env))
                 self.assertEqual(env["CLAUDE_CODE_DISABLE_AUTOUPDATER"], "1")
 
+    def test_every_claude_spec_shares_the_operator_rtk_history(self):
+        identifier = "11111111-1111-4111-8111-111111111111"
+        home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, home, True)
+        _write_provider_transcript(home, "claude", identifier)
+        session = {"name": "work", "provider": "claude", "authHome": home, "conversation": {"id": identifier}}
+        with mock.patch.object(provider_runtime, "operator_rtk_history_path", return_value="/operator/rtk/history.db"):
+            specs = (
+                provider_runtime._build_launch_spec(session, cwd="/tmp/repo"),
+                provider_runtime._build_resume_spec(session, cwd="/tmp/repo"),
+                provider_runtime._build_headless_launch_spec(session, cwd="/tmp/repo", initial_prompt="go"),
+            )
+            chosen = provider_runtime._build_launch_spec(
+                session, cwd="/tmp/repo", env_override={"RTK_DB_PATH": "/mine.db"})
+        for spec in specs:
+            self.assertEqual(spec["options"]["env"]["RTK_DB_PATH"], "/operator/rtk/history.db")
+        self.assertEqual(chosen["options"]["env"]["RTK_DB_PATH"], "/mine.db")
+
     def test_interactive_claude_specs_disable_claude_title_writes(self):
         identifier = "11111111-1111-4111-8111-111111111111"
         home = tempfile.mkdtemp()

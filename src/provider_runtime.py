@@ -208,6 +208,34 @@ def _shared_tool_cache_overrides(env):
     }
 
 
+def operator_rtk_history_path(env=None):
+    """The rtk history database of the operator's real home.
+
+    rtk files its savings under the data dir of HOME, and a profile launch
+    swaps HOME, so each account kept its own history.db and `rtk gain` in the
+    operator's shell saw none of what the agents saved. Read from the passwd
+    entry rather than HOME, which is already a profile home when cdx runs
+    inside a session.
+    """
+    env = os.environ if env is None else env
+    if os.name == "nt":
+        base = env.get("LOCALAPPDATA")
+        return os.path.join(base, "rtk", "history.db") if base else None
+    import pwd
+
+    home = pwd.getpwuid(os.getuid()).pw_dir
+    if sys.platform == "darwin":
+        return os.path.join(home, "Library", "Application Support", "rtk", "history.db")
+    return os.path.join(home, ".local", "share", "rtk", "history.db")
+
+
+def _shared_rtk_history(env):
+    """Point every profile's rtk at one history, unless the operator chose one."""
+    path = None if env.get("RTK_DB_PATH") else operator_rtk_history_path(env)
+    if path:
+        env["RTK_DB_PATH"] = path
+
+
 def _anthropic_profile_name():
     return "default"
 
@@ -674,6 +702,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     env = {**os.environ, **env_override}
     for key, value in _shared_tool_cache_overrides(env).items():
         env.setdefault(key, value)
+    _shared_rtk_history(env)
     env.update(launch_notify_env(session, notifications_enabled(session)))
     env.update(_scrub_env(session))
     preference_args = _launch_preference_args(session, env=env)
@@ -852,6 +881,7 @@ def _build_resume_spec(session, cwd=None, env_override=None, capture_transcript=
     cwd = cwd or os.getcwd()
     env_override = env_override or {}
     env = {**os.environ, **env_override}
+    _shared_rtk_history(env)
     capability = get_resume_capability(session, cwd=cwd)
     if not capability["resumable"]:
         raise CdxError(f"Provider {session.get('provider')} does not support native resume through cdx.")
@@ -928,6 +958,7 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
     _validate_initial_prompt(initial_prompt)
     cwd = cwd or os.getcwd()
     env = {**os.environ, **(env_override or {})}
+    _shared_rtk_history(env)
     # Headless runs read the same home, and so the same hooks, as an interactive
     # launch. Their caller already learns of completion from the return value.
     env.update(launch_notify_env(session, enabled=False))
