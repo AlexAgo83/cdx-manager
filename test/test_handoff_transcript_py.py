@@ -361,3 +361,30 @@ def test_prepare_drops_only_week_old_entries(tmp_path):
     newest, _ = prepare_entry(base, target, base, session, source)
     assert not os.path.exists(old_path)
     assert os.path.isfile(recent_path) and os.path.isfile(newest)
+
+
+@pytest.mark.parametrize('provider', ['codex', 'claude'])
+def test_a_session_that_moved_folders_hands_off_from_any_of_them(tmp_path, provider):
+    start, worktree, elsewhere = (tmp_path / name for name in ('repo', 'repo.wt', 'other'))
+    for folder in (start, worktree, elsewhere):
+        folder.mkdir()
+    session, path = native(tmp_path, provider, start)
+    moved = ({'type': 'session_meta', 'payload': {'id': ID, 'cwd': str(worktree), 'source': 'cli'}}
+             if provider == 'codex' else
+             {'type': 'user', 'sessionId': ID, 'cwd': str(worktree), 'message': {'role': 'user', 'content': 'go on'}})
+    with path.open('a') as handle:
+        handle.write(json.dumps(moved) + '\n')
+
+    info = inspect_transcript(str(path), provider)
+    assert info['workspace'] == os.path.realpath(start)
+    assert info['workspaces'] == [os.path.realpath(start), os.path.realpath(worktree)]
+    for folder in (start, worktree):
+        resolved = resolve_source(session, str(folder))
+        assert resolved['path'] == str(path)
+        assert resolved['workspace'] == os.path.realpath(folder)
+        assert resolve_source(session, str(folder), native_path=str(path))['workspace'] == os.path.realpath(folder)
+    assert [c['path'] for c in source_candidates(session, os.path.realpath(worktree))] == [str(path)]
+    with pytest.raises(HandoffSourceError):
+        resolve_source(session, str(elsewhere))
+    with pytest.raises(HandoffSourceError, match='never worked'):
+        resolve_source(session, str(elsewhere), native_path=str(path))
