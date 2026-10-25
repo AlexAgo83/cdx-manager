@@ -49,6 +49,7 @@ from ..provider_runtime import (
     _has_local_claude_auth,
     _probe_provider_auth_status,
 )
+from ..rtk_savings import rtk_saved
 from ..run_usage import (
     USAGE_KEYS,
     estimate_cost,
@@ -473,6 +474,12 @@ def _format_token_count(value):
         return f"{amount / 1000:.1f}K"
     return str(amount)
 
+def _format_rtk_saved(rtk):
+    saved = _format_token_count(rtk["saved_tokens"])
+    share = f" ({rtk['saved_tokens'] * 100 // rtk['input_tokens']}% of their output)" if rtk["input_tokens"] else ""
+    return f"rtk saved {saved} tokens on {rtk['commands']:,} commands{share}."
+
+
 def _stats_group(entry, by):
     """The project (launch folder name) or the model a run is counted under."""
     if by == "project":
@@ -610,6 +617,8 @@ def handle_stats(rest, ctx):
         entries = [{**entry, "session_name": _stats_group(entry, parsed["by"])} for entry in entries]
     rows = _summarize_stats(entries)
     totals = _stats_totals(rows)
+    # rtk cannot tell which session a command ran in, so only the unfiltered view shows it.
+    rtk = None if parsed["name"] else rtk_saved(ctx["service"]["base_dir"], parsed["period"], env=ctx.get("env"))
     message = (
         f"Calculated stats for {parsed['name']}"
         if parsed["name"]
@@ -623,6 +632,7 @@ def handle_stats(rest, ctx):
             stats=rows,
             totals=totals,
             group_by=parsed["by"],
+            rtk=rtk,
             accounting={
                 "launches_unit": "history_attempts",
                 "period_policy": "whole_run_overlap",
@@ -634,6 +644,8 @@ def handle_stats(rest, ctx):
         return 0
     active_sessions = _active_session_names(ctx) if parsed["by"] == "session" else set()
     ctx["out"](f"{_format_stats(rows, totals, period=parsed['period'], use_color=ctx['use_color'], active_sessions=active_sessions, group_label=parsed['by'].upper())}\n")
+    if rows and rtk and rtk["commands"]:
+        ctx["out"](f"{_dim(_format_rtk_saved(rtk), ctx['use_color'])}\n")
     return 0
 
 def _resolve_last_launch_session(ctx):
