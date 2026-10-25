@@ -1662,3 +1662,50 @@ class RunRegistryPruneTests(unittest.TestCase):
         self.assertEqual(ids[0], "live")
         self.assertEqual(len(ids), run_registry.MAX_FINISHED_RUNS + 1)
         self.assertEqual(ids[-1], f"done{run_registry.MAX_FINISHED_RUNS - 1}")
+
+
+class RunCapOrderingTests(CliTestBase):
+    def _service(self):
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        service["create_session"]("work", "ollama")
+        service["set_launch_settings"]("work", {"model": "llama3.2"})
+        calls = []
+        begin = service["begin_conversation"]
+        service["begin_conversation"] = lambda name: calls.append(name) or begin(name)
+        return service, calls
+
+    def _run(self, service, *extra, env=None):
+        io_obj = self.make_io()
+        code = main(["run", "work", "--cwd", service["base_dir"], "--prompt", "go", *extra, "--json"],
+                    self.make_run_ctx(io_obj, service, env=env or {},
+                                      spawn_headless=lambda *_a, **_k: _HeadlessChild(0)))
+        return code, json.loads(io_obj["stdout"].getvalue())
+
+    def test_a_run_refused_by_the_cap_leaves_the_conversation_alone(self):
+        service, calls = self._service()
+        RunRegistry(service["base_dir"]).start("busy", kind="assistant", session="work",
+                                               provider="ollama", model=None, cwd=".")
+        code, payload = self._run(service, "--max-parallel", "1")
+        self.assertEqual(code, 1)
+        self.assertEqual(payload["error"]["code"], "too_many_runs")
+        self.assertEqual(calls, [])
+
+    def test_a_finished_native_background_run_frees_its_slot(self):
+        service, _calls = self._service()
+        registry = RunRegistry(service["base_dir"])
+        registry.start("bg", kind="assistant", session="work", provider="claude", model=None, cwd=".")
+        registry.record_background("bg", path="provider_native", provider_session_id="s", provider_agent_id="a")
+        outcome = {"usage": None, "usage_model": None, "result": "done"}
+        with mock.patch("src.commands.runs.find_session_transcript", return_value=None), \
+                mock.patch("src.commands.runs.read_transcript_outcome", return_value=outcome), \
+                mock.patch("src.commands.runs.turn_is_complete", return_value=True), \
+                mock.patch("src.commands.runs.stop_background_agent"):
+            code, payload = self._run(service, "--max-parallel", "1")
+        self.assertEqual(code, 0, payload)
+        self.assertEqual(registry.get("bg")["status"], "succeeded")
+
+    def test_cdx_max_runs_zero_or_negative_means_no_limit(self):
+        from src.commands.runs import _env_max_runs
+        self.assertIsNone(_env_max_runs({"env": {"CDX_MAX_RUNS": "0"}}))
+        self.assertIsNone(_env_max_runs({"env": {"CDX_MAX_RUNS": "-3"}}))
+        self.assertEqual(_env_max_runs({"env": {"CDX_MAX_RUNS": "2"}}), 2)

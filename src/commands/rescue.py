@@ -100,6 +100,8 @@ def stranded(service, rows, now=None):
         conversation = (session.get("conversation") or {}).get("id")
         if not conversation or not _recent(row.get("last_launched_at"), now):
             continue
+        if _rescued_since_launch(session, row):
+            continue
         history = service["get_launch_history"](session["name"], limit=1)
         last = history[0] if history else {}
         cwd = last.get("cwd") or None
@@ -113,6 +115,16 @@ def stranded(service, rows, now=None):
             "cwd": cwd, "reset_at": row.get("reset_at"), "last_launched_at": row.get("last_launched_at"),
         })
     return sorted(found, key=lambda item: item["last_launched_at"] or "", reverse=True)
+
+
+def _rescued_since_launch(session, row):
+    """Already handed off, and not launched again since: rescuing it twice forks it."""
+    try:
+        rescued = datetime.fromisoformat(str((session.get("conversation") or {}).get("rescuedAt")))
+        launched = datetime.fromisoformat(str(row.get("last_launched_at")))
+        return rescued >= launched
+    except (TypeError, ValueError):
+        return False
 
 
 def pick_target(rows, source, provider):
@@ -176,10 +188,13 @@ def handle_rescue(rest, ctx):
         question += " (policy ask-first)" if confirm else ""
         if ask(f"{question}? [y/N] ").strip().lower() not in ("y", "yes"):
             raise CdxError("Rescue cancelled.", exit_code=130)
-    return handle_handoff(
+    code = handle_handoff(
         [source["session"], target["session_name"], "--source-conversation", source["conversation_id"]],
         {**ctx, "cwd": source["cwd"]},
     )
+    if code == 0:
+        service["mark_conversation_rescued"](source["session"], source["conversation_id"])
+    return code
 
 
 def _describe(plan, ctx):

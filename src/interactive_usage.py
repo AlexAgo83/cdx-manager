@@ -268,7 +268,9 @@ def _codex_usage(handle):
                 output_tokens=_number(usage.get("output_tokens")),
                 reasoning_tokens=_number(usage.get("reasoning_output_tokens")) or None,
             )
-        except (TypeError, ValueError):
+        except (AttributeError, TypeError, ValueError):
+            # AttributeError: a line that is valid JSON but not an object
+            # ([], "x", "message": "x") is skipped like any malformed line.
             continue
     return latest, model
 
@@ -308,7 +310,9 @@ def _claude_usage(handle):
                 long_ttl = (long_ttl or 0) + _number(split["ephemeral_1h_input_tokens"])
             if isinstance(message.get("model"), str) and not message["model"].startswith("<"):
                 model = message["model"]
-        except (TypeError, ValueError):
+        except (AttributeError, TypeError, ValueError):
+            # AttributeError: a line that is valid JSON but not an object
+            # ([], "x", "message": "x") is skipped like any malformed line.
             continue
     if not seen and not any(totals.values()):
         return None, model

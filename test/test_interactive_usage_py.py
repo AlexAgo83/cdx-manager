@@ -74,6 +74,24 @@ class InteractiveUsageTests(unittest.TestCase):
             _usage, _path, _match, model = extract_interactive_usage("claude", home)
             self.assertEqual(model, "claude-sonnet-5")
 
+    def test_records_that_are_not_objects_are_skipped(self):
+        # A resumed launch reads the transcript; one odd line must not crash it.
+        junk = [[], "x", 3, {"payload": "x"}, {"payload": {"type": "token_count", "info": []}}]
+        with tempfile.TemporaryDirectory() as home:
+            self._write(home, "sessions/odd.jsonl", junk + [
+                {"payload": {"type": "token_count", "info": {"total_token_usage": {"input_tokens": 5}}}},
+            ])
+            usage, _path, _match, _model = extract_interactive_usage("codex", home)
+            self.assertEqual(usage["input_tokens"], 5)
+        with tempfile.TemporaryDirectory() as home:
+            self._write(home, ".claude/projects/repo/session.jsonl", junk + [
+                {"type": "assistant", "message": "x"},
+                {"type": "assistant", "message": {"usage": "x"}},
+                {"type": "assistant", "uuid": "one", "message": {"usage": {"input_tokens": 2}}},
+            ])
+            usage, _path, _match, _model = extract_interactive_usage("claude", home)
+            self.assertEqual(usage["input_tokens"], 2)
+
     def test_ignores_malformed_records_and_old_files(self):
         with tempfile.TemporaryDirectory() as home:
             old = self._write(home, "sessions/old.jsonl", [
