@@ -291,6 +291,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx ready', '36', use_color)}  # next session to become ready",
         f"  {_style('cdx <name> [--json]', '36', use_color)}",
         f"  {_style('cdx <name> --prompt TEXT|--prompt-file PATH', '36', use_color)}  # start with a first message",
+        f"  {_style('cdx <name> --dir PATH --task TEXT --end-state TEXT', '36', use_color)}  # start on a task, with what the go-ahead covers",
         f"  {_style('cdx --help', '36', use_color)}",
         f"  {_style('cdx --version', '36', use_color)}",
     ])
