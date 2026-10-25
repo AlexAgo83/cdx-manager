@@ -166,6 +166,8 @@ Commands with machine-readable output:
 - `cdx select ... --json`
 - `cdx run ... --json`
 
+Status rows also carry `runs_out_at_iso`: when the account empties if it keeps the pace it has used since its 5-hour or weekly window opened (the earlier of the two), or `null` when that pace lasts until the reset. `cdx status <name>` shows it as `Runs out: ~11:48 at this pace`. It is an average since the window opened, not a prediction of what you will do next.
+
 In `cdx status --json` rows, `reset_5h_at`, `reset_week_at` and `reset_at` are display strings in local time with no year (`Oct 20 15:00`). Read `reset_5h_at_iso`, `reset_week_at_iso` and `reset_at_iso` instead: ISO 8601 with the local offset, or a bare date when the provider gave no time of day.
 
 Success payloads follow a shared envelope:
