@@ -6,7 +6,7 @@ Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 import os
 import shlex
 
-from .. import shared_memory
+from .. import retro, shared_memory
 from ..agent_notify import notifications_enabled, provision, supports_agent_alerts
 from ..cli_args import CAN_RESUME_USAGE, HANDOFF_USAGE, RESUME_USAGE, _parse_json_flag
 from ..cli_helpers import (
@@ -352,6 +352,8 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
     })
     if not json_flag:
         ctx["out"](f"{_goodbye_line(session, success_run_info, ctx['use_color'])}\n")
+    if retro.start(session, cwd, success_run_info.get("provider_transcript_path"), env=ctx.get("env")) and not json_flag:
+        ctx["out"](f"{_dim('Session retro started; read it later with `cdx retro`', ctx['use_color'])}\n")
     if json_flag:
         extra = {"session": ctx["service"]["get_session"](session["name"]), "cwd": cwd}
         if capability:

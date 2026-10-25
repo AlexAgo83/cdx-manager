@@ -663,7 +663,7 @@ class RunsCommandTests(CliTestBase):
             ),
             (
                 ["main", "--cwd", target_dir, "--prompt", "Do it", "--kind", "audit", "--json"],
-                "cdx run: invalid --kind 'audit'; allowed values: assistant|code-review.",
+                "cdx run: invalid --kind 'audit'; allowed values: assistant|code-review|retro.",
                 "invalid_argument_value", ["--kind"],
             ),
             (
