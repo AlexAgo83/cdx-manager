@@ -473,14 +473,22 @@ def _format_token_count(value):
         return f"{amount / 1000:.1f}K"
     return str(amount)
 
-def _format_stats(rows, totals, period=None, use_color=False, active_sessions=None):
+def _stats_group(entry, by):
+    """The project (launch folder name) or the model a run is counted under."""
+    if by == "project":
+        cwd = str(entry.get("cwd") or "").rstrip("/\\")
+        return os.path.basename(cwd) or "-"
+    return entry.get("usage_model") or "-"
+
+
+def _format_stats(rows, totals, period=None, use_color=False, active_sessions=None, group_label="SESSION"):
     from ..cli_render import _format_relative_age
 
     active_sessions = active_sessions or set()
     if not rows:
         return "No launch stats for this period." if _has_history_period(period or {}) else "No launch stats."
     table = [[_style(value, "1", use_color) for value in [
-        "SESSION", "PROV.", "RUNS", "USAGE", "IN", "CACHE", "OUT", "REASON", "TOTAL", "COST~", "USD~", "TIME", "LAST"
+        group_label, "PROV.", "RUNS", "USAGE", "IN", "CACHE", "OUT", "REASON", "TOTAL", "COST~", "USD~", "TIME", "LAST"
     ]]]
     for row in rows:
         session_name = row["session_name"]
@@ -597,6 +605,9 @@ def handle_stats(rest, ctx):
     parsed = _parse_stats_args(rest, now=now)
     entries = ctx["service"]["get_launch_history"](parsed["name"], limit=0)
     entries = _filter_history_period(entries, parsed["period"])
+    if parsed["by"] != "session":
+        # Same accounting, another key: each run is regrouped, never re-priced.
+        entries = [{**entry, "session_name": _stats_group(entry, parsed["by"])} for entry in entries]
     rows = _summarize_stats(entries)
     totals = _stats_totals(rows)
     message = (
@@ -611,6 +622,7 @@ def handle_stats(rest, ctx):
             period=_public_history_period(parsed["period"]),
             stats=rows,
             totals=totals,
+            group_by=parsed["by"],
             accounting={
                 "launches_unit": "history_attempts",
                 "period_policy": "whole_run_overlap",
@@ -620,8 +632,8 @@ def handle_stats(rest, ctx):
             },
         ))
         return 0
-    active_sessions = _active_session_names(ctx)
-    ctx["out"](f"{_format_stats(rows, totals, period=parsed['period'], use_color=ctx['use_color'], active_sessions=active_sessions)}\n")
+    active_sessions = _active_session_names(ctx) if parsed["by"] == "session" else set()
+    ctx["out"](f"{_format_stats(rows, totals, period=parsed['period'], use_color=ctx['use_color'], active_sessions=active_sessions, group_label=parsed['by'].upper())}\n")
     return 0
 
 def _resolve_last_launch_session(ctx):
