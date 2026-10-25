@@ -48,7 +48,7 @@ def inspect_transcript(path, provider, extent=None):
     Never flatten messages: the descriptor points to the original tool evidence.
     The digest binds that evidence to the preparation boundary, even after append.
     """
-    ids, workspaces = set(), set()
+    ids, workspaces = set(), []
     last_event = None
     digest = hashlib.sha256()
     consumed = 0
@@ -88,7 +88,9 @@ def inspect_transcript(path, provider, extent=None):
                 if cwd:
                     if not isinstance(cwd, str) or not os.path.isabs(cwd):
                         raise ValueError('invalid workspace')
-                    workspaces.add(os.path.realpath(cwd))
+                    real = os.path.realpath(cwd)
+                    if real not in workspaces:
+                        workspaces.append(real)
                 stamp = record.get('timestamp')
                 if isinstance(stamp, str):
                     try:
@@ -102,24 +104,33 @@ def inspect_transcript(path, provider, extent=None):
                 consumed = handle.tell()
     except (OSError, ValueError) as error:
         raise CdxError(f'Cannot use transcript {path}: {error}') from error
-    if len(ids) != 1 or len(workspaces) != 1:
+    if len(ids) != 1 or not workspaces:
         raise CdxError(f'Transcript needs one conversation identity and workspace: {path}')
+    # A session that moved between folders (a worktree, a subfolder) keeps
+    # every one of them; it starts in the first, and may be handed off in any.
     return {
         'path': os.path.abspath(path), 'provider': provider, 'conversation_id': ids.pop(),
-        'workspace': workspaces.pop(), 'last_event_at': last_event,
+        'workspace': workspaces[0], 'workspaces': workspaces, 'last_event_at': last_event,
         'extent_bytes': consumed, 'sha256': digest.hexdigest(), 'format': 'jsonl',
         'mode': 'native',
     }
+
+
+def _in_workspace(info, workspace):
+    """The transcript as seen from `workspace`, or None if it never worked there."""
+    if workspace not in info['workspaces']:
+        return None
+    return {**info, 'workspace': workspace}
 
 
 def source_candidates(session, workspace):
     candidates = []
     for path in _native_paths(session):
         try:
-            info = inspect_transcript(path, session['provider'])
+            info = _in_workspace(inspect_transcript(path, session['provider']), workspace)
         except CdxError:
             continue
-        if info['workspace'] == workspace:
+        if info:
             candidates.append(info)
     # Event time helps humans choose; it is never an automatic selection rule.
     return sorted(candidates, key=lambda c: (c['last_event_at'] or '', c['path']), reverse=True)[:CANDIDATE_LIMIT]
@@ -163,11 +174,11 @@ def resolve_source(session, workspace, conversation_id=None, terminal_path=None,
         if path not in allowed:
             raise HandoffSourceError('Native transcript must be a top-level source file in the source profile.')
         try:
-            info = inspect_transcript(path, session['provider'])
+            info = _in_workspace(inspect_transcript(path, session['provider']), workspace)
         except CdxError as error:
             raise HandoffSourceError(str(error)) from error
-        if info['workspace'] != workspace:
-            raise HandoffSourceError('Native transcript workspace does not match the target workspace.')
+        if not info:
+            raise HandoffSourceError('Native transcript never worked in the target workspace.')
         info['provenance'] = 'explicit_native_path'
         return info
     if selected:
@@ -177,10 +188,10 @@ def resolve_source(session, workspace, conversation_id=None, terminal_path=None,
         matches = []
         for path in paths:
             try:
-                info = inspect_transcript(path, session['provider'])
+                info = _in_workspace(inspect_transcript(path, session['provider']), workspace)
             except CdxError:
                 continue
-            if info['conversation_id'] == selected and info['workspace'] == workspace:
+            if info and info['conversation_id'] == selected:
                 matches.append(info)
         if len(matches) > 1:
             raise HandoffSourceError(f'Conversation {selected} has multiple native transcripts; select --source-native-transcript PATH.', matches)
