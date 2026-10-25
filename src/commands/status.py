@@ -284,6 +284,7 @@ def _summarize_stats(entries):
             "input_tokens": 0,
             "cached_input_tokens": 0,
             "cache_creation_tokens": 0,
+            "cache_creation_1h_tokens": 0,
             "cache_read_tokens": 0,
             "output_tokens": 0,
             "reasoning_tokens": 0,
