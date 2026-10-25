@@ -35,6 +35,11 @@ class ResetIsoTests(unittest.TestCase):
 
 
 class ResetIsoShapeTests(unittest.TestCase):
+    def test_a_reading_in_1970_does_not_crash_on_the_year_before(self):
+        # Windows cannot place times around the epoch in the local zone, so the
+        # nearest year it can is used; the point is that the status row survives.
+        self.assertIsInstance(reset_iso("Jan 1 00:30", "1970-01-01T00:16:40+00:00"), str)
+
     def test_unknown_shapes_are_absent_rather_than_guessed(self):
         for value in (None, "", "soon", "Foo 3 10:00", "Oct x 10:00", "Feb 30 10:00", "Oct 3 25:00"):
             self.assertIsNone(reset_iso(value, "2026-10-25T07:35:53+01:00"), value)
