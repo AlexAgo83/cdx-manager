@@ -71,6 +71,8 @@ def reasoning_rank(value):
 
 
 def _is_usable_now(row):
+    if row.get("rate_limit_reached"):
+        return False
     available = row.get("available_pct")
     return available is not None and available > USABLE_AVAILABLE_THRESHOLD
 
@@ -203,6 +205,10 @@ def _row_is_ready(row):
 
 
 def _row_has_availability(row):
+    if row.get("rate_limit_reached"):
+        # The provider says this account cannot serve a task, whatever the
+        # percentage windows read.
+        return False
     available = row.get("available_pct")
     if available is None:
         # Unknown is not the same as empty. Excluding it here would make a

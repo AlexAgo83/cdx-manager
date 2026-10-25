@@ -26,9 +26,15 @@ class RescueTests(unittest.TestCase):
             "list_sessions": lambda: sessions,
             "get_status_rows": lambda force_refresh=False: self.rows,
             "get_launch_history": lambda name, limit=1: [{"cwd": self.cwd}],
+            "mark_conversation_rescued": self._mark,
         }
+        self.sessions = sessions
         self.out = []
         self.answers = []
+
+    def _mark(self, name, conversation_id):
+        session = next(s for s in self.sessions if s["name"] == name)
+        session["conversation"] = {**session["conversation"], "rescuedAt": datetime.now(timezone.utc).isoformat()}
 
     def _ctx(self, tty=True):
         return {"service": self.service, "out": self.out.append, "use_color": False, "stdin_is_tty": tty,
@@ -46,6 +52,16 @@ class RescueTests(unittest.TestCase):
         args, ctx = handoff.call_args[0]
         self.assertEqual(args, ["spent", "fresh", "--source-conversation", "conv-1"])
         self.assertEqual(ctx["cwd"], self.cwd)
+
+    def test_a_rescued_conversation_is_not_handed_off_twice(self):
+        _code, handoff = self._run("--yes")
+        handoff.assert_called_once()
+        _code, handoff = self._run("--yes")
+        handoff.assert_not_called()
+        # Launched again after the rescue: it can be rescued again.
+        self.rows[0]["last_launched_at"] = datetime.now(timezone.utc).isoformat()
+        _code, handoff = self._run("--yes")
+        handoff.assert_called_once()
 
     def test_ask_first_is_the_fallback_and_yes_does_not_cover_it(self):
         self.rows[1]["available_pct"] = 0
@@ -116,3 +132,15 @@ class EndedOnLimitTests(unittest.TestCase):
             "get_launch_history": lambda name, limit=1: [{"cwd": cwd, "provider_transcript_path": stopped}],
         }
         self.assertEqual([s["session"] for s in rescue.stranded(service, {"work": row})], ["work"])
+
+
+class MarkRescuedTests(unittest.TestCase):
+    def test_only_the_handed_off_conversation_is_stamped(self):
+        from src.session_service import create_session_service
+        service = create_session_service({"base_dir": tempfile.mkdtemp()})
+        service["create_session"]("work", "claude")
+        conversation = service["begin_conversation"]("work")["conversation"]["id"]
+        service["mark_conversation_rescued"]("work", "another")
+        self.assertNotIn("rescuedAt", service["get_session"]("work")["conversation"])
+        service["mark_conversation_rescued"]("work", conversation)
+        self.assertIn("rescuedAt", service["get_session"]("work")["conversation"])

@@ -927,6 +927,16 @@ def begin_conversation(store, name):
     })
 
 
+def mark_conversation_rescued(store, name, conversation_id):
+    """Stamp the source of a rescue handoff so the same conversation is not handed off twice."""
+    def updater(s):
+        conversation = s.get("conversation") or {}
+        if conversation.get("id") != conversation_id:
+            return s
+        return {**s, "conversation": {**conversation, "rescuedAt": _local_now_iso()}}
+    return store["update_session"](name, updater)
+
+
 def get_session_root(base_dir, name):
     return _get_session_root(base_dir, name)
 
@@ -965,6 +975,7 @@ def create_session_service(options=None):
         "rename_session": partial(rename_session, base_dir, store),
         "launch_session": partial(launch_session, store),
         "begin_conversation": partial(begin_conversation, store),
+        "mark_conversation_rescued": partial(mark_conversation_rescued, store),
         "active_session_runtime": partial(_session_runtime, store),
         "start_session_runtime": partial(start_session_runtime, store),
         "finish_session_runtime": partial(finish_session_runtime, store),
