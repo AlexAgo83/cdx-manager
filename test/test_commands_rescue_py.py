@@ -2,7 +2,7 @@
 
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 from src.commands import rescue
@@ -58,8 +58,10 @@ class RescueTests(unittest.TestCase):
         handoff.assert_called_once()
         _code, handoff = self._run("--yes")
         handoff.assert_not_called()
-        # Launched again after the rescue: it can be rescued again.
-        self.rows[0]["last_launched_at"] = datetime.now(timezone.utc).isoformat()
+        # Launched again after the rescue: it can be rescued again. Derived from
+        # the stamp, not the clock: Windows' ~15 ms tick can make both equal.
+        rescued = datetime.fromisoformat(self.sessions[0]["conversation"]["rescuedAt"])
+        self.rows[0]["last_launched_at"] = (rescued + timedelta(seconds=1)).isoformat()
         _code, handoff = self._run("--yes")
         handoff.assert_called_once()
 
