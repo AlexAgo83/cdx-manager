@@ -133,12 +133,13 @@ class RunUpdatePlanTests(unittest.TestCase):
         from src.update_manager import _build_npm_step
 
         bin_dir = tempfile.mkdtemp()
-        npm = os.path.join(bin_dir, "npm")
+        # Windows finds it only with a PATHEXT extension, which is the point.
+        npm = os.path.join(bin_dir, "npm.cmd" if os.name == "nt" else "npm")
         with open(npm, "w") as handle:
             handle.write("#!/bin/sh\n")
         os.chmod(npm, 0o755)
         step = _build_npm_step("1.2.3", env={"PATH": bin_dir})
-        self.assertEqual(step["command"][0], npm)
+        self.assertEqual(os.path.normcase(step["command"][0]), os.path.normcase(npm))
 
 
 class HomelessVersionTests(unittest.TestCase):
