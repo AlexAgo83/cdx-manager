@@ -318,6 +318,7 @@ def _status_row_from_session(store, s):
         # recommendation path could not see either, which is why `cdx next`
         # ignored `--priority` entirely.
         "priority": _row_priority(s),
+        "policy": (s.get("launch") or {}).get("policy") or "use",
         "reasoning_effort": _row_reasoning_effort(s),
         "active": bool(runtime) if enabled else False,
         "cwd": runtime.get("cwd") if runtime else None,

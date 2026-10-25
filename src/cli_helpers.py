@@ -310,6 +310,7 @@ def _format_launch_config(session, use_color=False):
         ("budget", "Budget"),
         ("extra_args", "Extra args"),
         ("priority", "Priority"),
+        ("policy", "Policy"),
     ]:
         rows.append([
             _dim(label, use_color),

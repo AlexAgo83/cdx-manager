@@ -130,6 +130,7 @@ LAUNCH_REASONING_EFFORT_VALUES = REASONING_EFFORT_VALUES
 LAUNCH_PERMISSION_VALUES = PERMISSION_VALUES
 MAX_LAUNCH_MODEL_LENGTH = 128
 MIN_LAUNCH_PRIORITY = 0
+ACCOUNT_POLICIES = ("use", "ask-first", "never")
 MAX_LAUNCH_PRIORITY = 100
 DEFAULT_LAUNCH_SETTINGS = {
     "power": "medium",
@@ -235,6 +236,10 @@ def _normalize_launch_settings(settings, mark_fast_service_tier=True):
         if priority < MIN_LAUNCH_PRIORITY or priority > MAX_LAUNCH_PRIORITY:
             raise CdxError(f"Unsupported priority: {settings['priority']}")
         normalized["priority"] = priority
+    if "policy" in settings and settings["policy"] is not None:
+        if settings["policy"] not in ACCOUNT_POLICIES:
+            raise CdxError(f"Unsupported policy: {settings['policy']} (use|ask-first|never)")
+        normalized["policy"] = settings["policy"]
     return normalized
 
 
@@ -319,7 +324,7 @@ def unset_launch_settings(store, name, keys):
         raise CdxError("At least one launch setting is required.")
     allowed = {
         "power", "reasoning_effort", "reasoningEffort", "permission", "fast", "rtk", "logics", "notify", "notify_preview",
-        "scrub_env", "shared_memory", "model", "fallback_model", "budget", "extra_args", "priority",
+        "scrub_env", "shared_memory", "model", "fallback_model", "budget", "extra_args", "priority", "policy",
     }
     unknown = [key for key in keys if key not in allowed]
     if unknown:
