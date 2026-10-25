@@ -135,6 +135,22 @@ Limits: only conversations launched in the last 24 hours, on an account at 0%,
 and only to an account of the same provider. If nothing is ready,
 `cdx status` shows when each account resets.
 
+## Session retros
+
+A correction you make once should not have to be made again next session.
+
+1. Turn retros on for the accounts you work with: `cdx set work --retro on` (off by default:
+   each retro is one model call).
+2. When an interactive session with at least 3 prompts ends, cdx starts a detached
+   `cdx run --kind retro --permission read-only --power low` on a ready `use` account of the
+   same provider. It reads the session's transcript and writes nothing.
+3. Read the reports with `cdx retro` (or `cdx retro --limit 10`). Each lists the corrections you
+   made, then lessons tagged `memory:`, `runbook:`, `skill:` or `CLAUDE.md:` with the text to add.
+4. Apply the ones you agree with yourself, or ask the next session to. With
+   `--shared-memory on`, a lesson saved to memory reaches every account.
+
+Retro runs also appear in `cdx runs`; a retro never triggers a retro of its own.
+
 ## Banked Codex resets
 
 Eligible Codex accounts expose manually redeemable rate-limit resets through the Codex app-server. `cdx status` shows their available count in the `RESETS` column; `cdx status <name>` also shows the nearest known expiration, and JSON status includes the available reset details supplied by Codex.

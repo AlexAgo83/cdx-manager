@@ -74,6 +74,7 @@ from .cli_render import (
 from .commands.rescue import handle_rescue
 from .config import PROVIDER_OLLAMA
 from .errors import CdxError
+from .retro import handle_retro
 from .session_service import create_session_service
 from .status_view import (
     _format_blocking_quota,
@@ -177,6 +178,7 @@ _COMMAND_HANDLERS = {
     "resume": handle_resume,
     "can-resume": handle_can_resume,
     "rescue": handle_rescue,
+    "retro": handle_retro,
     "rmv": handle_remove,
     "run": handle_run,
     "run-report": handle_run_report,
@@ -238,7 +240,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx reset <name> [--yes] [--json]', '36', use_color)}",
         f"  {_style('cdx auth refresh <name|all> [--json]', '36', use_color)}",
         f"  {_style('cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json', '36', use_color)}",
-        f"  {_style('cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--detach] [--refresh] --json', '36', use_color)}",
+        f"  {_style('cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--detach] [--refresh] --json', '36', use_color)}",
         f"  {_style('cdx runs [--limit N] [--since 7d|today|DATE] --json', '36', use_color)}",
         f"  {_style('cdx run-status <run_id> --json', '36', use_color)}",
         f"  {_style('cdx run-report <run_id> --json', '36', use_color)}",
@@ -258,6 +260,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx resume <name> [--json]', '36', use_color)}",
         f"  {_style('cdx can-resume <name> [--json]', '36', use_color)}",
         f"  {_style('cdx rescue [<session>] [--to <target>] [--yes] [--dry-run] [--json]', '36', use_color)}",
+        f"  {_style('cdx retro [--limit N] [--json]', '36', use_color)}",
         f"  {_style('cdx handoff <name> [--json]', '36', use_color)}",
         f"  {_style('cdx handoff <source> <target> [--source-conversation ID | --source-native-transcript PATH | --source-transcript PATH] [--json]', '36', use_color)}",
         f"  {_style('cdx add [provider] <name> [--model MODEL] [--json]', '36', use_color)}",
