@@ -6,6 +6,7 @@ Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 import os
 import shlex
 
+from .. import shared_memory
 from ..agent_notify import notifications_enabled, provision, supports_agent_alerts
 from ..cli_args import CAN_RESUME_USAGE, HANDOFF_USAGE, RESUME_USAGE, _parse_json_flag
 from ..cli_helpers import (
@@ -19,7 +20,7 @@ from ..cli_helpers import (
     _write_update_notice,
 )
 from ..cli_render import _dim, _info, _success, _warn
-from ..config import PROVIDER_CODEX
+from ..config import PROVIDER_CLAUDE, PROVIDER_CODEX
 from ..errors import CdxError
 from ..handoff import HandoffSourceError, launch_prompt, load_entry, prepare_entry, resolve_source
 from ..interactive_usage import extract_interactive_usage, transcript_predates_run, usage_delta
@@ -202,6 +203,21 @@ def _notification_provisioning_enabled(session, ctx, json_flag):
     return True
 
 
+def _link_shared_memory(session, ctx, cwd, json_flag):
+    if session["provider"] != PROVIDER_CLAUDE or (session.get("launch") or {}).get("shared_memory") is not True:
+        return
+    try:
+        status, detail = shared_memory.link(_get_auth_home(session), ctx["service"]["base_dir"], cwd)
+    except OSError as error:
+        status, detail = "unsupported", str(error)
+    if json_flag or status == "linked":
+        return
+    if status == "conflict":
+        detail = f"merge these files by hand first: {', '.join(detail)}"
+    message = f"Shared memory not linked for {session['name']}"
+    ctx["out"](f"{_warn(message, ctx['use_color'])} {detail}\n")
+
+
 def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=None, directory=None):
     json_flag = "--json" in ctx.get("raw_args", ctx["options"].get("raw_args", []))
     if force_json is not None:
@@ -262,6 +278,7 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
             # a real turn — so it gets no instruction it does not need.
             notice += " — approve them once in Codex to enable"
         ctx["out"](f"{_info(notice, ctx['use_color'])}\n")
+    _link_shared_memory(session, ctx, cwd, json_flag)
     runtime_run_id = None
 
     def runtime_lifecycle(event, info):
