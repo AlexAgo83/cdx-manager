@@ -164,6 +164,10 @@ def candidate_rows(rows, provider=None, require_ready=False, min_reasoning_effor
     for row in rows:
         if row.get("enabled", True) is False:
             continue
+        if row.get("policy") in ("ask-first", "never"):
+            # Never picked on the user's behalf: `ask-first` is still offered
+            # where a person confirms (cdx rescue), `never` is not offered at all.
+            continue
         if provider is not None and row.get("provider") != provider:
             continue
         if _row_is_logged_out(row):

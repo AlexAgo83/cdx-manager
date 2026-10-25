@@ -33,8 +33,8 @@ CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set|append [text..
 MEMORY_USAGE = "Usage: cdx memory [--global|--project NAME_OR_PATH] [show|view|path|init|edit|clear|set|append|list] [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--source-conversation ID | --source-native-transcript PATH | --source-transcript PATH] [--json]"
 LABEL_USAGE = "Usage: cdx label <name> <label> [--json] | cdx label <name> --clear [--json]"
-SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--notify on|off] [--notify-preview on|off] [--scrub-env on|off] [--shared-memory on|off] [--model MODEL] [--fallback-model MODEL[,MODEL...]] [--budget USD] [--extra-args 'ARGS'] [--priority 0..100] [--json]"
-UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--reasoning-effort|--permission|--fast|--rtk|--logics|--notify|--notify-preview|--scrub-env|--shared-memory|--model|--fallback-model|--budget|--extra-args|--priority|--all) [--json]"
+SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--notify on|off] [--notify-preview on|off] [--scrub-env on|off] [--shared-memory on|off] [--policy use|ask-first|never] [--model MODEL] [--fallback-model MODEL[,MODEL...]] [--budget USD] [--extra-args 'ARGS'] [--priority 0..100] [--json]"
+UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--reasoning-effort|--permission|--fast|--rtk|--logics|--notify|--notify-preview|--scrub-env|--shared-memory|--policy|--model|--fallback-model|--budget|--extra-args|--priority|--all) [--json]"
 SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 CONFIGS_USAGE = "Usage: cdx configs [--json]"
@@ -259,6 +259,7 @@ def _parse_set_args(args):
         "--budget": {"key": "budget", "type": "str", "default": None, "transform": _parse_budget_value},
         "--extra-args": {"key": "extra_args", "type": "str", "default": None},
         "--priority": {"key": "priority", "type": "str", "default": None, "transform": _parse_priority_value},
+        "--policy": {"key": "policy", "type": "str", "default": None},
         "--sessions": {"key": "sessions", "type": "str", "default": None, "transform": _parse_set_unset_sessions},
         "--provider": {"key": "provider", "type": "str", "default": None, "transform": lambda value: _parse_provider_filter(value, SET_USAGE)},
         "--json": {"key": "json", "type": "bool", "default": False},
@@ -275,7 +276,7 @@ def _parse_set_args(args):
         raise CdxError(SET_USAGE)
     settings = {
         key: parsed[key]
-        for key in ("power", "permission", "fast", "rtk", "logics", "notify", "notify_preview", "scrub_env", "shared_memory", "model", "fallback_model", "budget", "extra_args", "priority")
+        for key in ("power", "permission", "fast", "rtk", "logics", "notify", "notify_preview", "scrub_env", "shared_memory", "model", "fallback_model", "budget", "extra_args", "priority", "policy")
         if parsed[key] is not None
     }
     if not settings:
@@ -306,6 +307,7 @@ def _parse_unset_args(args):
         "--budget": {"key": "budget", "type": "bool", "default": False},
         "--extra-args": {"key": "extra_args", "type": "bool", "default": False},
         "--priority": {"key": "priority", "type": "bool", "default": False},
+        "--policy": {"key": "policy", "type": "bool", "default": False},
         "--all": {"key": "all", "type": "bool", "default": False},
         "--sessions": {"key": "sessions", "type": "str", "default": None, "transform": _parse_set_unset_sessions},
         "--provider": {"key": "provider", "type": "str", "default": None, "transform": lambda value: _parse_provider_filter(value, UNSET_USAGE)},
@@ -323,7 +325,7 @@ def _parse_unset_args(args):
         raise CdxError(UNSET_USAGE)
     _UNSET_KEYS = (
         "power", "reasoning_effort", "permission", "fast", "rtk", "logics", "notify", "notify_preview", "scrub_env", "shared_memory",
-        "model", "fallback_model", "budget", "extra_args", "priority",
+        "model", "fallback_model", "budget", "extra_args", "priority", "policy",
     )
     keys = list(_UNSET_KEYS) if parsed["all"] else [key for key in _UNSET_KEYS if parsed[key]]
     if not keys:
