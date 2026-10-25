@@ -71,6 +71,7 @@ from .cli_render import (
     _visible_len,
     format_error,
 )
+from .commands.rescue import handle_rescue
 from .config import PROVIDER_OLLAMA
 from .errors import CdxError
 from .session_service import create_session_service
@@ -175,6 +176,7 @@ _COMMAND_HANDLERS = {
     "rename": handle_rename,
     "resume": handle_resume,
     "can-resume": handle_can_resume,
+    "rescue": handle_rescue,
     "rmv": handle_remove,
     "run": handle_run,
     "run-report": handle_run_report,
@@ -255,6 +257,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx last [--json]', '36', use_color)}",
         f"  {_style('cdx resume <name> [--json]', '36', use_color)}",
         f"  {_style('cdx can-resume <name> [--json]', '36', use_color)}",
+        f"  {_style('cdx rescue [<session>] [--to <target>] [--yes] [--dry-run] [--json]', '36', use_color)}",
         f"  {_style('cdx handoff <name> [--json]', '36', use_color)}",
         f"  {_style('cdx handoff <source> <target> [--source-conversation ID | --source-native-transcript PATH | --source-transcript PATH] [--json]', '36', use_color)}",
         f"  {_style('cdx add [provider] <name> [--model MODEL] [--json]', '36', use_color)}",

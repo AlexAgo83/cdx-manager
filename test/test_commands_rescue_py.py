@@ -1,0 +1,84 @@
+"""cdx rescue: hand a limit-stopped conversation to an account that can go on."""
+
+import tempfile
+import unittest
+from datetime import datetime, timezone
+from unittest import mock
+
+from src.commands import rescue
+from src.errors import CdxError
+
+NOW = datetime.now(timezone.utc).isoformat()
+
+
+def _row(name, available, policy="use"):
+    return {"session_name": name, "provider": "claude", "auth_status": "authenticated",
+            "available_pct": available, "policy": policy, "last_launched_at": NOW, "reset_at": "Oct 25 12:45"}
+
+
+class RescueTests(unittest.TestCase):
+    def setUp(self):
+        self.cwd = tempfile.mkdtemp()
+        self.rows = [_row("spent", 0), _row("fresh", 80), _row("shared", 95, "ask-first"), _row("theirs", 99, "never")]
+        sessions = [{"name": r["session_name"], "provider": "claude",
+                     "conversation": {"id": "conv-1"} if r["session_name"] == "spent" else {}} for r in self.rows]
+        self.service = {
+            "list_sessions": lambda: sessions,
+            "get_status_rows": lambda force_refresh=False: self.rows,
+            "get_launch_history": lambda name, limit=1: [{"cwd": self.cwd}],
+        }
+        self.out = []
+        self.answers = []
+
+    def _ctx(self, tty=True):
+        return {"service": self.service, "out": self.out.append, "use_color": False, "stdin_is_tty": tty,
+                "options": {"input": lambda _q: self.answers.pop(0)}}
+
+    def _run(self, *args, tty=True):
+        with mock.patch.object(rescue, "handle_handoff", return_value=0) as handoff:
+            code = rescue.handle_rescue(list(args), self._ctx(tty))
+        return code, handoff
+
+    def test_a_use_account_takes_over_after_confirmation(self):
+        self.answers = ["y"]
+        code, handoff = self._run()
+        self.assertEqual(code, 0)
+        args, ctx = handoff.call_args[0]
+        self.assertEqual(args, ["spent", "fresh", "--source-conversation", "conv-1"])
+        self.assertEqual(ctx["cwd"], self.cwd)
+
+    def test_ask_first_is_the_fallback_and_yes_does_not_cover_it(self):
+        self.rows[1]["available_pct"] = 0
+        self.rows[1]["last_launched_at"] = "2000-01-01T00:00:00+00:00"
+        with self.assertRaises(CdxError):
+            self._run("--yes", tty=False)
+        self.answers = ["y"]
+        _code, handoff = self._run("--yes")
+        self.assertEqual(handoff.call_args[0][0][1], "shared")
+
+    def test_never_is_never_offered(self):
+        for row in self.rows[1:3]:
+            row["available_pct"] = 0
+            row["last_launched_at"] = "2000-01-01T00:00:00+00:00"
+        with self.assertRaises(CdxError):
+            self._run("--yes")
+        with self.assertRaises(CdxError):
+            self._run("--to", "theirs", "--yes")
+
+    def test_dry_run_and_a_refusal_hand_nothing_over(self):
+        _code, handoff = self._run("--dry-run")
+        handoff.assert_not_called()
+        self.answers = ["n"]
+        with self.assertRaises(CdxError):
+            self._run()
+
+    def test_nothing_to_rescue_when_no_account_is_spent(self):
+        self.rows[0]["available_pct"] = 40
+        code, handoff = self._run("--yes")
+        self.assertEqual(code, 0)
+        handoff.assert_not_called()
+        self.assertIn("No conversation stopped", self.out[0])
+
+
+if __name__ == "__main__":
+    unittest.main()
