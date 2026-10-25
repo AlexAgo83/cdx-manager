@@ -45,7 +45,7 @@ RESUME_USAGE = "Usage: cdx resume <name> [--json]"
 CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--json]"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json"
 NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
-RUN_USAGE = "Usage: cdx run [session] (--cwd|--dir) PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--detach] [--failover] [--refresh] --json"
+RUN_USAGE = "Usage: cdx run [session] (--cwd|--dir) PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--label TEXT] [--max-parallel N] [--detach] [--failover] [--refresh] --json"
 RUN_JSON_REQUIRED = "cdx run: --json is required."
 RUN_TARGET_REQUIRED = "cdx run: specify a session name or --provider PROVIDER."
 RUN_SESSION_PROVIDER_CONFLICT = "cdx run: cannot specify both a session name and --provider."
@@ -617,6 +617,17 @@ def _parse_run_effort(reasoning_effort, power):
         ) from error
 
 
+def _parse_max_parallel(value):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = 0
+    if parsed < 1:
+        raise CdxArgumentError("cdx run: --max-parallel takes a whole number of at least 1.",
+                               code=ARG_CODE_INVALID_VALUE, arguments=["--max-parallel"])
+    return parsed
+
+
 def _parse_run_args(args):
     parsed = _parse_run_flag_args(args, {
         "--cwd": {"key": "cwd", "type": "str", "default": None},
@@ -633,6 +644,8 @@ def _parse_run_args(args):
         "--detach": {"key": "detach", "type": "bool", "default": False},
         "--failover": {"key": "failover", "type": "bool", "default": False},
         "--refresh": {"key": "refresh", "type": "bool", "default": False},
+        "--label": {"key": "label", "type": "str", "default": None},
+        "--max-parallel": {"key": "max_parallel", "type": "str", "default": None, "transform": _parse_max_parallel},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, RUN_USAGE, positionals_key="names", max_positionals=1)
     if not parsed["json"]:
@@ -687,6 +700,8 @@ def _parse_run_args(args):
         "timeout_seconds": parsed["timeout_seconds"],
         "detach": parsed["detach"],
         "failover": parsed["failover"],
+        "label": parsed["label"],
+        "max_parallel": parsed["max_parallel"],
         "refresh": parsed["refresh"],
         "reasoning_effort": effort.get("reasoning_effort"),
         "power": effort.get("power"),

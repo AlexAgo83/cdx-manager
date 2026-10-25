@@ -193,6 +193,7 @@ def _detached_child_argv(parsed, prompt_path, session_name, cwd):
         ("--model", "model"),
         ("--kind", "kind"),
         ("--permission", "permission"),
+        ("--label", "label"),
     ):
         value = parsed.get(key)
         if value:
@@ -509,6 +510,15 @@ def handle_run_report(rest, ctx):
     }))
     return 0
 
+def _env_max_runs(ctx):
+    """CDX_MAX_RUNS as the default --max-parallel; unset or invalid means no limit."""
+    value = {**os.environ, **(ctx.get("env") or {})}.get("CDX_MAX_RUNS")
+    try:
+        return max(1, int(value)) if value else None
+    except ValueError:
+        return None
+
+
 def handle_run(rest, ctx):
     registry = None
     run_id = None
@@ -607,6 +617,9 @@ def handle_run(rest, ctx):
                 "stdout_path": artifacts.get("stdout_path"),
                 "stderr_path": artifacts.get("stderr_path"),
             },
+            label=parsed.get("label"),
+            # A detached child runs in the slot its parent already took.
+            max_parallel=None if detached_run_id else (parsed.get("max_parallel") or _env_max_runs(ctx)),
         )
         if parsed.get("detach"):
             # Delegate where the installed CLI can both start a background
