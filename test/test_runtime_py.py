@@ -1283,7 +1283,7 @@ class RuntimePythonTests(unittest.TestCase):
 
         self.assertEqual(spec["command"], "script")
         self.assertEqual(spec["args"][:3], ["-q", "-f", "-c"])
-        self.assertIn("claude --name claude -- 'resume this'", spec["args"][3])
+        self.assertIn("claude -- 'resume this'", spec["args"][3])
         self.assertTrue(spec["args"][4].endswith(".log"))
 
     def test_claude_env_disables_claude_title_writes_only_when_cdx_owns_the_title(self):
@@ -1340,7 +1340,8 @@ class RuntimePythonTests(unittest.TestCase):
                 spec["options"]["env"]["CLAUDE_CODE_DISABLE_TERMINAL_TITLE"], "1")
             self.assertEqual(
                 spec["fallback"]["options"]["env"]["CLAUDE_CODE_DISABLE_TERMINAL_TITLE"], "1")
-        self.assertEqual(launch["fallback"]["args"][:2], ["--name", "work"])
+        self.assertNotIn("--name", launch["fallback"]["args"])
+        self.assertNotIn("--name", resume["fallback"]["args"])
         self.assertEqual(
             resume["fallback"]["args"][:2],
             ["--resume", "11111111-1111-4111-8111-111111111111"],
@@ -1367,7 +1368,8 @@ class RuntimePythonTests(unittest.TestCase):
                 login_status["env"],
             ):
                 self.assertNotIn("CLAUDE_CODE_DISABLE_TERMINAL_TITLE", env)
-            self.assertEqual(headless["args"][:4], ["--print", "--output-format", "json", "--name"])
+            self.assertEqual(headless["args"][:3], ["--print", "--output-format", "json"])
+            self.assertNotIn("--name", headless["args"])
             self.assertEqual(auth_login["args"], ["auth", "login"])
 
             for provider, home in (("codex", "/tmp/codex-home"), ("antigravity", "/tmp/agy-home"), ("ollama", "/tmp/olla-home")):
@@ -1408,7 +1410,8 @@ class RuntimePythonTests(unittest.TestCase):
         args = spec["fallback"]["args"]
 
         self.assertEqual(spec["fallback"]["command"], "claude")
-        self.assertEqual(args[:3], ["--continue", "--name", "work"])
+        self.assertEqual(args[:1], ["--continue"])
+        self.assertNotIn("--name", args)
         self.assertIn("--model", args)
         self.assertIn("sonnet", args)
         self.assertIn("--effort", args)

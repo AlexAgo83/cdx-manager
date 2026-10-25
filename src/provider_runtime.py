@@ -679,7 +679,9 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     preference_args = _launch_preference_args(session, env=env)
     if session["provider"] == PROVIDER_CLAUDE:
         launch = session.get("launch") or {}
-        args = ["--name", session["name"]]
+        # No --name: it would title every conversation after the account in
+        # the /resume picker. The account already shows in cdx's terminal title.
+        args = []
         conversation_id = _conversation_id(session)
         if conversation_id:
             args += ["--session-id", conversation_id]
@@ -869,7 +871,7 @@ def _build_resume_spec(session, cwd=None, env_override=None, capture_transcript=
             if capability["strategy"] == "provider_conversation_id"
             else ["--continue"]
         )
-        args += ["--name", session["name"]]
+        # No --name: on a resume it would overwrite the user's /rename.
         if launch.get("model"):
             args += ["--model", _claude_cli_model(launch["model"])]
         args += _launch_config_args(session)
@@ -937,7 +939,7 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
     model = launch.get("model")
 
     if session["provider"] == PROVIDER_CLAUDE:
-        args = ["--print", "--output-format", "json", "--name", session["name"]]
+        args = ["--print", "--output-format", "json"]
         conversation_id = _conversation_id(session)
         if conversation_id:
             args += ["--session-id", conversation_id]

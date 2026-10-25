@@ -223,12 +223,11 @@ class LifecycleCommandTests(CliTestBase):
         }), 0)
         self.assertIn("Launching claude session work1", launch_io["stdout"].getvalue())
 
-        launch_call = next(
+        launch_call = [
             call for call in harness.calls
             if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "claude")
-            and _script_launch_args(call)[:1] == ["--name"]
-        )
-        self.assertEqual(_script_launch_args(launch_call)[:2], ["--name", "work1"])
+        ][-1]
+        self.assertNotIn("--name", _script_launch_args(launch_call))
         self.assertEqual(
             launch_call["options"]["env"]["HOME"],
             os.path.join(temp_dir, "profiles", "work1", "claude-home"),
