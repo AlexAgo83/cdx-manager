@@ -7,7 +7,7 @@ coupling measurement supports. Moved verbatim; re-exported by session_service.
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from .claude_credentials import claude_auth_type, setup_token_days_left
 from .claude_usage import _decode_jwt_claims
@@ -76,6 +76,42 @@ def reset_iso(display, reference=None):
         return None
     best = min(candidates, key=lambda value: abs(value - now))
     return best.date().isoformat() if len(parts) == 2 else best.isoformat()
+
+
+_WINDOWS = {"5h": timedelta(hours=5), "week": timedelta(days=7)}
+
+
+def runs_out_at(remaining_pct, reset_at_iso, window, read_at_iso):
+    """When the account empties at the pace it used since its window opened, or None.
+
+    The window opened `window` before its reset; what was used since then, over
+    the time elapsed at the reading, is the pace. None when that pace does not
+    empty the account before the window resets, or when a figure is missing.
+    """
+    try:
+        reset = datetime.fromisoformat(str(reset_at_iso))
+        read = datetime.fromisoformat(str(read_at_iso))
+        remaining = float(remaining_pct)
+    except (TypeError, ValueError):
+        return None
+    if reset.tzinfo is None or read.tzinfo is None or len(str(reset_at_iso)) <= 10:
+        return None
+    elapsed = (read - (reset - window)).total_seconds()
+    used = 100.0 - remaining
+    if remaining <= 0 or used <= 0 or elapsed <= 0:
+        return None
+    out = read + timedelta(seconds=remaining * elapsed / used)
+    return out.isoformat() if out < reset else None
+
+
+def _runs_out(row):
+    """The earlier of the two windows' run-out times."""
+    times = [
+        runs_out_at(row.get(f"remaining_{name}_pct"), row.get(f"reset_{name}_at_iso"), window, row.get("updated_at"))
+        for name, window in _WINDOWS.items()
+    ]
+    times = [value for value in times if value]
+    return min(times, key=datetime.fromisoformat) if times else None
 
 
 def _row_priority(session):
@@ -308,7 +344,7 @@ def _status_row_from_session(store, s):
     row_status = status if enabled else None
     runtime = _session_runtime(store, s["name"])
     auth_type = claude_auth_type(s["authHome"]) if s["provider"] == PROVIDER_CLAUDE and s.get("authHome") else None
-    return {
+    row = {
         "session_name": s["name"],
         "label": s.get("label"),
         "provider": s["provider"],
@@ -343,6 +379,8 @@ def _status_row_from_session(store, s):
         "updated_at": _to_local_iso(s.get("lastStatusAt")),
         "last_launched_at": _to_local_iso(s.get("lastLaunchedAt")),
     }
+    row["runs_out_at_iso"] = _runs_out(row)
+    return row
 
 def format_list_rows(store):
     sessions = list_sessions(store)

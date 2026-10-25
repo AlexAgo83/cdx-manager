@@ -120,6 +120,8 @@ A conversation that hits a 5-hour or weekly limit can go on under another accoun
 1. Keep accounts you share or want to spare out of every automatic choice:
    `cdx set shared --policy ask-first` (offered only with a typed confirmation),
    `cdx set colleague --policy never` (never offered).
+   Before it happens, `cdx status <name>` shows `Runs out: ~HH:MM at this pace` when the
+   current pace empties the account before its reset: a good moment to move long work.
 2. When a session stops on its limit, check the plan first:
    `cdx rescue --dry-run` shows the stopped conversation, its folder, when the
    account comes back, and the account that would take over.

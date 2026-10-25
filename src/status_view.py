@@ -390,9 +390,19 @@ def _format_status_detail(row, use_color=False):
         f"{_style('Reset expiry:', '1', use_color)} {_style_reset_time(_nearest_reset_expiry(row), use_color)}",
         f"{_style('5h reset:', '1', use_color)} {_style_reset_time(row.get('reset_5h_at'), use_color)}",
         f"{_style('Week reset:', '1', use_color)} {_style_reset_time(row.get('reset_week_at'), use_color)}",
+        *([f"{_style('Runs out:', '1', use_color)} {_style(_format_runs_out(row['runs_out_at_iso']), '33', use_color)}"] if row.get("runs_out_at_iso") else []),
         f"{_style('Updated:', '1', use_color)} {_dim(_format_relative_age(row.get('updated_at')), use_color)}",
     ]
     return "\n".join(lines)
+
+
+def _format_runs_out(iso):
+    """`~16:20 at this pace` (or with the date when it is not today)."""
+    from datetime import datetime
+
+    when = datetime.fromisoformat(iso).astimezone()
+    stamp = when.strftime("%H:%M") if when.date() == datetime.now().astimezone().date() else when.strftime("%b %d %H:%M")
+    return f"~{stamp} at this pace"
 
 
 def _nearest_reset_expiry(row):
