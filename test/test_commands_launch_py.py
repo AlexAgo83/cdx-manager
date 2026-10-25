@@ -1021,7 +1021,7 @@ class LaunchCommandTests(CliTestBase):
             if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "claude")
         ][-1]
         launch_args = _script_launch_args(launch_call)
-        self.assertEqual(launch_args[:2], ["--name", "work1"])
+        self.assertNotIn("--name", launch_args)
         for flag, value in [
             ("--model", "sonnet"),
             ("--effort", "high"),
@@ -1100,7 +1100,7 @@ class LaunchCommandTests(CliTestBase):
         self.assertEqual(launch_call["kind"], "spawn")
         self.assertEqual(launch_call["command"], "script")
         self.assertTrue(_script_launch_invokes(launch_call, "claude"))
-        self.assertEqual(_script_launch_args(launch_call)[:2], ["--name", "claude2"])
+        self.assertNotIn("--name", _script_launch_args(launch_call))
         self.assertIn("claude-home", _script_launch_text(launch_call))
         self.assertIn("handoffs", _script_launch_text(launch_call))
 
