@@ -31,7 +31,7 @@ class InteractiveUsageTests(unittest.TestCase):
             # Codex's own `input_tokens` includes the cached tokens, so IN is
             # the 20-token remainder and CACHE holds the 90 it contained.
             self.assertEqual(usage, {"input_tokens": 20, "cached_input_tokens": 90,
-                                    "cache_creation_tokens": None, "cache_read_tokens": 90,
+                                    "cache_creation_tokens": None, "cache_creation_1h_tokens": None, "cache_read_tokens": 90,
                                     "output_tokens": 4, "reasoning_tokens": 2, "total_tokens": 114})
 
     def test_codex_cached_count_larger_than_input_is_left_alone(self):
@@ -62,7 +62,7 @@ class InteractiveUsageTests(unittest.TestCase):
             # tokens dropped entirely. Cache is most of real consumption, so
             # that was not a slightly-low total but a different quantity.
             self.assertEqual(usage, {"input_tokens": 13, "cached_input_tokens": 8,
-                                    "cache_creation_tokens": 3, "cache_read_tokens": 5,
+                                    "cache_creation_tokens": 3, "cache_creation_1h_tokens": None, "cache_read_tokens": 5,
                                     "output_tokens": 20, "reasoning_tokens": None, "total_tokens": 41})
 
     def test_ignores_a_synthetic_model_placeholder(self):
@@ -132,6 +132,7 @@ class UsageDefinitionAgreementTests(unittest.TestCase):
         "input_tokens": 12,
         "cached_input_tokens": 8,
         "cache_creation_tokens": 3,
+        "cache_creation_1h_tokens": None,
         "cache_read_tokens": 5,
         "output_tokens": 7,
         "reasoning_tokens": None,
@@ -163,6 +164,43 @@ class UsageDefinitionAgreementTests(unittest.TestCase):
         self.assertEqual(headless, self.EXPECTED)
         self.assertEqual(interactive, self.EXPECTED)
         self.assertEqual(background, self.EXPECTED)
+
+    def test_every_reader_reads_the_one_hour_cache_split(self):
+        from src import run_usage
+        from src.provider_background import read_transcript_outcome
+
+        usage = {**self.USAGE, "cache_creation": {"ephemeral_5m_input_tokens": 1, "ephemeral_1h_input_tokens": 2}}
+        expected = {**self.EXPECTED, "cache_creation_1h_tokens": 2}
+        with tempfile.TemporaryDirectory() as home:
+            stdout_path = os.path.join(home, "stdout.log")
+            with open(stdout_path, "w", encoding="utf-8") as handle:
+                json.dump({"result": "done", "usage": usage}, handle)
+            transcript = os.path.join(home, ".claude", "projects", "repo", "s.jsonl")
+            os.makedirs(os.path.dirname(transcript), exist_ok=True)
+            with open(transcript, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps({
+                    "type": "assistant",
+                    "uuid": "one",
+                    "message": {"content": [{"type": "text", "text": "done"}], "usage": usage},
+                }) + "\n")
+
+            headless = run_usage.extract_run_usage("claude", stdout_path)
+            interactive, _path, _match, _model = extract_interactive_usage("claude", home)
+            background = read_transcript_outcome(transcript)["usage"]
+
+        self.assertEqual(headless, expected)
+        self.assertEqual(interactive, expected)
+        self.assertEqual(background, expected)
+
+    def test_a_delta_against_a_record_without_the_split_leaves_it_unknown(self):
+        from src.interactive_usage import usage_delta
+        from src.run_usage import normalize_usage
+
+        before = normalize_usage(cache_creation_tokens=10, cache_read_tokens=1)
+        before.pop("cache_creation_1h_tokens")
+        now = normalize_usage(cache_creation_tokens=30, cache_read_tokens=1, cache_creation_1h_tokens=25)
+        self.assertIsNone(usage_delta(now, before)["cache_creation_1h_tokens"])
+        self.assertEqual(usage_delta(now, now)["cache_creation_1h_tokens"], 0)
 
     def test_every_reader_emits_the_full_field_set(self):
         # The background reader used to omit the cached fields entirely, so a

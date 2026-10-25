@@ -223,6 +223,7 @@ def read_transcript_outcome(path):
     if not path:
         return outcome
     totals = {"input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0, "output_tokens": 0}
+    long_ttl = None
     # This path had no de-duplication at all, so a transcript that records the
     # same billed response more than once inflated the total outright.
     counted = set()
@@ -268,10 +269,13 @@ def read_transcript_outcome(path):
                     totals["cache_creation_tokens"] += usage.get("cache_creation_input_tokens") or 0
                     totals["cache_read_tokens"] += usage.get("cache_read_input_tokens") or 0
                     totals["output_tokens"] += usage.get("output_tokens") or 0
+                    split = usage.get("cache_creation")
+                    if isinstance(split, dict) and "ephemeral_1h_input_tokens" in split:
+                        long_ttl = (long_ttl or 0) + (split["ephemeral_1h_input_tokens"] or 0)
     except OSError:
         return outcome
     if seen:
-        outcome["usage"] = normalize_usage(**totals)
+        outcome["usage"] = normalize_usage(**totals, cache_creation_1h_tokens=long_ttl)
         if len(models) == 1:
             outcome["usage_model"] = next(iter(models))
     return outcome

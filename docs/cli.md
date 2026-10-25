@@ -234,6 +234,7 @@ Every usage record, whichever path produced it, uses one set of definitions:
 | --- | --- |
 | `input_tokens` | Uncached input **only**. Codex reports a cache-inclusive count natively; cdx reduces it to the remainder so the field means the same thing on every provider. |
 | `cache_creation_tokens` | Tokens written to the provider's prompt cache. |
+| `cache_creation_1h_tokens` | The part of `cache_creation_tokens` written with Anthropic's one-hour TTL (`cache_creation.ephemeral_1h_input_tokens`), which costs 2x instead of 1.25x. A subset, never added to a total; `null` when the provider does not report the split. |
 | `cache_read_tokens` | Tokens served from it. Kept apart from cache creation because the two cost roughly 1.25x and 0.1x of uncached input, a difference no summed figure can recover. |
 | `cached_input_tokens` | `cache_creation_tokens + cache_read_tokens`, derived. The single CACHE column in `cdx stats` shows this. |
 | `output_tokens` | Generated tokens. |
@@ -242,7 +243,7 @@ Every usage record, whichever path produced it, uses one set of definitions:
 
 Cached input is counted once: it is excluded from `input_tokens` and reported in the cache fields, never in both. `null` means the provider did not report the figure, which is not the same as zero.
 
-`cdx stats` also shows a **`COST~`** column and ranks sessions by it. It weights each token class by what it costs relative to one uncached input token — cache read at the recorded model's ratio (0.1x by default), cache write 1.25x, and output at the recorded model's output/input ratio — and reports the result in uncached-input-equivalent tokens. These are ratios rather than prices. It is **not** a currency amount, and it is not comparable across providers whose own prices differ. The cache-write multiplier assumes the five-minute cache TTL; a one-hour TTL costs 2x and nothing in a transcript says which was used, so long-TTL writes are slightly under-weighted.
+`cdx stats` also shows a **`COST~`** column and ranks sessions by it. It weights each token class by what it costs relative to one uncached input token — cache read at the recorded model's ratio (0.1x by default), cache write 1.25x (2x for one-hour writes), and output at the recorded model's output/input ratio — and reports the result in uncached-input-equivalent tokens. These are ratios rather than prices. It is **not** a currency amount, and it is not comparable across providers whose own prices differ. Writes reported as one-hour are weighted 2x; a record without that split keeps the five-minute 1.25x rate.
 
 Ranking on the raw total would put a session that mostly replayed a cache above one that spent far more on generation, because cache reads are typically the overwhelming majority of tokens consumed while costing a fiftieth of an output token.
 

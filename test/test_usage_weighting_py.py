@@ -34,6 +34,16 @@ class WeightedUsageTests(unittest.TestCase):
                                 cache_read_tokens=100, output_tokens=100)
         self.assertEqual(weighted_usage(usage), 100 + 125 + 10 + 500)
 
+    def test_one_hour_cache_writes_weigh_2x_and_the_rest_keep_1_25x(self):
+        usage = normalize_usage(cache_creation_tokens=100, cache_creation_1h_tokens=60)
+        self.assertEqual(weighted_usage(usage), 40 * 125 // 100 + 60 * 2)
+        self.assertAlmostEqual(estimate_cost(usage, "claude-opus-5-5"), (40 * 1.25 + 60 * 2.0) * 4.0 / 1_000_000)
+
+    def test_a_long_ttl_count_above_the_writes_is_bounded_by_them(self):
+        usage = normalize_usage(cache_creation_tokens=10, cache_creation_1h_tokens=50)
+        self.assertEqual(usage["cache_creation_1h_tokens"], 10)
+        self.assertEqual(usage["total_tokens"], 10)
+
     def test_the_output_ratio_follows_the_model_that_served_the_run(self):
         # The one multiplier that differs by model is output. Weighing every
         # Codex run at 5x under-stated Terra output.

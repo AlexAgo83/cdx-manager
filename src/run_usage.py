@@ -14,6 +14,11 @@ The definitions below are therefore normative, not a suggestion:
                         natively; Codex does not, so its cache-inclusive count
                         is reduced here rather than left for a reader to guess.
   cache_creation_tokens Tokens written to the provider's prompt cache.
+  cache_creation_1h_tokens
+                        The part of cache_creation_tokens written with
+                        Anthropic's one-hour TTL, which costs 2x instead of
+                        1.25x. A subset, never added to a total; absent when
+                        the provider does not report the split.
   cache_read_tokens     Tokens served from it.
   cached_input_tokens   cache_creation + cache_read. Kept because it is a
                         published field of `cdx run --json`, and because the
@@ -31,8 +36,8 @@ The definitions below are therefore normative, not a suggestion:
                         quantity.
 
 Cache creation and cache read are separate fields because they cost very
-differently -- 1.25x and 0.1x of uncached input -- and a weighted figure cannot
-recover the split once they are summed.
+differently -- 1.25x (2x for a one-hour TTL) and 0.1x of uncached input -- and
+a weighted figure cannot recover the split once they are summed.
 
 Absence stays absent: `None` means "not reported", which is not zero. Only
 `normalize_usage` may derive `cached_input_tokens` and `total_tokens`, so no
@@ -49,6 +54,7 @@ USAGE_KEYS = (
     "input_tokens",
     "cached_input_tokens",
     "cache_creation_tokens",
+    "cache_creation_1h_tokens",
     "cache_read_tokens",
     "output_tokens",
     "reasoning_tokens",
@@ -64,7 +70,7 @@ def empty_usage():
 
 
 def normalize_usage(input_tokens=None, cache_creation_tokens=None, cache_read_tokens=None,
-                    output_tokens=None, reasoning_tokens=None):
+                    output_tokens=None, reasoning_tokens=None, cache_creation_1h_tokens=None):
     """Build a usage record from the four measured quantities.
 
     The derived fields are computed here and only here. A record whose parts are
@@ -80,6 +86,11 @@ def normalize_usage(input_tokens=None, cache_creation_tokens=None, cache_read_to
     }
     if all(value is None for value in parts.values()):
         return empty_usage()
+    long_ttl = _non_negative(cache_creation_1h_tokens)
+    if long_ttl is not None:
+        # A subset of the writes; more than the writes is not a subset.
+        long_ttl = min(long_ttl, parts["cache_creation_tokens"] or 0)
+    parts["cache_creation_1h_tokens"] = long_ttl
     cached = _sum_present(parts["cache_creation_tokens"], parts["cache_read_tokens"])
     total = _sum_present(
         parts["input_tokens"],
@@ -94,12 +105,13 @@ def normalize_usage(input_tokens=None, cache_creation_tokens=None, cache_read_to
 #:
 #: Defaults for rows without an explicit cache-read price. Newer models can
 #: discount reads further; both stats and currency use the table's rate.
-#: Anthropic's one-hour cache TTL costs 2x instead; nothing in a transcript
-#: says which TTL was used, so long-TTL writes are under-weighted. Cache writes
-#: are a small share of a cache-heavy session, so that error is bounded --
-#: stated here rather than hidden behind a single averaged number.
+#: Anthropic's one-hour cache TTL costs 2x instead. Claude transcripts report
+#: that split as `cache_creation.ephemeral_1h_input_tokens`; Claude Code writes
+#: most of its cache that way, so pricing every write at 1.25x understated
+#: them by up to 1.6x. A record without the split keeps the 1.25x rate.
 CACHE_READ_MULTIPLIER = 0.1
 CACHE_WRITE_MULTIPLIER = 1.25
+CACHE_WRITE_1H_MULTIPLIER = 2.0
 
 #: What an output token costs relative to an uncached input one, when the model
 #: is unknown. Current model ratios vary, so an unknown model is priced at the
@@ -144,7 +156,8 @@ def weighted_usage(usage, model=None, prices=None):
     That is not the ranking anyone reading `cdx stats` is looking for.
 
     Output and cache-read ratios come from the model that served the run.
-    Cache writes retain the five-minute TTL assumption.
+    Cache writes use the one-hour rate for the part the provider reported as
+    one-hour, the five-minute rate for the rest.
 
     `reasoning_tokens` is deliberately excluded: Codex reports it as a subset
     of its output, and counting it would bill those tokens twice.
@@ -154,12 +167,13 @@ def weighted_usage(usage, model=None, prices=None):
     weights = {
         "input_tokens": 1.0,
         "cache_creation_tokens": CACHE_WRITE_MULTIPLIER,
+        "cache_creation_1h_tokens": CACHE_WRITE_1H_MULTIPLIER - CACHE_WRITE_MULTIPLIER,
         "cache_read_tokens": cache_read_multiplier(model, prices),
         "output_tokens": output_multiplier(model, prices),
     }
     present = []
     for key, weight in weights.items():
-        value = usage.get(key)
+        value = _long_ttl_writes(usage) if key == "cache_creation_1h_tokens" else usage.get(key)
         if value is not None:
             if weight is None and value:
                 return None
@@ -297,7 +311,18 @@ def estimate_cost(usage, model, prices=None):
     ]
     if not present:
         return None
+    long_ttl = _long_ttl_writes(usage) or 0
+    present.append(rate["input"] * (CACHE_WRITE_1H_MULTIPLIER - CACHE_WRITE_MULTIPLIER) * long_ttl)
     return sum(present) / 1_000_000
+
+
+def _long_ttl_writes(usage):
+    """One-hour cache writes, bounded by the writes they are a part of."""
+    long_ttl = usage.get("cache_creation_1h_tokens")
+    if not isinstance(long_ttl, (int, float)) or isinstance(long_ttl, bool) or long_ttl <= 0:
+        return None
+    writes = usage.get("cache_creation_tokens")
+    return min(long_ttl, writes) if isinstance(writes, (int, float)) and not isinstance(writes, bool) else None
 
 
 def claude_usage_dedup_key(record):
@@ -362,6 +387,7 @@ def coerce_usage(usage):
         cache_read_tokens=usage.get("cache_read_tokens"),
         output_tokens=usage.get("output_tokens"),
         reasoning_tokens=usage.get("reasoning_tokens"),
+        cache_creation_1h_tokens=usage.get("cache_creation_1h_tokens"),
     )
     if record["cached_input_tokens"] is None:
         # A legacy record carrying only the fused figure: keep it visible rather
@@ -493,6 +519,7 @@ def _usage_from_dict(value):
     return normalize_usage(
         input_tokens=input_tokens,
         cache_creation_tokens=cache_creation,
+        cache_creation_1h_tokens=_nested_int(usage, "cache_creation", "ephemeral_1h_input_tokens"),
         cache_read_tokens=cache_read,
         output_tokens=_int_value(usage.get("output_tokens"), usage.get("completion_tokens")),
         reasoning_tokens=_int_value(

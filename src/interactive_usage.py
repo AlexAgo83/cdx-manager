@@ -277,12 +277,14 @@ def _claude_usage(handle):
     """Sum Claude's per-message usage across the transcript.
 
     Cache creation and cache read are kept apart rather than summed on the way
-    in: they cost 1.25x and 0.1x of uncached input, so fusing them here would
-    destroy the only information a cost-aware figure needs. Claude reports no
+    in: they cost 1.25x (2x for one-hour writes) and 0.1x of uncached input, so
+    fusing them here would destroy the only information a cost-aware figure
+    needs. Claude reports no
     separate reasoning count -- thinking is billed as output and is already
     inside `output_tokens` -- so that field stays absent by design.
     """
     totals = {"input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0, "output_tokens": 0}
+    long_ttl = None
     seen = set()
     model = None
     for line in handle:
@@ -301,13 +303,16 @@ def _claude_usage(handle):
             totals["cache_creation_tokens"] += _number(usage.get("cache_creation_input_tokens"))
             totals["cache_read_tokens"] += _number(usage.get("cache_read_input_tokens"))
             totals["output_tokens"] += _number(usage.get("output_tokens"))
+            split = usage.get("cache_creation")
+            if isinstance(split, dict) and "ephemeral_1h_input_tokens" in split:
+                long_ttl = (long_ttl or 0) + _number(split["ephemeral_1h_input_tokens"])
             if isinstance(message.get("model"), str) and not message["model"].startswith("<"):
                 model = message["model"]
         except (TypeError, ValueError):
             continue
     if not seen and not any(totals.values()):
         return None, model
-    return normalize_usage(**totals), model
+    return normalize_usage(**totals, cache_creation_1h_tokens=long_ttl), model
 
 
 def _number(value):
@@ -322,6 +327,7 @@ def _number(value):
 MEASURED_KEYS = (
     "input_tokens",
     "cache_creation_tokens",
+    "cache_creation_1h_tokens",
     "cache_read_tokens",
     "output_tokens",
     "reasoning_tokens",
@@ -351,6 +357,11 @@ def usage_delta(cumulative, previous):
         now = cumulative.get(key)
         before = previous.get(key)
         if now is None:
+            parts[key] = None
+            continue
+        if before is None and key == "cache_creation_1h_tokens" and previous.get("cache_creation_tokens"):
+            # The previous figure predates the split: its writes are unknown,
+            # not zero, so this run's share cannot be told apart.
             parts[key] = None
             continue
         difference = now - (before or 0)
