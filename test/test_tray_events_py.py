@@ -364,7 +364,14 @@ class SpoolRaceTests(unittest.TestCase):
             published, stop = [], threading.Event()
 
             def acker():
-                while not stop.is_set():
+                # A short pause between acknowledgements, as a tray polling the
+                # spool has. Without it three threads re-took the lock within
+                # microseconds of releasing it, and a publisher retrying every
+                # 50 ms could miss every window for its whole 2 s timeout
+                # (seen on Windows CI: 149 of 150 published). That starvation
+                # is an artefact of the busy loop; the race this test is about
+                # still happens on almost every publish.
+                while not stop.wait(0.005):
                     acknowledge(base, ["nothing-to-ack"])
 
             threads = [threading.Thread(target=acker) for _ in range(3)]
