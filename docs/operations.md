@@ -113,6 +113,26 @@ All `cdx clean` actions require interactive confirmation before any deletion or 
 
 The cleanup action is selected only when `--tmp` or `--old-logs` is present. This keeps `cdx clean profiles` available for an existing session named `profiles`. If any candidate or old log cannot be removed, cleanup stops with a non-zero error that identifies the affected path; it does not report the operation as successful.
 
+## When an account runs out
+
+A conversation that hits a 5-hour or weekly limit can go on under another account.
+
+1. Keep accounts you share or want to spare out of every automatic choice:
+   `cdx set shared --policy ask-first` (offered only with a typed confirmation),
+   `cdx set colleague --policy never` (never offered).
+2. When a session stops on its limit, check the plan first:
+   `cdx rescue --dry-run` shows the stopped conversation, its folder, when the
+   account comes back, and the account that would take over.
+3. Run `cdx rescue` and confirm. It runs `cdx handoff <source> <target>
+   --source-conversation <id>` in the folder the conversation last ran in; the new
+   session starts with a recovery prompt over the exact transcript.
+4. Several stopped sessions: `cdx rescue <session>` picks one; `--to <account>`
+   forces the target.
+
+Limits: only conversations launched in the last 24 hours, on an account at 0%,
+and only to an account of the same provider. If nothing is ready,
+`cdx status` shows when each account resets.
+
 ## Banked Codex resets
 
 Eligible Codex accounts expose manually redeemable rate-limit resets through the Codex app-server. `cdx status` shows their available count in the `RESETS` column; `cdx status <name>` also shows the nearest known expiration, and JSON status includes the available reset details supplied by Codex.
