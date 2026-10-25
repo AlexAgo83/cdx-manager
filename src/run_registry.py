@@ -223,11 +223,24 @@ class RunRegistry:
     def __init__(self, base_dir):
         self.path = registry_path(base_dir)
 
-    def start(self, run_id, *, kind, session, provider, model, cwd, artifacts=None):
+    def start(self, run_id, *, kind, session, provider, model, cwd, artifacts=None, label=None, max_parallel=None):
         with _registry_lock(self.path):
             data = _read_registry(self.path)
             data["runs"] = [run for run in data["runs"] if run.get("run_id") != run_id]
+            if max_parallel:
+                # Counted under the lock and without this run's own record, which a
+                # detached child writes a second time under the same id.
+                _refresh_stale_runs(data)
+                running = sum(1 for run in data["runs"] if run.get("status") == "running")
+                if running >= max_parallel:
+                    raise CdxError(
+                        f"{running} run(s) already running, the limit is {max_parallel}. "
+                        "Wait for one to finish (cdx runs --json) or raise --max-parallel.",
+                        code="too_many_runs",
+                    )
             record = _base_record(run_id, kind=kind, session=session, provider=provider, model=model, cwd=cwd, artifacts=artifacts)
+            if label:
+                record["label"] = label
             data["runs"].insert(0, record)
             _prune_finished_runs(data)
             _write_registry(self.path, data)

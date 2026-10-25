@@ -135,6 +135,21 @@ Limits: only conversations launched in the last 24 hours, on an account at 0%,
 and only to an account of the same provider. If nothing is ready,
 `cdx status` shows when each account resets.
 
+## Delegating work in the background
+
+Hand a task to a background run and keep working, without starting more runs than your accounts can carry.
+
+1. Set a cap once, in your shell profile: `export CDX_MAX_RUNS=2`. Every `cdx run` then refuses to
+   start a third concurrent run (`too_many_runs`) instead of piling work onto spent accounts.
+2. Start the run with a label you will recognise later:
+   ```bash
+   cdx run --provider claude --cwd ~/Documents/cts --label "fix build cts" \
+     --prompt-file task.md --detach --json
+   ```
+3. Follow it: `cdx runs --json` lists runs with their label and status; `cdx run-status <run_id> --json`
+   and `cdx run-tail <run_id> --json` show one of them.
+4. A run refused by the cap: wait for one to finish, or pass `--max-parallel N` for that run.
+
 ## Session retros
 
 A correction you make once should not have to be made again next session.
