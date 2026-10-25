@@ -94,8 +94,10 @@ class _TimeoutChild(_HeadlessChild):
 
 
 class _AuthHarness:
-    def __init__(self, initial_auth=None, claude_login_authenticates=True, claude_setup_token_text=None):
+    def __init__(self, initial_auth=None, claude_login_authenticates=True, claude_setup_token_text=None,
+                 claude_setup_token_returncode=0):
         self.calls = []
+        self.claude_setup_token_returncode = claude_setup_token_returncode
         self.auth_by_home = dict(initial_auth or {})
         self.claude_login_authenticates = claude_login_authenticates
         self.claude_setup_token_text = claude_setup_token_text
@@ -189,6 +191,10 @@ class _AuthHarness:
                         self.claude_setup_token_text
                         or "Use this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-test\n"
                     )
+                self.setup_token_transcript_mode = os.stat(transcript_path).st_mode & 0o777
+                child = _Child()
+                child.returncode = self.claude_setup_token_returncode
+                return child
         if command == "agy":
             self.auth_by_home[home] = True
         if command == "ollama":

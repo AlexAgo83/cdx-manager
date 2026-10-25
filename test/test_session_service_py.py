@@ -12,7 +12,7 @@ from unittest import mock
 
 from src.backup_bundle import encode_bundle, read_bundle_meta
 from src.errors import CdxError
-from src.session_service import create_session_service
+from src.session_service import _ensure_claude_attribution_disabled, create_session_service
 from src.session_store import create_session_store
 
 HAS_CRYPTOGRAPHY = importlib.util.find_spec("cryptography") is not None
@@ -93,10 +93,9 @@ class SessionServicePythonTests(unittest.TestCase):
         with open(os.path.join(settings_dir, "settings.json"), "w", encoding="utf-8") as handle:
             json.dump({"theme": "dark", "includeCoAuthoredBy": True}, handle)
 
-        service = create_session_service({"base_dir": temp_dir})
-        session = service["create_session"]("work1", "claude")
+        _ensure_claude_attribution_disabled(os.path.dirname(settings_dir))
 
-        with open(os.path.join(session["authHome"], ".claude", "settings.json"), encoding="utf-8") as handle:
+        with open(os.path.join(settings_dir, "settings.json"), encoding="utf-8") as handle:
             settings = json.load(handle)
         self.assertEqual(settings["theme"], "dark")
         self.assertIs(settings["includeCoAuthoredBy"], False)
@@ -108,7 +107,7 @@ class SessionServicePythonTests(unittest.TestCase):
         path = os.path.join(settings_dir, "settings.json")
         with open(path, "w", encoding="utf-8") as handle:
             handle.write('{"theme": "dark",')  # mid-edit by the user
-        create_session_service({"base_dir": temp_dir})["create_session"]("work1", "claude")
+        _ensure_claude_attribution_disabled(os.path.dirname(settings_dir))
         with open(path, encoding="utf-8") as handle:
             self.assertEqual(handle.read(), '{"theme": "dark",')
 
@@ -1410,6 +1409,7 @@ class SessionServicePythonTests(unittest.TestCase):
         with open(side_auth_path, encoding="utf-8") as handle:
             self.assertEqual(handle.read(), '{"token":"local-side"}')
 
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
     def test_force_import_prevalidates_profile_files_before_touching_existing_session(self):
         target_dir = self.make_temp_dir()
         target = create_session_service({"base_dir": target_dir})
@@ -1426,15 +1426,16 @@ class SessionServicePythonTests(unittest.TestCase):
             "profiles": {"main": [{"path": "auth.json", "data_b64": "not valid base64!"}]},
         }
         with open(bundle_path, "wb") as handle:
-            handle.write(encode_bundle(payload, include_auth=False))
+            handle.write(encode_bundle(payload, include_auth=True, passphrase="fake"))
 
         with self.assertRaisesRegex(CdxError, "invalid file data"):
-            target["import_bundle"](bundle_path, force=True, allow_authless_force=True)
+            target["import_bundle"](bundle_path, force=True, passphrase="fake")
 
         with open(auth_path, encoding="utf-8") as handle:
             self.assertEqual(handle.read(), '{"token":"local"}')
         self.assertEqual(target["get_session"]("main")["name"], "main")
 
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
     def test_force_import_rejects_malformed_profile_entries_before_touching_existing_session(self):
         target_dir = self.make_temp_dir()
         target = create_session_service({"base_dir": target_dir})
@@ -1451,10 +1452,10 @@ class SessionServicePythonTests(unittest.TestCase):
             "profiles": {"main": [None]},
         }
         with open(bundle_path, "wb") as handle:
-            handle.write(encode_bundle(payload, include_auth=False))
+            handle.write(encode_bundle(payload, include_auth=True, passphrase="fake"))
 
         with self.assertRaisesRegex(CdxError, "invalid profile entry"):
-            target["import_bundle"](bundle_path, force=True, allow_authless_force=True)
+            target["import_bundle"](bundle_path, force=True, passphrase="fake")
 
         with open(auth_path, encoding="utf-8") as handle:
             self.assertEqual(handle.read(), '{"token":"local"}')
@@ -1773,44 +1774,46 @@ class SessionServicePythonTests(unittest.TestCase):
                 name: [{"path": rel_path, "data_b64": _b64.b64encode(content_str.encode()).decode()}]
             },
         }
-        return encode_bundle(payload)
+        return encode_bundle(payload, include_auth=True, passphrase="fake")
 
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
     def test_import_merge_skips_existing_profile_files(self):
         temp_dir = self.make_temp_dir()
         target = create_session_service({"base_dir": temp_dir})
         target["create_session"]("claude1", "claude")
 
-        local_token_path = os.path.join(temp_dir, "profiles", "claude1", "auth.json")
+        local_token_path = os.path.join(temp_dir, "profiles", "claude1", "claude-home", "auth.json")
         os.makedirs(os.path.dirname(local_token_path), exist_ok=True)
         with open(local_token_path, "w", encoding="utf-8") as handle:
             handle.write('{"token":"local-token"}')
 
-        bundle_bytes = self._make_bundle_with_profile("claude1", "claude", "auth.json", '{"token":"bundle-token"}')
+        bundle_bytes = self._make_bundle_with_profile("claude1", "claude", "claude-home/auth.json", '{"token":"bundle-token"}')
         bundle_path = os.path.join(temp_dir, "bundle.cdx")
         with open(bundle_path, "wb") as handle:
             handle.write(bundle_bytes)
 
-        target["import_bundle"](bundle_path, merge=True)
+        target["import_bundle"](bundle_path, merge=True, passphrase="fake")
 
         with open(local_token_path, encoding="utf-8") as handle:
             content = handle.read()
         # Existing local file must not be overwritten.
         self.assertEqual(content, '{"token":"local-token"}')
 
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, CRYPTOGRAPHY_REQUIRED)
     def test_import_merge_imports_missing_profile_files(self):
         temp_dir = self.make_temp_dir()
         target = create_session_service({"base_dir": temp_dir})
         target["create_session"]("claude1", "claude")
         # No local auth file — bundle should fill the gap.
 
-        bundle_bytes = self._make_bundle_with_profile("claude1", "claude", "auth.json", '{"token":"bundle-token"}')
+        bundle_bytes = self._make_bundle_with_profile("claude1", "claude", "claude-home/auth.json", '{"token":"bundle-token"}')
         bundle_path = os.path.join(temp_dir, "bundle.cdx")
         with open(bundle_path, "wb") as handle:
             handle.write(bundle_bytes)
 
-        target["import_bundle"](bundle_path, merge=True)
+        target["import_bundle"](bundle_path, merge=True, passphrase="fake")
 
-        local_token_path = os.path.join(temp_dir, "profiles", "claude1", "auth.json")
+        local_token_path = os.path.join(temp_dir, "profiles", "claude1", "claude-home", "auth.json")
         self.assertTrue(os.path.exists(local_token_path))
         with open(local_token_path, encoding="utf-8") as handle:
             self.assertEqual(handle.read(), '{"token":"bundle-token"}')

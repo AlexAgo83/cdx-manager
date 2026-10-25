@@ -359,6 +359,26 @@ class AuthCommandTests(CliTestBase):
         # The transcript may hold the cleartext token; it must never be kept.
         self.assertFalse(os.path.exists(_script_transcript_path(script_call)))
 
+    def test_login_claude_removes_setup_token_transcript_when_the_run_fails(self):
+        temp_dir = self.make_temp_dir()
+        harness = _AuthHarness(claude_login_authenticates=False, claude_setup_token_returncode=1)
+
+        with self.assertRaisesRegex(CdxError, "exited with code 1"):
+            main(["add", "claude", "work1"], {
+                **self.make_io(),
+                "env": {"CDX_HOME": temp_dir},
+                "spawn": harness.spawn,
+                "spawn_sync": harness.spawn_sync,
+            })
+
+        script_call = next(
+            call for call in harness.calls
+            if call["kind"] == "spawn" and call["command"] == "script" and _script_launch_invokes(call, "claude")
+        )
+        self.assertFalse(os.path.exists(_script_transcript_path(script_call)))
+        if os.name != "nt":
+            self.assertEqual(harness.setup_token_transcript_mode, 0o600)
+
     def test_claude_setup_token_extraction_strips_ansi_sequences(self):
         token = _extract_claude_oauth_token(
             "export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-test\x1b[39m\n"

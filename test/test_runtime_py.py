@@ -1317,6 +1317,21 @@ class RuntimePythonTests(unittest.TestCase):
                 self.assertFalse(set(provider_runtime.CLAUDE_PARENT_SESSION_ENV) & set(env))
                 self.assertEqual(env["CLAUDE_CODE_DISABLE_AUTOUPDATER"], "1")
 
+    def test_claude_specs_never_inherit_another_accounts_token(self):
+        home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, home, True)
+        session = {"name": "b", "provider": "claude", "authHome": home}
+        parent = {"CLAUDE_CODE_OAUTH_TOKEN": "parent-token", "ANTHROPIC_API_KEY": "parent-key"}
+        with mock.patch.dict(os.environ, parent):
+            envs = (
+                provider_runtime._build_launch_spec(session, cwd="/tmp/repo")["options"]["env"],
+                provider_runtime._build_login_status_spec(session)["env"],
+                provider_runtime._build_auth_action_spec(session, "login", cwd="/tmp/repo")["options"]["env"],
+            )
+        for env in envs:
+            self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", env)
+            self.assertNotIn("ANTHROPIC_API_KEY", env)
+
     def test_every_claude_spec_shares_the_operator_rtk_history(self):
         identifier = "11111111-1111-4111-8111-111111111111"
         home = tempfile.mkdtemp()

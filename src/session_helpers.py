@@ -8,6 +8,7 @@ them there keep working.
 """
 
 import os
+import re
 import sys
 from datetime import datetime
 from urllib.parse import quote
@@ -150,6 +151,9 @@ def _validate_new_session_name(name):
         raise CdxError(f"Session name is too long (max {MAX_SESSION_NAME_LENGTH} characters)")
     if any(ord(ch) < 32 or ord(ch) == 127 for ch in str(name)):
         raise CdxError("Session name cannot contain control characters")
+    # Tray launchers and shell hints pass the name to a shell: keep it inert.
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", str(name)):
+        raise CdxError("Session name may only contain letters, digits, '.', '_' and '-', and must start with a letter or digit")
     if name in RESERVED_SESSION_NAMES:
         raise CdxError(f"Session name is reserved: {name}")
 

@@ -132,14 +132,14 @@ pub fn run(transport: Transport) -> Result<(), String> {
                     redraw = true;
                 }
                 Some(ActionId::Session(name)) => {
-                    open_terminal_in(&format!("cdx {name}"), state.terminal.as_deref())
+                    open_terminal_in(&format!("cdx {}", crate::menu::sh_quote(&name)), state.terminal.as_deref())
                 }
                 Some(ActionId::FocusTerminal { kind, id }) => focus_terminal(kind, id),
                 // A view, not an edit: `cdx config` prints the settings that
                 // will apply to the next launch, and the tray never claims to
                 // change an assistant already running.
                 Some(ActionId::SessionConfig(name)) => {
-                    open_terminal_in(&format!("cdx config {name}"), state.terminal.as_deref())
+                    open_terminal_in(&format!("cdx config {}", crate::menu::sh_quote(&name)), state.terminal.as_deref())
                 }
                 // Handed back exactly as it arrived. The companion knows no
                 // card action and can compose none, so CDX decides what, if

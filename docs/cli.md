@@ -11,7 +11,7 @@
 | `cdx <name> --prompt TEXT` / `cdx <name> --prompt-file PATH` | Launch a session that starts on this first message (not with `--resume` or Ollama sessions; `--prompt-file -` is refused because the session needs standard input; a relative `--prompt-file` path is read from the current directory, not `--dir`) |
 | `cdx <name> --dir PATH --task TEXT [--end-state TEXT]` | Start a session on a task. `--end-state` names what your go-ahead covers ("CI green on a PR, merged"): the session takes every step it needs, commits, pushes and PRs included, and stops only for a decision outside it. Without `--end-state` it stops and shows the result before any commit, push or PR. Replaces `--prompt`; the first message also tells it to read the repository's instructions and use its skills. |
 | `cdx <name> -r` / `cdx <name> --resume` | Resume the provider-native conversation for a session when supported |
-| `cdx add [provider] <name> [--model MODEL] [--json]` | Register a new session (`provider`: `codex`, `claude`, `antigravity`, or `ollama`; Ollama requires `--model`) |
+| `cdx add [provider] <name> [--model MODEL] [--json]` | Register a new session (`provider`: `codex`, `claude`, `antigravity`, or `ollama`; Ollama requires `--model`). New session names (also for `cp`, `rename` and `import`) must match `[A-Za-z0-9][A-Za-z0-9._-]*`; existing sessions keep their names |
 | `cdx cp <source> <dest> [--json]` | Copy a session into another session name, overwriting the destination if it exists |
 | `cdx ren <source> <dest> [--json]` | Rename a session and move its auth data |
 | `cdx label <name> <label> [--json]` | Attach one short label to a session; tables show `LABEL` only when at least one label exists |

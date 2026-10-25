@@ -150,6 +150,10 @@ CLAUDE_PARENT_SESSION_ENV = (
     "CLAUDE_CODE_MESSAGING_SOCKET",
     "CLAUDE_CODE_MESSAGING_TOKEN",
     "CLAUDE_PID",
+    # Credentials: a profile launched from inside another profile's session must
+    # not inherit that account's token. The profile's own token is set after.
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "ANTHROPIC_API_KEY",
 )
 CLAUDE_CLI_MODEL_ALIASES = {
     "claude-sonnet": "sonnet",
@@ -570,6 +574,9 @@ def _wrap_launch_with_transcript(session, spec, capture_transcript=True, env=Non
     script_args = env.get("CDX_SCRIPT_ARGS")
     transcript_path = _build_launch_transcript_path(session)
     os.makedirs(os.path.dirname(transcript_path), exist_ok=True)
+    if os.name != "nt":
+        # script(1) keeps an existing file's mode, and a transcript can hold a token.
+        os.close(os.open(transcript_path, os.O_CREAT | os.O_WRONLY, 0o600))
     if script_args:
         args = shlex.split(script_args)
         if "{transcript}" in args:

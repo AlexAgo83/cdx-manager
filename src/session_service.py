@@ -631,6 +631,10 @@ def create_session(base_dir, env, store, name, provider=DEFAULT_PROVIDER):
     _validate_new_session_name(name)
     normalized_provider = _normalize_provider(provider)
     session_root = _get_session_root(base_dir, name)
+    if store["get_session"](name):
+        raise CdxError(f"Session already exists: {name}")
+    if os.path.lexists(session_root):
+        raise CdxError(f"Session profile already exists: {name}")
     auth_home = _get_session_auth_home(base_dir, name, normalized_provider)
     _ensure_private_dir(base_dir)
     _ensure_private_dir(os.path.join(base_dir, "profiles"))

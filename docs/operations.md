@@ -25,6 +25,9 @@ Notes:
 - Without `--passphrase-env`, `cdx` prompts in an interactive terminal. Non-interactive callers can pass `--passphrase-stdin` to read the passphrase from stdin (one line) instead of exposing it in the child environment.
 - `--sessions work,perso` exports or imports only a subset.
 - `--force` allows overwriting existing destination sessions during import or replacing an existing bundle file during export. Import preserves detected local `plugins/` state when the bundle does not provide it, and refuses to overwrite existing sessions from a bundle without auth payloads unless `--allow-authless-force` is also passed.
+- Import only writes the provider credential files listed above, and only from an encrypted `--include-auth` bundle; any other file in a bundle makes the import fail before anything changes.
+- Import refuses a new session whose `profiles/<name>` folder already exists without a registered session; remove or rename the folder first (`cdx repair` lists orphan profiles).
+- `--force` on a Claude session always replaces its login: the profile's keychain entry is removed even when the bundle carries no credential, and restored if the import fails.
 - Auth bundles contain credentials. Treat them like secrets and delete them after transfer.
 
 ## Release checklist

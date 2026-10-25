@@ -74,33 +74,34 @@ class ProfileDataSafetyTests(unittest.TestCase):
         self.entries[service] = {"claudeAiOauth": {"accessToken": token, "refreshToken": "fake-refresh"}}
         return service
 
-    def bundle(self, name, files, state=None):
+    def bundle(self, name, files, state=None, provider="codex"):
         path = self.base / "bundle.cdx"
-        payload = {"schema_version": 1, "sessions": [{"name": name, "provider": "codex"}],
+        payload = {"schema_version": 1, "sessions": [{"name": name, "provider": provider}],
                    "profiles": {name: [{"path": p, "data_b64": base64.b64encode(value.encode()).decode()} for p, value in files]},
                    "states": {name: state or {}}}
-        path.write_bytes(encode_bundle(payload))
+        path.write_bytes(encode_bundle(payload, include_auth=bool(files), passphrase="fake" if files else None))
         return str(path)
 
     def test_merge_failure_preserves_original_files_record_and_state(self):
-        record = self.profile("merge", "codex")
+        record = self.profile("merge", "claude")
         root = Path(record["sessionRoot"])
         (root / "auth.json").write_text("original")
         state = {"status": "running", "local": "preserve"}
         self.store["write_session_state"]("merge", state)
-        bundle = self.bundle("merge", [("added/one", "new"), ("added/two", "fail")])
+        bundle = self.bundle("merge", [("claude-home/configs/default.json", "new"),
+                                       ("claude-home/credentials/default.json", "fail")], provider="claude")
         real_write = session_backup.atomic_write
 
         def fail(path, data, **kwargs):
-            if str(path).endswith("two"):
+            if "credentials" in str(path):
                 raise OSError("write failed")
             return real_write(path, data, **kwargs)
 
         with mock.patch.object(session_backup, "atomic_write", side_effect=fail):
             with self.assertRaises(OSError):
-                session_backup.import_bundle(str(self.base), self.store, bundle, merge=True)
+                session_backup.import_bundle(str(self.base), self.store, bundle, merge=True, passphrase="fake")
         self.assertEqual((root / "auth.json").read_text(), "original")
-        self.assertFalse((root / "added").exists())
+        self.assertFalse((root / "claude-home" / "configs").exists())
         self.assertEqual(self.store["get_session"]("merge"), record)
         self.assertEqual(self.store["read_session_state"]("merge"), state)
 
@@ -274,6 +275,61 @@ class ProfileDataSafetyTests(unittest.TestCase):
         self.assertEqual(store["get_session"]("keychain"), old_record)
         self.assertEqual((plugins / "sentinel").read_text(), "local plugin")
         self.assertFalse((Path(local["authHome"]) / ".claude" / ".credentials.json").exists())
+
+    def _authless_claude_bundle(self):
+        source = self.profile("keychain")
+        bundle = self.base / "auth.cdx"
+        result = session_backup.export_bundle(str(self.base), self.store, str(bundle),
+                                              include_auth=True, passphrase="fake")
+        self.assertEqual(result["profile_file_count"], 0)
+        dest = self.base / "restored"
+        dest.mkdir()
+        store = create_session_store(str(dest))
+        local = self.profile_in(dest, store, "keychain")
+        self.assertNotEqual(source["authHome"], local["authHome"])
+        return str(bundle), dest, store, self.credential(local, "local-token"), local
+
+    def test_force_import_without_a_bundle_credential_drops_the_old_login(self):
+        bundle, dest, store, local_service, _local = self._authless_claude_bundle()
+        session_backup.import_bundle(str(dest), store, bundle, passphrase="fake", force=True)
+        self.assertNotIn(local_service, self.entries)
+
+    def test_failed_force_import_without_a_bundle_credential_restores_the_old_login(self):
+        bundle, dest, store, local_service, local = self._authless_claude_bundle()
+        (Path(local["sessionRoot"]) / "plugins").mkdir()
+        with mock.patch.object(session_backup.shutil, "copytree", side_effect=OSError("plugin copy failed")):
+            with self.assertRaises(CdxError):
+                session_backup.import_bundle(str(dest), store, bundle, passphrase="fake", force=True)
+        self.assertEqual(self.entries[local_service]["claudeAiOauth"]["accessToken"], "local-token")
+
+    def test_import_rejects_files_outside_the_auth_set(self):
+        for path in ("config.toml", "hooks/run.sh", "claude-home/.claude/settings.json"):
+            with self.subTest(path=path):
+                bundle = self.bundle("planted", [("auth.json", "{}"), (path, "payload")])
+                with self.assertRaisesRegex(CdxError, "unexpected file"):
+                    session_backup.import_bundle(str(self.base), self.store, bundle, passphrase="fake")
+                self.assertFalse((self.base / "profiles" / "planted").exists())
+
+    def test_import_rejects_profile_files_in_an_authless_bundle(self):
+        path = self.base / "plain.cdx"
+        payload = {"schema_version": 1, "sessions": [{"name": "planted", "provider": "codex"}],
+                   "profiles": {"planted": [{"path": "auth.json", "data_b64": base64.b64encode(b"{}").decode()}]}}
+        path.write_bytes(encode_bundle(payload))
+        with self.assertRaisesRegex(CdxError, "no auth payload"):
+            session_backup.import_bundle(str(self.base), self.store, str(path))
+        self.assertFalse((self.base / "profiles" / "planted").exists())
+
+    def test_import_and_create_refuse_an_unregistered_profile_folder(self):
+        orphan = self.base / "profiles" / "orphan"
+        orphan.mkdir(parents=True)
+        (orphan / "sentinel").write_text("keep")
+        bundle = self.bundle("orphan", [("auth.json", "{}")])
+        with self.assertRaisesRegex(CdxError, "Session profile already exists"):
+            session_backup.import_bundle(str(self.base), self.store, bundle, passphrase="fake")
+        with self.assertRaisesRegex(CdxError, "Session profile already exists"):
+            session_service.create_session(str(self.base), {}, self.store, "orphan", "codex")
+        self.assertEqual((orphan / "sentinel").read_text(), "keep")
+        self.assertIsNone(self.store["get_session"]("orphan"))
 
     def test_early_force_import_keychain_denial_preserves_live_profile(self):
         source = self.profile("keychain")
