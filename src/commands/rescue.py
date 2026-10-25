@@ -5,6 +5,7 @@ the shared ranking knows which one is best, `handoff` carries a conversation
 over. This command only puts them in one step, and asks before it does.
 """
 
+import json
 import os
 from datetime import datetime, timedelta, timezone
 
@@ -52,6 +53,44 @@ def _recent(iso, now):
     return now - when <= RECENT
 
 
+#: How much of a transcript's end is read to find how it stopped.
+TAIL_BYTES = 256 * 1024
+
+
+def ended_on_limit(transcript):
+    """Whether the conversation's last word is a usage-limit error.
+
+    Claude writes an API error record (`isApiErrorMessage`, `error: rate_limit`);
+    Codex an `error` event with `codex_error_info: usage_limit_exceeded`. A normal
+    reply after it means the conversation went on, so only the last of the two
+    counts. This catches a stop before `cdx status` shows the account at 0%.
+    """
+    try:
+        with open(transcript, "rb") as handle:
+            handle.seek(max(0, os.path.getsize(transcript) - TAIL_BYTES))
+            lines = handle.read().decode("utf-8", errors="replace").splitlines()
+    except (OSError, TypeError):
+        return False
+    stopped = False
+    for line in lines:
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(record, dict):
+            continue
+        payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
+        if record.get("isApiErrorMessage") and record.get("error") == "rate_limit":
+            stopped = True
+        elif payload.get("type") == "error" and payload.get("codex_error_info") == "usage_limit_exceeded":
+            stopped = True
+        elif record.get("type") == "assistant" and not record.get("isApiErrorMessage"):
+            stopped = False
+        elif payload.get("type") == "message" and payload.get("role") == "assistant":
+            stopped = False
+    return stopped
+
+
 def stranded(service, rows, now=None):
     """Sessions on a spent account whose last conversation can be handed off, newest first."""
     now = now or datetime.now(timezone.utc)
@@ -59,11 +98,15 @@ def stranded(service, rows, now=None):
     for session in service["list_sessions"]():
         row = rows.get(session["name"]) or {}
         conversation = (session.get("conversation") or {}).get("id")
-        if row.get("available_pct") != 0 or not conversation or not _recent(row.get("last_launched_at"), now):
+        if not conversation or not _recent(row.get("last_launched_at"), now):
             continue
         history = service["get_launch_history"](session["name"], limit=1)
-        cwd = (history[0].get("cwd") if history else None) or None
+        last = history[0] if history else {}
+        cwd = last.get("cwd") or None
         if not cwd or not os.path.isdir(cwd):
+            continue
+        spent = row.get("available_pct") == 0
+        if not spent and not ended_on_limit(last.get("provider_transcript_path")):
             continue
         found.append({
             "session": session["name"], "provider": session["provider"], "conversation_id": conversation,

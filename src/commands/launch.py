@@ -38,7 +38,7 @@ LAUNCH_USAGE = "Usage: cdx <name> [--dir PATH] [--prompt TEXT|--prompt-file PATH
 
 #: The first message of a session started with --task. The end state is what the
 #: user's go-ahead covers: a bare "show me first" made sessions stop after a commit
-#: and wait for a push they could have made (cr-0w, open-project-session runbook).
+#: and wait for a push they could have made.
 TASK_PROMPT = """Task: {task}
 
 {end_state}

@@ -131,7 +131,8 @@ A conversation that hits a 5-hour or weekly limit can go on under another accoun
 4. Several stopped sessions: `cdx rescue <session>` picks one; `--to <account>`
    forces the target.
 
-Limits: only conversations launched in the last 24 hours, on an account at 0%,
+Limits: only conversations launched in the last 24 hours, on an account at 0% or whose
+transcript ends on the usage-limit error (caught before `cdx status` refreshes),
 and only to an account of the same provider. If nothing is ready,
 `cdx status` shows when each account resets.
 
