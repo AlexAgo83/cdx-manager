@@ -67,7 +67,8 @@ def reset_iso(display, reference=None):
                 # Naive local time resolved by the system zone, so a reset on
                 # the other side of a DST change gets its own offset.
                 candidates.append(datetime(year, month, day, hour, minute).astimezone())
-            except ValueError:
+            except (ValueError, OverflowError, OSError):
+                # Windows cannot place a time before 1970 in the local zone.
                 continue
     except (TypeError, ValueError):
         return None
