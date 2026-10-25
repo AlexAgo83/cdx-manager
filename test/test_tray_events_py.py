@@ -358,6 +358,7 @@ class SpoolRaceTests(unittest.TestCase):
     def test_acknowledging_never_drops_an_event_published_meanwhile(self):
         import threading
 
+        from src import tray_events
         from src.tray_events import acknowledge, events_path, publish, write_heartbeat
         with tempfile.TemporaryDirectory() as base:
             write_heartbeat(base)
@@ -377,9 +378,13 @@ class SpoolRaceTests(unittest.TestCase):
             threads = [threading.Thread(target=acker) for _ in range(3)]
             for thread in threads:
                 thread.start()
-            for index in range(150):
-                if publish(base, "t", "m", event_id=f"e{index}"):
-                    published.append(f"e{index}")
+            # The pause alone still starved one publish on a slow runner
+            # (ubuntu py3.9: 149 of 150). A publisher that waits long enough
+            # always gets the lock, so only a real drop can fail this test.
+            with mock.patch.object(tray_events, "SPOOL_LOCK_TIMEOUT_SECONDS", 60):
+                for index in range(150):
+                    if publish(base, "t", "m", event_id=f"e{index}"):
+                        published.append(f"e{index}")
             stop.set()
             for thread in threads:
                 thread.join()
