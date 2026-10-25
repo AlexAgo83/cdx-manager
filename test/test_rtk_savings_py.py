@@ -7,7 +7,7 @@ import unittest
 from subprocess import CompletedProcess
 from unittest import mock
 
-from src import rtk_savings
+from src import provider_runtime, rtk_savings
 
 
 class RtkSavingsTests(unittest.TestCase):
@@ -38,6 +38,28 @@ class RtkSavingsTests(unittest.TestCase):
     def test_no_rtk_means_no_figure(self):
         with mock.patch.object(rtk_savings.shutil, "which", return_value=None):
             self.assertIsNone(rtk_savings.rtk_saved(self.base, run=self._run))
+
+    def test_an_operator_chosen_history_comes_first(self):
+        chosen = os.path.join(self.base, "chosen.db")
+        open(chosen, "w").close()
+        found = rtk_savings.history_databases(self.base, {"RTK_DB_PATH": chosen})
+        self.assertEqual(found, [chosen, self.profile])
+
+
+@unittest.skipIf(os.name == "nt", "passwd lookup is POSIX only")
+class OperatorRtkHistoryPathTests(unittest.TestCase):
+    def test_a_uid_without_passwd_entry_falls_back_to_home(self):
+        import pwd
+
+        with mock.patch.object(pwd, "getpwuid", side_effect=KeyError("uid")), \
+                mock.patch.object(provider_runtime.sys, "platform", "linux"):
+            path = provider_runtime.operator_rtk_history_path({"HOME": "/home/me"})
+        self.assertEqual(path, os.path.join("/home/me", ".local", "share", "rtk", "history.db"))
+
+    def test_linux_honours_xdg_data_home(self):
+        with mock.patch.object(provider_runtime.sys, "platform", "linux"):
+            path = provider_runtime.operator_rtk_history_path({"XDG_DATA_HOME": "/data"})
+        self.assertEqual(path, os.path.join("/data", "rtk", "history.db"))
 
 
 if __name__ == "__main__":

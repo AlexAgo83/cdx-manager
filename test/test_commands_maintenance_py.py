@@ -445,7 +445,9 @@ class MaintenanceCommandTests(CliTestBase):
             "runVersionCheck": run_version_check,
         }), 0)
 
-        self.assertEqual(commands[0]["command"], ["npm", "install", "-g", "cdx-manager@9.9.9"])
+        # Resolved through PATH, so `npm.CMD` on Windows.
+        self.assertEqual(os.path.splitext(os.path.basename(commands[0]["command"][0]))[0].lower(), "npm")
+        self.assertEqual(commands[0]["command"][1:], ["install", "-g", "cdx-manager@9.9.9"])
         self.assertIn("Updated cdx-manager to 9.9.9", list_io["stdout"].getvalue())
 
     def test_update_warns_when_path_resolves_old_version(self):

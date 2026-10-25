@@ -118,6 +118,29 @@ class RunUpdatePlanTests(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertIsNone(results[0]["returncode"])
 
+    def test_a_missing_executable_is_a_failed_step_not_a_traceback(self):
+        from src.update_manager import format_update_failure, run_update_plan
+
+        def runner(command, **kwargs):
+            raise FileNotFoundError(2, "No such file or directory", command[0])
+
+        plan = {"steps": [{"label": "npm global upgrade", "command": ["npm", "install"], "env": {}}]}
+        results = run_update_plan(plan, runner=runner, env={})
+        self.assertIsNone(results[0]["returncode"])
+        self.assertIn("could not run npm", format_update_failure(results))
+
+    def test_npm_is_resolved_on_path(self):
+        from src.update_manager import _build_npm_step
+
+        bin_dir = tempfile.mkdtemp()
+        # Windows finds it only with a PATHEXT extension, which is the point.
+        npm = os.path.join(bin_dir, "npm.cmd" if os.name == "nt" else "npm")
+        with open(npm, "w") as handle:
+            handle.write("#!/bin/sh\n")
+        os.chmod(npm, 0o755)
+        step = _build_npm_step("1.2.3", env={"PATH": bin_dir})
+        self.assertEqual(os.path.normcase(step["command"][0]), os.path.normcase(npm))
+
 
 class HomelessVersionTests(unittest.TestCase):
     def test_version_and_cdx_home_do_not_need_a_home_directory(self):

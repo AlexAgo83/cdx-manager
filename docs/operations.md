@@ -137,8 +137,10 @@ A conversation that hits a 5-hour or weekly limit can go on under another accoun
    forces the target.
 
 Limits: only conversations launched in the last 24 hours, on an account at 0% or whose
-transcript ends on the usage-limit error (caught before `cdx status` refreshes),
-and only to an account of the same provider. If nothing is ready,
+transcript ends on the usage-limit error (caught before `cdx status` refreshes).
+The automatic pick only takes a ready account of the same provider; `--to` checks
+only that the account exists and its policy is not `never`, so a target of another
+provider or without quota is yours to rule out. If nothing is ready,
 `cdx status` shows when each account resets.
 
 ## Delegating work in the background

@@ -140,11 +140,14 @@ def _build_python_step(target_version):
     }
 
 
-def _build_npm_step(target_version):
+def _build_npm_step(target_version, env=None):
     spec = f"cdx-manager@{target_version}" if target_version else "cdx-manager@latest"
+    # Resolved here because Windows ships npm as npm.cmd, which a shell-less
+    # spawn of "npm" never finds.
+    npm = shutil.which("npm", path=(env or os.environ).get("PATH")) or "npm"
     return {
         "label": "npm global upgrade",
-        "command": ["npm", "install", "-g", spec],
+        "command": [npm, "install", "-g", spec],
         "cwd": None,
         "env": {},
     }
@@ -162,7 +165,7 @@ def build_update_plan(target_version=None, package_root=None, env=None, prefix=N
     elif mode == "python":
         steps = [_build_python_step(version)]
     elif mode == "npm":
-        steps = [_build_npm_step(version)]
+        steps = [_build_npm_step(version, env)]
     else:
         raise CdxError(
             "Unable to determine how cdx-manager was installed. "
@@ -195,7 +198,10 @@ def run_update_plan(plan, runner=None, env=None):
     for step in plan["steps"]:
         step_env = {**(env or os.environ), **(step.get("env") or {})}
         kwargs = {"cwd": step.get("cwd"), "env": step_env, "check": False}
-        result = runner(step["command"], **kwargs)
+        try:
+            result = runner(step["command"], **kwargs)
+        except OSError as error:
+            result = {"returncode": None, "stdout": "", "stderr": f"could not run {step['command'][0]}: {error}"}
         code = _result_code(result)
         results.append({
             "label": step["label"],

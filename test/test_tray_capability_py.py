@@ -6,6 +6,7 @@ Windows notification API succeed and show nothing, and a desktop with no
 StatusNotifierItem watcher lets a companion start and never appear.
 """
 import os
+import unittest
 from types import SimpleNamespace
 from unittest import mock
 
@@ -731,6 +732,27 @@ class InstallStartupTest(CliTestBase):
         self.assertFalse(os.path.exists(artifact_path(env={"HOME": home}, system="Darwin")))
         self.assertTrue(os.path.exists(bystander), "a file CDX never wrote survives")
 
+    def test_the_login_item_lands_in_the_operator_home_not_the_profile_home(self):
+        """Inside a session HOME is the profile home, which launchd never reads."""
+        import os
+        from unittest import mock
+
+        from src.tray_autostart import artifact_path
+        operator = self.make_temp_dir()
+        with mock.patch("src.tray_autostart._operator_home", return_value=operator):
+            path = artifact_path(env={"HOME": "/profiles/work/claude-home"}, system="Darwin")
+        self.assertTrue(path.startswith(operator + os.sep))
+
+    def test_the_desktop_entry_quotes_its_exec(self):
+        import os
+
+        from src.tray_autostart import enable
+        home = self.make_temp_dir()
+        path = enable("/opt/my apps/cdx-tray", env={"HOME": home}, system="Linux")
+        with open(path, encoding="utf-8") as handle:
+            self.assertIn('Exec="/opt/my apps/cdx-tray"\n', handle.read())
+        self.assertTrue(path.startswith(os.path.join(home, ".config")))
+
 
 class CompanionStopTest(CliTestBase):
     """Asking a running companion to stop, and never insisting.
@@ -748,6 +770,16 @@ class CompanionStopTest(CliTestBase):
         result = stop_running_companion(env=self._env())
         self.assertFalse(result["was_running"])
         self.assertFalse(result["stopped"])
+
+    @unittest.skipIf(os.name == "nt", "uid is POSIX only")
+    def test_the_linux_lock_is_per_user(self):
+
+        from src.tray_instance import lock_path
+        with mock.patch("src.tray_instance.platform.system", return_value="Linux"):
+            self.assertEqual(lock_path(env={"XDG_RUNTIME_DIR": "/run/user/7"}),
+                             os.path.join("/run/user/7", "cdx-tray", "companion.pid"))
+            self.assertEqual(lock_path(env={"TMPDIR": "/tmp"}),
+                             os.path.join("/tmp", f"cdx-tray-{os.getuid()}", "companion.pid"))
 
     def test_a_stop_request_is_written_beside_the_lock(self):
         import os

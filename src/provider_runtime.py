@@ -227,10 +227,16 @@ def operator_rtk_history_path(env=None):
         return os.path.join(base, "rtk", "history.db") if base else None
     import pwd
 
-    home = pwd.getpwuid(os.getuid()).pw_dir
+    try:
+        home = pwd.getpwuid(os.getuid()).pw_dir
+    except KeyError:
+        # A uid without a passwd entry (common in containers): no better
+        # answer than HOME.
+        home = env.get("HOME") or os.path.expanduser("~")
     if sys.platform == "darwin":
         return os.path.join(home, "Library", "Application Support", "rtk", "history.db")
-    return os.path.join(home, ".local", "share", "rtk", "history.db")
+    data_home = env.get("XDG_DATA_HOME") or os.path.join(home, ".local", "share")
+    return os.path.join(data_home, "rtk", "history.db")
 
 
 def _shared_rtk_history(env):
