@@ -10,6 +10,7 @@ import io
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -235,7 +236,9 @@ class CliTestBase(unittest.TestCase):
         self.codex_status_patch.stop()
 
     def make_temp_dir(self):
-        return tempfile.mkdtemp(prefix="cdx-cli-py-")
+        path = tempfile.mkdtemp(prefix="cdx-cli-py-")
+        self.addCleanup(shutil.rmtree, path, ignore_errors=True)
+        return path
 
     def make_io(self):
         return {

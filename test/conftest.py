@@ -22,3 +22,16 @@ def _no_real_keychain():
 
     with mock.patch("subprocess.run", side_effect=guarded):
         yield
+
+
+@pytest.fixture(autouse=True)
+def _no_real_launch_agents(tmp_path):
+    """Never write a notification LaunchAgent into the developer's real home.
+
+    `notify._operator_home` deliberately bypasses HOME, so a test that schedules
+    a `cdx ready` notification on macOS used to leave a plist in
+    ~/Library/LaunchAgents pointing at a deleted temp script, and macOS shows a
+    "Background Activity" alert for each one.
+    """
+    with mock.patch("src.notify._operator_home", return_value=str(tmp_path / "operator-home")):
+        yield
