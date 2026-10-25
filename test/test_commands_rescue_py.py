@@ -82,3 +82,37 @@ class RescueTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EndedOnLimitTests(unittest.TestCase):
+    def _transcript(self, *records):
+        import json
+        import os
+        path = os.path.join(tempfile.mkdtemp(), "t.jsonl")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("".join(json.dumps(record) + "\n" for record in records))
+        return path
+
+    def test_claude_and_codex_limit_stops_are_recognised(self):
+        claude = self._transcript({"type": "user"}, {"type": "assistant", "isApiErrorMessage": True, "error": "rate_limit"})
+        codex = self._transcript({"type": "event_msg", "payload": {"type": "error", "codex_error_info": "usage_limit_exceeded"}})
+        self.assertTrue(rescue.ended_on_limit(claude))
+        self.assertTrue(rescue.ended_on_limit(codex))
+
+    def test_a_reply_after_the_limit_means_the_conversation_went_on(self):
+        resumed = self._transcript({"type": "assistant", "isApiErrorMessage": True, "error": "rate_limit"},
+                                   {"type": "assistant", "message": {"content": "back"}})
+        other_error = self._transcript({"type": "assistant", "isApiErrorMessage": True, "error": "server_error"})
+        self.assertFalse(rescue.ended_on_limit(resumed))
+        self.assertFalse(rescue.ended_on_limit(other_error))
+        self.assertFalse(rescue.ended_on_limit(None))
+
+    def test_a_transcript_stop_is_rescued_before_the_status_shows_zero(self):
+        stopped = self._transcript({"type": "assistant", "isApiErrorMessage": True, "error": "rate_limit"})
+        cwd = tempfile.mkdtemp()
+        row = {"session_name": "work", "available_pct": 35, "last_launched_at": NOW}
+        service = {
+            "list_sessions": lambda: [{"name": "work", "provider": "claude", "conversation": {"id": "c"}}],
+            "get_launch_history": lambda name, limit=1: [{"cwd": cwd, "provider_transcript_path": stopped}],
+        }
+        self.assertEqual([s["session"] for s in rescue.stranded(service, {"work": row})], ["work"])
