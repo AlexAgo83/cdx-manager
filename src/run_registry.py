@@ -219,9 +219,29 @@ def _base_record(run_id, *, kind, session, provider, model, cwd, artifacts=None)
     }
 
 
+def _check_capacity(data, max_parallel):
+    _refresh_stale_runs(data)
+    running = sum(1 for run in data["runs"] if run.get("status") == "running")
+    if running >= max_parallel:
+        raise CdxError(
+            f"{running} run(s) already running, the limit is {max_parallel}. "
+            "Wait for one to finish (cdx runs --json) or raise --max-parallel.",
+            code="too_many_runs",
+        )
+
+
 class RunRegistry:
     def __init__(self, base_dir):
         self.path = registry_path(base_dir)
+
+    def check_capacity(self, max_parallel):
+        """Raise too_many_runs now, before a refused run changes any session state.
+
+        `start()` checks again under the same lock, so a run that slips in
+        between is still refused there.
+        """
+        with _registry_lock(self.path):
+            _check_capacity(_read_registry(self.path), max_parallel)
 
     def start(self, run_id, *, kind, session, provider, model, cwd, artifacts=None, label=None, max_parallel=None):
         with _registry_lock(self.path):
@@ -230,14 +250,7 @@ class RunRegistry:
             if max_parallel:
                 # Counted under the lock and without this run's own record, which a
                 # detached child writes a second time under the same id.
-                _refresh_stale_runs(data)
-                running = sum(1 for run in data["runs"] if run.get("status") == "running")
-                if running >= max_parallel:
-                    raise CdxError(
-                        f"{running} run(s) already running, the limit is {max_parallel}. "
-                        "Wait for one to finish (cdx runs --json) or raise --max-parallel.",
-                        code="too_many_runs",
-                    )
+                _check_capacity(data, max_parallel)
             record = _base_record(run_id, kind=kind, session=session, provider=provider, model=model, cwd=cwd, artifacts=artifacts)
             if label:
                 record["label"] = label

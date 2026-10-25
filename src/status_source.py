@@ -773,6 +773,8 @@ def find_latest_status_artifact(
                 "reset_5h_at": candidate["structured"].get("reset_5h_at"),
                 "reset_week_at": candidate["structured"].get("reset_week_at"),
                 "reset_at": candidate["structured"].get("reset_at"),
+                # Never backfilled from an older record: null means not blocked.
+                "rate_limit_reached": candidate["structured"].get("rate_limit_reached"),
                 "raw_status_text": candidate["structured"].get("raw_status_text"),
                 "_skip_5h_backfill": candidate["structured"].get("_skip_5h_backfill"),
             }
