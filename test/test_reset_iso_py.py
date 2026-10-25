@@ -36,7 +36,9 @@ class ResetIsoTests(unittest.TestCase):
 
 class ResetIsoShapeTests(unittest.TestCase):
     def test_a_reading_in_1970_does_not_crash_on_the_year_before(self):
-        self.assertTrue(reset_iso("Jan 1 00:30", "1970-01-01T00:16:40+00:00").startswith("1970-01-01"))
+        # Windows cannot place times this close to the epoch at all: no answer, no crash.
+        result = reset_iso("Jan 1 00:30", "1970-01-01T00:16:40+00:00")
+        self.assertTrue(result is None or result.startswith("1970-01-01"), result)
 
     def test_unknown_shapes_are_absent_rather_than_guessed(self):
         for value in (None, "", "soon", "Foo 3 10:00", "Oct x 10:00", "Feb 30 10:00", "Oct 3 25:00"):
