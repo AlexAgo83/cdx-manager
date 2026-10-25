@@ -249,12 +249,14 @@ pub fn run(transport: Transport) -> Result<(), String> {
                 state = Render::next(&transport, state.tick, &mut unread);
                 redraw = true;
             }
-            Some(ActionId::Session(name)) => open_terminal_in(&name, state.terminal.as_deref()),
+            Some(ActionId::Session(name)) => {
+                open_terminal_in(&crate::menu::sh_quote(&name), state.terminal.as_deref())
+            }
             Some(ActionId::FocusTerminal { .. }) => {}
             // A view, not an edit: `cdx config` prints the settings that will
             // apply to the next launch.
             Some(ActionId::SessionConfig(name)) => {
-                open_terminal_in(&format!("config {name}"), state.terminal.as_deref())
+                open_terminal_in(&format!("config {}", crate::menu::sh_quote(&name)), state.terminal.as_deref())
             }
             Some(ActionId::Plugin { action, root }) => {
                 run_plugin_action(&transport, &action, root.as_deref())

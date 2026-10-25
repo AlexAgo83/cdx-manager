@@ -106,13 +106,16 @@ def _collect_auth_files(session_root, provider, session_name=None, progress_call
             })
     return {"files": files, "file_count": len(files), "bytes": total_bytes}
 
-def _validate_import_profile_files(payload, imported_sessions):
+def _validate_import_profile_files(payload, imported_sessions, include_auth=True):
     profiles = payload.get("profiles") or {}
     if not isinstance(profiles, dict):
         raise CdxError("Bundle contains invalid profile data.")
+    if any(profiles.values()) and not include_auth:
+        raise CdxError("Bundle contains profile files but no auth payload.")
     decoded_profiles = {}
     for session_payload in imported_sessions:
         name = session_payload["name"]
+        allowed_paths = _auth_bundle_paths(_normalize_provider(session_payload["provider"]))
         files = []
         profile_items = profiles.get(name, [])
         if not isinstance(profile_items, list):
@@ -121,6 +124,8 @@ def _validate_import_profile_files(payload, imported_sessions):
             if not isinstance(item, dict):
                 raise CdxError(f"Bundle contains invalid profile entry for session {name}.")
             rel_path = _safe_relpath(item.get("path"))
+            if rel_path not in allowed_paths:
+                raise CdxError(f"Bundle contains an unexpected file for session {name}: {rel_path}")
             data_b64 = item.get("data_b64")
             if not isinstance(data_b64, str):
                 raise CdxError(f"Bundle contains invalid file data for session {name}: {rel_path}")
@@ -288,9 +293,14 @@ def import_bundle(base_dir, store, file_path,
         )
 
     for session_payload in imported_sessions:
-        _validate_new_session_name(session_payload["name"])
+        if session_payload["name"] not in existing:
+            _validate_new_session_name(session_payload["name"])
         _normalize_provider(session_payload["provider"])
-    decoded_profiles = _validate_import_profile_files(payload, imported_sessions)
+        # A rollback removes the profile folder, so never adopt one we did not create.
+        if session_payload["name"] not in existing and os.path.lexists(_get_session_root(base_dir, session_payload["name"])):
+            raise CdxError(f"Session profile already exists: {session_payload['name']}")
+    decoded_profiles = _validate_import_profile_files(payload, imported_sessions,
+                                                      include_auth=bool(decoded["meta"].get("include_auth")))
 
     for session_payload in imported_sessions:
         name = session_payload["name"]
@@ -318,7 +328,8 @@ def import_bundle(base_dir, store, file_path,
             bundle_carries_credential = provider == PROVIDER_CLAUDE and any(
                 item["path"] == CLAUDE_CREDENTIALS_BUNDLE_PATH for item in decoded_profiles.get(name, [])
             )
-            if bundle_carries_credential:
+            # Force replaces the login even when the bundle has none to offer.
+            if bundle_carries_credential or (force and provider == PROVIDER_CLAUDE):
                 local_credential = read_keychain_credentials(old_record["authHome"])
             recovery_dir = tempfile.mkdtemp(prefix=f".{_encode(name)}.import.", dir=os.path.dirname(session_root))
             backup_root = os.path.join(recovery_dir, "profile")
@@ -405,7 +416,7 @@ def import_bundle(base_dir, store, file_path,
                 # Decrypted credentials: 0o600 from creation, no umask window.
                 atomic_write(dest_path, item["content"], mode=0o600)
                 imported_paths.append(item["path"])
-            if provider == PROVIDER_CLAUDE and CLAUDE_CREDENTIALS_BUNDLE_PATH in imported_paths:
+            if provider == PROVIDER_CLAUDE and (force and old_record or CLAUDE_CREDENTIALS_BUNDLE_PATH in imported_paths):
                 delete_keychain_credentials(auth_home)
             _restore_force_import_profile_paths(name, backup_root, session_root, preserved_profile_paths)
         except Exception:

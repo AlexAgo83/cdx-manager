@@ -15,6 +15,7 @@ from src.session_service import (
     _safe_relpath,
     _status_has_more_detail,
     _to_local_iso,
+    _validate_new_session_name,
 )
 
 
@@ -37,6 +38,15 @@ class SafeRelpathTests(unittest.TestCase):
         for bad in ("", "/etc/passwd", "..", "../escape", "C:/win"):
             with self.subTest(bad=bad), self.assertRaises(CdxError):
                 _safe_relpath(bad)
+
+
+class SessionNameTests(unittest.TestCase):
+    def test_new_names_are_shell_inert(self):
+        for good in ("main", "work-1", "a.b_c", "9x"):
+            _validate_new_session_name(good)
+        for bad in ("a;id", "$(id)", "a b", "`id`", "-x", ".hidden", "a'b", "a/b", "été"):
+            with self.subTest(bad=bad), self.assertRaises(CdxError):
+                _validate_new_session_name(bad)
 
 
 class ToLocalIsoTests(unittest.TestCase):

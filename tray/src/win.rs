@@ -314,6 +314,12 @@ fn find_icon_key() -> Option<String> {
 /// session and config rows inert for anyone whose stored preference came from
 /// the Linux side of a WSL transport.
 fn open_terminal_in(transport: &Transport, args: &[&str], preferred: Option<&str>) {
+    // cmd, PowerShell and the WSL shell each parse the command line, and no
+    // single quoting survives all three: only bare names cross.
+    if let Some(arg) = args.iter().find(|arg| !crate::menu::is_bare_name(arg)) {
+        eprintln!("Session {arg} cannot be opened from the tray; rename it with cdx rename");
+        return;
+    }
     let cdx = Transport::cdx_command();
     if let Some(name) = preferred {
         if let Some(spawn) = winterm::preferred_console(transport, name, &cdx, args) {

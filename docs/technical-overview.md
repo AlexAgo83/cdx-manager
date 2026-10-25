@@ -85,7 +85,7 @@ All session data lives under `CDX_HOME` (default: `~/.cdx/`):
           cdx-session.log
 ```
 
-Session names are URL-encoded when used as directory or file names. CLI command names such as `add`, `disk`, `status`, and `login` are reserved and cannot be used as new session names.
+Session names are URL-encoded when used as directory or file names. CLI command names such as `add`, `disk`, `status`, and `login` are reserved and cannot be used as new session names. New session names must start with a letter or digit and contain only letters, digits, `.`, `_` and `-`, so a name never means anything to a shell; sessions created before this rule keep working.
 
 `cdx memory` is the user-facing interface for explicit memory. `--project NAME` uses a stable free-form project name; `--project /path/to/repo` resolves to the same workspace-hash memory that repo would use as the current workspace. `append` adds the text as-is with a clean newline boundary; it does not add dates or headings. `list` reports global memory, named project memories, and the current workspace memory when present; it does not scan your filesystem for repos.
 

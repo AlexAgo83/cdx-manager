@@ -249,13 +249,23 @@ def _bootstrap_claude_setup_token(session, ctx):
     ctx["out"](
         "Minting a long-lived Claude setup-token for this session.\n"
     )
-    run_info = _run_interactive_provider_command(
-        session,
-        "setup-token",
-        spawn=ctx.get("spawn"),
-        env_override=ctx.get("env"),
-        signal_emitter=ctx.get("signal_emitter"),
-    )
+    try:
+        run_info = _run_interactive_provider_command(
+            session,
+            "setup-token",
+            spawn=ctx.get("spawn"),
+            env_override=ctx.get("env"),
+            signal_emitter=ctx.get("signal_emitter"),
+        )
+    except Exception as error:
+        # A failed or interrupted run can still have printed the token.
+        failed_path = (getattr(error, "run_info", None) or {}).get("transcript_path")
+        if failed_path:
+            try:
+                os.remove(failed_path)
+            except OSError:
+                pass
+        raise
     transcript_path = run_info.get("transcript_path")
     if not transcript_path or not os.path.isfile(transcript_path):
         raise CdxError(

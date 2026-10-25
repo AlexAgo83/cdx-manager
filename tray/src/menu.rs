@@ -154,6 +154,24 @@ fn gauge(value: Option<f64>) -> String {
     )
 }
 
+/// True for a session name no shell gives meaning to: the shape `cdx add`
+/// enforces for new sessions.
+pub fn is_bare_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars.next().is_some_and(|c| c.is_ascii_alphanumeric())
+        && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+}
+
+/// A session name as one POSIX shell word. Names from before `cdx add`
+/// restricted them still open, and none of them can reach the shell as code.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
+pub fn sh_quote(name: &str) -> String {
+    if is_bare_name(name) {
+        return name.to_string();
+    }
+    format!("'{}'", name.replace('\'', "'\\''"))
+}
+
 /// The severity a figure carries, named as the icon names it.
 ///
 /// Read only where a platform can colour something, which today is the macOS
@@ -578,6 +596,19 @@ pub fn build_unavailable(reason: &Unavailable) -> Vec<Entry> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn session_names_cannot_reach_a_shell_as_code() {
+        use super::{is_bare_name, sh_quote};
+        assert!(is_bare_name("work-1.a_b"));
+        for bad in ["", "-x", ".x", "a b", "a;id", "$(id)", "a'b", "%PATH%"] {
+            assert!(!is_bare_name(bad), "{bad}");
+        }
+        assert_eq!(sh_quote("work"), "work");
+        assert_eq!(sh_quote("a;id"), "'a;id'");
+        assert_eq!(sh_quote("$(id)"), "'$(id)'");
+        assert_eq!(sh_quote("it's"), "'it'\\''s'");
+    }
+
     use super::*;
     use crate::snapshot::{Session, Snapshot};
 
