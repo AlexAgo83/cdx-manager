@@ -372,6 +372,9 @@ def _status_row_from_session(store, s):
         "reset_5h_at": row_status.get("reset_5h_at") if row_status else None,
         "reset_week_at": row_status.get("reset_week_at") if row_status else None,
         "reset_at": row_status.get("reset_at") if row_status else None,
+        # The provider's typed block reason (workspace_owner_credits_depleted):
+        # failover and ranking read it, since the percentages can look healthy.
+        "rate_limit_reached": row_status.get("rate_limit_reached") if row_status else None,
         **{
             f"{key}_iso": reset_iso(row_status.get(key), _to_local_iso(s.get("lastStatusAt"))) if row_status else None
             for key in ("reset_5h_at", "reset_week_at", "reset_at")
@@ -467,6 +470,7 @@ def _resolve_session_status(store, base_dir, env, fetch_codex_status, session,
         "reset_5h_at": artifact.get("reset_5h_at"),
         "reset_week_at": artifact.get("reset_week_at"),
         "reset_at": artifact.get("reset_at"),
+        "rate_limit_reached": artifact.get("rate_limit_reached"),
         "updated_at": artifact.get("updated_at"),
         "raw_status_text": artifact.get("raw_status_text"),
         "source_ref": artifact.get("source_ref"),

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from .cli_render import (
@@ -10,6 +10,7 @@ from .cli_render import (
     _style_pct,
 )
 from .session_ranking import rank_sessions
+from .session_status import reset_iso
 
 RESET_COUNTDOWN_SAFETY_SECONDS = 60
 PRIORITY_EMPTY_AVAILABLE_THRESHOLD = 5
@@ -339,32 +340,21 @@ def _parse_reset_timestamp(value):
     if not value:
         return None
     text = str(value).strip()
+    # A year-less display ("Dec 31 23:00") becomes ISO first: reset_iso picks
+    # the year closest to now and the offset valid on that date, so neither a
+    # new-year wrap nor a DST change shifts the reset.
+    display = reset_iso(text)
+    if display is not None:
+        if "T" not in display:
+            return None  # a reset with no time of day has no countdown
+        text = display
     try:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=datetime.now().astimezone().tzinfo)
-        return parsed.timestamp()
     except (TypeError, ValueError):
-        pass
-    now = datetime.now().astimezone()
-    parsed = None
-    # Parse with an explicit year: strptime's implicit 1900 rejects "Feb 29",
-    # and the current year may not hold the date at all around new year.
-    for year in (now.year, now.year + 1):
-        try:
-            parsed = datetime.strptime(f"{year} {text}", "%Y %b %d %H:%M").replace(tzinfo=now.tzinfo)
-            break
-        except (TypeError, ValueError):
-            continue
-    if parsed is None:
         return None
-    # A year-less date nearly a year in the past is a year wrap ("Jan 2"
-    # rendered on Dec 31), not a reset that passed months ago.
-    if parsed < now - timedelta(days=182):
-        try:
-            parsed = parsed.replace(year=parsed.year + 1)
-        except ValueError:
-            pass
+    if parsed.tzinfo is None:
+        # Naive means local; astimezone() resolves the offset for that date.
+        parsed = parsed.astimezone()
     return parsed.timestamp()
 
 

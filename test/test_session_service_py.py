@@ -595,6 +595,33 @@ class SessionServicePythonTests(unittest.TestCase):
         self.assertEqual(rows[0]["reset_week_at"], "Apr 17 10:10")
         self.assertEqual(rows[0]["reset_at"], "Apr 17 10:10")
 
+    def test_a_typed_rate_limit_reason_reaches_the_status_row(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        session = service["create_session"]("main")
+        rollout = os.path.join(session["authHome"], "sessions", "2026", "07", "05", "rollout.jsonl")
+        os.makedirs(os.path.dirname(rollout), exist_ok=True)
+        with open(rollout, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps({
+                "timestamp": "2026-07-05T10:37:31.157Z",
+                "payload": {
+                    "type": "token_count",
+                    "rate_limits": {
+                        "primary": {"used_percent": 10, "window_minutes": 300, "resets_at": 1783261513},
+                        "secondary": {"used_percent": 10, "window_minutes": 10080, "resets_at": 1783413034},
+                        "rate_limit_reached_type": "workspace_owner_credits_depleted",
+                    },
+                },
+            }) + "\n")
+
+        row = service["get_status_rows"]()[0]
+        self.assertEqual(row["rate_limit_reached"], "workspace_owner_credits_depleted")
+        # Healthy percentages, yet the account cannot serve a task.
+        from src.run_failover import status_confirms_exhaustion
+        from src.session_ranking import _row_has_availability
+        self.assertTrue(status_confirms_exhaustion(row))
+        self.assertFalse(_row_has_availability(row))
+
     def test_codex_app_server_status_is_preferred_over_transcript_artifact(self):
         temp_dir = self.make_temp_dir()
         live_status = {

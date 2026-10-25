@@ -404,6 +404,32 @@ class ProvisioningTests(unittest.TestCase):
         # A host that gains a channel later is provisioned on its next launch.
         self.assertTrue(self._provision("claude", channel="notify-send"))
 
+    def test_losing_the_channel_leaves_installed_hooks_alone(self):
+        # An SSH login has no channel; removing the hooks there makes Codex ask
+        # for approval again on the next local launch.
+        self.assertTrue(self._provision("claude"))
+        installed = self._read("claude")
+        self.assertFalse(self._provision("claude", channel=None))
+        self.assertEqual(self._read("claude"), installed)
+
+    def test_a_user_hook_that_merely_mentions_cdx_survives(self):
+        path = agent_notify.hook_config_path(self.home, "claude")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        mine = {"type": "command", "command": "/Users/me/cdx-scripts/slack notify"}
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"hooks": {"Stop": [{"hooks": [mine]}]}}, handle)
+        self._provision("claude")
+        self._provision("claude", enabled=False)
+        self.assertEqual(self._read("claude")["hooks"]["Stop"], [{"hooks": [mine]}])
+
+    def test_is_ours_matches_only_the_cdx_executable(self):
+        for command in ("cdx notify", "/usr/local/bin/cdx notify", "C:\\npm\\cdx.cmd notify",
+                        '"C:\\Program Files\\cdx.exe" notify'):
+            self.assertTrue(agent_notify._is_ours({"hooks": [{"command": command}]}), command)
+        for command in ("/Users/me/cdx-scripts/slack notify", "mycdx notify", "cdx notify --extra",
+                        "cdx status", '"/opt/cdx tools/x" notify'):
+            self.assertFalse(agent_notify._is_ours({"hooks": [{"command": command}]}), command)
+
     def test_unparseable_config_is_left_untouched(self):
         path = agent_notify.hook_config_path(self.home, "claude")
         os.makedirs(os.path.dirname(path), exist_ok=True)

@@ -127,7 +127,9 @@ A conversation that hits a 5-hour or weekly limit can go on under another accoun
    account comes back, and the account that would take over.
 3. Run `cdx rescue` and confirm. It runs `cdx handoff <source> <target>
    --source-conversation <id>` in the folder the conversation last ran in; the new
-   session starts with a recovery prompt over the exact transcript.
+   session starts with a recovery prompt over the exact transcript. A successful
+   handoff stamps the source conversation `rescuedAt`, so `cdx rescue` does not
+   offer it again until that session is launched again.
 4. Several stopped sessions: `cdx rescue <session>` picks one; `--to <account>`
    forces the target.
 
@@ -143,7 +145,8 @@ provider or without quota is yours to rule out. If nothing is ready,
 Hand a task to a background run and keep working, without starting more runs than your accounts can carry.
 
 1. Set a cap once, in your shell profile: `export CDX_MAX_RUNS=2`. Every `cdx run` then refuses to
-   start a third concurrent run (`too_many_runs`) instead of piling work onto spent accounts.
+   start a third concurrent run (`too_many_runs`) instead of piling work onto spent accounts. `0` or a
+   negative value means no limit. A refused run leaves the session untouched (no new conversation).
 2. Start the run with a label you will recognise later:
    ```bash
    cdx run --provider claude --cwd ~/Documents/cts --label "fix build cts" \

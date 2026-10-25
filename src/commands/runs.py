@@ -511,12 +511,14 @@ def handle_run_report(rest, ctx):
     return 0
 
 def _env_max_runs(ctx):
-    """CDX_MAX_RUNS as the default --max-parallel; unset or invalid means no limit."""
+    """CDX_MAX_RUNS as the default --max-parallel; unset, invalid or <= 0 means no limit."""
     value = {**os.environ, **(ctx.get("env") or {})}.get("CDX_MAX_RUNS")
     try:
-        return max(1, int(value)) if value else None
+        limit = int(value) if value else 0
     except ValueError:
         return None
+    # 0 or negative reads as "no limit", like unset, rather than a cap of 1.
+    return limit if limit > 0 else None
 
 
 def handle_run(rest, ctx):
@@ -573,6 +575,15 @@ def handle_run(rest, ctx):
         if parsed.get("reasoning_effort"):
             launch_updates["reasoning_effort"] = parsed["reasoning_effort"]
             launch_updates["power"] = parsed["reasoning_effort"]
+        # A detached child runs in the slot its parent already took.
+        max_parallel = None if detached_run_id else (parsed.get("max_parallel") or _env_max_runs(ctx))
+        if max_parallel:
+            # Before anything changes the session: a refused run must not leave
+            # Claude on a fresh conversation id that resume and rescue then
+            # point at. Finished native background runs are closed out first,
+            # since nothing else frees their slot.
+            _reconcile_background_runs(ctx)
+            _run_registry(ctx).check_capacity(max_parallel)
         # Claude needs its conversation id before the spec is built; Codex
         # records its own afterwards, from the rollout. Without this a headless
         # Claude run left the session with no identity and `cdx resume` fell
@@ -618,8 +629,7 @@ def handle_run(rest, ctx):
                 "stderr_path": artifacts.get("stderr_path"),
             },
             label=parsed.get("label"),
-            # A detached child runs in the slot its parent already took.
-            max_parallel=None if detached_run_id else (parsed.get("max_parallel") or _env_max_runs(ctx)),
+            max_parallel=max_parallel,
         )
         if parsed.get("detach"):
             # Delegate where the installed CLI can both start a background

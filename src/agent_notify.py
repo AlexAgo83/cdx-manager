@@ -11,6 +11,7 @@ owns because it sets HOME/CODEX_HOME per session at launch.
 
 import json
 import os
+import re
 import shutil
 import subprocess
 
@@ -356,9 +357,11 @@ def provision(auth_home, provider, enabled, env=None, spawn_sync=None, base_dir=
     """
     env = env or os.environ
     if enabled and not notification_channel(env):
-        # Nothing could be delivered on this host, so installing a hook would only
-        # buy the user an approval prompt for a feature that shows nothing.
-        enabled = False
+        # Nothing could be delivered on this host (an SSH login, say), so
+        # installing a hook would only buy an approval prompt for a feature that
+        # shows nothing. Removing existing hooks is no better: Codex would ask to
+        # approve them again on the next local launch. Leave everything as is.
+        return False
     if not supports_agent_alerts(provider):
         return False
     command = resolve_hook_command(env)
@@ -525,14 +528,27 @@ def _apply_hooks(path, enabled, command):
 
 
 def _is_ours(entry):
-    """Ours if any of its commands is a cdx notify invocation."""
+    """Ours if any of its commands is exactly `<path to cdx> notify`.
+
+    Matched on the executable's basename, not a substring, so a user hook such
+    as `~/cdx-scripts/slack notify` is never mistaken for ours and deleted.
+    """
     if not isinstance(entry, dict):
         return False
     for hook in entry.get("hooks") or []:
-        command = str((hook or {}).get("command") or "")
-        if command.endswith(f" {HOOK_ARG}") and "cdx" in command:
+        if isinstance(hook, dict) and _is_cdx_notify(str(hook.get("command") or "")):
             return True
     return False
+
+
+def _is_cdx_notify(command):
+    command = command.strip()
+    if command.startswith('"'):
+        program, _, rest = command[1:].partition('"')
+    else:
+        program, _, rest = command.partition(" ")
+    name = re.split(r"[\\/]", program)[-1].lower()
+    return name in {"cdx", "cdx.cmd", "cdx.exe"} and rest.strip() == HOOK_ARG
 
 
 def _read_json(path):
