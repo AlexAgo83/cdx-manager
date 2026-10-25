@@ -1659,8 +1659,13 @@ class SessionServicePythonTests(unittest.TestCase):
         old.pop("kdf_params")
         self.assertEqual(backup_bundle.decode_bundle(json_module.dumps(old).encode(), passphrase="pw")["payload"], payload)
 
-        # A crafted cost is refused before any derivation runs.
-        crafted = {**bundle, "kdf_params": {"n": 2 ** 30, "r": 8, "p": 1, "iterations": 10 ** 12}}
+        # A crafted cost is refused before any derivation runs. Shaped for the
+        # KDF this runtime chose: without hashlib.scrypt (macOS system Python
+        # 3.9) the bundle is PBKDF2, and scrypt-shaped params would only be
+        # skipped as belonging to the other KDF.
+        crafted_params = ({"n": 2 ** 30, "r": 8, "p": 1} if bundle["kdf"] == "scrypt"
+                          else {"iterations": 10 ** 12})
+        crafted = {**bundle, "kdf_params": crafted_params}
         with self.assertRaisesRegex(CdxError, "key derivation parameters"):
             backup_bundle.decode_bundle(json_module.dumps(crafted).encode(), passphrase="pw")
 

@@ -33,5 +33,8 @@ def _no_real_launch_agents(tmp_path):
     ~/Library/LaunchAgents pointing at a deleted temp script, and macOS shows a
     "Background Activity" alert for each one.
     """
-    with mock.patch("src.notify._operator_home", return_value=str(tmp_path / "operator-home")):
+    # tray_autostart bypasses HOME the same way; None makes it use the HOME a
+    # test passes, as it did before.
+    with mock.patch("src.notify._operator_home", return_value=str(tmp_path / "operator-home")), \
+            mock.patch("src.tray_autostart._operator_home", return_value=None):
         yield

@@ -18,8 +18,27 @@ RUN_KEY = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
 RUN_VALUE = "CDXTray"
 
 
+def _operator_home():
+    """The operator's real home from passwd. Inside a cdx session HOME is the
+    profile home, where launchd and the XDG autostart never look."""
+    try:
+        import pwd
+
+        return pwd.getpwuid(os.getuid()).pw_dir
+    except (ImportError, KeyError):
+        return None
+
+
 def _home(env):
-    return env.get("HOME") or os.path.expanduser("~")
+    return _operator_home() or env.get("HOME") or os.path.expanduser("~")
+
+
+def _desktop_exec(executable):
+    """Quote one argument per the desktop-entry spec: backslash-escape the four
+    reserved characters inside double quotes, then apply the string-value escape
+    to backslashes, and double `%` so it is not read as a field code."""
+    quoted = "".join("\\" + c if c in '"`$\\' else c for c in executable)
+    return '"' + quoted.replace("\\", "\\\\").replace("%", "%%") + '"'
 
 
 def artifact_path(env=None, system=None):
@@ -86,7 +105,7 @@ def enable(executable, env=None, system=None, run=None):
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(
                 "[Desktop Entry]\nType=Application\nName=CDX Tray\n"
-                f"Exec={executable}\nX-GNOME-Autostart-enabled=true\n"
+                f"Exec={_desktop_exec(executable)}\nX-GNOME-Autostart-enabled=true\n"
             )
     return path
 

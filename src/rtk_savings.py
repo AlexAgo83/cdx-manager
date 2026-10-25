@@ -25,8 +25,9 @@ _PROFILE_DBS = (
 
 def history_databases(base_dir, env=None):
     """Every rtk history this operator's sessions wrote to, the shared one first."""
+    env = os.environ if env is None else env
     found = []
-    for path in [operator_rtk_history_path(env)] + [
+    for path in [env.get("RTK_DB_PATH") or operator_rtk_history_path(env)] + [
         match for pattern in _PROFILE_DBS
         for match in sorted(glob.glob(os.path.join(glob.escape(os.path.join(base_dir, "profiles")), *pattern)))
     ]:

@@ -30,15 +30,29 @@ pub enum Held {
 }
 
 fn runtime_dir() -> PathBuf {
-    // Per-user by construction. On macOS and Linux TMPDIR is already per-user;
-    // on Windows LOCALAPPDATA is. A shared /tmp path would make one user's
-    // companion block another's on a multi-user machine.
+    // Per-user by construction, or one user's companion blocks another's on a
+    // multi-user machine. Windows: LOCALAPPDATA. macOS: TMPDIR, already
+    // per-user. Linux: /tmp is shared, so XDG_RUNTIME_DIR, else the uid in the
+    // folder name. Must match src/tray_instance.py.
     #[cfg(target_os = "windows")]
-    let base = std::env::var("LOCALAPPDATA")
-        .unwrap_or_else(|_| std::env::temp_dir().to_string_lossy().into());
-    #[cfg(not(target_os = "windows"))]
-    let base = std::env::temp_dir().to_string_lossy().to_string();
-    PathBuf::from(base).join("cdx-tray")
+    return PathBuf::from(
+        std::env::var("LOCALAPPDATA")
+            .unwrap_or_else(|_| std::env::temp_dir().to_string_lossy().into()),
+    )
+    .join("cdx-tray");
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR").filter(|d| !d.is_empty()) {
+            return PathBuf::from(dir).join("cdx-tray");
+        }
+        use std::os::unix::fs::MetadataExt;
+        let uid = std::fs::metadata("/proc/self")
+            .map(|m| m.uid())
+            .unwrap_or(0);
+        return std::env::temp_dir().join(format!("cdx-tray-{uid}"));
+    }
+    #[allow(unreachable_code)]
+    std::env::temp_dir().join("cdx-tray")
 }
 
 fn lock_path() -> PathBuf {

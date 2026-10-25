@@ -4,6 +4,7 @@ Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 """
 
 import os
+import re
 import threading
 import time
 from datetime import datetime
@@ -269,7 +270,7 @@ def _summarize_stats(entries):
         name = entry.get("session_name") or "-"
         row = rows.setdefault(name, {
             "session_name": name,
-            "provider": entry.get("provider") or "-",
+            "provider": set(),
             "launches": 0,
             "successes": 0,
             "failures": 0,
@@ -293,6 +294,8 @@ def _summarize_stats(entries):
             "last_started_at": None,
         })
         row["launches"] += 1
+        if entry.get("provider"):
+            row["provider"].add(entry["provider"])
         if entry.get("status") == "success":
             row["successes"] += 1
         elif entry.get("status") == "failed":
@@ -340,8 +343,10 @@ def _summarize_stats(entries):
         started = entry.get("started_at")
         if started and (not row["last_started_at"] or started > row["last_started_at"]):
             row["last_started_at"] = started
-            row["provider"] = entry.get("provider") or row["provider"]
     for row in rows.values():
+        # Every provider seen, not the last one: a project or model row often
+        # spans several.
+        row["provider"] = "+".join(sorted(row["provider"])) or "-"
         # Derive from the summed parts rather than summing each run's stored
         # total. Records written before the definition was settled carry a
         # total that excluded cache, and adding those to correct ones produced
@@ -481,11 +486,26 @@ def _format_rtk_saved(rtk):
 
 
 def _stats_group(entry, by):
-    """The project (launch folder name) or the model a run is counted under."""
+    """The project (launch folder) or the model a run is counted under."""
     if by == "project":
-        cwd = str(entry.get("cwd") or "").rstrip("/\\")
-        return os.path.basename(cwd) or "-"
+        return str(entry.get("cwd") or "").rstrip("/\\") or "-"
     return entry.get("usage_model") or "-"
+
+
+def _project_labels(paths):
+    """The shortest trailing part of each folder that still tells it apart, so
+    /a/app and /b/app read as a/app and b/app rather than both as app."""
+    parts = {path: [p for p in re.split(r"[/\\]", path) if p] for path in paths}
+    labels = {}
+    for path, segments in parts.items():
+        for n in range(1, len(segments) + 1):
+            label = "/".join(segments[-n:])
+            if not any(other != path and "/".join(rest[-n:]) == label for other, rest in parts.items()):
+                break
+        else:
+            label = path
+        labels[path] = label
+    return labels
 
 
 def _format_stats(rows, totals, period=None, use_color=False, active_sessions=None, group_label="SESSION"):
@@ -616,6 +636,11 @@ def handle_stats(rest, ctx):
         # Same accounting, another key: each run is regrouped, never re-priced.
         entries = [{**entry, "session_name": _stats_group(entry, parsed["by"])} for entry in entries]
     rows = _summarize_stats(entries)
+    if parsed["by"] == "project":
+        labels = _project_labels([row["session_name"] for row in rows])
+        for row in rows:
+            row["project"] = row["session_name"]
+            row["session_name"] = labels[row["project"]]
     totals = _stats_totals(rows)
     # rtk cannot tell which session a command ran in, so only the unfiltered view shows it.
     rtk = None if parsed["name"] else rtk_saved(ctx["service"]["base_dir"], parsed["period"], env=ctx.get("env"))

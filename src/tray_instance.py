@@ -2,7 +2,9 @@
 
 The companion owns the lock; this only reads it. Both sides must agree on the
 path, which is why the rule is written in one sentence in both places: the
-per-user temporary directory, then `cdx-tray/companion.pid`.
+per-user directory (LOCALAPPDATA on Windows, TMPDIR on macOS, XDG_RUNTIME_DIR on
+Linux, else the temp dir with the uid in the folder name), then
+`cdx-tray/companion.pid`.
 """
 import os
 import platform
@@ -13,8 +15,15 @@ from .session_helpers import _process_is_running
 
 def lock_path(env=None):
     env = os.environ if env is None else env
-    if platform.system() == "Windows":
+    system = platform.system()
+    if system == "Windows":
         base = env.get("LOCALAPPDATA") or tempfile.gettempdir()
+    elif system == "Linux":
+        # /tmp is shared on Linux: one user's lock would block another's tray.
+        if env.get("XDG_RUNTIME_DIR"):
+            return os.path.join(env["XDG_RUNTIME_DIR"], "cdx-tray", "companion.pid")
+        base = env.get("TMPDIR") or tempfile.gettempdir()
+        return os.path.join(base, f"cdx-tray-{os.getuid()}", "companion.pid")
     else:
         base = env.get("TMPDIR") or tempfile.gettempdir()
     return os.path.join(base, "cdx-tray", "companion.pid")

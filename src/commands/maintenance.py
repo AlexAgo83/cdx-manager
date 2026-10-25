@@ -775,6 +775,7 @@ def handle_update(rest, ctx):
         package_root=ctx["options"].get("packageRoot"),
         prefix=ctx["options"].get("prefix"),
         base_prefix=ctx["options"].get("basePrefix"),
+        env=ctx.get("env"),
     )
     results = run_update_plan(plan, runner=ctx["options"].get("runUpdate"), env=ctx.get("env"))
     failed = any((result.get("returncode") != 0) for result in results)

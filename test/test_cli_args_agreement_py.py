@@ -168,3 +168,17 @@ class SchemaCodesTests(unittest.TestCase):
                 emitted |= set(pattern.findall(handle.read()))
         not_codes = {"run_transcript"}  # interactive_usage match kind, not an error code
         self.assertEqual(emitted - published - not_codes, set())
+
+    def test_every_run_error_code_is_published(self):
+        """Any code a run can fail with, whatever its prefix."""
+        import re
+
+        from src.cli_args import cdx_schema
+        published = {code for codes in cdx_schema()["error_codes"].values() for code in codes}
+        root = os.path.join(os.path.dirname(__file__), "..", "src")
+        emitted = set()
+        for name in ("run_registry.py", os.path.join("commands", "runs.py"), "run_failover.py"):
+            with open(os.path.join(root, name), encoding="utf-8") as handle:
+                emitted |= set(re.findall(r'code\s*=\s*"([a-z_]+)"', handle.read()))
+        self.assertIn("too_many_runs", emitted, "the scan found nothing to check")
+        self.assertEqual(emitted - published, set())

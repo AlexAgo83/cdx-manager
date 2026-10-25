@@ -72,12 +72,13 @@ def supports_native_background(provider, env=None, spawn_sync=None):
     1. A delegated run cannot honour the `cdx run --json` contract. The
        in-house path runs `claude --print --output-format json` and gets a
        structured result, token usage, and a final payload. `--bg` runs the
-       interactive TUI; `claude logs <id>` returns an ANSI screen dump. So
-       usage accounting, the final payload, and the rate-limit classification
-       that `--failover` depends on all have no source.
-    2. Nothing yet drives a delegated run to a terminal status. `agent_terminal_status`
-       exists but no caller consults the provider, so the record relies on pid
-       liveness and a blocked agent reads as running indefinitely.
+       interactive TUI; `claude logs <id>` returns an ANSI screen dump. Usage
+       and the final text are read back from the session transcript, but the
+       rate-limit classification that `--failover` depends on has no source.
+    2. A delegated run only reaches a terminal status when a caller reads it:
+       `_reconcile_background_runs` in commands/runs.py consults the
+       transcript, then `agent_terminal_status`, on `cdx runs`, `run-status`
+       and `run-report`. Until one of those runs, the record stays `running`.
     3. cdx's own launch spec makes the agent block. A hand-run
        `claude --bg --permission-mode bypassPermissions "..."` reaches
        `state: done`; the same task launched through cdx sits at
