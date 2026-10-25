@@ -41,6 +41,42 @@ def _to_local_iso(value):
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone().isoformat()
 
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def reset_iso(display, reference=None):
+    """`Oct 20 15:00` (local time, no year) as ISO 8601, or None.
+
+    Every status source stores resets in that display shape. The year is the
+    one that puts the reset closest to `reference` (when the status was read),
+    so a January reset read in late December lands in the next year. A reset
+    with no time of day stays a date.
+    """
+    parts = str(display or "").split()
+    if len(parts) not in (2, 3) or parts[0] not in _MONTHS or not parts[1].isdigit():
+        return None
+    try:
+        hour, minute = (int(v) for v in parts[2].split(":")) if len(parts) == 3 else (0, 0)
+        now = datetime.fromisoformat(str(reference)) if reference else datetime.now().astimezone()
+        if now.tzinfo is None:
+            now = now.astimezone()
+        month, day = _MONTHS.index(parts[0]) + 1, int(parts[1])
+        candidates = []
+        for year in (now.year - 1, now.year, now.year + 1):
+            try:
+                # Naive local time resolved by the system zone, so a reset on
+                # the other side of a DST change gets its own offset.
+                candidates.append(datetime(year, month, day, hour, minute).astimezone())
+            except ValueError:
+                continue
+    except (TypeError, ValueError):
+        return None
+    if not candidates:
+        return None
+    best = min(candidates, key=lambda value: abs(value - now))
+    return best.date().isoformat() if len(parts) == 2 else best.isoformat()
+
+
 def _row_priority(session):
     launch = session.get("launch") or {}
     try:
@@ -298,6 +334,10 @@ def _status_row_from_session(store, s):
         "reset_5h_at": row_status.get("reset_5h_at") if row_status else None,
         "reset_week_at": row_status.get("reset_week_at") if row_status else None,
         "reset_at": row_status.get("reset_at") if row_status else None,
+        **{
+            f"{key}_iso": reset_iso(row_status.get(key), _to_local_iso(s.get("lastStatusAt"))) if row_status else None
+            for key in ("reset_5h_at", "reset_week_at", "reset_at")
+        },
         "updated_at": _to_local_iso(s.get("lastStatusAt")),
         "last_launched_at": _to_local_iso(s.get("lastLaunchedAt")),
     }

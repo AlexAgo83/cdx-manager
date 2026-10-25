@@ -165,6 +165,8 @@ Commands with machine-readable output:
 - `cdx select ... --json`
 - `cdx run ... --json`
 
+In `cdx status --json` rows, `reset_5h_at`, `reset_week_at` and `reset_at` are display strings in local time with no year (`Oct 20 15:00`). Read `reset_5h_at_iso`, `reset_week_at_iso` and `reset_at_iso` instead: ISO 8601 with the local offset, or a bare date when the provider gave no time of day.
+
 Success payloads follow a shared envelope:
 
 ```json
