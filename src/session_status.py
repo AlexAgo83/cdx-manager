@@ -338,6 +338,25 @@ def _fetch_codex_status(codex_status_fetcher, custom_codex_status_fetcher, defau
     timeout = timeout_seconds or default_status_timeout_seconds
     return codex_status_fetcher(session, timeout=timeout)
 
+def session_paths(session):
+    """Where a session's files live, so a caller never rebuilds cdx's layout.
+
+    `profile_dir` is the session's own directory and `transcripts_dir` the
+    provider's conversation store inside it (None for a provider cdx does not
+    read transcripts from). The credential home itself is deliberately not
+    named, the same rule `cdx status` rows follow.
+    """
+    auth_home = session.get("authHome")
+    transcripts = {
+        PROVIDER_CLAUDE: (".claude", "projects"),
+        PROVIDER_CODEX: ("sessions",),
+    }.get(session.get("provider"))
+    return {
+        "profile_dir": session.get("sessionRoot") or auth_home,
+        "transcripts_dir": os.path.join(auth_home, *transcripts) if auth_home and transcripts else None,
+    }
+
+
 def _status_row_from_session(store, s):
     status = s.get("lastStatus")
     enabled = s.get("enabled", True) is not False

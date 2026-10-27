@@ -8,7 +8,7 @@ import shlex
 
 from .. import retro, shared_memory
 from ..agent_notify import notifications_enabled, provision, supports_agent_alerts
-from ..cli_args import CAN_RESUME_USAGE, HANDOFF_USAGE, RESUME_USAGE, _parse_json_flag
+from ..cli_args import CAN_RESUME_USAGE, HANDOFF_USAGE, RESUME_USAGE, _parse_json_flag, _pop_value_flag
 from ..cli_helpers import (
     API_SCHEMA_VERSION,
     _json_failure,
@@ -30,6 +30,7 @@ from ..provider_runtime import (
     _ensure_session_authentication,
     _get_auth_home,
     _run_interactive_provider_command,
+    with_requested_conversation,
 )
 from ..run_command import PROMPT_STDIN, read_run_prompt
 from ..run_usage import estimate_cost
@@ -160,12 +161,14 @@ def _format_resume_capability(capability, use_color=False):
     )
 
 def handle_can_resume(rest, ctx):
+    conversation_id, rest = _pop_value_flag(rest, "--conversation", CAN_RESUME_USAGE)
     json_flag, args = _parse_json_flag(rest)
     if len(args) != 1:
         raise CdxError(CAN_RESUME_USAGE)
     session = ctx["service"]["get_session"](args[0])
     if not session:
         raise CdxError(f"Unknown session: {args[0]}")
+    requested = with_requested_conversation(session, conversation_id) if conversation_id else session
     if session.get("enabled", True) is False:
         capability = {
             "session": session["name"],
@@ -175,8 +178,19 @@ def handle_can_resume(rest, ctx):
             "reason": "session_disabled",
             "command_preview": [],
         }
+    elif requested is None:
+        capability = {
+            "session": session["name"],
+            "provider": session["provider"],
+            "resumable": False,
+            "strategy": "provider_conversation_id",
+            "identity": conversation_id,
+            "provenance": "requested",
+            "reason": "conversation_not_found",
+            "command_preview": [],
+        }
     else:
-        capability = _resume_capability_for_session(session, ctx)
+        capability = _resume_capability_for_session(requested, ctx)
     if json_flag:
         _write_json(ctx, {
             "schema_version": API_SCHEMA_VERSION,
@@ -188,13 +202,15 @@ def handle_can_resume(rest, ctx):
     return 0
 
 def handle_resume(rest, ctx):
+    conversation_id, rest = _pop_value_flag(rest, "--conversation", RESUME_USAGE)
     directory, rest, prompt = _parse_launch_args(rest)
     if prompt["prompt"] is not None or prompt["prompt_file"] is not None:
         raise CdxError("cdx resume: --prompt and --prompt-file are not supported when resuming.")
     json_flag, args = _parse_json_flag(rest)
     if len(args) != 1:
         raise CdxError(RESUME_USAGE)
-    return handle_launch(args[0], ctx, resume=True, force_json=json_flag, directory=directory)
+    return handle_launch(args[0], ctx, resume=True, force_json=json_flag, directory=directory,
+                         conversation_id=conversation_id)
 
 
 def _notification_provisioning_enabled(session, ctx, json_flag):
@@ -237,7 +253,8 @@ def _link_shared_memory(session, ctx, cwd, json_flag):
     ctx["out"](f"{_warn(message, ctx['use_color'])} {detail}\n")
 
 
-def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=None, directory=None):
+def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=None, directory=None,
+                  conversation_id=None):
     json_flag = "--json" in ctx.get("raw_args", ctx["options"].get("raw_args", []))
     if force_json is not None:
         json_flag = force_json
@@ -250,6 +267,8 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         raise CdxError(f"Unknown session: {command}")
     if session.get("enabled", True) is False:
         raise CdxError(f"Session is disabled: {command}")
+    if conversation_id and with_requested_conversation(session, conversation_id) is None:
+        raise CdxError(f"Conversation {conversation_id} not found in session {command}.", code="conversation_not_found")
     capability = _resume_capability_for_session(session, ctx) if resume else None
     if capability and not capability["resumable"]:
         raise CdxError(
@@ -257,6 +276,8 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         )
     cwd = _launch_directory(session, ctx, directory, json_flag)
     session = ctx["service"]["launch_session"](command, resume=resume)
+    if conversation_id:
+        session = with_requested_conversation(session, conversation_id)
     capability = _resume_capability_for_session(session, ctx) if resume else None
     if not json_flag and not ctx["stdin_is_tty"]:
         ctx["out"](f"Using directory: {cwd}\n")

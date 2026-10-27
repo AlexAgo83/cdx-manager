@@ -12,6 +12,7 @@ from datetime import datetime
 from ..claude_refresh import _refresh_claude_sessions
 from ..cli_args import (
     LAST_USAGE,
+    SESSIONS_USAGE,
     STATUS_USAGE,
     _filter_history_period,
     _has_history_period,
@@ -59,6 +60,7 @@ from ..run_usage import (
     token_prices,
     weighted_usage,
 )
+from ..session_status import session_paths
 from ..status_view import _format_status_detail, _format_status_rows, format_priority_instruction, recommend_priority_rows
 
 
@@ -926,3 +928,39 @@ def _write_refresh_warnings(refresh_errors, ctx, stream="out", rows=None):
     rows_by_name = _rows_by_session(rows)
     for item in refresh_errors:
         write(f"{_warn(_format_refresh_warning(item, rows_by_name), ctx['use_color'])}\n")
+
+
+def handle_sessions(rest, ctx):
+    """Interactive sessions cdx launched that are still running, or every account.
+
+    Read from the runtime cdx records at launch, so a provider started outside
+    cdx is not listed. A runtime whose process has died is reported stale and
+    dropped by the same check `cdx status` uses for `active`. `--all` adds the
+    idle enabled accounts, so a caller can resolve any account's directories.
+    """
+    json_flag, args = _parse_json_flag(rest)
+    include_all = "--all" in args
+    args = [arg for arg in args if arg != "--all"]
+    if not json_flag or args:
+        raise CdxError(SESSIONS_USAGE)
+    service = ctx["service"]
+    rows = []
+    for session in service["list_sessions"]():
+        if session.get("enabled", True) is False:
+            continue
+        runtime = service["active_session_runtime"](session["name"]) or {}
+        if not runtime and not include_all:
+            continue
+        rows.append({
+            "session": session["name"],
+            "provider": session["provider"],
+            "active": bool(runtime),
+            "pid": runtime.get("pid"),
+            "cwd": runtime.get("cwd"),
+            "started_at": runtime.get("startedAt"),
+            "runtime_id": runtime.get("runId"),
+            "conversation_id": (session.get("conversation") or {}).get("id"),
+            **session_paths(session),
+        })
+    _write_json(ctx, _json_success("sessions", "Sessions loaded.", sessions=rows))
+    return 0

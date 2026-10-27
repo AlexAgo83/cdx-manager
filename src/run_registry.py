@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from .errors import CdxError
 from .fs_utils import atomic_write
-from .run_usage import coerce_usage
+from .run_usage import _parse_json_records, coerce_usage
 from .session_helpers import _process_is_running
 
 
@@ -367,7 +367,7 @@ class RunRegistry:
             return run
         return None
 
-    def list(self, limit=20, since=None):
+    def list(self, limit=20, since=None, running=False):
         """Recent runs, newest first.
 
         `since` selects every run that *completed* strictly after that moment
@@ -384,6 +384,10 @@ class RunRegistry:
             if changed:
                 _write_registry(self.path, data)
         runs = data["runs"]
+        if running:
+            # Every in-flight run, uncapped: a caller counting live runs against
+            # a cap must not be handed a truncated count.
+            return [run for run in runs if run.get("status") == "running"]
         if since is not None:
             return [run for run in runs if _completed_after(run, since)]
         return runs[: max(0, int(limit or 20))]
@@ -408,6 +412,51 @@ def read_text_file(path, limit=120000):
             return handle.read(limit)
     except OSError:
         return ""
+
+
+def _record_final_message(record):
+    """The final assistant text one provider record carries, or None."""
+    if not isinstance(record, dict):
+        return None
+    # Claude: `--output-format json` ends with a `result` envelope.
+    if record.get("type") == "result" and isinstance(record.get("result"), str):
+        return record["result"]
+    # Codex `exec --json`: an `item.completed` event wrapping an agent_message.
+    item = record.get("item")
+    if isinstance(item, dict) and item.get("type") == "agent_message" and isinstance(item.get("text"), str):
+        return item["text"]
+    # Older Codex builds wrapped it as {"msg": {"type": "agent_message", "message": ...}}.
+    msg = record.get("msg")
+    if isinstance(msg, dict) and msg.get("type") == "agent_message" and isinstance(msg.get("message"), str):
+        return msg["message"]
+    return None
+
+
+def final_message(run):
+    """The run's last assistant message, read the same way for every provider.
+
+    A `--bg` run records it from the transcript as `final_payload.result`; any
+    other run left it in its stdout, in the provider's own event format. None
+    when neither holds one (a plain-text provider, a run that died early).
+    """
+    result = (run.get("final_payload") or {}).get("result")
+    if isinstance(result, str) and result.strip():
+        return result
+    stdout_path = (run.get("artifacts") or {}).get("stdout_path")
+    if not stdout_path:
+        return None
+    try:
+        with open(stdout_path, encoding="utf-8", errors="replace") as handle:
+            text = handle.read()
+    except OSError:
+        return None
+    if not text.strip():
+        return None
+    for record in reversed(_parse_json_records(text)):
+        message = _record_final_message(record)
+        if message is not None:
+            return message
+    return None
 
 
 def build_code_review_report(run_id, final_payload):

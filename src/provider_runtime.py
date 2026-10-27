@@ -820,6 +820,18 @@ def _conversation_is_resumable(session, provider, conversation_id):
         return False
 
 
+def with_requested_conversation(session, conversation_id):
+    """The session as if `conversation_id` were the one it last opened.
+
+    Returns None when that conversation does not exist in this session's
+    profile: an explicitly named resume must fail, not quietly fall back to
+    --last/--continue and open a different conversation.
+    """
+    if not _conversation_is_resumable(session, session.get("provider"), conversation_id):
+        return None
+    return {**session, "conversation": {"id": conversation_id, "provenance": "requested"}}
+
+
 def _redacted_resume_command_preview(session, cwd=None):
     capability = get_resume_capability(session, cwd=cwd)
     return capability.get("command_preview")
