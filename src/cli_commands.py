@@ -266,6 +266,9 @@ from .commands.status import (
     handle_next as handle_next,
 )
 from .commands.status import (
+    handle_sessions as handle_sessions,
+)
+from .commands.status import (
     handle_stats as handle_stats,
 )
 from .commands.status import (

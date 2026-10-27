@@ -43,7 +43,7 @@ from ..provider_runtime import (
 )
 from ..run_command import read_run_prompt, run_cdx_error_code, run_launch_payload, run_result_payload
 from ..run_failover import MAX_FAILOVER_TRANSITIONS, failover_reason
-from ..run_registry import RunRegistry, build_code_review_report
+from ..run_registry import RunRegistry, build_code_review_report, final_message
 from ..run_usage import extract_run_observation
 from ..session_ranking import FACTOR_DESCRIPTIONS, rank_sessions, selection_policy
 from ..status_view import _now_timestamp, _priority_reset_timestamp
@@ -415,7 +415,7 @@ def handle_runs(rest, ctx):
         raise CdxError(RUNS_USAGE)
     since = parsed.get("since")
     _reconcile_background_runs(ctx)
-    runs = _run_registry(ctx).list(limit=parsed["limit"], since=since)
+    runs = _run_registry(ctx).list(limit=parsed["limit"], since=since, running=parsed.get("running", False))
     warnings = []
     if since is not None and parsed.get("limit_given"):
         warnings.append({
@@ -503,6 +503,7 @@ def handle_run_report(rest, ctx):
     _write_json(ctx, _json_success("run-report", "Run report loaded.", report={
         "run": run,
         "final_payload": run.get("final_payload"),
+        "final_message": final_message(run),
         "task_report": run.get("task_report"),
         "artifacts": run.get("artifacts") or {},
         "usage": run.get("usage"),

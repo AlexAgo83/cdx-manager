@@ -42,8 +42,9 @@ HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|t
 STATS_USAGE = "Usage: cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--by session|project|model] [--json]"
 STATS_GROUPS = ("session", "project", "model")
 LAST_USAGE = "Usage: cdx last [--json]"
-RESUME_USAGE = "Usage: cdx resume <name> [--json]"
-CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--json]"
+RESUME_USAGE = "Usage: cdx resume <name> [--conversation <id>] [--json]"
+CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--conversation <id>] [--json]"
+SESSIONS_USAGE = "Usage: cdx sessions [--all] --json"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json"
 NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
 RUN_USAGE = "Usage: cdx run [session] (--cwd|--dir) PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--label TEXT] [--max-parallel N] [--detach] [--failover] [--refresh] --json"
@@ -61,7 +62,7 @@ RUN_PERMISSION_VALUES = PERMISSION_INPUT_VALUES
 RUN_PERMISSION_CANONICAL_VALUES = PERMISSION_VALUES
 RUN_PERMISSION_ALIASES = PERMISSION_ALIASES
 RUN_EFFORT_VALUES = REASONING_EFFORT_VALUES
-RUNS_USAGE = "Usage: cdx runs [--limit N] [--since 7d|today|DATE] --json"
+RUNS_USAGE = "Usage: cdx runs [--limit N] [--since 7d|today|DATE] [--running] --json"
 RUN_STATUS_USAGE = "Usage: cdx run-status <run_id> --json"
 RUN_REPORT_USAGE = "Usage: cdx run-report <run_id> --json"
 RUN_TAIL_USAGE = "Usage: cdx run-tail <run_id> [--lines N] --json"
@@ -78,6 +79,28 @@ ARG_CODE_MUTUALLY_EXCLUSIVE = "mutually_exclusive_arguments"
 ARG_CODE_INVALID_VALUE = "invalid_argument_value"
 ARG_CODE_OUT_OF_RANGE = "argument_value_out_of_range"
 ARG_CODE_UNKNOWN = "unknown_argument"
+
+
+def _pop_value_flag(args, flag, usage):
+    """Remove `flag VALUE` / `flag=VALUE` from args; return (value or None, rest)."""
+    value, rest, index = None, [], 0
+    while index < len(args):
+        arg = args[index]
+        name, sep, inline = arg.partition("=")
+        if name != flag:
+            rest.append(arg)
+            index += 1
+            continue
+        if sep:
+            candidate, index = inline, index + 1
+        elif index + 1 < len(args):
+            candidate, index = args[index + 1], index + 2
+        else:
+            raise CdxError(usage)
+        if value is not None or not candidate:
+            raise CdxError(usage)
+        value = candidate
+    return value, rest
 
 
 def _parse_json_flag(args):
@@ -1033,8 +1056,13 @@ def _parse_runs_args(rest, now=None):
     parsed = _parse_flag_args(rest, {
         "--limit": {"key": "limit", "type": "str", "default": 20, "transform": _parse_positive_int},
         "--since": {"key": "since", "type": "str", "default": None},
+        "--running": {"key": "running", "type": "bool", "default": False},
         "--json": {"key": "json", "type": "bool", "default": False},
     }, RUNS_USAGE, max_positionals=0)
+    if parsed["running"] and parsed["since"] is not None:
+        # --since returns completed runs only, --running the ones not completed:
+        # together they can only ever answer "nothing".
+        raise CdxError("cdx runs: --running and --since are mutually exclusive.")
     since = None
     if parsed["since"] is not None:
         # Same cursor forms as `cdx history --since`, parsed by the same code:
@@ -1048,6 +1076,7 @@ def _parse_runs_args(rest, now=None):
         # a watchdog behind by more than `limit` completions would never see
         # the older ones at all.
         "limit_given": any(arg == "--limit" or arg.startswith("--limit=") for arg in rest),
+        "running": parsed["running"],
         "json": parsed["json"],
     }
 

@@ -24,7 +24,8 @@ jobs:
           - "3.11"
         include:
           # pyproject declares requires-python >=3.9; keep that claim tested.
-          - os: ubuntu-latest
+          # Pinned: ubuntu-latest moved to 26.04, which has no 3.9 build.
+          - os: ubuntu-24.04
             python: "3.9"
     defaults:
       run:
