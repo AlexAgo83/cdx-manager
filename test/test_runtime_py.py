@@ -1130,6 +1130,8 @@ class RuntimePythonTests(unittest.TestCase):
         args = spec["fallback"]["args"]
         self.assertIn("--append-system-prompt", args)
         self.assertEqual(args[-1], args[args.index("--append-system-prompt") + 1])
+        # The hooks of a resumed session must know whose agent state they record.
+        self.assertEqual(spec["options"]["env"]["CDX_SESSION_NAME"], "main")
 
     def test_build_launch_spec_uses_codex_model_setting(self):
         session = {

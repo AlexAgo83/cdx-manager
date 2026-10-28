@@ -907,7 +907,13 @@ def _build_resume_spec(session, cwd=None, env_override=None, capture_transcript=
     cwd = cwd or os.getcwd()
     env_override = env_override or {}
     env = {**os.environ, **env_override}
+    for key, value in _shared_tool_cache_overrides(env).items():
+        env.setdefault(key, value)
     _shared_rtk_history(env)
+    # Same as a launch: without CDX_SESSION_NAME the hooks of a resumed session
+    # cannot say whose agent state they record, so `cdx agents` never lists it.
+    env.update(launch_notify_env(session, notifications_enabled(session) or agent_state_enabled(session)))
+    env.update(_scrub_env(session))
     capability = get_resume_capability(session, cwd=cwd)
     if not capability["resumable"]:
         raise CdxError(f"Provider {session.get('provider')} does not support native resume through cdx.")
