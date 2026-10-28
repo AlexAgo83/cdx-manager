@@ -1,0 +1,384 @@
+{
+  "budgets": {
+    "max_docs": 16,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [
+    "logics/backlog/item_165_agent_state_store_and_cdx_agents.md",
+    "logics/backlog/item_166_failover_for_detached_runs.md",
+    "logics/product/prod_057_agent_state_in_cdx.md",
+    "logics/request/req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json.md",
+    "logics/scaffold/agent_state_store.json",
+    "logics/tasks/task_086_deliver_agent_state_and_detached_failover_in_cdx.md"
+  ],
+  "command": "logics-manager sync context-pack req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json item_165_agent_state_store_and_cdx_agents item_166_failover_for_detached_runs task_086_deliver_agent_state_and_detached_failover_in_cdx --mode diff-first --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_165_agent_state_store_and_cdx_agents",
+          "item_166_failover_for_detached_runs"
+        ],
+        "prod": [
+          "prod_057_agent_state_in_cdx"
+        ],
+        "req": [
+          "req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json"
+        ],
+        "task": [
+          "task_086_deliver_agent_state_and_detached_failover_in_cdx"
+        ]
+      },
+      "path": "logics/product/prod_057_agent_state_in_cdx.md",
+      "ref": "prod_057_agent_state_in_cdx",
+      "sections": {
+        "Goals": [
+          "- One cheap, local answer to: which session needs me, which is busy, which hit a limit.",
+          "- Detached background runs survive a usage limit like attached ones."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "cdx already sees every agent event through its hook; keep the latest state per session and expose it so other tools can orchestrate without scraping."
+        ],
+        "References": [
+          "- Product back-reference: `req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json`",
+          "- Task back-reference: `task_086_deliver_agent_state_and_detached_failover_in_cdx`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Agent state in cdx"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "each, agent, session, state, expose, cdx, agents, json",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_165_agent_state_store_and_cdx_agents",
+          "item_166_failover_for_detached_runs"
+        ],
+        "prod": [
+          "prod_057_agent_state_in_cdx"
+        ],
+        "req": [
+          "req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json"
+        ]
+      },
+      "path": "logics/request/req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json.md",
+      "ref": "req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Every hook event cdx notify receives updates one small state record per cdx session (session, provider, cwd/project, state working|waiting|done|failed|limit, reason, last prompt head within the existing privacy rules, updated_at), written atomically under the cdx home, even when desktop alerts are muted or off.",
+          "- AC2: The hook needed for state is provisioned for every session that opts in (a setting distinct from desktop alerts, or notify on), for Claude Code and Codex.",
+          "- AC3: cdx agents [--json] lists the records, waiting first, drops records older than a configurable age, and marks a session whose process is gone as ended; nothing in it can change a hook decision (stdout stays silent in the hook path).",
+          "- AC4: A limit stop is recorded as state limit with the account's reset time when known, using the same two-signal rule as run_failover so a guess never marks a healthy session.",
+          "- AC5: --failover works with --detach: the detached supervisor applies the failover decision, and the run registry records the move.",
+          "- AC6: Tests cover state transitions, muted alerts still recording, stale and ended sessions, the silent-stdout rule and detached failover; README/docs updated."
+        ],
+        "Needs": [
+          "- A dashboard or another tool (a hub, a terminal board, a chat agent) can ask cdx which sessions are working, waiting for their user, done or stopped by a usage limit, without parsing transcripts or terminals."
+        ]
+      },
+      "status": "Draft",
+      "title": "Keep each agent session's state and expose it as cdx agents --json"
+    },
+    {
+      "ai_context": {
+        "keywords": "agent, state, store, cdx, agents",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_165_agent_state_store_and_cdx_agents"
+        ],
+        "prod": [
+          "prod_057_agent_state_in_cdx"
+        ],
+        "req": [
+          "req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json"
+        ],
+        "task": [
+          "task_086_deliver_agent_state_and_detached_failover_in_cdx"
+        ]
+      },
+      "path": "logics/backlog/item_165_agent_state_store_and_cdx_agents.md",
+      "ref": "item_165_agent_state_store_and_cdx_agents",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: Every hook event cdx notify receives updates one small state record per cdx session (session, provider, cwd/project, state working|waiting|done|failed|limit, reason, last prompt head within the existing privacy rules, updated_at), written atomically under the cdx home, even when desktop alerts are muted or off.",
+          "- AC2: The hook needed for state is provisioned for every session that opts in (a setting distinct from desktop alerts, or notify on), for Claude Code and Codex.",
+          "- AC3: cdx agents [--json] lists the records, waiting first, drops records older than a configurable age, and marks a session whose process is gone as ended; nothing in it can change a hook decision (stdout stays silent in the hook path).",
+          "- AC4: A limit stop is recorded as state limit with the account's reset time when known, using the same two-signal rule as run_failover so a guess never marks a healthy session.",
+          "- AC6: Tests cover state transitions, muted alerts still recording, stale and ended sessions, the silent-stdout rule and detached failover; README/docs updated."
+        ],
+        "Problem": [
+          "- Hook events are turned into notifications and forgotten, so nothing can tell which session waits for its user."
+        ]
+      },
+      "status": "Ready",
+      "title": "Agent state store and cdx agents"
+    },
+    {
+      "ai_context": {
+        "keywords": "failover, detached, runs",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_166_failover_for_detached_runs"
+        ],
+        "prod": [
+          "prod_057_agent_state_in_cdx"
+        ],
+        "req": [
+          "req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json"
+        ],
+        "task": [
+          "task_086_deliver_agent_state_and_detached_failover_in_cdx"
+        ]
+      },
+      "path": "logics/backlog/item_166_failover_for_detached_runs.md",
+      "ref": "item_166_failover_for_detached_runs",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC5: --failover works with --detach: the detached supervisor applies the failover decision, and the run registry records the move.",
+          "- AC6: Tests cover state transitions, muted alerts still recording, stale and ended sessions, the silent-stdout rule and detached failover; README/docs updated."
+        ],
+        "Problem": [
+          "- --failover needs a watching process, which --detach gives up, so detached runs never move to another account."
+        ]
+      },
+      "status": "Ready",
+      "title": "Failover for detached runs"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_165_agent_state_store_and_cdx_agents",
+          "item_166_failover_for_detached_runs"
+        ],
+        "prod": [
+          "prod_057_agent_state_in_cdx"
+        ],
+        "req": [
+          "req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json"
+        ],
+        "task": [
+          "task_086_deliver_agent_state_and_detached_failover_in_cdx"
+        ]
+      },
+      "path": "logics/product/prod_057_agent_state_in_cdx.md",
+      "ref": "prod_057_agent_state_in_cdx",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Agent state in cdx"
+    },
+    {
+      "ai_context": {
+        "keywords": "deliver, agent, state, detached, failover, cdx",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_165_agent_state_store_and_cdx_agents",
+          "item_166_failover_for_detached_runs"
+        ],
+        "prod": [
+          "prod_057_agent_state_in_cdx"
+        ],
+        "req": [
+          "req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json"
+        ],
+        "task": [
+          "task_086_deliver_agent_state_and_detached_failover_in_cdx"
+        ]
+      },
+      "path": "logics/tasks/task_086_deliver_agent_state_and_detached_failover_in_cdx.md",
+      "ref": "task_086_deliver_agent_state_and_detached_failover_in_cdx",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Deliver agent state and detached failover in cdx"
+    }
+  ],
+  "estimates": {
+    "char_count": 8190,
+    "companion_doc_count": 1,
+    "doc_count": 5
+  },
+  "generated_at": "2026-10-28T07:36:01Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json",
+      "item_165_agent_state_store_and_cdx_agents",
+      "item_166_failover_for_detached_runs",
+      "task_086_deliver_agent_state_and_detached_failover_in_cdx"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "diff-first",
+  "profile": "normal",
+  "ref": "req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json,item_165_agent_state_store_and_cdx_agents,item_166_failover_for_detached_runs,task_086_deliver_agent_state_and_detached_failover_in_cdx",
+  "refs": [
+    "req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json",
+    "item_165_agent_state_store_and_cdx_agents",
+    "item_166_failover_for_detached_runs",
+    "task_086_deliver_agent_state_and_detached_failover_in_cdx"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different version",
+      "changelog: evidence targets a different version",
+      "release_checksums: evidence targets a different version",
+      "local_validation: evidence targets a different version",
+      "git_push: evidence targets a different version",
+      "ci: evidence targets a different version",
+      "github_release: evidence targets a different version",
+      "npm_publication: evidence targets a different version",
+      "pypi_publication: evidence targets a different version"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different version",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different version",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_id": null,
+    "target_version": "0.23.0",
+    "targets": []
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_086_deliver_agent_state_and_detached_failover_in_cdx.md",
+      "ref": "task_086_deliver_agent_state_and_detached_failover_in_cdx"
+    }
+  ]
+}

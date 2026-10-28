@@ -76,6 +76,7 @@
 | [prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop](product/prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop.md) | Recoverable CDX operations across credentials, runs, and tray interop | Settled |  |  | product/prod_054_recoverable_cdx_operations_across_credentials_runs_and_tray_interop.md |
 | [prod_055_reliable_transcript_first_handoff_recovery](product/prod_055_reliable_transcript_first_handoff_recovery.md) | Reliable transcript-first handoff recovery | Settled |  |  | product/prod_055_reliable_transcript_first_handoff_recovery.md |
 | [prod_056_trustworthy_local_recovery_and_usage_attribution](product/prod_056_trustworthy_local_recovery_and_usage_attribution.md) | Trustworthy local recovery and usage attribution | Settled |  |  | product/prod_056_trustworthy_local_recovery_and_usage_attribution.md |
+| [prod_057_agent_state_in_cdx](product/prod_057_agent_state_in_cdx.md) | Agent state in cdx | Proposed |  |  | product/prod_057_agent_state_in_cdx.md |
 
 ## Roadmaps
 
@@ -168,6 +169,7 @@ _None_
 | [req_078_review_findings_stats_attribution_and_pricing_input_validation](request/req_078_review_findings_stats_attribution_and_pricing_input_validation.md) | Review findings: stats attribution and pricing input validation | Obsolete |  |  | request/req_078_review_findings_stats_attribution_and_pricing_input_validation.md |
 | [req_079_review_findings_handoff_source_ambiguity_and_literal_profile_paths](request/req_079_review_findings_handoff_source_ambiguity_and_literal_profile_paths.md) | Review findings: handoff source ambiguity and literal profile paths | Obsolete |  |  | request/req_079_review_findings_handoff_source_ambiguity_and_literal_profile_paths.md |
 | [req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery](request/req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery.md) | Harden reviewed data integrity, stats accounting and handoff recovery | Done |  |  | request/req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery.md |
+| [req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json](request/req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json.md) | Keep each agent session's state and expose it as cdx agents --json | Draft |  |  | request/req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json.md |
 
 ## Backlog
 
@@ -340,6 +342,8 @@ _None_
 | [item_162_clarify_stats_period_and_cost_contracts_and_remove_duplicate_finalization](backlog/item_162_clarify_stats_period_and_cost_contracts_and_remove_duplicate_finalization.md) | Clarify stats period and cost contracts and remove duplicate finalization | Done |  | 100% | backlog/item_162_clarify_stats_period_and_cost_contracts_and_remove_duplicate_finalization.md |
 | [item_163_bind_handoff_selection_to_one_exact_native_source_file](backlog/item_163_bind_handoff_selection_to_one_exact_native_source_file.md) | Bind handoff selection to one exact native source file | Done |  | 100% | backlog/item_163_bind_handoff_selection_to_one_exact_native_source_file.md |
 | [item_164_treat_profile_paths_literally_in_native_and_terminal_transcript_discovery](backlog/item_164_treat_profile_paths_literally_in_native_and_terminal_transcript_discovery.md) | Treat profile paths literally in native and terminal transcript discovery | Done |  | 100% | backlog/item_164_treat_profile_paths_literally_in_native_and_terminal_transcript_discovery.md |
+| [item_165_agent_state_store_and_cdx_agents](backlog/item_165_agent_state_store_and_cdx_agents.md) | Agent state store and cdx agents | Ready |  | 0% | backlog/item_165_agent_state_store_and_cdx_agents.md |
+| [item_166_failover_for_detached_runs](backlog/item_166_failover_for_detached_runs.md) | Failover for detached runs | Ready |  | 0% | backlog/item_166_failover_for_detached_runs.md |
 
 ## Tasks
 
@@ -435,6 +439,7 @@ _None_
 | [task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery](tasks/task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery.md) | Deliver reliable transcript-first handoff from source resolution through verified recovery | Done | Codex | 100% | tasks/task_083_deliver_reliable_transcript_first_handoff_from_source_resolution_through_verified_recovery.md |
 | [task_084_refresh_model_prices_and_model_specific_cache_rates](tasks/task_084_refresh_model_prices_and_model_specific_cache_rates.md) | Refresh model prices and model specific cache rates | Done | codex | 100% | tasks/task_084_refresh_model_prices_and_model_specific_cache_rates.md |
 | [task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff](tasks/task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff.md) | Orchestrate review hardening across persistence, stats and handoff | Done | Codex | 100% | tasks/task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff.md |
+| [task_086_deliver_agent_state_and_detached_failover_in_cdx](tasks/task_086_deliver_agent_state_and_detached_failover_in_cdx.md) | Deliver agent state and detached failover in cdx | Ready |  | 0% | tasks/task_086_deliver_agent_state_and_detached_failover_in_cdx.md |
 
 ## Runbooks
 

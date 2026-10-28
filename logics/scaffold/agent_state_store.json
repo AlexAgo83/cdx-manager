@@ -1,0 +1,99 @@
+{
+  "title": "Keep each agent session's state and expose it as cdx agents --json",
+  "references": [
+    "src/agent_notify.py",
+    "src/run_failover.py",
+    "src/run_registry.py",
+    "src/cli_args.py"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Agent state",
+    "needs": [
+      "A dashboard or another tool (a hub, a terminal board, a chat agent) can ask cdx which sessions are working, waiting for their user, done or stopped by a usage limit, without parsing transcripts or terminals."
+    ],
+    "context": [
+      "cdx notify already receives every Claude Code and Codex hook event with the cdx session name, but only turns it into a desktop or tray notification and keeps nothing.",
+      "Consumers seen so far: a web hub across several machines, a chat agent driving cdx through MCP, terminal boards built on cdx.",
+      "cdx run --failover cannot be combined with --detach, so background runs started detached never fail over on a usage limit."
+    ],
+    "acceptance_criteria": [
+      "AC1: Every hook event cdx notify receives updates one small state record per cdx session (session, provider, cwd/project, state working|waiting|done|failed|limit, reason, last prompt head within the existing privacy rules, updated_at), written atomically under the cdx home, even when desktop alerts are muted or off.",
+      "AC2: The hook needed for state is provisioned for every session that opts in (a setting distinct from desktop alerts, or notify on), for Claude Code and Codex.",
+      "AC3: cdx agents [--json] lists the records, waiting first, drops records older than a configurable age, and marks a session whose process is gone as ended; nothing in it can change a hook decision (stdout stays silent in the hook path).",
+      "AC4: A limit stop is recorded as state limit with the account's reset time when known, using the same two-signal rule as run_failover so a guess never marks a healthy session.",
+      "AC5: --failover works with --detach: the detached supervisor applies the failover decision, and the run registry records the move.",
+      "AC6: Tests cover state transitions, muted alerts still recording, stale and ended sessions, the silent-stdout rule and detached failover; README/docs updated."
+    ]
+  },
+  "product": {
+    "title": "Agent state in cdx",
+    "overview": "cdx already sees every agent event through its hook; keep the latest state per session and expose it so other tools can orchestrate without scraping.",
+    "goals": [
+      "One cheap, local answer to: which session needs me, which is busy, which hit a limit.",
+      "Detached background runs survive a usage limit like attached ones."
+    ],
+    "non_goals": [
+      "A dashboard or UI in cdx itself beyond the CLI listing.",
+      "Shipping state between machines: consumers fetch cdx agents --json where they need it."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Agent state store and cdx agents",
+      "priority": "High - consumers are waiting on it",
+      "complexity": "Medium",
+      "theme": "Agent state",
+      "request_acs": ["AC1", "AC2", "AC3", "AC4", "AC6"],
+      "problem": [
+        "Hook events are turned into notifications and forgotten, so nothing can tell which session waits for its user."
+      ],
+      "scope_in": [
+        "State record written from handle_notify, provisioning switch, cdx agents listing and JSON, limit state with reset time, tests and docs."
+      ],
+      "scope_out": [
+        "Remote aggregation, UI."
+      ],
+      "acceptance_criteria": [
+        "AC1: Every hook event cdx notify receives updates one small state record per cdx session (session, provider, cwd/project, state working|waiting|done|failed|limit, reason, last prompt head within the existing privacy rules, updated_at), written atomically under the cdx home, even when desktop alerts are muted or off.",
+        "AC2: The hook needed for state is provisioned for every session that opts in (a setting distinct from desktop alerts, or notify on), for Claude Code and Codex.",
+        "AC3: cdx agents [--json] lists the records, waiting first, drops records older than a configurable age, and marks a session whose process is gone as ended; nothing in it can change a hook decision (stdout stays silent in the hook path).",
+        "AC4: A limit stop is recorded as state limit with the account's reset time when known, using the same two-signal rule as run_failover so a guess never marks a healthy session.",
+        "AC6: Tests cover state transitions, muted alerts still recording, stale and ended sessions, the silent-stdout rule and detached failover; README/docs updated."
+      ]
+    },
+    {
+      "title": "Failover for detached runs",
+      "priority": "Medium - unattended runs die on a usage limit",
+      "complexity": "Medium",
+      "theme": "Agent state",
+      "request_acs": ["AC5", "AC6"],
+      "problem": [
+        "--failover needs a watching process, which --detach gives up, so detached runs never move to another account."
+      ],
+      "scope_in": [
+        "Failover decision applied by the detached supervisor, registry entry for the move, tests."
+      ],
+      "scope_out": [
+        "Changing the two-signal failover rule."
+      ],
+      "acceptance_criteria": [
+        "AC5: --failover works with --detach: the detached supervisor applies the failover decision, and the run registry records the move.",
+        "AC6: Tests cover state transitions, muted alerts still recording, stale and ended sessions, the silent-stdout rule and detached failover; README/docs updated."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Deliver agent state and detached failover in cdx",
+    "plan": [
+      "State store and cdx agents first, behind its own setting.",
+      "Detached failover second.",
+      "Release, then consumers (remote-ops Jarvis HQ) read cdx agents --json."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/agent_state_store.json",
+    "mode": "diff-first",
+    "profile": "normal"
+  }
+}
