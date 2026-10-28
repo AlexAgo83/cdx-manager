@@ -18,6 +18,10 @@ class AgentStateHookTests(unittest.TestCase):
         self.service = create_session_service({"base_dir": self.base_dir})
         self.service["create_session"]("work", "claude")
         self.calls = []
+        # A fixed channel: CI hosts have no desktop session, so the real lookup finds none there.
+        channel = mock.patch("src.notify.notification_channel", return_value="notify-send")
+        channel.start()
+        self.addCleanup(channel.stop)
 
     def _notify(self, payload, preview=False):
         env = {agent_notify.SESSION_ENV: "work", agent_state.PID_ENV: str(os.getpid())}
