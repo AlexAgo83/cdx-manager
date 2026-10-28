@@ -53,7 +53,6 @@ RUN_TARGET_REQUIRED = "cdx run: specify a session name or --provider PROVIDER."
 RUN_SESSION_PROVIDER_CONFLICT = "cdx run: cannot specify both a session name and --provider."
 RUN_CWD_REQUIRED = "cdx run: --cwd PATH is required."
 RUN_PROMPT_SOURCE_REQUIRED = "cdx run: specify exactly one prompt source: --prompt TEXT or --prompt-file PATH."
-RUN_DETACH_FAILOVER_CONFLICT = "cdx run: --failover needs to watch the run, which --detach gives up."
 RUN_KIND_VALUES = ("assistant", "code-review", "retro")
 # Aliases of the shared definitions in config, kept only so the existing
 # RUN_* spellings in this module keep reading naturally. They are references,
@@ -508,11 +507,6 @@ def cdx_schema():
                 "arguments": ["--prompt-file", "--prompt"],
                 "reason": "Exactly one prompt source.",
             },
-            {
-                "command": "run",
-                "arguments": ["--detach", "--failover"],
-                "reason": "Failover has to watch the run to react to a rate limit; --detach stops watching.",
-            },
         ],
         # Not mutually exclusive: both may be given, and cdx accepts them when
         # they agree. A caller generating validation from `mutually_exclusive`
@@ -695,12 +689,6 @@ def _parse_run_args(args):
             RUN_PROMPT_SOURCE_REQUIRED,
             code=ARG_CODE_MUTUALLY_EXCLUSIVE,
             arguments=["--prompt-file", "--prompt"],
-        )
-    if parsed["detach"] and parsed["failover"]:
-        raise CdxArgumentError(
-            RUN_DETACH_FAILOVER_CONFLICT,
-            code=ARG_CODE_MUTUALLY_EXCLUSIVE,
-            arguments=["--detach", "--failover"],
         )
     if not parsed["prompt_file"] and not parsed["prompt"]:
         raise CdxArgumentError(

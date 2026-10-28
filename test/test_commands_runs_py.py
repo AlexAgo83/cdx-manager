@@ -1638,18 +1638,50 @@ class RunsCommandTests(CliTestBase):
         payload = json.loads(io_obj["stdout"].getvalue())
         self.assertEqual(payload["error"]["code"], "provider_failed")
 
-    def test_detach_and_failover_are_rejected_together(self):
+    def test_detached_failover_is_applied_by_the_detached_child(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})
-        self._authenticated_codex_session(service, "work")
+        for name in ("work1", "work2"):
+            self._authenticated_codex_session(service, name)
+        service["record_status"]("work1", {"remaining_5h_pct": 0, "remaining_week_pct": 0})
+
+        spawned = {}
+
+        def spawn_detached(argv, **_kwargs):
+            spawned["argv"] = argv
+            child = _HeadlessChild(0)
+            child.pid = os.getppid()
+            return child
 
         io_obj = self.make_io()
-        self.assertEqual(main([
-            "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--detach", "--failover", "--json"
-        ], self.make_run_ctx(io_obj, service)), 1)
+        # Even where the provider could run its own background agent, failover
+        # keeps the cdx child: nothing would be watching the provider's.
+        with mock.patch("src.commands.runs.supports_native_background", return_value=True):
+            self.assertEqual(main([
+                "run", "work1", "--cwd", target_dir, "--prompt", "Do it", "--detach", "--failover", "--json"
+            ], self.make_run_ctx(io_obj, service, spawn_detached=spawn_detached)), 0)
+        run_id = json.loads(io_obj["stdout"].getvalue())["run_id"]
+        child_argv = spawned["argv"][spawned["argv"].index("run"):]
+        self.assertIn("--failover", child_argv)
+        self.assertNotIn("--detach", child_argv)
 
-        payload = json.loads(io_obj["stdout"].getvalue())
-        self.assertEqual(payload["error"]["code"], "mutually_exclusive_arguments")
+        # Now be that child: the same blocking path, handed the parent's run id.
+        def spawn(_argv, **kwargs):
+            running = RunRegistry(target_dir).get(run_id)
+            if running["session"] == "work1":
+                kwargs["stdout"].write(json.dumps(
+                    {"type": "error", "message": "Your workspace is out of credits."}
+                ) + "\n")
+                return _HeadlessChild(1)
+            return _HeadlessChild(0)
+
+        child_io = self.make_io()
+        with mock.patch.dict(os.environ, {"CDX_RUN_ID": run_id}):
+            self.assertEqual(main(child_argv, self.make_run_ctx(child_io, service, spawn_headless=spawn)), 0)
+
+        run = RunRegistry(target_dir).get(run_id)
+        self.assertEqual((run["status"], run["session"]), ("succeeded", "work2"))
+        self.assertEqual([item["session"] for item in run["occupancies"]], ["work1", "work2"])
 
 
 class RunRegistryPruneTests(unittest.TestCase):

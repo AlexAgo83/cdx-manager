@@ -204,6 +204,10 @@ def _detached_child_argv(parsed, prompt_path, session_name, cwd):
         argv += ["--reasoning-effort", str(parsed["reasoning_effort"])]
     if parsed.get("timeout_seconds"):
         argv += ["--timeout-seconds", str(parsed["timeout_seconds"])]
+    # The child is the supervisor: it watches the run like any blocking one, so
+    # it applies the failover rule and records each move in the registry.
+    if parsed.get("failover"):
+        argv.append("--failover")
     argv.append("--json")
     return argv
 
@@ -637,7 +641,9 @@ def handle_run(rest, ctx):
             # agent and report on it; fall back to the in-house launcher
             # otherwise, and whenever the provider declines to start one.
             launch = None
-            if supports_native_background(
+            # A provider's own background agent has no cdx process watching it,
+            # so nothing could fail it over; --failover keeps the in-house child.
+            if not parsed.get("failover") and supports_native_background(
                 run_session.get("provider"),
                 env=ctx.get("env"),
                 spawn_sync=ctx.get("spawn_text"),
