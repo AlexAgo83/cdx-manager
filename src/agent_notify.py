@@ -15,10 +15,12 @@ import re
 import shutil
 import subprocess
 
+from . import agent_state
 from .config import get_cdx_home
 from .fs_utils import atomic_write
 from .notify import notification_channel, send_desktop_notification
 from .tray_alerts import alerts_enabled
+from .tray_defaults import alerts_default
 from .tray_events import publish
 
 # Set on the provider process at launch; the hook runs as its child and inherits both.
@@ -121,6 +123,10 @@ def _is_reportable(payload, event):
     reports exactly — `permission_prompt` duplicates PermissionRequest — or an
     internal state the user has no action to take on.
     """
+    if event == "userpromptsubmit":
+        # Subscribed for the agent state only; a prompt the user just typed is
+        # not news to them.
+        return False
     if event != "notification":
         return True
     kind = str(payload.get("notification_type") or "").lower()
@@ -291,8 +297,9 @@ def handle_notify(rest, ctx):
         # call being asked about, so a stray line would allow or deny it. The
         # notification paths below print nothing; this is the statement of why
         # they must not start.
+        _record_state(ctx, payload, env)
         composed = compose_notification(payload, env, ctx.get("cwd"))
-        if composed:
+        if composed and _alerts_wanted(ctx, env.get(SESSION_ENV)):
             # Muted stops the banner, not the record: the event still reaches a
             # running tray so the menu can show what was missed, and the direct
             # path stays quiet too — otherwise quitting the tray would un-mute.
@@ -313,6 +320,43 @@ def handle_notify(rest, ctx):
     return 0
 
 
+def _record_state(ctx, payload, env):
+    """Keep this event as the session's state, before and apart from any alert.
+
+    Recorded whether alerts are on, muted or off: a dashboard asking which
+    session waits for its user must not go blind because the banner was muted.
+    Its own guard, so a failed write never costs the alert either.
+    """
+    try:
+        event = hook_event(payload)
+        prompt = ""
+        if event == "userpromptsubmit" and env.get(PREVIEW_ENV) == "1":
+            prompt = _notification_text(payload.get("prompt"), agent_state._PROMPT_LIMIT)
+        directory = payload.get("cwd") or payload.get("workspace") or ctx.get("cwd") or os.getcwd()
+        agent_state.record(
+            ctx, env.get(SESSION_ENV), payload, event, error_class(payload), directory, env, prompt=prompt,
+        )
+    except Exception:  # noqa: BLE001 - the caller is an agent turn
+        pass
+
+
+def _alerts_wanted(ctx, name):
+    """False only for a session whose hooks exist for its state alone.
+
+    `--agent-state on` installs the same hooks as `--notify on`, so without this
+    a session that asked for state only would start raising desktop alerts.
+    Anything unreadable keeps the alert: that was the behaviour before state.
+    """
+    service = ctx.get("service") or {}
+    try:
+        session = service["get_session"](name)
+    except Exception:  # noqa: BLE001 - a missing store is not a reason to drop alerts
+        return True
+    if not agent_state.agent_state_enabled(session):
+        return True
+    return notifications_enabled(session) or alerts_default(service["base_dir"])
+
+
 def launch_notify_env(session, enabled, env=None):
     """Env the provider is launched with, carrying who we are and privacy settings.
 
@@ -325,7 +369,7 @@ def launch_notify_env(session, enabled, env=None):
     running tray that never receives an alert, with nothing reporting an error.
     """
     env = os.environ if env is None else env
-    values = {SESSION_ENV: session["name"], "CDX_HOME": get_cdx_home(env)}
+    values = {SESSION_ENV: session["name"], "CDX_HOME": get_cdx_home(env), agent_state.PID_ENV: str(os.getpid())}
     if enabled and (session.get("launch") or {}).get("notify_preview") is True:
         values[PREVIEW_ENV] = "1"
     return values
@@ -343,7 +387,7 @@ def notifications_enabled(session):
     return launch.get("notify") is True
 
 
-def provision(auth_home, provider, enabled, env=None, spawn_sync=None, base_dir=None):
+def provision(auth_home, provider, enabled, env=None, spawn_sync=None, base_dir=None, keep_state=False):
     """Install or remove cdx's notification hooks in this session's own home.
 
     Idempotent, so an existing session picks the hooks up on its next launch and
@@ -356,7 +400,9 @@ def provision(auth_home, provider, enabled, env=None, spawn_sync=None, base_dir=
     anywhere under `CODEX_HOME` is never looked at.
     """
     env = env or os.environ
-    if enabled and not notification_channel(env):
+    # `keep_state` needs the hooks whether or not anything can be shown here:
+    # a session driven over SSH is exactly the one a remote dashboard watches.
+    if enabled and not keep_state and not notification_channel(env):
         # Nothing could be delivered on this host (an SSH login, say), so
         # installing a hook would only buy an approval prompt for a feature that
         # shows nothing. Removing existing hooks is no better: Codex would ask to
@@ -458,7 +504,7 @@ def _write_codex_plugin(auth_home, command, base_dir=None):
         os.path.join(root, "hooks", "cdx-hooks.json"): {
             "hooks": {
                 event: [{"hooks": [{"type": "command", "command": f"{command} {HOOK_ARG}"}]}]
-                for event in ("Stop", "PermissionRequest")
+                for event in ("UserPromptSubmit", "Stop", "PermissionRequest")
             },
         },
     }
@@ -509,7 +555,9 @@ def _apply_hooks(path, enabled, command):
     # StopFailure is Claude-only: Codex documents no equivalent, so a turn its
     # provider kills stays silent there and the documentation says so rather
     # than implying a parity that does not exist.
-    for event in ("Stop", "StopFailure", "Notification", "PermissionRequest"):
+    # UserPromptSubmit is there for the agent state only: it is what says a
+    # session went back to work, and `cdx notify` raises no alert for it.
+    for event in ("UserPromptSubmit", "Stop", "StopFailure", "Notification", "PermissionRequest"):
         # Rebuilt from whatever is there minus our own entry, so user-authored
         # hooks on the same event survive both installing and removing.
         entries = [entry for entry in hooks.get(event, []) if not _is_ours(entry)]

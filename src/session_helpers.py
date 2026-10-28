@@ -24,6 +24,7 @@ MAX_SESSION_NAME_LENGTH = 64
 
 RESERVED_SESSION_NAMES = {
     "add",
+    "agents",
     "can-resume",
     "clean",
     "context",

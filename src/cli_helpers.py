@@ -312,6 +312,7 @@ def _format_launch_config(session, use_color=False):
         ("rtk", "RTK"),
         ("logics", "Logics"),
         ("notify", "Agent alerts"),
+        ("agent_state", "Agent state"),
         ("notify_preview", "Response preview"),
         ("scrub_env", "Scrub agent env"),
         ("shared_memory", "Shared memory"),
@@ -343,14 +344,14 @@ def _format_launch_settings_hint(name="<name>"):
     )
 
 def _format_launch_setting_value(launch, key, use_color=False):
-    if key in ("fast", "rtk", "logics", "notify", "notify_preview", "scrub_env", "shared_memory", "retro"):
+    if key in ("fast", "rtk", "logics", "notify", "agent_state", "notify_preview", "scrub_env", "shared_memory", "retro"):
         if launch.get(key) is True:
             return _style("on", "32", use_color)
         if launch.get(key) is False:
             return _style("off", "2", use_color)
         if key == "logics":
             return _dim("auto", use_color)
-        if key in ("notify", "notify_preview", "scrub_env", "shared_memory", "retro"):
+        if key in ("notify", "agent_state", "notify_preview", "scrub_env", "shared_memory", "retro"):
             return _style("off", "2", use_color)
         return _dim("default", use_color)
     value = launch.get(key)

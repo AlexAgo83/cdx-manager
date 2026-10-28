@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime, timezone
 
 from .agent_notify import launch_notify_env, notifications_enabled
+from .agent_state import agent_state_enabled
 from .claude_credentials import peek_keychain_credentials, read_claude_login_file
 from .claude_usage import _clean_oauth_token, _decode_jwt_claims, _secure_storage_overrides, claude_profile_store_dir
 from .codex_usage import codex_auth_lock, diagnostic_needs_codex_login, fetch_codex_rate_limit_diagnostic
@@ -716,7 +717,7 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
     for key, value in _shared_tool_cache_overrides(env).items():
         env.setdefault(key, value)
     _shared_rtk_history(env)
-    env.update(launch_notify_env(session, notifications_enabled(session)))
+    env.update(launch_notify_env(session, notifications_enabled(session) or agent_state_enabled(session)))
     env.update(_scrub_env(session))
     preference_args = _launch_preference_args(session, env=env)
     if session["provider"] == PROVIDER_CLAUDE:

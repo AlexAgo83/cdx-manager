@@ -33,8 +33,8 @@ CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set|append [text..
 MEMORY_USAGE = "Usage: cdx memory [--global|--project NAME_OR_PATH] [show|view|path|init|edit|clear|set|append|list] [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--source-conversation ID | --source-native-transcript PATH | --source-transcript PATH] [--json]"
 LABEL_USAGE = "Usage: cdx label <name> <label> [--json] | cdx label <name> --clear [--json]"
-SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--notify on|off] [--notify-preview on|off] [--scrub-env on|off] [--shared-memory on|off] [--retro on|off] [--policy use|ask-first|never] [--model MODEL] [--fallback-model MODEL[,MODEL...]] [--budget USD] [--extra-args 'ARGS'] [--priority 0..100] [--json]"
-UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--reasoning-effort|--permission|--fast|--rtk|--logics|--notify|--notify-preview|--scrub-env|--shared-memory|--retro|--policy|--model|--fallback-model|--budget|--extra-args|--priority|--all) [--json]"
+SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--notify on|off] [--agent-state on|off] [--notify-preview on|off] [--scrub-env on|off] [--shared-memory on|off] [--retro on|off] [--policy use|ask-first|never] [--model MODEL] [--fallback-model MODEL[,MODEL...]] [--budget USD] [--extra-args 'ARGS'] [--priority 0..100] [--json]"
+UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--reasoning-effort|--permission|--fast|--rtk|--logics|--notify|--agent-state|--notify-preview|--scrub-env|--shared-memory|--retro|--policy|--model|--fallback-model|--budget|--extra-args|--priority|--all) [--json]"
 SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 CONFIGS_USAGE = "Usage: cdx configs [--json]"
@@ -275,6 +275,7 @@ def _parse_set_args(args):
         "--rtk": {"key": "rtk", "type": "str", "default": None, "transform": _on_off("rtk")},
         "--logics": {"key": "logics", "type": "str", "default": None, "transform": _on_off("logics")},
         "--notify": {"key": "notify", "type": "str", "default": None, "transform": _on_off("notify")},
+        "--agent-state": {"key": "agent_state", "type": "str", "default": None, "transform": _on_off("agent state")},
         "--notify-preview": {"key": "notify_preview", "type": "str", "default": None, "transform": _on_off("notify preview")},
         "--scrub-env": {"key": "scrub_env", "type": "str", "default": None, "transform": _on_off("scrub env")},
         "--shared-memory": {"key": "shared_memory", "type": "str", "default": None, "transform": _on_off("shared memory")},
@@ -301,7 +302,7 @@ def _parse_set_args(args):
         raise CdxError(SET_USAGE)
     settings = {
         key: parsed[key]
-        for key in ("power", "permission", "fast", "rtk", "logics", "notify", "notify_preview", "scrub_env", "shared_memory", "retro", "model", "fallback_model", "budget", "extra_args", "priority", "policy")
+        for key in ("power", "permission", "fast", "rtk", "logics", "notify", "agent_state", "notify_preview", "scrub_env", "shared_memory", "retro", "model", "fallback_model", "budget", "extra_args", "priority", "policy")
         if parsed[key] is not None
     }
     if not settings:
@@ -324,6 +325,7 @@ def _parse_unset_args(args):
         "--rtk": {"key": "rtk", "type": "bool", "default": False},
         "--logics": {"key": "logics", "type": "bool", "default": False},
         "--notify": {"key": "notify", "type": "bool", "default": False},
+        "--agent-state": {"key": "agent_state", "type": "bool", "default": False},
         "--notify-preview": {"key": "notify_preview", "type": "bool", "default": False},
         "--scrub-env": {"key": "scrub_env", "type": "bool", "default": False},
         "--shared-memory": {"key": "shared_memory", "type": "bool", "default": False},
@@ -350,7 +352,7 @@ def _parse_unset_args(args):
     if not parsed["names"] and not parsed["sessions"] and not parsed["provider"]:
         raise CdxError(UNSET_USAGE)
     _UNSET_KEYS = (
-        "power", "reasoning_effort", "permission", "fast", "rtk", "logics", "notify", "notify_preview", "scrub_env", "shared_memory", "retro",
+        "power", "reasoning_effort", "permission", "fast", "rtk", "logics", "notify", "agent_state", "notify_preview", "scrub_env", "shared_memory", "retro",
         "model", "fallback_model", "budget", "extra_args", "priority", "policy",
     )
     keys = list(_UNSET_KEYS) if parsed["all"] else [key for key in _UNSET_KEYS if parsed[key]]

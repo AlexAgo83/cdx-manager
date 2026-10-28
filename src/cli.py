@@ -6,6 +6,7 @@ import sys
 from datetime import datetime, timezone
 
 from .agent_notify import handle_notify
+from .agent_state import handle_agents
 from .cli_args import SET_USAGE
 from .cli_commands import (
     API_SCHEMA_VERSION,
@@ -153,6 +154,7 @@ __all__ = [
 _COMMAND_HANDLERS = {
     "auth": handle_auth,
     "add": handle_add,
+    "agents": handle_agents,
     "cp": handle_copy,
     "clean": handle_clean,
     "config": handle_config,
@@ -239,6 +241,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx status --small|-s [--refresh|--cached] [--timeout SECONDS]', '36', use_color)}",
         f"  {_style('cdx status <name> [--json] [--refresh|--cached] [--timeout SECONDS]', '36', use_color)}",
         f"  {_style('cdx next [--json] [--refresh]', '36', use_color)}",
+        f"  {_style('cdx agents [--max-age-hours N] [--json]', '36', use_color)}",
         f"  {_style('cdx reset <name> [--yes] [--json]', '36', use_color)}",
         f"  {_style('cdx auth refresh <name|all> [--json]', '36', use_color)}",
         f"  {_style('cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json', '36', use_color)}",

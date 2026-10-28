@@ -8,6 +8,7 @@ import shlex
 
 from .. import retro, shared_memory
 from ..agent_notify import notifications_enabled, provision, supports_agent_alerts
+from ..agent_state import agent_state_enabled
 from ..cli_args import CAN_RESUME_USAGE, HANDOFF_USAGE, RESUME_USAGE, _parse_json_flag, _pop_value_flag
 from ..cli_helpers import (
     API_SCHEMA_VERSION,
@@ -301,13 +302,15 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         ctx["out"](f"{_info(message, ctx['use_color'])}\n")
         _write_update_notice(ctx)
     alerts_allowed = _notification_provisioning_enabled(session, ctx, json_flag)
+    keep_state = agent_state_enabled(session)
     installed = provision(
         _get_auth_home(session),
         session["provider"],
-        alerts_allowed,
+        alerts_allowed or keep_state,
         ctx.get("env"),
         spawn_sync=ctx.get("spawn_sync"),
         base_dir=ctx["service"]["base_dir"],
+        keep_state=keep_state,
     )
     if installed and not json_flag:
         notice = f"Notification hooks installed for {session['name']}"

@@ -352,13 +352,14 @@ class ProvisioningTests(unittest.TestCase):
         self.assertEqual(hooks["Stop"][0]["hooks"][0]["command"], "/usr/local/bin/cdx notify")
         self.assertIn("Notification", hooks)
 
-    def test_both_providers_subscribe_the_same_two_events(self):
-        # The contract Codex has always used and Claude Code now publishes too.
-        # Claude keeps Notification on top, for the waiting states nothing else
-        # reports, and StopFailure, which Codex documents no equivalent of.
+    def test_both_providers_subscribe_the_same_core_events(self):
+        # The contract Codex has always used and Claude Code now publishes too,
+        # plus UserPromptSubmit for the agent state. Claude keeps Notification
+        # on top, for the waiting states nothing else reports, and StopFailure,
+        # which Codex documents no equivalent of.
         self.assertTrue(self._provision("claude"))
         claude = set(self._read("claude")["hooks"])
-        self.assertEqual(claude, {"Stop", "StopFailure", "Notification", "PermissionRequest"})
+        self.assertEqual(claude, {"UserPromptSubmit", "Stop", "StopFailure", "Notification", "PermissionRequest"})
 
         calls = []
         with mock.patch.object(agent_notify, "notification_channel", return_value="osascript"):
@@ -368,7 +369,7 @@ class ProvisioningTests(unittest.TestCase):
         )
         with open(plugin, encoding="utf-8") as handle:
             codex = set(json.load(handle)["hooks"])
-        self.assertEqual(codex, {"Stop", "PermissionRequest"})
+        self.assertEqual(codex, {"UserPromptSubmit", "Stop", "PermissionRequest"})
         self.assertTrue(codex <= claude, "the shared contract is the smaller of the two")
 
     def test_second_launch_changes_nothing(self):
@@ -453,13 +454,16 @@ class ProvisioningTests(unittest.TestCase):
         # different store than the tray companion writes into.
         session = {"name": "work1", "launch": {"notify_preview": True}}
         home = {"CDX_HOME": "/somewhere/.cdx"}
+        # The launcher's pid rides along so `cdx agents` can tell a session
+        # whose process is gone.
+        pid = {"CDX_AGENT_PID": str(os.getpid())}
         self.assertEqual(
             agent_notify.launch_notify_env(session, True, env=home),
-            {agent_notify.SESSION_ENV: "work1", agent_notify.PREVIEW_ENV: "1", **home},
+            {agent_notify.SESSION_ENV: "work1", agent_notify.PREVIEW_ENV: "1", **home, **pid},
         )
         self.assertEqual(
             agent_notify.launch_notify_env(session, False, env=home),
-            {agent_notify.SESSION_ENV: "work1", **home},
+            {agent_notify.SESSION_ENV: "work1", **home, **pid},
         )
 
 

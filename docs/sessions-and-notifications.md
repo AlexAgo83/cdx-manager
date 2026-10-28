@@ -38,8 +38,9 @@ visible on a lock screen; disable it per session with
 `cdx set <name> --notify-preview off`. Previews never read transcripts, and the
 command a permission request is about is never included.
 
-Both providers are subscribed to the same two hooks: `Stop` when a turn ends and
-`PermissionRequest` when one blocks on your approval. Claude Code is also
+Both providers are subscribed to the same two alerting hooks: `Stop` when a turn
+ends and `PermissionRequest` when one blocks on your approval, plus
+`UserPromptSubmit`, which raises no alert and only feeds the agent state below. Claude Code is also
 subscribed to `Notification`, for the "still waiting for you" states that no
 other hook reports; the permission notifications it also sends are dropped,
 because `PermissionRequest` already reported the same call immediately and by
@@ -70,6 +71,48 @@ way to deliver one — a headless or SSH Linux session, or WSL with interop
 disabled — cdx installs no hooks at all rather than asking you to approve
 something that could show you nothing. Headless `cdx run` never notifies: its
 caller already learns of completion from the return value.
+
+## Agent state
+
+Every hook event `cdx notify` receives also rewrites one small record for that
+session under `$CDX_HOME/state/agents/<session>.json`, whether alerts are on,
+muted or off. `cdx agents` lists them, so a dashboard, a chat agent or a
+terminal board can ask which sessions are working, waiting for you, done,
+failed or stopped by a usage limit without reading transcripts or terminals:
+
+```bash
+cdx set work1 --agent-state on   # hooks for state only, no desktop alerts
+cdx agents                       # table, waiting sessions first
+cdx agents --json                # the same for scripts
+cdx agents --max-age-hours 4     # drop records older than 4 hours (default 24)
+```
+
+Sessions with `--notify on` keep state already; `--agent-state on` is for
+sessions that want state without banners. It installs the same hooks, and it
+installs them even where no notification could be shown (an SSH login, a
+headless WSL), since a remote dashboard is exactly what watches those.
+
+| State | Set by |
+| --- | --- |
+| `working` | a prompt was submitted (`UserPromptSubmit`) |
+| `waiting` | a permission request, or Claude's idle or needs-input notification |
+| `done` | the turn ended (`Stop`) |
+| `failed` | the turn ended on a provider error (Claude's `StopFailure`); `reason` is the error class |
+| `limit` | that error says the account ran out and the account's own refreshed status agrees, the same two-signal rule as `cdx run --failover`; `reset_at` is the account's reset time when known |
+| `ended` | computed by `cdx agents`: the cdx process that launched the session is gone; `last_state` keeps what it was |
+
+`cdx agents --json` returns `{"ok": true, "action": "agents", "max_age_hours": 24,
+"agents": [...]}`, each entry carrying `session`, `provider`, `cwd`, `project`,
+`state`, `reason`, `prompt`, `reset_at`, `pid` and `updated_at` (ISO 8601, UTC).
+`prompt` is the head of the last prompt, at most 120 characters, and only for
+sessions with `--notify-preview on`; otherwise it is `null`. Records older than
+the maximum age are deleted when listed.
+
+A waiting session stays `waiting` until its next prompt or the end of the turn:
+cdx does not subscribe to every tool call to notice that you answered. A Codex
+profile whose cdx plugin was installed before this release keeps its old hooks
+(no `working` state) until the plugin is reinstalled with `cdx set <name>
+--notify off`, a launch, then `--notify on` and another launch.
 
 Use `cdx ready` when every useful assistant is cooling down and you want your terminal back. cdx picks the next known reset, registers a native OS notification, and exits immediately. If no future reset is known, it exits successfully and explains that no notification was scheduled.
 
