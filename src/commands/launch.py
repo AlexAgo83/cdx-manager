@@ -36,7 +36,7 @@ from ..provider_runtime import (
 from ..run_command import PROMPT_STDIN, read_run_prompt
 from ..run_usage import estimate_cost
 
-LAUNCH_USAGE = "Usage: cdx <name> [--dir PATH] [--prompt TEXT|--prompt-file PATH|--task TEXT [--end-state TEXT]] [--resume] [--json]"
+LAUNCH_USAGE = "Usage: cdx <name> [--dir PATH] [--prompt TEXT|--prompt-file PATH|--task TEXT [--end-state TEXT]] [--resume] [--on-busy fail|ask] [--json]"
 
 #: The first message of a session started with --task. The end state is what the
 #: user's go-ahead covers: a bare "show me first" made sessions stop after a commit
@@ -52,8 +52,8 @@ NO_END_STATE = """No end state was given: stop and show the result before any co
 
 
 def _parse_launch_args(args):
-    """Return the per-launch directory, initial prompt source and ordinary launch flags."""
-    values = {"--dir": None, "--prompt": None, "--prompt-file": None, "--task": None, "--end-state": None}
+    """Return the directory, remaining flags, prompt source and busy policy."""
+    values = {"--dir": None, "--prompt": None, "--prompt-file": None, "--task": None, "--end-state": None, "--on-busy": None}
     cleaned = []
     index = 0
     while index < len(args):
@@ -72,6 +72,9 @@ def _parse_launch_args(args):
         if values[flag] is not None or not value:
             raise CdxError(LAUNCH_USAGE)
         values[flag] = value
+    on_busy = values["--on-busy"] or "ask"
+    if on_busy not in ("fail", "ask"):
+        raise CdxError("cdx <name>: --on-busy must be fail or ask.")
     if values["--prompt"] is not None and values["--prompt-file"] is not None:
         raise CdxError("cdx <name>: --prompt and --prompt-file are mutually exclusive.")
     if values["--end-state"] is not None and values["--task"] is None:
@@ -84,7 +87,7 @@ def _parse_launch_args(args):
     if values["--prompt-file"] == PROMPT_STDIN:
         raise CdxError("cdx <name>: --prompt-file - is not supported; the interactive session needs standard input.")
     prompt = {"prompt": values["--prompt"], "prompt_file": values["--prompt-file"]}
-    return values["--dir"], cleaned, prompt
+    return values["--dir"], cleaned, prompt, on_busy
 
 
 def _read_launch_prompt(prompt):
@@ -204,14 +207,14 @@ def handle_can_resume(rest, ctx):
 
 def handle_resume(rest, ctx):
     conversation_id, rest = _pop_value_flag(rest, "--conversation", RESUME_USAGE)
-    directory, rest, prompt = _parse_launch_args(rest)
+    directory, rest, prompt, on_busy = _parse_launch_args(rest)
     if prompt["prompt"] is not None or prompt["prompt_file"] is not None:
         raise CdxError("cdx resume: --prompt and --prompt-file are not supported when resuming.")
     json_flag, args = _parse_json_flag(rest)
     if len(args) != 1:
         raise CdxError(RESUME_USAGE)
     return handle_launch(args[0], ctx, resume=True, force_json=json_flag, directory=directory,
-                         conversation_id=conversation_id)
+                         conversation_id=conversation_id, on_busy=on_busy)
 
 
 def _notification_provisioning_enabled(session, ctx, json_flag):
@@ -255,14 +258,14 @@ def _link_shared_memory(session, ctx, cwd, json_flag):
 
 
 def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=None, directory=None,
-                  conversation_id=None):
+                  conversation_id=None, on_busy="ask"):
     json_flag = "--json" in ctx.get("raw_args", ctx["options"].get("raw_args", []))
     if force_json is not None:
         json_flag = force_json
     warnings = _update_notice_warnings(ctx)
     active_runtime = ctx["service"].get("active_session_runtime")
     overlap_at_start = bool(active_runtime and active_runtime(command))
-    _warn_if_session_already_running(command, ctx)
+    _warn_if_session_already_running(command, ctx, on_busy=on_busy, json_flag=json_flag)
     session = ctx["service"]["get_session"](command)
     if not session:
         raise CdxError(f"Unknown session: {command}")
@@ -595,4 +598,4 @@ def handle_handoff(rest, ctx):
         ))
         return 0
     ctx["out"](f"Handoff ready ({entry['mode']}): {path}\n")
-    return handle_launch(target['name'], ctx, initial_prompt=prompt, directory=workspace)
+    return handle_launch(target['name'], ctx, initial_prompt=prompt, directory=workspace, on_busy="ask")

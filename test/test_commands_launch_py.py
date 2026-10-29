@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import uuid
+from unittest import mock
 
 from cli_test_support import (  # noqa: F401
     CRYPTOGRAPHY_REQUIRED,
@@ -26,14 +27,92 @@ from cli_test_support import (  # noqa: F401
 )
 
 from src.cli import (
+    format_json_error,
     main,
 )
-from src.commands.launch import _launch_directory
+from src.cli_helpers import _warn_if_session_already_running
+from src.commands.launch import _launch_directory, _parse_launch_args
 from src.errors import CdxError
 from src.session_service import create_session_service
 
 
 class LaunchCommandTests(CliTestBase):
+
+    def test_busy_policy_is_parsed_for_named_and_task_launches(self):
+        for args in ([], ["--task", "Fix CI"]):
+            for spelling in (["--on-busy", "fail"], ["--on-busy=fail"]):
+                with self.subTest(args=args, spelling=spelling):
+                    self.assertEqual(_parse_launch_args([*args, *spelling])[3], "fail")
+        self.assertEqual(_parse_launch_args([])[3], "ask")
+        for args in (["--on-busy"], ["--on-busy="], ["--on-busy", "next"],
+                     ["--on-busy", "fail", "--on-busy", "ask"]):
+            with self.subTest(args=args), self.assertRaises(CdxError):
+                _parse_launch_args(args)
+
+    def test_busy_launch_callers_fail_before_launching_or_prompting(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main", "codex")
+        self.assertEqual(main(["context", "set", "Continue the task"], {
+            **self.make_io(), "service": service, "env": {"CDX_HOME": temp_dir}, "cwd": temp_dir,
+        }), 0)
+        service["active_session_runtime"] = mock.Mock(return_value={"pid": 1234})
+        service["launch_session"] = mock.Mock(side_effect=AssertionError("must not launch"))
+        ask = mock.Mock(side_effect=AssertionError("must not prompt"))
+        for tty in (False, True):
+            cases = [
+                ["main", "--on-busy", "fail"],
+                ["main", "--task", "Fix CI", "--on-busy=fail"],
+                ["main", "--on-busy", "fail", "--json"],
+                ["main", "--json"],
+                ["resume", "main", "--on-busy", "fail"],
+            ]
+            if not tty:
+                cases += [["main"], ["main", "--task", "Fix CI"], ["handoff", "main"]]
+            for argv in cases:
+                with self.subTest(tty=tty, argv=argv):
+                    io = self.make_io()
+                    with self.assertRaises(CdxError) as caught:
+                        main(argv, {**io, "stdin": {"isTTY": tty}, "service": service,
+                                    "env": {"CDX_HOME": temp_dir}, "cwd": temp_dir, "input": ask})
+                    error = caught.exception
+                    self.assertNotEqual(error.exit_code, 0)
+                    self.assertEqual(error.code, "session_busy")
+                    self.assertIn("session_busy", str(error))
+                    payload = json.loads(format_json_error(error))
+                    self.assertFalse(payload["ok"])
+                    self.assertEqual(payload["error"]["code"], "session_busy")
+                    self.assertEqual(io["stdout"].getvalue().count("already running"), 0)
+        ask.assert_not_called()
+        service["launch_session"].assert_not_called()
+        self.assertEqual(service["get_launch_history"]("main"), [])
+
+    def test_busy_terminal_ask_preserves_confirmation_and_cancellation(self):
+        for answer in ("y", "yes", "n", ""):
+            with self.subTest(answer=answer):
+                ask = mock.Mock(return_value=answer)
+                ctx = {"service": {"active_session_runtime": lambda _name: {"pid": 1234}},
+                       "stdin_is_tty": True, "use_color": False, "out": mock.Mock(),
+                       "options": {"input": ask}}
+                if answer in ("y", "yes"):
+                    _warn_if_session_already_running("main", ctx, on_busy="ask")
+                else:
+                    with self.assertRaisesRegex(CdxError, "Launch cancelled"):
+                        _warn_if_session_already_running("main", ctx, on_busy="ask")
+                ask.assert_called_once()
+
+    def test_busy_terminal_eof_fails_closed(self):
+        ctx = {"service": {"active_session_runtime": lambda _name: {"pid": 1234}},
+               "stdin_is_tty": True, "use_color": False, "out": mock.Mock(),
+               "options": {"input": mock.Mock(side_effect=EOFError)}}
+        with self.assertRaises(CdxError) as caught:
+            _warn_if_session_already_running("main", ctx)
+        self.assertEqual(caught.exception.code, "session_busy")
+
+    def test_idle_profile_does_not_prompt_under_either_policy(self):
+        for policy in ("ask", "fail"):
+            ctx = {"service": {"active_session_runtime": lambda _name: None}}
+            _warn_if_session_already_running("main", ctx, on_busy=policy)
 
     def test_launch_directory_other_uses_a_validated_path(self):
         temp_dir = self.make_temp_dir()
@@ -169,6 +248,12 @@ class LaunchCommandTests(CliTestBase):
         self.assertEqual(main(["add", "main"], io), 0)
         harness.calls.clear()
         return temp_dir, harness, lambda *extra: main(["main", *args, *extra], io)
+
+    def test_fail_policy_still_launches_an_idle_profile_on_a_task(self):
+        _temp_dir, harness, launch = self._launch_with("--task", "Fix CI", "--on-busy", "fail")
+        self.assertEqual(launch(), 0)
+        launch_call = [call for call in harness.calls if call["kind"] == "spawn" and call["command"] == "script"][-1]
+        self.assertTrue(_script_launch_args(launch_call)[-1].startswith("Task: Fix CI"))
 
     def test_launch_passes_prompt_as_initial_message(self):
         _temp_dir, harness, launch = self._launch_with("--prompt", "fix the review threads")

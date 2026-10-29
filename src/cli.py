@@ -295,7 +295,8 @@ def _print_help(use_color=False):
         _style("Notifications:", "1", use_color),
         f"  {_style('cdx set <name> --notify on', '36', use_color)}  # agent finishes or needs attention",
         f"  {_style('cdx ready', '36', use_color)}  # next session to become ready",
-        f"  {_style('cdx <name> [--json]', '36', use_color)}",
+        f"  {_style('cdx <name> [--on-busy fail|ask] [--json]', '36', use_color)}",
+        "    --on-busy: fail immediately if already running; ask (default) prompts only with a terminal and without --json",
         f"  {_style('cdx <name> --prompt TEXT|--prompt-file PATH', '36', use_color)}  # start with a first message",
         f"  {_style('cdx <name> --dir PATH --task TEXT --end-state TEXT', '36', use_color)}  # start on a task, with what the go-ahead covers",
         f"  {_style('cdx --help', '36', use_color)}",
@@ -637,7 +638,7 @@ def main(argv, options=None):
         return handler(rest, ctx)
 
     from .commands.launch import _parse_launch_args, _read_launch_prompt
-    directory, launch_args, prompt = _parse_launch_args(rest)
+    directory, launch_args, prompt, on_busy = _parse_launch_args(rest)
     if all(arg in ("--json", "-r", "--resume") for arg in launch_args):
         resume = "-r" in launch_args or "--resume" in launch_args
         has_prompt = prompt["prompt"] is not None or prompt["prompt_file"] is not None
@@ -647,7 +648,7 @@ def main(argv, options=None):
         if has_prompt and (ctx["service"]["get_session"](command) or {}).get("provider") == PROVIDER_OLLAMA:
             raise CdxError("cdx <name>: --prompt and --prompt-file are not supported for Ollama sessions.")
         return handle_launch(command, ctx, initial_prompt=_read_launch_prompt(prompt), resume=resume,
-                             directory=directory)
+                             directory=directory, on_busy=on_busy)
 
     raise CdxError(f"Unknown command: {command}. Use cdx --help.")
 

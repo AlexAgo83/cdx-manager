@@ -386,22 +386,22 @@ def _resume_capability_for_session(session, ctx):
         "command_preview": capability.get("command_preview") or [],
     }
 
-def _warn_if_session_already_running(name, ctx):
-    # ponytail: concurrent sessions on one profile share its single OAuth
-    # .credentials.json; both refresh near token expiry and the rotated refresh
-    # token invalidates the other session -> surprise logout. Warn before adding
-    # a second live session on the same profile.
+def _warn_if_session_already_running(name, ctx, *, on_busy="ask", json_flag=False):
     active = ctx["service"].get("active_session_runtime")
     runtime = active(name) if active else None
     if not runtime:
         return
+    if on_busy == "fail" or not ctx["stdin_is_tty"] or json_flag:
+        raise CdxError(f"session_busy: Session {name} is already running.", code="session_busy")
     pid = runtime.get("pid")
     ctx["out"](f"{_warn(f'A session named {name} is already running (pid {pid}).', ctx['use_color'])}\n")
     ctx["out"](
         f"{_dim('Two sessions on one profile share its login and can log each other out. Use a different profile instead.', ctx['use_color'])}\n"
     )
-    if not ctx["stdin_is_tty"]:
-        return
-    answer = input(f"Launch a second {name} session anyway? [y/N] ")
+    ask = ctx["options"].get("input") or input
+    try:
+        answer = ask(f"Launch a second {name} session anyway? [y/N] ")
+    except EOFError:
+        raise CdxError(f"session_busy: Session {name} is already running.", code="session_busy") from None
     if answer.strip().lower() not in ("y", "yes"):
         raise CdxError("Launch cancelled.")
