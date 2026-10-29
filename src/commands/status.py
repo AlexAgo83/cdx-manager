@@ -693,7 +693,7 @@ def handle_last(rest, ctx):
     if not json_flag:
         message = f"Launching last session: {session['name']}"
         ctx["out"](f"{_info(message, ctx['use_color'])}\n")
-    return handle_launch(session["name"], ctx)
+    return handle_launch(session["name"], ctx, on_busy="ask")
 
 def handle_status(rest, ctx):
     parsed = _parse_flag_args(rest, {

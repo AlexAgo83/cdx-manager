@@ -7,7 +7,8 @@
 | `cdx` | List all sessions with last-updated timestamps |
 | `cdx --json` | List all sessions as a machine-readable JSON payload |
 | `cdx <name>` | Launch a session (checks auth first) |
-| `cdx <name> [--json]` | Launch a session; `--json` returns a structured success payload after the interactive run ends |
+| `cdx <name> [--on-busy fail\|ask] [--json]` | Launch a session; `--json` returns a structured success payload after the interactive run ends |
+| `cdx <name> --on-busy fail` | Refuse a profile with a live session immediately, even with a terminal: non-zero exit and `session_busy` (`error.code` with `--json`). Works with `--task`, `--dir`, prompts and resume; `--on-busy=fail` is also accepted. The default `ask` keeps the confirmation prompt for terminal users; without a terminal or with `--json`, it fails instead of launching a duplicate. Handoff launches and `cdx last` use `ask` too. |
 | `cdx <name> --prompt TEXT` / `cdx <name> --prompt-file PATH` | Launch a session that starts on this first message (not with `--resume` or Ollama sessions; `--prompt-file -` is refused because the session needs standard input; a relative `--prompt-file` path is read from the current directory, not `--dir`) |
 | `cdx <name> --dir PATH --task TEXT [--end-state TEXT]` | Start a session on a task. `--end-state` names what your go-ahead covers ("CI green on a PR, merged"): the session takes every step it needs, commits, pushes and PRs included, and stops only for a decision outside it. Without `--end-state` it stops and shows the result before any commit, push or PR. Replaces `--prompt`; the first message also tells it to read the repository's instructions and use its skills. |
 | `cdx <name> -r` / `cdx <name> --resume` | Resume the provider-native conversation for a session when supported |
