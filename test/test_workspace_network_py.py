@@ -32,9 +32,10 @@ class WorkspaceSandboxTests(unittest.TestCase):
         self.assertEqual(env["HOME"], "/home/agent")
         self.assertEqual(env["GIT_CONFIG_VALUE_0"], "")
 
-    def test_codex_network_override_keeps_the_workspace_sandbox(self):
+    def _run_isolated_codex(self, permission, network):
         captured = {}
-        spec = {"command": "codex", "args": ["--", "A prompt"], "options": {"env": {"PATH": "/usr/bin"}}}
+        args = ["exec", "-s", "read-only" if permission == "review" else "workspace-write", "--", "A prompt"]
+        spec = {"command": "codex", "args": args, "options": {"env": {"PATH": "/usr/bin"}}}
 
         def confine(command, tree, **kw):
             captured.update(command=command, **kw)
@@ -44,17 +45,30 @@ class WorkspaceSandboxTests(unittest.TestCase):
             pass
 
         session = {"provider": "codex", "authHome": "/profile",
-                   "launch": {"permission": "auto", "network_access": True, "isolate_workspace": True}}
+                   "launch": {"permission": permission, "network_access": network, "isolate_workspace": True}}
         with TemporaryDirectory() as tree, \
                 mock.patch.object(provider_runtime, "_build_headless_launch_spec", lambda *a, **kw: spec), \
                 mock.patch.object(workspace_sandbox, "sandbox_command", confine), \
                 mock.patch.object(provider_runtime, "_headless_artifact_paths", mock.Mock(side_effect=Reached)):
             with self.assertRaises(Reached):
                 provider_runtime._run_headless_provider_command(session, cwd=str(Path(tree)))
-        self.assertTrue(captured["network"])
-        self.assertIn("sandbox_workspace_write.network_access=true", captured["command"])
-        self.assertNotIn("danger-full-access", captured["command"])
         self.assertEqual(spec["command"], "bwrap")
+        return captured
+
+    def test_isolated_codex_drops_its_nested_sandbox(self):
+        captured = self._run_isolated_codex("auto", network=True)
+        command = captured["command"]
+        self.assertTrue(captured["network"])
+        self.assertTrue(captured["writable"])
+        self.assertNotIn("-s", command)
+        self.assertNotIn("sandbox_workspace_write.network_access=true", command)
+        self.assertLess(command.index("--dangerously-bypass-approvals-and-sandbox"), command.index("--"))
+
+    def test_isolated_codex_review_stays_read_only_outside(self):
+        captured = self._run_isolated_codex("review", network=False)
+        self.assertFalse(captured["writable"])
+        self.assertNotIn("-s", captured["command"])
+        self.assertIn("--dangerously-bypass-approvals-and-sandbox", captured["command"])
 
     def test_unsupported_provider_fails_closed(self):
         with self.assertRaises(RuntimeError):

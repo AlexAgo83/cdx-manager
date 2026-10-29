@@ -1212,7 +1212,10 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
     )
     launch = session.get("launch") or {}
     if launch.get("network_access"):
-        if session.get("provider") == PROVIDER_CODEX:
+        if session.get("provider") == PROVIDER_CODEX and launch.get("isolate_workspace"):
+            # The outer sandbox owns the network; Codex's own sandbox is dropped below.
+            pass
+        elif session.get("provider") == PROVIDER_CODEX:
             # Keep the workspace sandbox; append overrides before the prompt separator.
             index = spec["args"].index("--") if "--" in spec["args"] else len(spec["args"])
             spec["args"][index:index] = ["-c", 'sandbox_workspace_write.network_access=true', '-c', 'sandbox_workspace_write.writable_roots=["/cache", "/home/agent"]']
@@ -1226,6 +1229,17 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
             # The outer OS sandbox is the permission boundary for unattended Bash.
             index = spec["args"].index("--") if "--" in spec["args"] else len(spec["args"])
             spec["args"][index:index] = ["--permission-mode", "bypassPermissions"]
+        elif session.get("provider") == PROVIDER_CODEX:
+            # Codex's bubblewrap sandbox cannot nest inside ours (no uid map), so the
+            # outer box is the boundary: drop `-s <mode>` and bypass the inner one.
+            # A review run stays read-only through the outer mount.
+            args = spec["args"]
+            while "-s" in args:
+                index = args.index("-s")
+                del args[index:index + 2]
+            if "--dangerously-bypass-approvals-and-sandbox" not in args:
+                index = args.index("--") if "--" in args else len(args)
+                args[index:index] = ["--dangerously-bypass-approvals-and-sandbox"]
         try:
             argv, child_env = sandbox_command(
                 [spec["command"], *spec["args"]], Path(cwd),
