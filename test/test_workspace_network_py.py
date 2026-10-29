@@ -1,3 +1,4 @@
+import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -74,6 +75,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
+@unittest.skipUnless(sys.platform.startswith("linux"), "bubblewrap isolation is Linux-only")
 class IsolatedEgressTests(unittest.TestCase):
     def test_online_runs_use_pasta_and_never_share_the_host_network(self):
         with TemporaryDirectory() as tree, mock.patch.object(workspace_sandbox.shutil, "which",
