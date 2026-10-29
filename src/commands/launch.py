@@ -458,16 +458,16 @@ def _attach_interactive_usage(session, run_info, history=None, baseline=None, un
         # way as an id match would let a wrong attribution read as a
         # measurement, which is the failure this replaced.
         run_info["provider_transcript_match"] = match
-    if not cumulative:
-        return run_info
-
-    run_info["usage_cumulative"] = cumulative
     if model:
         # Which model actually served the run, read from the transcript rather
         # than inferred from the session's configured launch settings -- where
         # `model` is optional and usually unset, because the session takes the
         # provider's default.
         run_info["usage_model"] = model
+    if not cumulative:
+        return run_info
+
+    run_info["usage_cumulative"] = cumulative
     if uncertain_reason:
         run_info["usage_attribution"] = uncertain_reason
         return run_info

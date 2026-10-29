@@ -140,6 +140,54 @@ class CostEstimateTests(unittest.TestCase):
                 handle.write(json.dumps({**record, "model": "gpt-6-luna"}) + "\n")
             self.assertIsNone(extract_run_observation("codex", str(path))[1])
 
+    def test_codex_rollout_model_requires_exact_thread_and_unmixed_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stdout = root / "stdout.jsonl"
+            thread_id = "12345678-1234-1234-1234-123456789abc"
+            (root / "sessions").mkdir()
+            rollout = root / "sessions" / f"rollout-test-{thread_id}.jsonl"
+            context = {"type": "turn_context", "payload": {"model": "gpt-6.1-sol"}}
+            rollout.write_text(json.dumps(context) + "\n")
+            usage = {"type": "turn.completed", "usage": {"input_tokens": 4, "output_tokens": 2}}
+            stdout.write_text(json.dumps(usage))
+            self.assertIsNone(extract_run_observation("codex", stdout, directory)[1])
+            stdout.write_text(json.dumps({"type": "thread.started", "thread_id": thread_id}) + "\n" + json.dumps(usage))
+            self.assertEqual(extract_run_observation("codex", stdout, directory)[1], "gpt-6.1-sol")
+            with rollout.open("a") as handle:
+                handle.write('not-json\n[]\n{"type":"turn_context","payload":null}\n')
+                handle.write(json.dumps({"type": "event_msg", "payload": {"type": "token_count", "info": {
+                    "total_token_usage": {"input_tokens": 9999, "output_tokens": 999},
+                }}}) + "\n")
+            observed, model = extract_run_observation("codex", stdout, directory)
+            self.assertEqual((observed["input_tokens"], observed["output_tokens"], model), (4, 2, "gpt-6.1-sol"))
+            with rollout.open("a") as handle:
+                handle.write(json.dumps({"type": "turn_context", "payload": {"model": "gpt-6-luna"}}) + "\n")
+            self.assertIsNone(extract_run_observation("codex", stdout, directory)[1])
+            rollout.unlink()
+            self.assertIsNone(extract_run_observation("codex", stdout, directory)[1])
+
+    def test_claude_default_model_usage_survives_result_payload(self):
+        from src.run_command import run_result_payload
+
+        with tempfile.TemporaryDirectory() as directory:
+            stdout = Path(directory) / "stdout.json"
+            stdout.write_text(json.dumps({"type": "result", "usage": {"input_tokens": 4, "output_tokens": 2},
+                                         "modelUsage": {"claude-opus-5-5[1m]": {"inputTokens": 4, "outputTokens": 2}}}))
+            payload = run_result_payload(1, True, {}, {"provider": "claude"}, {"stdout_path": str(stdout)})
+            self.assertEqual(payload["usage_model"], "claude-opus-5-5[1m]")
+            self.assertIsNone(payload["model"])
+            self.assertGreater(estimate_cost(payload["usage"], payload["usage_model"]), 0)
+
+    def test_requested_model_alone_does_not_price_usage(self):
+        from src.run_command import run_result_payload
+
+        payload = run_result_payload(1, True, {}, {"provider": "codex", "launch": {"model": "gpt-6.1-sol"}},
+                                     {"usage": normalize_usage(input_tokens=4, output_tokens=2)})
+        self.assertEqual(payload["model"], "gpt-6.1-sol")
+        self.assertIsNone(payload["usage_model"])
+        self.assertIsNone(estimate_cost(payload["usage"], payload["usage_model"]))
+
     def test_current_codex_and_claude_models_are_priced(self):
         table = DEFAULT_TOKEN_PRICES
         expected = {

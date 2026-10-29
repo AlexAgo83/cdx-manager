@@ -36,6 +36,16 @@ class StatsByTests(unittest.TestCase):
         with self.assertRaises(CdxError):
             _parse_stats_args(["--by", "colour"])
 
+    def test_claude_context_variant_shares_base_model_row_and_keeps_cost(self):
+        entries = [_entry("work", "/r", "claude-opus-5-5", 100),
+                   _entry("work", "/r", "claude-opus-5-5[1m]", 50)]
+        rows = _summarize_stats([{**e, "session_name": _stats_group(e, "model")} for e in entries])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["session_name"], "claude-opus-5-5")
+        self.assertEqual(rows[0]["priced_runs"], 2)
+        self.assertEqual(rows[0]["input_tokens"], 150)
+        self.assertEqual(entries[1]["usage_model"], "claude-opus-5-5[1m]")
+
 
 if __name__ == "__main__":
     unittest.main()

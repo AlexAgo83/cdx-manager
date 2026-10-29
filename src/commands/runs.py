@@ -687,6 +687,7 @@ def handle_run(rest, ctx):
             )
             usage, usage_model = extract_run_observation(
                 run_session.get("provider"), run_info.get("stdout_path"),
+                run_session.get("authHome"),
             )
             run_info = {**run_info, "usage": usage, "usage_model": usage_model}
             ctx["service"]["record_launch_history"](run_session["name"], {
@@ -807,6 +808,7 @@ def handle_run(rest, ctx):
         if run_info and run_id:
             usage, usage_model = extract_run_observation(
                 run_session.get("provider"), run_info.get("stdout_path"),
+                run_session.get("authHome"),
             )
             run_info = {**run_info, "usage": usage, "usage_model": usage_model}
             ctx["service"]["record_launch_history"](run_session["name"], {

@@ -358,6 +358,7 @@ class RunRegistry:
                 # what `cdx run-status` and `cdx run-report` publish, and it
                 # used to store whichever shape the producing reader emitted.
                 run["usage"] = coerce_usage(final_payload.get("usage"))
+                run["usage_model"] = final_payload.get("usage_model")
                 run["final_payload"] = final_payload
             if error:
                 run["error"] = error

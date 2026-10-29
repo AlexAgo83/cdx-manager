@@ -491,7 +491,8 @@ def _stats_group(entry, by):
     """The project (launch folder) or the model a run is counted under."""
     if by == "project":
         return str(entry.get("cwd") or "").rstrip("/\\") or "-"
-    return entry.get("usage_model") or "-"
+    model = entry.get("usage_model") or "-"
+    return model.removesuffix("[1m]") if model.startswith("claude-") else model
 
 
 def _project_labels(paths):
