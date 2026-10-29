@@ -397,6 +397,38 @@ class StatusCommandTests(CliTestBase):
                 "env": {"CDX_HOME": temp_dir},
             })
 
+    def test_history_backfill_models_json_preview_apply_and_stats(self):
+        from src.run_usage import normalize_usage
+
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir, "env": {}})
+        service["create_session"]("work", "claude")
+        stdout_path = os.path.join(temp_dir, "run.stdout")
+        with open(stdout_path, "w", encoding="utf-8") as handle:
+            json.dump({"type": "result", "modelUsage": {"claude-opus-5-5[1m]": {"inputTokens": 100}}}, handle)
+        service["record_launch_history"]("work", {
+            "run_id": "run-1", "started_at": "2026-01-01T12:00:00Z", "status": "success",
+            "stdout_path": stdout_path, "usage": normalize_usage(input_tokens=100, output_tokens=10),
+        })
+        for flags, dry_run in (([], True), (["--dry-run"], True), (["--apply"], False)):
+            command_io = self.make_io()
+            self.assertEqual(main(["history", "backfill-models", *flags, "--json"], {
+                **command_io, "service": service, "env": {"CDX_HOME": temp_dir},
+            }), 0)
+            result = json.loads(command_io["stdout"].getvalue())
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["dry_run"], dry_run)
+            self.assertEqual(result["recoverable"]["stdout"], 1)
+            self.assertEqual(result["backfilled"], 0 if dry_run else 1)
+        stats_io = self.make_io()
+        self.assertEqual(main(["stats", "work", "--by", "model", "--json"], {
+            **stats_io, "service": service, "env": {"CDX_HOME": temp_dir},
+        }), 0)
+        stats = json.loads(stats_io["stdout"].getvalue())["stats"]
+        self.assertEqual(stats[0]["session_name"], "claude-opus-5-5")
+        self.assertEqual(stats[0]["priced_runs"], 1)
+        self.assertGreater(stats[0]["cost_usd"], 0)
+
     def test_history_summary_filters_by_period(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

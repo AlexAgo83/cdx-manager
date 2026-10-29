@@ -602,6 +602,30 @@ def handle_configs(rest, ctx):
     return 0
 
 def handle_history(rest, ctx):
+    if rest and rest[0] == "backfill-models":
+        usage = "Usage: cdx history backfill-models [--dry-run | --apply] [--json]"
+        parsed = _parse_flag_args(rest[1:], {
+            "--dry-run": {"key": "dry_run", "type": "bool", "default": False},
+            "--apply": {"key": "apply", "type": "bool", "default": False},
+            "--json": {"key": "json", "type": "bool", "default": False},
+        }, usage)
+        if parsed["apply"] and parsed["dry_run"]:
+            raise CdxError(usage)
+        result = ctx["service"]["backfill_history_models"](dry_run=not parsed["apply"])
+        if parsed["json"]:
+            _write_json(ctx, _json_success("history", "Backfilled history models", **result))
+        else:
+            mode = "Dry run" if result["dry_run"] else "Applied"
+            ctx["out"](f"{mode}: {result['candidates']} missing models; {result['still_unknown']} still unknown; {result['backfilled']} written.\n")
+            for kind, count in result["recoverable"].items():
+                ctx["out"](f"Recoverable from {kind}: {count}\n")
+            for reason, count in result["unknown_reasons"].items():
+                ctx["out"](f"Unknown ({reason}): {count}\n")
+            for sample in result["samples"]:
+                ctx["out"](f"  {sample['session_name']} {sample['run_id'] or sample['started_at']}: {sample['model'] or sample['reason']} ({sample['evidence'] or 'no evidence'})\n")
+            if result["backup_path"]:
+                ctx["out"](f"Backup: {result['backup_path']}\n")
+        return 0
     now_fn = ctx["options"].get("now") or time.time
     now = datetime.fromtimestamp(now_fn()).astimezone()
     parsed = _parse_history_args(rest, now=now)

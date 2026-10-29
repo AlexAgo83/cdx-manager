@@ -765,6 +765,18 @@ def backfill_interactive_usage(store, name=None, dry_run=True):
     return store["backfill_launch_usage"](updates, dry_run=dry_run)
 
 
+def backfill_history_models(store, base_dir, dry_run=True):
+    """Recover historical models from evidence belonging to each history row."""
+    from .history_models import read_run_reports, recover_model
+
+    sessions = {session["name"]: session for session in store["list_sessions"]()}
+    reports = read_run_reports(base_dir)
+    return store["backfill_launch_models"](
+        lambda entry: recover_model(entry, sessions.get(entry.get("session_name")), reports),
+        dry_run=dry_run,
+    )
+
+
 def refresh_interactive_usage_models(store, dry_run=True):
     """Replace a placeholder model with the exact transcript's real model."""
     from .interactive_usage import MATCH_CONVERSATION_ID, extract_interactive_usage
@@ -997,6 +1009,7 @@ def create_session_service(options=None):
         "drop_unvouched_usage": store["drop_unvouched_usage"],
         "backfill_interactive_usage": partial(backfill_interactive_usage, store),
         "refresh_interactive_usage_models": partial(refresh_interactive_usage_models, store),
+        "backfill_history_models": partial(backfill_history_models, store, base_dir),
         "update_auth_state": partial(update_auth_state, store),
         "get_status_row": partial(get_status_row, store, base_dir, env, fetch_codex_status),
         "get_status_rows": partial(get_status_rows, store, base_dir, env, fetch_codex_status),
