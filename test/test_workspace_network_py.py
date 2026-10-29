@@ -1,3 +1,4 @@
+import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -72,3 +73,23 @@ class NetworkOverrideProviderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(sys.platform.startswith("linux"), "bubblewrap isolation is Linux-only")
+class IsolatedEgressTests(unittest.TestCase):
+    def test_online_runs_use_pasta_and_never_share_the_host_network(self):
+        with TemporaryDirectory() as tree, mock.patch.object(workspace_sandbox.shutil, "which",
+                                                             side_effect=lambda name, path=None: "/usr/bin/" + name):
+            args, _ = workspace_sandbox.sandbox_command(["true"], Path(tree), network=True,
+                                                        source={"PATH": "/usr/bin"})
+        self.assertNotIn("--share-net", args)
+        self.assertEqual(args[0], "/usr/bin/pasta")
+        for flag in ("--no-map-gw", "-T", "-U"):
+            self.assertIn(flag, args)
+
+    def test_missing_pasta_fails_closed(self):
+        with TemporaryDirectory() as tree, mock.patch.object(
+                workspace_sandbox.shutil, "which",
+                side_effect=lambda name, path=None: None if name == "pasta" else "/usr/bin/" + name):
+            with self.assertRaises(RuntimeError):
+                workspace_sandbox.sandbox_command(["true"], Path(tree), network=True, source={"PATH": "/usr/bin"})
