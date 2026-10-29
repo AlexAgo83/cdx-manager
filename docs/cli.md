@@ -422,3 +422,5 @@ It returns accepted values for `permission` (with its aliases and canonical form
 ```
 
 Codex ties network access to its sandbox, so any permission below `full` leaves the run unable to resolve DNS — `gh`, `curl`, and package installs fail inside an otherwise successful run. Show these warnings to whoever reads your output rather than discarding them; a run that succeeds while quietly doing less is the case they exist for.
+
+Claude result records with nonempty `permission_denials` produce a warning with code `permission_denials`, the `provider`, and the structured `permission_denials` list. Exit code 0 still means `ok: true`: a denied tool may have been replaced successfully. Empty or absent denials add no warning. With `--scrub-env on`, Claude forces its default permission mode; allow tools needed by unattended runs explicitly using `--allowedTools` via `--extra-args` (see [operations](operations.md)).
