@@ -133,7 +133,7 @@ def run_warnings(parsed, session, selection_row=None):
         })
     provider = session.get("provider") if session else parsed.get("provider")
     permission = run_effective_permission(parsed, session)
-    if headless_permission_disables_network(provider, permission):
+    if not parsed.get("network_access") and headless_permission_disables_network(provider, permission):
         described = repr(permission) if permission else "its default (none set)"
         warnings.append({
             "code": "network_disabled_by_permission",
