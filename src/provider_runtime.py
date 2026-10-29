@@ -1210,6 +1210,33 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
         env_override=env_override,
         initial_prompt=initial_prompt,
     )
+    launch = session.get("launch") or {}
+    if launch.get("network_access"):
+        if session.get("provider") == PROVIDER_CODEX:
+            # Keep the workspace sandbox; append overrides before the prompt separator.
+            index = spec["args"].index("--") if "--" in spec["args"] else len(spec["args"])
+            spec["args"][index:index] = ["-c", 'sandbox_workspace_write.network_access=true', '-c', 'sandbox_workspace_write.writable_roots=["/cache", "/home/agent"]']
+        elif session.get("provider") != PROVIDER_CLAUDE:
+            raise CdxError("Network override is unsupported for this provider")
+    if launch.get("isolate_workspace"):
+        from pathlib import Path
+
+        from .workspace_sandbox import sandbox_command
+        if session.get("provider") == PROVIDER_CLAUDE:
+            # The outer OS sandbox is the permission boundary for unattended Bash.
+            index = spec["args"].index("--") if "--" in spec["args"] else len(spec["args"])
+            spec["args"][index:index] = ["--permission-mode", "bypassPermissions"]
+        try:
+            argv, child_env = sandbox_command(
+                [spec["command"], *spec["args"]], Path(cwd),
+                network=launch.get("network_access", False),
+                writable=launch.get("permission") != "review",
+                source=spec["options"]["env"], auth_home=_get_auth_home(session),
+                provider=session.get("provider"))
+        except (OSError, RuntimeError) as error:
+            raise CdxError(str(error)) from error
+        spec.update(command=argv[0], args=argv[1:])
+        spec["options"]["env"] = child_env
     paths = _headless_artifact_paths(session, run_id=run_id)
     start_time = datetime.now(timezone.utc)
     command = spec["command"]

@@ -206,8 +206,9 @@ def _detached_child_argv(parsed, prompt_path, session_name, cwd):
         argv += ["--timeout-seconds", str(parsed["timeout_seconds"])]
     # The child is the supervisor: it watches the run like any blocking one, so
     # it applies the failover rule and records each move in the registry.
-    if parsed.get("failover"):
-        argv.append("--failover")
+    for key in ("network_access", "isolate_workspace", "failover"):
+        if parsed.get(key):
+            argv.append("--" + key.replace("_", "-"))
     argv.append("--json")
     return argv
 
@@ -572,7 +573,7 @@ def handle_run(rest, ctx):
             raise CdxError(f"Invalid cwd: {parsed['cwd']}", code="invalid_cwd")
         prompt = read_run_prompt(parsed, stdin=ctx.get("prompt_stdin"))
         _consume_detached_prompt_file(parsed, detached_run_id)
-        launch_updates = {}
+        launch_updates = {key: parsed.get(key, False) for key in ("network_access", "isolate_workspace")}
         if parsed.get("model"):
             launch_updates["model"] = parsed["model"]
         if parsed.get("permission"):
@@ -643,7 +644,7 @@ def handle_run(rest, ctx):
             launch = None
             # A provider's own background agent has no cdx process watching it,
             # so nothing could fail it over; --failover keeps the in-house child.
-            if not parsed.get("failover") and supports_native_background(
+            if not parsed.get("isolate_workspace") and not parsed.get("network_access") and not parsed.get("failover") and supports_native_background(
                 run_session.get("provider"),
                 env=ctx.get("env"),
                 spawn_sync=ctx.get("spawn_text"),
