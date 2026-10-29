@@ -343,6 +343,58 @@ def create_session_store(base_dir):
                 _fsync_directory(state_dir)
             return {"scanned": scanned, "backfilled": backfilled, "dry_run": dry_run}
 
+    def backfill_launch_models(resolve, dry_run=True):
+        """Correct only missing models, under the history lock, with a backup."""
+        import uuid
+
+        from .history_models import EVIDENCE_KINDS, missing_model
+
+        result = {"dry_run": dry_run, "scanned": 0, "candidates": 0,
+                  "recoverable": dict.fromkeys(EVIDENCE_KINDS, 0), "still_unknown": 0,
+                  "backfilled": 0, "backup_path": None, "unknown_reasons": {}, "samples": []}
+        with _file_lock(lock_file):
+            try:
+                with open(launch_history_file, "rb") as handle:
+                    original = handle.read()
+            except FileNotFoundError:
+                return result
+            rewritten = []
+            for line in original.splitlines(keepends=True):
+                try:
+                    entry = json.loads(line)
+                except (ValueError, UnicodeError):
+                    rewritten.append(line)
+                    continue
+                if not isinstance(entry, dict):
+                    rewritten.append(line)
+                    continue
+                result["scanned"] += 1
+                if entry.get("usage") and missing_model(entry.get("usage_model")):
+                    result["candidates"] += 1
+                    model, kind, reason = resolve(entry)
+                    if model:
+                        result["recoverable"][kind] += 1
+                        entry["usage_model"] = model
+                        entry["usage_model_backfilled_reason"] = kind
+                        line = (json.dumps(entry, separators=(",", ":")) + "\n").encode("utf-8")
+                    else:
+                        result["still_unknown"] += 1
+                        reasons = result["unknown_reasons"]
+                        reasons[reason] = reasons.get(reason, 0) + 1
+                    if len(result["samples"]) < 20:
+                        result["samples"].append({"session_name": entry.get("session_name"),
+                                                  "run_id": entry.get("run_id"), "started_at": entry.get("started_at"),
+                                                  "model": model, "evidence": kind, "reason": reason})
+                rewritten.append(line)
+            recovered = sum(result["recoverable"].values())
+            if not dry_run and recovered:
+                backup = f"{launch_history_file}.models-{uuid.uuid4().hex}.bak"
+                atomic_write(backup, original)
+                atomic_write(launch_history_file, b"".join(rewritten))
+                result["backup_path"] = backup
+                result["backfilled"] = recovered
+            return result
+
     def list_launch_history(session_name=None, limit=20):
         with _file_lock(lock_file):
             try:
@@ -380,5 +432,6 @@ def create_session_store(base_dir):
         "append_launch_history": append_launch_history,
         "drop_unvouched_usage": drop_unvouched_usage,
         "backfill_launch_usage": backfill_launch_usage,
+        "backfill_launch_models": backfill_launch_models,
         "list_launch_history": list_launch_history,
     }
