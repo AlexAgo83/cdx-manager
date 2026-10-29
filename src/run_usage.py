@@ -413,7 +413,7 @@ def extract_run_usage(provider, stdout_path):
     return extract_run_observation(provider, stdout_path)[0]
 
 
-def extract_run_observation(provider, stdout_path):
+def extract_run_observation(provider, stdout_path, auth_home=None):
     if not stdout_path or not provider:
         return empty_usage(), None
     if provider not in SUPPORTED_PROVIDERS:
@@ -444,7 +444,44 @@ def extract_run_observation(provider, stdout_path):
         model_usage = record.get("modelUsage")
         if isinstance(model_usage, dict):
             models.update(model_usage)
+    if provider == "codex" and auth_home:
+        models.update(_codex_run_models(records, auth_home))
     return usage, next(iter(models)) if len(models) == 1 else None
+
+
+def _codex_run_models(records, auth_home):
+    # Exec's token totals belong to this run; a rollout's totals may include
+    # earlier turns. Read only model evidence from the exact thread's rollout.
+    from .interactive_usage import MAX_TRANSCRIPT_BYTES, conversation_transcript
+
+    thread_ids = {record.get("thread_id") for record in records
+                  if isinstance(record, dict) and record.get("type") == "thread.started"
+                  and isinstance(record.get("thread_id"), str) and record["thread_id"]}
+    if len(thread_ids) != 1:
+        return set()
+    path = conversation_transcript("codex", auth_home, next(iter(thread_ids)))
+    if not path:
+        return set()
+    models = set()
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            text = handle.read(MAX_TRANSCRIPT_BYTES + 1)
+            if len(text) > MAX_TRANSCRIPT_BYTES:
+                return set()
+            for line in text.splitlines():
+                try:
+                    record = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(record, dict) or record.get("type") != "turn_context":
+                    continue
+                payload = record.get("payload")
+                model = payload.get("model") if isinstance(payload, dict) else None
+                if isinstance(model, str) and model:
+                    models.add(model)
+    except OSError:
+        return set()
+    return models
 
 
 def _parse_json_records(text):

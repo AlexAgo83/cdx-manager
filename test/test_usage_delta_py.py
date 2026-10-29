@@ -5,6 +5,7 @@ import os
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
+from unittest import mock
 
 from src.commands.launch import _attach_interactive_usage
 from src.interactive_usage import extract_interactive_usage, usage_delta
@@ -25,6 +26,12 @@ def _assistant(message_id, output):
 
 
 class UsageDeltaTests(unittest.TestCase):
+    def test_observed_model_is_kept_without_usage(self):
+        with mock.patch("src.commands.launch.extract_interactive_usage", return_value=(None, None, None, "gpt-6.1-sol")):
+            result = _attach_interactive_usage({"provider": "codex"}, {}, [])
+        self.assertEqual(result["usage_model"], "gpt-6.1-sol")
+        self.assertNotIn("usage", result)
+
     def setUp(self):
         self._dir = tempfile.TemporaryDirectory()
         self.home = self._dir.name

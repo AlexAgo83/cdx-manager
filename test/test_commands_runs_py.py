@@ -48,6 +48,45 @@ from src.session_service import create_session_service
 
 class RunsCommandTests(CliTestBase):
 
+    def test_codex_default_model_reaches_history_stats_and_report(self):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        session = self._authenticated_codex_session(service)
+        thread_id = "12345678-1234-1234-1234-123456789abc"
+        rollout = pathlib.Path(session["authHome"]) / "sessions" / f"rollout-test-{thread_id}.jsonl"
+
+        def spawn(_argv, **kwargs):
+            self.assertNotIn("--model", _argv)
+            rollout.parent.mkdir(parents=True, exist_ok=True)
+            rollout.write_text(json.dumps({"type": "turn_context", "payload": {"model": "gpt-6.1-sol"}}) + "\n")
+            kwargs["stdout"].write(json.dumps({"type": "thread.started", "thread_id": thread_id}) + "\n")
+            kwargs["stdout"].write(json.dumps({"type": "turn.completed", "usage": {
+                "input_tokens": 100, "cached_input_tokens": 20, "output_tokens": 10,
+            }}) + "\n")
+            return _HeadlessChild(0)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json",
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 0)
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertEqual(payload["usage_model"], "gpt-6.1-sol")
+        self.assertIsNone(payload["model"])
+        history = service["get_launch_history"]("work", limit=10)
+        self.assertEqual(history[0]["usage_model"], "gpt-6.1-sol")
+        self.assertEqual(history[0]["usage"]["input_tokens"], 80)
+        io_obj = self.make_io()
+        self.assertEqual(main(["stats", "--by", "model", "--json"], self.make_run_ctx(io_obj, service)), 0)
+        stats = json.loads(io_obj["stdout"].getvalue())
+        self.assertEqual(stats["stats"][0]["session_name"], "gpt-6.1-sol")
+        self.assertEqual(stats["stats"][0]["priced_runs"], 1)
+        self.assertGreater(stats["stats"][0]["cost_usd"], 0)
+        io_obj = self.make_io()
+        self.assertEqual(main(["run-report", payload["run_id"], "--json"], self.make_run_ctx(io_obj, service)), 0)
+        report = json.loads(io_obj["stdout"].getvalue())["report"]
+        self.assertEqual(report["run"]["usage_model"], "gpt-6.1-sol")
+        self.assertEqual(report["final_payload"]["usage_model"], "gpt-6.1-sol")
+
     def test_run_accepts_dir_as_the_launch_directory(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})
@@ -1624,6 +1663,8 @@ class RunsCommandTests(CliTestBase):
         self.assertEqual(first[0]["run_id"], second[0]["run_id"])
         self.assertEqual(first[0]["usage_model"], "gpt-6-sol")
         self.assertEqual(second[0]["usage_model"], "gpt-6-luna")
+        self.assertEqual(payload["usage_model"], "gpt-6-luna")
+        self.assertEqual(runs[0]["usage_model"], "gpt-6-luna")
         from src.commands.status import _stats_totals, _summarize_stats
         totals = _stats_totals(_summarize_stats([*first, *second]))
         self.assertEqual((totals["input_tokens"], totals["output_tokens"]), (300, 30))

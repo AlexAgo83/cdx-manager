@@ -4,7 +4,7 @@ import sys
 from .cli_args import ARG_CODE_INVALID_VALUE
 from .errors import CdxArgumentError, CdxError
 from .provider_runtime import headless_permission_disables_network
-from .run_usage import empty_usage, extract_run_usage
+from .run_usage import empty_usage, extract_run_observation
 
 PROMPT_STDIN = "-"
 
@@ -182,11 +182,11 @@ def run_launch_payload(api_schema_version, parsed, session, artifacts, cwd=None,
 def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
                        error=None, error_source=None, error_code=None, selection_row=None):
     run_info = run_info or {}
-    usage = run_info.get("usage") if isinstance(run_info.get("usage"), dict) else (
-        extract_run_usage(session.get("provider"), run_info.get("stdout_path"))
-        if session else
-        empty_usage()
-    )
+    usage, usage_model = run_info.get("usage"), run_info.get("usage_model")
+    if not isinstance(usage, dict):
+        usage, usage_model = extract_run_observation(
+            session.get("provider"), run_info.get("stdout_path"), session.get("authHome"),
+        ) if session else (empty_usage(), None)
     message = None if ok else (
         _provider_failure_message(error, run_info, error_code)
         if error_source == "provider"
@@ -221,6 +221,7 @@ def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
         "stdout_path": run_info.get("stdout_path"),
         "stderr_path": run_info.get("stderr_path"),
         "usage": usage,
+        "usage_model": usage_model,
         "warnings": warnings,
         "error": None if ok else {
             "source": error_source or "cdx",
