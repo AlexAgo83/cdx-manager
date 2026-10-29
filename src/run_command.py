@@ -192,6 +192,17 @@ def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
         if error_source == "provider"
         else (str(error) if error else "Run failed.")
     )
+    warnings = run_warnings(parsed, session, selection_row)
+    if run_info.get("permission_denials"):
+        warnings.append({
+            "code": "permission_denials",
+            "message": (
+                "The provider reported denied tool calls. A denied tool may have been "
+                "replaced successfully; check the denials and transcript for impact."
+            ),
+            "provider": session.get("provider") if session else parsed.get("provider"),
+            "permission_denials": run_info["permission_denials"],
+        })
     return {
         "schema_version": api_schema_version,
         "ok": bool(ok),
@@ -210,7 +221,7 @@ def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
         "stdout_path": run_info.get("stdout_path"),
         "stderr_path": run_info.get("stderr_path"),
         "usage": usage,
-        "warnings": run_warnings(parsed, session, selection_row),
+        "warnings": warnings,
         "error": None if ok else {
             "source": error_source or "cdx",
             "code": error_code or "cdx_error",

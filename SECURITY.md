@@ -45,7 +45,10 @@ sensitive surfaces are:
 - **Credentials.** Claude setup-tokens and OAuth files, Codex `auth.json`, and
   what cdx passes to a provider's environment. `cdx set <name> --scrub-env on`
   keeps credentials away from the commands, hooks and MCP servers a Claude agent
-  starts; a leak despite it is in scope.
+  starts; a leak despite it is in scope. Claude then forces its default permission
+  mode, so unattended sessions must explicitly allow needed tools with
+  `--allowedTools` via `cdx set <name> --extra-args 'ARGS'`; see
+  [operations](docs/operations.md) for an example.
 - **Export bundles.** `cdx export --include-auth` encrypts credentials with a
   passphrase. Weak key derivation, plaintext leftovers or an import that trusts
   a tampered bundle are in scope.

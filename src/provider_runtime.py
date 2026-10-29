@@ -26,6 +26,7 @@ from .config import (
     split_extra_args,
 )
 from .errors import CdxError
+from .run_usage import _parse_json_records
 
 TERMINAL_TITLE_SEPARATOR = " — "
 # Providers redraw their own title while their TUI runs, so a single write at
@@ -1184,6 +1185,22 @@ def _terminate_child_tree(child):
         pass
 
 
+def _read_permission_denials(stdout_path):
+    denials = []
+    try:
+        with open(stdout_path, encoding="utf-8", errors="replace") as handle:
+            records = _parse_json_records(handle.read())
+    except OSError:
+        return denials
+    for record in records:
+        if not isinstance(record, dict) or record.get("type") != "result":
+            continue
+        reported = record.get("permission_denials")
+        if isinstance(reported, list):
+            denials.extend(item for item in reported if isinstance(item, dict))
+    return denials
+
+
 def _run_headless_provider_command(session, cwd=None, env_override=None, initial_prompt=None,
                                    timeout_seconds=None, spawn=None, run_id=None):
     spawn = spawn or subprocess.Popen
@@ -1277,6 +1294,10 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
         "pid": getattr(child, "pid", None),
         "returncode": returncode,
         "timed_out": timed_out,
+        "permission_denials": (
+            _read_permission_denials(paths["stdout_path"])
+            if session.get("provider") == PROVIDER_CLAUDE else []
+        ),
     }
 
 

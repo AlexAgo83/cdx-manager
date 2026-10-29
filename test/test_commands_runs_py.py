@@ -1305,6 +1305,43 @@ class RunsCommandTests(CliTestBase):
 
         self.assertEqual(json.loads(io_obj["stdout"].getvalue())["warnings"], [])
 
+    def test_run_reports_permission_denials_without_failing(self):
+        denials = [{"tool_name": "Bash", "tool_use_id": "tool-1", "tool_input": {"command": "pwd"}}]
+        for reported in (denials, [], None):
+            with self.subTest(permission_denials=reported):
+                target_dir = self.make_temp_dir()
+                service = create_session_service({"base_dir": target_dir})
+                session = service["create_session"]("work", "claude")
+                auth = _AuthHarness(initial_auth={session["authHome"]: True})
+                result = {"type": "result", "subtype": "success", "result": "Done using another tool."}
+                if reported is not None:
+                    result["permission_denials"] = reported
+
+                def spawn(_argv, result=result, **kwargs):
+                    # Only structured result records count, not prose or other events.
+                    kwargs["stdout"].write('Permission denied\n[]\n{"type":"assistant","permission_denials":[{}]}\n')
+                    kwargs["stdout"].write(json.dumps(result) + "\n")
+                    return _HeadlessChild(0)
+
+                io_obj = self.make_io()
+                self.assertEqual(main([
+                    "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json",
+                ], self.make_run_ctx(io_obj, service, spawn_headless=spawn, spawn_sync=auth.spawn_sync)), 0)
+
+                payload = json.loads(io_obj["stdout"].getvalue())
+                self.assertTrue(payload["ok"])
+                self.assertEqual(payload["exit_code"], 0)
+                self.assertIsNone(payload["error"])
+                if reported:
+                    self.assertEqual([w["code"] for w in payload["warnings"]], ["permission_denials"])
+                    self.assertEqual(payload["warnings"][0]["permission_denials"], denials)
+                    self.assertEqual(payload["warnings"][0]["provider"], "claude")
+                else:
+                    self.assertEqual(payload["warnings"], [])
+                stored = RunRegistry(target_dir).get(payload["run_id"])
+                self.assertEqual(stored["status"], "succeeded")
+                self.assertEqual(stored["final_payload"]["warnings"], payload["warnings"])
+
     def test_run_reads_prompt_from_stdin(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})
