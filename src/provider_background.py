@@ -224,6 +224,7 @@ def read_transcript_outcome(path):
     if not path:
         return outcome
     totals = {"input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0, "output_tokens": 0}
+    missing = set(totals)
     long_ttl = None
     # This path had no de-duplication at all, so a transcript that records the
     # same billed response more than once inflated the total outright.
@@ -266,6 +267,11 @@ def read_transcript_outcome(path):
                     seen = True
                     if isinstance(message.get("model"), str) and message["model"]:
                         models.add(message["model"])
+                    for source, target in (("input_tokens", "input_tokens"), ("output_tokens", "output_tokens"),
+                                           ("cache_creation_input_tokens", "cache_creation_tokens"),
+                                           ("cache_read_input_tokens", "cache_read_tokens")):
+                        if usage.get(source) is not None:
+                            missing.discard(target)
                     totals["input_tokens"] += usage.get("input_tokens") or 0
                     totals["cache_creation_tokens"] += usage.get("cache_creation_input_tokens") or 0
                     totals["cache_read_tokens"] += usage.get("cache_read_input_tokens") or 0
@@ -276,7 +282,8 @@ def read_transcript_outcome(path):
     except OSError:
         return outcome
     if seen:
-        outcome["usage"] = normalize_usage(**totals, cache_creation_1h_tokens=long_ttl)
+        outcome["usage"] = normalize_usage(**{k: None if k in missing else v for k, v in totals.items()},
+                                           cache_creation_1h_tokens=long_ttl)
         if len(models) == 1:
             outcome["usage_model"] = next(iter(models))
     return outcome

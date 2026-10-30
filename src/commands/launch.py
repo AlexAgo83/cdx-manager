@@ -34,7 +34,7 @@ from ..provider_runtime import (
     with_requested_conversation,
 )
 from ..run_command import PROMPT_STDIN, read_run_prompt
-from ..run_usage import estimate_cost
+from ..run_usage import estimate_cost, format_cache_ratio
 
 LAUNCH_USAGE = "Usage: cdx <name> [--dir PATH] [--prompt TEXT|--prompt-file PATH|--task TEXT [--end-state TEXT]] [--resume] [--on-busy fail|ask] [--json]"
 
@@ -425,9 +425,9 @@ def _goodbye_line(session, run_info, use_color):
     if cost is not None:
         parts.append(_format_usd(cost))
     elif isinstance(usage, dict):
-        total_tokens = sum(v for v in usage.values() if isinstance(v, (int, float)))
+        total_tokens = usage.get("total_tokens")
         if total_tokens:
-            parts.append(f"{_format_token_count(total_tokens)} tokens")
+            parts.append(f"{_format_token_count(total_tokens)} tokens {format_cache_ratio(usage.get('cache_hit_ratio'))}")
     return _dim(" · ".join(parts), use_color)
 
 

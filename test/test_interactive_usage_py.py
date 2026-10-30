@@ -32,7 +32,7 @@ class InteractiveUsageTests(unittest.TestCase):
             # the 20-token remainder and CACHE holds the 90 it contained.
             self.assertEqual(usage, {"input_tokens": 20, "cached_input_tokens": 90,
                                     "cache_creation_tokens": None, "cache_creation_1h_tokens": None, "cache_read_tokens": 90,
-                                    "output_tokens": 4, "reasoning_tokens": 2, "total_tokens": 114})
+                                    "output_tokens": 4, "reasoning_tokens": 2, "total_tokens": 114, "cache_hit_ratio": 0.8181818181818182})
 
     def test_codex_cached_count_larger_than_input_is_left_alone(self):
         # Not a subset, so the cache-inclusive assumption cannot hold for this
@@ -63,7 +63,7 @@ class InteractiveUsageTests(unittest.TestCase):
             # that was not a slightly-low total but a different quantity.
             self.assertEqual(usage, {"input_tokens": 13, "cached_input_tokens": 8,
                                     "cache_creation_tokens": 3, "cache_creation_1h_tokens": None, "cache_read_tokens": 5,
-                                    "output_tokens": 20, "reasoning_tokens": None, "total_tokens": 41})
+                                    "output_tokens": 20, "reasoning_tokens": None, "total_tokens": 41, "cache_hit_ratio": 0.23809523809523808})
 
     def test_ignores_a_synthetic_model_placeholder(self):
         with tempfile.TemporaryDirectory() as home:
@@ -155,6 +155,7 @@ class UsageDefinitionAgreementTests(unittest.TestCase):
         "output_tokens": 7,
         "reasoning_tokens": None,
         "total_tokens": 27,
+        "cache_hit_ratio": 0.25,
     }
 
     def test_headless_interactive_and_background_readers_agree(self):

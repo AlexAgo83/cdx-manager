@@ -144,10 +144,10 @@ class UsageDeltaArithmeticTests(unittest.TestCase):
     def test_difference_is_taken_on_measured_fields_only(self):
         cumulative = {"input_tokens": 10, "cache_creation_tokens": 4, "cache_read_tokens": 100,
                       "output_tokens": 8, "reasoning_tokens": None,
-                      "cached_input_tokens": 104, "total_tokens": 122}
+                      "cached_input_tokens": 104, "total_tokens": 122, "cache_hit_ratio": 0.8771929824561403}
         previous = {"input_tokens": 4, "cache_creation_tokens": 1, "cache_read_tokens": 40,
                     "output_tokens": 3, "reasoning_tokens": None,
-                    "cached_input_tokens": 41, "total_tokens": 48}
+                    "cached_input_tokens": 41, "total_tokens": 48, "cache_hit_ratio": 0.8888888888888888}
         delta = usage_delta(cumulative, previous)
         self.assertEqual(delta["input_tokens"], 6)
         self.assertEqual(delta["cache_read_tokens"], 60)

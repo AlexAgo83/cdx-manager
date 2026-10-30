@@ -47,7 +47,7 @@ CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--conversation <id>] [--json]"
 SESSIONS_USAGE = "Usage: cdx sessions [--all] --json"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json"
 NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
-RUN_USAGE = "Usage: cdx run [session] (--cwd|--dir) PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--network-access] [--isolate-workspace] [--timeout-seconds N] [--label TEXT] [--max-parallel N] [--detach] [--failover] [--refresh] --json"
+RUN_USAGE = "Usage: cdx run [session] (--cwd|--dir) PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--network-access] [--isolate-workspace] [--timeout-seconds N] [--label TEXT] [--max-parallel N] [--continue-run RUN_ID] [--detach] [--failover] [--refresh] --json"
 RUN_JSON_REQUIRED = "cdx run: --json is required."
 RUN_TARGET_REQUIRED = "cdx run: specify a session name or --provider PROVIDER."
 RUN_SESSION_PROVIDER_CONFLICT = "cdx run: cannot specify both a session name and --provider."
@@ -544,6 +544,10 @@ def cdx_schema():
                 "failover_exhausted",
                 "failover_limit_reached",
                 "capacity_recovery_exhausted",
+                "continue_run_not_found",
+                "continue_run_mismatch",
+                "continue_run_unavailable",
+                "continue_run_settings_mismatch",
                 "invalid_request",
                 "cdx_error",
             ],
@@ -661,6 +665,7 @@ def _parse_run_args(args):
         "--prompt": {"key": "prompt", "type": "str", "default": None},
         "--provider": {"key": "provider", "type": "str", "default": None, "transform": _parse_run_provider},
         "--model": {"key": "model", "type": "str", "default": None},
+        "--continue-run": {"key": "continue_run", "type": "str", "default": None},
         "--kind": {"key": "kind", "type": "str", "default": "assistant"},
         "--reasoning-effort": {"key": "reasoning_effort", "type": "str", "default": None},
         "--power": {"key": "power", "type": "str", "default": None},
@@ -684,7 +689,7 @@ def _parse_run_args(args):
             code=ARG_CODE_MUTUALLY_EXCLUSIVE,
             arguments=["session", "--provider"],
         )
-    if not name and not parsed["provider"]:
+    if not name and not parsed["provider"] and not parsed["continue_run"]:
         raise CdxArgumentError(RUN_TARGET_REQUIRED, code=ARG_CODE_MISSING, arguments=["session", "--provider"])
     if not parsed["cwd"]:
         raise CdxArgumentError(RUN_CWD_REQUIRED, code=ARG_CODE_MISSING, arguments=["--cwd"])
@@ -708,6 +713,9 @@ def _parse_run_args(args):
             arguments=["--kind"],
             allowed=RUN_KIND_VALUES,
         )
+    if parsed["continue_run"] is not None and not parsed["continue_run"].strip():
+        raise CdxArgumentError("cdx run: --continue-run requires a nonempty run id.",
+                               code=ARG_CODE_INVALID_VALUE, arguments=["--continue-run"])
     effort = _parse_run_effort(parsed["reasoning_effort"], parsed["power"])
     return {
         "name": name,
@@ -715,6 +723,7 @@ def _parse_run_args(args):
         "cwd": parsed["cwd"],
         "prompt_file": parsed["prompt_file"],
         "prompt": parsed["prompt"],
+        "continue_run": parsed["continue_run"],
         "kind": parsed["kind"],
         "model": parsed["model"],
         "permission": parsed["permission"],

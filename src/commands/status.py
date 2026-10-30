@@ -53,10 +53,13 @@ from ..provider_runtime import (
 )
 from ..rtk_savings import rtk_saved
 from ..run_usage import (
-    USAGE_KEYS,
+    TOKEN_USAGE_KEYS,
+    cache_hit_ratio,
     estimate_cost,
+    format_cache_ratio,
     is_vouched,
     normalize_usage,
+    summarize_cache_usage,
     token_prices,
     weighted_usage,
 )
@@ -294,7 +297,9 @@ def _summarize_stats(entries):
             "reasoning_tokens": 0,
             "total_tokens": 0,
             "last_started_at": None,
+            "_entries": [],
         })
+        row["_entries"].append(entry)
         row["launches"] += 1
         if entry.get("provider"):
             row["provider"].add(entry["provider"])
@@ -315,7 +320,7 @@ def _summarize_stats(entries):
             usage = {}
         parsed_usage = {
             key: _token_value(usage, key)
-            for key in USAGE_KEYS
+            for key in TOKEN_USAGE_KEYS
         }
         if any(value is not None for value in parsed_usage.values()):
             row["usage_runs"] += 1
@@ -361,6 +366,16 @@ def _summarize_stats(entries):
         # overwhelming majority of cached tokens are, and weighting the whole
         # of it at the creation rate would overstate legacy sessions by more
         # than reading it as reads understates them.
+        group_entries = row.pop("_entries")
+        row["cache_usage"] = summarize_cache_usage(group_entries)
+        row["cache_hit_ratio"] = row["cache_usage"]["cache_hit_ratio"]
+        row["run_types"] = {
+            kind: {"runs": len(subset), **summarize_cache_usage(subset)}
+            for kind, subset in (
+                ("continued", [e for e in group_entries if e.get("parent_run_id")]),
+                ("cold", [e for e in group_entries if not e.get("parent_run_id")]),
+            )
+        }
         split = row["cache_creation_tokens"] + row["cache_read_tokens"]
         legacy_cache = max(0, row["cached_input_tokens"] - split)
         derived = normalize_usage(
@@ -381,15 +396,34 @@ def _summarize_stats(entries):
         reverse=True,
     )
 
+def _merge_cache_usage(summaries):
+    totals = {}
+    for key in ("input_tokens", "cache_creation_tokens", "cache_read_tokens", "output_tokens",
+                "measured_runs", "measured_input_tokens", "measured_cache_read_tokens"):
+        values = [s[key] for s in summaries if s[key] is not None]
+        totals[key] = sum(values) if values else (0 if key.startswith("measured_") else None)
+    inputs = totals["measured_input_tokens"]
+    totals["cache_hit_ratio"] = totals["measured_cache_read_tokens"] / inputs if inputs else None
+    return totals
+
+
 def _stats_totals(rows):
+    cache = _merge_cache_usage([row["cache_usage"] for row in rows])
     return {
+        "cache_usage": cache,
+        "cache_hit_ratio": cache["cache_hit_ratio"],
+        "run_types": {
+            kind: {"runs": sum(row["run_types"][kind]["runs"] for row in rows),
+                   **_merge_cache_usage([row["run_types"][kind] for row in rows])}
+            for kind in ("cold", "continued")
+        },
         "sessions": len(rows),
         "launches": sum(row["launches"] for row in rows),
         "successes": sum(row["successes"] for row in rows),
         "failures": sum(row["failures"] for row in rows),
         "duration_ms": sum(row["duration_ms"] for row in rows),
         "usage_runs": sum(row["usage_runs"] for row in rows),
-        **{key: sum(row[key] for row in rows) for key in USAGE_KEYS},
+        **{key: sum(row[key] for row in rows) for key in TOKEN_USAGE_KEYS},
         "weighted_tokens": sum(row["weighted_tokens"] for row in rows),
         "weighted_runs": sum(row["weighted_runs"] for row in rows),
         "unweighted_runs": sum(row["unweighted_runs"] for row in rows),
@@ -448,7 +482,7 @@ def _format_history(entries, use_color=False, active_sessions=None):
     active_sessions = active_sessions or set()
     if not entries:
         return "No launch history."
-    rows = [[_style(value, "1", use_color) for value in ["SESSION", "PROV.", "RESULT", "DURATION", "WHEN", "TRANSCRIPT"]]]
+    rows = [[_style(value, "1", use_color) for value in ["SESSION", "PROV.", "RESULT", "DURATION", "WHEN", "TOKENS", "TRANSCRIPT"]]]
     for entry in entries:
         transcript_path = entry.get("transcript_path")
         session_name = entry.get("session_name") or "-"
@@ -461,6 +495,8 @@ def _format_history(entries, use_color=False, active_sessions=None):
             _style(status, status_color, use_color),
             _style(_format_duration_ms(entry.get("duration_ms")), "33" if entry.get("duration_ms") else "2", use_color),
             _dim(_format_relative_age(entry.get("started_at")), use_color),
+            _dim(f"{_format_token_count((entry.get('usage') or {}).get('total_tokens'))} "
+                 f"{format_cache_ratio((entry.get('usage') or {}).get('cache_hit_ratio'))}", use_color),
             _dim(os.path.basename(transcript_path) if transcript_path else "-", use_color),
         ])
     return "\n".join([
@@ -529,10 +565,12 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
             _style(str(row["launches"]), "1", use_color),
             _style(str(row["usage_runs"]), "32" if row["usage_runs"] else "2", use_color),
             _style(_format_token_count(row["input_tokens"]), "96" if row["input_tokens"] else "2", use_color),
-            _style(_format_token_count(row["cached_input_tokens"]), "96" if row["cached_input_tokens"] else "2", use_color),
+            _style(_format_token_count(row["cached_input_tokens"]) if row["cache_usage"]["cache_read_tokens"] is not None
+                   or row["cache_usage"]["cache_creation_tokens"] is not None else "n/d",
+                   "96" if row["cached_input_tokens"] else "2", use_color),
             _style(_format_token_count(row["output_tokens"]), "96" if row["output_tokens"] else "2", use_color),
             _style(_format_token_count(row["reasoning_tokens"]), "95" if row["reasoning_tokens"] else "2", use_color),
-            _style(_format_token_count(row["total_tokens"]), "96" if row["total_tokens"] else "2", use_color),
+            _style(f"{_format_token_count(row['total_tokens'])} {format_cache_ratio(row.get('cache_hit_ratio'))}", "96" if row["total_tokens"] else "2", use_color),
             _style(_format_token_count(row["weighted_tokens"]) if row["weighted_runs"] else "-",
                    "1;95" if row["weighted_runs"] else "2", use_color),
             _style(_format_usd(row["cost_usd"]) if row["priced_runs"] else "-",
@@ -550,7 +588,7 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
         _dim(
             "Totals: "
             f"{totals['launches']} runs, {totals['usage_runs']} with usage, "
-            f"{_format_token_count(totals['total_tokens'])} tokens "
+            f"{_format_token_count(totals['total_tokens'])} tokens {format_cache_ratio(totals.get('cache_hit_ratio'))} "
             f"({_format_token_count(totals['weighted_tokens']) if totals['weighted_runs'] else '-'} cost-equivalent"
             + (f" on {totals['weighted_runs']}/{totals['usage_runs']} measured runs"
                if totals["usage_runs"] else "")
@@ -633,6 +671,9 @@ def handle_history(rest, ctx):
     limit = 0 if parsed["summary"] or has_period else parsed["limit"]
     entries = ctx["service"]["get_launch_history"](parsed["name"], limit=limit)
     entries = _filter_history_period(entries, parsed["period"])
+    entries = [{**entry, "parent_run_id": entry.get("parent_run_id"),
+                "usage": {**entry["usage"], "cache_hit_ratio": cache_hit_ratio(entry["usage"]) if is_vouched(entry["usage"]) else None}
+                if isinstance(entry.get("usage"), dict) else entry.get("usage")} for entry in entries]
     if has_period and not parsed["summary"]:
         entries = entries[:parsed["limit"]]
     message = (

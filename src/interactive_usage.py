@@ -261,9 +261,12 @@ def _codex_usage(handle):
             # larger than the input count is not a subset, so that record is
             # left alone rather than forced to zero.
             reported_input = _number(usage.get("input_tokens"))
-            cache_read = _number(usage.get("cached_input_tokens"))
+            cache_read = _number(usage["cached_input_tokens"]) if usage.get("cached_input_tokens") is not None else None
+            cache_write = _number(usage["cache_write_input_tokens"]) if usage.get("cache_write_input_tokens") is not None else None
+            cached = (cache_read or 0) + (cache_write or 0)
             latest = normalize_usage(
-                input_tokens=reported_input - cache_read if cache_read <= reported_input else reported_input,
+                input_tokens=reported_input - cached if cached <= reported_input else reported_input,
+                cache_creation_tokens=cache_write,
                 cache_read_tokens=cache_read,
                 output_tokens=_number(usage.get("output_tokens")),
                 reasoning_tokens=_number(usage.get("reasoning_output_tokens")) or None,
@@ -286,6 +289,7 @@ def _claude_usage(handle):
     inside `output_tokens` -- so that field stays absent by design.
     """
     totals = {"input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0, "output_tokens": 0}
+    missing = set(totals)
     long_ttl = None
     seen = set()
     model = None
@@ -301,6 +305,11 @@ def _claude_usage(handle):
                 if identifier in seen:
                     continue
                 seen.add(identifier)
+            for source, target in (("input_tokens", "input_tokens"), ("output_tokens", "output_tokens"),
+                                   ("cache_creation_input_tokens", "cache_creation_tokens"),
+                                   ("cache_read_input_tokens", "cache_read_tokens")):
+                if usage.get(source) is not None:
+                    missing.discard(target)
             totals["input_tokens"] += _number(usage.get("input_tokens"))
             totals["cache_creation_tokens"] += _number(usage.get("cache_creation_input_tokens"))
             totals["cache_read_tokens"] += _number(usage.get("cache_read_input_tokens"))
@@ -316,7 +325,8 @@ def _claude_usage(handle):
             continue
     if not seen and not any(totals.values()):
         return None, model
-    return normalize_usage(**totals, cache_creation_1h_tokens=long_ttl), model
+    return normalize_usage(**{k: None if k in missing else v for k, v in totals.items()},
+                           cache_creation_1h_tokens=long_ttl), model
 
 
 def _number(value):
@@ -326,7 +336,7 @@ def _number(value):
         return 0
 
 
-#: The quantities a provider actually reports. The other two fields of a usage
+#: The quantities a provider actually reports. The other fields of a usage
 #: record are derived by `normalize_usage` and must never be differenced.
 MEASURED_KEYS = (
     "input_tokens",

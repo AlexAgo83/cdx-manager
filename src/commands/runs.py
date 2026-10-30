@@ -24,6 +24,7 @@ from ..cli_args import (
 )
 from ..cli_helpers import API_SCHEMA_VERSION, _json_failure, _json_success, _write_json
 from ..errors import CdxError
+from ..interactive_usage import extract_interactive_usage, usage_delta
 from ..provider_background import (
     BACKGROUND_PATH_CDX,
     BACKGROUND_PATH_PROVIDER,
@@ -41,9 +42,11 @@ from ..provider_runtime import (
     _build_launch_spec,
     _ensure_session_authentication,
     _headless_artifact_paths,
+    _launch_power,
     _restore_signal_handlers,
     _route_termination_to_interrupt,
     _run_headless_provider_command,
+    with_requested_conversation,
 )
 from ..run_command import read_run_prompt, run_cdx_error_code, run_launch_payload, run_result_payload
 from ..run_failover import (
@@ -54,7 +57,7 @@ from ..run_failover import (
     looks_model_at_capacity,
 )
 from ..run_registry import RunRegistry, build_code_review_report, final_message
-from ..run_usage import extract_run_observation
+from ..run_usage import empty_usage, extract_run_conversation_id, extract_run_observation
 from ..session_ranking import FACTOR_DESCRIPTIONS, rank_sessions, selection_policy
 from ..status_view import _now_timestamp, _priority_reset_timestamp
 
@@ -200,6 +203,7 @@ def _detached_child_argv(parsed, prompt_path, session_name, cwd):
     # from the package root, so a relative "--cwd ." would resolve there.
     argv = ["run", session_name, "--cwd", cwd, "--prompt-file", prompt_path]
     for flag, key in (
+        ("--continue-run", "continue_run"),
         ("--model", "model"),
         ("--kind", "kind"),
         ("--permission", "permission"),
@@ -537,6 +541,64 @@ def _env_max_runs(ctx):
     return limit if limit > 0 else None
 
 
+def _observe_headless_usage(session, run_info, baseline=None):
+    usage, model = extract_run_observation(session.get("provider"), run_info.get("stdout_path"), session.get("authHome"))
+    observation = {"usage": usage, "usage_model": model}
+    if baseline is not None:
+        cumulative, path, match, transcript_model = extract_interactive_usage(
+            session["provider"], session.get("authHome"), conversation_id=(session.get("conversation") or {}).get("id"))
+        before, before_path, _before_match, _before_model = baseline
+        delta = usage_delta(cumulative, before) if cumulative and before and path == before_path else None
+        # Exec resume can emit conversation totals. Only exact launch boundaries
+        # establish this run's share; stdout cannot replace a missing boundary.
+        observation.update(usage=delta if delta is not None else empty_usage(), usage_cumulative=cumulative,
+                           usage_attribution="launch_boundary" if delta is not None else "continuation_usage_unavailable",
+                           provider_transcript_path=path, provider_transcript_match=match,
+                           usage_model=model or transcript_model)
+    return observation
+
+
+def _continue_run_session(parsed, ctx):
+    """Resolve only the parent's profile and exact persisted conversation."""
+    previous = _run_registry(ctx).get(parsed["continue_run"])
+    if not previous:
+        raise CdxError(f"Cannot continue unknown run: {parsed['continue_run']}. Start a normal run instead.",
+                       code="continue_run_not_found")
+    name, provider = previous.get("session"), previous.get("provider")
+    if (parsed.get("name") and parsed["name"] != name) or (parsed.get("provider") and parsed["provider"] != provider):
+        raise CdxError("Cannot continue a run from another profile or provider. Start a normal run instead.",
+                       code="continue_run_mismatch")
+    session = ctx["service"]["get_session"](name) if name else None
+    if not session or session.get("provider") != provider:
+        raise CdxError("The previous run's profile or provider is no longer available. Start a normal run instead.",
+                       code="continue_run_mismatch")
+    if provider not in ("claude", "codex") or previous.get("status") not in ("succeeded", "failed", "timed_out", "cancelled"):
+        raise CdxError("Only a finished Claude or Codex run can be continued. Start a normal run instead.",
+                       code="continue_run_unavailable")
+    conversation = previous.get("conversation_id")
+    resumed = with_requested_conversation(session, conversation)
+    if not resumed:
+        raise CdxError("The previous run's provider session expired or its transcript is missing. Start a normal run instead.",
+                       code="continue_run_unavailable")
+    model = previous.get("usage_model") or previous.get("model")
+    effort = previous.get("reasoning_effort")
+    if not isinstance(model, str) or not model or model.startswith("<") or not effort or not previous.get("launch"):
+        raise CdxError("The previous run's model and effort cannot be pinned. Start a normal run instead.",
+                       code="continue_run_unavailable")
+    if ((parsed.get("model") and parsed["model"] != model)
+            or (parsed.get("reasoning_effort") and parsed["reasoning_effort"] != effort)):
+        raise CdxError("--continue-run requires the previous run's model and reasoning effort.",
+                       code="continue_run_settings_mismatch")
+    if parsed.get("failover") or parsed.get("isolate_workspace"):
+        raise CdxError("--continue-run cannot be combined with --failover or --isolate-workspace.",
+                       code="continue_run_settings_mismatch")
+    parsed.update(name=name, model=model, reasoning_effort=effort, power=effort)
+    launch = {**previous["launch"], "model": model, "reasoning_effort": effort, "power": effort}
+    # A provider fallback would break the model pin even though cdx stayed on this profile.
+    launch.pop("fallback_model", None)
+    return {**resumed, "launch": launch, "continue_run": parsed["continue_run"]}
+
+
 def handle_run(rest, ctx):
     registry = None
     run_id = None
@@ -548,8 +610,11 @@ def handle_run(rest, ctx):
     detached_run_id = os.environ.pop(DETACHED_RUN_ID_ENV, None) or None
     try:
         parsed = _parse_run_args(rest)
-        session = None
-        if parsed["name"]:
+        session = _continue_run_session(parsed, ctx) if parsed.get("continue_run") else None
+        if session:
+            if session.get("enabled", True) is False:
+                raise CdxError(f"Session is disabled: {session['name']}", code="session_disabled")
+        elif parsed["name"]:
             session = ctx["service"]["get_session"](parsed["name"])
             if not session:
                 raise CdxError(f"Unknown session: {parsed['name']}")
@@ -604,7 +669,8 @@ def handle_run(rest, ctx):
         # records its own afterwards, from the rollout. Without this a headless
         # Claude run left the session with no identity and `cdx resume` fell
         # back to recency for Claude while working by id for Codex.
-        session = ctx["service"]["begin_conversation"](session["name"])
+        if not parsed.get("continue_run"):
+            session = ctx["service"]["begin_conversation"](session["name"])
         run_session = {
             **session,
             "launch": {
@@ -646,6 +712,10 @@ def handle_run(rest, ctx):
             },
             label=parsed.get("label"),
             max_parallel=max_parallel,
+            parent_run_id=parsed.get("continue_run"),
+            conversation_id=(run_session.get("conversation") or {}).get("id") if run_session["provider"] == "claude" or parsed.get("continue_run") else None,
+            launch=run_session.get("launch"),
+            reasoning_effort=_launch_power(run_session),
         )
         if parsed.get("detach"):
             # Delegate where the installed CLI can both start a background
@@ -654,7 +724,7 @@ def handle_run(rest, ctx):
             launch = None
             # A provider's own background agent has no cdx process watching it,
             # so nothing could fail it over; --failover keeps the in-house child.
-            if not parsed.get("isolate_workspace") and not parsed.get("network_access") and not parsed.get("failover") and supports_native_background(
+            if not parsed.get("continue_run") and not parsed.get("isolate_workspace") and not parsed.get("network_access") and not parsed.get("failover") and supports_native_background(
                 run_session.get("provider"),
                 env=ctx.get("env"),
                 spawn_sync=ctx.get("spawn_text"),
@@ -680,6 +750,7 @@ def handle_run(rest, ctx):
                 cwd=cwd,
                 pid=launch.get("pid"),
                 launch_log_path=launch.get("launch_log_path"),
+                conversation_id=launch.get("provider_session_id"),
                 selection_row=selection_row,
             ))
             return 0
@@ -693,6 +764,10 @@ def handle_run(rest, ctx):
         capacity_retries = 0
         while True:
             attempt += 1
+            baseline = extract_interactive_usage(
+                run_session["provider"], run_session.get("authHome"),
+                conversation_id=(run_session.get("conversation") or {}).get("id"),
+            ) if parsed.get("continue_run") and run_session["provider"] == "codex" else None
             run_info = _run_headless_provider_command(
                 run_session,
                 cwd=cwd,
@@ -702,11 +777,13 @@ def handle_run(rest, ctx):
                 spawn=ctx.get("spawn_headless") or ctx.get("spawn"),
                 run_id=run_id,
             )
-            usage, usage_model = extract_run_observation(
-                run_session.get("provider"), run_info.get("stdout_path"),
-                run_session.get("authHome"),
-            )
-            run_info = {**run_info, "usage": usage, "usage_model": usage_model,
+            observation = _observe_headless_usage(run_session, run_info, baseline)
+            run_info = {**run_info, **observation,
+                        "parent_run_id": parsed.get("continue_run"),
+                        "conversation_id": extract_run_conversation_id(run_session.get("provider"), run_info.get("stdout_path"))
+                        or ((run_session.get("conversation") or {}).get("id") if run_session["provider"] == "claude" or parsed.get("continue_run") else None),
+                        "launch": run_session.get("launch"),
+                        "reasoning_effort": _launch_power(run_session),
                         "effective_model": (run_session.get("launch") or {}).get("model"),
                         "recovery_events": recovery_events}
             ctx["service"]["record_launch_history"](run_session["name"], {
@@ -718,6 +795,8 @@ def handle_run(rest, ctx):
                 "exit_code": run_info.get("returncode"),
                 **run_info,
             })
+            if parsed.get("continue_run"):
+                break
             if looks_model_at_capacity(run_session.get("provider"), run_info):
                 event = {"reason": "model_at_capacity", "attempt": attempt,
                          "session": run_session["name"], "model": models[model_index]}
@@ -883,11 +962,12 @@ def handle_run(rest, ctx):
         if run_info is not None:
             run_info = {**run_info, "recovery_events": locals().get("recovery_events", [])}
         if run_info and run_id and not getattr(error, "history_recorded", False):
-            usage, usage_model = extract_run_observation(
-                run_session.get("provider"), run_info.get("stdout_path"),
-                run_session.get("authHome"),
-            )
-            run_info = {**run_info, "usage": usage, "usage_model": usage_model}
+            observation = _observe_headless_usage(run_session, run_info, locals().get("baseline"))
+            run_info = {**run_info, **observation,
+                        "parent_run_id": parsed.get("continue_run"),
+                        "conversation_id": extract_run_conversation_id(run_session.get("provider"), run_info.get("stdout_path"))
+                        or ((run_session.get("conversation") or {}).get("id") if run_session["provider"] == "claude" or parsed.get("continue_run") else None),
+                        "launch": run_session.get("launch"), "reasoning_effort": _launch_power(run_session)}
             ctx["service"]["record_launch_history"](run_session["name"], {
                 "status": "failed",
                 "action": "run",
