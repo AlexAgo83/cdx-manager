@@ -5,8 +5,10 @@ Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 
 import importlib.util
 import os
+import shutil
 import subprocess
 import sys
+import time
 
 from ..cli_args import (
     RUN_REPORT_USAGE,
@@ -39,10 +41,18 @@ from ..provider_runtime import (
     _build_launch_spec,
     _ensure_session_authentication,
     _headless_artifact_paths,
+    _restore_signal_handlers,
+    _route_termination_to_interrupt,
     _run_headless_provider_command,
 )
 from ..run_command import read_run_prompt, run_cdx_error_code, run_launch_payload, run_result_payload
-from ..run_failover import MAX_FAILOVER_TRANSITIONS, failover_reason
+from ..run_failover import (
+    CAPACITY_RETRY_DELAYS,
+    MAX_FAILOVER_TRANSITIONS,
+    capacity_models,
+    failover_reason,
+    looks_model_at_capacity,
+)
 from ..run_registry import RunRegistry, build_code_review_report, final_message
 from ..run_usage import extract_run_observation
 from ..session_ranking import FACTOR_DESCRIPTIONS, rank_sessions, selection_policy
@@ -676,7 +686,13 @@ def handle_run(rest, ctx):
 
         attempted = [run_session["name"]]
         failover_error_code = None
+        recovery_events = []
+        attempt = 0
+        models = capacity_models(run_session)
+        model_index = 0
+        capacity_retries = 0
         while True:
+            attempt += 1
             run_info = _run_headless_provider_command(
                 run_session,
                 cwd=cwd,
@@ -690,16 +706,70 @@ def handle_run(rest, ctx):
                 run_session.get("provider"), run_info.get("stdout_path"),
                 run_session.get("authHome"),
             )
-            run_info = {**run_info, "usage": usage, "usage_model": usage_model}
+            run_info = {**run_info, "usage": usage, "usage_model": usage_model,
+                        "effective_model": (run_session.get("launch") or {}).get("model"),
+                        "recovery_events": recovery_events}
             ctx["service"]["record_launch_history"](run_session["name"], {
                 "status": "success" if run_info.get("returncode") == 0 else "failed",
                 "action": "run",
                 "run_id": run_id,
-                "attempt": len(attempted),
+                "attempt": attempt,
                 "cwd": cwd,
                 "exit_code": run_info.get("returncode"),
                 **run_info,
             })
+            if looks_model_at_capacity(run_session.get("provider"), run_info):
+                event = {"reason": "model_at_capacity", "attempt": attempt,
+                         "session": run_session["name"], "model": models[model_index]}
+                if capacity_retries < len(CAPACITY_RETRY_DELAYS):
+                    delay = CAPACITY_RETRY_DELAYS[capacity_retries]
+                    capacity_retries += 1
+                    event.update(action="retry", retry=capacity_retries, delay_seconds=delay)
+                elif model_index + 1 < len(models):
+                    model_index += 1
+                    capacity_retries = 0
+                    run_session["launch"]["model"] = models[model_index]
+                    event.update(action="fallback_model", target_model=models[model_index])
+                else:
+                    successor = None if len(attempted) > MAX_FAILOVER_TRANSITIONS else _select_headless_session(
+                        ctx, "codex", min_reasoning_effort=parsed["reasoning_effort"],
+                        require_ready=True, exclude=attempted,
+                    )
+                    if not successor:
+                        failover_error_code = "capacity_recovery_exhausted"
+                        event.update(action="exhausted")
+                    else:
+                        selection_row = successor.get("row") or {}
+                        next_session = successor["session"]
+                        run_session = {**next_session, "launch": {**(next_session.get("launch") or {}), **launch_updates}}
+                        # Each new profile starts with the requested model, or its own default.
+                        models = capacity_models(run_session)
+                        model_index = capacity_retries = 0
+                        attempted.append(run_session["name"])
+                        event.update(action="fallback_profile", target_session=run_session["name"], target_model=models[0])
+                _record_capacity_recovery(ctx, registry, run_id, event, run_info, recovery_events)
+                if failover_error_code:
+                    break
+                if event["action"] == "retry":
+                    previous_handlers = _route_termination_to_interrupt()
+                    try:
+                        time.sleep(event["delay_seconds"])
+                    except KeyboardInterrupt as interrupt:
+                        error = CdxError("Codex capacity recovery was cancelled.", 130)
+                        error.cancelled = True
+                        error.history_recorded = True
+                        error.run_info = {**run_info, "returncode": 130}
+                        raise error from interrupt
+                    finally:
+                        _restore_signal_handlers(previous_handlers)
+                elif event["action"] == "fallback_profile":
+                    _ensure_session_authentication(
+                        run_session, ctx["service"], spawn=ctx.get("spawn"), spawn_sync=ctx.get("spawn_sync"),
+                        env_override=ctx.get("env"), stdin_is_tty=False, behavior="launch",
+                        signal_emitter=ctx.get("signal_emitter"), trust_local_credentials=False,
+                    )
+                    registry.migrate(run_id, session=run_session["name"], provider="codex", reason="model_at_capacity")
+                continue
             if run_info.get("returncode") == 0 or not parsed.get("failover"):
                 break
             reason = failover_reason(
@@ -731,6 +801,8 @@ def handle_run(rest, ctx):
                 "launch": {**(successor["session"].get("launch") or {}), **launch_updates},
             }
             attempted.append(run_session["name"])
+            models = capacity_models(run_session)
+            model_index = capacity_retries = 0
             # A different account means different credentials; an unauthenticated
             # successor would fail for a reason unrelated to the task.
             _ensure_session_authentication(
@@ -769,7 +841,9 @@ def handle_run(rest, ctx):
             )
             _write_json(ctx, final_payload)
             return 0
-        if failover_error_code == "failover_exhausted":
+        if failover_error_code == "capacity_recovery_exhausted":
+            message = "Codex model capacity recovery exhausted its retry, model, or profile budget."
+        elif failover_error_code == "failover_exhausted":
             message = f"Every eligible session was rate limited: {', '.join(attempted)}."
         elif failover_error_code == "failover_limit_reached":
             message = f"Failover stopped after {MAX_FAILOVER_TRANSITIONS} transitions: {', '.join(attempted)}."
@@ -806,7 +880,9 @@ def handle_run(rest, ctx):
     except CdxError as error:
         run_info = getattr(error, "run_info", None)
         cancelled = bool(getattr(error, "cancelled", False))
-        if run_info and run_id:
+        if run_info is not None:
+            run_info = {**run_info, "recovery_events": locals().get("recovery_events", [])}
+        if run_info and run_id and not getattr(error, "history_recorded", False):
             usage, usage_model = extract_run_observation(
                 run_session.get("provider"), run_info.get("stdout_path"),
                 run_session.get("authHome"),
@@ -816,7 +892,7 @@ def handle_run(rest, ctx):
                 "status": "failed",
                 "action": "run",
                 "run_id": run_id,
-                "attempt": len(attempted) if "attempted" in locals() else 1,
+                "attempt": locals().get("attempt", 1),
                 "cwd": cwd,
                 "exit_code": error.exit_code,
                 **run_info,
@@ -825,13 +901,14 @@ def handle_run(rest, ctx):
             API_SCHEMA_VERSION,
             False,
             locals().get("parsed", {}) or {},
-            locals().get("session"),
+            locals().get("run_session", locals().get("session")),
             run_info=run_info,
             error=error,
             error_source="provider" if cancelled else "cdx",
             error_code="run_cancelled" if cancelled else run_cdx_error_code(error),
             selection_row=selection_row,
         )
+        final_payload["recovery_events"] = locals().get("recovery_events", [])
         if registry and run_id:
             registry.finish(
                 run_id,
@@ -844,6 +921,22 @@ def handle_run(rest, ctx):
             )
         _write_json(ctx, final_payload)
         return error.exit_code
+
+def _record_capacity_recovery(ctx, registry, run_id, event, run_info, events):
+    # Subsequent attempts reuse the run's paths; retain the failed output first.
+    artifacts = {}
+    for key in ("stdout_path", "stderr_path", "transcript_path"):
+        path = run_info.get(key)
+        if path and os.path.isfile(path):
+            archived = f"{path}.attempt-{event['attempt']}"
+            shutil.copyfile(path, archived)
+            artifacts[key] = archived
+    event["artifacts"] = artifacts
+    events.append(event)
+    registry.record_recovery(run_id, event)
+    details = ", ".join(f"{key}={value}" for key, value in event.items() if key != "artifacts")
+    ctx["err"](f"cdx capacity recovery: {details}\n")
+
 
 def _select_headless_session(
     ctx, provider, min_reasoning_effort=None, require_ready=False, force_refresh=False, exclude=None,

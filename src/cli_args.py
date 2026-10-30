@@ -543,6 +543,7 @@ def cdx_schema():
                 "too_many_runs",
                 "failover_exhausted",
                 "failover_limit_reached",
+                "capacity_recovery_exhausted",
                 "invalid_request",
                 "cdx_error",
             ],

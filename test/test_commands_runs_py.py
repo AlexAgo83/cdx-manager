@@ -466,7 +466,8 @@ class RunsCommandTests(CliTestBase):
             "total_tokens": 3,
         })
 
-    def test_run_provider_capacity_failure_remains_queryable_in_registry(self):
+    @mock.patch("src.commands.runs.time.sleep")
+    def test_run_provider_capacity_failure_remains_queryable_in_registry(self, sleep):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})
         session = service["create_session"]("auto", "codex")
@@ -499,9 +500,10 @@ class RunsCommandTests(CliTestBase):
         self.assertFalse(run_payload["ok"])
         self.assertEqual(run_payload["session"], "auto")
         self.assertEqual(run_payload["provider"], "codex")
-        self.assertEqual(run_payload["error"]["code"], "provider_failed")
+        self.assertEqual(run_payload["error"]["code"], "capacity_recovery_exhausted")
         self.assertEqual(run_payload["error"]["provider_code"], 1)
-        self.assertIn(capacity_message, run_payload["error"]["message"])
+        self.assertEqual(sleep.call_args_list, [mock.call(1), mock.call(2)])
+        self.assertEqual([event["action"] for event in run_payload["recovery_events"]], ["retry", "retry", "exhausted"])
         self.assertTrue(os.path.isabs(run_payload["stdout_path"]))
 
         runs_io = self.make_io()
@@ -511,7 +513,7 @@ class RunsCommandTests(CliTestBase):
         self.assertEqual(runs_payload["runs"][0]["status"], "failed")
         self.assertEqual(runs_payload["runs"][0]["cwd"], os.path.abspath(target_dir))
         self.assertEqual(runs_payload["runs"][0]["artifacts"]["stdout_path"], run_payload["stdout_path"])
-        self.assertIn(capacity_message, runs_payload["runs"][0]["error"]["message"])
+        self.assertEqual(len(runs_payload["runs"][0]["recovery_events"]), 3)
 
         status_io = self.make_io()
         self.assertEqual(main(["run-status", run_id, "--json"], self.make_run_ctx(status_io, service)), 0)
@@ -524,7 +526,147 @@ class RunsCommandTests(CliTestBase):
         report_payload = json.loads(report_io["stdout"].getvalue())
         self.assertEqual(report_payload["report"]["run"]["run_id"], run_id)
         self.assertEqual(report_payload["report"]["artifacts"]["stdout_path"], run_payload["stdout_path"])
-        self.assertIn(capacity_message, report_payload["report"]["error"]["message"])
+        self.assertEqual(len(report_payload["report"]["final_payload"]["recovery_events"]), 3)
+
+    @mock.patch("src.commands.runs.time.sleep")
+    def test_capacity_retries_same_run_before_models_then_ranked_profiles(self, sleep):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        for name, priority, policy in (
+            ("work", 0, "use"), ("low", 1, "use"), ("high", 90, "use"),
+            ("ask", 100, "ask-first"), ("never", 100, "never"), ("disabled", 100, "use"),
+        ):
+            self._authenticated_codex_session(service, name)
+            service["set_launch_settings"](name, {"model": "primary", "priority": priority, "policy": policy})
+        service["set_launch_settings"]("work", {"fallback_model": "backup,primary,backup,last"})
+        service["set_session_enabled"]("disabled", False)
+        service["create_session"]("other-provider", "ollama")
+        seen = []
+        run_ids = set()
+
+        def spawn(argv, **kwargs):
+            run = RunRegistry(target_dir).list(limit=1)[0]
+            run_ids.add(run["run_id"])
+            model = argv[argv.index("--model") + 1]
+            seen.append((run["session"], model))
+            self.assertEqual(argv[-1], "Do it")
+            if run["session"] == "low":
+                return _HeadlessChild(0)
+            kwargs["stdout"].write(json.dumps({"type": "turn.failed", "error": {
+                "message": "Selected model is at capacity. Please try a different model.",
+            }}) + "\n")
+            return _HeadlessChild(1)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json",
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 0)
+        self.assertEqual(seen, [("work", model) for model in ("primary", "backup", "last") for _ in range(3)]
+                         + [("high", "primary")] * 3 + [("low", "primary")])
+        self.assertEqual(len(run_ids), 1)
+        self.assertEqual(sleep.call_args_list, [mock.call(delay) for _ in range(4) for delay in (1, 2)])
+        payload = json.loads(io_obj["stdout"].getvalue())
+        events = payload["recovery_events"]
+        self.assertEqual([event["action"] for event in events].count("fallback_model"), 2)
+        self.assertEqual([event["target_session"] for event in events if event["action"] == "fallback_profile"], ["high", "low"])
+        self.assertEqual(payload["model"], "primary")
+        self.assertIn("action=fallback_profile", io_obj["stderr"].getvalue())
+        self.assertEqual(len(io_obj["stderr"].getvalue().splitlines()), len(events))
+        self.assertEqual(len(RunRegistry(target_dir).list()), 1)
+        for event in events:
+            self.assertIn("Selected model is at capacity", pathlib.Path(event["artifacts"]["stdout_path"]).read_text())
+        history = service["get_launch_history"]("work", limit=20)
+        self.assertEqual(sorted(row["attempt"] for row in history), list(range(1, 10)))
+
+    @mock.patch("src.commands.runs.time.sleep")
+    def test_capacity_recovers_on_retry_without_using_another_model(self, sleep):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        self._authenticated_codex_session(service)
+        service["set_launch_settings"]("work", {"fallback_model": "backup"})
+        seen = []
+
+        def spawn(argv, **kwargs):
+            seen.append(argv)
+            if len(seen) == 1:
+                kwargs["stderr"].write("Error: Selected model is at capacity.\n")
+                return _HeadlessChild(1)
+            return _HeadlessChild(0)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--model", "requested", "--json",
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 0)
+        self.assertEqual(seen[0], seen[1])
+        sleep.assert_called_once_with(1)
+        self.assertEqual(json.loads(io_obj["stdout"].getvalue())["model"], "requested")
+
+    @mock.patch("src.commands.runs.time.sleep")
+    def test_capacity_model_fallback_reports_effective_model_on_explicit_ask_first_profile(self, sleep):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        self._authenticated_codex_session(service)
+        service["set_launch_settings"]("work", {"policy": "ask-first", "fallback_model": "backup"})
+        models = []
+
+        def spawn(argv, **kwargs):
+            model = argv[argv.index("--model") + 1]
+            models.append(model)
+            if model == "backup":
+                return _HeadlessChild(0)
+            kwargs["stdout"].write("Selected model is at capacity.\n")
+            return _HeadlessChild(1)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--model", "requested", "--json",
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 0)
+        self.assertEqual(models, ["requested"] * 3 + ["backup"])
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertEqual(payload["model"], "backup")
+        self.assertEqual(RunRegistry(target_dir).get(payload["run_id"])["model"], "backup")
+        self.assertEqual(service["get_session"]("work")["launch"].get("model"), None)
+
+    @mock.patch("src.commands.runs.time.sleep", side_effect=KeyboardInterrupt)
+    def test_capacity_backoff_cancellation_finishes_the_run(self, sleep):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        self._authenticated_codex_session(service)
+
+        def spawn(argv, **kwargs):
+            kwargs["stderr"].write("Selected model is at capacity.\n")
+            return _HeadlessChild(1)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--json",
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 130)
+        payload = json.loads(io_obj["stdout"].getvalue())
+        self.assertEqual(payload["error"]["code"], "run_cancelled")
+        self.assertEqual(RunRegistry(target_dir).get(payload["run_id"])["status"], "cancelled")
+        self.assertEqual(len(payload["recovery_events"]), 1)
+        self.assertEqual(len(service["get_launch_history"]("work", limit=10)), 1)
+
+    @mock.patch("src.commands.runs.time.sleep")
+    def test_capacity_profile_transition_budget_is_bounded(self, sleep):
+        target_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": target_dir})
+        for index in range(7):
+            self._authenticated_codex_session(service, f"work{index}")
+        seen = []
+
+        def spawn(argv, **kwargs):
+            seen.append(argv)
+            kwargs["stdout"].write("Selected model is at capacity.\n")
+            return _HeadlessChild(1)
+
+        io_obj = self.make_io()
+        self.assertEqual(main([
+            "run", "work0", "--cwd", target_dir, "--prompt", "Do it", "--json",
+        ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 1)
+        self.assertEqual(len(seen), 15)  # Initial profile plus four successors, three attempts each.
+        self.assertEqual(sleep.call_count, 10)
+        self.assertEqual(json.loads(io_obj["stdout"].getvalue())["error"]["code"], "capacity_recovery_exhausted")
 
     def test_run_missing_provider_cli_returns_json_error(self):
         target_dir = self.make_temp_dir()

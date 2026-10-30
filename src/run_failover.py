@@ -1,6 +1,6 @@
-"""Deciding whether a finished run stopped because its account ran out.
+"""Classify finished runs for account exhaustion or model capacity recovery.
 
-Two independent signals have to agree before cdx moves a task to another
+For account exhaustion, two independent signals must agree before cdx moves a task to another
 account, because the two ways of being wrong are not symmetric. Missing a rate
 limit costs nothing new: the run fails exactly as it does today. Inventing one
 migrates a healthy run off a working account, discards its progress, and
@@ -22,6 +22,7 @@ codebase reads provider output for this purpose.
 
 import json
 import os
+import re
 
 from .config import PROVIDER_CLAUDE, PROVIDER_CODEX
 
@@ -235,3 +236,32 @@ def failover_reason(provider, run_info, status_row):
 
 def should_fail_over(provider, run_info, status_row):
     return failover_reason(provider, run_info, status_row) is not None
+
+
+CAPACITY_RETRY_DELAYS = (1, 2)
+_CAPACITY_MESSAGE = re.compile(r"(?:selected model|(?:the )?model(?: [\w.-]+)?) is at capacity\b", re.IGNORECASE)
+
+
+def looks_model_at_capacity(provider, run_info):
+    """Recognize Codex failures, excluding successful output and assistant prose."""
+    if provider != PROVIDER_CODEX or run_info.get("timed_out") or run_info.get("returncode") in (None, 0):
+        return False
+    for key in ("stdout_path", "stderr_path"):
+        text = _read_tail(run_info.get(key))
+        for record in _structured_records(provider, text):
+            if any(_CAPACITY_MESSAGE.search(message) for message in _error_texts(provider, record)):
+                return True
+        # Some Codex versions print this diagnostic as a standalone plain line.
+        for line in text.splitlines():
+            line = line.strip()
+            if _CAPACITY_MESSAGE.match(re.sub(r"^error:\s*", "", line, flags=re.IGNORECASE)):
+                return True
+    return False
+
+
+def capacity_models(session):
+    """Configured alternatives in order, without retrying the current model."""
+    launch = session.get("launch") or {}
+    models = [launch.get("model")]
+    models.extend(str(launch.get("fallback_model") or "").split(","))
+    return list(dict.fromkeys(model.strip() if model else None for model in models if model is None or model.strip()))
