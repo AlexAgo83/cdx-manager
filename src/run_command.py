@@ -55,6 +55,14 @@ def run_cdx_error_code(error):
     return "cdx_error"
 
 
+def run_conversation_id(session, run_info=None):
+    if run_info is not None and "conversation_id" in run_info:
+        return run_info["conversation_id"]
+    if (session or {}).get("provider") == "codex" and not session.get("continue_run"):
+        return None
+    return ((session or {}).get("conversation") or {}).get("id")
+
+
 def run_payload_reasoning_effort(parsed, session):
     launch = (session.get("launch") or {}) if session else {}
     return (
@@ -149,7 +157,7 @@ def run_warnings(parsed, session, selection_row=None):
 
 
 def run_launch_payload(api_schema_version, parsed, session, artifacts, cwd=None,
-                       pid=None, launch_log_path=None, selection_row=None):
+                       pid=None, launch_log_path=None, selection_row=None, conversation_id=None):
     """Payload for a detached launch: identity and artifact paths, no outcome.
 
     Deliberately shaped like `run_result_payload` minus the fields only a
@@ -161,6 +169,8 @@ def run_launch_payload(api_schema_version, parsed, session, artifacts, cwd=None,
         "ok": True,
         "action": "run",
         "launcher": "cdx",
+        "parent_run_id": parsed.get("continue_run"),
+        "conversation_id": conversation_id or run_conversation_id(session),
         "detached": True,
         "session": session.get("name") if session else None,
         "provider": session.get("provider") if session else parsed.get("provider"),
@@ -208,6 +218,8 @@ def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
         "ok": bool(ok),
         "action": "run",
         "launcher": "cdx",
+        "parent_run_id": parsed.get("continue_run"),
+        "conversation_id": run_conversation_id(session, run_info),
         "session": session.get("name") if session else None,
         "provider": session.get("provider") if session else parsed.get("provider"),
         "model": run_info.get("effective_model", parsed.get("model") or ((session.get("launch") or {}).get("model") if session else None)),

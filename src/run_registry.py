@@ -243,7 +243,8 @@ class RunRegistry:
         with _registry_lock(self.path):
             _check_capacity(_read_registry(self.path), max_parallel)
 
-    def start(self, run_id, *, kind, session, provider, model, cwd, artifacts=None, label=None, max_parallel=None):
+    def start(self, run_id, *, kind, session, provider, model, cwd, artifacts=None, label=None, max_parallel=None,
+              parent_run_id=None, conversation_id=None, launch=None, reasoning_effort=None):
         with _registry_lock(self.path):
             data = _read_registry(self.path)
             data["runs"] = [run for run in data["runs"] if run.get("run_id") != run_id]
@@ -252,6 +253,8 @@ class RunRegistry:
                 # detached child writes a second time under the same id.
                 _check_capacity(data, max_parallel)
             record = _base_record(run_id, kind=kind, session=session, provider=provider, model=model, cwd=cwd, artifacts=artifacts)
+            record.update(parent_run_id=parent_run_id, conversation_id=conversation_id,
+                          launch=dict(launch or {}), reasoning_effort=reasoning_effort)
             if label:
                 record["label"] = label
             data["runs"].insert(0, record)
@@ -285,6 +288,8 @@ class RunRegistry:
                     continue
                 run["background_path"] = path
                 run["provider_session_id"] = provider_session_id
+                if provider_session_id:
+                    run["conversation_id"] = provider_session_id
                 run["provider_agent_id"] = provider_agent_id
                 _write_registry(self.path, data)
                 return run
@@ -356,6 +361,8 @@ class RunRegistry:
                     run["duration_seconds"] = None
             if run_info:
                 run["pid"] = run_info.get("pid")
+                if run_info.get("launch"):
+                    run["launch"] = run_info["launch"]
                 run["exit_code"] = run_info.get("returncode")
                 run["artifacts"] = {
                     **(run.get("artifacts") or {}),
@@ -367,8 +374,12 @@ class RunRegistry:
                 # Normalize on the way in, not on the way out: this record is
                 # what `cdx run-status` and `cdx run-report` publish, and it
                 # used to store whichever shape the producing reader emitted.
-                run["usage"] = coerce_usage(final_payload.get("usage"))
+                run["usage"] = coerce_usage(final_payload.get("usage"), provider=run.get("provider"))
                 run["usage_model"] = final_payload.get("usage_model")
+                run["conversation_id"] = final_payload.get("conversation_id") or run.get("conversation_id")
+                run["parent_run_id"] = final_payload.get("parent_run_id") or run.get("parent_run_id")
+                if "reasoning_effort" in final_payload:
+                    run["reasoning_effort"] = final_payload["reasoning_effort"]
                 run["model"] = final_payload.get("model")
                 run["final_payload"] = final_payload
             if error:

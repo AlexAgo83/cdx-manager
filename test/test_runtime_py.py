@@ -1778,6 +1778,7 @@ class RuntimePythonTests(unittest.TestCase):
                 "output_tokens": 7,
                 "reasoning_tokens": None,
                 "total_tokens": 27,
+                "cache_hit_ratio": 0.25,
             })
 
     def test_run_usage_prefers_cached_aggregate_over_components(self):
@@ -1818,6 +1819,7 @@ class RuntimePythonTests(unittest.TestCase):
                 "output_tokens": 4,
                 "reasoning_tokens": 2,
                 "total_tokens": 14,
+                "cache_hit_ratio": None,
             })
 
     def test_run_usage_survives_a_malformed_jsonl_line(self):
@@ -1844,6 +1846,7 @@ class RuntimePythonTests(unittest.TestCase):
                 "output_tokens": 4,
                 "reasoning_tokens": 2,
                 "total_tokens": 14,
+                "cache_hit_ratio": None,
             })
 
     def test_run_usage_extracts_codex_turn_completed_usage(self):
@@ -1882,6 +1885,7 @@ class RuntimePythonTests(unittest.TestCase):
                 "output_tokens": 9,
                 "reasoning_tokens": 3,
                 "total_tokens": 17498,
+                "cache_hit_ratio": 0.2854365601235062,
             })
 
 

@@ -34,7 +34,7 @@ from ..provider_runtime import (
     with_requested_conversation,
 )
 from ..run_command import PROMPT_STDIN, read_run_prompt
-from ..run_usage import estimate_cost
+from ..run_usage import estimate_cost, format_cache_ratio
 
 LAUNCH_USAGE = "Usage: cdx <name> [--dir PATH] [--prompt TEXT|--prompt-file PATH|--task TEXT [--end-state TEXT]] [--resume] [--on-busy fail|ask] [--json]"
 
@@ -425,9 +425,9 @@ def _goodbye_line(session, run_info, use_color):
     if cost is not None:
         parts.append(_format_usd(cost))
     elif isinstance(usage, dict):
-        total_tokens = sum(v for v in usage.values() if isinstance(v, (int, float)))
+        total_tokens = usage.get("total_tokens")
         if total_tokens:
-            parts.append(f"{_format_token_count(total_tokens)} tokens")
+            parts.append(f"{_format_token_count(total_tokens)} tokens {format_cache_ratio(usage.get('cache_hit_ratio'))}")
     return _dim(" · ".join(parts), use_color)
 
 
@@ -482,7 +482,7 @@ def _attach_interactive_usage(session, run_info, history=None, baseline=None, un
     else:
         previous = _previous_cumulative(history, provider_transcript)
     if previous is not None:
-        delta = usage_delta(cumulative, previous)
+        delta = usage_delta(cumulative, previous, provider=session.get("provider"))
         if delta is not None:
             run_info["usage"] = delta
         # A None delta means the transcript shrank, rotated, or was replaced.

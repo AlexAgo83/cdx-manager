@@ -1006,7 +1006,7 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
         args = ["--print", "--output-format", "json"]
         conversation_id = _conversation_id(session)
         if conversation_id:
-            args += ["--session-id", conversation_id]
+            args += ["--resume" if session.get("continue_run") else "--session-id", conversation_id]
         if model:
             args += ["--model", _claude_cli_model(model)]
         # --max-budget-usd and --fallback-model are --print-only in the claude
@@ -1045,6 +1045,8 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
         if permission:
             args += HEADLESS_CODEX_PERMISSION_ARGS.get(permission, [])
         args += preference_args
+        if session.get("continue_run"):
+            args += ["resume", _conversation_id(session)]
         if initial_prompt:
             # `--` keeps a prompt that starts with `-` from being read as an option.
             args += ["--", initial_prompt]

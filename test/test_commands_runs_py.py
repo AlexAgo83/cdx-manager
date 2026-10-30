@@ -48,6 +48,311 @@ from src.session_service import create_session_service
 
 class RunsCommandTests(CliTestBase):
 
+    def _continuation_parent(self, provider="codex", model="gpt-6.1-sol", effort="high", status="succeeded"):
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": directory})
+        session = (self._authenticated_codex_session(service) if provider == "codex"
+                   else service["create_session"]("work", provider))
+        identifier = "12345678-1234-1234-1234-123456789abc"
+        if provider == "codex":
+            transcript = pathlib.Path(session["authHome"]) / "sessions" / f"rollout-test-{identifier}.jsonl"
+        else:
+            transcript = pathlib.Path(session["authHome"]) / ".claude/projects/repo" / f"{identifier}.jsonl"
+        transcript.parent.mkdir(parents=True, exist_ok=True)
+        transcript.write_text('{}\n', encoding="utf-8")
+        registry = RunRegistry(directory)
+        registry.start("parent", kind="assistant", session="work", provider=provider, model=model, cwd=directory,
+                       conversation_id=identifier, launch={"model": model, "power": effort}, reasoning_effort=effort)
+        if status != "running":
+            registry.finish("parent", status=status, final_payload={"model": model, "reasoning_effort": effort,
+                                                                   "conversation_id": identifier})
+        return directory, service, session, transcript
+
+    def test_continue_run_reuses_exact_conversation_and_pins_settings_for_both_providers(self):
+        for provider, model in (("codex", "gpt-6.1-sol"), ("claude", "claude-sonnet-5-5")):
+            with self.subTest(provider=provider):
+                directory = self.make_temp_dir()
+                service = create_session_service({"base_dir": directory})
+                session = (self._authenticated_codex_session(service) if provider == "codex"
+                           else service["create_session"]("work", "claude"))
+                service["set_launch_settings"]("work", {"model": model, "power": "high"})
+                auth = _AuthHarness(initial_auth={session["authHome"]: True})
+                identifier = "12345678-1234-1234-1234-123456789abc"
+                commands = []
+
+                def spawn(argv, commands=commands, provider=provider, session=session, identifier=identifier, model=model, **kwargs):
+                    commands.append(argv)
+                    if provider == "codex":
+                        transcript = pathlib.Path(session["authHome"]) / "sessions" / f"rollout-test-{identifier}.jsonl"
+                        count = len(commands)
+                        cumulative = {"input_tokens": 100 * count, "cached_input_tokens": 72 * count,
+                                      "output_tokens": count * (count + 1) // 2}
+                        record = {"payload": {"type": "token_count", "info": {"total_token_usage": cumulative}}}
+                        events = [{"type": "thread.started", "thread_id": identifier},
+                                  {"type": "turn.completed", "usage": cumulative}]
+                    else:
+                        flag = "--resume" if "--resume" in argv else "--session-id"
+                        native_id = argv[argv.index(flag) + 1]
+                        transcript = pathlib.Path(session["authHome"]) / ".claude/projects/repo" / f"{native_id}.jsonl"
+                        record = {"type": "assistant", "message": {"model": model}}
+                        events = [{"type": "result", "session_id": native_id, "modelUsage": {model: {}},
+                                   "usage": {"input_tokens": 20, "cache_creation_input_tokens": 8,
+                                             "cache_read_input_tokens": 72, "output_tokens": len(commands)}}]
+                    transcript.parent.mkdir(parents=True, exist_ok=True)
+                    transcript.write_text(json.dumps(record) + "\n", encoding="utf-8")
+                    if provider == "codex":
+                        with transcript.open("a", encoding="utf-8") as handle:
+                            handle.write(json.dumps({"type": "turn_context", "payload": {"model": model}}) + "\n")
+                    for event in events:
+                        kwargs["stdout"].write(json.dumps(event) + "\n")
+                    return _HeadlessChild(0)
+
+                def invoke(extra, directory=directory, service=service, spawn=spawn, auth=auth):
+                    output = self.make_io()
+                    result = main(["run", "--cwd", directory, "--prompt", "Fix the next issue", *extra, "--json"],
+                                  self.make_run_ctx(output, service, spawn_headless=spawn, spawn_sync=auth.spawn_sync))
+                    payload = json.loads(output["stdout"].getvalue())
+                    self.assertEqual(result, 0, payload)
+                    return payload
+
+                cold = invoke(["work"])
+                self.assertIsNone(cold["parent_run_id"])
+                self.assertIsNotNone(cold["conversation_id"])
+                service["set_launch_settings"]("work", {"model": "changed-model", "power": "low", "fallback_model": "other-model"})
+                # Changing the profile's latest identity must not change the parent run's identity.
+                if provider == "claude":
+                    service["begin_conversation"]("work")
+                continued = invoke(["--continue-run", cold["run_id"]])
+                chained = invoke(["--continue-run", continued["run_id"], "--provider", provider])
+                self.assertEqual(continued["parent_run_id"], cold["run_id"])
+                self.assertEqual(chained["parent_run_id"], continued["run_id"])
+                self.assertEqual(continued["conversation_id"], cold["conversation_id"])
+                self.assertEqual(continued["model"], model)
+                self.assertEqual(continued["reasoning_effort"], "high")
+                self.assertEqual(continued["usage"]["output_tokens"], 2)
+                self.assertEqual(continued["usage"]["cache_hit_ratio"], 0.72)
+                for argv in commands[1:]:
+                    self.assertEqual(argv[argv.index("--model") + 1], model)
+                    if provider == "codex":
+                        self.assertIn('model_reasoning_effort="high"', argv)
+                        self.assertEqual(argv[argv.index("resume") + 1], cold["conversation_id"])
+                    else:
+                        self.assertEqual(argv[argv.index("--resume") + 1], cold["conversation_id"])
+                        self.assertEqual(argv[argv.index("--effort") + 1], "high")
+                        self.assertNotIn("--session-id", argv)
+                        self.assertNotIn("--fallback-model", argv)
+                stored = RunRegistry(directory).get(continued["run_id"])
+                self.assertEqual(stored["parent_run_id"], cold["run_id"])
+                self.assertEqual(stored["conversation_id"], cold["conversation_id"])
+                history = service["get_launch_history"]("work", limit=0)
+                self.assertEqual({h["parent_run_id"] for h in history}, {None, cold["run_id"], continued["run_id"]})
+                self.assertEqual(service["get_session"]("work")["launch"]["model"], "changed-model")
+
+    def test_continue_run_refuses_missing_expired_wrong_profile_and_changed_settings(self):
+        cases = [
+            (["--continue-run", "missing"], "continue_run_not_found", None),
+            (["--continue-run", "parent", "other"], "continue_run_mismatch", None),
+            (["--continue-run", "parent", "--provider", "claude"], "continue_run_mismatch", None),
+            (["--continue-run", "parent"], "continue_run_unavailable", "expired"),
+            (["--continue-run", "parent"], "continue_run_unavailable", "running"),
+            (["--continue-run", "parent", "--model", "different"], "continue_run_settings_mismatch", None),
+            (["--continue-run", "parent", "--power", "low"], "continue_run_settings_mismatch", None),
+            (["--continue-run", "parent", "--failover"], "continue_run_settings_mismatch", None),
+            (["--continue-run", "parent", "--isolate-workspace"], "continue_run_settings_mismatch", None),
+            (["--continue-run", "parent"], "continue_run_unavailable", "unknown-settings"),
+            (["--continue-run", "parent"], "continue_run_mismatch", "removed-profile"),
+            (["--continue-run", "parent"], "continue_run_mismatch", "replaced-provider"),
+        ]
+        for extra, code, condition in cases:
+            with self.subTest(extra=extra, condition=condition):
+                directory, service, session, transcript = self._continuation_parent(
+                    model=None if condition == "unknown-settings" else "gpt-6.1-sol",
+                    status="running" if condition == "running" else "succeeded")
+                if condition == "expired":
+                    transcript.unlink()
+                if condition in ("removed-profile", "replaced-provider"):
+                    service["remove_session"]("work")
+                if condition == "replaced-provider":
+                    service["create_session"]("work", "claude")
+                before = service["get_session"]("work")
+                output = self.make_io()
+                spawn = mock.Mock(side_effect=AssertionError("A refused continuation must not launch a provider"))
+                result = main(["run", "--cwd", directory, "--prompt", "Fix", *extra, "--json"],
+                              self.make_run_ctx(output, service, spawn_headless=spawn))
+                self.assertEqual(result, 1)
+                self.assertEqual(json.loads(output["stdout"].getvalue())["error"]["code"], code)
+                self.assertEqual(service["get_session"]("work"), before)
+                spawn.assert_not_called()
+
+    def test_continue_run_rejects_claude_passthrough_overrides_before_launch(self):
+        options = ["--effort low --fallback-model other-model", "--effort=low", "--model other-model",
+                   "--model=other-model", "--fallback-model=other-model", "--resume other-conversation",
+                   "--resume=other-conversation", "-r other-conversation", "-rother-conversation",
+                   "--continue", "-c", "--session-id other-conversation", "--session-id=other-conversation",
+                   "--fork-session", "--resume-session-at message-id", "--from-pr 123", '--settings {"model":"other-model"}', "--agent other-agent"]
+        for extra_args in options:
+            with self.subTest(extra_args=extra_args):
+                directory, service, _session, _transcript = self._continuation_parent(
+                    provider="claude", model="claude-sonnet-5-5")
+                service["set_launch_settings"]("work", {"extra_args": extra_args})
+                before = service["get_session"]("work")
+                output = self.make_io()
+                spawn = mock.Mock(side_effect=AssertionError("A refused continuation must not launch a provider"))
+                result = main(["run", "--continue-run", "parent", "--cwd", directory, "--prompt", "Fix", "--json"],
+                              self.make_run_ctx(output, service, spawn_headless=spawn))
+                self.assertEqual(result, 1)
+                self.assertEqual(json.loads(output["stdout"].getvalue())["error"]["code"],
+                                 "continue_run_settings_mismatch")
+                spawn.assert_not_called()
+                self.assertEqual(service["get_session"]("work"), before)
+                self.assertEqual(len(RunRegistry(directory).list()), 1)
+
+    def test_continue_run_uses_current_security_settings_and_pins_only_model_and_effort(self):
+        from src.commands.runs import _continue_run_session
+        from src.provider_runtime import _build_headless_launch_spec
+
+        for provider in ("codex", "claude"):
+            with self.subTest(provider=provider):
+                directory, service, _session, _transcript = self._continuation_parent(provider=provider)
+                parent = RunRegistry(directory).get("parent")
+                parent["launch"].update(permission="full", scrub_env=False)
+                service["set_launch_settings"]("work", {
+                    "permission": "review", "scrub_env": True, "model": "new-model", "power": "low",
+                    "fallback_model": "other-model", "budget": 2, "extra_args": "--verbose",
+                })
+                current = service["get_session"]("work")
+                with mock.patch("src.commands.runs._run_registry") as registry:
+                    registry.return_value.get.return_value = parent
+                    session = _continue_run_session({"continue_run": "parent"}, {"service": service})
+                self.assertEqual(session["launch"]["permission"], "review")
+                self.assertTrue(session["launch"]["scrub_env"])
+                self.assertEqual(session["launch"]["budget"], 2)
+                self.assertEqual(session["launch"]["model"], parent["model"])
+                self.assertEqual(session["launch"]["reasoning_effort"], "high")
+                self.assertEqual(session["launch"]["power"], "high")
+                self.assertNotIn("fallback_model", session["launch"])
+                self.assertEqual(session["launch"]["extra_args"], "--verbose")
+                spec = _build_headless_launch_spec(session, cwd=directory, initial_prompt="Fix")
+                if provider == "codex":
+                    self.assertEqual(spec["args"][spec["args"].index("-s") + 1], "read-only")
+                    self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", spec["args"])
+                else:
+                    self.assertIn("--verbose", spec["args"])
+                    self.assertEqual(spec["args"][spec["args"].index("--permission-mode") + 1], "plan")
+                    self.assertEqual(spec["options"]["env"]["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"], "1")
+                    self.assertNotIn("--dangerously-skip-permissions", spec["args"])
+                self.assertEqual(service["get_session"]("work"), current)
+
+    def test_continue_run_usage_requires_stable_measurement_availability(self):
+        from src.commands.runs import _observe_headless_usage
+        from src.interactive_usage import MEASURED_KEYS
+        from src.run_usage import normalize_usage
+
+        session = {"provider": "codex", "authHome": "/unused", "conversation": {"id": "conversation"}}
+        before = normalize_usage(input_tokens=100, cache_creation_tokens=10, cache_creation_1h_tokens=2,
+                                 cache_read_tokens=0, output_tokens=20, reasoning_tokens=5)
+        after = normalize_usage(input_tokens=200, cache_creation_tokens=20, cache_creation_1h_tokens=4,
+                                cache_read_tokens=80, output_tokens=40, reasoning_tokens=10)
+        cases = [(None, None), *((key, boundary) for key in MEASURED_KEYS for boundary in ("before", "after"))]
+        for key, boundary in cases:
+            with self.subTest(key=key, boundary=boundary):
+                baseline, cumulative = dict(before), dict(after)
+                if boundary == "before":
+                    baseline.pop(key)
+                elif boundary == "after":
+                    cumulative[key] = None
+                with mock.patch("src.commands.runs.extract_run_observation", return_value=(after, "model")), \
+                        mock.patch("src.commands.runs.extract_interactive_usage",
+                                   return_value=(cumulative, "transcript", "conversation_id", "model")):
+                    observed = _observe_headless_usage(
+                        session, {}, baseline=(baseline, "transcript", "conversation_id", "model"))
+                self.assertEqual(observed["usage_cumulative"], cumulative)
+                if boundary is None:
+                    self.assertEqual(observed["usage_attribution"], "launch_boundary")
+                    self.assertEqual(observed["usage"]["cache_read_tokens"], 80)
+                    self.assertEqual(observed["usage"]["cache_hit_ratio"], 80 / 190)
+                else:
+                    self.assertEqual(observed["usage_attribution"], "continuation_usage_unavailable")
+                    self.assertTrue(all(value is None for value in observed["usage"].values()))
+
+    def test_continue_run_uses_observed_default_model_and_detaches_with_parent_metadata(self):
+        directory, service, _session, _transcript = self._continuation_parent(model=None)
+        registry = RunRegistry(directory)
+        registry.finish("parent", status="succeeded", final_payload={
+            "usage_model": "gpt-6.1-sol", "reasoning_effort": "high"})
+        output = self.make_io()
+        with mock.patch("src.commands.runs._spawn_detached_run", return_value={"pid": os.getpid(), "background_path": "cdx"}) as child, \
+                mock.patch("src.commands.runs.supports_native_background") as native:
+            result = main(["run", "--continue-run", "parent", "--cwd", directory,
+                           "--prompt", "Fix", "--detach", "--model", "gpt-6.1-sol", "--power", "high", "--json"],
+                          self.make_run_ctx(output, service))
+        self.assertEqual(result, 0)
+        native.assert_not_called()
+        parsed = child.call_args.args[0]
+        self.assertEqual(parsed["continue_run"], "parent")
+        self.assertEqual(parsed["model"], "gpt-6.1-sol")
+        payload = json.loads(output["stdout"].getvalue())
+        self.assertEqual(payload["parent_run_id"], "parent")
+        stored = registry.get(payload["run_id"])
+        self.assertEqual(stored["parent_run_id"], "parent")
+        self.assertEqual(stored["conversation_id"], registry.get("parent")["conversation_id"])
+        self.assertEqual(stored["reasoning_effort"], "high")
+
+    def test_continue_run_without_usage_boundaries_does_not_count_codex_conversation_totals(self):
+        directory, service, _session, _transcript = self._continuation_parent()
+
+        def spawn(_argv, **kwargs):
+            kwargs["stdout"].write(json.dumps({"type": "turn.completed", "usage": {
+                "input_tokens": 10000, "cached_input_tokens": 9000, "output_tokens": 5000}}) + "\n")
+            return _HeadlessChild(0)
+
+        output = self.make_io()
+        self.assertEqual(main(["run", "--continue-run", "parent", "--cwd", directory, "--prompt", "Fix", "--json"],
+                              self.make_run_ctx(output, service, spawn_headless=spawn)), 0)
+        payload = json.loads(output["stdout"].getvalue())
+        self.assertTrue(all(value is None for value in payload["usage"].values()))
+        history = service["get_launch_history"]("work")[0]
+        self.assertEqual(history["usage_attribution"], "continuation_usage_unavailable")
+        self.assertEqual(history["parent_run_id"], "parent")
+
+    def test_continue_run_argument_validation(self):
+        base = ["--cwd", ".", "--prompt", "Fix", "--json"]
+        self.assertEqual(_parse_run_args([*base, "--continue-run", "parent"])["continue_run"], "parent")
+        for args in ([*base, "--continue-run"], [*base, "--continue-run="]):
+            with self.subTest(args=args), self.assertRaises(CdxError):
+                _parse_run_args(args)
+
+    def test_continue_run_does_not_fall_back_after_capacity_failure(self):
+        directory, service, _session, _transcript = self._continuation_parent()
+        commands = []
+
+        def spawn(argv, **kwargs):
+            commands.append(argv)
+            kwargs["stdout"].write(json.dumps({"type": "error", "message": "Selected model is at capacity"}) + "\n")
+            return _HeadlessChild(1)
+
+        output = self.make_io()
+        with mock.patch("src.commands.runs.time.sleep") as sleep:
+            result = main(["run", "--continue-run", "parent", "--cwd", directory, "--prompt", "Fix", "--json"],
+                          self.make_run_ctx(output, service, spawn_headless=spawn))
+        self.assertEqual(result, 1)
+        self.assertEqual(len(commands), 1)
+        sleep.assert_not_called()
+        payload = json.loads(output["stdout"].getvalue())
+        self.assertEqual(payload["parent_run_id"], "parent")
+        self.assertEqual(service["get_launch_history"]("work")[0]["parent_run_id"], "parent")
+
+    def test_continue_run_detached_child_preserves_parent_and_settings(self):
+        from src.commands.runs import _detached_child_argv
+
+        parsed = _parse_run_args(["--continue-run", "parent", "--cwd", ".", "--prompt", "Fix", "--json"])
+        parsed.update(model="gpt-6.1-sol", reasoning_effort="high")
+        argv = _detached_child_argv(parsed, "/tmp/prompt", "work", "/tmp")
+        self.assertEqual(argv[argv.index("--continue-run") + 1], "parent")
+        self.assertEqual(argv[argv.index("--reasoning-effort") + 1], "high")
+        self.assertEqual(argv[argv.index("--model") + 1], "gpt-6.1-sol")
+
+
     def test_codex_default_model_reaches_history_stats_and_report(self):
         target_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": target_dir})
@@ -259,6 +564,7 @@ class RunsCommandTests(CliTestBase):
             "output_tokens": 5,
             "reasoning_tokens": 2,
             "total_tokens": 16,
+            "cache_hit_ratio": None,
         })
         history = service["get_launch_history"]("work", limit=1)
         self.assertEqual(history[0]["usage"], payload["usage"])
@@ -464,6 +770,7 @@ class RunsCommandTests(CliTestBase):
             "output_tokens": 0,
             "reasoning_tokens": None,
             "total_tokens": 3,
+            "cache_hit_ratio": None,
         })
 
     @mock.patch("src.commands.runs.time.sleep")
@@ -936,6 +1243,7 @@ class RunsCommandTests(CliTestBase):
             "output_tokens": None,
             "reasoning_tokens": None,
             "total_tokens": None,
+            "cache_hit_ratio": None,
         })
 
     def test_run_detach_returns_run_id_without_waiting(self):
