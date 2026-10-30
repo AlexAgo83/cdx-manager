@@ -265,6 +265,7 @@ def _codex_usage(handle):
             cache_write = _number(usage["cache_write_input_tokens"]) if usage.get("cache_write_input_tokens") is not None else None
             cached = (cache_read or 0) + (cache_write or 0)
             latest = normalize_usage(
+                provider="codex",
                 input_tokens=reported_input - cached if cached <= reported_input else reported_input,
                 cache_creation_tokens=cache_write,
                 cache_read_tokens=cache_read,
@@ -348,7 +349,7 @@ MEASURED_KEYS = (
 )
 
 
-def usage_delta(cumulative, previous):
+def usage_delta(cumulative, previous, provider=None):
     """What this run added to a transcript that already held `previous`.
 
     Both readers return a *cumulative* figure: Claude's is the sum over the
@@ -382,7 +383,7 @@ def usage_delta(cumulative, previous):
         if difference < 0:
             return None
         parts[key] = difference
-    return normalize_usage(**parts)
+    return normalize_usage(**parts, provider=provider)
 
 
 def transcript_predates_run(path, started_at):

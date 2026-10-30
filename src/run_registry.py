@@ -374,7 +374,7 @@ class RunRegistry:
                 # Normalize on the way in, not on the way out: this record is
                 # what `cdx run-status` and `cdx run-report` publish, and it
                 # used to store whichever shape the producing reader emitted.
-                run["usage"] = coerce_usage(final_payload.get("usage"))
+                run["usage"] = coerce_usage(final_payload.get("usage"), provider=run.get("provider"))
                 run["usage_model"] = final_payload.get("usage_model")
                 run["conversation_id"] = final_payload.get("conversation_id") or run.get("conversation_id")
                 run["parent_run_id"] = final_payload.get("parent_run_id") or run.get("parent_run_id")

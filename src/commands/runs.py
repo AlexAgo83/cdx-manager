@@ -23,6 +23,7 @@ from ..cli_args import (
     cdx_schema,
 )
 from ..cli_helpers import API_SCHEMA_VERSION, _json_failure, _json_success, _write_json
+from ..config import split_extra_args
 from ..errors import CdxError
 from ..interactive_usage import MEASURED_KEYS, extract_interactive_usage, usage_delta
 from ..provider_background import (
@@ -552,7 +553,7 @@ def _observe_headless_usage(session, run_info, baseline=None):
                       and all((cumulative.get(key) is None) == (before.get(key) is None) for key in MEASURED_KEYS))
         # A newly reported split includes unknown pre-launch usage; losing a
         # split also prevents a comparable measurement across the boundary.
-        delta = usage_delta(cumulative, before) if comparable else None
+        delta = usage_delta(cumulative, before, provider=session.get("provider")) if comparable else None
         # Exec resume can emit conversation totals. Only exact launch boundaries
         # establish this run's share; stdout cannot replace a missing boundary.
         observation.update(usage=delta if delta is not None else empty_usage(), usage_cumulative=cumulative,
@@ -596,6 +597,15 @@ def _continue_run_session(parsed, ctx):
     if parsed.get("failover") or parsed.get("isolate_workspace"):
         raise CdxError("--continue-run cannot be combined with --failover or --isolate-workspace.",
                        code="continue_run_settings_mismatch")
+    if provider == "claude":
+        # Passthrough options are appended last and can override the pinned settings.
+        pinned_options = {"--model", "--effort", "--fallback-model", "--resume", "--continue",
+                          "--session-id", "--fork-session", "--resume-session-at", "--from-pr",
+                          "--settings", "--agent", "--agents"}
+        for arg in split_extra_args((session.get("launch") or {}).get("extra_args")) or []:
+            if arg.split("=", 1)[0] in pinned_options or arg.startswith(("-r", "-c")):
+                raise CdxError("--continue-run cannot use Claude extra_args that override model, effort, or conversation.",
+                               code="continue_run_settings_mismatch")
     parsed.update(name=name, model=model, reasoning_effort=effort, power=effort)
     launch = {**(session.get("launch") or {}), "model": model, "reasoning_effort": effort, "power": effort}
     # A provider fallback would break the model pin even though cdx stayed on this profile.

@@ -184,6 +184,29 @@ class RunsCommandTests(CliTestBase):
                 self.assertEqual(service["get_session"]("work"), before)
                 spawn.assert_not_called()
 
+    def test_continue_run_rejects_claude_passthrough_overrides_before_launch(self):
+        options = ["--effort low --fallback-model other-model", "--effort=low", "--model other-model",
+                   "--model=other-model", "--fallback-model=other-model", "--resume other-conversation",
+                   "--resume=other-conversation", "-r other-conversation", "-rother-conversation",
+                   "--continue", "-c", "--session-id other-conversation", "--session-id=other-conversation",
+                   "--fork-session", "--resume-session-at message-id", "--from-pr 123", '--settings {"model":"other-model"}', "--agent other-agent"]
+        for extra_args in options:
+            with self.subTest(extra_args=extra_args):
+                directory, service, _session, _transcript = self._continuation_parent(
+                    provider="claude", model="claude-sonnet-5-5")
+                service["set_launch_settings"]("work", {"extra_args": extra_args})
+                before = service["get_session"]("work")
+                output = self.make_io()
+                spawn = mock.Mock(side_effect=AssertionError("A refused continuation must not launch a provider"))
+                result = main(["run", "--continue-run", "parent", "--cwd", directory, "--prompt", "Fix", "--json"],
+                              self.make_run_ctx(output, service, spawn_headless=spawn))
+                self.assertEqual(result, 1)
+                self.assertEqual(json.loads(output["stdout"].getvalue())["error"]["code"],
+                                 "continue_run_settings_mismatch")
+                spawn.assert_not_called()
+                self.assertEqual(service["get_session"]("work"), before)
+                self.assertEqual(len(RunRegistry(directory).list()), 1)
+
     def test_continue_run_uses_current_security_settings_and_pins_only_model_and_effort(self):
         from src.commands.runs import _continue_run_session
         from src.provider_runtime import _build_headless_launch_spec
@@ -195,7 +218,7 @@ class RunsCommandTests(CliTestBase):
                 parent["launch"].update(permission="full", scrub_env=False)
                 service["set_launch_settings"]("work", {
                     "permission": "review", "scrub_env": True, "model": "new-model", "power": "low",
-                    "fallback_model": "other-model", "budget": 2,
+                    "fallback_model": "other-model", "budget": 2, "extra_args": "--verbose",
                 })
                 current = service["get_session"]("work")
                 with mock.patch("src.commands.runs._run_registry") as registry:
@@ -208,11 +231,13 @@ class RunsCommandTests(CliTestBase):
                 self.assertEqual(session["launch"]["reasoning_effort"], "high")
                 self.assertEqual(session["launch"]["power"], "high")
                 self.assertNotIn("fallback_model", session["launch"])
+                self.assertEqual(session["launch"]["extra_args"], "--verbose")
                 spec = _build_headless_launch_spec(session, cwd=directory, initial_prompt="Fix")
                 if provider == "codex":
                     self.assertEqual(spec["args"][spec["args"].index("-s") + 1], "read-only")
                     self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", spec["args"])
                 else:
+                    self.assertIn("--verbose", spec["args"])
                     self.assertEqual(spec["args"][spec["args"].index("--permission-mode") + 1], "plan")
                     self.assertEqual(spec["options"]["env"]["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"], "1")
                     self.assertNotIn("--dangerously-skip-permissions", spec["args"])

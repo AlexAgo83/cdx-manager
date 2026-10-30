@@ -25,7 +25,8 @@ The definitions below are therefore normative, not a suggestion:
                         stats table shows one CACHE column. It is a derived
                         sum, never a source.
   cache_hit_ratio       cache_read / (input + cache_creation + cache_read).
-                        None when reads or input are unreported, or input is zero.
+                        None when input, reads, or writes are unreported (except
+                        Codex writes), or total input is zero.
   output_tokens         Generated tokens.
   reasoning_tokens      Reasoning counted separately by the provider. Codex
                         reports one; Claude does not and never will -- it bills
@@ -73,7 +74,7 @@ def empty_usage():
 
 
 def normalize_usage(input_tokens=None, cache_creation_tokens=None, cache_read_tokens=None,
-                    output_tokens=None, reasoning_tokens=None, cache_creation_1h_tokens=None):
+                    output_tokens=None, reasoning_tokens=None, cache_creation_1h_tokens=None, provider=None):
     """Build a usage record from the four measured quantities.
 
     The derived fields are computed here and only here. A record whose parts are
@@ -102,20 +103,22 @@ def normalize_usage(input_tokens=None, cache_creation_tokens=None, cache_read_to
         parts["output_tokens"],
     )
     return {**parts, "cached_input_tokens": cached, "total_tokens": total,
-            "cache_hit_ratio": cache_hit_ratio(parts)}
+            "cache_hit_ratio": cache_hit_ratio(parts, provider=provider)}
 
 
-def cache_hit_ratio(usage):
+def cache_hit_ratio(usage, provider=None):
     """Cache reads divided by all input, or None without a reported read split.
 
-    When Codex omits cache writes, its total input is uncached plus reads.
+    Missing writes leave Claude's denominator unknown. Only Codex can recover
+    the denominator from its cache-inclusive input total when writes are absent.
     An empty input has no defined hit ratio.
     """
     read = _non_negative(usage.get("cache_read_tokens"))
     uncached = _non_negative(usage.get("input_tokens"))
-    if read is None or uncached is None:
+    writes = _non_negative(usage.get("cache_creation_tokens"))
+    if read is None or uncached is None or (writes is None and provider != "codex"):
         return None
-    total = uncached + read + (_non_negative(usage.get("cache_creation_tokens")) or 0)
+    total = uncached + read + (writes or 0)
     return read / total if total else None
 
 
@@ -128,12 +131,12 @@ def summarize_cache_usage(entries):
         usage = entry.get("usage") or {}
         if not is_vouched(usage):
             continue
-        usage = coerce_usage(usage)
+        usage = coerce_usage(usage, provider=entry.get("provider"))
         for key in keys:
             value = usage.get(key)
             if value is not None:
                 sums[key] = (sums[key] or 0) + value
-        if cache_hit_ratio(usage) is not None:
+        if usage["cache_hit_ratio"] is not None:
             measured += 1
             reads += usage["cache_read_tokens"]
             inputs += usage["input_tokens"] + usage["cache_read_tokens"] + (usage.get("cache_creation_tokens") or 0)
@@ -414,7 +417,7 @@ def is_vouched(usage):
     return isinstance(usage, dict) and "cache_creation_tokens" in usage
 
 
-def coerce_usage(usage):
+def coerce_usage(usage, provider=None):
     """Bring an already-built usage record onto the canonical shape.
 
     For boundaries that receive a record rather than measure one -- the run
@@ -426,6 +429,7 @@ def coerce_usage(usage):
     if not isinstance(usage, dict):
         return None
     record = normalize_usage(
+        provider=provider,
         input_tokens=usage.get("input_tokens"),
         cache_creation_tokens=usage.get("cache_creation_tokens"),
         cache_read_tokens=usage.get("cache_read_tokens"),
@@ -488,7 +492,7 @@ def extract_run_observation(provider, stdout_path, auth_home=None):
     if not records:
         return empty_usage(), None
 
-    usage = _extract_usage_from_records(records)
+    usage = _extract_usage_from_records(records, provider=provider)
     if not _has_usage(usage):
         return empty_usage(), None
     models = set()
@@ -497,7 +501,7 @@ def extract_run_observation(provider, stdout_path, auth_home=None):
             continue
         message = record.get("message")
         model = record.get("model") or (message.get("model") if isinstance(message, dict) else None)
-        if isinstance(model, str) and model and _has_usage(_find_usage(record)):
+        if isinstance(model, str) and model and _has_usage(_find_usage(record, provider=provider)):
             models.add(model)
         model_usage = record.get("modelUsage")
         if isinstance(model_usage, dict):
@@ -563,33 +567,33 @@ def _parse_json_records(text):
     return records
 
 
-def _extract_usage_from_records(records):
+def _extract_usage_from_records(records, provider=None):
     latest = None
     for record in records:
-        candidate = _find_usage(record)
+        candidate = _find_usage(record, provider=provider)
         if _has_usage(candidate):
             latest = candidate
     return latest or empty_usage()
 
 
-def _find_usage(value):
+def _find_usage(value, provider=None):
     if isinstance(value, dict):
-        direct = _usage_from_dict(value)
+        direct = _usage_from_dict(value, provider=provider)
         if _has_usage(direct):
             return direct
         for child in value.values():
-            found = _find_usage(child)
+            found = _find_usage(child, provider=provider)
             if _has_usage(found):
                 return found
     if isinstance(value, list):
         for child in value:
-            found = _find_usage(child)
+            found = _find_usage(child, provider=provider)
             if _has_usage(found):
                 return found
     return empty_usage()
 
 
-def _usage_from_dict(value):
+def _usage_from_dict(value, provider=None):
     """Map one provider usage object onto the canonical fields.
 
     This used to fold the cache counts into `input_tokens` *and* report them
@@ -613,6 +617,7 @@ def _usage_from_dict(value):
     input_tokens = _uncached_input(input_tokens, cache_read, usage)
 
     return normalize_usage(
+        provider=provider,
         input_tokens=input_tokens,
         cache_creation_tokens=cache_creation,
         cache_creation_1h_tokens=_nested_int(usage, "cache_creation", "ephemeral_1h_input_tokens"),

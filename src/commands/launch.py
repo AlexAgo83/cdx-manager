@@ -482,7 +482,7 @@ def _attach_interactive_usage(session, run_info, history=None, baseline=None, un
     else:
         previous = _previous_cumulative(history, provider_transcript)
     if previous is not None:
-        delta = usage_delta(cumulative, previous)
+        delta = usage_delta(cumulative, previous, provider=session.get("provider"))
         if delta is not None:
             run_info["usage"] = delta
         # A None delta means the transcript shrank, rotated, or was replaced.
