@@ -24,7 +24,7 @@ from ..cli_args import (
 )
 from ..cli_helpers import API_SCHEMA_VERSION, _json_failure, _json_success, _write_json
 from ..errors import CdxError
-from ..interactive_usage import extract_interactive_usage, usage_delta
+from ..interactive_usage import MEASURED_KEYS, extract_interactive_usage, usage_delta
 from ..provider_background import (
     BACKGROUND_PATH_CDX,
     BACKGROUND_PATH_PROVIDER,
@@ -548,7 +548,11 @@ def _observe_headless_usage(session, run_info, baseline=None):
         cumulative, path, match, transcript_model = extract_interactive_usage(
             session["provider"], session.get("authHome"), conversation_id=(session.get("conversation") or {}).get("id"))
         before, before_path, _before_match, _before_model = baseline
-        delta = usage_delta(cumulative, before) if cumulative and before and path == before_path else None
+        comparable = (cumulative and before and path == before_path
+                      and all((cumulative.get(key) is None) == (before.get(key) is None) for key in MEASURED_KEYS))
+        # A newly reported split includes unknown pre-launch usage; losing a
+        # split also prevents a comparable measurement across the boundary.
+        delta = usage_delta(cumulative, before) if comparable else None
         # Exec resume can emit conversation totals. Only exact launch boundaries
         # establish this run's share; stdout cannot replace a missing boundary.
         observation.update(usage=delta if delta is not None else empty_usage(), usage_cumulative=cumulative,
@@ -593,7 +597,7 @@ def _continue_run_session(parsed, ctx):
         raise CdxError("--continue-run cannot be combined with --failover or --isolate-workspace.",
                        code="continue_run_settings_mismatch")
     parsed.update(name=name, model=model, reasoning_effort=effort, power=effort)
-    launch = {**previous["launch"], "model": model, "reasoning_effort": effort, "power": effort}
+    launch = {**(session.get("launch") or {}), "model": model, "reasoning_effort": effort, "power": effort}
     # A provider fallback would break the model pin even though cdx stayed on this profile.
     launch.pop("fallback_model", None)
     return {**resumed, "launch": launch, "continue_run": parsed["continue_run"]}

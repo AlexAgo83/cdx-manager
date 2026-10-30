@@ -184,6 +184,72 @@ class RunsCommandTests(CliTestBase):
                 self.assertEqual(service["get_session"]("work"), before)
                 spawn.assert_not_called()
 
+    def test_continue_run_uses_current_security_settings_and_pins_only_model_and_effort(self):
+        from src.commands.runs import _continue_run_session
+        from src.provider_runtime import _build_headless_launch_spec
+
+        for provider in ("codex", "claude"):
+            with self.subTest(provider=provider):
+                directory, service, _session, _transcript = self._continuation_parent(provider=provider)
+                parent = RunRegistry(directory).get("parent")
+                parent["launch"].update(permission="full", scrub_env=False)
+                service["set_launch_settings"]("work", {
+                    "permission": "review", "scrub_env": True, "model": "new-model", "power": "low",
+                    "fallback_model": "other-model", "budget": 2,
+                })
+                current = service["get_session"]("work")
+                with mock.patch("src.commands.runs._run_registry") as registry:
+                    registry.return_value.get.return_value = parent
+                    session = _continue_run_session({"continue_run": "parent"}, {"service": service})
+                self.assertEqual(session["launch"]["permission"], "review")
+                self.assertTrue(session["launch"]["scrub_env"])
+                self.assertEqual(session["launch"]["budget"], 2)
+                self.assertEqual(session["launch"]["model"], parent["model"])
+                self.assertEqual(session["launch"]["reasoning_effort"], "high")
+                self.assertEqual(session["launch"]["power"], "high")
+                self.assertNotIn("fallback_model", session["launch"])
+                spec = _build_headless_launch_spec(session, cwd=directory, initial_prompt="Fix")
+                if provider == "codex":
+                    self.assertEqual(spec["args"][spec["args"].index("-s") + 1], "read-only")
+                    self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", spec["args"])
+                else:
+                    self.assertEqual(spec["args"][spec["args"].index("--permission-mode") + 1], "plan")
+                    self.assertEqual(spec["options"]["env"]["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"], "1")
+                    self.assertNotIn("--dangerously-skip-permissions", spec["args"])
+                self.assertEqual(service["get_session"]("work"), current)
+
+    def test_continue_run_usage_requires_stable_measurement_availability(self):
+        from src.commands.runs import _observe_headless_usage
+        from src.interactive_usage import MEASURED_KEYS
+        from src.run_usage import normalize_usage
+
+        session = {"provider": "codex", "authHome": "/unused", "conversation": {"id": "conversation"}}
+        before = normalize_usage(input_tokens=100, cache_creation_tokens=10, cache_creation_1h_tokens=2,
+                                 cache_read_tokens=0, output_tokens=20, reasoning_tokens=5)
+        after = normalize_usage(input_tokens=200, cache_creation_tokens=20, cache_creation_1h_tokens=4,
+                                cache_read_tokens=80, output_tokens=40, reasoning_tokens=10)
+        cases = [(None, None), *((key, boundary) for key in MEASURED_KEYS for boundary in ("before", "after"))]
+        for key, boundary in cases:
+            with self.subTest(key=key, boundary=boundary):
+                baseline, cumulative = dict(before), dict(after)
+                if boundary == "before":
+                    baseline.pop(key)
+                elif boundary == "after":
+                    cumulative[key] = None
+                with mock.patch("src.commands.runs.extract_run_observation", return_value=(after, "model")), \
+                        mock.patch("src.commands.runs.extract_interactive_usage",
+                                   return_value=(cumulative, "transcript", "conversation_id", "model")):
+                    observed = _observe_headless_usage(
+                        session, {}, baseline=(baseline, "transcript", "conversation_id", "model"))
+                self.assertEqual(observed["usage_cumulative"], cumulative)
+                if boundary is None:
+                    self.assertEqual(observed["usage_attribution"], "launch_boundary")
+                    self.assertEqual(observed["usage"]["cache_read_tokens"], 80)
+                    self.assertEqual(observed["usage"]["cache_hit_ratio"], 80 / 190)
+                else:
+                    self.assertEqual(observed["usage_attribution"], "continuation_usage_unavailable")
+                    self.assertTrue(all(value is None for value in observed["usage"].values()))
+
     def test_continue_run_uses_observed_default_model_and_detaches_with_parent_metadata(self):
         directory, service, _session, _transcript = self._continuation_parent(model=None)
         registry = RunRegistry(directory)
