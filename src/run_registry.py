@@ -321,6 +321,16 @@ class RunRegistry:
                 return run
             return None
 
+    def record_recovery(self, run_id, event):
+        """Publish retries and fallbacks while a supervised run is still active."""
+        with _registry_lock(self.path):
+            data = _read_registry(self.path)
+            for run in data["runs"]:
+                if run.get("run_id") == run_id:
+                    run.setdefault("recovery_events", []).append({"at": utc_now_iso(), **event})
+                    _write_registry(self.path, data)
+                    return
+
     def finish(self, run_id, *, status, final_payload=None, run_info=None, error=None, task_report=None):
         with _registry_lock(self.path):
             return self._finish_locked(run_id, status=status, final_payload=final_payload, run_info=run_info, error=error, task_report=task_report)
@@ -359,6 +369,7 @@ class RunRegistry:
                 # used to store whichever shape the producing reader emitted.
                 run["usage"] = coerce_usage(final_payload.get("usage"))
                 run["usage_model"] = final_payload.get("usage_model")
+                run["model"] = final_payload.get("model")
                 run["final_payload"] = final_payload
             if error:
                 run["error"] = error

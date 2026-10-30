@@ -11,6 +11,7 @@ import unittest
 
 from src.run_failover import (
     failover_reason,
+    looks_model_at_capacity,
     looks_rate_limited,
     should_fail_over,
     status_confirms_exhaustion,
@@ -243,3 +244,35 @@ class TypedLimitReasonTests(unittest.TestCase):
         self.assertFalse(status_confirms_exhaustion({
             "remaining_5h_pct": 88, "remaining_week_pct": 70, "rate_limit_reached": None,
         }))
+
+
+class ModelCapacityTests(unittest.TestCase):
+    def test_structured_and_plain_codex_capacity_diagnostics(self):
+        message = "Selected model is at capacity. Please try a different model."
+        for text in (
+            json.dumps({"type": "error", "message": message}),
+            json.dumps({"type": "turn.failed", "error": {"message": message}}),
+            json.dumps({"type": "thread.failed", "error": {"message": "The model is at capacity"}}),
+            message, "Error: " + message,
+        ):
+            for key in ("stdout_path", "stderr_path"):
+                with self.subTest(text=text, stream=key):
+                    info = _stdout(text)
+                    info[key] = info.pop("stdout_path")
+                    self.assertTrue(looks_model_at_capacity("codex", info))
+
+    def test_unrelated_failures_success_timeouts_and_prose_are_not_capacity(self):
+        for text in (
+            "Your workspace is out of credits.", "HTTP 429: rate limit reached", "Server is at capacity",
+            "We discussed that the selected model is at capacity.",
+            json.dumps({"type": "item.completed", "item": {
+                "type": "agent_message", "text": "Selected model is at capacity.",
+            }}),
+            '{"type":"error","message":"Selected model is at capacity',
+        ):
+            with self.subTest(text=text):
+                self.assertFalse(looks_model_at_capacity("codex", _stdout(text)))
+        info = _stdout("Selected model is at capacity.")
+        self.assertFalse(looks_model_at_capacity("claude", info))
+        self.assertFalse(looks_model_at_capacity("codex", {**info, "returncode": 0}))
+        self.assertFalse(looks_model_at_capacity("codex", {**info, "timed_out": True}))

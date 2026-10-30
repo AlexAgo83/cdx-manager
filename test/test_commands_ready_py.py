@@ -109,6 +109,7 @@ class ReadyCommandTests(CliTestBase):
         argv = _scheduled_notify_argv({"session": "main"}, {"CDX_BIN": "cdx"})
         calls = []
         with mock.patch("sys.platform", "linux"), \
+                mock.patch("src.notify._is_wsl", return_value=False), \
                 mock.patch("src.notify.shutil.which", side_effect=lambda command, path=None: command == "notify-send"):
             code = main(argv[1:], {
                 **self.make_io(),
