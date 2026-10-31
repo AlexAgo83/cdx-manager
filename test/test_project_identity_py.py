@@ -1,7 +1,6 @@
 """Source attribution survives disposable workspaces without changing accounting."""
 
 import json
-import shutil
 import subprocess
 from pathlib import Path
 from unittest import mock
@@ -12,6 +11,7 @@ from src.cli import main
 from src.commands.runs import _detached_child_argv
 from src.commands.status import _stats_group, _stats_totals, _summarize_stats
 from src.errors import CdxError
+from src.fs_utils import remove_tree
 from src.project_identity import load_mapping, recorded_project, resolve_project
 from src.run_registry import RunRegistry
 from src.run_usage import normalize_usage
@@ -69,7 +69,7 @@ def test_clone_needs_explicit_source_and_unknown_is_not_a_folder(repository, tmp
     git("clone", repository, clone)
     assert resolve_project(clone)["project"] == str(clone)
     saved = resolve_project(clone, str(repository))
-    shutil.rmtree(clone)
+    remove_tree(clone)
     assert _stats_group({"cwd": str(clone), **saved}, "project") == str(repository)
     assert resolve_project(tmp_path)["project"] is None
     assert _stats_group({"cwd": "/deleted/missions/eb54ed8001"}, "project") == "-"
