@@ -48,6 +48,215 @@ from src.session_service import create_session_service
 
 class RunsCommandTests(CliTestBase):
 
+    def test_history_cost_uses_stats_prices_and_preserves_unknowns(self):
+        from src.run_usage import estimate_cost, normalize_usage
+
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": directory})
+        self._authenticated_codex_session(service)
+        usage = normalize_usage(input_tokens=100, cache_read_tokens=50, output_tokens=10)
+        for model, measured in (("gpt-6.1-sol", usage), ("unknown-model", usage),
+                                ("gpt-6.1-sol", None), (None, usage)):
+            service["record_launch_history"]("work", {"usage": measured, "usage_model": model})
+        output = self.make_io()
+        with mock.patch.dict(os.environ, {"CDX_TOKEN_PRICES": json.dumps({"gpt-6.1-sol": {"input": 2, "output": 8}})}):
+            self.assertEqual(main(["history", "--json"], self.make_run_ctx(output, service)), 0)
+            entries = json.loads(output["stdout"].getvalue())["history"]
+            priced = [row for row in entries if row["cost_usd"] is not None]
+            self.assertEqual(len(priced), 1)
+            self.assertEqual(priced[0]["cost_usd"], estimate_cost(usage, "gpt-6.1-sol"))
+            output = self.make_io()
+            self.assertEqual(main(["stats", "--json"], self.make_run_ctx(output, service)), 0)
+            self.assertEqual(json.loads(output["stdout"].getvalue())["stats"][0]["cost_usd"], priced[0]["cost_usd"])
+
+    def test_run_budget_stops_live_provider_and_persists_spending(self):
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": directory})
+        self._authenticated_codex_session(service)
+        child = _HeadlessChild()
+
+        def spawn(_argv, **kwargs):
+            kwargs["stdout"].write(json.dumps({"model": "gpt-6.1-sol", "usage": {
+                "input_tokens": 1000000, "output_tokens": 1000000}}) + "\n")
+            kwargs["stdout"].flush()
+            return child
+
+        output = self.make_io()
+        self.assertEqual(main(["run", "work", "--cwd", directory, "--prompt", "Work", "--budget", "0.01", "--json"],
+                              self.make_run_ctx(output, service, spawn_headless=spawn)), 125)
+        payload = json.loads(output["stdout"].getvalue())
+        self.assertEqual(payload["error"]["code"], "budget_exceeded")
+        self.assertEqual(payload["exit_code"], 125)
+        self.assertGreater(payload["error"]["spent_usd"], 0.01)
+        self.assertEqual(payload["cost_usd"], payload["error"]["spent_usd"])
+        self.assertNotEqual(child.returncode, 0)
+        stored = RunRegistry(directory).get(payload["run_id"])
+        self.assertEqual(stored["error"]["code"], "budget_exceeded")
+        self.assertEqual(service["get_launch_history"]("work")[0]["exit_code"], 125)
+
+    @mock.patch("src.commands.runs.time.sleep")
+    def test_run_budget_includes_capacity_recovery_attempts(self, sleep):
+        from src.run_usage import estimate_cost, normalize_usage
+
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": directory})
+        self._authenticated_codex_session(service)
+        calls = []
+        cost = estimate_cost(normalize_usage(input_tokens=100), "gpt-6.1-sol")
+
+        def spawn(_argv, **kwargs):
+            calls.append(True)
+            kwargs["stdout"].write(json.dumps({"model": "gpt-6.1-sol", "usage": {"input_tokens": 100}}) + "\n")
+            kwargs["stdout"].flush()
+            kwargs["stderr"].write("Selected model is at capacity. Please try a different model.\n")
+            return _HeadlessChild(1)
+
+        output = self.make_io()
+        self.assertEqual(main(["run", "work", "--cwd", directory, "--prompt", "Work", "--budget", str(cost * 1.5), "--json"],
+                              self.make_run_ctx(output, service, spawn_headless=spawn)), 125)
+        payload = json.loads(output["stdout"].getvalue())
+        self.assertEqual(len(calls), 2)
+        self.assertAlmostEqual(payload["error"]["spent_usd"], cost * 2)
+        sleep.assert_called_once_with(1)
+
+    def test_run_budget_unknown_price_does_not_claim_zero_cost(self):
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": directory})
+        self._authenticated_codex_session(service)
+
+        def spawn(_argv, **kwargs):
+            kwargs["stdout"].write(json.dumps({"model": "unknown-price", "usage": {"input_tokens": 1000000}}) + "\n")
+            kwargs["stdout"].flush()
+            return _HeadlessChild()
+
+        output = self.make_io()
+        self.assertEqual(main(["run", "work", "--cwd", directory, "--prompt", "Work", "--budget", "1", "--json"],
+                              self.make_run_ctx(output, service, spawn_headless=spawn)), 0)
+        self.assertIsNone(json.loads(output["stdout"].getvalue())["cost_usd"])
+
+    def test_run_budget_detach_uses_cdx_supervisor_and_passes_budget(self):
+        directory, service, _session, _transcript = self._continuation_parent()
+        for continuation in (False, True):
+            with self.subTest(continuation=continuation):
+                output = self.make_io()
+                with mock.patch("src.commands.runs.supports_native_background") as native:
+                    child = mock.Mock(return_value=_HeadlessChild())
+                    extra = ["--continue-run", "parent"] if continuation else ["work"]
+                    self.assertEqual(main(["run", *extra, "--cwd", directory, "--prompt", "Fix", "--budget", "0.5",
+                                           "--detach", "--json"], self.make_run_ctx(output, service, spawn_detached=child)), 0)
+                native.assert_not_called()
+                argv = child.call_args.args[0]
+                self.assertEqual(argv[argv.index("--budget") + 1], "0.5")
+                if continuation:
+                    self.assertEqual(argv[argv.index("--continue-run") + 1], "parent")
+
+    def test_continued_budget_counts_only_new_transcript_usage(self):
+        from src.run_usage import estimate_cost, normalize_usage
+
+        directory, service, _session, transcript = self._continuation_parent()
+        def record(tokens):
+            return json.dumps({"payload": {"model": "gpt-6.1-sol", "type": "token_count",
+                                           "info": {"total_token_usage": {"input_tokens": tokens, "output_tokens": 0}}}}) + "\n"
+        transcript.write_text(record(1000000), encoding="utf-8")
+        observed = []
+
+        class Child(_HeadlessChild):
+            def wait(self, timeout=None):
+                if timeout == 0.25 and not observed:
+                    observed.append(True)
+                    transcript.write_text(record(1000100), encoding="utf-8")
+                    raise subprocess.TimeoutExpired("codex", timeout)
+                return super().wait(timeout)
+
+        child = Child()
+        output = self.make_io()
+        cost = estimate_cost(normalize_usage(input_tokens=100, output_tokens=0), "gpt-6.1-sol")
+        self.assertEqual(main(["run", "--continue-run", "parent", "--cwd", directory, "--prompt", "Fix",
+                               "--budget", str(cost), "--json"],
+                              self.make_run_ctx(output, service, spawn_headless=lambda *_args, **_kwargs: child)), 125)
+        payload = json.loads(output["stdout"].getvalue())
+        self.assertTrue(observed, "The existing conversation must not exhaust the new run's budget")
+        self.assertAlmostEqual(payload["error"]["spent_usd"], cost)
+        self.assertEqual(payload["usage"]["input_tokens"], 100)
+
+    def test_claude_budget_sums_live_transcript_messages_before_final_output(self):
+        from src.run_usage import estimate_cost, normalize_usage
+
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": directory})
+        session = service["create_session"]("work", "claude")
+        auth = _AuthHarness(initial_auth={session["authHome"]: True})
+        model = "claude-sonnet-5-5"
+        cost = estimate_cost(normalize_usage(input_tokens=150), model)
+        transcript = None
+
+        def message(identifier):
+            return json.dumps({"type": "assistant", "message": {"id": identifier, "model": model,
+                                                                 "usage": {"input_tokens": 100}}}) + "\n"
+
+        class Child(_HeadlessChild):
+            def wait(self, timeout=None):
+                if timeout == 0.25:
+                    with transcript.open("a", encoding="utf-8") as handle:
+                        handle.write(message("second"))
+                    raise subprocess.TimeoutExpired("claude", timeout)
+                return super().wait(timeout)
+
+        def spawn(argv, **_kwargs):
+            nonlocal transcript
+            identifier = argv[argv.index("--session-id") + 1]
+            transcript = pathlib.Path(session["authHome"]) / ".claude/projects/repo" / f"{identifier}.jsonl"
+            transcript.parent.mkdir(parents=True, exist_ok=True)
+            transcript.write_text(message("first"), encoding="utf-8")
+            return Child()
+
+        output = self.make_io()
+        self.assertEqual(main(["run", "work", "--cwd", directory, "--prompt", "Work", "--budget", str(cost), "--json"],
+                              self.make_run_ctx(output, service, spawn_headless=spawn, spawn_sync=auth.spawn_sync)), 125)
+        payload = json.loads(output["stdout"].getvalue())
+        self.assertEqual(payload["usage"]["input_tokens"], 200)
+        self.assertEqual(payload["error"]["code"], "budget_exceeded")
+        self.assertEqual(pathlib.Path(payload["stdout_path"]).read_text(), "")
+
+    def test_budget_terminates_a_real_provider_process(self):
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": directory})
+        self._authenticated_codex_session(service)
+        children = []
+        sentinel = pathlib.Path(directory) / "should-not-finish"
+        program = (
+            "import json, pathlib, time; "
+            "print(json.dumps({'model': 'gpt-6.1-sol', 'usage': {'input_tokens': 1000000}}), flush=True); "
+            "time.sleep(10); pathlib.Path('should-not-finish').touch()"
+        )
+
+        def spawn(_argv, **kwargs):
+            child = subprocess.Popen([sys.executable, "-u", "-c", program], **kwargs)
+            children.append(child)
+            return child
+
+        output = self.make_io()
+        try:
+            self.assertEqual(main(["run", "work", "--cwd", directory, "--prompt", "Work", "--budget", "0.01",
+                                   "--timeout-seconds", "5", "--json"],
+                                  self.make_run_ctx(output, service, spawn_headless=spawn)), 125)
+            self.assertEqual(json.loads(output["stdout"].getvalue())["error"]["code"], "budget_exceeded")
+            self.assertIsNotNone(children[0].poll())
+            self.assertFalse(sentinel.exists())
+        finally:
+            for child in children:
+                if child.poll() is None:
+                    child.kill()
+                    child.wait()
+
+    def test_run_budget_rejects_invalid_values(self):
+        from src.errors import CdxArgumentError
+
+        for value in ("0", "-1", "nan", "inf", "-inf", "text"):
+            with self.subTest(value=value), self.assertRaises(CdxArgumentError) as error:
+                _parse_run_args(["work", "--cwd", ".", "--prompt", "Work", "--budget", value, "--json"])
+            self.assertEqual(error.exception.arguments, ("--budget",))
+
     def _continuation_parent(self, provider="codex", model="gpt-6.1-sol", effort="high", status="succeeded"):
         directory = self.make_temp_dir()
         service = create_session_service({"base_dir": directory})
@@ -1290,65 +1499,70 @@ class RunsCommandTests(CliTestBase):
 
     def test_detached_child_runs_the_cli_module_and_records_a_terminal_result(self):
         """A launched detached run must actually execute, not just report a run id."""
-        target_dir = self.make_temp_dir()
-        service = create_session_service({"base_dir": target_dir})
-        self._authenticated_codex_session(service)
+        for budgeted in (False, True):
+            with self.subTest(budgeted=budgeted):
+                target_dir = self.make_temp_dir()
+                service = create_session_service({"base_dir": target_dir})
+                self._authenticated_codex_session(service)
 
-        # A synthetic provider on PATH: the child has to reach it, and no real
-        # provider CLI or generation may be involved.
-        bin_dir = self.make_temp_dir()
-        if sys.platform == "win32":
-            stub = os.path.join(bin_dir, "codex.cmd")
-            with open(stub, "w", encoding="utf-8") as handle:
-                handle.write(
-                    "@if \"%1\"==\"login\" (echo Logged in as synthetic) "
-                    "else (echo {\"synthetic\":true})\r\n@exit /b 0\r\n"
+                # A synthetic provider on PATH: the child has to reach it, and no real
+                # provider CLI or generation may be involved.
+                bin_dir = self.make_temp_dir()
+                if sys.platform == "win32":
+                    stub = os.path.join(bin_dir, "codex.cmd")
+                    with open(stub, "w", encoding="utf-8") as handle:
+                        handle.write(
+                            "@if \"%1\"==\"login\" (echo Logged in as synthetic) "
+                            "else (echo {\"model\":\"gpt-6.1-sol\",\"usage\":{\"input_tokens\":1000000}})\r\n@exit /b 0\r\n"
+                        )
+                else:
+                    stub = os.path.join(bin_dir, "codex")
+                    with open(stub, "w", encoding="utf-8") as handle:
+                        handle.write(
+                            "#!/bin/sh\n"
+                            "case \"$*\" in\n"
+                            "  *'login status'*) echo 'Logged in as synthetic';;\n"
+                            "  *) echo '{\"model\":\"gpt-6.1-sol\",\"usage\":{\"input_tokens\":1000000}}';;\n"
+                            "esac\n"
+                        )
+                    os.chmod(stub, 0o755)
+
+                io_obj = self.make_io()
+                child_env = {
+                    **os.environ,
+                    "PATH": bin_dir + os.pathsep + os.environ.get("PATH", ""),
+                    "CDX_HOME": target_dir,
+                }
+                with mock.patch.dict(os.environ, child_env, clear=True):
+                    self.assertEqual(main([
+                        "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--detach", *(["--budget", "0.01"] if budgeted else []), "--json"
+                    ], self.make_run_ctx(io_obj, service)), 0)
+
+                payload = json.loads(io_obj["stdout"].getvalue())
+                run_id = payload["run_id"]
+                registry = RunRegistry(target_dir)
+                deadline = time.time() + 60
+                run = None
+                while time.time() < deadline:
+                    run = registry.get(run_id)
+                    if run and run.get("status") != "running":
+                        break
+                    time.sleep(0.2)
+
+                launch_log = "".join(
+                    path.read_text(encoding="utf-8", errors="replace")
+                    for path in pathlib.Path(target_dir).rglob("*.launch.log")
                 )
-        else:
-            stub = os.path.join(bin_dir, "codex")
-            with open(stub, "w", encoding="utf-8") as handle:
-                handle.write(
-                    "#!/bin/sh\n"
-                    "case \"$*\" in\n"
-                    "  *'login status'*) echo 'Logged in as synthetic';;\n"
-                    "  *) echo '{\"synthetic\":true}';;\n"
-                    "esac\n"
-                )
-            os.chmod(stub, 0o755)
-
-        io_obj = self.make_io()
-        child_env = {
-            **os.environ,
-            "PATH": bin_dir + os.pathsep + os.environ.get("PATH", ""),
-            "CDX_HOME": target_dir,
-        }
-        with mock.patch.dict(os.environ, child_env, clear=True):
-            self.assertEqual(main([
-                "run", "work", "--cwd", target_dir, "--prompt", "Do it", "--detach", "--json"
-            ], self.make_run_ctx(io_obj, service)), 0)
-
-        payload = json.loads(io_obj["stdout"].getvalue())
-        run_id = payload["run_id"]
-        registry = RunRegistry(target_dir)
-        deadline = time.time() + 60
-        run = None
-        while time.time() < deadline:
-            run = registry.get(run_id)
-            if run and run.get("status") != "running":
-                break
-            time.sleep(0.2)
-
-        launch_log = "".join(
-            path.read_text(encoding="utf-8", errors="replace")
-            for path in pathlib.Path(target_dir).rglob("*.launch.log")
-        )
-        self.assertIsNotNone(run, f"detached run never registered; launch log: {launch_log}")
-        self.assertEqual(run.get("status"), "succeeded", f"launch log: {launch_log}")
-        self.assertEqual(run.get("exit_code", run.get("run_info", {}).get("returncode")), 0,
-                         f"launch log: {launch_log}")
-        # The child owns cleanup of its staged prompt, which it only reaches
-        # once the module it was told to run actually starts.
-        self.assertNotIn("prompt.txt", launch_log)
+                self.assertIsNotNone(run, f"detached run never registered; launch log: {launch_log}")
+                self.assertEqual(run.get("status"), "failed" if budgeted else "succeeded", f"launch log: {launch_log}")
+                self.assertEqual(run.get("exit_code", run.get("run_info", {}).get("returncode")), 125 if budgeted else 0,
+                                 f"launch log: {launch_log}")
+                if budgeted:
+                    self.assertEqual(run["error"]["code"], "budget_exceeded")
+                    self.assertGreater(run["error"]["spent_usd"], 0.01)
+                # The child owns cleanup of its staged prompt, which it only reaches
+                # once the module it was told to run actually starts.
+                self.assertNotIn("prompt.txt", launch_log)
 
     def test_detached_child_command_names_the_top_level_cli_module(self):
         from src.commands import runs as runs_module

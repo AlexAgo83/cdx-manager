@@ -4,7 +4,7 @@ import sys
 from .cli_args import ARG_CODE_INVALID_VALUE
 from .errors import CdxArgumentError, CdxError
 from .provider_runtime import headless_permission_disables_network
-from .run_usage import empty_usage, extract_run_observation
+from .run_usage import empty_usage, estimate_cost, extract_run_observation
 
 PROMPT_STDIN = "-"
 
@@ -172,6 +172,7 @@ def run_launch_payload(api_schema_version, parsed, session, artifacts, cwd=None,
         "parent_run_id": parsed.get("continue_run"),
         "conversation_id": conversation_id or run_conversation_id(session),
         "detached": True,
+        "budget_usd": parsed.get("budget"),
         "session": session.get("name") if session else None,
         "provider": session.get("provider") if session else parsed.get("provider"),
         "model": parsed.get("model") or ((session.get("launch") or {}).get("model") if session else None),
@@ -235,11 +236,14 @@ def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
         "stderr_path": run_info.get("stderr_path"),
         "usage": usage,
         "usage_model": usage_model,
+        "cost_usd": run_info.get("cost_usd", estimate_cost(usage, usage_model)),
+        "budget_usd": parsed.get("budget"),
         "warnings": warnings,
         "error": None if ok else {
             "source": error_source or "cdx",
             "code": error_code or "cdx_error",
             "message": message,
+            **({"spent_usd": run_info.get("cost_usd")} if error_code == "budget_exceeded" else {}),
             "arguments": run_error_arguments(error),
             "allowed_values": run_error_allowed_values(error),
             "provider_code": run_info.get("returncode") if error_source == "provider" else None,

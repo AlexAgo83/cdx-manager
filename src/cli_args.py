@@ -5,6 +5,7 @@ Split out of cli_commands.py: pure input-parsing layer (no command execution),
 imported back there and used by the handlers.
 """
 
+import math
 from datetime import datetime, timedelta
 
 from .config import (
@@ -47,7 +48,7 @@ CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--conversation <id>] [--json]"
 SESSIONS_USAGE = "Usage: cdx sessions [--all] --json"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json"
 NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
-RUN_USAGE = "Usage: cdx run [session] (--cwd|--dir) PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--network-access] [--isolate-workspace] [--timeout-seconds N] [--label TEXT] [--max-parallel N] [--continue-run RUN_ID] [--detach] [--failover] [--refresh] --json"
+RUN_USAGE = "Usage: cdx run [session] (--cwd|--dir) PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--network-access] [--isolate-workspace] [--timeout-seconds N] [--budget USD] [--label TEXT] [--max-parallel N] [--continue-run RUN_ID] [--detach] [--failover] [--refresh] --json"
 RUN_JSON_REQUIRED = "cdx run: --json is required."
 RUN_TARGET_REQUIRED = "cdx run: specify a session name or --provider PROVIDER."
 RUN_SESSION_PROVIDER_CONFLICT = "cdx run: cannot specify both a session name and --provider."
@@ -425,6 +426,17 @@ def _parse_timeout_seconds(value, usage=RUN_USAGE):
     return parsed
 
 
+def _parse_run_budget(value):
+    try:
+        amount = float(value)
+        if not math.isfinite(amount) or amount <= 0:
+            raise ValueError
+        return amount
+    except (TypeError, ValueError) as error:
+        raise CdxArgumentError("cdx run: --budget must be a finite positive USD amount.",
+                               code=ARG_CODE_OUT_OF_RANGE, arguments=["--budget"]) from error
+
+
 def _parse_run_timeout_seconds(value):
     try:
         return _parse_timeout_seconds(value, RUN_USAGE)
@@ -539,6 +551,7 @@ def cdx_schema():
                 "provider_start_failed",
                 "provider_failed",
                 "provider_timeout",
+                "budget_exceeded",
                 "run_cancelled",
                 "too_many_runs",
                 "failover_exhausted",
@@ -671,6 +684,7 @@ def _parse_run_args(args):
         "--power": {"key": "power", "type": "str", "default": None},
         "--permission": {"key": "permission", "type": "str", "default": None, "transform": _normalize_run_permission},
         "--timeout-seconds": {"key": "timeout_seconds", "type": "str", "default": None, "transform": _parse_run_timeout_seconds},
+        "--budget": {"key": "budget", "type": "str", "default": None, "transform": _parse_run_budget},
         "--detach": {"key": "detach", "type": "bool", "default": False},
         "--network-access": {"key": "network_access", "type": "bool", "default": False},
         "--isolate-workspace": {"key": "isolate_workspace", "type": "bool", "default": False},
@@ -727,6 +741,7 @@ def _parse_run_args(args):
         "kind": parsed["kind"],
         "model": parsed["model"],
         "permission": parsed["permission"],
+        "budget": parsed["budget"],
         "timeout_seconds": parsed["timeout_seconds"],
         "detach": parsed["detach"],
         "network_access": parsed["network_access"],

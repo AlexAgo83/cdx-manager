@@ -672,6 +672,7 @@ def handle_history(rest, ctx):
     entries = ctx["service"]["get_launch_history"](parsed["name"], limit=limit)
     entries = _filter_history_period(entries, parsed["period"])
     entries = [{**entry, "parent_run_id": entry.get("parent_run_id"),
+                "cost_usd": estimate_cost(entry.get("usage"), entry.get("usage_model")) if is_vouched(entry.get("usage")) else None,
                 "usage": {**entry["usage"], "cache_hit_ratio": cache_hit_ratio(entry["usage"], provider=entry.get("provider")) if is_vouched(entry["usage"]) else None}
                 if isinstance(entry.get("usage"), dict) else entry.get("usage")} for entry in entries]
     if has_period and not parsed["summary"]:
