@@ -363,6 +363,25 @@ def estimate_cost(usage, model, prices=None):
     return sum(present) / 1_000_000
 
 
+def cost_fields(usage, model, prices=None, *, models=(), attribution=None):
+    """Explain nullable estimates consistently on every JSON surface."""
+    cost = estimate_cost(usage, model, prices)
+    reason = None
+    if cost is None:
+        if attribution == "continuation_usage_unavailable":
+            reason = "attempt_usage_unavailable"
+        elif not _has_usage(usage):
+            reason = "usage_not_measured"
+        elif len(set(models)) > 1:
+            reason = "mixed_models_without_counters"
+        elif not model:
+            reason = "model_not_observed"
+        else:
+            reason = "model_price_unknown"
+    return {"cost_usd": cost, "cost_status": "estimated" if cost is not None else "unknown",
+            "cost_reason": reason}
+
+
 def _long_ttl_writes(usage):
     """One-hour cache writes, bounded by the writes they are a part of."""
     long_ttl = usage.get("cache_creation_1h_tokens")
@@ -475,7 +494,7 @@ def extract_run_usage(provider, stdout_path):
     return extract_run_observation(provider, stdout_path)[0]
 
 
-def extract_run_observation(provider, stdout_path, auth_home=None):
+def extract_run_observation(provider, stdout_path, auth_home=None, *, evidence=None, models_out=None):
     if not stdout_path or not provider:
         return empty_usage(), None
     if provider not in SUPPORTED_PROVIDERS:
@@ -493,6 +512,10 @@ def extract_run_observation(provider, stdout_path, auth_home=None):
         return empty_usage(), None
 
     usage = _extract_usage_from_records(records, provider=provider)
+    if (provider == "codex" and evidence is not None and evidence.get("stdout_path") == str(stdout_path)
+            and evidence.get("usage") == usage and evidence.get("thread_id") == extract_run_conversation_id(provider, stdout_path)
+            and not _has_usage(usage)):
+        usage = evidence.get("measurement_usage") or usage
     if not _has_usage(usage):
         return empty_usage(), None
     models = set()
@@ -506,8 +529,18 @@ def extract_run_observation(provider, stdout_path, auth_home=None):
         model_usage = record.get("modelUsage")
         if isinstance(model_usage, dict):
             models.update(model_usage)
-    if provider == "codex" and auth_home:
+    if provider == "codex" and evidence is not None:
+        # Only the supervisor supplies this snapshot, never a file in the checkout.
+        if (evidence.get("stdout_path") == str(stdout_path)
+                and evidence.get("thread_id") == extract_run_conversation_id(provider, stdout_path)
+                and (evidence.get("measurement_usage") or evidence.get("usage")) == usage):
+            models.update(evidence.get("models") or [])
+        else:
+            return usage, None
+    elif provider == "codex" and auth_home:
         models.update(_codex_run_models(records, auth_home))
+    if models_out is not None:
+        models_out.extend(sorted(models))
     return usage, next(iter(models)) if len(models) == 1 else None
 
 
@@ -539,8 +572,9 @@ def _codex_run_models(records, auth_home):
                     continue
                 payload = record.get("payload")
                 model = payload.get("model") if isinstance(payload, dict) else None
-                if isinstance(model, str) and model:
-                    models.add(model)
+                if not isinstance(model, str) or not model:
+                    return set()
+                models.add(model)
     except OSError:
         return set()
     return models

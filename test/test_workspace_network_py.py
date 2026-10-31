@@ -103,6 +103,20 @@ class IsolatedEgressTests(unittest.TestCase):
         for flag in ("--no-map-gw", "-T", "-U"):
             self.assertIn(flag, args)
 
+    def test_codex_observation_mount_exposes_only_fresh_attempt_sessions(self):
+        with TemporaryDirectory() as tree, TemporaryDirectory() as observation, mock.patch.object(
+                workspace_sandbox.shutil, "which", side_effect=lambda name, path=None: "/usr/bin/" + name):
+            args, env = workspace_sandbox.sandbox_command(
+                ["true"], Path(tree), network=False, provider="codex", auth_home="/private/profile",
+                observation_home=observation, source={"PATH": "/usr/bin"})
+        self.assertEqual(env["CODEX_HOME"], "/home/agent/.codex")
+        self.assertIn("--cap-drop", args)
+        self.assertNotIn("--share-net", args)
+        self.assertNotIn("/private/profile", args)
+        self.assertIn("/private/profile/auth.json", args)
+        mount = args.index(observation)
+        self.assertEqual(args[mount - 1:mount + 2], ["--bind", observation, "/home/agent/.codex/sessions"])
+
     def test_missing_pasta_fails_closed(self):
         with TemporaryDirectory() as tree, mock.patch.object(
                 workspace_sandbox.shutil, "which",

@@ -160,7 +160,9 @@ class CostEstimateTests(unittest.TestCase):
                     "total_token_usage": {"input_tokens": 9999, "output_tokens": 999},
                 }}}) + "\n")
             observed, model = extract_run_observation("codex", stdout, directory)
-            self.assertEqual((observed["input_tokens"], observed["output_tokens"], model), (4, 2, "gpt-6.1-sol"))
+            # A turn with no model makes attribution incomplete, even when an
+            # earlier context named a priceable model. Keep the measured tokens.
+            self.assertEqual((observed["input_tokens"], observed["output_tokens"], model), (4, 2, None))
             with rollout.open("a") as handle:
                 handle.write(json.dumps({"type": "turn_context", "payload": {"model": "gpt-6-luna"}}) + "\n")
             self.assertIsNone(extract_run_observation("codex", stdout, directory)[1])

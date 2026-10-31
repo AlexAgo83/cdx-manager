@@ -55,6 +55,7 @@ from ..rtk_savings import rtk_saved
 from ..run_usage import (
     TOKEN_USAGE_KEYS,
     cache_hit_ratio,
+    cost_fields,
     estimate_cost,
     format_cache_ratio,
     is_vouched,
@@ -287,6 +288,7 @@ def _summarize_stats(entries):
             "unweighted_runs": 0,
             "priced_runs": 0,
             "unpriced_models": set(),
+            "unpriced_reasons": {},
             "unvouched_runs": 0,
             "input_tokens": 0,
             "cached_input_tokens": 0,
@@ -342,7 +344,10 @@ def _summarize_stats(entries):
             if cost is not None:
                 row["cost_usd"] += cost
                 row["priced_runs"] += 1
-            elif entry.get("usage_model"):
+            else:
+                reason = cost_fields(usage, entry.get("usage_model"), models=entry.get("usage_models", (entry.get("usage_evidence") or {}).get("models", [])), attribution=entry.get("usage_attribution"))["cost_reason"]
+                row["unpriced_reasons"][reason] = row["unpriced_reasons"].get(reason, 0) + 1
+            if cost is None and entry.get("usage_model"):
                 # Named the model but could not price it. Recording which one
                 # turns an unexplained "-" into something actionable: that
                 # string is exactly what CDX_TOKEN_PRICES needs a key for.
@@ -694,7 +699,8 @@ def handle_history(rest, ctx):
     entries = ctx["service"]["get_launch_history"](parsed["name"], limit=limit)
     entries = _filter_history_period(entries, parsed["period"])
     entries = [{**entry, "parent_run_id": entry.get("parent_run_id"),
-                "cost_usd": estimate_cost(entry.get("usage"), entry.get("usage_model")) if is_vouched(entry.get("usage")) else None,
+                **cost_fields(entry.get("usage") if is_vouched(entry.get("usage")) else None, entry.get("usage_model"),
+                              models=entry.get("usage_models", (entry.get("usage_evidence") or {}).get("models", [])), attribution=entry.get("usage_attribution")),
                 "usage": {**entry["usage"], "cache_hit_ratio": cache_hit_ratio(entry["usage"], provider=entry.get("provider")) if is_vouched(entry["usage"]) else None}
                 if isinstance(entry.get("usage"), dict) else entry.get("usage")} for entry in entries]
     if has_period and not parsed["summary"]:

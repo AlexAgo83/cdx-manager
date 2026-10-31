@@ -552,6 +552,7 @@ def cdx_schema():
                 "provider_failed",
                 "provider_timeout",
                 "budget_exceeded",
+                "budget_unverifiable",
                 "run_cancelled",
                 "too_many_runs",
                 "failover_exhausted",
