@@ -31,6 +31,8 @@ class WorkspaceSandboxTests(unittest.TestCase):
         self.assertNotIn("GITHUB_TOKEN", env)
         self.assertEqual(env["HOME"], "/home/agent")
         self.assertEqual(env["GIT_CONFIG_VALUE_0"], "")
+        self.assertEqual(env["PLAYWRIGHT_SKIP_BROWSER_GC"], "1")
+        self.assertEqual(workspace_sandbox.clean_env({"PLAYWRIGHT_SKIP_BROWSER_GC": "0"})["PLAYWRIGHT_SKIP_BROWSER_GC"], "1")
 
     def _run_isolated_codex(self, permission, network):
         captured = {}
