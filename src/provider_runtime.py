@@ -8,6 +8,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 
@@ -1204,7 +1205,7 @@ def _read_permission_denials(stdout_path):
 
 
 def _run_headless_provider_command(session, cwd=None, env_override=None, initial_prompt=None,
-                                   timeout_seconds=None, spawn=None, run_id=None):
+                                   timeout_seconds=None, spawn=None, run_id=None, budget_check=None):
     spawn = spawn or subprocess.Popen
     spec = _build_headless_launch_spec(
         session,
@@ -1262,6 +1263,7 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
     child = None
     timed_out = False
     cancelled = False
+    budget_exceeded = False
     with open(paths["stdout_path"], "w", encoding="utf-8", errors="replace") as stdout_file, \
             open(paths["stderr_path"], "w", encoding="utf-8", errors="replace") as stderr_file:
         options = {k: v for k, v in spec.get("options", {}).items() if k not in ("stdio", "stdout", "stderr")}
@@ -1290,7 +1292,23 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
         # this supervisor and keep its run "running" forever.
         previous_handlers = _route_termination_to_interrupt()
         try:
-            if timeout_seconds is None:
+            if budget_check is not None:
+                deadline = time.monotonic() + timeout_seconds if timeout_seconds is not None else None
+                while True:
+                    if budget_check(paths):
+                        budget_exceeded = True
+                        _terminate_child_tree(child)
+                        break
+                    remaining = deadline - time.monotonic() if deadline is not None else None
+                    if remaining is not None and remaining <= 0:
+                        raise subprocess.TimeoutExpired(command, timeout_seconds)
+                    try:
+                        child.wait(timeout=min(0.25, remaining) if remaining is not None else 0.25)
+                        budget_exceeded = budget_check(paths)
+                        break
+                    except subprocess.TimeoutExpired:
+                        continue
+            elif timeout_seconds is None:
                 child.wait()
             else:
                 child.wait(timeout=timeout_seconds)
@@ -1337,6 +1355,7 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
         "pid": getattr(child, "pid", None),
         "returncode": returncode,
         "timed_out": timed_out,
+        "budget_exceeded": budget_exceeded,
         "permission_denials": (
             _read_permission_denials(paths["stdout_path"])
             if session.get("provider") == PROVIDER_CLAUDE else []

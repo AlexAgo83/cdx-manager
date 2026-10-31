@@ -25,7 +25,7 @@ from ..cli_args import (
 from ..cli_helpers import API_SCHEMA_VERSION, _json_failure, _json_success, _write_json
 from ..config import split_extra_args
 from ..errors import CdxError
-from ..interactive_usage import MEASURED_KEYS, extract_interactive_usage, usage_delta
+from ..interactive_usage import MATCH_CONVERSATION_ID, MEASURED_KEYS, extract_interactive_usage, usage_delta
 from ..provider_background import (
     BACKGROUND_PATH_CDX,
     BACKGROUND_PATH_PROVIDER,
@@ -58,7 +58,7 @@ from ..run_failover import (
     looks_model_at_capacity,
 )
 from ..run_registry import RunRegistry, build_code_review_report, final_message
-from ..run_usage import empty_usage, extract_run_conversation_id, extract_run_observation
+from ..run_usage import empty_usage, estimate_cost, extract_run_conversation_id, extract_run_observation, token_prices
 from ..session_ranking import FACTOR_DESCRIPTIONS, rank_sessions, selection_policy
 from ..status_view import _now_timestamp, _priority_reset_timestamp
 
@@ -204,6 +204,7 @@ def _detached_child_argv(parsed, prompt_path, session_name, cwd):
     # from the package root, so a relative "--cwd ." would resolve there.
     argv = ["run", session_name, "--cwd", cwd, "--prompt-file", prompt_path]
     for flag, key in (
+        ("--budget", "budget"),
         ("--continue-run", "continue_run"),
         ("--model", "model"),
         ("--kind", "kind"),
@@ -563,6 +564,28 @@ def _observe_headless_usage(session, run_info, baseline=None):
     return observation
 
 
+def _budget_observation(session, paths, baseline):
+    observation = _observe_headless_usage(session, paths, baseline if session["provider"] == "codex" else None)
+    identifier = (extract_run_conversation_id(session["provider"], paths.get("stdout_path"))
+                  or ((session.get("conversation") or {}).get("id")
+                      if session["provider"] == "claude" or session.get("continue_run") else None))
+    if not identifier:
+        return observation
+    usage, path, match, model = extract_interactive_usage(
+        session["provider"], session.get("authHome"), conversation_id=identifier)
+    if usage is None or match != MATCH_CONVERSATION_ID:
+        return observation
+    if baseline is not None:
+        before, before_path, _match, _model = baseline
+        comparable = (before and path == before_path
+                      and all((usage.get(key) is None) == (before.get(key) is None) for key in MEASURED_KEYS))
+        usage = usage_delta(usage, before, provider=session["provider"]) if comparable else None
+    if usage is not None:
+        return {**observation, "usage": usage, "usage_model": model, "provider_transcript_path": path,
+                "provider_transcript_match": match}
+    return observation
+
+
 def _continue_run_session(parsed, ctx):
     """Resolve only the parent's profile and exact persisted conversation."""
     previous = _run_registry(ctx).get(parsed["continue_run"])
@@ -624,6 +647,7 @@ def handle_run(rest, ctx):
     detached_run_id = os.environ.pop(DETACHED_RUN_ID_ENV, None) or None
     try:
         parsed = _parse_run_args(rest)
+        budget_prices = token_prices()[0] if parsed.get("budget") is not None else None
         session = _continue_run_session(parsed, ctx) if parsed.get("continue_run") else None
         if session:
             if session.get("enabled", True) is False:
@@ -738,7 +762,7 @@ def handle_run(rest, ctx):
             launch = None
             # A provider's own background agent has no cdx process watching it,
             # so nothing could fail it over; --failover keeps the in-house child.
-            if not parsed.get("continue_run") and not parsed.get("isolate_workspace") and not parsed.get("network_access") and not parsed.get("failover") and supports_native_background(
+            if not parsed.get("budget") and not parsed.get("continue_run") and not parsed.get("isolate_workspace") and not parsed.get("network_access") and not parsed.get("failover") and supports_native_background(
                 run_session.get("provider"),
                 env=ctx.get("env"),
                 spawn_sync=ctx.get("spawn_text"),
@@ -773,6 +797,7 @@ def handle_run(rest, ctx):
         failover_error_code = None
         recovery_events = []
         attempt = 0
+        spent_usd = 0.0
         models = capacity_models(run_session)
         model_index = 0
         capacity_retries = 0
@@ -781,7 +806,20 @@ def handle_run(rest, ctx):
             baseline = extract_interactive_usage(
                 run_session["provider"], run_session.get("authHome"),
                 conversation_id=(run_session.get("conversation") or {}).get("id"),
-            ) if parsed.get("continue_run") and run_session["provider"] == "codex" else None
+            ) if parsed.get("continue_run") and (run_session["provider"] == "codex" or parsed.get("budget")) else None
+            attempt_cost = None
+            budget_observation = None
+
+            def check_budget(paths, session=run_session, before=baseline, already_spent=spent_usd):
+                nonlocal attempt_cost, budget_observation
+                observation = _budget_observation(session, paths, before)
+                cost = estimate_cost(observation["usage"], observation["usage_model"], budget_prices)
+                if cost is not None:
+                    if attempt_cost is None or cost >= attempt_cost:
+                        attempt_cost = cost
+                        budget_observation = observation
+                return attempt_cost is not None and already_spent + attempt_cost >= parsed["budget"]
+
             run_info = _run_headless_provider_command(
                 run_session,
                 cwd=cwd,
@@ -790,8 +828,11 @@ def handle_run(rest, ctx):
                 timeout_seconds=parsed.get("timeout_seconds"),
                 spawn=ctx.get("spawn_headless") or ctx.get("spawn"),
                 run_id=run_id,
+                **({"budget_check": check_budget} if parsed.get("budget") is not None else {}),
             )
-            observation = _observe_headless_usage(run_session, run_info, baseline)
+            observation = _observe_headless_usage(run_session, run_info, baseline if run_session["provider"] == "codex" else None)
+            if run_info.get("budget_exceeded") and budget_observation is not None:
+                observation = budget_observation
             run_info = {**run_info, **observation,
                         "parent_run_id": parsed.get("continue_run"),
                         "conversation_id": extract_run_conversation_id(run_session.get("provider"), run_info.get("stdout_path"))
@@ -800,6 +841,10 @@ def handle_run(rest, ctx):
                         "reasoning_effort": _launch_power(run_session),
                         "effective_model": (run_session.get("launch") or {}).get("model"),
                         "recovery_events": recovery_events}
+            cost = estimate_cost(observation["usage"], observation["usage_model"], budget_prices)
+            spent_usd += max(attempt_cost or 0.0, cost or 0.0)
+            if parsed.get("budget") is not None and (run_info.get("budget_exceeded") or spent_usd >= parsed["budget"]):
+                run_info.update(budget_exceeded=True, returncode=125, cost_usd=spent_usd)
             ctx["service"]["record_launch_history"](run_session["name"], {
                 "status": "success" if run_info.get("returncode") == 0 else "failed",
                 "action": "run",
@@ -809,7 +854,7 @@ def handle_run(rest, ctx):
                 "exit_code": run_info.get("returncode"),
                 **run_info,
             })
-            if parsed.get("continue_run"):
+            if run_info.get("budget_exceeded") or parsed.get("continue_run"):
                 break
             if looks_model_at_capacity(run_session.get("provider"), run_info):
                 event = {"reason": "model_at_capacity", "attempt": attempt,
@@ -934,7 +979,10 @@ def handle_run(rest, ctx):
             )
             _write_json(ctx, final_payload)
             return 0
-        if failover_error_code == "capacity_recovery_exhausted":
+        if run_info.get("budget_exceeded"):
+            failover_error_code = "budget_exceeded"
+            message = "Run exceeded its estimated USD budget."
+        elif failover_error_code == "capacity_recovery_exhausted":
             message = "Codex model capacity recovery exhausted its retry, model, or profile budget."
         elif failover_error_code == "failover_exhausted":
             message = f"Every eligible session was rate limited: {', '.join(attempted)}."
@@ -952,7 +1000,7 @@ def handle_run(rest, ctx):
             run_session,
             run_info=run_info,
             error=error,
-            error_source="provider",
+            error_source="cdx" if run_info.get("budget_exceeded") else "provider",
             # Running out of accounts is a different outcome from the task
             # failing, and a caller has to be able to branch on which happened.
             error_code=failover_error_code or (
@@ -962,7 +1010,7 @@ def handle_run(rest, ctx):
         )
         registry.finish(
             run_id,
-            status="timed_out" if run_info.get("timed_out") else "failed",
+            status="timed_out" if run_info.get("timed_out") and not run_info.get("budget_exceeded") else "failed",
             final_payload=final_payload,
             run_info=run_info,
             error=final_payload.get("error"),
