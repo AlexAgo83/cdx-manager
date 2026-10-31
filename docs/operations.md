@@ -240,3 +240,12 @@ credential sync.
 - **`cdx login` hangs** — the provider's login flow requires a browser or device code. Follow the on-screen instructions in the terminal that opened.
 - **`make install` says `npm link` is not found** — ensure Node.js and npm are installed and in your PATH.
 - **On Windows, `doctor` warns that `script` is missing** — this is expected on many setups. Codex still launches, but transcript capture stays disabled unless you point `CDX_SCRIPT_BIN` to a compatible wrapper.
+
+
+### Playwright in isolated workspaces
+
+Isolated preparation and provider environments force `PLAYWRIGHT_SKIP_BROWSER_GC=1`.
+The browser cache is shared with host services, but package paths differ inside
+`/cache` and on the host. Playwright garbage collection cannot see every user's
+package references and must not delete other users' browser revisions. Browser
+installation remains available; cache cleanup is an explicit operator operation.

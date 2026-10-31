@@ -56,7 +56,8 @@ def clean_env(source: dict) -> dict:
                GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="credential.helper", GIT_CONFIG_VALUE_0="",
                GH_CONFIG_DIR="/home/agent/.config/gh", NPM_CONFIG_CACHE="/cache/npm",
                PIP_CACHE_DIR="/cache/pip", UV_CACHE_DIR="/cache/uv",
-               PLAYWRIGHT_BROWSERS_PATH="/cache/playwright", CI="1")
+               # Cache users have different mount paths; their GC cannot identify each other's browsers.
+               PLAYWRIGHT_BROWSERS_PATH="/cache/playwright", PLAYWRIGHT_SKIP_BROWSER_GC="1", CI="1")
     return env
 
 
