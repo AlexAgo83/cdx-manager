@@ -244,7 +244,7 @@ class RunRegistry:
             _check_capacity(_read_registry(self.path), max_parallel)
 
     def start(self, run_id, *, kind, session, provider, model, cwd, artifacts=None, label=None, max_parallel=None,
-              parent_run_id=None, conversation_id=None, launch=None, reasoning_effort=None):
+              parent_run_id=None, conversation_id=None, launch=None, reasoning_effort=None, project=None, project_source="unknown"):
         with _registry_lock(self.path):
             data = _read_registry(self.path)
             data["runs"] = [run for run in data["runs"] if run.get("run_id") != run_id]
@@ -254,7 +254,8 @@ class RunRegistry:
                 _check_capacity(data, max_parallel)
             record = _base_record(run_id, kind=kind, session=session, provider=provider, model=model, cwd=cwd, artifacts=artifacts)
             record.update(parent_run_id=parent_run_id, conversation_id=conversation_id,
-                          launch=dict(launch or {}), reasoning_effort=reasoning_effort)
+                          launch=dict(launch or {}), reasoning_effort=reasoning_effort,
+                          project=project, project_source=project_source)
             if label:
                 record["label"] = label
             data["runs"].insert(0, record)

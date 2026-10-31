@@ -28,6 +28,7 @@
 | `cdx set <name>\|--sessions all\|a,b\|--provider PROVIDER [--power minimal\|low\|medium\|high\|xhigh] [--permission review\|default\|auto\|full] [--fast on\|off] [--rtk on\|off] [--logics on\|off] [--notify on\|off] [--agent-state on\|off] [--notify-preview on\|off] [--scrub-env on\|off] [--shared-memory on\|off] [--retro on\|off] [--policy use\|ask-first\|never] [--model MODEL] [--fallback-model MODEL[,MODEL...]] [--budget USD] [--extra-args 'ARGS'] [--priority 0..100] [--json]` | Persist launch settings for one or more sessions |
 | `cdx unset <name>\|--sessions all\|a,b\|--provider PROVIDER (--power\|--reasoning-effort\|--permission\|--fast\|--rtk\|--logics\|--notify\|--agent-state\|--notify-preview\|--scrub-env\|--shared-memory\|--retro\|--policy\|--model\|--fallback-model\|--budget\|--extra-args\|--priority\|--all) [--json]` | Remove persisted launch settings and fall back to provider defaults |
 | `cdx history [name] [--limit N] [--summary] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Show recent launch history or aggregate total launch time per assistant, optionally filtered by period |
+| `cdx history backfill-projects [--mapping FILE] [--dry-run \| --apply] [--json]` | Recover source repository attribution from exact recorded run evidence or an operator mapping; defaults to a read-only preview |
 | `cdx history backfill-models [--dry-run \| --apply] [--json]` | Recover missing historical usage models from evidence tied to each run; defaults to a read-only preview |
 | `cdx last [--json]` | Launch the most recent existing session from launch history |
 | `cdx resume <name> [--conversation <id>] [--json]` | Resume the provider-native conversation for a session using the named command form; `--conversation` reopens that exact conversation and refuses with `conversation_not_found` if the profile has no such transcript |
@@ -62,7 +63,7 @@
 | `cdx run-tail <run_id> [--lines N] --json` | Last lines of a run's own output, while it is still running or after it finished |
 | `cdx runs [--limit N] [--since 7d\|today\|DATE] [--running] --json` | List recent runs; `--since` returns every run completed after the cursor and ignores `--limit`; `--running` returns every run still running, uncapped. A run's `kind` is one of the values `cdx schema --json` lists under `enums.kind` |
 | `cdx schema --json` | Publish the enums, mutually-exclusive argument groups, and error codes programmatic callers should validate against |
-| `cdx stats [name] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--by session\|project\|model] [--json]` | Aggregate launch counts, duration, and known token usage by session, for headless and interactive runs alike. `--by project` groups runs by launch folder (labelled by the shortest trailing part that tells folders apart; `project` in JSON holds the full path), `--by model` by the model that served them (same totals, same pricing; default `session`). PROV. lists every provider a row saw, such as `claude+codex`. Without a session filter it also prints what rtk saved over the period (`rtk` in JSON), read with `rtk gain` from `RTK_DB_PATH` when set, else the shared history, and the older per-profile ones. |
+| `cdx stats [name] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--by session\|project\|model] [--json]` | Aggregate launch counts, duration, and known token usage by session, for headless and interactive runs alike. `--by project` groups runs by the recorded canonical source repository (labelled by the shortest distinguishing path suffix; `project` in JSON holds the canonical identity, `session_name` the display label, and `-` explicitly means unknown), `--by model` by the model that served them (same totals, same pricing; default `session`). PROV. lists every provider a row saw, such as `claude+codex`. Without a session filter it also prints what rtk saved over the period (`rtk` in JSON), read with `rtk gain` from `RTK_DB_PATH` when set, else the shared history, and the older per-profile ones. |
 | `cdx status [--json] [--refresh\|--cached] [--timeout SECONDS]` | Show token usage table for all sessions; empty credits, block, and reset columns are omitted; `--cached` skips live provider probes and returns only stored status; Claude rows also report the auth type (`setup-token` or `full-login`) in a TYPE column and as `auth_type` in JSON. |
 | `cdx status --small [--refresh\|--cached] [--timeout SECONDS]` / `cdx status -s [--refresh\|--cached] [--timeout SECONDS]` | Show compact token usage table without provider, blocking quota, credits, and updated columns |
 | `cdx status <name> [--json] [--refresh\|--cached] [--timeout SECONDS]` | Show detailed usage breakdown for one session; `--cached` avoids live provider refreshes |
@@ -459,3 +460,84 @@ It returns accepted values for `permission` (with its aliases and canonical form
 Codex ties network access to its sandbox, so any permission below `full` leaves the run unable to resolve DNS — `gh`, `curl`, and package installs fail inside an otherwise successful run. Show these warnings to whoever reads your output rather than discarding them; a run that succeeds while quietly doing less is the case they exist for.
 
 Claude result records with nonempty `permission_denials` produce a warning with code `permission_denials`, the `provider`, and the structured `permission_denials` list. Exit code 0 still means `ok: true`: a denied tool may have been replaced successfully. Empty or absent denials add no warning. With `--scrub-env on`, Claude forces its default permission mode; allow tools needed by unattended runs explicitly using `--allowedTools` via `--extra-args` (see [operations](operations.md)).
+
+### Source repository attribution and external launchers
+
+CDX captures `project` (an absolute canonical source repository path) and
+`project_source` before starting a provider or applying workspace isolation.
+Normal Git launches use the repository root, including launches from subfolders.
+Linked Git worktrees use their common Git directory's source repository, so
+normal and worktree launches share an identity even after worktree deletion.
+Unrelated repositories with the same basename retain separate full-path keys.
+Without Git evidence or an explicit source, attribution is unknown (`project:
+null`, `project_source: "unknown"` in history; `project: "-"` in project stats).
+Old cwd-only history also stays unknown: stats never inspect today's filesystem
+or profile settings to guess yesterday's project.
+
+Trusted producers such as Jarvis/remote-ops must resolve the source repository
+**before** creating a disposable mission directory, worktree, or temporary clone,
+and pass it to the installed CDX launcher:
+
+```bash
+cdx run work --cwd /temporary/mission --project /repos/remote-ops --prompt 'Fix the issue' --isolate-workspace --json
+cdx work --dir /temporary/mission --project /repos/remote-ops
+```
+
+`--project` is a trusted operator assertion, not provider output, a profile
+setting, or an environment variable. It must be an absolute normalized path,
+with symlinks already resolved by the producer; it may refer to a deleted source.
+A plain temporary clone has no reliable link to a local source repository: the
+producer must supply `--project` rather than expecting inference from a remote
+URL or directory naming convention. Existing launch-directory validation and
+execution `cwd` are unchanged. CDX records the separate identity in history,
+runtime/registry records, and launch/result JSON. Failover attempts and detached
+children retain the launch identity. `--continue-run` inherits the parent's
+recorded identity (including unknown) and rejects a different `--project`.
+Neither continuation nor backfill reattributes an older run from current profile
+configuration.
+
+Consumers should use stats `project` as the stable grouping key and
+`session_name` as the disambiguated display label. In particular, dependent
+remote-ops `scripts/cdx-stats.py` should not reduce `project` to `Path(...).name`:
+that loses disambiguation between unrelated repositories named alike. Token,
+duration, cost, and attempt counts keep the existing accounting rules; the
+existing `totals.sessions` field counts groups for the chosen grouping.
+
+### Recover historical project attribution
+
+```bash
+cdx history backfill-projects --mapping projects.json           # Preview (default)
+cdx history backfill-projects --mapping projects.json --dry-run --json
+cdx history backfill-projects --mapping projects.json --apply
+```
+
+The mapping format is deliberately generic, with exact CDX run IDs, not mission
+IDs, profile names, prefixes, or cwd values:
+
+```json
+{"version":1,"projects":[{"run_id":"exact CDX run id","project":"/repos/remote-ops"}]}
+```
+
+Operators must build this file from attributable external evidence, such as an
+exact launch receipt. CDX never imports Jarvis, scans its private state, guesses
+from disposable path prefixes, or resolves deleted worktrees. The supplied
+Tower observation (84 disposable groups attributed by receipts to remote-ops
+66, cdx-manager 10, logics-manager 6, city-jump 2) is diagnostic evidence, not a
+mapping: actual exact CDX run IDs must be obtained on Tower before repair.
+
+Without a mapping, the command can recover only from trusted project fields
+already preserved for the exact run in CDX history or its run registry. A cwd-only
+report is insufficient evidence. All attempts sharing an exact run ID must agree.
+Invalid schema, contradictory duplicate mapping entries, and unknown exact run
+IDs fail validation. An attribution conflict with known history or recorded run
+evidence blocks the entire batch, preserving the original history and returning
+exit status 1 with the conflict counts.
+
+Results report `recovered` (recoverable history rows), `unchanged`, `unresolved`,
+and `conflicting` counts, plus `applied` and `backup_path`. Counts are history
+attempts, matching existing history accounting. Dry runs write nothing. Apply
+holds the existing history lock, writes an original-byte `.projects-*.bak`
+backup, and atomically replaces history only when the complete batch has no
+conflict. Unrelated fields, usage, and malformed/unrelated history lines survive.
+Repeating the same mapping is a no-op and creates no additional backup. The
+registry and provider transcripts are never rewritten by backfill.

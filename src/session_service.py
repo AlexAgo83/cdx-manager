@@ -777,6 +777,14 @@ def backfill_history_models(store, base_dir, dry_run=True):
     )
 
 
+def backfill_history_projects(store, base_dir, mapping_path=None, dry_run=True):
+    from .history_models import read_run_reports
+    from .project_identity import load_mapping
+
+    mapping = load_mapping(mapping_path) if mapping_path else {}
+    return store["backfill_launch_projects"](mapping, read_run_reports(base_dir), dry_run=dry_run)
+
+
 def refresh_interactive_usage_models(store, dry_run=True):
     """Replace a placeholder model with the exact transcript's real model."""
     from .interactive_usage import MATCH_CONVERSATION_ID, extract_interactive_usage
@@ -813,6 +821,8 @@ def start_session_runtime(store, name, payload=None):
         "command": payload.get("command"),
         "label": payload.get("label"),
         "cwd": payload.get("cwd"),
+        "project": payload.get("project"),
+        "project_source": payload.get("project_source", "unknown"),
         "transcriptPath": payload.get("transcript_path") or payload.get("transcriptPath"),
     }
 
@@ -1010,6 +1020,7 @@ def create_session_service(options=None):
         "backfill_interactive_usage": partial(backfill_interactive_usage, store),
         "refresh_interactive_usage_models": partial(refresh_interactive_usage_models, store),
         "backfill_history_models": partial(backfill_history_models, store, base_dir),
+        "backfill_history_projects": partial(backfill_history_projects, store, base_dir),
         "update_auth_state": partial(update_auth_state, store),
         "get_status_row": partial(get_status_row, store, base_dir, env, fetch_codex_status),
         "get_status_rows": partial(get_status_rows, store, base_dir, env, fetch_codex_status),

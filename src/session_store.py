@@ -395,6 +395,67 @@ def create_session_store(base_dir):
                 result["backfilled"] = recovered
             return result
 
+    def backfill_launch_projects(mapping, reports, dry_run=True):
+        """Plan and atomically apply evidence-only attribution under the history lock."""
+        import uuid
+
+        from .project_identity import recorded_project
+
+        result = {"dry_run": dry_run, "recovered": 0, "unchanged": 0, "unresolved": 0,
+                  "conflicting": 0, "applied": 0, "backup_path": None}
+        with _file_lock(lock_file):
+            try:
+                with open(launch_history_file, "rb") as handle:
+                    original = handle.read()
+            except FileNotFoundError:
+                original = b""
+            lines = original.splitlines(keepends=True)
+            entries = []
+            for line in lines:
+                try:
+                    entry = json.loads(line)
+                except (ValueError, UnicodeError):
+                    entry = None
+                entries.append(entry if isinstance(entry, dict) else None)
+            run_ids = {entry.get("run_id") for entry in entries if entry and isinstance(entry.get("run_id"), str)}
+            missing = set(mapping) - run_ids
+            if missing:
+                raise CdxError(f"Project mapping references unknown exact run ids: {', '.join(sorted(missing))}")
+            evidence = {}
+            for record in [*reports, *[entry for entry in entries if entry]]:
+                run_id = record.get("run_id")
+                project = recorded_project(record)
+                if isinstance(run_id, str) and project:
+                    evidence.setdefault(run_id, set()).add(project)
+            for run_id, project in mapping.items():
+                evidence.setdefault(run_id, set()).add(project)
+            rewritten = []
+            for line, entry in zip(lines, entries):
+                if entry is not None:
+                    run_id = entry.get("run_id")
+                    candidates = evidence.get(run_id, set()) if isinstance(run_id, str) else set()
+                    known = recorded_project(entry)
+                    if len(candidates) > 1:
+                        result["conflicting"] += 1
+                    elif known:
+                        result["unchanged"] += 1
+                    elif candidates:
+                        result["recovered"] += 1
+                        entry.update(project=next(iter(candidates)),
+                                     project_source="operator_mapping" if run_id in mapping else "run_report")
+                        line = (json.dumps(entry, separators=(",", ":")) + "\n").encode("utf-8")
+                    else:
+                        result["unresolved"] += 1
+                rewritten.append(line)
+            # A conflicting batch is entirely read-only, including otherwise valid rows.
+            if not dry_run and result["recovered"] and not result["conflicting"]:
+                backup = f"{launch_history_file}.projects-{uuid.uuid4().hex}.bak"
+                atomic_write(backup, original)
+                atomic_write(launch_history_file, b"".join(rewritten))
+                _fsync_directory(state_dir)
+                result.update(backup_path=backup, applied=result["recovered"])
+            return result
+
     def list_launch_history(session_name=None, limit=20):
         with _file_lock(lock_file):
             try:
@@ -433,5 +494,6 @@ def create_session_store(base_dir):
         "drop_unvouched_usage": drop_unvouched_usage,
         "backfill_launch_usage": backfill_launch_usage,
         "backfill_launch_models": backfill_launch_models,
+        "backfill_launch_projects": backfill_launch_projects,
         "list_launch_history": list_launch_history,
     }

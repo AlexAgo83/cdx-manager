@@ -255,6 +255,44 @@ class LaunchCommandTests(CliTestBase):
         launch_call = [call for call in harness.calls if call["kind"] == "spawn" and call["command"] == "script"][-1]
         self.assertTrue(_script_launch_args(launch_call)[-1].startswith("Task: Fix CI"))
 
+    def test_terminal_launches_from_source_and_worktree_share_project(self):
+        temp_dir = self.make_temp_dir()
+        source = os.path.join(temp_dir, "source")
+        tree = os.path.join(temp_dir, "mission")
+        subprocess.run(["git", "init", source], check=True, capture_output=True)
+        subprocess.run(["git", "-C", source, "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+                        "commit", "--allow-empty", "-m", "Initial"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", source, "worktree", "add", "-b", "mission", tree], check=True, capture_output=True)
+        harness = _AuthHarness()
+        service = create_session_service({"base_dir": os.path.join(temp_dir, "cdx")})
+        ctx = {**self.make_io(), "service": service, "env": {"CDX_HOME": temp_dir}, "cwd": temp_dir,
+               "spawn": harness.spawn, "spawn_sync": harness.spawn_sync}
+        self.assertEqual(main(["add", "main"], ctx), 0)
+        for cwd in (source, tree):
+            self.assertEqual(main(["main", "--dir", cwd, "--json"], {**ctx, **self.make_io()}), 0)
+            entry = service["get_launch_history"]("main")[0]
+            self.assertEqual(entry["cwd"], os.path.realpath(cwd))
+            self.assertEqual(entry["project"], os.path.realpath(source))
+            self.assertEqual(entry["project_source"], "git")
+
+    def test_terminal_launch_records_project_separately_from_cwd(self):
+        temp_dir = self.make_temp_dir()
+        source = os.path.join(temp_dir, "source", "app")
+        harness = _AuthHarness()
+        service = create_session_service({"base_dir": temp_dir})
+        ctx = {**self.make_io(), "service": service, "env": {"CDX_HOME": temp_dir}, "cwd": temp_dir,
+               "spawn": harness.spawn, "spawn_sync": harness.spawn_sync}
+        self.assertEqual(main(["add", "main"], ctx), 0)
+        for args in (["main"], ["resume", "main"]):
+            output = self.make_io()
+            self.assertEqual(main([*args, "--project", source, "--json"], {**ctx, **output}), 0)
+            entry = service["get_launch_history"]("main")[0]
+            self.assertEqual(entry["cwd"], temp_dir)
+            self.assertEqual(entry["project"], source)
+            self.assertEqual(entry["project_source"], "operator")
+            self.assertIsNotNone(entry["run_id"])
+            self.assertEqual(json.loads(output["stdout"].getvalue())["project"], source)
+
     def test_launch_passes_prompt_as_initial_message(self):
         _temp_dir, harness, launch = self._launch_with("--prompt", "fix the review threads")
         self.assertEqual(launch(), 0)

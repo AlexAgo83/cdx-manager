@@ -36,7 +36,7 @@ from ..provider_runtime import (
 from ..run_command import PROMPT_STDIN, read_run_prompt
 from ..run_usage import estimate_cost, format_cache_ratio
 
-LAUNCH_USAGE = "Usage: cdx <name> [--dir PATH] [--prompt TEXT|--prompt-file PATH|--task TEXT [--end-state TEXT]] [--resume] [--on-busy fail|ask] [--json]"
+LAUNCH_USAGE = "Usage: cdx <name> [--dir PATH] [--project PATH] [--prompt TEXT|--prompt-file PATH|--task TEXT [--end-state TEXT]] [--resume] [--on-busy fail|ask] [--json]"
 
 #: The first message of a session started with --task. The end state is what the
 #: user's go-ahead covers: a bare "show me first" made sessions stop after a commit
@@ -206,6 +206,7 @@ def handle_can_resume(rest, ctx):
     return 0
 
 def handle_resume(rest, ctx):
+    project_path, rest = _pop_value_flag(rest, "--project", RESUME_USAGE)
     conversation_id, rest = _pop_value_flag(rest, "--conversation", RESUME_USAGE)
     directory, rest, prompt, on_busy = _parse_launch_args(rest)
     if prompt["prompt"] is not None or prompt["prompt_file"] is not None:
@@ -214,7 +215,7 @@ def handle_resume(rest, ctx):
     if len(args) != 1:
         raise CdxError(RESUME_USAGE)
     return handle_launch(args[0], ctx, resume=True, force_json=json_flag, directory=directory,
-                         conversation_id=conversation_id, on_busy=on_busy)
+                         conversation_id=conversation_id, on_busy=on_busy, project_path=project_path)
 
 
 def _notification_provisioning_enabled(session, ctx, json_flag):
@@ -258,7 +259,7 @@ def _link_shared_memory(session, ctx, cwd, json_flag):
 
 
 def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=None, directory=None,
-                  conversation_id=None, on_busy="ask"):
+                  conversation_id=None, on_busy="ask", project_path=None):
     json_flag = "--json" in ctx.get("raw_args", ctx["options"].get("raw_args", []))
     if force_json is not None:
         json_flag = force_json
@@ -278,7 +279,10 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         raise CdxError(
             f"Provider {session['provider']} does not support native resume through cdx."
         )
+    from ..project_identity import resolve_project
+
     cwd = _launch_directory(session, ctx, directory, json_flag)
+    project = resolve_project(cwd, project_path)
     session = ctx["service"]["launch_session"](command, resume=resume)
     if conversation_id:
         session = with_requested_conversation(session, conversation_id)
@@ -330,7 +334,7 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
     def runtime_lifecycle(event, info):
         nonlocal runtime_run_id
         if event == "started":
-            runtime = ctx["service"]["start_session_runtime"](session["name"], {**info, "cwd": cwd})
+            runtime = ctx["service"]["start_session_runtime"](session["name"], {**info, "cwd": cwd, **project})
             runtime_run_id = runtime.get("runId")
         elif event == "finished" and runtime_run_id:
             ctx["service"]["finish_session_runtime"](
@@ -382,6 +386,8 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
                 "error": str(error),
                 "exit_code": error.exit_code,
                 **run_info,
+                **project,
+                "run_id": runtime_run_id,
             })
         raise
     success_run_info = _attach_interactive_usage(
@@ -395,13 +401,15 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         "cwd": cwd,
         "exit_code": 0,
         **success_run_info,
+        **project,
+        "run_id": runtime_run_id,
     })
     if not json_flag:
         ctx["out"](f"{_goodbye_line(session, success_run_info, ctx['use_color'])}\n")
     if retro.start(session, cwd, success_run_info.get("provider_transcript_path"), env=ctx.get("env")) and not json_flag:
         ctx["out"](f"{_dim('Session retro started; read it later with `cdx retro`', ctx['use_color'])}\n")
     if json_flag:
-        extra = {"session": ctx["service"]["get_session"](session["name"]), "cwd": cwd}
+        extra = {"session": ctx["service"]["get_session"](session["name"]), "cwd": cwd, **project, "run_id": runtime_run_id}
         if capability:
             extra["resume"] = capability
         _write_json(ctx, _json_success("resume" if resume else "launch", message, warnings=warnings, **extra))
