@@ -62,7 +62,7 @@ def clean_env(source: dict) -> dict:
 
 
 def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: bool = True,
-                    source: dict | None = None, auth_home: str = "", provider: str = "") -> tuple[list[str], dict]:
+                    source: dict | None = None, auth_home: str = "", provider: str = "", observation_home: str = "") -> tuple[list[str], dict]:
     source = os.environ if source is None else source
     binary = shutil.which(command[0], path=source.get("PATH"))
     bwrap = shutil.which("bwrap", path=source.get("PATH"))
@@ -127,6 +127,9 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
     env = clean_env(source)
     if provider == "codex":
         env["CODEX_HOME"] = "/home/agent/.codex"
+        if observation_home:
+            # Fresh, volatile attempt storage; no host profile is exposed.
+            args += ["--bind", observation_home, "/home/agent/.codex/sessions"]
         args += ["--ro-bind", str(Path(auth_home) / "auth.json"), "/home/agent/.codex/auth.json"]
     elif provider == "claude":
         token = source.get("CLAUDE_CODE_OAUTH_TOKEN")

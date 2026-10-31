@@ -5,7 +5,6 @@ Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 
 import importlib.util
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -58,7 +57,7 @@ from ..run_failover import (
     looks_model_at_capacity,
 )
 from ..run_registry import RunRegistry, build_code_review_report, final_message
-from ..run_usage import empty_usage, estimate_cost, extract_run_conversation_id, extract_run_observation, token_prices
+from ..run_usage import cost_fields, empty_usage, estimate_cost, extract_run_conversation_id, extract_run_observation, token_prices
 from ..session_ranking import FACTOR_DESCRIPTIONS, rank_sessions, selection_policy
 from ..status_view import _now_timestamp, _priority_reset_timestamp
 
@@ -547,9 +546,19 @@ def _env_max_runs(ctx):
 
 
 def _observe_headless_usage(session, run_info, baseline=None):
-    usage, model = extract_run_observation(session.get("provider"), run_info.get("stdout_path"), session.get("authHome"))
-    observation = {"usage": usage, "usage_model": model}
-    if baseline is not None:
+    isolated = (session.get("launch") or {}).get("isolate_workspace")
+    evidence = run_info.get("usage_evidence")
+    observed_models = []
+    usage, model = extract_run_observation(session.get("provider"), run_info.get("stdout_path"),
+                                          None if isolated else session.get("authHome"), evidence=evidence, models_out=observed_models)
+    raw_measured = usage.get("total_tokens") is not None
+    observation = {"usage": usage, "usage_model": model, "usage_models": observed_models}
+    if evidence is not None:
+        observation["usage_evidence"] = evidence
+    if baseline is not None and isolated:
+        observation.update(usage=empty_usage(), usage_model=None, usage_attribution="continuation_usage_unavailable",
+                           measurement_unavailable=raw_measured)
+    elif baseline is not None:
         cumulative, path, match, transcript_model = extract_interactive_usage(
             session["provider"], session.get("authHome"), conversation_id=(session.get("conversation") or {}).get("id"))
         before, before_path, _before_match, _before_model = baseline
@@ -562,13 +571,18 @@ def _observe_headless_usage(session, run_info, baseline=None):
         # establish this run's share; stdout cannot replace a missing boundary.
         observation.update(usage=delta if delta is not None else empty_usage(), usage_cumulative=cumulative,
                            usage_attribution="launch_boundary" if delta is not None else "continuation_usage_unavailable",
+                           measurement_unavailable=delta is None and bool(raw_measured or (cumulative and cumulative.get("total_tokens") is not None)),
                            provider_transcript_path=path, provider_transcript_match=match,
-                           usage_model=model or transcript_model)
+                           usage_model=model if session.get("provider") == "codex" else model or transcript_model)
+    observation.update(cost_fields(observation["usage"], observation["usage_model"],
+                                   models=observed_models, attribution=observation.get("usage_attribution")))
     return observation
 
 
 def _budget_observation(session, paths, baseline):
     observation = _observe_headless_usage(session, paths, baseline if session["provider"] == "codex" else None)
+    if (session.get("launch") or {}).get("isolate_workspace"):
+        return observation
     identifier = (extract_run_conversation_id(session["provider"], paths.get("stdout_path"))
                   or ((session.get("conversation") or {}).get("id")
                       if session["provider"] == "claude" or session.get("continue_run") else None))
@@ -583,8 +597,14 @@ def _budget_observation(session, paths, baseline):
         comparable = (before and path == before_path
                       and all((usage.get(key) is None) == (before.get(key) is None) for key in MEASURED_KEYS))
         usage = usage_delta(usage, before, provider=session["provider"]) if comparable else None
+    if usage is not None and session["provider"] == "codex":
+        from ..run_usage import _codex_run_models
+        models = _codex_run_models([{"type": "thread.started", "thread_id": identifier}], session.get("authHome"))
+        model = next(iter(models)) if len(models) == 1 else None
     if usage is not None:
-        return {**observation, "usage": usage, "usage_model": model, "provider_transcript_path": path,
+        observed_models = sorted(models) if session["provider"] == "codex" else [model] if model else []
+        return {**observation, "usage": usage, "usage_model": model, "usage_models": observed_models,
+                **cost_fields(usage, model, models=observed_models), "provider_transcript_path": path,
                 "provider_transcript_match": match}
     return observation
 
@@ -815,23 +835,35 @@ def handle_run(rest, ctx):
         failover_error_code = None
         recovery_events = []
         attempt = 0
+        attempt_observations = []
         spent_usd = 0.0
         models = capacity_models(run_session)
         model_index = 0
         capacity_retries = 0
         while True:
             attempt += 1
-            baseline = extract_interactive_usage(
-                run_session["provider"], run_session.get("authHome"),
-                conversation_id=(run_session.get("conversation") or {}).get("id"),
-            ) if parsed.get("continue_run") and (run_session["provider"] == "codex" or parsed.get("budget")) else None
+            registry.record_attempt(run_id, _headless_artifact_paths(run_session, run_id=run_id, attempt=attempt))
+            baseline = None
+            if parsed.get("continue_run") and (run_session["provider"] == "codex" or parsed.get("budget")):
+                if (run_session.get("launch") or {}).get("isolate_workspace"):
+                    baseline = (None, None, None, None)
+                else:
+                    baseline = extract_interactive_usage(
+                        run_session["provider"], run_session.get("authHome"),
+                        conversation_id=(run_session.get("conversation") or {}).get("id"))
             attempt_cost = None
             budget_observation = None
+            budget_unverifiable = False
 
             def check_budget(paths, session=run_session, before=baseline, already_spent=spent_usd):
-                nonlocal attempt_cost, budget_observation
+                nonlocal attempt_cost, budget_observation, budget_unverifiable
                 observation = _budget_observation(session, paths, before)
                 cost = estimate_cost(observation["usage"], observation["usage_model"], budget_prices)
+                measured = observation["usage"].get("total_tokens") is not None or observation.get("measurement_unavailable", False)
+                if cost is None and measured:
+                    budget_unverifiable = True
+                    budget_observation = observation
+                    return True
                 if cost is not None:
                     if attempt_cost is None or cost >= attempt_cost:
                         attempt_cost = cost
@@ -846,6 +878,7 @@ def handle_run(rest, ctx):
                 timeout_seconds=parsed.get("timeout_seconds"),
                 spawn=ctx.get("spawn_headless") or ctx.get("spawn"),
                 run_id=run_id,
+                attempt=attempt,
                 **({"budget_check": check_budget} if parsed.get("budget") is not None else {}),
             )
             observation = _observe_headless_usage(run_session, run_info, baseline if run_session["provider"] == "codex" else None)
@@ -861,8 +894,20 @@ def handle_run(rest, ctx):
                         "recovery_events": recovery_events}
             cost = estimate_cost(observation["usage"], observation["usage_model"], budget_prices)
             spent_usd += max(attempt_cost or 0.0, cost or 0.0)
-            if parsed.get("budget") is not None and (run_info.get("budget_exceeded") or spent_usd >= parsed["budget"]):
+            if parsed.get("budget") is not None and (budget_unverifiable or (
+                    cost is None and (observation["usage"].get("total_tokens") is not None or observation.get("measurement_unavailable")))):
+                run_info.update(budget_unverifiable=True, budget_exceeded=False, returncode=125,
+                                cost_usd=None, cost_status="unknown", budget_status="unverifiable")
+            elif parsed.get("budget") is not None and (run_info.get("budget_exceeded") or spent_usd >= parsed["budget"]):
                 run_info.update(budget_exceeded=True, returncode=125, cost_usd=spent_usd)
+            attempt_observations.append({
+                "attempt": attempt, "attempt_id": run_info.get("attempt_id"),
+                "session": run_session["name"], "provider": run_session["provider"],
+                **{key: run_info.get(key) for key in ("usage", "usage_model", "usage_models", "usage_evidence")},
+                **cost_fields(observation["usage"], observation["usage_model"], budget_prices,
+                              models=observation.get("usage_models", []), attribution=observation.get("usage_attribution")),
+            })
+            run_info["attempts"] = list(attempt_observations)
             ctx["service"]["record_launch_history"](run_session["name"], {
                 "status": "success" if run_info.get("returncode") == 0 else "failed",
                 "action": "run",
@@ -873,7 +918,7 @@ def handle_run(rest, ctx):
                 **run_info,
                 **project,
             })
-            if run_info.get("budget_exceeded") or parsed.get("continue_run"):
+            if run_info.get("budget_exceeded") or run_info.get("budget_unverifiable") or parsed.get("continue_run"):
                 break
             if looks_model_at_capacity(run_session.get("provider"), run_info):
                 event = {"reason": "model_at_capacity", "attempt": attempt,
@@ -998,7 +1043,10 @@ def handle_run(rest, ctx):
             )
             _write_json(ctx, final_payload)
             return 0
-        if run_info.get("budget_exceeded"):
+        if run_info.get("budget_unverifiable"):
+            failover_error_code = "budget_unverifiable"
+            message = "Measured usage cannot be priced; USD budget enforcement is unavailable. Check cost_reason and observed model evidence."
+        elif run_info.get("budget_exceeded"):
             failover_error_code = "budget_exceeded"
             message = "Run exceeded its estimated USD budget."
         elif failover_error_code == "capacity_recovery_exhausted":
@@ -1019,7 +1067,7 @@ def handle_run(rest, ctx):
             run_session,
             run_info=run_info,
             error=error,
-            error_source="cdx" if run_info.get("budget_exceeded") else "provider",
+            error_source="cdx" if run_info.get("budget_exceeded") or run_info.get("budget_unverifiable") else "provider",
             # Running out of accounts is a different outcome from the task
             # failing, and a caller has to be able to branch on which happened.
             error_code=failover_error_code or (
@@ -1085,14 +1133,10 @@ def handle_run(rest, ctx):
         return error.exit_code
 
 def _record_capacity_recovery(ctx, registry, run_id, event, run_info, events):
-    # Subsequent attempts reuse the run's paths; retain the failed output first.
-    artifacts = {}
-    for key in ("stdout_path", "stderr_path", "transcript_path"):
-        path = run_info.get(key)
-        if path and os.path.isfile(path):
-            archived = f"{path}.attempt-{event['attempt']}"
-            shutil.copyfile(path, archived)
-            artifacts[key] = archived
+    # Attempt paths are immutable; recovery events reference the same evidence
+    # as the history row instead of copying output that a retry will overwrite.
+    artifacts = {key: run_info[key] for key in ("stdout_path", "stderr_path", "transcript_path")
+                 if run_info.get(key) and os.path.isfile(run_info[key])}
     event["artifacts"] = artifacts
     events.append(event)
     registry.record_recovery(run_id, event)

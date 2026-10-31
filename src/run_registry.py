@@ -281,6 +281,18 @@ class RunRegistry:
                     return run
         return None
 
+    def record_attempt(self, run_id, artifacts):
+        """Keep live tail paths on this supervisor's current attempt."""
+        with _registry_lock(self.path):
+            data = _read_registry(self.path)
+            for run in data["runs"]:
+                if run.get("run_id") == run_id and run.get("status") == "running":
+                    run["attempt_id"] = artifacts.get("attempt_id")
+                    run["artifacts"] = {key: artifacts.get(key) for key in ("transcript_path", "stdout_path", "stderr_path")}
+                    _write_registry(self.path, data)
+                    return run
+        return None
+
     def record_background(self, run_id, *, path, provider_session_id=None, provider_agent_id=None):
         with _registry_lock(self.path):
             data = _read_registry(self.path)
@@ -377,6 +389,8 @@ class RunRegistry:
                 # used to store whichever shape the producing reader emitted.
                 run["usage"] = coerce_usage(final_payload.get("usage"), provider=run.get("provider"))
                 run["usage_model"] = final_payload.get("usage_model")
+                for key in ("usage_evidence", "usage_models", "attempt_id", "attempts", "cost_usd", "cost_status", "cost_reason", "budget_status"):
+                    run[key] = final_payload.get(key)
                 run["conversation_id"] = final_payload.get("conversation_id") or run.get("conversation_id")
                 run["parent_run_id"] = final_payload.get("parent_run_id") or run.get("parent_run_id")
                 if "reasoning_effort" in final_payload:

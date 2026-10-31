@@ -1068,13 +1068,15 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
     )
 
 
-def _headless_artifact_paths(session, run_id=None):
+def _headless_artifact_paths(session, run_id=None, attempt=1):
     run_id = run_id or uuid.uuid4().hex
     log_dir = _get_launch_transcript_dir(session)
     os.makedirs(log_dir, exist_ok=True)
-    prefix = os.path.join(log_dir, f"cdx-run-{run_id}")
+    attempt_id = f"{run_id}:{attempt}"
+    prefix = os.path.join(log_dir, f"cdx-run-{run_id}-attempt-{attempt}")
     return {
         "run_id": run_id,
+        "attempt_id": attempt_id,
         "transcript_path": os.path.abspath(f"{prefix}.log"),
         "stdout_path": os.path.abspath(f"{prefix}.stdout.log"),
         "stderr_path": os.path.abspath(f"{prefix}.stderr.log"),
@@ -1205,7 +1207,23 @@ def _read_permission_denials(stdout_path):
 
 
 def _run_headless_provider_command(session, cwd=None, env_override=None, initial_prompt=None,
-                                   timeout_seconds=None, spawn=None, run_id=None, budget_check=None):
+                                   timeout_seconds=None, spawn=None, run_id=None, budget_check=None, attempt=1):
+    import tempfile
+
+    isolated_codex = session.get("provider") == PROVIDER_CODEX and (session.get("launch") or {}).get("isolate_workspace")
+    if isolated_codex:
+        # Volatile storage only: raw rollouts must not survive closeout, including
+        # cancellation/start failures. Only this attempt's sessions are mounted.
+        with tempfile.TemporaryDirectory(prefix="cdx-observation-", dir="/dev/shm" if sys.platform.startswith("linux") else None) as directory:
+            os.mkdir(os.path.join(directory, "sessions"), mode=0o700)
+            return _run_headless_provider_attempt(session, cwd, env_override, initial_prompt,
+                                                  timeout_seconds, spawn, run_id, budget_check, directory, attempt)
+    return _run_headless_provider_attempt(session, cwd, env_override, initial_prompt,
+                                          timeout_seconds, spawn, run_id, budget_check, attempt=attempt)
+
+
+def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial_prompt=None,
+                                   timeout_seconds=None, spawn=None, run_id=None, budget_check=None, observation_home=None, attempt=1):
     spawn = spawn or subprocess.Popen
     spec = _build_headless_launch_spec(
         session,
@@ -1249,13 +1267,22 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
                 network=launch.get("network_access", False),
                 writable=launch.get("permission") != "review",
                 source=spec["options"]["env"], auth_home=_get_auth_home(session),
-                provider=session.get("provider"))
+                provider=session.get("provider"),
+                **({"observation_home": os.path.join(observation_home, "sessions")} if observation_home else {}))
         except (OSError, RuntimeError) as error:
             raise CdxError(str(error)) from error
         spec.update(command=argv[0], args=argv[1:])
         spec["options"]["env"] = child_env
-    paths = _headless_artifact_paths(session, run_id=run_id)
+    paths = _headless_artifact_paths(session, run_id=run_id, attempt=attempt)
     start_time = datetime.now(timezone.utc)
+
+    def snapshot():
+        if observation_home:
+            from .run_observation import codex_attempt_evidence
+            paths["usage_evidence"] = codex_attempt_evidence(
+                observation_home, paths["stdout_path"], start_time.isoformat())
+            paths["usage_evidence"].update(run_id=paths["run_id"], attempt_id=paths.get("attempt_id"))
+
     command = spec["command"]
     if spawn is subprocess.Popen:
         command = _resolve_command(command, spec.get("options", {}).get("env"))
@@ -1295,6 +1322,7 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
             if budget_check is not None:
                 deadline = time.monotonic() + timeout_seconds if timeout_seconds is not None else None
                 while True:
+                    snapshot()
                     if budget_check(paths):
                         budget_exceeded = True
                         _terminate_child_tree(child)
@@ -1304,6 +1332,7 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
                         raise subprocess.TimeoutExpired(command, timeout_seconds)
                     try:
                         child.wait(timeout=min(0.25, remaining) if remaining is not None else 0.25)
+                        snapshot()
                         budget_exceeded = budget_check(paths)
                         break
                     except subprocess.TimeoutExpired:
@@ -1325,6 +1354,7 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
             cancelled = True
             _terminate_child_tree(child)
         finally:
+            snapshot()
             _restore_signal_handlers(previous_handlers)
 
     if cancelled:

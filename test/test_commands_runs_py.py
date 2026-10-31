@@ -86,6 +86,79 @@ class RunsCommandTests(CliTestBase):
         self.assertEqual({_stats_group(row, "project") for row in history}, {str(source.resolve())})
         self.assertEqual({row["cwd"] for row in history}, {str(source), str(tree)})
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Isolated observation is Linux-only")
+    def test_isolated_model_evidence_survives_closeout_without_conversation(self):
+        self._check_isolated_observation()
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Isolated observation is Linux-only")
+    def test_isolated_budget_uses_live_native_counters(self):
+        self._check_isolated_observation(budget="0.000001")
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Isolated observation is Linux-only")
+    def test_isolated_budget_fails_for_unpriceable_native_counters(self):
+        self._check_isolated_observation(budget="1", model="unknown-price")
+
+    def _check_isolated_observation(self, budget=None, model="gpt-6.1-sol"):
+        from datetime import datetime, timezone
+
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": directory})
+        self._authenticated_codex_session(service)
+        mounted = []
+        counters = {"input_tokens": 100, "cached_input_tokens": 60, "output_tokens": 20}
+
+        def confine(command, checkout, **kwargs):
+            mounted.append(pathlib.Path(kwargs["observation_home"]))
+            self.assertNotEqual(str(mounted[-1]), service["get_session"]("work")["authHome"])
+            return command, kwargs["source"]
+
+        def spawn(_argv, **kwargs):
+            timestamp = datetime.now(timezone.utc).isoformat()
+            records = [{"type": "session_meta", "payload": {"id": "22222222-2222-4222-8222-222222222222"}},
+                       {"type": "turn_context", "timestamp": timestamp,
+                        "payload": {"model": model, "turn_id": "turn-1", "prompt": "PRIVATE"}},
+                       {"type": "event_msg", "payload": {"type": "token_count", "info": {"total_token_usage": counters}}},
+                       {"type": "response_item", "payload": {"text": "PRIVATE"}}]
+            (mounted[-1] / "rollout-test-22222222-2222-4222-8222-222222222222.jsonl").write_text("\n".join(map(json.dumps, records)))
+            kwargs["stdout"].write(json.dumps({"type": "thread.started", "thread_id": "22222222-2222-4222-8222-222222222222"}) + "\n")
+            if budget is None:
+                kwargs["stdout"].write(json.dumps({"type": "turn.completed", "usage": counters}) + "\n")
+            kwargs["stdout"].flush()
+            return _HeadlessChild()
+
+        output = self.make_io()
+        with mock.patch("src.workspace_sandbox.sandbox_command", side_effect=confine):
+            self.assertEqual(main(["run", "work", "--cwd", directory, "--prompt", "Work", "--json", "--isolate-workspace",
+                                   *(["--budget", budget] if budget else [])],
+                                  self.make_run_ctx(output, service, spawn_headless=spawn)), 125 if budget else 0)
+        payload = json.loads(output["stdout"].getvalue())
+        self.assertEqual(payload["usage_model"], model)
+        if model == "unknown-price":
+            self.assertIsNone(payload["cost_usd"])
+            self.assertEqual(payload["error"]["code"], "budget_unverifiable")
+        else:
+            self.assertGreater(payload["cost_usd"], 0)
+            if budget:
+                self.assertEqual(payload["error"]["code"], "budget_exceeded")
+        self.assertFalse(mounted[0].exists())
+        self.assertNotIn("PRIVATE", json.dumps(payload))
+        stored = RunRegistry(directory).get(payload["run_id"])
+        history = service["get_launch_history"]("work", limit=1)[0]
+        for key in ("usage", "usage_model", "usage_evidence", "cost_usd", "cost_status", "cost_reason"):
+            self.assertEqual(stored[key], payload[key])
+            self.assertEqual(history[key], payload[key])
+        output = self.make_io()
+        main(["history", "--json"], self.make_run_ctx(output, service))
+        self.assertEqual(json.loads(output["stdout"].getvalue())["history"][0]["cost_usd"], payload["cost_usd"])
+        output = self.make_io()
+        main(["stats", "--json"], self.make_run_ctx(output, service))
+        stats = json.loads(output["stdout"].getvalue())["stats"][0]
+        if model == "unknown-price":
+            self.assertEqual(stats["priced_runs"], 0)
+            self.assertEqual(stats["unpriced_reasons"], {"model_price_unknown": 1})
+        else:
+            self.assertEqual(stats["cost_usd"], payload["cost_usd"])
+
     def test_history_cost_uses_stats_prices_and_preserves_unknowns(self):
         from src.run_usage import estimate_cost, normalize_usage
 
@@ -154,8 +227,42 @@ class RunsCommandTests(CliTestBase):
                               self.make_run_ctx(output, service, spawn_headless=spawn)), 125)
         payload = json.loads(output["stdout"].getvalue())
         self.assertEqual(len(calls), 2)
+        self.assertEqual(len(payload["attempts"]), 2)
+        self.assertAlmostEqual(sum(row["cost_usd"] for row in payload["attempts"]), cost * 2)
         self.assertAlmostEqual(payload["error"]["spent_usd"], cost * 2)
         sleep.assert_called_once_with(1)
+        history = service["get_launch_history"]("work", limit=0)
+        self.assertEqual(len({row["stdout_path"] for row in history}), 2)
+        self.assertEqual(len({row["attempt_id"] for row in history}), 2)
+        self.assertTrue(all(pathlib.Path(row["stdout_path"]).exists() for row in history))
+
+    def test_budget_does_not_mix_two_different_stdout_measurements(self):
+        from src.commands.runs import _budget_observation
+        from src.run_usage import empty_usage
+
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": directory})
+        self._authenticated_codex_session(service)
+        observations = []
+
+        def observe(*args):
+            observations.append(True)
+            if len(observations) == 1:
+                return {"usage": empty_usage(), "usage_model": None}
+            return _budget_observation(*args)
+
+        def spawn(_argv, **kwargs):
+            kwargs["stdout"].write(json.dumps({"model": "gpt-6.1-sol", "usage": {"input_tokens": 1000000}}) + "\n")
+            kwargs["stdout"].flush()
+            return _HeadlessChild()
+
+        output = self.make_io()
+        with mock.patch("src.commands.runs._budget_observation", side_effect=observe):
+            self.assertEqual(main(["run", "work", "--cwd", directory, "--prompt", "Work", "--budget", "0.01", "--json"],
+                                  self.make_run_ctx(output, service, spawn_headless=spawn)), 125)
+        payload = json.loads(output["stdout"].getvalue())
+        self.assertEqual(payload["error"]["code"], "budget_exceeded")
+        self.assertEqual(len(observations), 2)
 
     def test_run_budget_unknown_price_does_not_claim_zero_cost(self):
         directory = self.make_temp_dir()
@@ -169,8 +276,45 @@ class RunsCommandTests(CliTestBase):
 
         output = self.make_io()
         self.assertEqual(main(["run", "work", "--cwd", directory, "--prompt", "Work", "--budget", "1", "--json"],
-                              self.make_run_ctx(output, service, spawn_headless=spawn)), 0)
-        self.assertIsNone(json.loads(output["stdout"].getvalue())["cost_usd"])
+                              self.make_run_ctx(output, service, spawn_headless=spawn)), 125)
+        payload = json.loads(output["stdout"].getvalue())
+        self.assertIsNone(payload["cost_usd"])
+        self.assertEqual(payload["error"]["code"], "budget_unverifiable")
+        self.assertEqual(payload["budget_status"], "unverifiable")
+        self.assertEqual(payload["cost_reason"], "model_price_unknown")
+        stored = RunRegistry(directory).get(payload["run_id"])
+        self.assertEqual(stored["cost_reason"], payload["cost_reason"])
+        self.assertEqual(stored["final_payload"], payload)
+
+    def test_budget_distinguishes_no_measurement_missing_model_and_mixed_models(self):
+        for models, measured, expected, reason in (([], False, 0, "usage_not_measured"),
+                                                   ([], True, 125, "model_not_observed"),
+                                                   (["gpt-6.1-sol", "gpt-6-sol"], True, 125, "mixed_models_without_counters")):
+            with self.subTest(models=models, measured=measured):
+                directory = self.make_temp_dir()
+                service = create_session_service({"base_dir": directory})
+                self._authenticated_codex_session(service)
+
+                def spawn(_argv, measured=measured, models=models, **kwargs):
+                    if measured:
+                        for model in models or [None]:
+                            record = {"type": "turn.completed", "usage": {"input_tokens": 10}}
+                            if model:
+                                record["model"] = model
+                            kwargs["stdout"].write(json.dumps(record) + "\n")
+                        kwargs["stdout"].flush()
+                    return _HeadlessChild()
+
+                output = self.make_io()
+                self.assertEqual(main(["run", "work", "--cwd", directory, "--prompt", "Work", "--budget", "1", "--json"],
+                                      self.make_run_ctx(output, service, spawn_headless=spawn)), expected)
+                payload = json.loads(output["stdout"].getvalue())
+                self.assertIsNone(payload["cost_usd"])
+                self.assertEqual(payload["cost_reason"], reason)
+                self.assertEqual(payload["budget_status"], "unverifiable" if measured else "usage_not_measured")
+                if measured:
+                    self.assertEqual(payload["error"]["code"], "budget_unverifiable")
+                    self.assertEqual(len(service["get_launch_history"]("work", limit=0)), 1)
 
     def test_run_budget_detach_uses_cdx_supervisor_and_passes_budget(self):
         directory, service, _session, _transcript = self._continuation_parent()
@@ -193,7 +337,7 @@ class RunsCommandTests(CliTestBase):
 
         directory, service, _session, transcript = self._continuation_parent()
         def record(tokens):
-            return json.dumps({"payload": {"model": "gpt-6.1-sol", "type": "token_count",
+            return json.dumps({"type": "turn_context", "payload": {"model": "gpt-6.1-sol"}}) + "\n" + json.dumps({"payload": {"type": "token_count",
                                            "info": {"total_token_usage": {"input_tokens": tokens, "output_tokens": 0}}}}) + "\n"
         transcript.write_text(record(1000000), encoding="utf-8")
         observed = []

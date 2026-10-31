@@ -4,7 +4,7 @@ import sys
 from .cli_args import ARG_CODE_INVALID_VALUE
 from .errors import CdxArgumentError, CdxError
 from .provider_runtime import headless_permission_disables_network
-from .run_usage import empty_usage, estimate_cost, extract_run_observation
+from .run_usage import cost_fields, empty_usage, estimate_cost, extract_run_observation
 
 PROMPT_STDIN = "-"
 
@@ -233,6 +233,8 @@ def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
         "power": parsed.get("power") or ((session.get("launch") or {}).get("power") if session else None),
         "cwd": os.path.abspath(parsed.get("cwd") or os.getcwd()),
         "run_id": run_info.get("run_id"),
+        "attempt_id": run_info.get("attempt_id"),
+        "attempts": run_info.get("attempts", []),
         "exit_code": run_info.get("returncode"),
         "duration_seconds": (run_info.get("duration_ms") / 1000.0) if run_info.get("duration_ms") is not None else None,
         "transcript_path": run_info.get("transcript_path"),
@@ -240,7 +242,14 @@ def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
         "stderr_path": run_info.get("stderr_path"),
         "usage": usage,
         "usage_model": usage_model,
+        "usage_models": run_info.get("usage_models", [usage_model] if usage_model else []),
+        **cost_fields(usage, usage_model, models=run_info.get("usage_models", (run_info.get("usage_evidence") or {}).get("models", [])), attribution=run_info.get("usage_attribution")),
         "cost_usd": run_info.get("cost_usd", estimate_cost(usage, usage_model)),
+        "usage_evidence": run_info.get("usage_evidence"),
+        "usage_attribution": run_info.get("usage_attribution"),
+        "budget_status": run_info.get("budget_status", "exceeded" if run_info.get("budget_exceeded") else
+                                      "usage_not_measured" if parsed.get("budget") is not None and usage.get("total_tokens") is None else
+                                      "estimated" if parsed.get("budget") is not None else "not_requested"),
         "budget_usd": parsed.get("budget"),
         "warnings": warnings,
         "error": None if ok else {

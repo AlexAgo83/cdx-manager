@@ -7,7 +7,7 @@ import time
 from .interactive_usage import MAX_TRANSCRIPT_BYTES, MAX_TRANSCRIPT_SCAN_SECONDS
 from .run_registry import registry_path
 
-EVIDENCE_KINDS = ("stdout", "run_report", "codex_rollout", "claude_transcript")
+EVIDENCE_KINDS = ("isolated_observation", "stdout", "run_report", "codex_rollout", "claude_transcript")
 
 
 def missing_model(value):
@@ -108,6 +108,15 @@ def _exact_transcript(provider, auth_home, identifier):
 def recover_model(entry, session=None, reports=()):
     """Return (model, evidence kind, reason); never consult live model settings."""
     provider = entry.get("provider")
+    evidence = entry.get("usage_evidence")
+    if isinstance(evidence, dict):
+        if (evidence.get("stdout_path") != entry.get("stdout_path")
+                or evidence.get("attempt_id") != entry.get("attempt_id")
+                or evidence.get("run_id") != entry.get("run_id")
+                or (evidence.get("measurement_usage") or evidence.get("usage")) != entry.get("usage")):
+            return None, "isolated_observation", "observation_attempt_mismatch"
+        model, reason = _single_model(evidence.get("models") or [])
+        return model, "isolated_observation", reason or (None if model else "no_turn_models")
     records, error = _read_records(entry.get("stdout_path"))
     if error:
         return None, None, error
