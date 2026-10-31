@@ -48,6 +48,44 @@ from src.session_service import create_session_service
 
 class RunsCommandTests(CliTestBase):
 
+    def test_source_project_is_captured_before_worktree_isolation(self):
+        directory = pathlib.Path(self.make_temp_dir())
+        source = directory / "source" / "app"
+        source.mkdir(parents=True)
+        subprocess.run(["git", "init", str(source)], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(source), "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+                        "commit", "--allow-empty", "-m", "Initial"], check=True, capture_output=True)
+        tree = directory / "missions" / "disposable"
+        subprocess.run(["git", "-C", str(source), "worktree", "add", "-b", "mission", str(tree)],
+                       check=True, capture_output=True)
+        service = create_session_service({"base_dir": str(directory / "cdx")})
+        self._authenticated_codex_session(service)
+        calls = []
+
+        def confine(command, checkout, **kwargs):
+            running = RunRegistry(service["base_dir"]).list(limit=1)[0]
+            self.assertEqual(running["project"], str(source.resolve()))
+            self.assertEqual(running["cwd"], str(tree))
+            calls.append(checkout)
+            return command, kwargs["source"]
+
+        for cwd, isolated in ((source, False), (tree, False), (tree, True)):
+            output = self.make_io()
+            with mock.patch("src.workspace_sandbox.sandbox_command", side_effect=confine):
+                self.assertEqual(main(["run", "work", "--cwd", str(cwd), "--prompt", "Work", "--json",
+                                       *(["--isolate-workspace"] if isolated else [])],
+                                      self.make_run_ctx(output, service, spawn_headless=lambda *a, **kw: _HeadlessChild(0))), 0)
+            payload = json.loads(output["stdout"].getvalue())
+            self.assertEqual(payload["project"], str(source.resolve()))
+            self.assertEqual(payload["cwd"], str(cwd))
+        self.assertEqual(calls, [tree])
+        subprocess.run(["git", "-C", str(source), "worktree", "remove", "--force", str(tree)], check=True, capture_output=True)
+        from src.commands.status import _stats_group
+        history = service["get_launch_history"]("work", limit=0)
+        self.assertEqual(len(history), 3)
+        self.assertEqual({_stats_group(row, "project") for row in history}, {str(source.resolve())})
+        self.assertEqual({row["cwd"] for row in history}, {str(source), str(tree)})
+
     def test_history_cost_uses_stats_prices_and_preserves_unknowns(self):
         from src.run_usage import estimate_cost, normalize_usage
 
@@ -324,7 +362,7 @@ class RunsCommandTests(CliTestBase):
                     self.assertEqual(result, 0, payload)
                     return payload
 
-                cold = invoke(["work"])
+                cold = invoke(["work", "--project", directory])
                 self.assertIsNone(cold["parent_run_id"])
                 self.assertIsNotNone(cold["conversation_id"])
                 service["set_launch_settings"]("work", {"model": "changed-model", "power": "low", "fallback_model": "other-model"})
@@ -335,6 +373,9 @@ class RunsCommandTests(CliTestBase):
                 chained = invoke(["--continue-run", continued["run_id"], "--provider", provider])
                 self.assertEqual(continued["parent_run_id"], cold["run_id"])
                 self.assertEqual(chained["parent_run_id"], continued["run_id"])
+                for record in (cold, continued, chained):
+                    self.assertEqual(record["project"], directory)
+                    self.assertEqual(record["project_source"], "operator")
                 self.assertEqual(continued["conversation_id"], cold["conversation_id"])
                 self.assertEqual(continued["model"], model)
                 self.assertEqual(continued["reasoning_effort"], "high")
@@ -2305,7 +2346,7 @@ class RunsCommandTests(CliTestBase):
 
         io_obj = self.make_io()
         self.assertEqual(main([
-            "run", "work1", "--cwd", target_dir, "--prompt", "Do it", "--failover", "--json"
+            "run", "work1", "--cwd", target_dir, "--project", target_dir, "--prompt", "Do it", "--failover", "--json"
         ], self.make_run_ctx(io_obj, service, spawn_headless=spawn)), 0)
 
         self.assertEqual(seen, ["work1", "work2"])
@@ -2325,6 +2366,10 @@ class RunsCommandTests(CliTestBase):
         self.assertEqual([(row["attempt"], row["usage"]["input_tokens"], row["usage"]["output_tokens"])
                           for row in second], [(2, 200, 20)])
         self.assertEqual(first[0]["run_id"], second[0]["run_id"])
+        for record in [*first, *second, payload, runs[0]]:
+            self.assertEqual(record["project"], target_dir)
+            self.assertEqual(record["project_source"], "operator")
+            self.assertEqual(record["cwd"], target_dir)
         self.assertEqual(first[0]["usage_model"], "gpt-6-sol")
         self.assertEqual(second[0]["usage_model"], "gpt-6-luna")
         self.assertEqual(payload["usage_model"], "gpt-6-luna")

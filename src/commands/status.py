@@ -524,9 +524,11 @@ def _format_rtk_saved(rtk):
 
 
 def _stats_group(entry, by):
-    """The project (launch folder) or the model a run is counted under."""
+    """The recorded source repository or serving model a run is counted under."""
     if by == "project":
-        return str(entry.get("cwd") or "").rstrip("/\\") or "-"
+        from ..project_identity import recorded_project
+
+        return recorded_project(entry) or "-"
     model = entry.get("usage_model") or "-"
     return model.removesuffix("[1m]") if model.startswith("claude-") else model
 
@@ -640,6 +642,26 @@ def handle_configs(rest, ctx):
     return 0
 
 def handle_history(rest, ctx):
+    if rest and rest[0] == "backfill-projects":
+        usage = "Usage: cdx history backfill-projects [--mapping FILE] [--dry-run | --apply] [--json]"
+        parsed = _parse_flag_args(rest[1:], {
+            "--mapping": {"key": "mapping", "type": "str", "default": None},
+            "--dry-run": {"key": "dry_run", "type": "bool", "default": False},
+            "--apply": {"key": "apply", "type": "bool", "default": False},
+            "--json": {"key": "json", "type": "bool", "default": False},
+        }, usage)
+        if parsed["apply"] and parsed["dry_run"]:
+            raise CdxError(usage)
+        result = ctx["service"]["backfill_history_projects"](mapping_path=parsed["mapping"], dry_run=not parsed["apply"])
+        if parsed["json"]:
+            payload = (_json_failure("history", "project_attribution_conflict", "Conflicting project evidence; no changes applied.", **result)
+                       if result["conflicting"] else _json_success("history", "Backfilled history projects", **result))
+            _write_json(ctx, payload)
+        else:
+            mode = "Dry run" if result["dry_run"] else "Not applied (conflicts)" if result["conflicting"] else "Applied"
+            ctx["out"](f"{mode}: {result['recovered']} recovered; {result['unchanged']} unchanged; "
+                       f"{result['unresolved']} unresolved; {result['conflicting']} conflicting.\n")
+        return 1 if result["conflicting"] else 0
     if rest and rest[0] == "backfill-models":
         usage = "Usage: cdx history backfill-models [--dry-run | --apply] [--json]"
         parsed = _parse_flag_args(rest[1:], {

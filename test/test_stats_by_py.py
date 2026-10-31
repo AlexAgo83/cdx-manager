@@ -10,6 +10,7 @@ from src.run_usage import normalize_usage
 
 def _entry(session, cwd, model, cost_tokens, provider="claude"):
     return {"session_name": session, "provider": provider, "status": "success", "cwd": cwd,
+            "project": cwd.rstrip("/"), "project_source": "git",
             "usage_model": model, "usage": normalize_usage(input_tokens=cost_tokens, output_tokens=0)}
 
 

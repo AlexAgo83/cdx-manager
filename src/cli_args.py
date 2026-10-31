@@ -43,12 +43,12 @@ HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|t
 STATS_USAGE = "Usage: cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--by session|project|model] [--json]"
 STATS_GROUPS = ("session", "project", "model")
 LAST_USAGE = "Usage: cdx last [--json]"
-RESUME_USAGE = "Usage: cdx resume <name> [--conversation <id>] [--on-busy fail|ask] [--json]"
+RESUME_USAGE = "Usage: cdx resume <name> [--project PATH] [--conversation <id>] [--on-busy fail|ask] [--json]"
 CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--conversation <id>] [--json]"
 SESSIONS_USAGE = "Usage: cdx sessions [--all] --json"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json"
 NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
-RUN_USAGE = "Usage: cdx run [session] (--cwd|--dir) PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--network-access] [--isolate-workspace] [--timeout-seconds N] [--budget USD] [--label TEXT] [--max-parallel N] [--continue-run RUN_ID] [--detach] [--failover] [--refresh] --json"
+RUN_USAGE = "Usage: cdx run [session] (--cwd|--dir) PATH [--project PATH] (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--network-access] [--isolate-workspace] [--timeout-seconds N] [--budget USD] [--label TEXT] [--max-parallel N] [--continue-run RUN_ID] [--detach] [--failover] [--refresh] --json"
 RUN_JSON_REQUIRED = "cdx run: --json is required."
 RUN_TARGET_REQUIRED = "cdx run: specify a session name or --provider PROVIDER."
 RUN_SESSION_PROVIDER_CONFLICT = "cdx run: cannot specify both a session name and --provider."
@@ -672,6 +672,7 @@ def _parse_max_parallel(value):
 
 def _parse_run_args(args):
     parsed = _parse_run_flag_args(args, {
+        "--project": {"key": "project", "type": "str", "default": None},
         "--cwd": {"key": "cwd", "type": "str", "default": None},
         "--dir": {"key": "cwd", "type": "str", "default": None},
         "--prompt-file": {"key": "prompt_file", "type": "str", "default": None},
@@ -735,6 +736,7 @@ def _parse_run_args(args):
         "name": name,
         "provider": parsed["provider"],
         "cwd": parsed["cwd"],
+        "project": parsed["project"],
         "prompt_file": parsed["prompt_file"],
         "prompt": parsed["prompt"],
         "continue_run": parsed["continue_run"],

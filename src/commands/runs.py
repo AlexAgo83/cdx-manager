@@ -204,6 +204,7 @@ def _detached_child_argv(parsed, prompt_path, session_name, cwd):
     # from the package root, so a relative "--cwd ." would resolve there.
     argv = ["run", session_name, "--cwd", cwd, "--prompt-file", prompt_path]
     for flag, key in (
+        ("--project", "project"),
         ("--budget", "budget"),
         ("--continue-run", "continue_run"),
         ("--model", "model"),
@@ -423,6 +424,8 @@ def _reconcile_background_runs(ctx):
                 "run_id": run["run_id"],
                 "attempt": 1,
                 "cwd": run.get("cwd"),
+                "project": run.get("project"),
+                "project_source": run.get("project_source", "unknown"),
                 "usage": outcome["usage"],
                 "usage_model": outcome["usage_model"],
             })
@@ -629,6 +632,12 @@ def _continue_run_session(parsed, ctx):
             if arg.split("=", 1)[0] in pinned_options or arg.startswith(("-r", "-c")):
                 raise CdxError("--continue-run cannot use Claude extra_args that override model, effort, or conversation.",
                                code="continue_run_settings_mismatch")
+    from ..project_identity import recorded_project
+
+    project = recorded_project(previous)
+    if parsed.get("project") and parsed["project"] != project:
+        raise CdxError("--continue-run requires the previous run's recorded project.")
+    parsed["continued_project"] = {"project": project, "project_source": previous.get("project_source", "unknown")}
     parsed.update(name=name, model=model, reasoning_effort=effort, power=effort)
     launch = {**(session.get("launch") or {}), "model": model, "reasoning_effort": effort, "power": effort}
     # A provider fallback would break the model pin even though cdx stayed on this profile.
@@ -684,6 +693,14 @@ def handle_run(rest, ctx):
         cwd = os.path.abspath(parsed["cwd"])
         if not os.path.isdir(cwd):
             raise CdxError(f"Invalid cwd: {parsed['cwd']}", code="invalid_cwd")
+        from ..project_identity import resolve_project
+
+        project = parsed.get("continued_project") or resolve_project(cwd, parsed.get("project"))
+        if detached_run_id:
+            previous = _run_registry(ctx).get(detached_run_id)
+            if previous:
+                project = {"project": previous.get("project"), "project_source": previous.get("project_source", "unknown")}
+        parsed.update(project)
         prompt = read_run_prompt(parsed, stdin=ctx.get("prompt_stdin"))
         _consume_detached_prompt_file(parsed, detached_run_id)
         launch_updates = {key: parsed.get(key, False) for key in ("network_access", "isolate_workspace")}
@@ -743,6 +760,7 @@ def handle_run(rest, ctx):
             provider=run_session.get("provider"),
             model=parsed.get("model") or ((run_session.get("launch") or {}).get("model")),
             cwd=cwd,
+            **project,
             artifacts={
                 "transcript_path": artifacts.get("transcript_path"),
                 "stdout_path": artifacts.get("stdout_path"),
@@ -853,6 +871,7 @@ def handle_run(rest, ctx):
                 "cwd": cwd,
                 "exit_code": run_info.get("returncode"),
                 **run_info,
+                **project,
             })
             if run_info.get("budget_exceeded") or parsed.get("continue_run"):
                 break
@@ -1038,6 +1057,7 @@ def handle_run(rest, ctx):
                 "cwd": cwd,
                 "exit_code": error.exit_code,
                 **run_info,
+                **project,
             })
         final_payload = run_result_payload(
             API_SCHEMA_VERSION,

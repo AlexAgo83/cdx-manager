@@ -245,7 +245,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx reset <name> [--yes] [--json]', '36', use_color)}",
         f"  {_style('cdx auth refresh <name|all> [--json]', '36', use_color)}",
         f"  {_style('cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json', '36', use_color)}",
-        f"  {_style('cdx run [session] --cwd PATH (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--label TEXT] [--max-parallel N] [--continue-run RUN_ID] [--detach] [--failover] [--refresh] --json', '36', use_color)}",
+        f"  {_style('cdx run [session] --cwd PATH [--project PATH] (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--timeout-seconds N] [--label TEXT] [--max-parallel N] [--continue-run RUN_ID] [--detach] [--failover] [--refresh] --json', '36', use_color)}",
         f"  {_style('cdx runs [--limit N] [--since 7d|today|DATE] [--running] --json', '36', use_color)}",
         f"  {_style('cdx run-status <run_id> --json', '36', use_color)}",
         f"  {_style('cdx run-report <run_id> --json', '36', use_color)}",
@@ -260,10 +260,11 @@ def _print_help(use_color=False):
         f"  {_style('cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]', '36', use_color)}",
         f"  {_style(SET_USAGE[len('Usage: '):], '36', use_color)}",
         f"  {_style('cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--logics|--notify|--notify-preview|--model|--priority|--all) [--json]', '36', use_color)}",
+        f"  {_style('cdx history backfill-projects [--mapping FILE] [--dry-run|--apply] [--json]', '36', use_color)}",
         f"  {_style('cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]', '36', use_color)}",
         f"  {_style('cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--by session|project|model] [--json]', '36', use_color)}",
         f"  {_style('cdx last [--json]', '36', use_color)}",
-        f"  {_style('cdx resume <name> [--conversation <id>] [--json]', '36', use_color)}",
+        f"  {_style('cdx resume <name> [--project PATH] [--conversation <id>] [--json]', '36', use_color)}",
         f"  {_style('cdx can-resume <name> [--conversation <id>] [--json]', '36', use_color)}",
         f"  {_style('cdx rescue [<session>] [--to <target>] [--yes] [--dry-run] [--json]', '36', use_color)}",
         f"  {_style('cdx retro [--limit N] [--json]', '36', use_color)}",
@@ -295,7 +296,7 @@ def _print_help(use_color=False):
         _style("Notifications:", "1", use_color),
         f"  {_style('cdx set <name> --notify on', '36', use_color)}  # agent finishes or needs attention",
         f"  {_style('cdx ready', '36', use_color)}  # next session to become ready",
-        f"  {_style('cdx <name> [--on-busy fail|ask] [--json]', '36', use_color)}",
+        f"  {_style('cdx <name> [--project PATH] [--on-busy fail|ask] [--json]', '36', use_color)}",
         "    --on-busy: fail immediately if already running; ask (default) prompts only with a terminal and without --json",
         f"  {_style('cdx <name> --prompt TEXT|--prompt-file PATH', '36', use_color)}  # start with a first message",
         f"  {_style('cdx <name> --dir PATH --task TEXT --end-state TEXT', '36', use_color)}  # start on a task, with what the go-ahead covers",
@@ -637,7 +638,8 @@ def main(argv, options=None):
     if handler:
         return handler(rest, ctx)
 
-    from .commands.launch import _parse_launch_args, _read_launch_prompt
+    from .commands.launch import _parse_launch_args, _pop_value_flag, _read_launch_prompt
+    project_path, rest = _pop_value_flag(rest, "--project", "Usage: cdx <name> [--project PATH]")
     directory, launch_args, prompt, on_busy = _parse_launch_args(rest)
     if all(arg in ("--json", "-r", "--resume") for arg in launch_args):
         resume = "-r" in launch_args or "--resume" in launch_args
@@ -648,7 +650,7 @@ def main(argv, options=None):
         if has_prompt and (ctx["service"]["get_session"](command) or {}).get("provider") == PROVIDER_OLLAMA:
             raise CdxError("cdx <name>: --prompt and --prompt-file are not supported for Ollama sessions.")
         return handle_launch(command, ctx, initial_prompt=_read_launch_prompt(prompt), resume=resume,
-                             directory=directory, on_busy=on_busy)
+                             directory=directory, on_busy=on_busy, project_path=project_path)
 
     raise CdxError(f"Unknown command: {command}. Use cdx --help.")
 
