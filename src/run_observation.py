@@ -6,8 +6,6 @@ import stat
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .history_models import _exact_transcript
-from .interactive_usage import MAX_TRANSCRIPT_BYTES
 from .run_usage import _usage_from_dict, extract_run_conversation_id, extract_run_usage
 
 
@@ -31,6 +29,9 @@ def codex_attempt_evidence(auth_home, stdout_path, started_at):
     Do not import claimed costs, requested models, messages, or arbitrary files
     from the workspace. The exported object is never writable by the sandbox.
     """
+    from .history_models import _exact_transcript
+    from .interactive_usage import MAX_TRANSCRIPT_BYTES
+
     usage = extract_run_usage("codex", stdout_path)
     identifier = extract_run_conversation_id("codex", stdout_path)
     evidence = {"source": "isolated_codex_rollout", "stdout_path": str(stdout_path),
@@ -41,6 +42,14 @@ def codex_attempt_evidence(auth_home, stdout_path, started_at):
     path, error = _exact_transcript("codex", auth_home, identifier)
     if error or not path:
         return evidence
+    return codex_rollout_evidence(auth_home, path, evidence, MAX_TRANSCRIPT_BYTES)
+
+
+def codex_rollout_evidence(auth_home, path, evidence, max_bytes):
+    """Validate exact-attempt rollout evidence identically on local and remote hosts."""
+    usage = evidence["usage"]
+    identifier = evidence["thread_id"]
+    started_at = evidence["started_at"]
     models = set()
     turns = []
     identity = False
@@ -52,8 +61,8 @@ def codex_attempt_evidence(auth_home, stdout_path, started_at):
         with os.fdopen(descriptor, encoding="utf-8") as handle:
             if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
                 return evidence
-            text = handle.read(MAX_TRANSCRIPT_BYTES + 1)
-        if len(text) > MAX_TRANSCRIPT_BYTES:
+            text = handle.read(max_bytes + 1)
+        if len(text) > max_bytes:
             return evidence
         for line in text.splitlines():
             record = json.loads(line)

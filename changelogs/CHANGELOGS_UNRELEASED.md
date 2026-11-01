@@ -12,6 +12,13 @@
 - Add `cdx run --budget USD` to stop on measured estimated spend with exit code 125, `budget_exceeded`, and `error.spent_usd` in the final JSON. Share the budget across recovery attempts and failover; support detached runs and fresh budgets for continued runs without charging earlier turns.
 - Document unknown usage/prices and delayed provider reporting, including possible budget overshoot. Cover pricing, unknown costs, validation, live process termination, Claude transcript accumulation, continuation boundaries, and detached supervision in tests.
 
+## Remote run cost observations
+
+- Use the local exact-thread observation reader, usage normalization and 128 MiB rollout limit on workers; return content-free model/counter evidence before volatile storage cleanup and bind it to controller run/attempt artifacts.
+- Separate supervisor evidence frames from provider stdout, and check live rollout measurements before `turn.completed` so measured remote budget excess still stops the provider. Never price from requested models or controller-side rollouts.
+- Preserve the documented fail-closed budget guarantee: measured but unpriceable remote usage exits 125 with `budget_unverifiable`, including after provider completion. Keep provider output in artifacts; completed runs without a budget retain their actual status and unknown cost. Credential snapshots, redaction, cleanup and workspace isolation remain unchanged.
+- Cover priced remote/isolated runs, Windows transport, rollouts over 16 MiB, live budget stops, missing/inconsistent/mixed model evidence, unknown prices and completion without pricing using the fake transport.
+
 ## Remote Codex runs
 
 - Add `cdx run --remote SSH_TARGET` with controller-owned supervision, registry, history, output, costs, budgets and detached execution.

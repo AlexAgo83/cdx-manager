@@ -7,6 +7,7 @@ import os
 import pathlib
 import re
 import subprocess
+import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -82,6 +83,11 @@ def worker_input():
     # One JSON line frames the source, leaving the next line for the payload.
     directory = pathlib.Path(__file__).parent
     source = 'SANDBOX_SOURCE = ' + repr((directory / 'workspace_sandbox.py').read_text()) + '\n'
+    from .interactive_usage import MAX_TRANSCRIPT_BYTES, MAX_TRANSCRIPT_SCAN_SECONDS
+    modules = {name: (directory / (name + '.py')).read_text()
+               for name in ('errors', 'run_usage', 'run_observation')}
+    source += 'OBSERVATION_MODULES = ' + repr(modules) + '\n'
+    source += f'OBSERVATION_LIMITS = {MAX_TRANSCRIPT_BYTES, MAX_TRANSCRIPT_SCAN_SECONDS!r}\n'
     source += (directory / 'remote_worker.py').read_text()
     return json.dumps(source).encode() + b'\n'
 
@@ -167,27 +173,57 @@ def run_remote(session, target, version, cwd=None, env_override=None, initial_pr
     paths = _headless_artifact_paths(session, run_id, attempt)
     paths['remote'] = target
     start = datetime.now(timezone.utc)
-    child = None
+    child = receiver = out = err = None
     cancelled = timed_out = budget_exceeded = credential_expired = False
     handlers = _route_termination_to_interrupt()
+    observation_ready = threading.Event()
+    observation_lock = threading.Lock()
+
+    def receive(source, output):
+        for line in source:
+            try:
+                frame = json.loads(line)
+                if frame.get('stream') == 'stdout':
+                    with observation_lock:
+                        observation_ready.clear()
+                        output.write(frame['data'])
+                        output.flush()
+                elif frame.get('stream') == 'observation':
+                    evidence = frame['evidence']
+                    evidence.update(stdout_path=paths['stdout_path'], run_id=paths['run_id'], attempt_id=paths.get('attempt_id'))
+                    with observation_lock:
+                        paths['usage_evidence'] = evidence
+                        observation_ready.set()
+            except (ValueError, TypeError, KeyError, AttributeError):
+                continue
+
     try:
-        with open(paths['stdout_path'], 'w') as out, open(paths['stderr_path'], 'w') as err:
-            child = subprocess.Popen(ssh_command(target, 'run', remote_prefix), env={**os.environ, **(env_override or {})},
-                                     stdin=subprocess.PIPE, stdout=out, stderr=err)
-            child.stdin.write(worker_input() + json.dumps(payload).encode() + b'\n')
-            child.stdin.flush()
-            deadline = time.monotonic() + timeout_seconds if timeout_seconds else None
-            while child.poll() is None:
-                if time.time() >= payload['expires_at']:
-                    credential_expired = True
-                    break
-                if budget_check and budget_check(paths):
-                    budget_exceeded = True
-                    break
-                if deadline and time.monotonic() >= deadline:
-                    timed_out = True
-                    break
-                time.sleep(0.1)
+        out = open(paths['stdout_path'], 'w', encoding='utf-8')
+        err = open(paths['stderr_path'], 'w', encoding='utf-8')
+        child = subprocess.Popen(ssh_command(target, 'run', remote_prefix), env={**os.environ, **(env_override or {})},
+                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=err)
+        receiver = threading.Thread(target=receive, args=(child.stdout, out))
+        receiver.start()
+        child.stdin.write(worker_input() + json.dumps(payload).encode() + b'\n')
+        child.stdin.flush()
+        deadline = time.monotonic() + timeout_seconds if timeout_seconds else None
+        while child.poll() is None:
+            if time.time() >= payload['expires_at']:
+                credential_expired = True
+                break
+            with observation_lock:
+                if budget_check and observation_ready.is_set():
+                    observation_ready.clear()
+                    exceeded = budget_check(paths)
+                else:
+                    exceeded = False
+            if exceeded:
+                budget_exceeded = True
+                break
+            if deadline and time.monotonic() >= deadline:
+                timed_out = True
+                break
+            time.sleep(0.1)
     except KeyboardInterrupt:
         cancelled = True
     except (OSError, ValueError) as error:
@@ -208,6 +244,12 @@ def run_remote(session, target, version, cwd=None, env_override=None, initial_pr
                 except subprocess.TimeoutExpired:
                     child.kill()
                     child.wait()
+        if receiver:
+            receiver.join()
+        if out:
+            out.close()
+        if err:
+            err.close()
         _restore_signal_handlers(handlers)
         _combine_headless_transcript(paths)
     info = {**_headless_run_info(paths, spec, start, child.returncode), 'remote': target,
