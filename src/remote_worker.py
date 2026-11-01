@@ -72,18 +72,16 @@ def probe(root, payload):
     # the controller reads or sends a credential. Binary presence is insufficient.
     with tempfile.TemporaryDirectory(prefix='probe-', dir=root) as directory:
         home = pathlib.Path(directory)
-        (home / 'auth.json').write_text('{}')
+        (home / 'auth.json').write_text(json.dumps({'tokens': {'refresh_token': ''}}))
+        os.chmod(home / 'auth.json', 0o600)
         (home / 'sessions').mkdir()
         command, env = isolation_probe_command(payload, home, dict(os.environ))
         result = subprocess.run(command, env=env, stdin=subprocess.DEVNULL,
                                 capture_output=True, timeout=20)
         if result.returncode:
             raise RuntimeError('Remote workspace isolation unavailable')
-        # The local sandbox gives Codex and its tool subprocesses the same
-        # read-only auth mount. A successful namespace probe cannot establish
-        # credential confidentiality, so never accept real auth in this mode.
-        print('Remote isolation cannot hide auth.json from agent tools; refusing bearer exposure.', file=sys.stderr)
-        return 127
+        print(result.stdout.decode().strip())
+        return 0
 
 
 def main():
@@ -91,9 +89,6 @@ def main():
     payload = json.loads(sys.stdin.buffer.readline())
     if sys.argv[-1] == 'probe':
         return probe(root, payload)
-    if payload.get('isolate_workspace'):
-        print('Remote isolation cannot hide auth.json from agent tools; refusing bearer exposure.', file=sys.stderr)
-        return 127
     auth = payload['auth']
     if auth['tokens'].get('refresh_token') != '':
         raise RuntimeError('Refusing a rotating remote credential')
@@ -133,7 +128,23 @@ def main():
         env = {key: value for key, value in os.environ.items()
                if key not in ('OPENAI_API_KEY', 'OPENAI_ACCESS_TOKEN', 'CODEX_ACCESS_TOKEN', 'CODEX_API_KEY', 'CODEX_HOME')}
         env['CODEX_HOME'] = str(home)
-        child = subprocess.Popen(['codex', *payload['args']], cwd=payload['cwd'], env=env,
+        command = ['codex', *payload['args']]
+        if payload.get('isolate_workspace'):
+            (home / 'sessions').mkdir(mode=0o700)
+            args = payload['args'][:]
+            while '-s' in args:
+                index = args.index('-s')
+                del args[index:index + 2]
+            if '--dangerously-bypass-approvals-and-sandbox' not in args:
+                index = args.index('--') if '--' in args else len(args)
+                args[index:index] = ['--dangerously-bypass-approvals-and-sandbox']
+            namespace = {'__name__': 'cdx_workspace_sandbox'}
+            exec(compile(SANDBOX_SOURCE, 'workspace_sandbox.py', 'exec'), namespace)
+            command, env = namespace['sandbox_command'](
+                ['codex', *args], pathlib.Path(payload['cwd']), network=payload['network'],
+                writable=payload['writable'], source=env, auth_home=str(home), provider='codex',
+                observation_home=str(home / 'sessions'))
+        child = subprocess.Popen(command, cwd=payload['cwd'], env=env,
                                  stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                  start_new_session=True)
         if stopped.is_set():

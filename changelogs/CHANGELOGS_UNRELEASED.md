@@ -17,6 +17,13 @@
 
 - Add `--remote-prefix` for Windows SSH landings such as `wsl.exe -d Ubuntu --`, including detached runs. Keep the POSIX default and use a short double-quoted bootstrap on argv; send framed worker/sandbox source and then credentials/payload over stdin.
 - Probe the local bubblewrap/pasta/nftables isolation mechanism on the worker with dummy credentials, including namespace/network startup. Refuse missing dependencies or setup failures without falling back to an unisolated run.
-- Fail closed with `remote_isolation_unavailable` even after a successful isolation probe: the existing local auth mount is also readable by agent tools, so it cannot satisfy bearer confidentiality. Remote isolated execution remains unavailable until credentials can stay outside the tools' sandbox; do not interpret the probe as security acceptance.
+- Enable remote isolated Codex execution after a successful isolation probe, following the operator decision of 2026-11-01. Agent tools can read the copied access token (up to ten days of validity); missing dependencies still refuse without fallback.
 - Release the controller authentication lock after preparing the credential snapshot so scheduled authentication refresh can run during long remote missions. Keep profile mission exclusion in the run registry and the worker credential's original expiry.
-- Test cmd.exe length/quoting enforcement, Windows prefixes, large stdin payloads, POSIX transport, credential privacy refusal, sandbox construction/dependencies and concurrent scheduled refresh with synthetic credentials.
+- Test cmd.exe length/quoting enforcement, Windows prefixes, large stdin payloads, POSIX transport, sanitized credential snapshots, sandbox construction/dependencies and concurrent scheduled refresh with synthetic credentials.
+
+## Isolated Codex credentials
+
+- Replace the local full-profile auth mount with a mode-600 run-private snapshot on verified memory-backed storage, containing an empty refresh token. Refresh on the controller under the auth lock at the existing seven-day/24-hour thresholds before launch.
+- Keep snapshots independent of controller refresh during long missions, prohibit authentication writeback, enforce their original expiry, and remove temporary storage after success, failure and stop. Non-isolated local authentication remains unchanged.
+- Reject rotating credentials at the sandbox boundary. Test snapshot contents, permissions, cleanup, refresh lock ownership, concurrent controller refresh, remote isolation through fake SSH and missing dependency refusal.
+- The separately maintained remote-ops `scripts/workspace_sandbox.py` requires the same credential guard and run-private lifecycle integration; it is not shipped by this repository.

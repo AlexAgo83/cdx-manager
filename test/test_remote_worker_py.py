@@ -26,7 +26,7 @@ def sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(pathlib.Path, 'home', classmethod(lambda cls: tmp_path))
     home = tmp_path / 'credential'
     home.mkdir()
-    (home / 'auth.json').write_text('{}')
+    (home / 'auth.json').write_text('{"tokens": {"refresh_token": ""}}')
     (home / 'sessions').mkdir()
     tree = tmp_path / 'checkout'
     tree.mkdir()
@@ -80,7 +80,7 @@ def test_preflight_exercises_sandbox_without_real_credentials(sandbox):
     with mock.patch('shutil.which', side_effect=lambda name, path=None: '/usr/bin/' + name), \
             mock.patch.object(remote_worker.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, b'codex-cli test\n')) as run, \
             mock.patch.object(sys, 'stdout', stdout):
-        assert remote_worker.probe(home.parent, payload) == 127
+        assert remote_worker.probe(home.parent, payload) == 0
     command = run.call_args.args[0]
     assert command[0] == '/usr/bin/pasta'
     assert command[-1] == '--version'
@@ -97,11 +97,3 @@ def test_preflight_namespace_failure_refuses_and_cleans_up(sandbox):
             remote_worker.probe(home.parent, payload)
     assert not list(home.parent.glob('probe-*'))
 
-
-def test_worker_refuses_real_isolated_payload_before_auth_access(tmp_path):
-    payload = {'isolate_workspace': True}
-    with mock.patch.object(remote_worker, 'storage', return_value=tmp_path), \
-            mock.patch.object(sys, 'argv', ['worker', 'run']), \
-            mock.patch.object(sys, 'stdin', io.TextIOWrapper(io.BytesIO(json.dumps(payload).encode() + b'\n'))), \
-            mock.patch.object(remote_worker, 'allocate', side_effect=AssertionError('credential home allocated')):
-        assert remote_worker.main() == 127

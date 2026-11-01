@@ -67,7 +67,9 @@ class RunsCommandTests(CliTestBase):
         subprocess.run(["git", "-C", str(source), "worktree", "add", "-b", "mission", str(tree)],
                        check=True, capture_output=True)
         service = create_session_service({"base_dir": str(directory / "cdx")})
-        self._authenticated_codex_session(service)
+        session = self._authenticated_codex_session(service)
+        from test_remote_run_py import credential
+        pathlib.Path(session['authHome'], 'auth.json').write_text(json.dumps(credential()))
         calls = []
 
         def confine(command, checkout, **kwargs):
@@ -111,7 +113,9 @@ class RunsCommandTests(CliTestBase):
 
         directory = self.make_temp_dir()
         service = create_session_service({"base_dir": directory})
-        self._authenticated_codex_session(service)
+        session = self._authenticated_codex_session(service)
+        from test_remote_run_py import credential
+        pathlib.Path(session['authHome'], 'auth.json').write_text(json.dumps(credential()))
         mounted = []
         counters = {"input_tokens": 100, "cached_input_tokens": 60, "output_tokens": 20}
 

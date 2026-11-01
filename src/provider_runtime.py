@@ -1208,16 +1208,26 @@ def _read_permission_denials(stdout_path):
 
 def _run_headless_provider_command(session, cwd=None, env_override=None, initial_prompt=None,
                                    timeout_seconds=None, spawn=None, run_id=None, budget_check=None, attempt=1):
-    import tempfile
+    from .remote_run import remote_auth_lock, temporary_auth
+    from .workspace_sandbox import private_auth_home
 
     isolated_codex = session.get("provider") == PROVIDER_CODEX and (session.get("launch") or {}).get("isolate_workspace")
     if isolated_codex:
-        # Volatile storage only: raw rollouts must not survive closeout, including
-        # cancellation/start failures. Only this attempt's sessions are mounted.
-        with tempfile.TemporaryDirectory(prefix="cdx-observation-", dir="/dev/shm" if sys.platform.startswith("linux") else None) as directory:
-            os.mkdir(os.path.join(directory, "sessions"), mode=0o700)
-            return _run_headless_provider_attempt(session, cwd, env_override, initial_prompt,
-                                                  timeout_seconds, spawn, run_id, budget_check, directory, attempt)
+        handlers = _route_termination_to_interrupt()
+        try:
+            with remote_auth_lock(_get_auth_home(session)):
+                auth = temporary_auth(_get_auth_home(session))
+            with private_auth_home(auth) as directory:
+                return _run_headless_provider_attempt(session, cwd, env_override, initial_prompt,
+                                                      timeout_seconds, spawn, run_id, budget_check, directory, attempt)
+        except KeyboardInterrupt as cause:
+            error = CdxError('Isolated Codex run was cancelled.', 130)
+            error.cancelled = True
+            raise error from cause
+        except (OSError, RuntimeError) as error:
+            raise CdxError(str(error)) from error
+        finally:
+            _restore_signal_handlers(handlers)
     return _run_headless_provider_attempt(session, cwd, env_override, initial_prompt,
                                           timeout_seconds, spawn, run_id, budget_check, attempt=attempt)
 
@@ -1266,7 +1276,7 @@ def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial
                 [spec["command"], *spec["args"]], Path(cwd),
                 network=launch.get("network_access", False),
                 writable=launch.get("permission") != "review",
-                source=spec["options"]["env"], auth_home=_get_auth_home(session),
+                source=spec["options"]["env"], auth_home=observation_home or _get_auth_home(session),
                 provider=session.get("provider"),
                 **({"observation_home": os.path.join(observation_home, "sessions")} if observation_home else {}))
         except (OSError, RuntimeError) as error:
@@ -1291,6 +1301,12 @@ def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial
     timed_out = False
     cancelled = False
     budget_exceeded = False
+    credential_expired = False
+    expires_at = None
+    if observation_home:
+        from .remote_run import token_expiry
+        with open(os.path.join(observation_home, 'auth.json')) as handle:
+            expires_at = token_expiry(json.load(handle)['tokens']['access_token'])
     with open(paths["stdout_path"], "w", encoding="utf-8", errors="replace") as stdout_file, \
             open(paths["stderr_path"], "w", encoding="utf-8", errors="replace") as stderr_file:
         options = {k: v for k, v in spec.get("options", {}).items() if k not in ("stdio", "stdout", "stderr")}
@@ -1319,11 +1335,15 @@ def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial
         # this supervisor and keep its run "running" forever.
         previous_handlers = _route_termination_to_interrupt()
         try:
-            if budget_check is not None:
+            if budget_check is not None or expires_at is not None:
                 deadline = time.monotonic() + timeout_seconds if timeout_seconds is not None else None
                 while True:
                     snapshot()
-                    if budget_check(paths):
+                    if expires_at is not None and time.time() >= expires_at:
+                        credential_expired = True
+                        _terminate_child_tree(child)
+                        break
+                    if budget_check and budget_check(paths):
                         budget_exceeded = True
                         _terminate_child_tree(child)
                         break
@@ -1333,7 +1353,7 @@ def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial
                     try:
                         child.wait(timeout=min(0.25, remaining) if remaining is not None else 0.25)
                         snapshot()
-                        budget_exceeded = budget_check(paths)
+                        budget_exceeded = bool(budget_check and budget_check(paths))
                         break
                     except subprocess.TimeoutExpired:
                         continue
@@ -1357,6 +1377,11 @@ def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial
             snapshot()
             _restore_signal_handlers(previous_handlers)
 
+    if credential_expired or (expires_at is not None and time.time() >= expires_at):
+        _combine_headless_transcript(paths)
+        error = CdxError('Isolated temporary credential expired; start a new run from the controller.', code='remote_credential_expired')
+        error.run_info = _headless_run_info(paths, spec, start_time, child.returncode)
+        raise error
     if cancelled:
         _combine_headless_transcript(paths)
         returncode = getattr(child, "returncode", None)

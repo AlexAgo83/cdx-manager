@@ -123,20 +123,30 @@ Only a short, double-quoted Python bootstrap is sent in the SSH command line;
 the worker and shared sandbox source are framed on stdin before the payload.
 Neither source size nor prompt size consumes cmd.exe's 8191-character command limit.
 
-`--isolate-workspace` now checks the worker's **same local isolation mechanism**:
+`--remote` supports `--isolate-workspace` using the same local isolation mechanism:
 bubblewrap, pasta (passt), nftables, Python, the checkout/toolchain allowlist,
 and an actual namespace/network setup using a dummy credential. Missing dependencies,
 namespace denial or invalid checkouts fail before sending real credentials, without
-an unisolated fallback. However, even a successful probe currently returns
-`remote_isolation_unavailable`: the local mechanism mounts
-`/home/agent/.codex/auth.json` read-only for Codex, and agent tool subprocesses can
-read it too. That file contains the temporary bearer (potentially valid for ten
-days); a read-only mount does not protect its confidentiality. Remote isolated
-runs therefore **remain unavailable and are refused**, including direct worker
-invocation. A provider channel that keeps the bearer outside the tools' sandbox
-is required before enabling them. The ordinary remote path remains an explicit
-choice with its existing credential exposure; this change does not claim that
-local workspace isolation hides provider authentication from tools.
+an unisolated fallback.
+
+For **every isolated Codex run**, local or remote, the sandbox mounts only a
+run-private, mode-600 `auth.json` on verified memory-backed storage, with an empty
+`refresh_token`. It never mounts the controller profile's full authentication file.
+The controller refreshes under the authentication lock at the thresholds below
+before preparing the snapshot, then releases the lock for the run. The temporary
+home is removed after success, failure, launch errors and stop. Non-isolated local
+runs and interactive login/refresh retain their normal profile authentication.
+
+**Accepted residual risk (operator decision, 2026-11-01):** agent tools inside the
+sandbox can read the copied access token, which can remain valid for up to ten
+days. A read-only mount prevents modification, not disclosure. The rotating refresh
+token never enters the sandbox or leaves the controller. Codex was measured to run
+with an empty refresh token on 2026-11-01.
+
+A long isolated Tower mission keeps its original credential snapshot even when
+scheduled controller refresh updates the real profile. There is no authentication
+writeback or token renewal inside the sandbox. A run that outlives its access token
+fails with a clear temporary-credential expiry error and must start a new run.
 
 The controller takes the profile's authentication lock and refreshes through its
 local [Codex app-server](https://learn.chatgpt.com/docs/app-server) when `last_refresh` is older than seven days or the access

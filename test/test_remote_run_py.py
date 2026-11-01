@@ -64,11 +64,11 @@ def worker(tmp_path, monkeypatch):
     bindir = tmp_path / 'bin'
     bindir.mkdir()
     ssh = bindir / 'ssh'
-    ssh.write_text('''#!/usr/bin/env python3
+    ssh.write_text(r'''#!/usr/bin/env python3
 import json, os, shlex, sys
 from pathlib import Path
 with open(os.environ['FAKE_ARGV'], 'a') as f:
-    f.write(json.dumps(sys.argv) + '\\n')
+    f.write(json.dumps(sys.argv) + '\n')
 if os.environ.get('FAKE_MODE') == 'unreachable':
     sys.exit(255)
 os.environ['FAKE_REMOTE'] = 'yes'
@@ -92,6 +92,14 @@ def fixture_loads(value, *extra, **kwargs):
     result = original_loads(value, *extra, **kwargs)
     if isinstance(result, str) and 'def storage():' in result:
         result = result.replace('cdx-remote-', os.environ['FAKE_PREFIX'] + '-')
+        if os.environ.get('FAKE_ISOLATE'):
+            import ast
+            first, rest = result.split('\n', 1)
+            sandbox = ast.literal_eval(first.partition(' = ')[2])
+            sandbox = sandbox.replace('home / ".nvm",', 'Path(' + repr(str(Path(os.environ['FAKE_ARGV']).parent / 'bin')) + '), home / ".nvm",')
+            sandbox = sandbox.replace('path=os.defpath +', 'path=os.environ["PATH"] +')
+            sandbox = sandbox.replace('return env', "env.update({key: value for key, value in source.items() if key.startswith('FAKE_')}); return env")
+            result = 'SANDBOX_SOURCE = ' + repr(sandbox) + '\n' + rest
     return result
 json.loads = fixture_loads
 sys.argv = ['-c', args[-1]]
@@ -103,6 +111,8 @@ import json, os, pathlib, sys, time
 if '--version' in sys.argv:
     print('codex-cli ' + ('0.other' if os.environ.get('FAKE_REMOTE') and os.environ.get('FAKE_MODE') == 'mismatch' else '0.166.0'))
     sys.exit(0)
+if os.environ.get('FAKE_ISOLATE'):
+    assert sys.argv.count('--dangerously-bypass-approvals-and-sandbox') == 1
 home = pathlib.Path(os.environ['CODEX_HOME'])
 auth = json.loads((home / 'auth.json').read_text())
 assert str(home).startswith('/dev/shm/')
@@ -131,6 +141,21 @@ if os.environ.get('FAKE_MODE') == 'long':
     time.sleep(60)
 sys.exit(7 if os.environ.get('FAKE_MODE') == 'failure' else 0)
 ''')
+    for tool_name, script in {
+        'pasta': "import os, sys; args=sys.argv[sys.argv.index('--')+1:]; os.execv(args[0], args)",
+        'nft': "import sys; sys.stdin.read()",
+        'bwrap': """import os, sys
+args = sys.argv[1:]
+for index, arg in enumerate(args):
+    if arg == '--ro-bind' and args[index+2] == '/home/agent/.codex/auth.json':
+        os.environ['CODEX_HOME'] = str(__import__('pathlib').Path(args[index+1]).parent)
+command = args[args.index('--')+1:]
+os.execv(command[0], command)
+""",
+    }.items():
+        path = bindir / tool_name
+        path.write_text('#!/usr/bin/env python3\n' + script + '\n')
+        path.chmod(0o755)
     ssh.chmod(0o755)
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', str(bindir) + os.pathsep + os.environ['PATH'])
@@ -221,27 +246,55 @@ class RemoteCommandTests(CliTestBase):
                          '--isolate-workspace', '--prompt', 'Work', '--json'], self.make_run_ctx(out, service)) != 0
         assert 'isolation unavailable' in out['stdout'].getvalue()
         assert len((self.directory / 'argv').read_text().splitlines()) == 1
-        assert not list(self.worker_root.iterdir())
+        assert not list(self.worker_root.glob("*"))
 
-    def test_private_credential_isolation_refuses_before_auth_or_ssh(self):
-        _, session, _ = self.setup_session()
+    def test_isolated_remote_cli_run(self):
+        service, session, _ = self.setup_session()
+        self.monkeypatch.setenv('FAKE_ISOLATE', '1')
+        original = pathlib.Path(session['authHome'], 'auth.json').read_bytes()
+        output = self.make_io()
+        assert main(['run', 'work', '--remote', 'worker', '--isolate-workspace', '--permission', 'full', '--cwd', str(self.directory),
+                     '--prompt', 'Work', '--json'], self.make_run_ctx(output, service)) == 0
+        assert RunRegistry(service['base_dir']).get(json.loads(output['stdout'].getvalue())['run_id'])['status'] == 'succeeded'
+        assert pathlib.Path(session['authHome'], 'auth.json').read_bytes() == original
+        assert not list(self.worker_root.glob('run-*'))
+
+    def test_isolated_remote_snapshot_and_cleanup(self):
+        for mode in ('success', 'failure', 'long'):
+            self._isolated_remote_snapshot_and_cleanup(mode)
+
+    def _isolated_remote_snapshot_and_cleanup(self, mode):
+        if (self.directory / 'cdx').exists():
+            __import__('shutil').rmtree(self.directory / 'cdx')
+        _, session, auth = self.setup_session()
+        self.monkeypatch.setenv('FAKE_ISOLATE', '1')
+        self.monkeypatch.setenv('FAKE_MODE', mode)
         session['launch'] = {**(session.get('launch') or {}), 'isolate_workspace': True}
-        with mock.patch('src.remote_run.temporary_auth', side_effect=AssertionError('credential accessed')):
-            with pytest.raises(CdxError, match='cannot hide auth.json') as error:
-                run_remote(session, 'worker', 'codex-cli 0.166.0', cwd=str(self.directory), initial_prompt='Work')
-        assert error.value.code == 'remote_isolation_unavailable'
-        assert not (self.directory / 'argv').exists()
+        original = pathlib.Path(session['authHome'], 'auth.json').read_bytes()
+        version = preflight('worker', isolate_workspace=True, cwd=str(self.directory))
+        result = run_remote(session, 'worker', version, cwd=str(self.directory), initial_prompt='Work',
+                            timeout_seconds=1 if mode == 'long' else 5)
+        assert result['timed_out'] == (mode == 'long')
+        assert result['returncode'] == {'success': 0, 'failure': 7, 'long': 124}[mode]
+        assert pathlib.Path(session['authHome'], 'auth.json').read_bytes() == original
+        assert not list(self.worker_root.glob('run-*'))
+        assert auth['tokens']['refresh_token'] not in (self.directory / 'argv').read_text()
 
     def test_scheduled_auth_refresh_can_lock_during_remote_mission(self):
         from src.codex_usage import codex_auth_lock
         service, session, _ = self.setup_session()
         self.monkeypatch.setenv('FAKE_MODE', 'long')
+        self.monkeypatch.setenv('FAKE_ISOLATE', '1')
+        session['launch'] = {**(session.get('launch') or {}), 'isolate_workspace': True}
+        original = pathlib.Path(session['authHome'], 'auth.json').read_text()
         refreshed = []
 
         def diagnostic(profile):
             with codex_auth_lock(profile['authHome'], strict=True) as acquired:
                 assert acquired
-                pathlib.Path(profile['authHome'], 'auth.json').write_text(json.dumps(credential()))
+                replacement = credential(lifetime=9 * 86400)
+                replacement['tokens']['refresh_token'] = 'RENEWED-CONTROLLER-ONLY'
+                pathlib.Path(profile['authHome'], 'auth.json').write_text(json.dumps(replacement))
                 refreshed.append(True)
             return {'ok': True}
 
@@ -253,12 +306,18 @@ class RemoteCommandTests(CliTestBase):
                 **self.make_run_ctx(output, service), 'fetchCodexRateLimitDiagnostic': diagnostic,
             }) == 0
             assert json.loads(output['stdout'].getvalue())['results'][0]['outcome'] == 'valid'
+            home = pathlib.Path((self.directory / 'home').read_text())
+            copy = json.loads((home / 'auth.json').read_text())
+            assert copy['tokens']['refresh_token'] == ''
+            assert copy['tokens']['access_token'] == json.loads(original)['tokens']['access_token']
+            assert 'RENEWED-CONTROLLER-ONLY' not in json.dumps(copy)
             return True
 
-        result = run_remote(session, 'worker', preflight('worker'), cwd=str(self.directory),
+        result = run_remote(session, 'worker', preflight('worker', isolate_workspace=True, cwd=str(self.directory)), cwd=str(self.directory),
                             initial_prompt='Work', budget_check=check, timeout_seconds=5)
         assert result['budget_exceeded']
         assert refreshed == [True]
+        assert json.loads(pathlib.Path(session['authHome'], 'auth.json').read_text())['tokens']['refresh_token'] == 'RENEWED-CONTROLLER-ONLY'
         assert not list(self.worker_root.glob('run-*'))
 
     def test_failure_cleanup_and_no_retry(self):
@@ -282,6 +341,8 @@ class RemoteCommandTests(CliTestBase):
 
     def test_stop_cleanup(self):
         service, session, _ = self.setup_session()
+        self.monkeypatch.setenv('FAKE_ISOLATE', '1')
+        session['launch'] = {**(session.get('launch') or {}), 'isolate_workspace': True}
         self.monkeypatch.setenv('FAKE_MODE', 'long')
         script = ('from src.remote_run import run_remote; import json; '
                   'run_remote(json.loads(' + repr(json.dumps(session)) + '), "worker", "codex-cli 0.166.0", '
@@ -439,9 +500,9 @@ def test_fake_cmd_rejects_posix_quoting_and_oversized_commands(worker, monkeypat
     assert result.returncode != 0
 
 
-def test_preflight_reports_credential_confidentiality_refusal():
+def test_preflight_reports_missing_isolation_dependencies():
     with mock.patch('src.remote_run.subprocess.check_output', return_value=b'codex-cli test'), \
             mock.patch('src.remote_run.subprocess.run', return_value=subprocess.CompletedProcess([], 127, b'', b'')):
-        with pytest.raises(CdxError, match='cannot hide auth.json') as error:
+        with pytest.raises(CdxError, match='isolation unavailable') as error:
             preflight('worker', isolate_workspace=True, cwd='/checkout')
-    assert error.value.code == 'remote_isolation_unavailable'
+    assert error.value.code == 'remote_unavailable'
