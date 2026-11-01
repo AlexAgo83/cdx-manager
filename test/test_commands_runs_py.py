@@ -48,6 +48,14 @@ from src.session_service import create_session_service
 
 class RunsCommandTests(CliTestBase):
 
+    def test_remote_option_keeps_existing_run_options(self):
+        parsed = _parse_run_args(["work", "--remote", "agent@worker", "--cwd", "/remote/project", "--prompt", "Work",
+                                  "--permission", "full", "--budget", "2", "--label", "checks", "--detach", "--json"])
+        self.assertEqual(parsed["remote"], "agent@worker")
+        self.assertEqual(parsed["permission"], "full")
+        self.assertEqual(parsed["budget"], 2)
+        self.assertTrue(parsed["detach"])
+
     def test_source_project_is_captured_before_worktree_isolation(self):
         directory = pathlib.Path(self.make_temp_dir())
         source = directory / "source" / "app"

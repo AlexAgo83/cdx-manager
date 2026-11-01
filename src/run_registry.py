@@ -244,15 +244,21 @@ class RunRegistry:
             _check_capacity(_read_registry(self.path), max_parallel)
 
     def start(self, run_id, *, kind, session, provider, model, cwd, artifacts=None, label=None, max_parallel=None,
-              parent_run_id=None, conversation_id=None, launch=None, reasoning_effort=None, project=None, project_source="unknown"):
+              parent_run_id=None, conversation_id=None, launch=None, reasoning_effort=None, project=None, project_source="unknown", remote=None):
         with _registry_lock(self.path):
             data = _read_registry(self.path)
+            _refresh_stale_runs(data)
+            for run in data["runs"]:
+                if (run.get("run_id") != run_id and run.get("status") == "running"
+                        and run.get("session") == session and (remote or run.get("remote"))):
+                    raise CdxError(f"Session is busy on the controller or a worker: {session}", code="session_busy")
             data["runs"] = [run for run in data["runs"] if run.get("run_id") != run_id]
             if max_parallel:
                 # Counted under the lock and without this run's own record, which a
                 # detached child writes a second time under the same id.
                 _check_capacity(data, max_parallel)
             record = _base_record(run_id, kind=kind, session=session, provider=provider, model=model, cwd=cwd, artifacts=artifacts)
+            record["remote"] = remote
             record.update(parent_run_id=parent_run_id, conversation_id=conversation_id,
                           launch=dict(launch or {}), reasoning_effort=reasoning_effort,
                           project=project, project_source=project_source)
