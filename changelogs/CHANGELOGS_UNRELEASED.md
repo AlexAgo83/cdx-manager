@@ -1,5 +1,11 @@
 # Unreleased
 
+## Dependency security
+
+- Require cryptography >=50.0.0 for encrypted auth bundles and remove the vulnerable 47.0.0 lock entry. Python 3.9 remains supported from 3.9.2, as cryptography 50 excludes 3.9.0 and 3.9.1.
+- Require pytest >=9.0.3 in the development extra on Python >=3.10; retain the existing 9.2.0 lock entry. pytest is not a runtime dependency. Python 3.9 still uses 8.4.2, the last compatible release, and its medium-severity alert remains unresolved pending an upstream backport or a decision to drop Python 3.9 development support.
+- Check lock consistency and run the CI test matrix against locked development dependencies without upgrading unrelated packages.
+
 ## Run costs and budgets
 
 - Add nullable `cost_usd` to JSON history entries using the same observed usage, model pricing, and price overrides as stats.
