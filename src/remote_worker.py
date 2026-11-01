@@ -1,4 +1,4 @@
-"""Self-contained Linux worker, sent as non-secret SSH command source."""
+"""Self-contained Linux worker, framed over SSH stdin before the run payload."""
 
 import fcntl
 import json
@@ -12,6 +12,9 @@ import sys
 import tempfile
 import threading
 import time
+
+# Supplied by the controller before this module is executed.
+SANDBOX_SOURCE = globals().get('SANDBOX_SOURCE', '')
 
 
 def version():
@@ -51,12 +54,46 @@ def allocate(root):
     return home, live
 
 
-def main():
-    root = storage()
-    if sys.argv[-1] == 'probe':
+def isolation_probe_command(payload, home, env):
+    # Execute exactly the local confinement implementation, shipped over stdin.
+    namespace = {'__name__': 'cdx_workspace_sandbox'}
+    exec(compile(SANDBOX_SOURCE, 'workspace_sandbox.py', 'exec'), namespace)
+    return namespace['sandbox_command'](
+        ['codex', '--version'], pathlib.Path(payload['cwd']), network=payload['network'],
+        writable=payload['writable'], source=env, auth_home=str(home), provider='codex',
+        observation_home=str(home / 'sessions'))
+
+
+def probe(root, payload):
+    if not payload.get('isolate_workspace'):
         print(version())
         return 0
+    # Exercise mounts, namespaces and the nft setup with a dummy home before
+    # the controller reads or sends a credential. Binary presence is insufficient.
+    with tempfile.TemporaryDirectory(prefix='probe-', dir=root) as directory:
+        home = pathlib.Path(directory)
+        (home / 'auth.json').write_text('{}')
+        (home / 'sessions').mkdir()
+        command, env = isolation_probe_command(payload, home, dict(os.environ))
+        result = subprocess.run(command, env=env, stdin=subprocess.DEVNULL,
+                                capture_output=True, timeout=20)
+        if result.returncode:
+            raise RuntimeError('Remote workspace isolation unavailable')
+        # The local sandbox gives Codex and its tool subprocesses the same
+        # read-only auth mount. A successful namespace probe cannot establish
+        # credential confidentiality, so never accept real auth in this mode.
+        print('Remote isolation cannot hide auth.json from agent tools; refusing bearer exposure.', file=sys.stderr)
+        return 127
+
+
+def main():
+    root = storage()
     payload = json.loads(sys.stdin.buffer.readline())
+    if sys.argv[-1] == 'probe':
+        return probe(root, payload)
+    if payload.get('isolate_workspace'):
+        print('Remote isolation cannot hide auth.json from agent tools; refusing bearer exposure.', file=sys.stderr)
+        return 127
     auth = payload['auth']
     if auth['tokens'].get('refresh_token') != '':
         raise RuntimeError('Refusing a rotating remote credential')
@@ -181,5 +218,5 @@ if __name__ == '__main__':
         sys.exit(main())
     except Exception:
         # Never render exception values: input and provider errors may contain credentials.
-        print('Remote worker setup or execution failed; check Python, Codex, cwd and /dev/shm.', file=sys.stderr)
+        print('Remote worker setup or execution failed; check Python, Codex, cwd, /dev/shm and isolation dependencies.', file=sys.stderr)
         sys.exit(126)

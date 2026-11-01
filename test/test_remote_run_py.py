@@ -17,7 +17,7 @@ from src.cli import main
 from src.cli_args import _parse_run_args
 from src.commands.runs import _detached_child_argv
 from src.errors import CdxError
-from src.remote_run import needs_refresh, preflight, run_remote, temporary_auth
+from src.remote_run import needs_refresh, preflight, run_remote, ssh_command, temporary_auth, worker_input
 from src.run_registry import RunRegistry
 
 
@@ -65,15 +65,37 @@ def worker(tmp_path, monkeypatch):
     bindir.mkdir()
     ssh = bindir / 'ssh'
     ssh.write_text('''#!/usr/bin/env python3
-import json, os, sys
+import json, os, shlex, sys
 from pathlib import Path
 with open(os.environ['FAKE_ARGV'], 'a') as f:
     f.write(json.dumps(sys.argv) + '\\n')
 if os.environ.get('FAKE_MODE') == 'unreachable':
     sys.exit(255)
 os.environ['FAKE_REMOTE'] = 'yes'
-command = sys.argv[-1].replace('cdx-remote-', os.environ['FAKE_PREFIX'] + '-')
-os.execl('/bin/sh', 'sh', '-c', command)
+command = sys.argv[-1]
+if os.environ.get('FAKE_LANDING') == 'cmd':
+    assert len(command.encode('utf-16-le')) // 2 <= 8191
+    # cmd.exe does not use POSIX single-quote grouping. For this fixed command
+    # shape, only double quotes group the Python bootstrap argument.
+    args = shlex.split(command, posix=False)
+    assert args[:4] == ['wsl.exe', '-d', 'Ubuntu', '--'], 'python3 is not available in cmd.exe'
+    args = args[4:]
+    assert args[:3] == ['python3', '-u', '-c']
+    assert args[3].startswith('"') and args[3].endswith('"')
+    args[3] = args[3][1:-1]
+else:
+    args = shlex.split(command)
+# Only fixture storage names change. Source remains on stdin, and the original
+# controller argv is logged above before this small fake bootstrap is installed.
+original_loads = json.loads
+def fixture_loads(value, *extra, **kwargs):
+    result = original_loads(value, *extra, **kwargs)
+    if isinstance(result, str) and 'def storage():' in result:
+        result = result.replace('cdx-remote-', os.environ['FAKE_PREFIX'] + '-')
+    return result
+json.loads = fixture_loads
+sys.argv = ['-c', args[-1]]
+exec(args[3])
 ''')
     codex = bindir / 'codex'
     codex.write_text('''#!/usr/bin/env python3
@@ -96,7 +118,7 @@ print(auth['tokens']['access_token'], flush=True)
 print(auth['tokens']['id_token'], file=sys.stderr, flush=True)
 print(json.dumps({'type': 'thread.started', 'thread_id': 'remote-thread'}), flush=True)
 sessions = home / 'sessions'
-sessions.mkdir()
+sessions.mkdir(exist_ok=True)
 usage = {'input_tokens': 10, 'output_tokens': 5, 'cached_input_tokens': 0}
 (sessions / 'rollout.jsonl').write_text('\\n'.join(json.dumps(row) for row in [
     {'type': 'session_meta', 'payload': {'id': 'remote-thread'}},
@@ -157,6 +179,86 @@ class RemoteCommandTests(CliTestBase):
         for value in auth['tokens'].values():
             assert value not in persisted
         assert json.loads(pathlib.Path(session['authHome'], 'auth.json').read_text()) == auth
+        assert not list(self.worker_root.glob('run-*'))
+
+    def test_posix_landing_and_large_stdin_payload(self):
+        self._check_landing('posix')
+
+    def test_windows_landing_prefix_and_large_stdin_payload(self):
+        self._check_landing('cmd')
+
+    def _check_landing(self, landing):
+        service, _, auth = self.setup_session()
+        self.monkeypatch.setenv('FAKE_LANDING', landing)
+        prefix = ['--remote-prefix', 'wsl.exe -d Ubuntu --'] if landing == 'cmd' else []
+        prompt = 'Long prompt with quotes " and apostrophes \' ' * 250
+        out = self.make_io()
+        assert main(['run', 'work', '--remote', 'worker', *prefix, '--cwd', str(self.directory),
+                     '--prompt', prompt, '--json'], self.make_run_ctx(out, service)) == 0
+        commands = [json.loads(line)[-1] for line in (self.directory / 'argv').read_text().splitlines()]
+        assert len(commands) == 2
+        for command in commands:
+            assert len(command) < 256
+            assert 'def main' not in command
+            assert prompt not in command
+            assert command.startswith('wsl.exe -d Ubuntu -- ' if landing == 'cmd' else 'python3 ')
+            for value in auth['tokens'].values():
+                assert value not in command
+        assert len(worker_input()) > 8191
+        assert not list(self.worker_root.glob('run-*'))
+
+    def test_windows_landing_requires_prefix(self):
+        self.monkeypatch.setenv('FAKE_LANDING', 'cmd')
+        with pytest.raises(CdxError, match='unreachable'):
+            preflight('worker')
+
+    def test_isolation_unavailable_refuses_before_credentials(self):
+        service, _, _ = self.setup_session()
+        # An empty checkout path is rejected regardless of installed tools.
+        with mock.patch('src.remote_run.temporary_auth', side_effect=AssertionError('credential accessed')):
+            out = self.make_io()
+            assert main(['run', 'work', '--remote', 'worker', '--cwd', str(self.directory / 'missing'),
+                         '--isolate-workspace', '--prompt', 'Work', '--json'], self.make_run_ctx(out, service)) != 0
+        assert 'isolation unavailable' in out['stdout'].getvalue()
+        assert len((self.directory / 'argv').read_text().splitlines()) == 1
+        assert not list(self.worker_root.iterdir())
+
+    def test_private_credential_isolation_refuses_before_auth_or_ssh(self):
+        _, session, _ = self.setup_session()
+        session['launch'] = {**(session.get('launch') or {}), 'isolate_workspace': True}
+        with mock.patch('src.remote_run.temporary_auth', side_effect=AssertionError('credential accessed')):
+            with pytest.raises(CdxError, match='cannot hide auth.json') as error:
+                run_remote(session, 'worker', 'codex-cli 0.166.0', cwd=str(self.directory), initial_prompt='Work')
+        assert error.value.code == 'remote_isolation_unavailable'
+        assert not (self.directory / 'argv').exists()
+
+    def test_scheduled_auth_refresh_can_lock_during_remote_mission(self):
+        from src.codex_usage import codex_auth_lock
+        service, session, _ = self.setup_session()
+        self.monkeypatch.setenv('FAKE_MODE', 'long')
+        refreshed = []
+
+        def diagnostic(profile):
+            with codex_auth_lock(profile['authHome'], strict=True) as acquired:
+                assert acquired
+                pathlib.Path(profile['authHome'], 'auth.json').write_text(json.dumps(credential()))
+                refreshed.append(True)
+            return {'ok': True}
+
+        def check(_):
+            if not (self.directory / 'home').exists():
+                return False
+            output = self.make_io()
+            assert main(['auth', 'refresh', 'work', '--json'], {
+                **self.make_run_ctx(output, service), 'fetchCodexRateLimitDiagnostic': diagnostic,
+            }) == 0
+            assert json.loads(output['stdout'].getvalue())['results'][0]['outcome'] == 'valid'
+            return True
+
+        result = run_remote(session, 'worker', preflight('worker'), cwd=str(self.directory),
+                            initial_prompt='Work', budget_check=check, timeout_seconds=5)
+        assert result['budget_exceeded']
+        assert refreshed == [True]
         assert not list(self.worker_root.glob('run-*'))
 
     def test_failure_cleanup_and_no_retry(self):
@@ -304,12 +406,42 @@ def test_preflight_failure(worker, monkeypatch, mode, code):
 
 
 def test_detached_forwards_remote():
-    parsed = _parse_run_args(['work', '--remote', 'worker', '--cwd', '/work', '--prompt', 'Work', '--detach', '--json'])
+    parsed = _parse_run_args(['work', '--remote', 'worker', '--remote-prefix', 'wsl.exe -d Ubuntu --',
+                              '--isolate-workspace', '--cwd', '/work', '--prompt', 'Work', '--detach', '--json'])
     argv = _detached_child_argv(parsed, '/prompt', 'work', '/work')
     assert argv[argv.index('--remote') + 1] == 'worker'
+    assert argv[argv.index('--remote-prefix') + 1] == 'wsl.exe -d Ubuntu --'
+    assert '--isolate-workspace' in argv
 
 
 @pytest.mark.parametrize('target', ['', '   '])
 def test_empty_remote_never_runs_locally(target):
     with pytest.raises(CdxError, match='nonempty SSH target'):
         _parse_run_args(['work', '--remote', target, '--cwd', '/work', '--prompt', 'Work', '--json'])
+
+
+@pytest.mark.parametrize('prefix', ['', 'wsl.exe & echo unsafe', 'wsl.exe "Ubuntu"'])
+def test_invalid_prefix_rejected(prefix):
+    with pytest.raises(CdxError):
+        _parse_run_args(['work', '--remote-prefix', prefix, '--cwd', '/work', '--prompt', 'Work', '--json'])
+    if prefix:
+        with pytest.raises(CdxError, match='Invalid --remote-prefix'):
+            ssh_command('worker', 'probe', prefix)
+
+
+@pytest.mark.parametrize('command', [
+    "wsl.exe -d Ubuntu -- python3 -u -c 'print(1)' probe",
+    'wsl.exe -d Ubuntu -- python3 -c "' + 'x' * 8192 + '" probe',
+])
+def test_fake_cmd_rejects_posix_quoting_and_oversized_commands(worker, monkeypatch, command):
+    monkeypatch.setenv('FAKE_LANDING', 'cmd')
+    result = subprocess.run(['ssh', 'worker', command], input=b'', capture_output=True)
+    assert result.returncode != 0
+
+
+def test_preflight_reports_credential_confidentiality_refusal():
+    with mock.patch('src.remote_run.subprocess.check_output', return_value=b'codex-cli test'), \
+            mock.patch('src.remote_run.subprocess.run', return_value=subprocess.CompletedProcess([], 127, b'', b'')):
+        with pytest.raises(CdxError, match='cannot hide auth.json') as error:
+            preflight('worker', isolate_workspace=True, cwd='/checkout')
+    assert error.value.code == 'remote_isolation_unavailable'

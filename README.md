@@ -94,6 +94,7 @@ Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). CDX Manager i
 ```sh
 cdx run work --remote agent@worker --cwd /srv/project --prompt 'Run the checks' --json
 cdx run work --remote worker --cwd /srv/project --prompt-file task.txt --detach --label checks --budget 2 --json
+cdx run work --remote Spire --remote-prefix 'wsl.exe -d Ubuntu --' --cwd /srv/project --prompt 'Run the checks' --json
 ```
 
 The controller remains the authority for the profile, quota, history, costs and
@@ -110,9 +111,32 @@ with Python 3, memory-backed `/dev/shm`, and exactly the same `codex --version`.
 Configure SSH keys, host trust and aliases in advance; the connection uses batch
 mode and bounded connection/keepalive timeouts. Provider refusal, unreachable
 workers and version mismatches fail before sending credentials. Only Codex OAuth
-profiles are supported. Remote continuation and `--isolate-workspace` are refused
-because the temporary home does not preserve conversation rollouts or install a
-worker sandbox. Codex's native permission sandbox still applies.
+profiles are supported. Remote continuation is refused because the temporary home
+does not preserve conversation rollouts. Codex's native permission sandbox still
+applies to ordinary remote runs.
+
+For SSH servers landing in Windows `cmd.exe` (including Spire and Citadel), pass
+`--remote-prefix 'wsl.exe -d Ubuntu --'` to enter Linux before starting Python.
+The prefix accepts plain command words, options and paths without spaces or shell
+metacharacters; it is forwarded to detached runs. POSIX targets need no prefix.
+Only a short, double-quoted Python bootstrap is sent in the SSH command line;
+the worker and shared sandbox source are framed on stdin before the payload.
+Neither source size nor prompt size consumes cmd.exe's 8191-character command limit.
+
+`--isolate-workspace` now checks the worker's **same local isolation mechanism**:
+bubblewrap, pasta (passt), nftables, Python, the checkout/toolchain allowlist,
+and an actual namespace/network setup using a dummy credential. Missing dependencies,
+namespace denial or invalid checkouts fail before sending real credentials, without
+an unisolated fallback. However, even a successful probe currently returns
+`remote_isolation_unavailable`: the local mechanism mounts
+`/home/agent/.codex/auth.json` read-only for Codex, and agent tool subprocesses can
+read it too. That file contains the temporary bearer (potentially valid for ten
+days); a read-only mount does not protect its confidentiality. Remote isolated
+runs therefore **remain unavailable and are refused**, including direct worker
+invocation. A provider channel that keeps the bearer outside the tools' sandbox
+is required before enabling them. The ordinary remote path remains an explicit
+choice with its existing credential exposure; this change does not claim that
+local workspace isolation hides provider authentication from tools.
 
 The controller takes the profile's authentication lock and refreshes through its
 local [Codex app-server](https://learn.chatgpt.com/docs/app-server) when `last_refresh` is older than seven days or the access
@@ -136,9 +160,13 @@ can leave a home behind; the next launch sweeps homes whose worker lock is no
 longer held. No persistent worker authentication is installed or refreshed.
 
 A profile occupied by a remote run is busy for local and remote runs using the
-same controller. The authentication lock also excludes interactive launches and
-quota probes; quota remains one controller-side account snapshot, never a worker
-copy. Multiple independent controllers sharing copied OAuth profiles are not
+same controller through the run registry. The authentication lock is held only
+while refreshing and validating the credential snapshot, then released before SSH
+launch. Scheduled `cdx auth refresh` and quota probes can acquire it during a long
+mission; they no longer see a mission-long `locked`/`auth_refresh_indeterminate`
+result. A probe overlapping the short snapshot can still report contention.
+Controller renewal does not extend the worker's copied access token; quota remains
+one controller-side account snapshot, never a worker copy. Multiple independent controllers sharing copied OAuth profiles are not
 supported. Costs and budget checks use measured worker usage and observed rollout
 models; unknown prices and delayed provider reporting retain the usual budget
 limitations. A run that outlives the access credential fails with
