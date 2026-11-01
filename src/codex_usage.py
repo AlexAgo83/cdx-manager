@@ -18,7 +18,7 @@ CODEX_AUTH_LOCK_NAME = ".cdx-auth.lock"
 
 
 @contextlib.contextmanager
-def codex_auth_lock(auth_home, blocking=False, timeout_seconds=None, retry_interval_seconds=0.05):
+def codex_auth_lock(auth_home, blocking=False, timeout_seconds=None, retry_interval_seconds=0.05, strict=False):
     """Serialize codex token refreshes per CODEX_HOME.
 
     Codex rotates its OAuth refresh_token on refresh and invalidates the old
@@ -28,6 +28,8 @@ def codex_auth_lock(auth_home, blocking=False, timeout_seconds=None, retry_inter
     the lock is held, False when a non-blocking acquire found it already taken.
     ponytail: POSIX flock only; on Windows (no fcntl) this is a no-op.
     """
+    if strict and (not auth_home or fcntl is None):
+        raise OSError("A POSIX authentication lock is required")
     if not auth_home or fcntl is None:
         yield True
         return
@@ -35,6 +37,8 @@ def codex_auth_lock(auth_home, blocking=False, timeout_seconds=None, retry_inter
         os.makedirs(auth_home, exist_ok=True)
         handle = open(os.path.join(auth_home, CODEX_AUTH_LOCK_NAME), "w")
     except OSError:
+        if strict:
+            raise
         yield True
         return
     deadline = None if timeout_seconds is None else time.monotonic() + timeout_seconds

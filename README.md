@@ -88,3 +88,63 @@ Recovery does not require `--failover`, which still controls account quota exhau
 - [Tray companion testing](docs/tray-local-testing.md) — local development loops.
 
 Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). CDX Manager is [MIT licensed](LICENSE).
+
+### Run Codex on an SSH worker
+
+```sh
+cdx run work --remote agent@worker --cwd /srv/project --prompt 'Run the checks' --json
+cdx run work --remote worker --cwd /srv/project --prompt-file task.txt --detach --label checks --budget 2 --json
+```
+
+The controller remains the authority for the profile, quota, history, costs and
+run registry. Use `run-status`, `run-report` and `run-tail` on the controller with
+the returned run ID. Permission, model, reasoning effort, prompt, timeout, budget,
+label and detached execution use the existing run options. `--cwd` names an
+absolute directory on the worker; it need not exist on the controller. Files are
+not synchronized. Use `--project` to explicitly attribute a remote checkout to a
+project. Remote runs do not retry or fail over automatically, including when
+`--failover` is supplied.
+
+Requirements: a POSIX controller with `ssh` and Codex on PATH, and a Linux worker
+with Python 3, memory-backed `/dev/shm`, and exactly the same `codex --version`.
+Configure SSH keys, host trust and aliases in advance; the connection uses batch
+mode and bounded connection/keepalive timeouts. Provider refusal, unreachable
+workers and version mismatches fail before sending credentials. Only Codex OAuth
+profiles are supported. Remote continuation and `--isolate-workspace` are refused
+because the temporary home does not preserve conversation rollouts or install a
+worker sandbox. Codex's native permission sandbox still applies.
+
+The controller takes the profile's authentication lock and refreshes through its
+local [Codex app-server](https://learn.chatgpt.com/docs/app-server) when `last_refresh` is older than seven days or the access
+token has less than 24 hours left. It verifies freshness after refreshing and
+fails closed if freshness or expiration cannot be established. Only
+`access_token`, `id_token`, `account_id` and `last_refresh` travel, with an empty
+`refresh_token`. The rotating refresh token never leaves the controller. The
+credential travels exclusively over SSH stdin, and is absent from command
+arguments, environment variables, run records and output. The agent receives
+`/dev/null` as stdin, not the bootstrap script or credential transport.
+
+Each worker run gets a private mode-700 home under
+`/dev/shm/cdx-remote-<uid>/run-*`, with mode-600 `auth.json` and file-only credential storage. Only non-secret scalar
+preferences (`model`, `model_reasoning_effort`, `service_tier`, `personality`,
+`model_context_window`, `model_auto_compact_token_limit`) from the top level of
+`config.toml` are copied. Hooks, custom providers, environment settings and other
+controller-local configuration are not copied. The home is removed on completion,
+failure, cancellation and SSH stdin closure. Stop a detached run by sending
+SIGTERM to the controller PID returned at launch. Uncatchable worker termination
+can leave a home behind; the next launch sweeps homes whose worker lock is no
+longer held. No persistent worker authentication is installed or refreshed.
+
+A profile occupied by a remote run is busy for local and remote runs using the
+same controller. The authentication lock also excludes interactive launches and
+quota probes; quota remains one controller-side account snapshot, never a worker
+copy. Multiple independent controllers sharing copied OAuth profiles are not
+supported. Costs and budget checks use measured worker usage and observed rollout
+models; unknown prices and delayed provider reporting retain the usual budget
+limitations. A run that outlives the access credential fails with
+`remote_credential_expired`, requiring a new controller launch.
+
+The empty-refresh-token behavior was measured with Codex CLI 0.166.0. Real-host
+acceptance should verify that the installed matching CLI does not attempt a
+refresh with the temporary home, that the controller token chain stays unchanged
+for a fresh credential, and that cleanup works after disconnect and SIGTERM.

@@ -48,6 +48,7 @@ from ..provider_runtime import (
     _run_headless_provider_command,
     with_requested_conversation,
 )
+from ..remote_run import preflight, run_remote
 from ..run_command import read_run_prompt, run_cdx_error_code, run_launch_payload, run_result_payload
 from ..run_failover import (
     CAPACITY_RETRY_DELAYS,
@@ -203,6 +204,7 @@ def _detached_child_argv(parsed, prompt_path, session_name, cwd):
     # from the package root, so a relative "--cwd ." would resolve there.
     argv = ["run", session_name, "--cwd", cwd, "--prompt-file", prompt_path]
     for flag, key in (
+        ("--remote", "remote"),
         ("--project", "project"),
         ("--budget", "budget"),
         ("--continue-run", "continue_run"),
@@ -546,7 +548,7 @@ def _env_max_runs(ctx):
 
 
 def _observe_headless_usage(session, run_info, baseline=None):
-    isolated = (session.get("launch") or {}).get("isolate_workspace")
+    isolated = bool(run_info.get("remote")) or (session.get("launch") or {}).get("isolate_workspace")
     evidence = run_info.get("usage_evidence")
     observed_models = []
     usage, model = extract_run_observation(session.get("provider"), run_info.get("stdout_path"),
@@ -710,8 +712,15 @@ def handle_run(rest, ctx):
             session = selected["session"]
             selection_row = selected.get("row") or {}
 
+        remote_version = None
+        if parsed.get("remote"):
+            if session["provider"] != "codex":
+                raise CdxError("--remote is only available for Codex profiles.", code="remote_provider_unsupported")
+            if parsed.get("isolate_workspace") or parsed.get("continue_run"):
+                raise CdxError("--remote requires a fresh run without --isolate-workspace.")
+            remote_version = preflight(parsed["remote"], {**os.environ, **(ctx.get("env") or {})})
         cwd = os.path.abspath(parsed["cwd"])
-        if not os.path.isdir(cwd):
+        if not parsed.get("remote") and not os.path.isdir(cwd):
             raise CdxError(f"Invalid cwd: {parsed['cwd']}", code="invalid_cwd")
         from ..project_identity import resolve_project
 
@@ -753,17 +762,18 @@ def handle_run(rest, ctx):
                 **launch_updates,
             },
         }
-        _ensure_session_authentication(
-            run_session,
-            ctx["service"],
-            spawn=ctx.get("spawn"),
-            spawn_sync=ctx.get("spawn_sync"),
-            env_override=ctx.get("env"),
-            stdin_is_tty=False,
-            behavior="launch",
-            signal_emitter=ctx.get("signal_emitter"),
-            trust_local_credentials=False,
-        )
+        if not parsed.get("remote"):
+            _ensure_session_authentication(
+                run_session,
+                ctx["service"],
+                spawn=ctx.get("spawn"),
+                spawn_sync=ctx.get("spawn_sync"),
+                env_override=ctx.get("env"),
+                stdin_is_tty=False,
+                behavior="launch",
+                signal_emitter=ctx.get("signal_emitter"),
+                trust_local_credentials=False,
+            )
         registry = _run_registry(ctx)
         # A detached child is handed its parent's run_id so both agree on the
         # identity the launch payload already reported to the caller.
@@ -788,6 +798,7 @@ def handle_run(rest, ctx):
             },
             label=parsed.get("label"),
             max_parallel=max_parallel,
+            remote=parsed.get("remote"),
             parent_run_id=parsed.get("continue_run"),
             conversation_id=(run_session.get("conversation") or {}).get("id") if run_session["provider"] == "claude" or parsed.get("continue_run") else None,
             launch=run_session.get("launch"),
@@ -870,7 +881,11 @@ def handle_run(rest, ctx):
                         budget_observation = observation
                 return attempt_cost is not None and already_spent + attempt_cost >= parsed["budget"]
 
-            run_info = _run_headless_provider_command(
+            runner = _run_headless_provider_command
+            if parsed.get("remote"):
+                def runner(*args, **kwargs):
+                    return run_remote(*args, target=parsed["remote"], version=remote_version, **kwargs)
+            run_info = runner(
                 run_session,
                 cwd=cwd,
                 env_override=ctx.get("env"),
@@ -918,7 +933,7 @@ def handle_run(rest, ctx):
                 **run_info,
                 **project,
             })
-            if run_info.get("budget_exceeded") or run_info.get("budget_unverifiable") or parsed.get("continue_run"):
+            if parsed.get("remote") or run_info.get("budget_exceeded") or run_info.get("budget_unverifiable") or parsed.get("continue_run"):
                 break
             if looks_model_at_capacity(run_session.get("provider"), run_info):
                 event = {"reason": "model_at_capacity", "attempt": attempt,

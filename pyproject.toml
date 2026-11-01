@@ -70,6 +70,7 @@ show_missing = true
 skip_empty = true
 
 [tool.ruff]
+extend-exclude = [".jarvis-input"]
 target-version = "py39"
 line-length = 140
 

@@ -48,7 +48,7 @@ CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--conversation <id>] [--json]"
 SESSIONS_USAGE = "Usage: cdx sessions [--all] --json"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json"
 NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
-RUN_USAGE = "Usage: cdx run [session] (--cwd|--dir) PATH [--project PATH] (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--network-access] [--isolate-workspace] [--timeout-seconds N] [--budget USD] [--label TEXT] [--max-parallel N] [--continue-run RUN_ID] [--detach] [--failover] [--refresh] --json"
+RUN_USAGE = "Usage: cdx run [session] [--remote SSH_TARGET] (--cwd|--dir) PATH [--project PATH] (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--network-access] [--isolate-workspace] [--timeout-seconds N] [--budget USD] [--label TEXT] [--max-parallel N] [--continue-run RUN_ID] [--detach] [--failover] [--refresh] --json"
 RUN_JSON_REQUIRED = "cdx run: --json is required."
 RUN_TARGET_REQUIRED = "cdx run: specify a session name or --provider PROVIDER."
 RUN_SESSION_PROVIDER_CONFLICT = "cdx run: cannot specify both a session name and --provider."
@@ -546,6 +546,12 @@ def cdx_schema():
             "run": [
                 "invalid_cwd",
                 "session_disabled",
+                "session_busy",
+                "auth_lock_failed",
+                "remote_unavailable",
+                "remote_version_mismatch",
+                "remote_provider_unsupported",
+                "remote_credential_expired",
                 "no_suitable_session",
                 "provider_cli_not_found",
                 "provider_start_failed",
@@ -673,6 +679,7 @@ def _parse_max_parallel(value):
 
 def _parse_run_args(args):
     parsed = _parse_run_flag_args(args, {
+        "--remote": {"key": "remote", "type": "str", "default": None},
         "--project": {"key": "project", "type": "str", "default": None},
         "--cwd": {"key": "cwd", "type": "str", "default": None},
         "--dir": {"key": "cwd", "type": "str", "default": None},
@@ -732,9 +739,13 @@ def _parse_run_args(args):
     if parsed["continue_run"] is not None and not parsed["continue_run"].strip():
         raise CdxArgumentError("cdx run: --continue-run requires a nonempty run id.",
                                code=ARG_CODE_INVALID_VALUE, arguments=["--continue-run"])
+    if parsed["remote"] is not None and not parsed["remote"].strip():
+        raise CdxArgumentError("cdx run: --remote requires a nonempty SSH target.",
+                               code=ARG_CODE_INVALID_VALUE, arguments=["--remote"])
     effort = _parse_run_effort(parsed["reasoning_effort"], parsed["power"])
     return {
         "name": name,
+        "remote": parsed["remote"],
         "provider": parsed["provider"],
         "cwd": parsed["cwd"],
         "project": parsed["project"],
