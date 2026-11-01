@@ -61,6 +61,7 @@ class WorkspaceSandboxTests(unittest.TestCase):
         self.assertEqual(spec["command"], "bwrap")
         return captured
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Isolated Codex runs are Linux-only")
     def test_isolated_codex_drops_its_nested_sandbox(self):
         captured = self._run_isolated_codex("auto", network=True)
         command = captured["command"]
@@ -70,6 +71,7 @@ class WorkspaceSandboxTests(unittest.TestCase):
         self.assertNotIn("sandbox_workspace_write.network_access=true", command)
         self.assertLess(command.index("--dangerously-bypass-approvals-and-sandbox"), command.index("--"))
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Isolated Codex runs are Linux-only")
     def test_isolated_codex_review_stays_read_only_outside(self):
         captured = self._run_isolated_codex("review", network=False)
         self.assertFalse(captured["writable"])

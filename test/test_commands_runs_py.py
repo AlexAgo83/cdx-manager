@@ -57,6 +57,7 @@ class RunsCommandTests(CliTestBase):
         self.assertEqual(parsed["budget"], 2)
         self.assertTrue(parsed["detach"])
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Isolated Codex runs are Linux-only")
     def test_source_project_is_captured_before_worktree_isolation(self):
         directory = pathlib.Path(self.make_temp_dir())
         source = directory / "source" / "app"
