@@ -12,9 +12,26 @@ import sys
 import tempfile
 import threading
 import time
+import types
+from datetime import datetime, timezone
 
 # Supplied by the controller before this module is executed.
 SANDBOX_SOURCE = globals().get('SANDBOX_SOURCE', '')
+OBSERVATION_MODULES = globals().get('OBSERVATION_MODULES', {})
+OBSERVATION_LIMITS = globals().get('OBSERVATION_LIMITS', (128 * 1024 * 1024, 1))
+
+
+def observation_runtime():
+    # Load only controller-owned readers, with no worker installation required.
+    package = types.ModuleType('cdx_observation')
+    package.__path__ = []
+    sys.modules[package.__name__] = package
+    for name, source in OBSERVATION_MODULES.items():
+        module = types.ModuleType(package.__name__ + '.' + name)
+        module.__package__ = package.__name__
+        sys.modules[module.__name__] = module
+        exec(compile(source, name + '.py', 'exec'), module.__dict__)
+    return sys.modules[package.__name__ + '.run_usage'], sys.modules[package.__name__ + '.run_observation']
 
 
 def version():
@@ -144,6 +161,7 @@ def main():
                 ['codex', *args], pathlib.Path(payload['cwd']), network=payload['network'],
                 writable=payload['writable'], source=env, auth_home=str(home), provider='codex',
                 observation_home=str(home / 'sessions'))
+        started_at = datetime.now(timezone.utc).isoformat()
         child = subprocess.Popen(command, cwd=payload['cwd'], env=env,
                                  stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                  start_new_session=True)
@@ -153,36 +171,36 @@ def main():
         secrets = [value for value in auth['tokens'].values() if isinstance(value, str) and value]
 
         output_lock = threading.Lock()
-        observed = {}
+        usage_reader, observation_reader = observation_runtime()
+        stdout_path = home / 'stdout.jsonl'
+        stdout_path.touch(mode=0o600)
 
         def snapshot():
-            # Only the fresh per-run home supplies model evidence. No transcript
-            # or authentication content leaves the worker.
+            # Read the same exact-thread evidence as the local supervisor before
+            # volatile storage is removed. Only normalized metadata is exported.
             with output_lock:
-                identifier = observed.get('thread_id')
-                usage = observed.get('usage')
-                if not identifier or not usage:
-                    return
-                for path in (home / 'sessions').rglob('*.jsonl'):
-                    if path.is_symlink() or path.stat().st_size > 16 * 1024 * 1024:
-                        continue
-                    try:
-                        records = [json.loads(line) for line in path.read_text().splitlines()]
-                    except (OSError, ValueError):
-                        continue
-                    if not any(row.get('type') == 'session_meta' and row.get('payload', {}).get('id') == identifier for row in records):
-                        continue
-                    contexts = [row.get('payload', {}) for row in records if row.get('type') == 'turn_context']
-                    models = {row.get('model') for row in contexts}
-                    counts = [row.get('payload', {}).get('info', {}).get('total_token_usage') for row in records
-                              if row.get('type') == 'event_msg' and row.get('payload', {}).get('type') == 'token_count']
-                    if (len(models) == 1 and None not in models and counts and counts[-1]
-                            and all(counts[-1].get(key) == usage.get(key) for key in ('input_tokens', 'output_tokens', 'cached_input_tokens'))):
-                        event = json.dumps({'type': 'cdx.remote.usage', 'usage': usage, 'model': next(iter(models))})
-                        for secret in secrets:
-                            event = event.replace(secret, '[REDACTED]')
-                        print(event, flush=True)
-                    return
+                usage = usage_reader.extract_run_usage('codex', stdout_path)
+                identifier = usage_reader.extract_run_conversation_id('codex', stdout_path)
+                evidence = {'source': 'isolated_codex_rollout', 'thread_id': identifier,
+                            'started_at': started_at, 'usage': usage, 'models': [], 'turns': []}
+                if identifier:
+                    paths = []
+                    deadline = time.monotonic() + OBSERVATION_LIMITS[1]
+                    for directory, subdirs, names in os.walk(home / 'sessions'):
+                        if time.monotonic() > deadline:
+                            paths = []
+                            break
+                        subdirs[:] = [name for name in subdirs if name != 'subagents']
+                        paths.extend(pathlib.Path(directory) / name for name in names
+                                     if name.startswith('rollout-') and name.endswith(f'-{identifier}.jsonl'))
+                        if len(paths) > 1:
+                            break
+                    if len(paths) == 1:
+                        evidence = observation_reader.codex_rollout_evidence(home, paths[0], evidence, OBSERVATION_LIMITS[0])
+                event = json.dumps({'stream': 'observation', 'evidence': evidence})
+                for secret in secrets:
+                    event = event.replace(secret, '[REDACTED]')
+                print(event, flush=True)
 
         def forward(source, target):
             for line in iter(source.readline, b''):
@@ -190,16 +208,13 @@ def main():
                     line = line.replace(secret.encode(), b'[REDACTED]')
                 with output_lock:
                     if target is sys.stdout:
-                        try:
-                            event = json.loads(line)
-                            if event.get('type') == 'thread.started':
-                                observed['thread_id'] = event.get('thread_id')
-                            if event.get('type') == 'turn.completed':
-                                observed['usage'] = event.get('usage')
-                        except (ValueError, AttributeError):
-                            pass
-                    target.buffer.write(line)
-                    target.buffer.flush()
+                        with stdout_path.open('ab') as capture:
+                            capture.write(line)
+                        # Frame provider output so it cannot forge supervisor evidence.
+                        print(json.dumps({'stream': 'stdout', 'data': line.decode('utf-8', errors='replace')}), flush=True)
+                    else:
+                        target.buffer.write(line)
+                        target.buffer.flush()
 
         threads = [threading.Thread(target=forward, args=pair) for pair in
                    ((child.stdout, sys.stdout), (child.stderr, sys.stderr))]

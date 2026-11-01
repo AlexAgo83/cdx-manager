@@ -39,6 +39,11 @@ def test_worker_frame_contains_exact_local_sandbox_source():
     namespace = {'__name__': 'test_worker'}
     exec(json.loads(worker_input()), namespace)
     assert namespace['SANDBOX_SOURCE'] == pathlib.Path('src/workspace_sandbox.py').read_text()
+    assert namespace['OBSERVATION_MODULES'] == {
+        name: pathlib.Path('src', name + '.py').read_text()
+        for name in ('errors', 'run_usage', 'run_observation')}
+    from src.interactive_usage import MAX_TRANSCRIPT_BYTES, MAX_TRANSCRIPT_SCAN_SECONDS
+    assert namespace['OBSERVATION_LIMITS'] == (MAX_TRANSCRIPT_BYTES, MAX_TRANSCRIPT_SCAN_SECONDS)
 
 
 @pytest.mark.parametrize('writable', [True, False])

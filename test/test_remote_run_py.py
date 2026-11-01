@@ -130,14 +130,33 @@ print(json.dumps({'type': 'thread.started', 'thread_id': 'remote-thread'}), flus
 sessions = home / 'sessions'
 sessions.mkdir(exist_ok=True)
 usage = {'input_tokens': 10, 'output_tokens': 5, 'cached_input_tokens': 0}
-(sessions / 'rollout.jsonl').write_text('\\n'.join(json.dumps(row) for row in [
+(sessions / 'rollout-test-remote-thread.jsonl').write_text('\\n'.join(json.dumps(row) for row in [
     {'type': 'session_meta', 'payload': {'id': 'remote-thread'}},
-    {'type': 'turn_context', 'payload': {'model': 'gpt-5.3-codex'}},
+    {'type': 'turn_context', 'timestamp': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),
+     'payload': {'model': os.environ.get('FAKE_MODEL', 'gpt-5.3-codex'), 'turn_id': 'remote-turn'}},
     {'type': 'event_msg', 'payload': {'type': 'token_count', 'info': {'total_token_usage': usage}}}
 ]) + '\\n')
-print(json.dumps({'type': 'turn.completed', 'usage': {'input_tokens': 10, 'output_tokens': 5, 'cached_input_tokens': 0}}), flush=True)
+evidence_mode = os.environ.get('FAKE_EVIDENCE')
+extra = None
+if evidence_mode == 'mismatch':
+    extra = {'type': 'event_msg', 'payload': {'type': 'token_count', 'info': {'total_token_usage': {**usage, 'input_tokens': 99}}}}
+if evidence_mode == 'mixed':
+    extra = {'type': 'turn_context', 'timestamp': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),
+             'payload': {'model': 'gpt-5.4', 'turn_id': 'second-turn'}}
+if evidence_mode == 'old':
+    extra = {'type': 'turn_context', 'timestamp': '2000-01-01T00:00:00Z', 'payload': {'model': 'gpt-5.3-codex'}}
+if extra:
+    with (sessions / 'rollout-test-remote-thread.jsonl').open('a') as transcript:
+        transcript.write(json.dumps(extra) + '\\n')
+if os.environ.get('FAKE_MODE') == 'large':
+    with (sessions / 'rollout-test-remote-thread.jsonl').open('a') as transcript:
+        transcript.write(json.dumps({'type': 'event_msg', 'payload': {'message': 'x' * (17 * 1024 * 1024)}}) + '\\n')
+if os.environ.get('FAKE_MODE') == 'no_evidence':
+    (sessions / 'rollout-test-remote-thread.jsonl').unlink()
+if os.environ.get('FAKE_MODE') != 'live':
+    print(json.dumps({'type': 'turn.completed', 'usage': usage}), flush=True)
 print(json.dumps({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': 'Remote completed'}}), flush=True)
-if os.environ.get('FAKE_MODE') == 'long':
+if os.environ.get('FAKE_MODE') in ('long', 'live'):
     time.sleep(60)
 sys.exit(7 if os.environ.get('FAKE_MODE') == 'failure' else 0)
 ''')
@@ -205,6 +224,104 @@ class RemoteCommandTests(CliTestBase):
             assert value not in persisted
         assert json.loads(pathlib.Path(session['authHome'], 'auth.json').read_text()) == auth
         assert not list(self.worker_root.glob('run-*'))
+
+    def test_remote_budget_prices_exact_rollout(self):
+        for isolated in (False, True):
+            for mode in ('success', 'large'):
+                with self.subTest(isolated=isolated, mode=mode):
+                    __import__('shutil').rmtree(self.directory / 'cdx', ignore_errors=True)
+                    self._check_remote_budget_prices_exact_rollout(isolated, mode)
+
+    def _check_remote_budget_prices_exact_rollout(self, isolated, mode):
+        service, _, _ = self.setup_session()
+        self.monkeypatch.setenv('FAKE_MODE', mode)
+        self.monkeypatch.setenv('FAKE_LANDING', 'cmd')
+        if isolated:
+            self.monkeypatch.setenv('FAKE_ISOLATE', '1')
+        out = self.make_io()
+        flags = ['--isolate-workspace'] if isolated else []
+        assert main(['run', 'work', '--remote', 'worker', '--remote-prefix', 'wsl.exe -d Ubuntu --',
+                     *flags, '--cwd', str(self.directory), '--prompt', 'Work', '--budget', '10', '--json'],
+                    self.make_run_ctx(out, service)) == 0
+        result = json.loads(out['stdout'].getvalue())
+        assert result['usage_model'] == 'gpt-5.3-codex'
+        assert result['usage_models'] == ['gpt-5.3-codex']
+        assert result['cost_status'] == 'estimated'
+        assert result['cost_usd'] > 0
+        assert result['budget_status'] == 'estimated'
+        evidence = result['usage_evidence']
+        assert evidence['thread_id'] == 'remote-thread'
+        assert evidence['models'] == ['gpt-5.3-codex']
+        assert evidence['turns'][0]['turn_id'] == 'remote-turn'
+        assert evidence['attempt_id'] == result['attempt_id']
+        assert evidence['stdout_path'] == result['stdout_path']
+        assert 'cdx.remote.usage' not in pathlib.Path(evidence['stdout_path']).read_text()
+        assert RunRegistry(service['base_dir']).get(result['run_id'])['cost_usd'] == result['cost_usd']
+        assert not list(self.worker_root.glob('run-*'))
+
+    def test_measured_remote_budget_stops_running_provider(self):
+        for mode in ('long', 'live'):
+            with self.subTest(mode=mode):
+                __import__('shutil').rmtree(self.directory / 'cdx', ignore_errors=True)
+                self._check_measured_remote_budget_stops_running_provider(mode)
+
+    def _check_measured_remote_budget_stops_running_provider(self, mode):
+        service, _, _ = self.setup_session()
+        self.monkeypatch.setenv('FAKE_MODE', mode)
+        self.monkeypatch.setenv('FAKE_ISOLATE', '1')
+        out = self.make_io()
+        assert main(['run', 'work', '--remote', 'worker', '--isolate-workspace', '--cwd', str(self.directory),
+                     '--prompt', 'Work', '--budget', '0.000001', '--timeout-seconds', '10', '--json'],
+                    self.make_run_ctx(out, service)) == 125
+        result = json.loads(out['stdout'].getvalue())
+        assert result['error']['code'] == 'budget_exceeded'
+        assert result['budget_status'] == 'exceeded'
+        assert result['usage_model'] == 'gpt-5.3-codex'
+        assert result['error']['spent_usd'] >= 0.000001
+        assert not list(self.worker_root.glob('run-*'))
+
+    def test_completed_remote_without_evidence_never_prices_requested_model(self):
+        for budget in (False, True):
+            with self.subTest(budget=budget):
+                __import__('shutil').rmtree(self.directory / 'cdx', ignore_errors=True)
+                self._check_completed_remote_without_evidence(budget)
+
+    def _check_completed_remote_without_evidence(self, budget):
+        service, _, _ = self.setup_session()
+        self.monkeypatch.setenv('FAKE_MODE', 'no_evidence')
+        out = self.make_io()
+        flags = ['--budget', '10'] if budget else []
+        assert main(['run', 'work', '--remote', 'worker', '--model', 'gpt-5.3-codex', '--cwd', str(self.directory),
+                     '--prompt', 'Work', *flags, '--json'], self.make_run_ctx(out, service)) == (125 if budget else 0)
+        result = json.loads(out['stdout'].getvalue())
+        assert result['usage_model'] is None
+        assert result['usage_models'] == []
+        assert result['cost_usd'] is None
+        assert result['cost_reason'] == 'model_not_observed'
+        assert result['budget_status'] == ('unverifiable' if budget else 'not_requested')
+        record = RunRegistry(service['base_dir']).get(result['run_id'])
+        assert record['status'] == ('failed' if budget else 'succeeded')
+        if budget:
+            assert result['error']['code'] == 'budget_unverifiable'
+        assert 'Remote completed' in pathlib.Path(result['stdout_path']).read_text()
+        assert not list(self.worker_root.glob('run-*'))
+
+    def test_remote_rejects_inconsistent_evidence_and_unknown_prices(self):
+        for mode, reason in (('mismatch', 'model_not_observed'), ('old', 'model_not_observed'),
+                             ('mixed', 'mixed_models_without_counters'), ('unknown', 'model_price_unknown')):
+            with self.subTest(mode=mode):
+                __import__('shutil').rmtree(self.directory / 'cdx', ignore_errors=True)
+                service, _, _ = self.setup_session()
+                self.monkeypatch.setenv('FAKE_EVIDENCE', mode)
+                self.monkeypatch.setenv('FAKE_MODEL', 'unpriced-serving-model' if mode == 'unknown' else 'gpt-5.3-codex')
+                out = self.make_io()
+                assert main(['run', 'work', '--remote', 'worker', '--cwd', str(self.directory), '--prompt', 'Work', '--json'],
+                            self.make_run_ctx(out, service)) == 0
+                result = json.loads(out['stdout'].getvalue())
+                assert result['cost_usd'] is None
+                assert result['cost_reason'] == reason
+                assert result['usage_model'] == ('unpriced-serving-model' if mode == 'unknown' else None)
+                assert not list(self.worker_root.glob('run-*'))
 
     def test_posix_landing_and_large_stdin_payload(self):
         self._check_landing('posix')

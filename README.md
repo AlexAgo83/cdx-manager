@@ -178,8 +178,15 @@ result. A probe overlapping the short snapshot can still report contention.
 Controller renewal does not extend the worker's copied access token; quota remains
 one controller-side account snapshot, never a worker copy. Multiple independent controllers sharing copied OAuth profiles are not
 supported. Costs and budget checks use measured worker usage and observed rollout
-models; unknown prices and delayed provider reporting retain the usual budget
-limitations. A run that outlives the access credential fails with
+models, using the same exact-thread reader and 128 MiB rollout limit as local
+isolated runs. Content-free evidence travels in supervisor frames separated from
+provider stdout; raw rollouts and credentials are never returned. Live rollout
+counters can stop an over-budget run before `turn.completed`. Unknown prices and
+delayed provider reporting retain the usual budget limitations. With `--budget`,
+measured but unpriceable usage still fails with `budget_unverifiable` (exit 125),
+even after the provider finishes, preserving the documented fail-closed guarantee.
+Provider output remains in the run artifacts; without a budget, a completed run
+keeps its provider status and unknown cost. A run that outlives the access credential fails with
 `remote_credential_expired`, requiring a new controller launch.
 
 The empty-refresh-token behavior was measured with Codex CLI 0.166.0. Real-host

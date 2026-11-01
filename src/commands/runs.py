@@ -584,7 +584,7 @@ def _observe_headless_usage(session, run_info, baseline=None):
 
 def _budget_observation(session, paths, baseline):
     observation = _observe_headless_usage(session, paths, baseline if session["provider"] == "codex" else None)
-    if (session.get("launch") or {}).get("isolate_workspace"):
+    if paths.get("remote") or (session.get("launch") or {}).get("isolate_workspace"):
         return observation
     identifier = (extract_run_conversation_id(session["provider"], paths.get("stdout_path"))
                   or ((session.get("conversation") or {}).get("id")
