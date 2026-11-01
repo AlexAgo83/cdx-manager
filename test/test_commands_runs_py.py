@@ -11,6 +11,7 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
 from unittest import mock
@@ -56,6 +57,7 @@ class RunsCommandTests(CliTestBase):
         self.assertEqual(parsed["budget"], 2)
         self.assertTrue(parsed["detach"])
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Isolated Codex runs are Linux-only")
     def test_source_project_is_captured_before_worktree_isolation(self):
         directory = pathlib.Path(self.make_temp_dir())
         source = directory / "source" / "app"
@@ -67,7 +69,9 @@ class RunsCommandTests(CliTestBase):
         subprocess.run(["git", "-C", str(source), "worktree", "add", "-b", "mission", str(tree)],
                        check=True, capture_output=True)
         service = create_session_service({"base_dir": str(directory / "cdx")})
-        self._authenticated_codex_session(service)
+        session = self._authenticated_codex_session(service)
+        from test_remote_run_py import credential
+        pathlib.Path(session['authHome'], 'auth.json').write_text(json.dumps(credential()))
         calls = []
 
         def confine(command, checkout, **kwargs):
@@ -79,7 +83,14 @@ class RunsCommandTests(CliTestBase):
 
         for cwd, isolated in ((source, False), (tree, False), (tree, True)):
             output = self.make_io()
-            with mock.patch("src.workspace_sandbox.sandbox_command", side_effect=confine):
+            # CI runners may lack the tmpfs this test does not exercise; the mount is covered in test_workspace_sandbox_auth_py.
+            private = tempfile.TemporaryDirectory()
+            self.addCleanup(private.cleanup)
+            pathlib.Path(private.name, "auth.json").write_text(json.dumps({**credential(), "tokens": {**credential()["tokens"], "refresh_token": ""}}))
+            pathlib.Path(private.name, "sessions").mkdir()
+            home = mock.MagicMock()
+            home.return_value.__enter__.return_value = private.name
+            with mock.patch("src.workspace_sandbox.sandbox_command", side_effect=confine), mock.patch("src.workspace_sandbox.private_auth_home", home):
                 self.assertEqual(main(["run", "work", "--cwd", str(cwd), "--prompt", "Work", "--json",
                                        *(["--isolate-workspace"] if isolated else [])],
                                       self.make_run_ctx(output, service, spawn_headless=lambda *a, **kw: _HeadlessChild(0))), 0)
@@ -111,7 +122,9 @@ class RunsCommandTests(CliTestBase):
 
         directory = self.make_temp_dir()
         service = create_session_service({"base_dir": directory})
-        self._authenticated_codex_session(service)
+        session = self._authenticated_codex_session(service)
+        from test_remote_run_py import credential
+        pathlib.Path(session['authHome'], 'auth.json').write_text(json.dumps(credential()))
         mounted = []
         counters = {"input_tokens": 100, "cached_input_tokens": 60, "output_tokens": 20}
 

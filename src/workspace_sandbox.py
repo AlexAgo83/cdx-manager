@@ -5,8 +5,11 @@ Provider authentication is the only credential deliberately passed to the provid
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 CACHE = Path.home() / ".cdx" / "shared-cache"
@@ -45,6 +48,24 @@ except (OSError, subprocess.SubprocessError) as error:
     sys.exit(1)
 sys.exit(status)
 """
+
+
+@contextmanager
+def private_auth_home(auth):
+    """Keep a sanitized credential in verified memory-backed, private storage."""
+    location = Path('/dev/shm').resolve()
+    mounts = [row.split() for row in Path('/proc/mounts').read_text().splitlines()]
+    enclosing = [row for row in mounts if Path(row[1]) == location or Path(row[1]) in location.parents]
+    if not enclosing or max(enclosing, key=lambda row: len(row[1]))[2] != 'tmpfs':
+        raise RuntimeError('Isolated Codex runs require memory-backed /dev/shm')
+    if auth.get('tokens', {}).get('refresh_token') != '':
+        raise RuntimeError('Refusing a rotating sandbox credential')
+    with tempfile.TemporaryDirectory(prefix='cdx-observation-', dir=location) as directory:
+        path = Path(directory) / 'auth.json'
+        with open(path, 'x', opener=lambda name, flags: os.open(name, flags, 0o600)) as handle:
+            json.dump(auth, handle)
+        (Path(directory) / 'sessions').mkdir(mode=0o700)
+        yield directory
 
 
 def clean_env(source: dict) -> dict:
@@ -126,6 +147,9 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
         raise RuntimeError("Expected an isolated git worktree")
     env = clean_env(source)
     if provider == "codex":
+        auth_path = Path(auth_home) / "auth.json"
+        if json.loads(auth_path.read_text()).get('tokens', {}).get('refresh_token') != '':
+            raise RuntimeError('Refusing a rotating sandbox credential')
         env["CODEX_HOME"] = "/home/agent/.codex"
         if observation_home:
             # Fresh, volatile attempt storage; no host profile is exposed.

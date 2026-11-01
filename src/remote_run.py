@@ -112,9 +112,6 @@ def preflight(target, env=None, *, remote_prefix=None, isolate_workspace=False, 
                                 capture_output=True, timeout=30)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise CdxError('Remote worker unreachable or Codex CLI unavailable.', code='remote_unavailable') from error
-    if result.returncode == 127 and isolate_workspace:
-        raise CdxError('Remote workspace isolation cannot hide auth.json from agent tools; refusing to expose the bearer credential.',
-                       code='remote_isolation_unavailable')
     if result.returncode:
         message = ('Remote workspace isolation unavailable; requires bubblewrap, pasta, nftables, working namespaces and a valid checkout.'
                    if isolate_workspace else 'Remote worker unreachable or missing Python 3, Codex or memory-backed /dev/shm.')
@@ -146,11 +143,6 @@ def run_remote(session, target, version, cwd=None, env_override=None, initial_pr
         _route_termination_to_interrupt,
     )
 
-    if (session.get('launch') or {}).get('isolate_workspace'):
-        # The shared sandbox mounts auth.json for Codex, but its tools can also
-        # read that bearer. Until a private provider channel exists, fail closed.
-        raise CdxError('Remote workspace isolation cannot hide auth.json from agent tools; refusing to expose the bearer credential.',
-                       code='remote_isolation_unavailable')
     home = session['authHome']
     with remote_auth_lock(home):
         auth = temporary_auth(home)

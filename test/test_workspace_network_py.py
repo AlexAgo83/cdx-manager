@@ -4,6 +4,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
+from test_remote_run_py import credential
+
 from src import provider_runtime, workspace_sandbox
 from src.cli_args import _parse_run_args, cdx_schema
 from src.commands.runs import _detached_child_argv
@@ -50,6 +52,8 @@ class WorkspaceSandboxTests(unittest.TestCase):
                    "launch": {"permission": permission, "network_access": network, "isolate_workspace": True}}
         with TemporaryDirectory() as tree, \
                 mock.patch.object(provider_runtime, "_build_headless_launch_spec", lambda *a, **kw: spec), \
+                mock.patch("src.remote_run.remote_auth_lock"), \
+                mock.patch("src.remote_run.temporary_auth", return_value={**credential(), "tokens": {**credential()["tokens"], "refresh_token": ""}}), \
                 mock.patch.object(workspace_sandbox, "sandbox_command", confine), \
                 mock.patch.object(provider_runtime, "_headless_artifact_paths", mock.Mock(side_effect=Reached)):
             with self.assertRaises(Reached):
@@ -57,6 +61,7 @@ class WorkspaceSandboxTests(unittest.TestCase):
         self.assertEqual(spec["command"], "bwrap")
         return captured
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Isolated Codex runs are Linux-only")
     def test_isolated_codex_drops_its_nested_sandbox(self):
         captured = self._run_isolated_codex("auto", network=True)
         command = captured["command"]
@@ -66,6 +71,7 @@ class WorkspaceSandboxTests(unittest.TestCase):
         self.assertNotIn("sandbox_workspace_write.network_access=true", command)
         self.assertLess(command.index("--dangerously-bypass-approvals-and-sandbox"), command.index("--"))
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Isolated Codex runs are Linux-only")
     def test_isolated_codex_review_stays_read_only_outside(self):
         captured = self._run_isolated_codex("review", network=False)
         self.assertFalse(captured["writable"])
@@ -106,14 +112,15 @@ class IsolatedEgressTests(unittest.TestCase):
     def test_codex_observation_mount_exposes_only_fresh_attempt_sessions(self):
         with TemporaryDirectory() as tree, TemporaryDirectory() as observation, mock.patch.object(
                 workspace_sandbox.shutil, "which", side_effect=lambda name, path=None: "/usr/bin/" + name):
+            (Path(tree) / 'auth.json').write_text('{"tokens": {"refresh_token": ""}}')
             args, env = workspace_sandbox.sandbox_command(
-                ["true"], Path(tree), network=False, provider="codex", auth_home="/private/profile",
+                ["true"], Path(tree), network=False, provider="codex", auth_home=tree,
                 observation_home=observation, source={"PATH": "/usr/bin"})
         self.assertEqual(env["CODEX_HOME"], "/home/agent/.codex")
         self.assertIn("--cap-drop", args)
         self.assertNotIn("--share-net", args)
         self.assertNotIn("/private/profile", args)
-        self.assertIn("/private/profile/auth.json", args)
+        self.assertIn(str(Path(tree) / "auth.json"), args)
         mount = args.index(observation)
         self.assertEqual(args[mount - 1:mount + 2], ["--bind", observation, "/home/agent/.codex/sessions"])
 

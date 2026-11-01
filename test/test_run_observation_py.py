@@ -85,9 +85,15 @@ def test_volatile_attempt_storage_is_removed_on_failure(monkeypatch, failure):
             handle.write("PRIVATE")
         raise failure
 
+    from test_remote_run_py import credential
+
+    from src import remote_run
+    monkeypatch.setattr(remote_run, 'remote_auth_lock', lambda *_: __import__('contextlib').nullcontext())
+    monkeypatch.setattr(remote_run, 'temporary_auth', lambda *_: {**credential(), 'tokens': {**credential()['tokens'], 'refresh_token': ''}})
     monkeypatch.setattr(provider_runtime, "_run_headless_provider_attempt", attempt)
-    with pytest.raises(type(failure)):
-        provider_runtime._run_headless_provider_command({"provider": "codex", "launch": {"isolate_workspace": True}})
+    from src.errors import CdxError
+    with pytest.raises(CdxError):
+        provider_runtime._run_headless_provider_command({"provider": "codex", "authHome": "/profile", "launch": {"isolate_workspace": True}})
     import os
 
     assert not os.path.exists(mounted[0])
