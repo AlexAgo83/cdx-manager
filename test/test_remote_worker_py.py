@@ -1,5 +1,11 @@
 """Worker confinement uses the shipped local implementation and fails closed."""
 
+import sys
+import unittest
+
+if sys.platform == "win32":
+    raise unittest.SkipTest("The remote worker is Linux-only (fcntl)")
+
 import io
 import json
 import pathlib
