@@ -12,3 +12,11 @@
 - Refresh under the controller authentication lock at the seven-day/24-hour thresholds, then send a temporary OAuth credential over SSH stdin with an empty refresh token. Refuse rotating credentials, other providers and CLI version mismatches.
 - Keep worker credentials in a private memory-backed home, clean up after success, failure and stop, and sweep dead homes on the next launch. Keep agent stdin separate from bootstrap input and report credential expiration without retrying.
 - Cover transport and credential isolation, thresholds, cleanup, sweep, unreachable workers, provider refusal and registry reports with a fake SSH worker.
+
+## Remote worker transport and isolation preflight
+
+- Add `--remote-prefix` for Windows SSH landings such as `wsl.exe -d Ubuntu --`, including detached runs. Keep the POSIX default and use a short double-quoted bootstrap on argv; send framed worker/sandbox source and then credentials/payload over stdin.
+- Probe the local bubblewrap/pasta/nftables isolation mechanism on the worker with dummy credentials, including namespace/network startup. Refuse missing dependencies or setup failures without falling back to an unisolated run.
+- Fail closed with `remote_isolation_unavailable` even after a successful isolation probe: the existing local auth mount is also readable by agent tools, so it cannot satisfy bearer confidentiality. Remote isolated execution remains unavailable until credentials can stay outside the tools' sandbox; do not interpret the probe as security acceptance.
+- Release the controller authentication lock after preparing the credential snapshot so scheduled authentication refresh can run during long remote missions. Keep profile mission exclusion in the run registry and the worker credential's original expiry.
+- Test cmd.exe length/quoting enforcement, Windows prefixes, large stdin payloads, POSIX transport, credential privacy refusal, sandbox construction/dependencies and concurrent scheduled refresh with synthetic credentials.

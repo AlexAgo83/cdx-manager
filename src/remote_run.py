@@ -6,7 +6,6 @@ import math
 import os
 import pathlib
 import re
-import shlex
 import subprocess
 import time
 from contextlib import contextmanager
@@ -79,24 +78,47 @@ def nonsecret_config(home):
     return '\n'.join(lines) + '\n'
 
 
-def ssh_command(target, mode):
+def worker_input():
+    # One JSON line frames the source, leaving the next line for the payload.
+    directory = pathlib.Path(__file__).parent
+    source = 'SANDBOX_SOURCE = ' + repr((directory / 'workspace_sandbox.py').read_text()) + '\n'
+    source += (directory / 'remote_worker.py').read_text()
+    return json.dumps(source).encode() + b'\n'
+
+
+def ssh_command(target, mode, remote_prefix=None):
     if not re.fullmatch(r'[a-zA-Z0-9_@.:[\]-]+', target) or target.startswith('-'):
         raise CdxError('Invalid --remote SSH target; use a host alias or user@host.')
-    source = pathlib.Path(__file__).with_name('remote_worker.py').read_text()
+    prefix = (remote_prefix or '').strip()
+    if prefix and not re.fullmatch(r'[a-zA-Z0-9_./:=+ -]+', prefix):
+        raise CdxError('Invalid --remote-prefix; use a plain command prefix such as wsl.exe -d Ubuntu --.')
+    if mode not in ('probe', 'run'):
+        raise CdxError('Invalid remote worker mode.')
+    # Double quotes work in both POSIX sh and cmd.exe. The bootstrap contains
+    # no embedded double quotes, shell expansions, or worker source in argv.
+    command = (prefix + ' ' if prefix else '') + 'python3 -u -c "import sys,json;exec(json.loads(sys.stdin.buffer.readline()))" ' + mode
+    if len(command) > 8000:
+        raise CdxError('Remote command prefix exceeds the Windows command-line limit.')
     return ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', '-o', 'ConnectionAttempts=1',
-            '-o', 'ServerAliveInterval=5', '-o', 'ServerAliveCountMax=1', target,
-            'python3 -c ' + shlex.quote(source) + ' ' + mode]
+            '-o', 'ServerAliveInterval=5', '-o', 'ServerAliveCountMax=1', target, command]
 
 
-def preflight(target, env=None):
+def preflight(target, env=None, *, remote_prefix=None, isolate_workspace=False, cwd=None, network=False, writable=True):
+    payload = {'isolate_workspace': isolate_workspace, 'cwd': cwd, 'network': network, 'writable': writable}
     try:
         local = subprocess.check_output(['codex', '--version'], env=env, stderr=subprocess.DEVNULL, timeout=10).decode().strip()
-        result = subprocess.run(ssh_command(target, 'probe'), env=env, stdin=subprocess.DEVNULL,
-                                capture_output=True, timeout=15)
+        result = subprocess.run(ssh_command(target, 'probe', remote_prefix), env=env,
+                                input=worker_input() + json.dumps(payload).encode() + b'\n',
+                                capture_output=True, timeout=30)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise CdxError('Remote worker unreachable or Codex CLI unavailable.', code='remote_unavailable') from error
+    if result.returncode == 127 and isolate_workspace:
+        raise CdxError('Remote workspace isolation cannot hide auth.json from agent tools; refusing to expose the bearer credential.',
+                       code='remote_isolation_unavailable')
     if result.returncode:
-        raise CdxError('Remote worker unreachable or missing Python 3, Codex or memory-backed /dev/shm.', code='remote_unavailable')
+        message = ('Remote workspace isolation unavailable; requires bubblewrap, pasta, nftables, working namespaces and a valid checkout.'
+                   if isolate_workspace else 'Remote worker unreachable or missing Python 3, Codex or memory-backed /dev/shm.')
+        raise CdxError(message, code='remote_unavailable')
     if local != result.stdout.decode().strip():
         raise CdxError('Remote Codex CLI version mismatch; install the controller version on the worker.', code='remote_version_mismatch')
     return local
@@ -114,7 +136,7 @@ def remote_auth_lock(home):
 
 
 def run_remote(session, target, version, cwd=None, env_override=None, initial_prompt=None,
-               timeout_seconds=None, run_id=None, attempt=1, budget_check=None, **_):
+               timeout_seconds=None, run_id=None, attempt=1, budget_check=None, remote_prefix=None, **_):
     from .provider_runtime import (
         _build_headless_launch_spec,
         _combine_headless_transcript,
@@ -124,6 +146,11 @@ def run_remote(session, target, version, cwd=None, env_override=None, initial_pr
         _route_termination_to_interrupt,
     )
 
+    if (session.get('launch') or {}).get('isolate_workspace'):
+        # The shared sandbox mounts auth.json for Codex, but its tools can also
+        # read that bearer. Until a private provider channel exists, fail closed.
+        raise CdxError('Remote workspace isolation cannot hide auth.json from agent tools; refusing to expose the bearer credential.',
+                       code='remote_isolation_unavailable')
     home = session['authHome']
     with remote_auth_lock(home):
         auth = temporary_auth(home)
@@ -138,71 +165,74 @@ def run_remote(session, target, version, cwd=None, env_override=None, initial_pr
         if any(value and value in launch_text for value in auth['tokens'].values()):
             raise CdxError('Refusing a credential embedded in the remote prompt or configuration.')
         payload = {'auth': auth, 'config': config, 'args': spec['args'], 'cwd': cwd,
-                   'version': version, 'expires_at': token_expiry(auth['tokens']['access_token'])}
+                   'version': version, 'expires_at': token_expiry(auth['tokens']['access_token']),
+                   'isolate_workspace': bool((session.get('launch') or {}).get('isolate_workspace')),
+                   'network': bool((session.get('launch') or {}).get('network_access')),
+                   'writable': (session.get('launch') or {}).get('permission') != 'review'}
         rotating = json.loads((pathlib.Path(home) / 'auth.json').read_text())['tokens'].get('refresh_token')
         if rotating and rotating in json.dumps(payload):
             raise CdxError('Refusing to send a refresh token to a worker.')
-        paths = _headless_artifact_paths(session, run_id, attempt)
-        paths['remote'] = target
-        start = datetime.now(timezone.utc)
-        child = None
-        cancelled = timed_out = budget_exceeded = credential_expired = False
-        handlers = _route_termination_to_interrupt()
-        try:
-            with open(paths['stdout_path'], 'w') as out, open(paths['stderr_path'], 'w') as err:
-                child = subprocess.Popen(ssh_command(target, 'run'), env={**os.environ, **(env_override or {})},
-                                         stdin=subprocess.PIPE, stdout=out, stderr=err)
-                child.stdin.write(json.dumps(payload).encode() + b'\n')
-                child.stdin.flush()
-                deadline = time.monotonic() + timeout_seconds if timeout_seconds else None
-                while child.poll() is None:
-                    if time.time() >= payload['expires_at']:
-                        credential_expired = True
-                        break
-                    if budget_check and budget_check(paths):
-                        budget_exceeded = True
-                        break
-                    if deadline and time.monotonic() >= deadline:
-                        timed_out = True
-                        break
-                    time.sleep(0.1)
-        except KeyboardInterrupt:
-            cancelled = True
-        except (OSError, ValueError) as error:
-            raise CdxError('Remote SSH transport failed.', code='remote_unavailable') from error
-        finally:
-            if child:
-                # EOF makes the worker stop its process group and remove the home.
+    paths = _headless_artifact_paths(session, run_id, attempt)
+    paths['remote'] = target
+    start = datetime.now(timezone.utc)
+    child = None
+    cancelled = timed_out = budget_exceeded = credential_expired = False
+    handlers = _route_termination_to_interrupt()
+    try:
+        with open(paths['stdout_path'], 'w') as out, open(paths['stderr_path'], 'w') as err:
+            child = subprocess.Popen(ssh_command(target, 'run', remote_prefix), env={**os.environ, **(env_override or {})},
+                                     stdin=subprocess.PIPE, stdout=out, stderr=err)
+            child.stdin.write(worker_input() + json.dumps(payload).encode() + b'\n')
+            child.stdin.flush()
+            deadline = time.monotonic() + timeout_seconds if timeout_seconds else None
+            while child.poll() is None:
+                if time.time() >= payload['expires_at']:
+                    credential_expired = True
+                    break
+                if budget_check and budget_check(paths):
+                    budget_exceeded = True
+                    break
+                if deadline and time.monotonic() >= deadline:
+                    timed_out = True
+                    break
+                time.sleep(0.1)
+    except KeyboardInterrupt:
+        cancelled = True
+    except (OSError, ValueError) as error:
+        raise CdxError('Remote SSH transport failed.', code='remote_unavailable') from error
+    finally:
+        if child:
+            # EOF makes the worker stop its process group and remove the home.
+            try:
+                child.stdin.close()
+            except (OSError, BrokenPipeError):
+                pass
+            try:
+                child.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                child.terminate()
                 try:
-                    child.stdin.close()
-                except (OSError, BrokenPipeError):
-                    pass
-                try:
-                    child.wait(timeout=10)
+                    child.wait(timeout=2)
                 except subprocess.TimeoutExpired:
-                    child.terminate()
-                    try:
-                        child.wait(timeout=2)
-                    except subprocess.TimeoutExpired:
-                        child.kill()
-                        child.wait()
-            _restore_signal_handlers(handlers)
-            _combine_headless_transcript(paths)
-        info = {**_headless_run_info(paths, spec, start, child.returncode), 'remote': target,
-                'timed_out': timed_out, 'budget_exceeded': budget_exceeded}
-        if cancelled:
-            error = CdxError('Remote run was cancelled.', 130)
-            error.cancelled = True
-            error.run_info = {**info, 'returncode': 130}
-            raise error
-        if credential_expired or time.time() >= payload['expires_at'] or child.returncode == 123:
-            error = CdxError('Remote temporary credential expired; start a new run from the controller.', code='remote_credential_expired')
-            error.run_info = info
-            raise error
-        if child.returncode == 255 and not (timed_out or budget_exceeded):
-            error = CdxError('Remote SSH connection failed or was lost.', code='remote_unavailable')
-            error.run_info = info
-            raise error
-        if timed_out or budget_exceeded:
-            info['returncode'] = 125 if budget_exceeded else 124
-        return info
+                    child.kill()
+                    child.wait()
+        _restore_signal_handlers(handlers)
+        _combine_headless_transcript(paths)
+    info = {**_headless_run_info(paths, spec, start, child.returncode), 'remote': target,
+            'timed_out': timed_out, 'budget_exceeded': budget_exceeded}
+    if cancelled:
+        error = CdxError('Remote run was cancelled.', 130)
+        error.cancelled = True
+        error.run_info = {**info, 'returncode': 130}
+        raise error
+    if credential_expired or time.time() >= payload['expires_at'] or child.returncode == 123:
+        error = CdxError('Remote temporary credential expired; start a new run from the controller.', code='remote_credential_expired')
+        error.run_info = info
+        raise error
+    if child.returncode == 255 and not (timed_out or budget_exceeded):
+        error = CdxError('Remote SSH connection failed or was lost.', code='remote_unavailable')
+        error.run_info = info
+        raise error
+    if timed_out or budget_exceeded:
+        info['returncode'] = 125 if budget_exceeded else 124
+    return info

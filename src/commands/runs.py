@@ -205,6 +205,7 @@ def _detached_child_argv(parsed, prompt_path, session_name, cwd):
     argv = ["run", session_name, "--cwd", cwd, "--prompt-file", prompt_path]
     for flag, key in (
         ("--remote", "remote"),
+        ("--remote-prefix", "remote_prefix"),
         ("--project", "project"),
         ("--budget", "budget"),
         ("--continue-run", "continue_run"),
@@ -716,9 +717,12 @@ def handle_run(rest, ctx):
         if parsed.get("remote"):
             if session["provider"] != "codex":
                 raise CdxError("--remote is only available for Codex profiles.", code="remote_provider_unsupported")
-            if parsed.get("isolate_workspace") or parsed.get("continue_run"):
-                raise CdxError("--remote requires a fresh run without --isolate-workspace.")
-            remote_version = preflight(parsed["remote"], {**os.environ, **(ctx.get("env") or {})})
+            if parsed.get("continue_run"):
+                raise CdxError("--remote requires a fresh run without --continue-run.")
+            remote_version = preflight(
+                parsed["remote"], {**os.environ, **(ctx.get("env") or {})},
+                remote_prefix=parsed.get("remote_prefix"), isolate_workspace=parsed.get("isolate_workspace", False),
+                cwd=parsed["cwd"], network=parsed.get("network_access", False), writable=parsed.get("permission") != "review")
         cwd = os.path.abspath(parsed["cwd"])
         if not parsed.get("remote") and not os.path.isdir(cwd):
             raise CdxError(f"Invalid cwd: {parsed['cwd']}", code="invalid_cwd")
@@ -884,7 +888,7 @@ def handle_run(rest, ctx):
             runner = _run_headless_provider_command
             if parsed.get("remote"):
                 def runner(*args, **kwargs):
-                    return run_remote(*args, target=parsed["remote"], version=remote_version, **kwargs)
+                    return run_remote(*args, target=parsed["remote"], version=remote_version, remote_prefix=parsed.get("remote_prefix"), **kwargs)
             run_info = runner(
                 run_session,
                 cwd=cwd,
