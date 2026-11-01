@@ -52,6 +52,7 @@ class WorkspaceSandboxTests(unittest.TestCase):
                    "launch": {"permission": permission, "network_access": network, "isolate_workspace": True}}
         with TemporaryDirectory() as tree, \
                 mock.patch.object(provider_runtime, "_build_headless_launch_spec", lambda *a, **kw: spec), \
+                mock.patch("src.remote_run.remote_auth_lock"), \
                 mock.patch("src.remote_run.temporary_auth", return_value={**credential(), "tokens": {**credential()["tokens"], "refresh_token": ""}}), \
                 mock.patch.object(workspace_sandbox, "sandbox_command", confine), \
                 mock.patch.object(provider_runtime, "_headless_artifact_paths", mock.Mock(side_effect=Reached)):

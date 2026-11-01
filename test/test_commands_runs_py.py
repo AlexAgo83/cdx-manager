@@ -7,6 +7,7 @@ import io
 import json
 import os
 import pathlib
+import tempfile
 import re
 import signal
 import subprocess
@@ -81,7 +82,14 @@ class RunsCommandTests(CliTestBase):
 
         for cwd, isolated in ((source, False), (tree, False), (tree, True)):
             output = self.make_io()
-            with mock.patch("src.workspace_sandbox.sandbox_command", side_effect=confine):
+            # CI runners may lack the tmpfs this test does not exercise; the mount is covered in test_workspace_sandbox_auth_py.
+            private = tempfile.TemporaryDirectory()
+            self.addCleanup(private.cleanup)
+            pathlib.Path(private.name, "auth.json").write_text(json.dumps({**credential(), "tokens": {**credential()["tokens"], "refresh_token": ""}}))
+            pathlib.Path(private.name, "sessions").mkdir()
+            home = mock.MagicMock()
+            home.return_value.__enter__.return_value = private.name
+            with mock.patch("src.workspace_sandbox.sandbox_command", side_effect=confine), mock.patch("src.workspace_sandbox.private_auth_home", home):
                 self.assertEqual(main(["run", "work", "--cwd", str(cwd), "--prompt", "Work", "--json",
                                        *(["--isolate-workspace"] if isolated else [])],
                                       self.make_run_ctx(output, service, spawn_headless=lambda *a, **kw: _HeadlessChild(0))), 0)
