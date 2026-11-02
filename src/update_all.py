@@ -241,9 +241,15 @@ def apply_update_all_plan(plan, service, env=None, runner=None, progress=None):
             advanced = (_newer(after, item["version"]) and
                         (not item["latest_version"] or after == item["latest_version"] or _newer(after, item["latest_version"])))
             if not (advanced or (after and after == item["version"] and reports_current)):
-                result["returncode"] = 1
-                result["reason"] = "Update verification failed: installed version did not advance to the expected release and updater did not confirm it is current."
-                result["stderr"] = (result["stderr"] + "\n" + result["reason"]).strip()
+                if item["name"] == PROVIDER_ANTIGRAVITY and not _newer(item["latest_version"], item["version"]):
+                    result["warning"] = {
+                        "code": "update_unverified",
+                        "message": "agy update exited successfully, but currency could not be verified: no expected newer CLI version is known. Status remains unknown.",
+                    }
+                else:
+                    result["returncode"] = 1
+                    result["reason"] = "Update verification failed: installed version did not advance to the expected release and updater did not confirm it is current."
+                    result["stderr"] = (result["stderr"] + "\n" + result["reason"]).strip()
         results.append(result)
         if result["returncode"] == 0 and step.get("id"):
             completed.add(step["id"])

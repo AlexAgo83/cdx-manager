@@ -593,6 +593,7 @@ def cdx_schema():
             "logics_manager_update_available",
             "update_version_check_failed",
             "update_version_mismatch",
+            "update_unverified",
             "logics_manager_missing",
             "logics_viewer_failed",
             "logics_viewer_root_invalid",
