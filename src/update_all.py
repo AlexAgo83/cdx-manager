@@ -56,7 +56,7 @@ def _version(command, env, runner):
     result = _run([command, "--version"], env, runner, timeout=_SOURCE_TIMEOUT)
     if result["returncode"]:
         return None
-    text = (result["stdout"] or result["stderr"] or "").strip()
+    text = "\n".join((result["stdout"] or "", result["stderr"] or "")).strip()
     # Ollama can print the server version before the CLI version.
     client = re.search(r"client version is (\S+)", text)
     match = client or re.search(r"\b(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\b", text)
@@ -85,9 +85,19 @@ def _latest_version(name):
         if name == PROVIDER_OLLAMA:
             arch = {"x86_64": "amd64", "aarch64": "arm64"}.get(platform.machine().lower(), platform.machine().lower())
             query = urlencode({"os": platform.system().lower(), "arch": arch, "version": "0.0.0"})
-            release = _fetch_json(f"https://ollama.com/api/update?{query}")
-            # The vendor updater extracts the release tag from the artifact URL.
-            return _parse_version(os.path.basename(os.path.dirname(urlparse(release["url"]).path)))
+            try:
+                release = _fetch_json(f"https://ollama.com/api/update?{query}")
+                # The vendor updater extracts the release tag from the artifact URL.
+                version = _parse_version(os.path.basename(os.path.dirname(urlparse(release["url"]).path)))
+                if version:
+                    return version
+            except Exception:
+                # Linux can return HTTP 204 with no JSON body.
+                pass
+            release = _fetch_json("https://api.github.com/repos/ollama/ollama/releases/latest")
+            if release.get("draft") or release.get("prerelease"):
+                return None
+            return _parse_version(release["tag_name"])
     except Exception:
         # A failed or changed source is uncertainty, never evidence of currency.
         return None
@@ -101,6 +111,8 @@ def _newer(latest, current):
 
 
 def _native_update_command(name, command, path, env, runner):
+    if name == PROVIDER_OLLAMA and platform.system().lower() == "linux":
+        return None
     real_path = os.path.realpath(path)
     cask = re.search(r"/Caskroom/([^/]+)/", real_path)
     formula = re.search(r"/Cellar/([^/]+)/", real_path)
@@ -111,7 +123,7 @@ def _native_update_command(name, command, path, env, runner):
         return [command, "update"]
     help_result = _run([command, "--help"], env, runner, timeout=_SOURCE_TIMEOUT)
     if help_result["returncode"] == 0:
-        help_text = help_result["stdout"]
+        help_text = "\n".join((help_result["stdout"] or "", help_result["stderr"] or ""))
         for subcommand in ("self-update", "update", "--update"):
             if re.search(r"(?m)^\s*" + re.escape(subcommand) + r"(?:\s|$)", help_text):
                 return [command, subcommand]
@@ -153,6 +165,9 @@ def collect_update_all_plan(service, env=None, runner=None):
                     steps.append({"name": name, "command": item["update_command"], "env": {}})
                 else:
                     item["reason"] = "No supported CLI updater or verified Homebrew installation; use the vendor's updater manually."
+                    if name == PROVIDER_OLLAMA and platform.system().lower() == "linux":
+                        item["reason"] = ("No supported safe automatic Linux update: Ollama's installer writes system paths and may restart a service. "
+                                          "Even a user-local binary may serve running models; arrange a manual maintenance window.")
             else:
                 item["status"] = "unknown"
                 item["reason"] = "Latest version unavailable from the official source." if not latest else "Installed version unavailable or does not match the published release."
@@ -214,6 +229,15 @@ def apply_update_all_plan(plan, service, env=None, runner=None, progress=None):
             continue
         result = _run(step["command"], {**env, **step.get("env", {})}, runner, timeout=120)
         result = {"name": step["name"], "command": step["command"], **result}
+        item = next((item for item in plan.get("items", []) if item["name"] == step["name"]), None)
+        if result["returncode"] == 0 and item:
+            after = _version(item["command"], env, runner)
+            result.update(version_before=item["version"], version_after=after, latest_version=item["latest_version"])
+            if not (_newer(after, item["version"]) and
+                    (after == item["latest_version"] or _newer(after, item["latest_version"]))):
+                result["returncode"] = 1
+                result["reason"] = "Update verification failed: installed version did not advance to the published release."
+                result["stderr"] = (result["stderr"] + "\n" + result["reason"]).strip()
         results.append(result)
         if result["returncode"] == 0 and step.get("id"):
             completed.add(step["id"])
