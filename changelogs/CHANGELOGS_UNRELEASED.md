@@ -8,10 +8,11 @@
 
 ## Truthful workstation updates
 
+- Keep a zero-exit `agy update` successful when no expected newer CLI version is known, even if its installed version does not advance and its output cannot confirm currency. Preserve `status: unknown` and `latest_version: null`, expose an `update_unverified` warning in JSON and text, and continue failing non-zero updater exits. No additional version source is assumed.
 - Stop querying the editor release feed for the Antigravity CLI: its versions do not match `agy`. Keep `latest_version: null` and `status: unknown`, while still running the native `agy update` with `--yes` or confirmation. No read-only latest-version check is documented by `agy update --help`.
 - Accept a successful native updater's `You are already on the latest version.` message when the installed version is unchanged, or verify a version increase against the published version when known. Preserve updater failures and unknown inventory status. Cover the real Antigravity output line, version increases, failures, and JSON/text uncertainty.
 
-- Detect advertised native updater subcommands in both stdout and stderr; use Antigravity's known `agy update` command directly. Verify the installed CLI version after updating, fail unverified updates unless an unchanged version is explicitly confirmed current by the updater, and expose before/after versions without hiding major upgrades.
+- Detect advertised native updater subcommands in both stdout and stderr; use Antigravity's known `agy update` command directly. Verify the installed CLI version after updating, retain strict verification for providers with a known expected release, and expose before/after versions without hiding major upgrades.
 - Fall back from empty or failed Ollama vendor responses (including Linux HTTP 204) to the latest stable `ollama/ollama` GitHub release. Keep Linux updates manual with `update_available`, a null command, and a service-safety reason; never replace a potentially active binary or restart models automatically.
 
 - Verify latest versions from npm, RTK GitHub releases, and Ollama vendor update endpoints with short read-only probes. Report `unknown` on unavailable evidence; reserve `up_to_date` for identical known versions, including Ponytail revisions.

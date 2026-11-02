@@ -98,20 +98,44 @@ class MaintenanceCommandTests(CliTestBase):
         self.assertEqual(result["results"][0]["version_after"], "2.1.316")
         self.assertIn("2.1.228 -> 2.1.316", _format_update_all_result(result["results"][0]))
 
-    def test_update_all_unchanged_version_returns_failure_in_json(self):
-        def runner(argv, **kwargs):
-            return {"returncode": 0, "stdout": "1.1.11" if argv[-1] == "--version" else "  update   Update CLI", "stderr": ""}
-        with mock.patch("src.update_all._fetch_json", return_value=[{"version": "2.0.0"}]), \
-             mock.patch("src.update_all._which", side_effect=lambda command, env: "/fake/agy" if command == "agy" else None):
-            io = self.make_io()
-            self.assertEqual(main(["update", "all", "--yes", "--json"], {
-                **io, "env": {"CDX_HOME": self.make_temp_dir()}, "runUpdateAll": runner,
-            }), 1)
-        result = json.loads(io["stdout"].getvalue())
-        self.assertEqual(result["plan"]["items"][2]["status"], "unknown")
-        self.assertEqual(result["results"][0]["version_after"], "1.1.11")
-        self.assertEqual(result["results"][0]["returncode"], 1)
-        self.assertIn("verification failed", result["results"][0]["reason"])
+    def test_update_all_agy_outcomes_preserve_unknown_in_json(self):
+        current_output = (Path(__file__).parent / "fixtures" / "agy-update-already-latest.txt").read_text()
+        cases = [
+            ("already current", current_output, "1.1.11", 0, False),
+            ("version advanced", "Update complete.", "2.0.0", 0, False),
+            ("unverifiable", "", "1.1.11", 0, True),
+            ("failed", current_output, "1.1.11", 7, False),
+        ]
+        for label, output, after, update_code, warns in cases:
+            calls = []
+            def runner(argv, output=output, after=after, update_code=update_code, calls=calls, **kwargs):
+                calls.append(argv)
+                if argv[-1] == "--version":
+                    version = after if ["agy", "update"] in calls else "1.1.11"
+                    return {"returncode": 0, "stdout": version, "stderr": ""}
+                return {"returncode": update_code, "stdout": output, "stderr": "update failed" if update_code else ""}
+            with self.subTest(case=label), \
+                 mock.patch("src.update_all._fetch_json") as fetch, \
+                 mock.patch("src.update_all._which", side_effect=lambda command, env: "/fake/agy" if command == "agy" else None):
+                io = self.make_io()
+                self.assertEqual(main(["update", "all", "--yes", "--json"], {
+                    **io, "env": {"CDX_HOME": self.make_temp_dir()}, "runUpdateAll": runner,
+                }), 1 if update_code else 0)
+                fetch.assert_not_called()
+                result = json.loads(io["stdout"].getvalue())
+                self.assertEqual(result["plan"]["items"][2]["status"], "unknown")
+                self.assertIsNone(result["plan"]["items"][2]["latest_version"])
+                self.assertEqual(result["results"][0]["returncode"], update_code)
+                self.assertEqual(result["failed"], 1 if update_code else 0)
+                self.assertEqual(bool(result["warnings"]), warns)
+                if warns:
+                    self.assertEqual(result["warnings"][0]["code"], "update_unverified")
+                    self.assertEqual(result["warnings"][0]["name"], "antigravity")
+                    self.assertIn("Status remains unknown", _format_update_all_result(result["results"][0]))
+                if update_code:
+                    self.assertEqual(result["results"][0]["stderr"], "update failed")
+                else:
+                    self.assertEqual(result["results"][0]["version_after"], after)
 
     def test_agy_unknown_plan_and_yes_already_latest_never_claim_up_to_date(self):
         output = (Path(__file__).parent / "fixtures" / "agy-update-already-latest.txt").read_text()

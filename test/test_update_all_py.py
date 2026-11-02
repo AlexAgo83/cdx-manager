@@ -220,6 +220,7 @@ class UpdateRegressionTests(unittest.TestCase):
                 self.assertEqual(results[0]["returncode"], 0)
                 self.assertEqual(results[0]["version_before"], "1.1.11")
                 self.assertEqual(results[0]["version_after"], "2.0.0")
+                self.assertNotIn("warning", results[0])
                 self.assertEqual(item["version"], "1.1.11")
                 self.assertIsNone(item["latest_version"])
                 self.assertEqual(item["status"], "unknown")
@@ -251,6 +252,7 @@ class UpdateRegressionTests(unittest.TestCase):
                     self.assertEqual(result["returncode"], 0)
                     self.assertEqual(result["version_before"], "1.4.12")
                     self.assertEqual(result["version_after"], "1.4.12")
+                    self.assertNotIn("warning", result)
 
     def test_agy_updater_failure_is_preserved_even_if_it_claims_current(self):
         output = (Path(__file__).parent / "fixtures" / "agy-update-already-latest.txt").read_text()
@@ -276,15 +278,16 @@ class UpdateRegressionTests(unittest.TestCase):
                 runner = lambda *a, help_value=text, **kw: {"returncode": 0, "stdout": "banner", "stderr": help_value}
                 self.assertEqual(_native_update_command(name, name, f"/bin/{name}", {}, runner), expected)
 
-    def test_successful_exit_with_unchanged_missing_or_downgraded_version_fails(self):
+    def test_agy_successful_unverifiable_exit_warns_without_failing(self):
         plan, _, _ = self.plan({"agy": "1.1.11"}, [{"version": "2.0.0"}], "  update   Update CLI")
         for after in ("1.1.11", "", "1.0.0"):
             with self.subTest(after=after):
                 events = []
                 results = apply_update_all_plan(plan, {}, progress=events.append, runner=lambda *a, after=after, **kw: {
                     "returncode": 0, "stdout": after, "stderr": ""})
-                self.assertEqual(results[0]["returncode"], 1)
-                self.assertIn("verification failed", results[0]["stderr"])
+                self.assertEqual(results[0]["returncode"], 0)
+                self.assertEqual(results[0]["warning"]["code"], "update_unverified")
+                self.assertEqual(plan["items"][2]["status"], "unknown")
                 self.assertEqual(events[-1]["result"], results[0])
 
     @mock.patch("src.update_all.platform.system", return_value="Linux")

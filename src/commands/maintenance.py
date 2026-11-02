@@ -53,6 +53,8 @@ def _format_update_all_result(result, use_color=False):
         return _warn(f"skipped: {result['name']} (blocked by {result['blocked_by']})", use_color)
     if result.get("returncode") == 0:
         versions = f" ({result['version_before']} -> {result['version_after']})" if "version_after" in result else ""
+        if result.get("warning"):
+            return _warn(f"done: {result['name']}{versions}\n  {result['warning']['message']}", use_color)
         return _success(f"done: {result['name']}{versions}", use_color)
     detail = str(result.get("stderr") or result.get("stdout") or "No error output.").strip().replace("\n", " ")
     detail = detail[-500:]
@@ -709,7 +711,8 @@ def handle_update(rest, ctx):
         failed = [row for row in results if row.get("returncode") != 0]
         message = "Applied workstation update plan" if not failed else "Workstation update plan completed with failures"
         if parsed["json"]:
-            _write_json(ctx, _json_success("update.all", message, plan=plan, results=results, failed=len(failed)))
+            warnings = [dict(row["warning"], name=row["name"]) for row in results if row.get("warning")]
+            _write_json(ctx, _json_success("update.all", message, warnings=warnings, plan=plan, results=results, failed=len(failed)))
         else:
             ctx["out"](f"{_success(message, ctx['use_color']) if not failed else _warn(message, ctx['use_color'])}\n")
         return 1 if failed else 0
