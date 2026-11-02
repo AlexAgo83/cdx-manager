@@ -71,12 +71,14 @@ def private_auth_home(auth):
 def clean_env(source: dict) -> dict:
     allowed = ("PATH", "LANG", "LC_ALL", "TERM", "TZ")
     env = {key: source[key] for key in allowed if key in source}
+    env["PATH"] = source.get("PATH", os.defpath) + os.pathsep + str(Path.home() / ".local/bin")
     env.update(HOME="/home/agent", XDG_CONFIG_HOME="/home/agent/.config",
                XDG_CACHE_HOME="/cache", GIT_CONFIG_NOSYSTEM="1",
                GIT_CONFIG_GLOBAL="/dev/null", GIT_TERMINAL_PROMPT="0", GIT_OPTIONAL_LOCKS="0",
                GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="credential.helper", GIT_CONFIG_VALUE_0="",
                GH_CONFIG_DIR="/home/agent/.config/gh", NPM_CONFIG_CACHE="/cache/npm",
                PIP_CACHE_DIR="/cache/pip", UV_CACHE_DIR="/cache/uv",
+               RTK_DB_PATH="/cache/rtk/history.db",
                # Cache users have different mount paths; their GC cannot identify each other's browsers.
                PLAYWRIGHT_BROWSERS_PATH="/cache/playwright", PLAYWRIGHT_SKIP_BROWSER_GC="1", CI="1")
     return env
@@ -85,7 +87,8 @@ def clean_env(source: dict) -> dict:
 def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: bool = True,
                     source: dict | None = None, auth_home: str = "", provider: str = "", observation_home: str = "") -> tuple[list[str], dict]:
     source = os.environ if source is None else source
-    binary = shutil.which(command[0], path=source.get("PATH"))
+    env = clean_env(source)
+    binary = shutil.which(command[0], path=env["PATH"])
     bwrap = shutil.which("bwrap", path=source.get("PATH"))
     if not binary or not bwrap:
         raise RuntimeError("Workspace isolation requires bubblewrap and " + command[0])
@@ -93,6 +96,7 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
         raise RuntimeError("Workspace must be a directory")
     tree = tree.resolve()
     CACHE.mkdir(parents=True, exist_ok=True)
+    (CACHE / "rtk").mkdir(exist_ok=True)
     # Provider transport uses the same restricted egress, even for read-only tools.
     online = bool(network or provider)
     if online:
@@ -137,15 +141,24 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
                 or common.is_relative_to(tree) or common.is_relative_to(CACHE.resolve())
                 or Path((gitdir / "gitdir").read_text().strip()).resolve() != marker):
             raise RuntimeError("Invalid external worktree Git directory")
-        args += ["--ro-bind", str(marker), str(marker), "--ro-bind", str(common), str(common),
-                 "--tmpfs", str(common / "worktrees"), "--ro-bind", str(gitdir), str(gitdir),
-                 "--ro-bind", "/dev/null", str(common / "config"),
-                 "--tmpfs", str(common / "hooks")]
-        if (gitdir / "config.worktree").exists():
-            args += ["--ro-bind", "/dev/null", str(gitdir / "config.worktree")]
+        # Use sandbox-owned parents rather than traversing private host homes.
+        # Do not expose repository config (remote URLs/helpers/includes), hooks,
+        # other worktrees, or the source checkout. Git remains read-only.
+        private_git = Path("/home/agent/.git")
+        args += ["--ro-bind", str(marker), str(marker), "--dir", str(private_git)]
+        # Combine this worktree's HEAD/index with shared history, without any
+        # commondir/gitdir pointers back into the host filesystem.
+        for origin, names in (
+            (gitdir, ["HEAD", "index", *[p.name for p in gitdir.glob("sharedindex.*")]]),
+            (common, ["objects", "refs", "packed-refs", "shallow", *[p.name for p in common.glob("sharedindex.*")]]),
+        ):
+            for name in names:
+                if (origin / name).exists():
+                    args += ["--ro-bind", str(origin / name), str(private_git / name)]
+        env.update(GIT_DIR=str(private_git), GIT_COMMON_DIR=str(private_git),
+                   GIT_WORK_TREE=str(tree))
     elif marker.exists():
         raise RuntimeError("Expected an isolated git worktree")
-    env = clean_env(source)
     if provider == "codex":
         auth_path = Path(auth_home) / "auth.json"
         if json.loads(auth_path.read_text()).get('tokens', {}).get('refresh_token') != '':

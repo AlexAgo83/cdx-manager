@@ -242,6 +242,45 @@ credential sync.
 - **On Windows, `doctor` warns that `script` is missing** — this is expected on many setups. Codex still launches, but transcript capture stays disabled unless you point `CDX_SCRIPT_BIN` to a compatible wrapper.
 
 
+### Git and RTK in isolated workspaces
+
+Local and remote `cdx run --isolate-workspace` use the same sandbox implementation.
+For a linked Git worktree, CDX builds a read-only Git view at `/home/agent/.git`:
+the mission's HEAD and index, plus the common objects, refs, packed refs, shallow
+boundary and split-index files. `GIT_DIR`, `GIT_COMMON_DIR` and `GIT_WORK_TREE`
+select that view without traversing the operator's private home directories.
+`git log`, `show`, `diff`, `status`, `blame`, `branch` and `rev-parse` can read
+the mission history, including packed objects and refs. Review runs also keep
+checkout files read-only. Git metadata stays read-only in writable missions,
+as before: committing and pushing remain the supervising mission flow's job.
+
+Host repository configuration, hooks, other worktrees, global Git configuration,
+SSH keys, credential helpers and token environment variables are not added.
+The view has no configured remotes. Existing provider authentication rules are
+unchanged; this does not grant Git push credentials.
+
+The sandbox appends the mounted operator `~/.local/bin` to PATH, including for
+noninteractive remote launches whose PATH omits it. An installed `rtk` is thus
+available without installing a second copy. Isolated launches override
+`RTK_DB_PATH` with `/cache/rtk/history.db`, backed by
+`~/.cdx/shared-cache/rtk/history.db` on the execution host. Savings persist
+across isolated attempts; the operator's normal RTK history is not mounted.
+Inspect them with `RTK_DB_PATH="$HOME/.cdx/shared-cache/rtk/history.db" rtk gain`
+on that host. Non-isolated launches keep their normal history selection.
+
+Run the real confinement acceptance check on a Linux host with bubblewrap and
+RTK installed (it uses disposable fixtures and synthetic secrets):
+
+```bash
+CDX_REQUIRE_SANDBOX_TESTS=1 python3 -m pytest -q test/test_workspace_sandbox_tools_py.py
+```
+
+It exercises the local and shipped worker implementations, writable and review
+checkouts, Git history commands, RTK database writes, and denial of a synthetic
+SSH key outside the checkout. The required mode fails rather than skipping
+when nested namespaces or RTK are unavailable. Default test runs skip only
+those unavailable integration cases; copied-metadata Git checks still run.
+
 ### Playwright in isolated workspaces
 
 Isolated preparation and provider environments force `PLAYWRIGHT_SKIP_BROWSER_GC=1`.

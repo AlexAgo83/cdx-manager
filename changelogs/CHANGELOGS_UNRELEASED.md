@@ -1,5 +1,11 @@
 # Unreleased
 
+## Isolated mission Git and RTK
+
+- Give local and remote isolated linked worktrees a read-only Git view with their own HEAD/index and shared objects/refs, without traversing private host parents or exposing repository/global configuration, hooks, SSH keys or Git push credentials. Preserve supervisor-owned commits and pushes.
+- Add the mounted operator `~/.local/bin` to sandbox PATH and persist RTK savings in the execution host's shared cache at `/cache/rtk/history.db`, overriding inaccessible host history paths for isolated launches only.
+- Cover real Git commands against selected metadata, local and shipped worker launch environments, and an opt-in required bubblewrap acceptance check for Git, RTK history writes, review mode and an unreadable synthetic SSH key. Document the namespace requirement and sandbox history location.
+
 ## Truthful workstation updates
 
 - Stop querying the editor release feed for the Antigravity CLI: its versions do not match `agy`. Keep `latest_version: null` and `status: unknown`, while still running the native `agy update` with `--yes` or confirmation. No read-only latest-version check is documented by `agy update --help`.

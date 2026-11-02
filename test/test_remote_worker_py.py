@@ -59,6 +59,8 @@ def test_remote_isolation_probe_uses_local_mounts_network_and_clean_env(sandbox,
     assert '--cap-drop' in command
     assert clean['CODEX_HOME'] == '/home/agent/.codex'
     assert clean['HOME'] == '/home/agent'
+    assert clean['PATH'].endswith(str(pathlib.Path.home() / '.local/bin'))
+    assert clean['RTK_DB_PATH'] == '/cache/rtk/history.db'
     assert not any(value == 'secret' for value in clean.values())
     mount = command.index(payload['cwd'])
     assert command[mount - 1] == ('--bind' if writable else '--ro-bind')
