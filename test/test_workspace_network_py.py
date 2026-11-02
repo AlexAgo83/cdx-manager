@@ -33,6 +33,8 @@ class WorkspaceSandboxTests(unittest.TestCase):
         self.assertNotIn("GITHUB_TOKEN", env)
         self.assertEqual(env["HOME"], "/home/agent")
         self.assertEqual(env["GIT_CONFIG_VALUE_0"], "")
+        self.assertTrue(env["PATH"].endswith(str(Path.home() / ".local/bin")))
+        self.assertEqual(env["RTK_DB_PATH"], "/cache/rtk/history.db")
         self.assertEqual(env["PLAYWRIGHT_SKIP_BROWSER_GC"], "1")
         self.assertEqual(workspace_sandbox.clean_env({"PLAYWRIGHT_SKIP_BROWSER_GC": "0"})["PLAYWRIGHT_SKIP_BROWSER_GC"], "1")
 
