@@ -3,6 +3,7 @@
 Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 """
 
+import sys
 import time
 import uuid
 
@@ -53,6 +54,30 @@ def _refresh_result(session, diagnostic):
 
 
 def handle_auth(rest, ctx):
+    if rest and rest[0] == "claude-token":
+        json_flag, args = _parse_json_flag(rest[1:])
+        if len(args) != 1:
+            raise CdxError("Usage: cdx auth claude-token <profile> [--json]")
+        session = ctx["service"]["get_session"](args[0])
+        if not session or session["provider"] != PROVIDER_CLAUDE:
+            raise CdxError("Select an existing Claude profile for cdx auth claude-token.")
+        if ctx["stdin_is_tty"]:
+            raise CdxError("Read the Claude setup token from standard input, without an interactive terminal.")
+        from ..claude_remote_token import store_token
+        stream = ctx.get("prompt_stdin") or sys.stdin
+        token = stream.read(16385)
+        if isinstance(token, bytes):
+            try:
+                token = token.decode("utf-8")
+            except UnicodeDecodeError as error:
+                raise CdxError("Provide one Claude setup token on standard input.") from error
+        store_token(session, token)
+        message = f"Stored remote Claude setup token for {session['name']}"
+        if json_flag:
+            _write_json(ctx, _json_success("auth.claude-token", message))
+        else:
+            ctx["out"](message + "\n")
+        return 0
     parsed = _parse_auth_args(rest)
     target = parsed["target"]
     if target == "all":

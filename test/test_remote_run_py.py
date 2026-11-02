@@ -98,6 +98,8 @@ def fixture_loads(value, *extra, **kwargs):
             sandbox = ast.literal_eval(first.partition(' = ')[2])
             sandbox = sandbox.replace('home / ".nvm",', 'Path(' + repr(str(Path(os.environ['FAKE_ARGV']).parent / 'bin')) + '), home / ".nvm",')
             sandbox = sandbox.replace('path=os.defpath +', 'path=os.environ["PATH"] +')
+            sandbox = sandbox.replace('socket.getaddrinfo("api.anthropic.com", 443, type=socket.SOCK_STREAM)',
+                                      '[(2, 1, 6, "", ("203.0.113.1", 443))]')
             sandbox = sandbox.replace('return env', "env.update({key: value for key, value in source.items() if key.startswith('FAKE_')}); return env")
             result = 'SANDBOX_SOURCE = ' + repr(sandbox) + '\n' + rest
     return result
@@ -448,7 +450,7 @@ class RemoteCommandTests(CliTestBase):
 
     def test_provider_refusal(self):
         service, _, _ = self.setup_session()
-        for provider in ('claude', 'antigravity'):
+        for provider in ('antigravity',):
             service['create_session']('other-' + provider, provider)
             out = self.make_io()
             assert main(['run', 'other-' + provider, '--remote', 'worker', '--cwd', str(self.directory), '--prompt', 'Work', '--json'],
