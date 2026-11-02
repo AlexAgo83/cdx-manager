@@ -4,6 +4,7 @@ import sys
 from .cli_args import ARG_CODE_INVALID_VALUE
 from .errors import CdxArgumentError, CdxError
 from .provider_runtime import headless_permission_disables_network
+from .run_registry import final_message
 from .run_usage import cost_fields, empty_usage, estimate_cost, extract_run_observation
 
 PROMPT_STDIN = "-"
@@ -169,6 +170,9 @@ def run_launch_payload(api_schema_version, parsed, session, artifacts, cwd=None,
         "ok": True,
         "action": "run",
         "launcher": "cdx",
+        **({"execution_mode": "text_generation",
+            "execution_note": "Ollama generates text only; it is not an autonomous coding agent and does not edit the repository."}
+           if parsed.get("remote") and session and session.get("provider") == "ollama" else {}),
         **({"remote": parsed["remote"]} if parsed.get("remote") else {}),
         "project": parsed.get("project"),
         "project_source": parsed.get("project_source", "unknown"),
@@ -222,6 +226,9 @@ def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
         "ok": bool(ok),
         "action": "run",
         "launcher": "cdx",
+        **({"execution_mode": "text_generation",
+            "execution_note": "Ollama generates text only; it is not an autonomous coding agent and does not edit the repository."}
+           if parsed.get("remote") and session and session.get("provider") == "ollama" else {}),
         **({"remote": parsed["remote"]} if parsed.get("remote") else {}),
         "project": parsed.get("project"),
         "project_source": parsed.get("project_source", "unknown"),
@@ -242,6 +249,8 @@ def run_result_payload(api_schema_version, ok, parsed, session, run_info=None,
         "transcript_path": run_info.get("transcript_path"),
         "stdout_path": run_info.get("stdout_path"),
         "stderr_path": run_info.get("stderr_path"),
+        **({"result": final_message({"artifacts": run_info})}
+           if parsed.get("remote") and session and session.get("provider") == "ollama" else {}),
         "usage": usage,
         "usage_model": usage_model,
         "usage_models": run_info.get("usage_models", [usage_model] if usage_model else []),

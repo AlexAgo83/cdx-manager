@@ -85,7 +85,7 @@ def clean_env(source: dict) -> dict:
 
 
 def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: bool = True,
-                    source: dict | None = None, auth_home: str = "", provider: str = "", observation_home: str = "") -> tuple[list[str], dict]:
+                    source: dict | None = None, auth_home: str = "", provider: str = "", observation_home: str = "", ollama_relay: str = "") -> tuple[list[str], dict]:
     source = os.environ if source is None else source
     env = clean_env(source)
     binary = shutil.which(command[0], path=env["PATH"])
@@ -98,7 +98,7 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
     CACHE.mkdir(parents=True, exist_ok=True)
     (CACHE / "rtk").mkdir(exist_ok=True)
     # Provider transport uses the same restricted egress, even for read-only tools.
-    online = bool(network or provider)
+    online = bool(network or (provider and provider != "ollama"))
     if online:
         pasta = shutil.which("pasta", path=source.get("PATH"))
         nft = shutil.which("nft", path=os.defpath + ":/usr/sbin:/sbin")
@@ -174,6 +174,10 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
             raise RuntimeError("Isolated Claude runs require a cdx OAuth setup token")
         env.update(CLAUDE_CODE_OAUTH_TOKEN=token, CLAUDE_CODE_SUBPROCESS_ENV_SCRUB="1",
                    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1")
+    elif provider == "ollama":
+        if not ollama_relay:
+            raise RuntimeError("Isolated Ollama requires a supervisor-owned relay")
+        args += ["--ro-bind", ollama_relay, "/run/cdx-ollama"]
     elif provider:
         raise RuntimeError("Unsupported isolated provider: " + provider)
     args += ["--chdir", str(tree), "--", binary, *command[1:]]

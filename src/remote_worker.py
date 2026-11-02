@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 
 # Supplied by the controller before this module is executed.
 SANDBOX_SOURCE = globals().get('SANDBOX_SOURCE', '')
+OLLAMA_SOURCE = globals().get('OLLAMA_SOURCE', '')
 OBSERVATION_MODULES = globals().get('OBSERVATION_MODULES', {})
 OBSERVATION_LIMITS = globals().get('OBSERVATION_LIMITS', (128 * 1024 * 1024, 1))
 
@@ -102,8 +103,12 @@ def probe(root, payload):
 
 
 def main():
-    root = storage()
     payload = json.loads(sys.stdin.buffer.readline())
+    if payload.get('provider') == 'ollama':
+        namespace = {'__name__': 'cdx_ollama_remote'}
+        exec(compile(OLLAMA_SOURCE, 'ollama_remote.py', 'exec'), namespace)
+        return namespace['run'](payload, SANDBOX_SOURCE, probe=sys.argv[-1] == 'probe')
+    root = storage()
     if sys.argv[-1] == 'probe':
         return probe(root, payload)
     auth = payload['auth']

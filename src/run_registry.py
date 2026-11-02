@@ -462,6 +462,9 @@ def _record_final_message(record):
     """The final assistant text one provider record carries, or None."""
     if not isinstance(record, dict):
         return None
+    message = record.get("message")
+    if record.get("done") is True and isinstance(message, dict) and isinstance(message.get("content"), str):
+        return message["content"]
     # Claude: `--output-format json` ends with a `result` envelope.
     if record.get("type") == "result" and isinstance(record.get("result"), str):
         return record["result"]
