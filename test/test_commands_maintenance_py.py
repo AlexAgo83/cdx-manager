@@ -51,6 +51,50 @@ class MaintenanceCommandTests(CliTestBase):
         self.assertIn("1 action(s) ready", plain)
         self.assertIn("\033[", colored)
 
+    def test_update_all_unknown_is_distinct_and_never_claims_everything_current(self):
+        plan = {"items": [{"name": "claude", "version": "2.1.228", "latest_version": None,
+                           "status": "unknown", "reason": "Official source unavailable."}],
+                "setup": {"rtk_missing_sessions": [], "ponytail": []}, "steps": []}
+        text = _format_update_all(plan)
+        self.assertIn("UNKNOWN", text)
+        self.assertIn("Official source unavailable", text)
+        self.assertNotIn("Everything managed by CDX is current", text)
+
+    def test_update_all_json_and_yes_preserve_unknown(self):
+        plan = {"items": [{"name": "claude", "installed": True, "version": "2.1.228",
+                           "latest_version": None, "update_command": None, "status": "unknown",
+                           "reason": "Official source unavailable."}],
+                "setup": {"rtk_missing_sessions": [], "ponytail": []}, "steps": []}
+        for flags in (["--json"], ["--yes", "--json"], ["--yes"]):
+            with self.subTest(flags=flags), mock.patch("src.commands.maintenance.collect_update_all_plan", return_value=plan):
+                io = self.make_io()
+                self.assertEqual(main(["update", "all", *flags], {**io, "env": {"CDX_HOME": self.make_temp_dir()}}), 0)
+                text = io["stdout"].getvalue()
+                if "--json" in flags:
+                    item = json.loads(text)["plan"]["items"][0]
+                    self.assertEqual(item["status"], "unknown")
+                    self.assertIsNone(item["latest_version"])
+                else:
+                    self.assertIn("UNKNOWN", text)
+                    self.assertIn("Official source unavailable", text)
+
+    def test_update_all_yes_executes_outdated_claude_native_command(self):
+        calls = []
+        def runner(argv, **kwargs):
+            calls.append(argv)
+            output = "2.1.228" if argv[-1] == "--version" else "Commands:\n  update [options]  Update Claude"
+            return {"returncode": 0, "stdout": output, "stderr": ""}
+        with mock.patch("src.update_all._fetch_json", return_value={"version": "2.1.316"}), \
+             mock.patch("src.update_all._which", side_effect=lambda command, env: "/fake/claude" if command == "claude" else None):
+            io = self.make_io()
+            self.assertEqual(main(["update", "all", "--yes", "--json"], {
+                **io, "env": {"CDX_HOME": self.make_temp_dir()}, "runUpdateAll": runner,
+            }), 0)
+        result = json.loads(io["stdout"].getvalue())
+        self.assertEqual(result["plan"]["items"][1]["status"], "update_available")
+        self.assertEqual(result["results"][0]["command"], ["claude", "update"])
+        self.assertEqual(calls, [["claude", "--version"], ["claude", "--help"], ["claude", "update"]])
+
     def test_update_all_failure_includes_its_reason(self):
         text = _format_update_all_result({"name": "Claude Code", "command": ["brew", "upgrade", "--cask", "claude-code@latest"], "returncode": 1, "stderr": "network unavailable"})
         self.assertIn("exit 1", text)

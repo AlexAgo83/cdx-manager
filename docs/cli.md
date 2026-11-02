@@ -51,7 +51,7 @@
 | `cdx repair [--dry-run] [--force] [--json]` | Plan or apply safe repairs for missing state files, quarantines, and orphan profiles |
 | `cdx view [--json] [--lan] [--lan-rw] [--focus <ref>] [--read] [--port <port>] [--host <host>] [--refresh-interval <s>] [--tls] [--tls-cert <path>] [--tls-key <path>] [--open] [--no-open]` | Open the Logics browser/focus viewer by delegating to `logics-manager view`; all viewer flags are forwarded; JSON mode reports diagnostics without launching it |
 | `cdx update [--check] [--yes] [--json] [--version TAG]` | Update cdx-manager using the installer that matches how it was installed |
-| `cdx update all [--yes] [--json]` | Check installed providers, RTK, and Ponytail across Codex profiles; show the plan and ask once before applying safe native/Homebrew updates and missing RTK/Ponytail setup |
+| `cdx update all [--yes] [--json]` | Check installed providers, RTK, and Ponytail across Codex profiles; show the plan and ask once before applying supported native/Homebrew updates and missing RTK/Ponytail setup |
 | `cdx ready [--refresh] [--json]` | Schedule an OS notification for the next cooling-down assistant that becomes ready, then return immediately |
 | `cdx notify` | Internal provider hook target for agent alerts and agent state; use `cdx set <name> --notify on` or `--agent-state on` to enable it |
 | `cdx agents [--max-age-hours N] [--json]` | Each session's last known agent state (working, waiting, done, failed, limit, ended), waiting first; records older than N hours (default 24) are dropped. See [Agent state](sessions-and-notifications.md#agent-state) |
@@ -545,3 +545,41 @@ backup, and atomically replaces history only when the complete batch has no
 conflict. Unrelated fields, usage, and malformed/unrelated history lines survive.
 Repeating the same mapping is a no-op and creates no additional backup. The
 registry and provider transcripts are never rewritten by backfill.
+
+### Workstation update checks
+
+`cdx update all --json` collects a read-only plan. `--yes` applies its supported
+update and session setup steps. Existing `plan.items` fields remain available:
+`installed`, `version`, `latest_version`, `update_command`, and `status`.
+Versions and commands are explicitly `null` when unavailable.
+
+- `up_to_date`: both versions are known and identical.
+- `update_available`: the published version is newer (the tool is outdated).
+- `unknown`: the source failed, returned invalid data, timed out, or the installed
+  version could not be compared reliably. This never means up to date.
+- `not_installed`: the executable is absent; no installation is guessed.
+
+Checks use the npm registry for Codex and `@anthropic-ai/claude-code`, GitHub's
+`rtk-ai/rtk` latest stable release, the original Antigravity editor's vendor
+`/releases` feed for `agy`, and Ollama's own `/api/update` endpoint with the local
+OS/architecture and baseline version `0.0.0`. Ollama's local `/api/version` reports
+an installed server, not the latest published release, and is not used.
+Antigravity Hub and IDE 2 have separate feeds and are not substituted for `agy`.
+HTTP and read-only CLI probes have a five-second timeout; source failures leave
+`latest_version: null` and `status: unknown`. Ponytail also reports `unknown`
+when its remote revision is unavailable. An empty Ollama response (including
+HTTP 204 without a published version) remains `unknown`; a different platform
+is never substituted to manufacture a match.
+
+For an outdated tool, CDX uses a native update command advertised by its
+`--help` (including Claude and Antigravity when available), Codex's updater,
+or Homebrew only when the resolved executable belongs to a Caskroom/Cellar
+package. An outdated tool without such a path retains `update_available`,
+`update_command: null`, and a human-readable `reason`; it requires the vendor's
+manual update mechanism. Source uncertainty never schedules a guessed install.
+The text table shows `UNKNOWN` and the reason, and an empty action list makes
+no claim that all tools are current. JSON consumers, including external
+remote-ops auto-update scripts, should inspect statuses separately from successful
+command execution: exit code zero means no attempted action failed, not that
+every installed tool was verified current. With `--yes`, the returned plan is the
+pre-update inventory; `results` records attempted actions and their exit codes.

@@ -28,6 +28,7 @@ from ..update_manager import build_update_plan, format_update_failure, run_updat
 def _format_update_all(plan, use_color=False):
     labels = {
         "up_to_date": _success("OK", use_color),
+        "unknown": _warn("UNKNOWN", use_color),
         "update_available": _warn("UPDATE", use_color),
         "not_installed": _warn("MISSING", use_color),
         "check_with_native_updater": _info("CHECK", use_color),
@@ -36,6 +37,7 @@ def _format_update_all(plan, use_color=False):
     for item in plan["items"]:
         rows.append([_info(item["name"], use_color), item.get("version") or _dim("-", use_color), item.get("latest_version") or _dim("-", use_color), labels.get(item["status"], item["status"].replace("_", " "))])
     lines = [_style("Workstation update", "1", use_color), _dim("Inventory only — nothing has changed.", use_color), "", _pad_table(rows)]
+    lines.extend(f"{item['name']}: {item['reason']}" for item in plan["items"] if item.get("reason"))
     missing_rtk = plan["setup"]["rtk_missing_sessions"]
     setup = [f"RTK: enable for {', '.join(missing_rtk)}" if missing_rtk else "RTK: configured for every session"]
     setup.extend(f"Ponytail {plugin['session']}: {labels.get(plugin['status'], plugin['status'].replace('_', ' '))}" for plugin in plan["setup"]["ponytail"])
@@ -43,7 +45,7 @@ def _format_update_all(plan, use_color=False):
     if plan["steps"]:
         lines.extend(["", _warn(f"{len(plan['steps'])} action(s) ready", use_color), _dim("Confirm to update only the tools listed above.", use_color)])
     else:
-        lines.extend(["", _success("Everything managed by CDX is current and configured.", use_color)])
+        lines.extend(["", _dim("No automatic actions available. See tool statuses and reasons above.", use_color)])
     return "\n".join(lines)
 
 def _format_update_all_result(result, use_color=False):
@@ -689,6 +691,9 @@ def handle_update(rest, ctx):
             if input("Apply this plan? [y/N] ").strip().lower() not in ("y", "yes"):
                 ctx["out"](f"{_warn('Cancelled.', ctx['use_color'])}\n")
                 return 0
+        if parsed["yes"] and not parsed["json"]:
+            ctx["out"](f"{_format_update_all(plan, ctx['use_color'])}\n")
+
         def progress(event):
             if parsed["json"]:
                 return
