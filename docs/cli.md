@@ -567,19 +567,33 @@ an installed server, not the latest published release, and is not used.
 Antigravity Hub and IDE 2 have separate feeds and are not substituted for `agy`.
 HTTP and read-only CLI probes have a five-second timeout; source failures leave
 `latest_version: null` and `status: unknown`. Ponytail also reports `unknown`
-when its remote revision is unavailable. An empty Ollama response (including
-HTTP 204 without a published version) remains `unknown`; a different platform
-is never substituted to manufacture a match.
+when its remote revision is unavailable. An empty, failed, or invalid Ollama
+response (including Linux HTTP 204) falls back to the latest stable GitHub
+release for `ollama/ollama`. If that source also fails, status is `unknown`;
+a different platform's vendor response is never substituted.
 
 For an outdated tool, CDX uses a native update command advertised by its
-`--help` (including Claude and Antigravity when available), Codex's updater,
+`--help` on either stdout or stderr (including Claude, Antigravity, and RTK
+when available), Codex's updater,
 or Homebrew only when the resolved executable belongs to a Caskroom/Cellar
 package. An outdated tool without such a path retains `update_available`,
 `update_command: null`, and a human-readable `reason`; it requires the vendor's
-manual update mechanism. Source uncertainty never schedules a guessed install.
+manual update mechanism. On Linux, Ollama always retains `update_available`
+with `update_command: null` and an explicit maintenance reason: its installer
+writes system paths and may restart a service. A binary in `~/.local/bin` can
+also serve running models, so CDX neither replaces it nor restarts services.
+Arrange a manual maintenance window. Source uncertainty never schedules a guessed install.
 The text table shows `UNKNOWN` and the reason, and an empty action list makes
 no claim that all tools are current. JSON consumers, including external
 remote-ops auto-update scripts, should inspect statuses separately from successful
 command execution: exit code zero means no attempted action failed, not that
 every installed tool was verified current. With `--yes`, the returned plan is the
 pre-update inventory; `results` records attempted actions and their exit codes.
+
+After each successful tool update command, CDX probes the CLI version again.
+An unchanged, unreadable, downgraded, or still older-than-published version
+makes the action fail, even if the updater exited zero. Successful text output
+shows the before/after versions, including major upgrades. JSON keeps the
+pre-update plan and existing result fields; tool verification adds
+`version_before`, `version_after`, and `latest_version` to successful-command
+results, plus `reason` and a nonzero `returncode` if verification fails.

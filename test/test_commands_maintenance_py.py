@@ -82,7 +82,7 @@ class MaintenanceCommandTests(CliTestBase):
         calls = []
         def runner(argv, **kwargs):
             calls.append(argv)
-            output = "2.1.228" if argv[-1] == "--version" else "Commands:\n  update [options]  Update Claude"
+            output = ("2.1.316" if ["claude", "update"] in calls else "2.1.228") if argv[-1] == "--version" else "Commands:\n  update [options]  Update Claude"
             return {"returncode": 0, "stdout": output, "stderr": ""}
         with mock.patch("src.update_all._fetch_json", return_value={"version": "2.1.316"}), \
              mock.patch("src.update_all._which", side_effect=lambda command, env: "/fake/claude" if command == "claude" else None):
@@ -93,7 +93,24 @@ class MaintenanceCommandTests(CliTestBase):
         result = json.loads(io["stdout"].getvalue())
         self.assertEqual(result["plan"]["items"][1]["status"], "update_available")
         self.assertEqual(result["results"][0]["command"], ["claude", "update"])
-        self.assertEqual(calls, [["claude", "--version"], ["claude", "--help"], ["claude", "update"]])
+        self.assertEqual(calls, [["claude", "--version"], ["claude", "--help"], ["claude", "update"], ["claude", "--version"]])
+        self.assertEqual(result["results"][0]["version_after"], "2.1.316")
+        self.assertIn("2.1.228 -> 2.1.316", _format_update_all_result(result["results"][0]))
+
+    def test_update_all_unchanged_version_returns_failure_in_json(self):
+        def runner(argv, **kwargs):
+            return {"returncode": 0, "stdout": "1.1.11" if argv[-1] == "--version" else "  update   Update CLI", "stderr": ""}
+        with mock.patch("src.update_all._fetch_json", return_value=[{"version": "2.0.0"}]), \
+             mock.patch("src.update_all._which", side_effect=lambda command, env: "/fake/agy" if command == "agy" else None):
+            io = self.make_io()
+            self.assertEqual(main(["update", "all", "--yes", "--json"], {
+                **io, "env": {"CDX_HOME": self.make_temp_dir()}, "runUpdateAll": runner,
+            }), 1)
+        result = json.loads(io["stdout"].getvalue())
+        self.assertEqual(result["plan"]["items"][2]["status"], "update_available")
+        self.assertEqual(result["results"][0]["version_after"], "1.1.11")
+        self.assertEqual(result["results"][0]["returncode"], 1)
+        self.assertIn("verification failed", result["results"][0]["reason"])
 
     def test_update_all_failure_includes_its_reason(self):
         text = _format_update_all_result({"name": "Claude Code", "command": ["brew", "upgrade", "--cask", "claude-code@latest"], "returncode": 1, "stderr": "network unavailable"})

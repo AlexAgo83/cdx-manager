@@ -3,6 +3,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from src.session_service import create_session_service
@@ -71,7 +72,7 @@ class UpdateAllTests(unittest.TestCase):
 
 
 class OfficialSourceTests(unittest.TestCase):
-    def plan(self, versions, payload, help_text="", failure=None):
+    def plan(self, versions, payload, help_text="", failure=None, help_stream="stdout"):
         calls = []
 
         def runner(command, **kwargs):
@@ -80,7 +81,7 @@ class OfficialSourceTests(unittest.TestCase):
             if command[-1] == "--version":
                 value = versions[command[0]]
                 return {"returncode": 0, "stdout": value, "stderr": ""}
-            return {"returncode": 0, "stdout": help_text, "stderr": ""}
+            return {"returncode": 0, "stdout": "", "stderr": "", help_stream: help_text}
 
         with mock.patch("src.update_all._which", side_effect=lambda command, env: f"/bin/{command}" if command in versions else None), \
              mock.patch("src.update_all._fetch_json", return_value=payload, side_effect=failure) as fetch:
@@ -117,9 +118,10 @@ class OfficialSourceTests(unittest.TestCase):
                 applied = []
                 def runner(argv, applied=applied, **kwargs):
                     applied.append(argv)
-                    return {"returncode": 0, "stdout": "", "stderr": ""}
-                apply_update_all_plan(plan, {}, runner=runner)
-                self.assertEqual(applied, [[command, "update"]])
+                    return {"returncode": 0, "stdout": "2.1.316" if argv[-1] == "--version" else "", "stderr": ""}
+                results = apply_update_all_plan(plan, {}, runner=runner)
+                self.assertEqual(results[0]["returncode"], 0)
+                self.assertEqual(applied, [[command, "update"], [command, "--version"]])
 
     def test_outdated_without_native_updater_never_guesses_install(self):
         for command, payload in [("rtk", {"tag_name": "v1.1.0"}), ("agy", [{"version": "1.1.0"}]),
@@ -200,3 +202,81 @@ class OfficialSourceTests(unittest.TestCase):
             for command in ("claude", "rtk", "agy", "ollama"):
                 plan, _, _ = self.plan({command: "1.2.3"}, payload)
                 self.assertEqual(next(item for item in plan["items"] if item["installed"])["status"], "unknown")
+
+
+class UpdateRegressionTests(unittest.TestCase):
+    plan = OfficialSourceTests.plan
+
+    def test_real_agy_help_on_either_stream_and_major_upgrade(self):
+        help_text = (Path(__file__).parent / "fixtures" / "agy-help.txt").read_text()
+        self.assertIn("Available subcommands:\n", help_text)
+        self.assertIn("  update          Update CLI", help_text)
+        for stream in ("stdout", "stderr"):
+            with self.subTest(stream=stream):
+                plan, _, _ = self.plan({"agy": "1.1.11"}, [{"version": "2.0.0"}], help_text, help_stream=stream)
+                item = plan["items"][2]
+                self.assertEqual(item["update_command"], ["agy", "update"])
+                results = apply_update_all_plan(plan, {}, runner=lambda argv, **kw: {
+                    "returncode": 0, "stdout": "2.0.0" if argv[-1] == "--version" else "", "stderr": ""})
+                self.assertEqual(results[0]["returncode"], 0)
+                self.assertEqual(results[0]["version_before"], "1.1.11")
+                self.assertEqual(results[0]["version_after"], "2.0.0")
+                self.assertEqual(item["version"], "1.1.11")
+                self.assertEqual(item["latest_version"], "2.0.0")
+
+    def test_common_help_parser_reads_stderr_and_requires_subcommand(self):
+        from src.update_all import _native_update_command
+        for name in ("antigravity", "claude", "rtk"):
+            for text, expected in [("Available subcommands:\n  update   Update CLI\n", [name, "update"]),
+                                   ("Available subcommands:\n  help   Show help\nUse the website to update.\n", None)]:
+                runner = lambda *a, help_value=text, **kw: {"returncode": 0, "stdout": "banner", "stderr": help_value}
+                self.assertEqual(_native_update_command(name, name, f"/bin/{name}", {}, runner), expected)
+
+    def test_successful_exit_with_unchanged_missing_or_partial_version_fails(self):
+        plan, _, _ = self.plan({"agy": "1.1.11"}, [{"version": "2.0.0"}], "  update   Update CLI")
+        for after in ("1.1.11", "", "1.2.0", "1.0.0"):
+            with self.subTest(after=after):
+                events = []
+                results = apply_update_all_plan(plan, {}, progress=events.append, runner=lambda *a, after=after, **kw: {
+                    "returncode": 0, "stdout": after, "stderr": ""})
+                self.assertEqual(results[0]["returncode"], 1)
+                self.assertIn("verification failed", results[0]["stderr"])
+                self.assertEqual(events[-1]["result"], results[0])
+
+    @mock.patch("src.update_all.platform.system", return_value="Linux")
+    def test_linux_204_falls_back_to_github_and_never_updates_user_binary(self, _system):
+        from src.update_all import _fetch_json as fetch_json
+        with mock.patch("src.update_all.urlopen") as urlopen, \
+             mock.patch("src.update_all._fetch_json", wraps=fetch_json) as fetch, \
+             mock.patch("src.update_all._which", side_effect=lambda cmd, env: "/home/tower/.local/bin/ollama" if cmd == "ollama" else None):
+            response = urlopen.return_value.__enter__.return_value
+            response.status = 204
+            response.read.side_effect = [b"", b'{"tag_name":"v0.40.13"}']
+            calls = []
+            def runner(argv, **kw):
+                calls.append(argv)
+                return {"returncode": 0, "stdout": "0.32.5", "stderr": ""}
+            plan = collect_update_all_plan({"list_sessions": lambda: []}, env={"PATH": "/fake"}, runner=runner)
+            item = plan["items"][3]
+            self.assertEqual(item["latest_version"], "0.40.13")
+            self.assertEqual(item["status"], "update_available")
+            self.assertIsNone(item["update_command"])
+            self.assertIn("may restart a service", item["reason"])
+            self.assertEqual(plan["steps"], [])
+            self.assertEqual(calls, [["ollama", "--version"]])
+            self.assertIn("os=linux", fetch.call_args_list[0].args[0])
+            self.assertEqual(fetch.call_args_list[1].args[0], "https://api.github.com/repos/ollama/ollama/releases/latest")
+
+    def test_ollama_failed_or_empty_vendor_response_fallback(self):
+        from src.update_all import _latest_version
+        for first in (TimeoutError("timeout"), OSError("offline"), {}, None):
+            with self.subTest(first=first), mock.patch("src.update_all._fetch_json", side_effect=[first, {"tag_name": "v0.40.13"}]):
+                self.assertEqual(_latest_version("ollama"), "0.40.13")
+        for second in (OSError("offline"), {}, {"tag_name": "v0.40.13", "prerelease": True}):
+            with self.subTest(second=second), mock.patch("src.update_all._fetch_json", side_effect=[ValueError("empty"), second]):
+                self.assertIsNone(_latest_version("ollama"))
+
+    def test_ollama_client_version_on_stderr_wins_over_server_stdout(self):
+        from src.update_all import _version
+        runner = lambda *a, **kw: {"returncode": 0, "stdout": "ollama version is 0.40.13", "stderr": "Warning: client version is 0.32.5"}
+        self.assertEqual(_version("ollama", {}, runner), "0.32.5")

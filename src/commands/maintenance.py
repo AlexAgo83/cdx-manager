@@ -52,7 +52,8 @@ def _format_update_all_result(result, use_color=False):
     if result.get("skipped"):
         return _warn(f"skipped: {result['name']} (blocked by {result['blocked_by']})", use_color)
     if result.get("returncode") == 0:
-        return _success(f"done: {result['name']}", use_color)
+        versions = f" ({result['version_before']} -> {result['version_after']})" if "version_after" in result else ""
+        return _success(f"done: {result['name']}{versions}", use_color)
     detail = str(result.get("stderr") or result.get("stdout") or "No error output.").strip().replace("\n", " ")
     detail = detail[-500:]
     command = shlex.join(result.get("command") or [])
