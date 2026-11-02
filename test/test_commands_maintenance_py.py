@@ -6,6 +6,7 @@ Moved verbatim from test_cli_py.py; see test/cli_test_support.py for fixtures.
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest import mock
 
 from cli_test_support import (  # noqa: F401
@@ -107,10 +108,40 @@ class MaintenanceCommandTests(CliTestBase):
                 **io, "env": {"CDX_HOME": self.make_temp_dir()}, "runUpdateAll": runner,
             }), 1)
         result = json.loads(io["stdout"].getvalue())
-        self.assertEqual(result["plan"]["items"][2]["status"], "update_available")
+        self.assertEqual(result["plan"]["items"][2]["status"], "unknown")
         self.assertEqual(result["results"][0]["version_after"], "1.1.11")
         self.assertEqual(result["results"][0]["returncode"], 1)
         self.assertIn("verification failed", result["results"][0]["reason"])
+
+    def test_agy_unknown_plan_and_yes_already_latest_never_claim_up_to_date(self):
+        output = (Path(__file__).parent / "fixtures" / "agy-update-already-latest.txt").read_text()
+        for flags in (["--json"], ["--yes", "--json"], ["--yes"]):
+            calls = []
+            def runner(argv, calls=calls, **kwargs):
+                calls.append(argv)
+                return {"returncode": 0, "stdout": "1.4.12" if argv[-1] == "--version" else output, "stderr": ""}
+            with self.subTest(flags=flags), \
+                 mock.patch("src.update_all._fetch_json") as fetch, \
+                 mock.patch("src.update_all._which", side_effect=lambda cmd, env: "/fake/agy" if cmd == "agy" else None):
+                io = self.make_io()
+                self.assertEqual(main(["update", "all", *flags], {
+                    **io, "env": {"CDX_HOME": self.make_temp_dir()}, "runUpdateAll": runner,
+                }), 0)
+                fetch.assert_not_called()
+                text = io["stdout"].getvalue()
+                if "--json" in flags:
+                    result = json.loads(text)
+                    item = result["plan"]["items"][2]
+                    self.assertEqual(item["status"], "unknown")
+                    self.assertIsNone(item["latest_version"])
+                    if "--yes" in flags:
+                        self.assertEqual(result["results"][0]["returncode"], 0)
+                else:
+                    self.assertIn("UNKNOWN", text)
+                    self.assertNotIn("UP TO DATE", text)
+                    self.assertNotIn("Everything managed by CDX is current", text)
+                self.assertEqual(calls, [["agy", "--version"]] + (
+                    [["agy", "update"], ["agy", "--version"]] if "--yes" in flags else []))
 
     def test_update_all_failure_includes_its_reason(self):
         text = _format_update_all_result({"name": "Claude Code", "command": ["brew", "upgrade", "--cask", "claude-code@latest"], "returncode": 1, "stderr": "network unavailable"})
