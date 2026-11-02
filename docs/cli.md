@@ -560,11 +560,14 @@ Versions and commands are explicitly `null` when unavailable.
 - `not_installed`: the executable is absent; no installation is guessed.
 
 Checks use the npm registry for Codex and `@anthropic-ai/claude-code`, GitHub's
-`rtk-ai/rtk` latest stable release, the original Antigravity editor's vendor
-`/releases` feed for `agy`, and Ollama's own `/api/update` endpoint with the local
+`rtk-ai/rtk` latest stable release, and Ollama's own `/api/update` endpoint with the local
 OS/architecture and baseline version `0.0.0`. Ollama's local `/api/version` reports
 an installed server, not the latest published release, and is not used.
-Antigravity Hub and IDE 2 have separate feeds and are not substituted for `agy`.
+Antigravity's editor `/releases` feed does not describe the `agy` CLI and is not
+queried. `agy update --help` documents no read-only version check, so its latest
+CLI version stays unknown (`latest_version: null`, `status: unknown`). CDX still
+includes `agy update`, the CLI's own updater, in the plan. It runs only with
+`--yes` or confirmation. Inventory collection never runs that updater.
 HTTP and read-only CLI probes have a five-second timeout; source failures leave
 `latest_version: null` and `status: unknown`. Ponytail also reports `unknown`
 when its remote revision is unavailable. An empty, failed, or invalid Ollama
@@ -573,7 +576,7 @@ release for `ollama/ollama`. If that source also fails, status is `unknown`;
 a different platform's vendor response is never substituted.
 
 For an outdated tool, CDX uses a native update command advertised by its
-`--help` on either stdout or stderr (including Claude, Antigravity, and RTK
+`--help` on either stdout or stderr (including Claude and RTK
 when available), Codex's updater,
 or Homebrew only when the resolved executable belongs to a Caskroom/Cellar
 package. An outdated tool without such a path retains `update_available`,
@@ -591,8 +594,12 @@ every installed tool was verified current. With `--yes`, the returned plan is th
 pre-update inventory; `results` records attempted actions and their exit codes.
 
 After each successful tool update command, CDX probes the CLI version again.
-An unchanged, unreadable, downgraded, or still older-than-published version
-makes the action fail, even if the updater exited zero. Successful text output
+A raised version succeeds when it reaches the published release, if known.
+An unchanged version also succeeds when the updater explicitly reports
+`You are already on the latest version.` on stdout or stderr and exits zero;
+this does not change an `unknown` inventory status to `up_to_date`.
+Otherwise an unchanged, unreadable, downgraded, or still older-than-published
+version makes the action fail, even if the updater exited zero. Successful text output
 shows the before/after versions, including major upgrades. JSON keeps the
 pre-update plan and existing result fields; tool verification adds
 `version_before`, `version_after`, and `latest_version` to successful-command

@@ -93,7 +93,6 @@ class OfficialSourceTests(unittest.TestCase):
             ("claude", {"version": "1.2.3"}, "registry.npmjs.org/@anthropic-ai/claude-code/latest"),
             ("codex", {"version": "1.2.3"}, "registry.npmjs.org/@openai/codex/latest"),
             ("rtk", {"tag_name": "v1.2.3"}, "api.github.com/repos/rtk-ai/rtk/releases/latest"),
-            ("agy", [{"version": "1.2.3"}], "antigravity-auto-updater"),
             ("ollama", {"url": "https://github.com/ollama/ollama/releases/download/v1.2.3/Ollama.zip"}, "ollama.com/api/update?"),
         ]
         for command, payload, url in sources:
@@ -107,8 +106,8 @@ class OfficialSourceTests(unittest.TestCase):
                 self.assertEqual(calls, [[command, "--version"]])
                 self.assertEqual(plan["steps"], [])
 
-    def test_outdated_claude_and_antigravity_use_advertised_native_updater(self):
-        for command, payload in [("claude", {"version": "2.1.316"}), ("agy", [{"version": "2.1.316"}])]:
+    def test_outdated_claude_uses_advertised_native_updater(self):
+        for command, payload in [("claude", {"version": "2.1.316"})]:
             with self.subTest(command=command):
                 plan, calls, _ = self.plan({command: "2.1.228"}, payload, "Commands:\n  update [options]  Update to latest version\n")
                 item = next(item for item in plan["items"] if item["installed"])
@@ -124,7 +123,7 @@ class OfficialSourceTests(unittest.TestCase):
                 self.assertEqual(applied, [[command, "update"], [command, "--version"]])
 
     def test_outdated_without_native_updater_never_guesses_install(self):
-        for command, payload in [("rtk", {"tag_name": "v1.1.0"}), ("agy", [{"version": "1.1.0"}]),
+        for command, payload in [("rtk", {"tag_name": "v1.1.0"}),
                                  ("ollama", {"url": "https://github.com/ollama/ollama/releases/download/v1.1.0/Ollama.zip"})]:
             plan, _, _ = self.plan({command: "0.45.0"}, payload)
             item = next(item for item in plan["items"] if item["installed"])
@@ -134,7 +133,7 @@ class OfficialSourceTests(unittest.TestCase):
             self.assertEqual(plan["steps"], [])
 
     def test_source_failures_are_unknown_even_with_brew_available(self):
-        for command in ("codex", "claude", "agy", "ollama", "rtk"):
+        for command in ("codex", "claude", "ollama", "rtk"):
             for error in (TimeoutError("timeout"), OSError("offline"), ValueError("invalid JSON")):
                 with self.subTest(command=command, error=error):
                     plan, _, _ = self.plan({command: "1.2.3"}, {}, failure=error)
@@ -222,19 +221,64 @@ class UpdateRegressionTests(unittest.TestCase):
                 self.assertEqual(results[0]["version_before"], "1.1.11")
                 self.assertEqual(results[0]["version_after"], "2.0.0")
                 self.assertEqual(item["version"], "1.1.11")
-                self.assertEqual(item["latest_version"], "2.0.0")
+                self.assertIsNone(item["latest_version"])
+                self.assertEqual(item["status"], "unknown")
+
+    def test_agy_ignores_editor_feed_and_only_probes_installed_version(self):
+        for payload in ([{"version": "2.0.0"}, {"version": "1.23.2"}, {"version": "1.22.2"}],
+                        [{"version": "1.4.12"}], None):
+            with self.subTest(payload=payload):
+                plan, calls, fetch = self.plan({"agy": "1.4.12"}, payload)
+                item = plan["items"][2]
+                fetch.assert_not_called()
+                self.assertEqual(calls, [["agy", "--version"]])
+                self.assertEqual(item["status"], "unknown")
+                self.assertIsNone(item["latest_version"])
+                self.assertEqual(item["update_command"], ["agy", "update"])
+                self.assertEqual(plan["steps"], [{"name": "antigravity", "command": ["agy", "update"], "env": {}}])
+
+    def test_native_updater_already_latest_accepts_unchanged_version(self):
+        output = (Path(__file__).parent / "fixtures" / "agy-update-already-latest.txt").read_text()
+        for command, payload in (("agy", []), ("claude", {"version": "1.5.0"})):
+            for stream in ("stdout", "stderr"):
+                with self.subTest(command=command, stream=stream):
+                    plan, _, _ = self.plan({command: "1.4.12"}, payload, "  update   Update CLI")
+                    def runner(argv, stream=stream, **kwargs):
+                        if argv[-1] == "--version":
+                            return {"returncode": 0, "stdout": "1.4.12", "stderr": ""}
+                        return {"returncode": 0, "stdout": "", "stderr": "", stream: output}
+                    result = apply_update_all_plan(plan, {}, runner=runner)[0]
+                    self.assertEqual(result["returncode"], 0)
+                    self.assertEqual(result["version_before"], "1.4.12")
+                    self.assertEqual(result["version_after"], "1.4.12")
+
+    def test_agy_updater_failure_is_preserved_even_if_it_claims_current(self):
+        output = (Path(__file__).parent / "fixtures" / "agy-update-already-latest.txt").read_text()
+        plan, _, _ = self.plan({"agy": "1.4.12"}, [])
+        runner = mock.Mock(return_value={"returncode": 7, "stdout": output, "stderr": "update failed"})
+        result = apply_update_all_plan(plan, {}, runner=runner)[0]
+        self.assertEqual(result["returncode"], 7)
+        self.assertEqual(result["stderr"], "update failed")
+        self.assertEqual(runner.call_args.args[0], ["agy", "update"])
+        runner.assert_called_once()
+
+    def test_known_published_version_still_requires_full_upgrade(self):
+        plan, _, _ = self.plan({"claude": "1.1.11"}, {"version": "2.0.0"}, "  update   Update CLI")
+        result = apply_update_all_plan(plan, {}, runner=lambda *a, **kw: {
+            "returncode": 0, "stdout": "1.2.0", "stderr": ""})[0]
+        self.assertEqual(result["returncode"], 1)
 
     def test_common_help_parser_reads_stderr_and_requires_subcommand(self):
         from src.update_all import _native_update_command
-        for name in ("antigravity", "claude", "rtk"):
+        for name in ("claude", "rtk"):
             for text, expected in [("Available subcommands:\n  update   Update CLI\n", [name, "update"]),
                                    ("Available subcommands:\n  help   Show help\nUse the website to update.\n", None)]:
                 runner = lambda *a, help_value=text, **kw: {"returncode": 0, "stdout": "banner", "stderr": help_value}
                 self.assertEqual(_native_update_command(name, name, f"/bin/{name}", {}, runner), expected)
 
-    def test_successful_exit_with_unchanged_missing_or_partial_version_fails(self):
+    def test_successful_exit_with_unchanged_missing_or_downgraded_version_fails(self):
         plan, _, _ = self.plan({"agy": "1.1.11"}, [{"version": "2.0.0"}], "  update   Update CLI")
-        for after in ("1.1.11", "", "1.2.0", "1.0.0"):
+        for after in ("1.1.11", "", "1.0.0"):
             with self.subTest(after=after):
                 events = []
                 results = apply_update_all_plan(plan, {}, progress=events.append, runner=lambda *a, after=after, **kw: {

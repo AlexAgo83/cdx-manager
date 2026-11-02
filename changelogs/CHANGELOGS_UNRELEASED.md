@@ -2,10 +2,13 @@
 
 ## Truthful workstation updates
 
-- Detect native updater subcommands in both stdout and stderr, including Antigravity's indented `Available subcommands:` help. Verify the installed CLI version after updating, fail unchanged or unverified updates, and expose before/after versions without hiding major upgrades.
+- Stop querying the editor release feed for the Antigravity CLI: its versions do not match `agy`. Keep `latest_version: null` and `status: unknown`, while still running the native `agy update` with `--yes` or confirmation. No read-only latest-version check is documented by `agy update --help`.
+- Accept a successful native updater's `You are already on the latest version.` message when the installed version is unchanged, or verify a version increase against the published version when known. Preserve updater failures and unknown inventory status. Cover the real Antigravity output line, version increases, failures, and JSON/text uncertainty.
+
+- Detect advertised native updater subcommands in both stdout and stderr; use Antigravity's known `agy update` command directly. Verify the installed CLI version after updating, fail unverified updates unless an unchanged version is explicitly confirmed current by the updater, and expose before/after versions without hiding major upgrades.
 - Fall back from empty or failed Ollama vendor responses (including Linux HTTP 204) to the latest stable `ollama/ollama` GitHub release. Keep Linux updates manual with `update_available`, a null command, and a service-safety reason; never replace a potentially active binary or restart models automatically.
 
-- Verify latest versions from npm, RTK GitHub releases, and Antigravity/Ollama vendor update endpoints with short read-only probes. Report `unknown` on unavailable evidence; reserve `up_to_date` for identical known versions, including Ponytail revisions.
+- Verify latest versions from npm, RTK GitHub releases, and Ollama vendor update endpoints with short read-only probes. Report `unknown` on unavailable evidence; reserve `up_to_date` for identical known versions, including Ponytail revisions.
 - Preserve the existing JSON fields and `update_available` status, show uncertainty and manual-update reasons in text, and apply only supported native commands or verified Homebrew package upgrades. Cover matching/outdated versions, source failures, missing tools, and command execution with faked sources.
 
 ## Dependency security

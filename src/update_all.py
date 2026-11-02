@@ -19,7 +19,6 @@ _TOOLS = (
     ("rtk", "rtk"),
 )
 _SOURCE_TIMEOUT = 5
-_ANTIGRAVITY_RELEASES = "https://antigravity-auto-updater-974169037036.us-central1.run.app/releases"
 _PONYTAIL_URL = "https://github.com/DietrichGebert/ponytail.git"
 
 
@@ -79,9 +78,6 @@ def _latest_version(name):
             if release.get("draft") or release.get("prerelease"):
                 return None
             return _parse_version(release["tag_name"])
-        if name == PROVIDER_ANTIGRAVITY:
-            # agy belongs to the original editor, whose feed differs from Hub and IDE 2.
-            return _parse_version(_fetch_json(_ANTIGRAVITY_RELEASES)[0]["version"])
         if name == PROVIDER_OLLAMA:
             arch = {"x86_64": "amd64", "aarch64": "arm64"}.get(platform.machine().lower(), platform.machine().lower())
             query = urlencode({"os": platform.system().lower(), "arch": arch, "version": "0.0.0"})
@@ -111,6 +107,8 @@ def _newer(latest, current):
 
 
 def _native_update_command(name, command, path, env, runner):
+    if name == PROVIDER_ANTIGRAVITY:
+        return [command, "update"]
     if name == PROVIDER_OLLAMA and platform.system().lower() == "linux":
         return None
     real_path = os.path.realpath(path)
@@ -171,6 +169,11 @@ def collect_update_all_plan(service, env=None, runner=None):
             else:
                 item["status"] = "unknown"
                 item["reason"] = "Latest version unavailable from the official source." if not latest else "Installed version unavailable or does not match the published release."
+                if name == PROVIDER_ANTIGRAVITY:
+                    # The editor release feed does not describe agy's CLI versions.
+                    item["reason"] = "Latest CLI version unknown; agy update checks and applies its own updates."
+                    item["update_command"] = _native_update_command(name, command, path, env, runner)
+                    steps.append({"name": name, "command": item["update_command"], "env": {}})
         items.append(item)
 
     rtk_available = any(item["name"] == "rtk" and item["installed"] for item in items)
@@ -233,10 +236,13 @@ def apply_update_all_plan(plan, service, env=None, runner=None, progress=None):
         if result["returncode"] == 0 and item:
             after = _version(item["command"], env, runner)
             result.update(version_before=item["version"], version_after=after, latest_version=item["latest_version"])
-            if not (_newer(after, item["version"]) and
-                    (after == item["latest_version"] or _newer(after, item["latest_version"]))):
+            output = "\n".join((result["stdout"], result["stderr"]))
+            reports_current = bool(re.search(r"(?im)^\s*You are already on the latest version\.\s*$", output))
+            advanced = (_newer(after, item["version"]) and
+                        (not item["latest_version"] or after == item["latest_version"] or _newer(after, item["latest_version"])))
+            if not (advanced or (after and after == item["version"] and reports_current)):
                 result["returncode"] = 1
-                result["reason"] = "Update verification failed: installed version did not advance to the published release."
+                result["reason"] = "Update verification failed: installed version did not advance to the expected release and updater did not confirm it is current."
                 result["stderr"] = (result["stderr"] + "\n" + result["reason"]).strip()
         results.append(result)
         if result["returncode"] == 0 and step.get("id"):
