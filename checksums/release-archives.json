@@ -749,6 +749,10 @@
         "x86_64-pc-windows-msvc": "85945b30580cb82c64ece94652ae0633a6156dfd85e02108c0d4b7676cab9911",
         "x86_64-unknown-linux-musl": "7c5a23938b84c5952be71b5956ed3167c218d05ce661940b0c86f2dde2d8221f"
       }
+    },
+    "v0.25.6": {
+      "github_tarball_sha256": "27663ea4f9c70aafb1d2180d36563ab10d91b9cb336cb3285ed4fd610e698bed",
+      "github_zip_sha256": "ba645956971ddd9446389717ad48a74dfb426ff7290c5ebc100ca9e3c2a91d3f"
     }
   }
 }
