@@ -1,5 +1,10 @@
 # Unreleased
 
+## Truthful workstation updates
+
+- Verify latest versions from npm, RTK GitHub releases, and Antigravity/Ollama vendor update endpoints with short read-only probes. Report `unknown` on unavailable evidence; reserve `up_to_date` for identical known versions, including Ponytail revisions.
+- Preserve the existing JSON fields and `update_available` status, show uncertainty and manual-update reasons in text, and apply only supported native commands or verified Homebrew package upgrades. Cover matching/outdated versions, source failures, missing tools, and command execution with faked sources.
+
 ## Dependency security
 
 - Require cryptography >=50.0.0 for encrypted auth bundles and remove the vulnerable 47.0.0 lock entry. Python 3.9 remains supported from 3.9.2, as cryptography 50 excludes 3.9.0 and 3.9.1.
