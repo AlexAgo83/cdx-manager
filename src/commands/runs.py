@@ -715,14 +715,18 @@ def handle_run(rest, ctx):
 
         remote_version = None
         if parsed.get("remote"):
-            if session["provider"] != "codex":
-                raise CdxError("--remote is only available for Codex profiles.", code="remote_provider_unsupported")
+            if session["provider"] not in ("codex", "ollama"):
+                raise CdxError("--remote is only available for Codex and Ollama profiles.", code="remote_provider_unsupported")
             if parsed.get("continue_run"):
                 raise CdxError("--remote requires a fresh run without --continue-run.")
+            if session["provider"] == "ollama" and not (parsed.get("model") or (session.get("launch") or {}).get("model")):
+                raise CdxError("Remote Ollama text generation requires --model or a configured local model.")
             remote_version = preflight(
                 parsed["remote"], {**os.environ, **(ctx.get("env") or {})},
                 remote_prefix=parsed.get("remote_prefix"), isolate_workspace=parsed.get("isolate_workspace", False),
-                cwd=parsed["cwd"], network=parsed.get("network_access", False), writable=parsed.get("permission") != "review")
+                cwd=parsed["cwd"], network=parsed.get("network_access", False), writable=parsed.get("permission") != "review",
+                **({"provider": "ollama", "model": parsed.get("model") or (session.get("launch") or {}).get("model")}
+                   if session["provider"] == "ollama" else {}))
         cwd = os.path.abspath(parsed["cwd"])
         if not parsed.get("remote") and not os.path.isdir(cwd):
             raise CdxError(f"Invalid cwd: {parsed['cwd']}", code="invalid_cwd")

@@ -89,7 +89,7 @@ Recovery does not require `--failover`, which still controls account quota exhau
 
 Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). CDX Manager is [MIT licensed](LICENSE).
 
-### Run Codex on an SSH worker
+### Run Codex or Ollama on an SSH worker
 
 ```sh
 cdx run work --remote agent@worker --cwd /srv/project --prompt 'Run the checks' --json
@@ -106,12 +106,12 @@ not synchronized. Use `--project` to explicitly attribute a remote checkout to a
 project. Remote runs do not retry or fail over automatically, including when
 `--failover` is supplied.
 
-Requirements: a POSIX controller with `ssh` and Codex on PATH, and a Linux worker
+For Codex: a POSIX controller with `ssh` and Codex on PATH, and a Linux worker
 with Python 3, memory-backed `/dev/shm`, and exactly the same `codex --version`.
 Configure SSH keys, host trust and aliases in advance; the connection uses batch
 mode and bounded connection/keepalive timeouts. Provider refusal, unreachable
-workers and version mismatches fail before sending credentials. Only Codex OAuth
-profiles are supported. Remote continuation is refused because the temporary home
+workers and version mismatches fail before sending credentials. Codex requires an OAuth
+profile. Remote continuation is refused because the temporary home
 does not preserve conversation rollouts. Codex's native permission sandbox still
 applies to ordinary remote runs.
 
@@ -123,7 +123,32 @@ Only a short, double-quoted Python bootstrap is sent in the SSH command line;
 the worker and shared sandbox source are framed on stdin before the payload.
 Neither source size nor prompt size consumes cmd.exe's 8191-character command limit.
 
-`--remote` supports `--isolate-workspace` using the same local isolation mechanism:
+Remote Ollama profiles also support headless text generation:
+
+```bash
+cdx run local --remote worker --cwd /srv/project --model qwen3:8b --prompt-file question.txt --isolate-workspace --json
+```
+
+Here `local` is an existing Ollama profile. The named model must already be
+installed on the worker's unauthenticated `127.0.0.1:11434` Ollama API; CDX
+never downloads a missing model and rejects cloud-backed models. The prompt
+file is read on the launching host and sent as content over SSH. This path
+uses `/api/show` and `/api/chat` with `stream: false`, without an Ollama CLI or
+Codex installation. Results identify `execution_mode: "text_generation"` and
+include generated text in `result`, plus `prompt_eval_count` / `eval_count`
+and normalized input/output token counts in `usage`.
+
+Ollama is not an autonomous coding agent and does not edit the repository.
+With `--isolate-workspace`, the checkout is read-only and the client has its
+own network namespace without network access, including when `--network-access`
+is supplied. A private Unix socket connects it to a supervisor-owned relay
+with the fixed loopback destination and only the selected model's capability
+and non-streaming inference calls allowed. Pull, delete, push, arbitrary URLs,
+proxying and redirects are refused. No `~/.ollama` directory or model files
+are mounted. The relay is removed on completion or cancellation. Remote
+continuation remains unsupported; an explicit model or profile model is required.
+
+Codex `--remote` supports `--isolate-workspace` using the same local isolation mechanism:
 bubblewrap, pasta (passt), nftables, Python, the checkout/toolchain allowlist,
 and an actual namespace/network setup using a dummy credential. Missing dependencies,
 namespace denial or invalid checkouts fail before sending real credentials, without

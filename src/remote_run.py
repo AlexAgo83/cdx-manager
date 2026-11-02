@@ -88,6 +88,7 @@ def worker_input():
                for name in ('errors', 'run_usage', 'run_observation')}
     source += 'OBSERVATION_MODULES = ' + repr(modules) + '\n'
     source += f'OBSERVATION_LIMITS = {MAX_TRANSCRIPT_BYTES, MAX_TRANSCRIPT_SCAN_SECONDS!r}\n'
+    source += 'OLLAMA_SOURCE = ' + repr((directory / 'ollama_remote.py').read_text()) + '\n'
     source += (directory / 'remote_worker.py').read_text()
     return json.dumps(source).encode() + b'\n'
 
@@ -109,16 +110,22 @@ def ssh_command(target, mode, remote_prefix=None):
             '-o', 'ServerAliveInterval=5', '-o', 'ServerAliveCountMax=1', target, command]
 
 
-def preflight(target, env=None, *, remote_prefix=None, isolate_workspace=False, cwd=None, network=False, writable=True):
+def preflight(target, env=None, *, remote_prefix=None, isolate_workspace=False, cwd=None, network=False, writable=True, provider="codex", model=None):
     payload = {'isolate_workspace': isolate_workspace, 'cwd': cwd, 'network': network, 'writable': writable}
+    if provider == 'ollama':
+        payload.update(provider=provider, model=model)
     try:
-        local = subprocess.check_output(['codex', '--version'], env=env, stderr=subprocess.DEVNULL, timeout=10).decode().strip()
+        local = ('ollama-http' if provider == 'ollama' else
+                 subprocess.check_output(['codex', '--version'], env=env, stderr=subprocess.DEVNULL, timeout=10).decode().strip())
         result = subprocess.run(ssh_command(target, 'probe', remote_prefix), env=env,
                                 input=worker_input() + json.dumps(payload).encode() + b'\n',
                                 capture_output=True, timeout=30)
     except (OSError, subprocess.TimeoutExpired) as error:
-        raise CdxError('Remote worker unreachable or Codex CLI unavailable.', code='remote_unavailable') from error
+        raise CdxError('Remote worker unreachable or provider unavailable.', code='remote_unavailable') from error
     if result.returncode:
+        if provider == 'ollama':
+            raise CdxError('Remote Ollama unavailable: check the installed local model, loopback API and isolation dependencies.',
+                           code='remote_unavailable')
         message = ('Remote workspace isolation unavailable; requires bubblewrap, pasta, nftables, working namespaces and a valid checkout.'
                    if isolate_workspace else 'Remote worker unreachable or missing Python 3, Codex or memory-backed /dev/shm.')
         raise CdxError(message, code='remote_unavailable')
@@ -149,27 +156,33 @@ def run_remote(session, target, version, cwd=None, env_override=None, initial_pr
         _route_termination_to_interrupt,
     )
 
-    home = session['authHome']
-    with remote_auth_lock(home):
-        auth = temporary_auth(home)
-        if auth['tokens'].get('refresh_token') != '':
-            raise CdxError('Refusing to send a refresh token to a worker.')
-        spec = _build_headless_launch_spec(session, cwd, env_override, initial_prompt)
-        if (session.get('launch') or {}).get('network_access'):
-            index = spec['args'].index('--') if '--' in spec['args'] else len(spec['args'])
-            spec['args'][index:index] = ['-c', 'sandbox_workspace_write.network_access=true']
-        config = nonsecret_config(home)
-        launch_text = json.dumps(spec['args']) + config
-        if any(value and value in launch_text for value in auth['tokens'].values()):
-            raise CdxError('Refusing a credential embedded in the remote prompt or configuration.')
-        payload = {'auth': auth, 'config': config, 'args': spec['args'], 'cwd': cwd,
-                   'version': version, 'expires_at': token_expiry(auth['tokens']['access_token']),
-                   'isolate_workspace': bool((session.get('launch') or {}).get('isolate_workspace')),
-                   'network': bool((session.get('launch') or {}).get('network_access')),
-                   'writable': (session.get('launch') or {}).get('permission') != 'review'}
-        rotating = json.loads((pathlib.Path(home) / 'auth.json').read_text())['tokens'].get('refresh_token')
-        if rotating and rotating in json.dumps(payload):
-            raise CdxError('Refusing to send a refresh token to a worker.')
+    if session['provider'] == 'ollama':
+        launch = session.get('launch') or {}
+        spec = {'command': 'ollama-http', 'args': [], 'env': {}}
+        payload = {'provider': 'ollama', 'model': launch.get('model'), 'prompt': initial_prompt,
+                   'cwd': cwd, 'isolate_workspace': bool(launch.get('isolate_workspace'))}
+    else:
+        home = session['authHome']
+        with remote_auth_lock(home):
+            auth = temporary_auth(home)
+            if auth['tokens'].get('refresh_token') != '':
+                raise CdxError('Refusing to send a refresh token to a worker.')
+            spec = _build_headless_launch_spec(session, cwd, env_override, initial_prompt)
+            if (session.get('launch') or {}).get('network_access'):
+                index = spec['args'].index('--') if '--' in spec['args'] else len(spec['args'])
+                spec['args'][index:index] = ['-c', 'sandbox_workspace_write.network_access=true']
+            config = nonsecret_config(home)
+            launch_text = json.dumps(spec['args']) + config
+            if any(value and value in launch_text for value in auth['tokens'].values()):
+                raise CdxError('Refusing a credential embedded in the remote prompt or configuration.')
+            payload = {'auth': auth, 'config': config, 'args': spec['args'], 'cwd': cwd,
+                       'version': version, 'expires_at': token_expiry(auth['tokens']['access_token']),
+                       'isolate_workspace': bool((session.get('launch') or {}).get('isolate_workspace')),
+                       'network': bool((session.get('launch') or {}).get('network_access')),
+                       'writable': (session.get('launch') or {}).get('permission') != 'review'}
+            rotating = json.loads((pathlib.Path(home) / 'auth.json').read_text())['tokens'].get('refresh_token')
+            if rotating and rotating in json.dumps(payload):
+                raise CdxError('Refusing to send a refresh token to a worker.')
     paths = _headless_artifact_paths(session, run_id, attempt)
     paths['remote'] = target
     start = datetime.now(timezone.utc)
@@ -208,7 +221,7 @@ def run_remote(session, target, version, cwd=None, env_override=None, initial_pr
         child.stdin.flush()
         deadline = time.monotonic() + timeout_seconds if timeout_seconds else None
         while child.poll() is None:
-            if time.time() >= payload['expires_at']:
+            if time.time() >= payload.get('expires_at', float('inf')):
                 credential_expired = True
                 break
             with observation_lock:
@@ -259,7 +272,7 @@ def run_remote(session, target, version, cwd=None, env_override=None, initial_pr
         error.cancelled = True
         error.run_info = {**info, 'returncode': 130}
         raise error
-    if credential_expired or time.time() >= payload['expires_at'] or child.returncode == 123:
+    if credential_expired or time.time() >= payload.get('expires_at', float('inf')) or child.returncode == 123:
         error = CdxError('Remote temporary credential expired; start a new run from the controller.', code='remote_credential_expired')
         error.run_info = info
         raise error

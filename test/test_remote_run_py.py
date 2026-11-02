@@ -448,7 +448,7 @@ class RemoteCommandTests(CliTestBase):
 
     def test_provider_refusal(self):
         service, _, _ = self.setup_session()
-        for provider in ('claude', 'ollama', 'antigravity'):
+        for provider in ('claude', 'antigravity'):
             service['create_session']('other-' + provider, provider)
             out = self.make_io()
             assert main(['run', 'other-' + provider, '--remote', 'worker', '--cwd', str(self.directory), '--prompt', 'Work', '--json'],

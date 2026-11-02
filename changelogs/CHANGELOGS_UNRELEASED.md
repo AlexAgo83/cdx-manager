@@ -58,3 +58,9 @@
 - Keep snapshots independent of controller refresh during long missions, prohibit authentication writeback, enforce their original expiry, and remove temporary storage after success, failure and stop. Non-isolated local authentication remains unchanged.
 - Reject rotating credentials at the sandbox boundary. Test snapshot contents, permissions, cleanup, refresh lock ownership, concurrent controller refresh, remote isolation through fake SSH and missing dependency refusal.
 - The separately maintained remote-ops `scripts/workspace_sandbox.py` requires the same credential guard and run-private lifecycle integration; it is not shipped by this repository.
+
+## Remote Ollama text generation
+
+- Allow Ollama profiles in `cdx run --remote` with an explicitly selected, already installed local worker model and no authentication or Ollama/Codex CLI requirement. Read prompts on the launching host and use the HTTP capability/chat APIs with `stream: false`; retain generated text and prompt/evaluation token counters in run results and usage.
+- Add a worker-supervised private Unix socket relay restricted to the fixed `127.0.0.1:11434` destination, selected model, `/api/show` and non-streaming `/api/chat`. Refuse model management, alternate destinations and cloud-backed models. Isolated clients have no network access and mount neither Ollama profiles nor model files; their checkout is read-only.
+- State in CLI help and results that this is text generation, not an autonomous coding agent, with no repository edits. Cover success, usage, controller prompt content, missing models, forbidden relay calls, unreachable servers and sandbox relay construction with a fake HTTP API.

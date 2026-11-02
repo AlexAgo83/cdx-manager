@@ -240,6 +240,19 @@ cdx run \
 
 The result includes `launcher: "cdx"`, `run_id`, selected `session`, `provider`, `exit_code`, `duration_seconds`, absolute `transcript_path`, `stdout_path`, `stderr_path`, and normalized usage token fields. Codex headless runs use `codex exec --json`; Claude headless runs use `claude --print --output-format json`. Token counts are `null` when the provider does not expose a supported JSON or JSONL usage shape.
 
+Remote Ollama profiles use the worker's unauthenticated HTTP API at
+`127.0.0.1:11434`, with `/api/show` followed by `/api/chat` (`stream: false`).
+Use `cdx run local --remote worker --cwd /srv/project --model qwen3:8b --prompt-file question.txt --isolate-workspace --json`.
+The prompt file is read on the launching host; the model must already exist on
+the worker. This is text generation only, not an autonomous coding agent, and
+it does not edit the repository. The result includes `execution_mode`, an
+`execution_note`, generated text in `result`, and `prompt_eval_count` / `eval_count`
+alongside normalized `usage` counters. Missing models and unreachable APIs fail
+without pulling models or authenticating. Isolated clients use a private Unix
+socket relay restricted to capability and non-streaming inference calls for the
+selected model, with a read-only checkout and no network or model-file mounts.
+`--network-access` does not enable networking for this text-only client.
+
 Known headless and completed interactive token usage is persisted in launch history and can be aggregated later. Interactive records are best-effort local data: Codex reads its latest cumulative rollout snapshot, Claude reads its assistant usage records, and Ollama — which writes no transcript of its own — is launched with `--verbose` so its per-response token counts land in the terminal capture cdx already takes. Antigravity reports no usage: its history is schema-less binary protobuf and its logs carry no usage line, so those sessions show no tokens by nature rather than by omission.
 
 `--continue-run RUN_ID` resumes the exact provider conversation from a finished Claude or Codex run, inferring its profile and pinning its recorded model and effort. Existing targets and settings may be supplied only if they match. The parent transcript must still exist. `parent_run_id` links the new run to its parent in run results, the registry, and history; `conversation_id` identifies the provider conversation. Detached continuations preserve these settings through the cdx supervisor. Codex continuation usage is measured between exact transcript snapshots before and after the run, since exec resume can report conversation totals. If either boundary is unavailable, per-run usage stays unknown with `usage_attribution: "continuation_usage_unavailable"` in history instead of counting earlier turns again. Continuation does not use automatic capacity recovery or model fallback, and cannot be combined with `--failover` or `--isolate-workspace`.

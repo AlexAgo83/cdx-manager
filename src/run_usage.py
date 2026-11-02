@@ -66,7 +66,7 @@ TOKEN_USAGE_KEYS = (
 USAGE_KEYS = (*TOKEN_USAGE_KEYS, "cache_hit_ratio")
 #: Derived values are never read from a provider.
 DERIVED_USAGE_KEYS = ("cached_input_tokens", "total_tokens", "cache_hit_ratio")
-SUPPORTED_PROVIDERS = {"claude", "codex"}
+SUPPORTED_PROVIDERS = {"claude", "codex", "ollama"}
 
 
 def empty_usage():
@@ -635,6 +635,11 @@ def _usage_from_dict(value, provider=None):
     tokens. The fix is not arithmetic in this function: it is that the split
     parts go to `normalize_usage`, which owns every derived figure.
     """
+    if provider == "ollama":
+        prompt = _first_int(value.get("prompt_eval_count"))
+        output = _first_int(value.get("eval_count"))
+        return {**normalize_usage(input_tokens=prompt, output_tokens=output),
+                "prompt_eval_count": prompt, "eval_count": output}
     usage = value.get("usage") if isinstance(value.get("usage"), dict) else value
     if not isinstance(usage, dict):
         return empty_usage()
