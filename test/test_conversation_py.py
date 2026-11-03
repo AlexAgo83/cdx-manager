@@ -1,13 +1,14 @@
 """Provider fixtures and incremental conversation reader contracts."""
 
 import base64
+import hashlib
 import json
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from src.conversation import MAX_LINE_BYTES, read_conversation
+from src.conversation import MAX_CURSOR_NAMES_BYTES, MAX_LINE_BYTES, read_conversation
 from src.errors import CdxError
 
 FIXTURES = Path(__file__).parent / "fixtures" / "conversation"
@@ -135,7 +136,7 @@ def test_invalid_limit(limit):
         read_conversation("codex", limit=limit)
 
 
-def test_redaction_and_oversized_record(transcript):
+def test_redaction(transcript):
     provider, _, path = transcript
     text = 'api_key="fake-value-for-testing" Bearer fake-bearer-value'
     message = {"role": "user", "content": text}
@@ -145,8 +146,116 @@ def test_redaction_and_oversized_record(transcript):
     assert "fake-value" not in json.dumps(page)
     assert "fake-bearer" not in json.dumps(page)
     assert "[REDACTED]" in page["entries"][0]["text"]
-    path.write_bytes(b"x" * (MAX_LINE_BYTES + 1))
-    assert read(transcript)["reason"] == "record_too_large"
+
+
+def _message_record(provider, role, text):
+    message = {"role": role, "content": text}
+    return {"type": "response_item", "payload": message} if provider == "codex" else {"type": role, "message": message}
+
+
+def _append_oversized_record(path, provider, complete=True):
+    field = "payload" if provider == "codex" else "message"
+    with path.open("ab") as handle:
+        handle.write((' {"' + field + '": {"role": "user", "content": [{"type": "image", "source": "').encode())
+        for _ in range(20):
+            handle.write(b"x" * (1024 * 1024))
+        if complete:
+            handle.write(b'"}]}}\n')
+
+
+def test_oversized_middle_record_and_cursor_before_it(transcript):
+    provider, _, path = transcript
+    path.write_text(json.dumps(_message_record(provider, "assistant", "Before")) + "\n")
+    before = read(transcript, limit=1)
+    _append_oversized_record(path, provider)
+    with path.open("ab") as handle:
+        handle.write((json.dumps(_message_record(provider, "assistant", "After")) + "\n").encode())
+
+    real_open = open
+    sizes = []
+
+    class BoundedReader:
+        def __enter__(self):
+            self.handle = real_open(path, "rb")
+            return self
+
+        def __exit__(self, *args):
+            self.handle.close()
+
+        def __getattr__(self, key):
+            return getattr(self.handle, key)
+
+        def readline(self, size=-1):
+            assert 0 < size <= MAX_LINE_BYTES + 1
+            sizes.append(size)
+            return self.handle.readline(size)
+
+        def read(self, size=-1):
+            assert 0 < size <= MAX_LINE_BYTES + 1
+            return self.handle.read(size)
+
+    with patch("src.conversation.open", return_value=BoundedReader()):
+        middle = read(transcript, cursor=before["next_cursor"])
+    assert len(sizes) > 20
+    assert middle["status"] == "ok"
+    assert middle["has_more"]
+    skipped = middle["entries"][0]
+    assert skipped["role"] == "user"
+    assert skipped["text"] == "[élément trop volumineux ignoré]"
+    assert len(json.dumps(middle)) < 4096
+    assert json.loads(base64.urlsafe_b64decode(middle["next_cursor"]))["offset"] > 20 * 1024 * 1024
+    assert read(transcript)["entries"] == before["entries"] + [skipped]
+    after = read(transcript, cursor=middle["next_cursor"])
+    assert [e["text"] for e in after["entries"]] == ["After"]
+    assert not after["has_more"]
+
+
+def test_oversized_incomplete_final_record_is_retried(transcript):
+    provider, _, path = transcript
+    cursor = read(transcript)["next_cursor"]
+    _append_oversized_record(path, provider, complete=False)
+    for _ in range(2):
+        page = read(transcript, cursor=cursor)
+        assert page["status"] == "ok"
+        assert page["entries"] == []
+        assert page["has_more"]
+        assert page["next_cursor"] == cursor
+    with path.open("ab") as handle:
+        handle.write(b'"}]}}\n')
+    page = read(transcript, cursor=page["next_cursor"])
+    assert [e["text"] for e in page["entries"]] == ["[élément trop volumineux ignoré]"]
+    assert not page["has_more"]
+    assert read(transcript, cursor=page["next_cursor"])["entries"] == []
+
+
+@pytest.mark.parametrize("prefix,role", [
+    (b'{"message":{"role":"assistant","content":"', "assistant"),
+    (b'{"type":"user","message":{"content":"', "user"),
+    (b'{"message":{"content":"role: user ', "tool"),
+    (b'{"metadata":{"role":"user"},"message":{"content":"', "tool"),
+    (b'{"type":"unknown","message":{"content":"', "tool"),
+    (b'{"message":{"role":"system","content":"', "tool"),
+])
+def test_oversized_role_uses_only_structural_metadata(tmp_path, prefix, role):
+    path = tmp_path / ".claude" / "projects" / "example" / f"{CONVERSATION}.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(prefix + b"x" * MAX_LINE_BYTES + b'"}}\n')
+    page = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION)
+    assert page["entries"][0]["role"] == role
+
+
+def test_legacy_cursor_names_are_accepted_and_bounded(transcript):
+    state = json.loads(base64.urlsafe_b64decode(read(transcript)["next_cursor"]))
+    state["names"] = {hashlib.sha256(str(i).encode()).hexdigest(): "tool_" + "x" * 95 for i in range(100)}
+    cursor = base64.urlsafe_b64encode(json.dumps(state).encode()).decode()
+    page = read(transcript, cursor=cursor)
+    assert page["status"] == "ok"
+    assert len(page["next_cursor"]) < 4096
+    compacted = json.loads(base64.urlsafe_b64decode(page["next_cursor"]))
+    assert compacted["v"] == 1
+    assert len(json.dumps(compacted["names"], separators=(",", ":")).encode()) <= MAX_CURSOR_NAMES_BYTES
+    assert list(compacted["names"].items()) == list(state["names"].items())[-len(compacted["names"]):]
+    assert read(transcript, cursor=page["next_cursor"])["status"] == "ok"
 
 
 def test_cursor_cannot_echo_arbitrary_metadata(transcript):

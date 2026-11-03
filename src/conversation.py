@@ -13,6 +13,7 @@ from .interactive_usage import conversation_transcript, resolve_transcript
 
 MAX_LINE_BYTES = 1024 * 1024
 MAX_PAGE_BYTES = 8 * 1024 * 1024
+MAX_CURSOR_NAMES_BYTES = 2048
 REDACTED = "[REDACTED]"
 
 
@@ -100,6 +101,49 @@ def _anchor(handle, offset):
     return hashlib.sha256(handle.read(min(offset, 128))).hexdigest()
 
 
+def _field_start(prefix, field, start=0):
+    """Find an object field before any incomplete value in a bounded prefix."""
+    decoder = json.JSONDecoder()
+    whitespace = re.compile(r"\s*")
+    try:
+        start = whitespace.match(prefix, start).end()
+        if prefix[start] != "{":
+            return None
+        start += 1
+        while True:
+            start = whitespace.match(prefix, start).end()
+            key, end = decoder.raw_decode(prefix, start)
+            if not isinstance(key, str):
+                return None
+            end = whitespace.match(prefix, end).end()
+            if prefix[end] != ":":
+                return None
+            start = whitespace.match(prefix, end + 1).end()
+            if key == field:
+                return start
+            _, end = decoder.raw_decode(prefix, start)
+            end = whitespace.match(prefix, end).end()
+            if prefix[end] != ",":
+                return None
+            start = end + 1
+    except (ValueError, IndexError, RecursionError):
+        return None
+
+
+def _oversized_entry(provider, prefix):
+    prefix = prefix.decode("utf-8", errors="replace")
+    message = _field_start(prefix, "payload" if provider == "codex" else "message")
+    role = _field_start(prefix, "role", message) if message is not None else None
+    if role is None and provider != "codex":
+        role = _field_start(prefix, "type")
+    try:
+        value, _ = json.JSONDecoder().raw_decode(prefix, role) if role is not None else (None, 0)
+    except (ValueError, RecursionError):
+        value = None
+    return _entry(value if value in ("user", "assistant", "tool") else "tool",
+                  "[élément trop volumineux ignoré]")
+
+
 def read_conversation(provider, auth_home=None, *, conversation_id=None, started_at=None,
                       terminal_transcript=None, cursor=None, limit=100, fallback_to_recency=False):
     """Return a JSON-serializable page; pass next_cursor back unchanged to poll.
@@ -158,14 +202,22 @@ def read_conversation(provider, auth_home=None, *, conversation_id=None, started
                 start = handle.tell()
                 line = handle.readline(MAX_LINE_BYTES + 1)
                 if len(line) > MAX_LINE_BYTES:
-                    return {**page, "status": "unavailable", "reason": "record_too_large", "entries": []}
-                if not line or not line.endswith(b"\n"):
-                    break
-                scanned += len(line)
-                try:
-                    entries = _entries(provider, json.loads(line), names)
-                except (ValueError, UnicodeError):
-                    entries = []
+                    entry = _oversized_entry(provider, line)
+                    # Finish this record even beyond the page scan budget. Never
+                    # retain its body, and retry from start if its newline is pending.
+                    while line and not line.endswith(b"\n"):
+                        line = handle.readline(MAX_LINE_BYTES + 1)
+                    if not line:
+                        break
+                    entries = [entry]
+                else:
+                    if not line or not line.endswith(b"\n"):
+                        break
+                    try:
+                        entries = _entries(provider, json.loads(line), names)
+                    except (ValueError, UnicodeError):
+                        entries = []
+                scanned += handle.tell() - start
                 for block_index in range(index, len(entries)):
                     entry = entries[block_index]
                     entry["id"] = f"{identity[:16]}:{start}:{block_index}"
@@ -180,6 +232,8 @@ def read_conversation(provider, auth_home=None, *, conversation_id=None, started
                     break
                 offset, index = handle.tell(), 0
             page["has_more"] = offset < stat.st_size
+            while len(json.dumps(names, separators=(",", ":")).encode()) > MAX_CURSOR_NAMES_BYTES:
+                names.pop(next(iter(names)))
             state = {"v": 1, "file": identity, "offset": offset, "index": index, "anchor": _anchor(handle, offset), "names": names}
             page["next_cursor"] = base64.urlsafe_b64encode(json.dumps(state, separators=(",", ":")).encode()).decode()
             return page
