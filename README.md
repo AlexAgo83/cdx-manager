@@ -246,7 +246,7 @@ for a fresh credential, and that cleanup works after disconnect and SIGTERM.
 
 ### Read an interactive conversation
 
-`cdx conversation <name> [--conversation ID] [--cursor CURSOR] [--limit N] --json`
+`cdx conversation <name> [--conversation ID] [--cursor CURSOR | --tail N | --before CURSOR] [--limit N] --json`
 returns a read-only JSON page for the profile's current conversation. An explicit
 conversation ID uses an exact transcript lookup and never falls back. When the
 profile's recorded ID has no transcript on this host (for example after a remote
@@ -277,6 +277,34 @@ the saved byte position rather than replaying history, and stops scanning after
 A page may be empty while still returning a usable cursor. Poll on a
 timer: `has_more` means unread bytes, which can include an incomplete final line
 that will only become readable after the provider appends its newline.
+
+Start near the present with `cdx conversation work --tail 100 --json`.
+`--tail N` returns the last N normalized entries (1–1000) in chronological order.
+It reads backwards in 64 KiB blocks, retaining at most a 1 MiB record prefix;
+it does not replay the transcript from the beginning. Records that produce
+multiple entries can split across pages. The same redaction, tool summaries,
+oversized-record placeholders and file-position IDs apply. Recent tool names are
+recovered from a 64 KiB lookback (extended to 8 MiB when resolving a result in the selected window), with the usual `tool`
+fallback. Finding N entries can require scanning more bytes when records
+are oversized or contain no visible entries. Incomplete trailing records are
+excluded until their newline arrives.
+
+Tail and backward pages add `before_cursor`: pass it unchanged as
+`--before CURSOR --limit N` to load the preceding entries, also in chronological
+order. `before_cursor: null` means the beginning has been reached. You can also
+use `--before CURSOR --tail N`; `--tail` sets the count when both count options
+are present. `next_cursor` still works with `--cursor` to follow entries after
+the returned page, including messages appended after an initial tail read.
+`has_more` continues to describe unread bytes **after** that page; use
+`before_cursor` to decide whether older pages remain. `--cursor` cannot be
+combined with `--tail` or `--before`. Without either new option, the existing
+forward page contract is unchanged.
+
+Backward cursors retain the original file size, modification time and boundary
+anchors. Replacement, truncation or a detected in-place rewrite returns
+`reset_required`; appending new messages preserves backward pagination. As with
+forward cursors, transcripts must be append-only: bounded boundary checks cannot
+detect every arbitrary edit elsewhere in a file that also grows.
 
 Codex response items and Claude-compatible JSONL transcripts (Claude and
 Antigravity) are supported through the existing transcript resolver. Missing or

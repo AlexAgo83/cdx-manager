@@ -1,5 +1,10 @@
 # Unreleased
 
+## Conversation tail pagination (planned for 0.26.2)
+
+- Add `cdx conversation --tail N` (1–1000), chronological backward pages via `before_cursor` and `--before`, and a compatible `next_cursor` for live polling. Read JSONL backwards in bounded 64 KiB blocks, preserve normalization, redaction, stable IDs and oversized-record skipping, and reject stale backward cursors.
+- Measure tail I/O on 6,000-entry Codex and Claude-compatible transcripts and cover backward traversal, content-block splits, append polling and incomplete/oversized records.
+
 ## Read past oversized conversation records
 
 - Skip JSONL records larger than 1 MiB using bounded reads instead of returning `record_too_large`. Emit a short placeholder with a stable ID and the role from readable structural metadata, falling back to `tool`, then advance the cursor so subsequent messages remain accessible. Never return image or attachment bodies.
