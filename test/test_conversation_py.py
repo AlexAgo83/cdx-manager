@@ -156,7 +156,8 @@ def _message_record(provider, role, text):
 def _append_oversized_record(path, provider, complete=True):
     field = "payload" if provider == "codex" else "message"
     with path.open("ab") as handle:
-        handle.write((' {"' + field + '": {"role": "user", "content": [{"type": "image", "source": "').encode())
+        kind = 'response_item' if provider == 'codex' else 'user'
+        handle.write((' {"type": "' + kind + '", "' + field + '": {"role": "user", "content": [{"type": "image", "source": "').encode())
         for _ in range(20):
             handle.write(b"x" * (1024 * 1024))
         if complete:
@@ -229,19 +230,26 @@ def test_oversized_incomplete_final_record_is_retried(transcript):
 
 
 @pytest.mark.parametrize("prefix,role", [
-    (b'{"message":{"role":"assistant","content":"', "assistant"),
+    (b'{"type":"assistant","message":{"role":"assistant","content":"', "assistant"),
     (b'{"type":"user","message":{"content":"', "user"),
-    (b'{"message":{"content":"role: user ', "tool"),
-    (b'{"metadata":{"role":"user"},"message":{"content":"', "tool"),
-    (b'{"type":"unknown","message":{"content":"', "tool"),
-    (b'{"message":{"role":"system","content":"', "tool"),
+    (b'{"type":"assistant","message":{"content":"role: user ', "assistant"),
+    (b'{"type":"assistant","metadata":{"role":"user"},"message":{"content":"', "assistant"),
+    (b'{"type":"unknown","message":{"content":"', None),
+    (b'{"type":"user","message":{"role":"system","content":"', "tool"),
+    (b'{"message":{"role":"user","content":"', None),
+    (b'{"type":"api-request-blob","message":{"role":"user","content":"', None),
+    (b'{"type":"user","message":"', None),
+    (b'{"type":"user","content":"', None),
 ])
 def test_oversized_role_uses_only_structural_metadata(tmp_path, prefix, role):
     path = tmp_path / ".claude" / "projects" / "example" / f"{CONVERSATION}.jsonl"
     path.parent.mkdir(parents=True)
     path.write_bytes(prefix + b"x" * MAX_LINE_BYTES + b'"}}\n')
     page = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION)
-    assert page["entries"][0]["role"] == role
+    if role is None:
+        assert page["entries"] == []
+    else:
+        assert page["entries"][0]["role"] == role
 
 
 def test_legacy_cursor_names_are_accepted_and_bounded(transcript):
@@ -285,3 +293,45 @@ def test_codex_builtin_tools_and_event_duplicates(tmp_path):
     assert len(page["entries"]) == 1
     assert page["entries"][0]["tool_name"] == "web_search"
     assert "private" not in json.dumps(page)
+
+
+def test_claude_request_blob_incident(transcript):
+    provider, _, path = transcript
+    if provider == "codex":
+        pytest.skip("Claude-compatible transcript format")
+    path.write_bytes((FIXTURES / "claude-request-blob.jsonl").read_bytes())
+    page = read(transcript)
+    assert [(e["role"], e["text"], e["tool_name"]) for e in page["entries"]] == [
+        ("user", "Check the conversation reader", None),
+        ("tool", "", "Read"),
+        ("tool", "", "Read"),
+        ("assistant", "The reader is fixed", None),
+    ]
+    assert all(e["at"] is not None for e in page["entries"])
+    cursor, entries = None, []
+    while True:
+        part = read(transcript, cursor=cursor, limit=1)
+        entries.extend(part["entries"])
+        cursor = part["next_cursor"]
+        if not part["has_more"]:
+            break
+    assert entries == page["entries"]
+    assert read(transcript, cursor=cursor)["entries"] == []
+
+
+@pytest.mark.parametrize("kind", [
+    "api-request-blob", "summary", "queue-operation", "file-history-snapshot",
+    "last-prompt", "attachments", "system", "event_msg", "session_meta", "unknown", None,
+])
+@pytest.mark.parametrize("oversized", [False, True])
+def test_only_conversation_record_types_are_read(transcript, kind, oversized):
+    provider, _, path = transcript
+    message = {"role": "user", "content": "x" * MAX_LINE_BYTES if oversized else "Duplicate"}
+    record = {"type": kind, "message": message, "payload": message}
+    after = _message_record(provider, "assistant", "After")
+    after["timestamp"] = "2026-11-04T10:00:00Z"
+    path.write_text(json.dumps(record) + "\n" + json.dumps(after) + "\n")
+    page = read(transcript, limit=1)
+    assert [(e["text"], e["at"]) for e in page["entries"]] == [("After", after["timestamp"])]
+    assert not page["has_more"]
+    assert read(transcript, cursor=page["next_cursor"])["entries"] == []
