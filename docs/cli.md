@@ -270,6 +270,31 @@ is fixed for the attempt; restart a run if the inference service changes address
 Usage and observed models come from Claude's JSON result. Fresh runs are required;
 remote `--continue-run` remains unsupported.
 
+Remote Antigravity profiles use the worker's existing login, created once by the
+operator in that worker user's normal HOME. Run
+`cdx run agy-profile --remote worker --cwd /srv/project --prompt-file task.md --json`.
+Matching `agy` versions are required on both hosts. Bubblewrap is mandatory;
+each attempt has a memory-backed HOME and mounts only the worker's mode-600
+`.gemini/antigravity-cli/antigravity-oauth-token` authentication file, read-only.
+The installation is read-only. No token is copied into the volatile HOME or sent
+to the controller. A worker token lock excludes concurrent cdx attempts;
+independent native agy launches must be kept out of the same worker account slot.
+`AGY_CLI_DISABLE_AUTO_UPDATE=true` is set. Runs use `-p --output-format json`,
+with closed stdin, and require JSON status `SUCCESS` without refused actions.
+Missing login and expired-session errors require operator login on the worker;
+cdx does not launch an authentication command. Usage is read from the JSON result.
+
+The conservative HTTPS candidate list is `oauth2.googleapis.com`,
+`cloudcode-pa.googleapis.com` and `daily-cloudcode-pa.googleapis.com`, resolved
+on the worker before isolation, plus DNS to `1.1.1.1`/`9.9.9.9`. Other public
+traffic is dropped even with `--network-access`; private ranges remain denied.
+This list has **not** been accepted against live inference in the mission sandbox.
+The token remains read-only pending a measured receipt showing whether refresh
+writes it in place. See
+`logics/runbook/fragments/2026-11-03-antigravity-44674fc58c.md` for evidence and
+the host measurement command. Local Antigravity headless runs also require isolation and use the same worker
+login, token lock and volatile HOME policy.
+
 Remote Ollama profiles use the worker's unauthenticated HTTP API at
 `127.0.0.1:11434`, with `/api/show` followed by `/api/chat` (`stream: false`).
 Use `cdx run local --remote worker --cwd /srv/project --model qwen3:8b --prompt-file question.txt --isolate-workspace --json`.

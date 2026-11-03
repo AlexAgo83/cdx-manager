@@ -1039,6 +1039,13 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
             "sensitive_args": [initial_prompt] if initial_prompt else [],
         }
 
+    if session["provider"] == PROVIDER_ANTIGRAVITY:
+        args = ["-p", initial_prompt or "", "--output-format", "json"]
+        if model:
+            args += ["--model", model]
+        return {"command": "agy", "args": args, "options": {"cwd": cwd, "env": env},
+                "label": "antigravity", "sensitive_args": [initial_prompt] if initial_prompt else []}
+
     if session["provider"] == PROVIDER_CODEX:
         args = ["exec", "--json", "-C", cwd]
         if model:
@@ -1224,6 +1231,19 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
     from .remote_run import remote_auth_lock, temporary_auth
     from .workspace_sandbox import private_auth_home
 
+    if session.get("provider") == PROVIDER_ANTIGRAVITY:
+        from .run_usage import antigravity_outcome
+        from .workspace_sandbox import antigravity_attempt
+        session = {**session, "launch": {**(session.get("launch") or {}), "isolate_workspace": True}}
+        try:
+            with antigravity_attempt() as directory:
+                result = _run_headless_provider_attempt(session, cwd, env_override, initial_prompt,
+                                                        timeout_seconds, spawn, run_id, budget_check,
+                                                        attempt=attempt, agy_home=directory)
+                return antigravity_outcome(result)
+        except (OSError, RuntimeError) as error:
+            raise CdxError(str(error), code="antigravity_auth_unavailable") from error
+
     isolated_codex = session.get("provider") == PROVIDER_CODEX and (session.get("launch") or {}).get("isolate_workspace")
     if isolated_codex:
         handlers = _route_termination_to_interrupt()
@@ -1246,7 +1266,7 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
 
 
 def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial_prompt=None,
-                                   timeout_seconds=None, spawn=None, run_id=None, budget_check=None, observation_home=None, attempt=1):
+                                   timeout_seconds=None, spawn=None, run_id=None, budget_check=None, observation_home=None, attempt=1, agy_home=""):
     spawn = spawn or subprocess.Popen
     spec = _build_headless_launch_spec(
         session,
@@ -1263,7 +1283,7 @@ def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial
             # Keep the workspace sandbox; append overrides before the prompt separator.
             index = spec["args"].index("--") if "--" in spec["args"] else len(spec["args"])
             spec["args"][index:index] = ["-c", 'sandbox_workspace_write.network_access=true', '-c', 'sandbox_workspace_write.writable_roots=["/cache", "/home/agent"]']
-        elif session.get("provider") != PROVIDER_CLAUDE:
+        elif session.get("provider") not in (PROVIDER_CLAUDE, PROVIDER_ANTIGRAVITY):
             raise CdxError("Network override is unsupported for this provider")
     if launch.get("isolate_workspace"):
         from pathlib import Path
@@ -1291,7 +1311,8 @@ def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial
                 writable=launch.get("permission") != "review",
                 source=spec["options"]["env"], auth_home=observation_home or _get_auth_home(session),
                 provider=session.get("provider"),
-                **({"observation_home": os.path.join(observation_home, "sessions")} if observation_home else {}))
+                **({"observation_home": os.path.join(observation_home, "sessions")} if observation_home else {}),
+                **({"observation_home": agy_home} if agy_home else {}))
         except (OSError, RuntimeError) as error:
             raise CdxError(str(error)) from error
         spec.update(command=argv[0], args=argv[1:])
@@ -1329,8 +1350,9 @@ def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial
         try:
             child = spawn(
                 [command] + spec["args"],
-                stdout=stdout_file,
-                stderr=stderr_file,
+                stdout=subprocess.PIPE if agy_home else stdout_file,
+                stderr=subprocess.PIPE if agy_home else stderr_file,
+                **({"stdin": subprocess.DEVNULL} if agy_home else {}),
                 **options,
             )
         except FileNotFoundError as error:
@@ -1346,6 +1368,22 @@ def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial
         # SIGTERM/SIGHUP (kill, systemctl stop, a closed SSH session) unwind
         # like Ctrl+C: the provider's own process group would otherwise outlive
         # this supervisor and keep its run "running" forever.
+        redactors = []
+        if agy_home:
+            from .workspace_sandbox import antigravity_secrets
+            secrets = antigravity_secrets()
+
+            def redact_stream(stream, output):
+                for line in iter(stream.readline, b""):
+                    for secret in secrets:
+                        line = line.replace(secret.encode(), b"[REDACTED]")
+                    output.write(line.decode("utf-8", errors="replace"))
+                    output.flush()
+
+            for stream, output in ((child.stdout, stdout_file), (child.stderr, stderr_file)):
+                thread = threading.Thread(target=redact_stream, args=(stream, output))
+                thread.start()
+                redactors.append(thread)
         previous_handlers = _route_termination_to_interrupt()
         try:
             if budget_check is not None or expires_at is not None:
@@ -1387,6 +1425,8 @@ def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial
             cancelled = True
             _terminate_child_tree(child)
         finally:
+            for thread in redactors:
+                thread.join()
             snapshot()
             _restore_signal_handlers(previous_handlers)
 

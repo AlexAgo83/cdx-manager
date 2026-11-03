@@ -713,10 +713,12 @@ def handle_run(rest, ctx):
             session = selected["session"]
             selection_row = selected.get("row") or {}
 
+        if session["provider"] == "antigravity":
+            parsed["isolate_workspace"] = True
         remote_version = None
         if parsed.get("remote"):
-            if session["provider"] not in ("codex", "claude", "ollama"):
-                raise CdxError("--remote is only available for Codex, Claude and Ollama profiles.", code="remote_provider_unsupported")
+            if session["provider"] not in ("codex", "claude", "ollama", "antigravity"):
+                raise CdxError("--remote is only available for Codex, Claude, Ollama and Antigravity profiles.", code="remote_provider_unsupported")
             if parsed.get("continue_run"):
                 raise CdxError("--remote requires a fresh run without --continue-run.")
             if session["provider"] == "ollama" and not (parsed.get("model") or (session.get("launch") or {}).get("model")):
@@ -774,7 +776,7 @@ def handle_run(rest, ctx):
                 **launch_updates,
             },
         }
-        if not parsed.get("remote"):
+        if not parsed.get("remote") and session["provider"] != "antigravity":
             _ensure_session_authentication(
                 run_session,
                 ctx["service"],
@@ -1082,6 +1084,9 @@ def handle_run(rest, ctx):
             message = f"Every eligible session was rate limited: {', '.join(attempted)}."
         elif failover_error_code == "failover_limit_reached":
             message = f"Failover stopped after {MAX_FAILOVER_TRANSITIONS} transitions: {', '.join(attempted)}."
+        elif run_info.get("provider_error"):
+            failover_error_code = run_info["provider_error"]
+            message = run_info["provider_message"]
         elif run_info.get("timed_out"):
             message = "Provider process timed out."
         else:

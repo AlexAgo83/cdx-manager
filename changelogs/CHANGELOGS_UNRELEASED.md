@@ -6,6 +6,11 @@
 - Show Gemini 5-hour and weekly remaining quota, reset times and reading age in status. Include all bucket names, including third-party buckets, in JSON. Mark readings older than 24 hours stale and suppress availability after a bucket's reset has passed.
 - Launch headless Antigravity with `agy -p --output-format json` and record its input, output, thinking, cache-read and reported total counters. Preserve the native total without assuming an undocumented cache or thinking subset relationship. Interactive quota is not per-run token usage.
 - Cover synthetic native payloads, missing/unknown buckets, stale and expired readings, settings merges, existing command output, private file permissions and headless observation.
+## Worker-owned Antigravity headless runs
+
+- Allow Antigravity profiles in remote runs with mandatory bubblewrap, explicit `agy -p --output-format json`, an owner-only worker token mounted read-only, and a volatile HOME. Never transport worker credentials to the controller; redact worker output before SSH forwarding. Hold a worker token lock across each attempt and disable automatic CLI updates.
+- Restrict inference to a conservative Google endpoint allowlist plus public DNS, including when tool network access is requested; retain private-range denial. The candidate list and read-only token policy require the live measurements documented in the mission fragment before claiming production acceptance.
+- Fail on absent/unsafe worker login, expired sessions, missing/non-success JSON status and refused actions. Normalize JSON usage through `run_usage` and preserve existing run artifacts/history. Cover fake worker success, refusal, expiry, secret redaction, locking, cleanup, local isolation and mount/network construction.
 
 ## Remote Claude headless runs
 
