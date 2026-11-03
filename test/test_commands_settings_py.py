@@ -35,6 +35,70 @@ from src.session_service import create_session_service
 
 class SettingsCommandTests(CliTestBase):
 
+    def test_max_parallel_round_trip_preserves_other_settings(self):
+        base_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": base_dir})
+        service["create_session"]("main")
+        for limit in range(6):
+            with self.subTest(limit=limit):
+                io_obj = self.make_io()
+                self.assertEqual(main(["set", "main", "--max-parallel", str(limit), "--json"],
+                                      {**io_obj, "service": service}), 0)
+                self.assertEqual(json.loads(io_obj["stdout"].getvalue())["launch"]["max_parallel"], limit)
+                service = create_session_service({"base_dir": base_dir})
+                service["set_launch_settings"]("main", {"priority": 80, "policy": "ask-first"})
+                self.assertEqual(service["get_session"]("main")["launch"]["max_parallel"], limit)
+        for flag in ("--max-parallel", "--all"):
+            service["set_launch_settings"]("main", {"max_parallel": 0})
+            io_obj = self.make_io()
+            self.assertEqual(main(["unset", "main", flag, "--json"], {**io_obj, "service": service}), 0)
+            launch = json.loads(io_obj["stdout"].getvalue())["launch"]
+            self.assertNotIn("max_parallel", launch)
+            if flag == "--max-parallel":
+                self.assertEqual(launch["priority"], 80)
+                self.assertEqual(launch["policy"], "ask-first")
+
+    def test_max_parallel_rejects_invalid_values_without_changing_profile(self):
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        service["create_session"]("main")
+        service["set_launch_settings"]("main", {"max_parallel": 2})
+        before = service["get_session"]("main")
+        for value in ("-1", "6", "1.5", "true", "", "NaN"):
+            with self.subTest(value=value), self.assertRaises(CdxError):
+                main(["set", "main", "--max-parallel", value], {**self.make_io(), "service": service})
+            self.assertEqual(service["get_session"]("main"), before)
+        for value in (-1, 6, 1.5, True, [], {}):
+            with self.subTest(value=value), self.assertRaises(CdxError):
+                service["set_launch_settings"]("main", {"max_parallel": value})
+            self.assertEqual(service["get_session"]("main"), before)
+
+    def test_max_parallel_is_exposed_in_list_status_and_show(self):
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        service["create_session"]("main")
+        for limit in (None, 0, 5):
+            if limit is not None:
+                service["set_launch_settings"]("main", {"max_parallel": limit})
+            for args, key in ((["--json"], "sessions"), (["ls", "--json"], "sessions"),
+                              (["status", "--cached", "--json"], "rows")):
+                with self.subTest(limit=limit, args=args):
+                    io_obj = self.make_io()
+                    self.assertEqual(main(args, {**io_obj, "service": service}), 0)
+                    row = json.loads(io_obj["stdout"].getvalue())[key][0]
+                    if key == "sessions":
+                        self.assertEqual(row["launch"].get("max_parallel"), limit)
+                        if limit is None:
+                            self.assertNotIn("max_parallel", row["launch"])
+                    else:
+                        self.assertEqual(row["max_parallel"], limit)
+            io_obj = self.make_io()
+            self.assertEqual(main(["show", "main"], {**io_obj, "service": service}), 0)
+            output = io_obj["stdout"].getvalue()
+            max_line = next(line for line in output.splitlines() if line.startswith("Max parallel"))
+            self.assertEqual(max_line.split()[-1], "default" if limit is None else str(limit))
+            io_obj = self.make_io()
+            self.assertEqual(main(["show", "main", "--json"], {**io_obj, "service": service}), 0)
+            self.assertEqual(json.loads(io_obj["stdout"].getvalue())["launch"].get("max_parallel"), limit)
+
     def test_notify_preview_is_explicit_and_clearable(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

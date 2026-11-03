@@ -42,6 +42,27 @@ cdx work
 
 CDX checks authentication before interactive launches. Handoff keeps the source transcript in place and asks the receiving agent to verify the conversation and workspace before acting. No account switch or prompt submission happens just because you run `cdx next`.
 
+## Automatic mission concurrency per profile
+
+```bash
+cdx set work --max-parallel 2
+cdx show work
+cdx unset work --max-parallel
+```
+
+`--max-parallel` accepts an integer from 0 to 5 and stores `launch.max_parallel`
+next to `priority` and `policy`. Zero excludes the profile from automatic
+missions. An absent value adds no profile-specific ceiling: the scheduling
+client applies its own rule. Existing configurations need no migration.
+`cdx unset work --all` also removes the limit.
+
+The scheduling client is responsible for enforcing this metadata. It is
+separate from the existing per-command `cdx run --max-parallel` limit.
+`cdx --json` (also `cdx ls --json`) includes the optional field in each
+session's `launch` object; `cdx status --json` exposes `max_parallel` on each
+row (`null` when absent). `cdx show` is an alias for `cdx config` and displays
+`Max parallel` as `default` when unset.
+
 ## Cache efficiency and fix rounds
 
 `cdx history --json` records uncached input, cache reads, cache writes, output tokens, and `usage.cache_hit_ratio` beside the existing token totals. The ratio is cache reads divided by all input tokens, excluding output. Missing provider splits stay `null`, and text views show `cache n/d` instead of claiming a zero hit rate.

@@ -78,6 +78,21 @@ def normalize_permission(value):
     return text if text in PERMISSION_VALUES else None
 
 
+def normalize_launch_max_parallel(value):
+    """Validate the optional per-profile automatic mission limit."""
+    from .errors import CdxError
+
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise CdxError("Max parallel must be an integer from 0 to 5.")
+    try:
+        limit = int(value)
+    except ValueError as error:
+        raise CdxError("Max parallel must be an integer from 0 to 5.") from error
+    if not 0 <= limit <= 5:
+        raise CdxError("Max parallel must be an integer from 0 to 5.")
+    return limit
+
+
 def get_cdx_home(env=None):
     if env is None:
         env = os.environ

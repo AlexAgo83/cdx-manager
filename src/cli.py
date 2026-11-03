@@ -201,6 +201,7 @@ _COMMAND_HANDLERS = {
 }
 
 _COMMAND_ALIASES = {
+    "show": "config",
     "ren": "rename",
     "mv": "rename",
 }
@@ -237,6 +238,7 @@ def _print_help(use_color=False):
         _style("Usage:", "1", use_color),
         f"  {_style('cdx', '36', use_color)}",
         f"  {_style('cdx --json', '36', use_color)}",
+        f"  {_style('cdx ls [--json]', '36', use_color)}",
         f"  {_style('cdx status [--json] [--refresh|--cached] [--timeout SECONDS]', '36', use_color)}",
         f"  {_style('cdx status --small|-s [--refresh|--cached] [--timeout SECONDS]', '36', use_color)}",
         f"  {_style('cdx status <name> [--json] [--refresh|--cached] [--timeout SECONDS]', '36', use_color)}",
@@ -258,10 +260,11 @@ def _print_help(use_color=False):
         f"  {_style('cdx memory [--global|--project NAME_OR_PATH] [show|view|path|init|edit|clear|set|append|list] [text...] [--json]', '36', use_color)}",
         f"  {_style('cdx disk [profiles] [--candidates] [--json]', '36', use_color)}",
         f"  {_style('cdx config <name> [--json]', '36', use_color)}",
+        f"  {_style('cdx show <name> [--json]', '36', use_color)}",
         f"  {_style('cdx configs [--json]', '36', use_color)}",
         f"  {_style('cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]', '36', use_color)}",
         f"  {_style(SET_USAGE[len('Usage: '):], '36', use_color)}",
-        f"  {_style('cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--logics|--notify|--notify-preview|--model|--priority|--all) [--json]', '36', use_color)}",
+        f"  {_style('cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--logics|--notify|--notify-preview|--model|--priority|--max-parallel|--all) [--json]', '36', use_color)}",
         f"  {_style('cdx history backfill-projects [--mapping FILE] [--dry-run|--apply] [--json]', '36', use_color)}",
         f"  {_style('cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]', '36', use_color)}",
         f"  {_style('cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--by session|project|model] [--json]', '36', use_color)}",
@@ -579,6 +582,11 @@ def main(argv, options=None):
     # Built after --help/--version: those must answer even where the home
     # directory cannot be resolved (a service or task with a minimal environment).
     service = options.get("service") or create_session_service({"env": env})
+
+    if argv[:1] == ["ls"]:
+        if argv[1:] not in ([], ["--json"]):
+            raise CdxError("Usage: cdx ls [--json]")
+        argv = argv[1:]
 
     if argv == ["--json"]:
         rows = service["format_list_rows"]()
