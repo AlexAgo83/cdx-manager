@@ -1,0 +1,4 @@
+{"timestamp":"2026-11-03T10:00:00Z","type":"user","message":{"role":"user","content":"Hello café"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":"private reasoning"},{"type":"tool_use","id":"call-1","name":"Bash","input":{"command":"private tool arguments"}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"call-1","content":"private tool result"}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Done"},{"type":"text","text":"Next"}]}}

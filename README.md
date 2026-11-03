@@ -218,3 +218,51 @@ The empty-refresh-token behavior was measured with Codex CLI 0.166.0. Real-host
 acceptance should verify that the installed matching CLI does not attempt a
 refresh with the temporary home, that the controller token chain stays unchanged
 for a fresh credential, and that cleanup works after disconnect and SIGTERM.
+
+### Read an interactive conversation
+
+`cdx conversation <name> [--conversation ID] [--cursor CURSOR] [--limit N] --json`
+returns a read-only JSON page for the profile's current conversation. An explicit
+conversation ID uses an exact transcript lookup; a profile without a recorded ID
+uses the existing latest-transcript resolver. This fallback is best effort.
+
+The normal cdx JSON envelope includes `status`, `reason`, `provider`, `session`,
+`entries`, `next_cursor`, and `has_more`. Each entry has exactly `role`
+(`user`, `assistant`, or `tool`), `text`, `tool_name`, `tool_summary`, `at`, and
+`id`. Missing values are `null`; tool text is empty. Entries follow file and
+content-block order, with stable IDs for the same file position. Timestamps are
+provider timestamps when valid. Tool calls/results have a name and a short
+summary; arguments, results, attachments, and reasoning blocks are omitted.
+Result names are recovered from up to 100 recent calls, otherwise `tool`.
+Common credential patterns and secret assignments in text are redacted without
+opening credential stores. Review conversation text before sharing: arbitrary
+unlabelled sensitive prose cannot be identified automatically.
+
+Pass `next_cursor` unchanged as `--cursor` to fetch the next page or poll for new
+entries. `--limit` bounds entries (default 100, range 1–1000). Reading seeks to
+the saved byte position rather than replaying history, and scans at most 8 MiB
+per call. A page may be empty while still returning a usable cursor. Poll on a
+timer: `has_more` means unread bytes, which can include an incomplete final line
+that will only become readable after the provider appends its newline.
+
+Codex response items and Claude-compatible JSONL transcripts (Claude and
+Antigravity) are supported through the existing transcript resolver. Missing or
+unreadable files return `status: "unavailable"` with a reason. Ollama's terminal
+capture does not reliably identify message roles and returns
+`status: "unsupported"`, including when no capture exists. A transcript record
+larger than 1 MiB returns `unavailable`. A replaced/truncated file or invalid
+cursor returns `reset_required`; discard the cursor and reload the conversation.
+Cursors are opaque, versioned, and bound to a provider and file. Treat transcripts
+as append-only; reset the client if a provider rewrites earlier history.
+
+Python callers can use the same page contract:
+
+```python
+from cdx_manager.conversation import read_conversation
+
+page = read_conversation("claude", "/path/to/profile/home", conversation_id="session-id", limit=100)
+next_page = read_conversation(
+    "claude", "/path/to/profile/home", conversation_id="session-id",
+    cursor=page["next_cursor"], limit=100,
+)
+```
