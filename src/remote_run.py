@@ -1,4 +1,4 @@
-"""Controller-side temporary Codex credentials and SSH transport."""
+"""Controller-owned remote provider credentials and SSH transport."""
 
 import base64
 import json
@@ -112,11 +112,13 @@ def ssh_command(target, mode, remote_prefix=None):
 
 def preflight(target, env=None, *, remote_prefix=None, isolate_workspace=False, cwd=None, network=False, writable=True, provider="codex", model=None):
     payload = {'isolate_workspace': isolate_workspace, 'cwd': cwd, 'network': network, 'writable': writable}
-    if provider == 'ollama':
+    if provider in ('ollama', 'claude'):
         payload.update(provider=provider, model=model)
+    if provider == 'claude':
+        payload['isolate_workspace'] = True
     try:
         local = ('ollama-http' if provider == 'ollama' else
-                 subprocess.check_output(['codex', '--version'], env=env, stderr=subprocess.DEVNULL, timeout=10).decode().strip())
+                 subprocess.check_output([provider, '--version'], env=env, stderr=subprocess.DEVNULL, timeout=10).decode().strip())
         result = subprocess.run(ssh_command(target, 'probe', remote_prefix), env=env,
                                 input=worker_input() + json.dumps(payload).encode() + b'\n',
                                 capture_output=True, timeout=30)
@@ -127,10 +129,10 @@ def preflight(target, env=None, *, remote_prefix=None, isolate_workspace=False, 
             raise CdxError('Remote Ollama unavailable: check the installed local model, loopback API and isolation dependencies.',
                            code='remote_unavailable')
         message = ('Remote workspace isolation unavailable; requires bubblewrap, pasta, nftables, working namespaces and a valid checkout.'
-                   if isolate_workspace else 'Remote worker unreachable or missing Python 3, Codex or memory-backed /dev/shm.')
+                   if payload['isolate_workspace'] else 'Remote worker unreachable or missing Python 3, provider CLI or memory-backed /dev/shm.')
         raise CdxError(message, code='remote_unavailable')
     if local != result.stdout.decode().strip():
-        raise CdxError('Remote Codex CLI version mismatch; install the controller version on the worker.', code='remote_version_mismatch')
+        raise CdxError('Remote provider CLI version mismatch; install the controller version on the worker.', code='remote_version_mismatch')
     return local
 
 
@@ -161,6 +163,21 @@ def run_remote(session, target, version, cwd=None, env_override=None, initial_pr
         spec = {'command': 'ollama-http', 'args': [], 'env': {}}
         payload = {'provider': 'ollama', 'model': launch.get('model'), 'prompt': initial_prompt,
                    'cwd': cwd, 'isolate_workspace': bool(launch.get('isolate_workspace'))}
+    elif session['provider'] == 'claude':
+        from .claude_remote_token import read_token
+        token = read_token(session)
+        spec = _build_headless_launch_spec(session, cwd, env_override, initial_prompt)
+        if token in json.dumps(spec['args']):
+            raise CdxError('Refusing a credential embedded in the remote prompt or configuration.')
+        if '--bare' in spec['args']:
+            raise CdxError('Remote Claude OAuth runs do not support --bare.')
+        index = spec['args'].index('--') if '--' in spec['args'] else len(spec['args'])
+        # Bubblewrap owns tool permissions, matching isolated local headless runs.
+        spec['args'][index:index] = ['--permission-mode', 'bypassPermissions']
+        payload = {'provider': 'claude', 'token': token, 'args': spec['args'], 'cwd': cwd,
+                   'version': version, 'isolate_workspace': True,
+                   'network': bool((session.get('launch') or {}).get('network_access')),
+                   'writable': (session.get('launch') or {}).get('permission') != 'review'}
     else:
         home = session['authHome']
         with remote_auth_lock(home):

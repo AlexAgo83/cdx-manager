@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import socket
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -28,7 +29,17 @@ NETWORK_RULES = """table inet mission_egress {
 PUBLIC_RESOLV_CONF = "nameserver 1.1.1.1\nnameserver 9.9.9.9\n"
 
 # Keep the trusted setup outside the agent's filesystem/PID/user namespaces.
-NETWORK_SETUP = """
+CLAUDE_STDIN_EXEC = """
+import json
+import os
+import sys
+token = json.loads(sys.stdin.buffer.readline())
+os.environ["CLAUDE_CODE_OAUTH_TOKEN"] = token
+os.dup2(os.open(os.devnull, os.O_RDONLY), 0)
+os.execv(sys.argv[1], sys.argv[1:])
+"""
+
+NETWORK_SETUP = r"""
 import pathlib
 import subprocess
 import sys
@@ -85,7 +96,7 @@ def clean_env(source: dict) -> dict:
 
 
 def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: bool = True,
-                    source: dict | None = None, auth_home: str = "", provider: str = "", observation_home: str = "", ollama_relay: str = "") -> tuple[list[str], dict]:
+                    source: dict | None = None, auth_home: str = "", provider: str = "", observation_home: str = "", ollama_relay: str = "", claude_token_stdin: bool = False) -> tuple[list[str], dict]:
     source = os.environ if source is None else source
     env = clean_env(source)
     binary = shutil.which(command[0], path=env["PATH"])
@@ -112,6 +123,10 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
              if online else ["--unshare-all"])
     args += ["--cap-drop", "ALL"]
     args += ["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--dir", "/home/agent"]
+    if provider == "claude" and claude_token_stdin:
+        if not observation_home:
+            raise RuntimeError("Remote Claude requires a volatile attempt home")
+        args += ["--bind", observation_home, "/home/agent"]
     # An allowlist avoids overlooking another secret file or a credential symlink.
     paths = [Path(p) for p in ("/usr", "/bin", "/sbin", "/lib", "/lib64")]
     home = Path.home()
@@ -170,9 +185,18 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
         args += ["--ro-bind", str(Path(auth_home) / "auth.json"), "/home/agent/.codex/auth.json"]
     elif provider == "claude":
         token = source.get("CLAUDE_CODE_OAUTH_TOKEN")
-        if not token:
+        if not token and not claude_token_stdin:
             raise RuntimeError("Isolated Claude runs require a cdx OAuth setup token")
-        env.update(CLAUDE_CODE_OAUTH_TOKEN=token, CLAUDE_CODE_SUBPROCESS_ENV_SCRUB="1",
+        if claude_token_stdin:
+            env["XDG_CACHE_HOME"] = "/home/agent/.cache"
+            python = shutil.which("python3", path=os.defpath)
+            if not python:
+                raise RuntimeError("Remote Claude requires Python 3")
+            command = [python, "-I", "-c", CLAUDE_STDIN_EXEC, binary, *command[1:]]
+            binary = python
+        else:
+            env["CLAUDE_CODE_OAUTH_TOKEN"] = token
+        env.update(CLAUDE_CODE_SUBPROCESS_ENV_SCRUB="1",
                    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1")
     elif provider == "ollama":
         if not ollama_relay:
@@ -182,7 +206,23 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
         raise RuntimeError("Unsupported isolated provider: " + provider)
     args += ["--chdir", str(tree), "--", binary, *command[1:]]
     if online:
-        setup = "RULES = " + repr(NETWORK_RULES) + "\nRESOLVER = " + repr(PUBLIC_RESOLV_CONF) + "\n" + NETWORK_SETUP
+        rules = NETWORK_RULES
+        if provider == "claude" and claude_token_stdin and not network:
+            # Resolve on the trusted worker before pasta replaces the DNS namespace.
+            addresses = {entry[4][0] for entry in socket.getaddrinfo("api.anthropic.com", 443, type=socket.SOCK_STREAM)}
+            inference = []
+            for family, values in (("ip", sorted(address for address in addresses if ":" not in address)),
+                                   ("ip6", sorted(address for address in addresses if ":" in address))):
+                if values:
+                    inference.append(f"        {family} daddr {{ {', '.join(values)} }} tcp dport 443 accept")
+            if not inference:
+                raise RuntimeError("No Anthropic inference addresses")
+            rules = rules.replace("policy accept", "policy drop").replace(
+                "        oif", "        ct state established,related accept\n        oif")
+            rules = rules.replace("    }\n}", "        ip daddr { 1.1.1.1, 9.9.9.9 } udp dport 53 accept\n"
+                                  "        ip daddr { 1.1.1.1, 9.9.9.9 } tcp dport 53 accept\n"
+                                  + "\n".join(inference) + "\n    }\n}")
+        setup = "RULES = " + repr(rules) + "\nRESOLVER = " + repr(PUBLIC_RESOLV_CONF) + "\n" + NETWORK_SETUP
         # Disable both directions explicitly: automatic host-loopback splicing
         # bypasses output filtering unless -T/-U are also disabled.
         args = [pasta, "--config-net", "--no-map-gw", "-t", "none", "-u", "none",

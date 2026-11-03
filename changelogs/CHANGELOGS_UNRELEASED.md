@@ -1,5 +1,11 @@
 # Unreleased
 
+## Remote Claude headless runs
+
+- Add `cdx auth claude-token <profile>` to store a dedicated `claude setup-token` value from stdin in a controller-only mode-600 profile file. Missing or unsafe tokens stop remote runs with this command as the remedy; worker login is unnecessary.
+- Allow remote Claude JSON headless execution with mandatory bubblewrap isolation, a fresh memory-backed HOME per attempt and no local profile mounts. Carry the token through SSH stdin and a sandbox stdin exec shim, exposing it only in Claude's environment, never worker credential files, argv or persisted output. Keep subprocess environment scrubbing, remove competing authentication/cloud/proxy sources, disable non-essential traffic and refuse `--bare`.
+- Allow inference HTTPS to resolved `api.anthropic.com` addresses and DNS by default; retain public tool-network access only when requested. Cover fake-worker usage parsing, output redaction, absent/unsafe token files, stdin storage, isolation construction and volatile cleanup after success, failure and timeout.
+
 ## Isolated mission Git and RTK
 
 - Give local and remote isolated linked worktrees a read-only Git view with their own HEAD/index and shared objects/refs, without traversing private host parents or exposing repository/global configuration, hooks, SSH keys or Git push credentials. Preserve supervisor-owned commits and pushes.

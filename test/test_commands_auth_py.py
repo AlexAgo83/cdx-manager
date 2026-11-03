@@ -3,6 +3,7 @@
 Moved verbatim from test_cli_py.py; see test/cli_test_support.py for fixtures.
 """
 
+import io
 import json
 import os
 import subprocess
@@ -35,6 +36,19 @@ from src.session_service import create_session_service
 
 
 class AuthCommandTests(CliTestBase):
+
+    def test_claude_token_rejects_invalid_stdin_without_echo(self):
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        service["create_session"]("work", "claude")
+        for value in ("", "synthetic token with spaces", b"\xffsynthetic-secret"):
+            out = self.make_io()
+            stream = io.BytesIO(value) if isinstance(value, bytes) else io.StringIO(value)
+            with self.assertRaises(CdxError) as error:
+                main(["auth", "claude-token", "work", "--json"], {
+                    **out, "stdin": {"isTTY": False}, "service": service, "prompt_stdin": stream,
+                })
+            assert "synthetic" not in str(error.exception) + out["stdout"].getvalue() + out["stderr"].getvalue()
+
 
     def test_auth_refresh_uses_non_generation_probe_and_returns_safe_json(self):
         temp_dir = self.make_temp_dir()

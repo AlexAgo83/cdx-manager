@@ -19,6 +19,7 @@
 | `cdx label <name> --clear [--json]` | Clear a session label |
 | `cdx login <name> [--json]` | Re-authenticate a session (logout + login) |
 | `cdx logout <name> [--json]` | Log out of a session |
+| `cdx auth claude-token <profile> [--json]` | Store a dedicated remote Claude setup token from stdin in a private controller profile file |
 | `cdx auth refresh <name\|all> [--json]` | Make a locked, non-generation Codex auth probe; reports `login_required` when interactive login is needed |
 | `cdx disable <name> [--json]` | Disable a session without deleting it; disabled sessions stay visible and cannot launch |
 | `cdx enable <name> [--json]` | Re-enable a disabled session |
@@ -239,6 +240,35 @@ cdx run \
 ```
 
 The result includes `launcher: "cdx"`, `run_id`, selected `session`, `provider`, `exit_code`, `duration_seconds`, absolute `transcript_path`, `stdout_path`, `stderr_path`, and normalized usage token fields. Codex headless runs use `codex exec --json`; Claude headless runs use `claude --print --output-format json`. Token counts are `null` when the provider does not expose a supported JSON or JSONL usage shape.
+
+Remote Claude profiles require a dedicated long-lived token produced by `claude setup-token`
+on the launching host. Supply only that token on standard input to
+`cdx auth claude-token <profile>` (never put it in command arguments). This stores
+`.cdx-remote-claude-token` with mode `0600` in the controller profile; ordinary
+interactive Claude credentials and ambient API keys are not a fallback. A missing
+or unsafe file stops before SSH and names this command.
+
+Run `cdx run <profile> --remote worker --cwd /srv/project --prompt-file task.md --json`.
+Claude always uses bubblewrap isolation, even without `--isolate-workspace`, and
+requires matching Claude CLI versions on the controller and Linux worker, Python 3,
+bubblewrap, pasta, nftables, working namespaces and memory-backed `/dev/shm`.
+No worker login or profile mount is needed. Each attempt sends the token over SSH
+stdin, then a private pipe through the sandbox to an exec shim that sets it only
+in Claude's environment. It is never a worker credential file or command argument;
+provider output is redacted before persistence. Fresh volatile HOME storage holds
+`.claude`, `.claude.json`, caches and traces and is removed on exit, failure or stop.
+`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` and
+`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` remain set; API keys, proxy tokens,
+proxy URLs and cloud-provider variables are excluded from the sandbox environment.
+`--bare` is refused because it ignores OAuth. The outer sandbox owns tool permissions,
+including a read-only checkout for `--permission review`.
+
+Without `--network-access`, the trusted setup resolves `api.anthropic.com` and allows
+HTTPS to those addresses plus public DNS, with other external destinations dropped.
+`--network-access` retains the existing public tool-network policy. Address resolution
+is fixed for the attempt; restart a run if the inference service changes addresses.
+Usage and observed models come from Claude's JSON result. Fresh runs are required;
+remote `--continue-run` remains unsupported.
 
 Remote Ollama profiles use the worker's unauthenticated HTTP API at
 `127.0.0.1:11434`, with `/api/show` followed by `/api/chat` (`stream: false`).
