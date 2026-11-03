@@ -1,0 +1,6 @@
+{"type":"api-request-blob","sessionId":"1fb12a46-incident-excerpt","hash":"example-request-hash","content":[{"type":"text","text":"Check the conversation reader"}]}
+{"type":"user","timestamp":"2026-11-04T10:00:00Z","sessionId":"1fb12a46-incident-excerpt","message":{"role":"user","content":[{"type":"text","text":"Check the conversation reader"}]}}
+{"type":"assistant","timestamp":"2026-11-04T10:00:01Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"read-1","name":"Read","input":{"file_path":"src/conversation.py"}}]}}
+{"type":"user","timestamp":"2026-11-04T10:00:02Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"read-1","content":"Tool body omitted"}]}}
+{"type":"api-request-blob","sessionId":"1fb12a46-incident-excerpt","hash":"example-next-hash","content":[{"type":"text","text":"Check the conversation reader"}]}
+{"type":"assistant","timestamp":"2026-11-04T10:00:03Z","message":{"role":"assistant","content":[{"type":"text","text":"The reader is fixed"}]}}
