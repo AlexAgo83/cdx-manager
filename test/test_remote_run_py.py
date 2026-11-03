@@ -448,14 +448,17 @@ class RemoteCommandTests(CliTestBase):
         assert len((self.directory / 'argv').read_text().splitlines()) == 2
         assert not list(self.worker_root.glob('run-*'))
 
-    def test_provider_refusal(self):
+    def test_antigravity_uses_worker_login(self):
         service, _, _ = self.setup_session()
-        for provider in ('antigravity',):
-            service['create_session']('other-' + provider, provider)
-            out = self.make_io()
-            assert main(['run', 'other-' + provider, '--remote', 'worker', '--cwd', str(self.directory), '--prompt', 'Work', '--json'],
-                        self.make_run_ctx(out, service)) != 0
-            assert 'only available for Codex' in out['stdout'].getvalue()
+        service['create_session']('other-antigravity', 'antigravity')
+        out = self.make_io()
+        with mock.patch('src.commands.runs.preflight', side_effect=CdxError(
+                'Antigravity worker is not signed in.', code='antigravity_not_signed_in')) as probe:
+            assert main(['run', 'other-antigravity', '--remote', 'worker', '--cwd', str(self.directory),
+                         '--prompt', 'Work', '--json'], self.make_run_ctx(out, service)) != 0
+        assert probe.call_args.kwargs['provider'] == 'antigravity'
+        assert probe.call_args.kwargs['isolate_workspace'] is True
+        assert 'antigravity_not_signed_in' in out['stdout'].getvalue()
         assert not (self.directory / 'argv').exists()
 
     def test_stop_cleanup(self):

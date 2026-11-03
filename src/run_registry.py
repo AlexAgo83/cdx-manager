@@ -462,6 +462,8 @@ def _record_final_message(record):
     """The final assistant text one provider record carries, or None."""
     if not isinstance(record, dict):
         return None
+    if record.get("status") == "SUCCESS" and isinstance(record.get("response"), str):
+        return record["response"]
     message = record.get("message")
     if record.get("done") is True and isinstance(message, dict) and isinstance(message.get("content"), str):
         return message["content"]

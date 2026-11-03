@@ -207,3 +207,15 @@ def test_fresh_status_row_uses_gemini_and_native_reset(tmp_path):
     table = _format_status_rows([row])
     assert "75%" in table and "98%" in table
     assert row["quota"]["3p-weekly"]["remaining_fraction"] == .968621
+
+
+@pytest.mark.parametrize("reported_total", [None, 19])
+def test_headless_total_is_reported_never_derived(tmp_path, reported_total):
+    usage = {"input_tokens": 100, "output_tokens": 20, "thinking_tokens": 7, "cache_read_tokens": 40}
+    if reported_total is not None:
+        usage["total_tokens"] = reported_total
+    path = tmp_path / "stdout.json"
+    path.write_text(json.dumps({"usage": usage}))
+    observed = extract_run_usage("antigravity", path)
+    assert observed["total_tokens"] == reported_total
+    assert coerce_usage(observed, provider="antigravity")["total_tokens"] == reported_total

@@ -1064,6 +1064,8 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
 
     if session["provider"] == PROVIDER_ANTIGRAVITY:
         args = ["-p", initial_prompt or "", "--output-format", "json"]
+        if model:
+            args += ["--model", model]
         args += _launch_config_args(session)
         args += _extra_args(session)
         return {

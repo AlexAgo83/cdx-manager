@@ -13,6 +13,7 @@ import tempfile
 import threading
 import time
 import types
+from contextlib import ExitStack
 from datetime import datetime, timezone
 
 # Supplied by the controller before this module is executed.
@@ -36,7 +37,7 @@ def observation_runtime():
 
 
 def version(provider="codex"):
-    return subprocess.check_output([provider, "--version"], stderr=subprocess.DEVNULL, timeout=10).decode().strip()
+    return subprocess.check_output(["agy" if provider == "antigravity" else provider, "--version"], stderr=subprocess.DEVNULL, timeout=10).decode().strip()
 
 
 def storage():
@@ -78,9 +79,9 @@ def isolation_probe_command(payload, home, env):
     exec(compile(SANDBOX_SOURCE, 'workspace_sandbox.py', 'exec'), namespace)
     provider = payload.get('provider', 'codex')
     return namespace['sandbox_command'](
-        [provider, '--version'], pathlib.Path(payload['cwd']), network=payload['network'],
+        ['agy' if provider == 'antigravity' else provider, '--version'], pathlib.Path(payload['cwd']), network=payload['network'],
         writable=payload['writable'], source=env, auth_home=str(home), provider=provider,
-        observation_home=str(home) if provider == 'claude' else str(home / 'sessions'),
+        observation_home=str(home) if provider in ('claude', 'antigravity') else str(home / 'sessions'),
         claude_token_stdin=provider == 'claude')
 
 
@@ -88,6 +89,14 @@ def probe(root, payload):
     if not payload.get('isolate_workspace'):
         print(version())
         return 0
+    if payload.get('provider') == 'antigravity':
+        namespace = {'__name__': 'cdx_workspace_sandbox'}
+        exec(compile(SANDBOX_SOURCE, 'workspace_sandbox.py', 'exec'), namespace)
+        try:
+            namespace['antigravity_token']()
+        except RuntimeError:
+            print('Antigravity worker is not signed in or its session file is unsafe.', file=sys.stderr)
+            return 120
     # Exercise mounts, namespaces and the nft setup with a dummy home before
     # the controller reads or sends a credential. Binary presence is insufficient.
     with tempfile.TemporaryDirectory(prefix='probe-', dir=root) as directory:
@@ -114,9 +123,10 @@ def main():
     if sys.argv[-1] == 'probe':
         return probe(root, payload)
     provider = payload.get('provider', 'codex')
+    agy = provider == 'antigravity'
     claude = provider == 'claude'
     auth = payload.get('auth')
-    if not claude and auth['tokens'].get('refresh_token') != '':
+    if not (claude or agy) and auth['tokens'].get('refresh_token') != '':
         raise RuntimeError('Refusing a rotating remote credential')
     if version(provider) != payload['version']:
         raise RuntimeError('Remote Codex CLI version mismatch')
@@ -144,11 +154,24 @@ def main():
     signal.signal(signal.SIGHUP, stop)
     signal.signal(signal.SIGINT, stop)
     home, live = allocate(root)
+    auth_context = ExitStack()
     try:
         if stopped.is_set():
             return 130
         os.umask(0o077)
-        if claude:
+        if agy:
+            namespace = {'__name__': 'cdx_workspace_sandbox'}
+            exec(compile(SANDBOX_SOURCE, 'workspace_sandbox.py', 'exec'), namespace)
+            try:
+                attempt_home = auth_context.enter_context(namespace['antigravity_attempt'](home))
+            except RuntimeError as error:
+                print(str(error), file=sys.stderr)
+                return 121 if 'busy' in str(error) else 120
+            command, env = namespace['sandbox_command'](
+                ['agy', *payload['args']], pathlib.Path(payload['cwd']), network=False,
+                writable=payload['writable'], source=dict(os.environ), provider='antigravity',
+                observation_home=attempt_home)
+        elif claude:
             claude_home = home / 'claude-home'
             claude_home.mkdir(mode=0o700)
             if not payload.get('isolate_workspace') or '--bare' in payload['args']:
@@ -192,7 +215,8 @@ def main():
         if stopped.is_set():
             stop()
         threading.Thread(target=disconnected, daemon=True).start()
-        secrets = ([payload['token']] if claude else
+        secrets = (namespace['antigravity_secrets']() if agy else
+                   [payload['token']] if claude else
                    [value for value in auth['tokens'].values() if isinstance(value, str) and value])
 
         output_lock = threading.Lock()
@@ -201,7 +225,7 @@ def main():
         stdout_path.touch(mode=0o600)
 
         def snapshot():
-            if claude:
+            if claude or agy:
                 return
             # Read the same exact-thread evidence as the local supervisor before
             # volatile storage is removed. Only normalized metadata is exported.
@@ -264,6 +288,7 @@ def main():
         stop()
         shutil.rmtree(home)
         live.close()
+        auth_context.close()
 
 
 if __name__ == '__main__':
