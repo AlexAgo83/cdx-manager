@@ -45,6 +45,7 @@ from .config import (
     PROVIDER_CODEX,
     REASONING_EFFORT_VALUES,
     get_cdx_home,
+    normalize_launch_max_parallel,
     normalize_permission,
     split_extra_args,
 )
@@ -236,6 +237,8 @@ def _normalize_launch_settings(settings, mark_fast_service_tier=True):
         if priority < MIN_LAUNCH_PRIORITY or priority > MAX_LAUNCH_PRIORITY:
             raise CdxError(f"Unsupported priority: {settings['priority']}")
         normalized["priority"] = priority
+    if "max_parallel" in settings and settings["max_parallel"] is not None:
+        normalized["max_parallel"] = normalize_launch_max_parallel(settings["max_parallel"])
     if "policy" in settings and settings["policy"] is not None:
         if settings["policy"] not in ACCOUNT_POLICIES:
             raise CdxError(f"Unsupported policy: {settings['policy']} (use|ask-first|never)")
@@ -324,7 +327,7 @@ def unset_launch_settings(store, name, keys):
         raise CdxError("At least one launch setting is required.")
     allowed = {
         "power", "reasoning_effort", "reasoningEffort", "permission", "fast", "rtk", "logics", "notify", "agent_state", "notify_preview",
-        "scrub_env", "shared_memory", "retro", "model", "fallback_model", "budget", "extra_args", "priority", "policy",
+        "scrub_env", "shared_memory", "retro", "model", "fallback_model", "budget", "extra_args", "priority", "policy", "max_parallel",
     }
     unknown = [key for key in keys if key not in allowed]
     if unknown:
