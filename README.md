@@ -259,19 +259,22 @@ when no transcript is resolved.
 The normal cdx JSON envelope includes `status`, `reason`, `provider`, `session`,
 `entries`, `next_cursor`, and `has_more`. Each entry has exactly `role`
 (`user`, `assistant`, or `tool`), `text`, `tool_name`, `tool_summary`, `at`, and
-`id`. Missing values are `null`; tool text is empty. Entries follow file and
+`id`. Missing values are `null`; normal tool text is empty. Entries follow file and
 content-block order, with stable IDs for the same file position. Timestamps are
 provider timestamps when valid. Tool calls/results have a name and a short
 summary; arguments, results, attachments, and reasoning blocks are omitted.
-Result names are recovered from up to 100 recent calls, otherwise `tool`.
+Result names are recovered from recent calls, otherwise `tool`. The cache holds
+up to 100 names and is trimmed oldest first to 2 KiB of compact JSON when saved
+in a cursor. Existing version-1 cursors with larger caches remain readable.
 Common credential patterns and secret assignments in text are redacted without
 opening credential stores. Review conversation text before sharing: arbitrary
 unlabelled sensitive prose cannot be identified automatically.
 
 Pass `next_cursor` unchanged as `--cursor` to fetch the next page or poll for new
 entries. `--limit` bounds entries (default 100, range 1–1000). Reading seeks to
-the saved byte position rather than replaying history, and scans at most 8 MiB
-per call. A page may be empty while still returning a usable cursor. Poll on a
+the saved byte position rather than replaying history, and stops scanning after
+8 MiB per call, finishing the current record when it crosses that budget.
+A page may be empty while still returning a usable cursor. Poll on a
 timer: `has_more` means unread bytes, which can include an incomplete final line
 that will only become readable after the provider appends its newline.
 
@@ -280,7 +283,13 @@ Antigravity) are supported through the existing transcript resolver. Missing or
 unreadable files return `status: "unavailable"` with a reason. Ollama's terminal
 capture does not reliably identify message roles and returns
 `status: "unsupported"`, including when no capture exists. A transcript record
-larger than 1 MiB returns `unavailable`. A replaced/truncated file or invalid
+larger than 1 MiB is skipped with bounded reads through its newline. It produces
+one entry containing `[élément trop volumineux ignoré]`, with a stable ID and a
+role recovered from structural metadata in the readable prefix, or `tool` when
+unknown. Its body, images and attachments are never returned. The cursor advances
+past that record so later messages remain accessible. An oversized final record
+without a newline produces no entry yet and is retried on the next call.
+A replaced/truncated file or invalid
 cursor returns `reset_required`; discard the cursor and reload the conversation.
 Cursors are opaque, versioned, and bound to a provider and file. Treat transcripts
 as append-only; reset the client if a provider rewrites earlier history.

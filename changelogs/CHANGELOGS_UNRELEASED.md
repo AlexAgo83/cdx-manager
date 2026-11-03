@@ -1,5 +1,12 @@
 # Unreleased
 
+## Read past oversized conversation records
+
+- Skip JSONL records larger than 1 MiB using bounded reads instead of returning `record_too_large`. Emit a short placeholder with a stable ID and the role from readable structural metadata, falling back to `tool`, then advance the cursor so subsequent messages remain accessible. Never return image or attachment bodies.
+- Retry oversized trailing records without a newline on the next poll. The 8 MiB page scan budget finishes the current record before returning.
+- Bound the cursor's recent tool-name cache to 2 KiB of compact JSON, evicting oldest entries while keeping version-1 cursors with up to 100 names readable.
+- Cover 20 MiB records in the middle, cursors immediately before them, incomplete oversized tails, bounded reads, stable IDs, conservative role detection and legacy cursor compatibility.
+
 ## Preserve interactive conversations across headless runs
 
 - Keep fresh Claude run identities in run records and history without changing the profile's interactive conversation. Skip interactive Codex identity observation when recording headless run history, including detached, remote and continued runs.
