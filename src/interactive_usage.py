@@ -1,17 +1,11 @@
 """Best-effort usage readers for interactive provider sessions.
 
-Three providers report usage and one does not:
-
-- Claude and Codex write their own JSONL transcripts, resolved by the
-  conversation id cdx already holds.
-- Ollama writes nothing. Its counts exist only in `--verbose` terminal output,
-  so they are parsed out of the PTY capture cdx takes for every launch.
-- Antigravity has no retrievable source. Its conversation history is
-  schema-less binary protobuf under `~/.gemini/antigravity-cli/conversations/`
-  with no `.proto` available to decode field numbers into token counts, and its
-  logs are plain glog with no usage-bearing line at any verbosity `agy --help`
-  exposes. This was investigated and is a dead end, not an oversight -- do not
-  spend the afternoon rediscovering it.
+- Claude and Codex expose per-session token counts in JSONL transcripts.
+- Ollama exposes counts in the verbose terminal output captured by cdx.
+- Antigravity exposes quota through interactive statusLine stdin (collected by
+  antigravity_status), and per-run tokens through `agy -p --output-format json`
+  (read by run_usage). Interactive per-run token counts remain unavailable;
+  quota changes are not token measurements.
 """
 
 import json

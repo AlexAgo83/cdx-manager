@@ -369,6 +369,7 @@ def _format_status_detail(row, use_color=False):
         f"{_style('Session:', '1', use_color)} {_format_session_name(row)}",
         f"{_style('Provider:', '1', use_color)} {row.get('provider') or 'n/a'}",
         f"{_style('Status:', '1', use_color)} {_style(row.get('status') or ('enabled' if row.get('enabled', True) else 'disabled'), '2' if row.get('enabled', True) is False else '32', use_color)}",
+        *([f"{_style('Plan:', '1', use_color)} {row['plan_tier']}"] if row.get("plan_tier") else []),
         f"{_style('Auth:', '1', use_color)} {_style(auth, auth_color, use_color)}",
         *([f"{_style('Auth type:', '1', use_color)} {_auth_type_label(row)[0]}"] if row.get("auth_type") else []),
         f"{_style('Available:', '1', use_color)} {_style_pct(row.get('available_pct'), use_color)}",

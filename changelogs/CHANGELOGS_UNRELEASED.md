@@ -1,5 +1,12 @@
 # Unreleased
 
+## Antigravity quota and run usage
+
+- Install a local Antigravity statusLine command in new profiles and on interactive launch, merging settings and relaying the original stdin to any existing command so its output is preserved. Store only the reading time, plan tier and allowlisted quota fields in an atomic mode-600 profile file; never access Google internal endpoints or antigravity-oauth-token.
+- Show Gemini 5-hour and weekly remaining quota, reset times and reading age in status. Include all bucket names, including third-party buckets, in JSON. Mark readings older than 24 hours stale and suppress availability after a bucket's reset has passed.
+- Launch headless Antigravity with `agy -p --output-format json` and record its input, output, thinking, cache-read and reported total counters. Preserve the native total without assuming an undocumented cache or thinking subset relationship. Interactive quota is not per-run token usage.
+- Cover synthetic native payloads, missing/unknown buckets, stale and expired readings, settings merges, existing command output, private file permissions and headless observation.
+
 ## Isolated mission Git and RTK
 
 - Give local and remote isolated linked worktrees a read-only Git view with their own HEAD/index and shared objects/refs, without traversing private host parents or exposing repository/global configuration, hooks, SSH keys or Git push credentials. Preserve supervisor-owned commits and pushes.

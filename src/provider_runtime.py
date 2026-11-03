@@ -753,6 +753,9 @@ def _build_launch_spec(session, cwd=None, env_override=None, initial_prompt=None
             "label": "claude",
         }, capture_transcript=capture_transcript, env=env)
     if session["provider"] == PROVIDER_ANTIGRAVITY:
+        from .antigravity_status import install
+
+        install(_get_auth_home(session))
         args = _launch_config_args(session)
         if initial_prompt:
             args += ["--prompt-interactive", initial_prompt]
@@ -1057,6 +1060,16 @@ def _build_headless_launch_spec(session, cwd=None, env_override=None, initial_pr
             "options": {"cwd": cwd, "env": {**env, "CODEX_HOME": _get_auth_home(session)}},
             "label": "codex",
             "sensitive_args": [initial_prompt] if initial_prompt else [],
+        }
+
+    if session["provider"] == PROVIDER_ANTIGRAVITY:
+        args = ["-p", initial_prompt or "", "--output-format", "json"]
+        args += _launch_config_args(session)
+        args += _extra_args(session)
+        return {
+            "command": "agy", "args": args,
+            "options": {"cwd": cwd, "env": {**env, **_antigravity_env_overrides(_get_auth_home(session))}},
+            "label": "antigravity", "sensitive_args": [initial_prompt] if initial_prompt else [],
         }
 
     return _build_launch_spec(
