@@ -1,5 +1,12 @@
 # Unreleased
 
+## Antigravity quota and run usage
+
+- Install a local Antigravity statusLine command in new profiles and on interactive launch, merging settings and relaying the original stdin to any existing command so its output is preserved. Store only the reading time, plan tier and allowlisted quota fields in an atomic mode-600 profile file; never access Google internal endpoints or antigravity-oauth-token.
+- Show Gemini 5-hour and weekly remaining quota, reset times and reading age in status. Include all bucket names, including third-party buckets, in JSON. Mark readings older than 24 hours stale and suppress availability after a bucket's reset has passed.
+- Launch headless Antigravity with `agy -p --output-format json` and record its input, output, thinking, cache-read and reported total counters. Preserve the native total without assuming an undocumented cache or thinking subset relationship. Interactive quota is not per-run token usage.
+- Cover synthetic native payloads, missing/unknown buckets, stale and expired readings, settings merges, existing command output, private file permissions and headless observation.
+
 ## Remote Claude headless runs
 
 - Add `cdx auth claude-token <profile>` to store a dedicated `claude setup-token` value from stdin in a controller-only mode-600 profile file. Missing or unsafe tokens stop remote runs with this command as the remedy; worker login is unnecessary.

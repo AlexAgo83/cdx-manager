@@ -359,6 +359,12 @@ def session_paths(session):
 
 def _status_row_from_session(store, s):
     status = s.get("lastStatus")
+    antigravity = None
+    if s["provider"] == "antigravity":
+        from .antigravity_status import read_status
+
+        antigravity = read_status(s.get("authHome") or s.get("sessionRoot") or "")
+        status = antigravity
     enabled = s.get("enabled", True) is not False
     row_status = status if enabled else None
     runtime = _session_runtime(store, s["name"])
@@ -401,6 +407,13 @@ def _status_row_from_session(store, s):
         "updated_at": _to_local_iso(s.get("lastStatusAt")),
         "last_launched_at": _to_local_iso(s.get("lastLaunchedAt")),
     }
+    if antigravity is not None:
+        row.update({key: antigravity[key] for key in (
+            "quota", "quota_status", "quota_stale", "reading_age_seconds", "plan_tier", "updated_at",
+            "reset_5h_at_iso", "reset_week_at_iso",
+        )})
+        if enabled and antigravity["quota_stale"]:
+            row["status"] = "stale"
     row["runs_out_at_iso"] = _runs_out(row)
     return row
 
@@ -434,6 +447,9 @@ def _resolve_session_status(store, base_dir, env, fetch_codex_status, session,
     cache_only=False,
     status_timeout_seconds=None,):
     current_status = session.get("lastStatus")
+    if session["provider"] == "antigravity":
+        # The local statusLine file is the only Antigravity quota source.
+        return None
     if session.get("enabled", True) is False:
         return current_status
     if cache_only:

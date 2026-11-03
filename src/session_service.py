@@ -644,6 +644,10 @@ def create_session(base_dir, env, store, name, provider=DEFAULT_PROVIDER):
         _seed_codex_auth_from_global(auth_home, env=env)
     if normalized_provider == PROVIDER_CLAUDE:
         _ensure_claude_attribution_disabled(auth_home)
+    if normalized_provider == "antigravity":
+        from .antigravity_status import install
+
+        install(auth_home)
     now = _local_now_iso()
     session = {
         "name": name,

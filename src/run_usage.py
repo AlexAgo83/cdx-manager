@@ -10,6 +10,10 @@ definitions without saying so.
 
 The definitions below are therefore normative, not a suggestion:
 
+  Antigravity exception: the native input/cache/thinking relationship is not
+  established by the measured CLI output. Preserve its counters and reported
+  total rather than inventing a subset relationship or recomputing that total.
+
   input_tokens          Uncached input only. Claude reports it this way
                         natively; Codex does not, so its cache-inclusive count
                         is reduced here rather than left for a reader to guess.
@@ -64,9 +68,9 @@ TOKEN_USAGE_KEYS = (
     "total_tokens",
 )
 USAGE_KEYS = (*TOKEN_USAGE_KEYS, "cache_hit_ratio")
-#: Derived values are never read from a provider.
+#: Derived values are never read from a provider, except Antigravity's native total.
 DERIVED_USAGE_KEYS = ("cached_input_tokens", "total_tokens", "cache_hit_ratio")
-SUPPORTED_PROVIDERS = {"claude", "codex", "ollama"}
+SUPPORTED_PROVIDERS = {"claude", "codex", "ollama", "antigravity"}
 
 
 def empty_usage():
@@ -456,6 +460,8 @@ def coerce_usage(usage, provider=None):
         reasoning_tokens=usage.get("reasoning_tokens"),
         cache_creation_1h_tokens=usage.get("cache_creation_1h_tokens"),
     )
+    if provider == "antigravity":
+        record["total_tokens"] = _first_int(usage.get("total_tokens"))
     if record["cached_input_tokens"] is None:
         # A legacy record carrying only the fused figure: keep it visible rather
         # than dropping a number someone already recorded, but leave the split
@@ -643,6 +649,16 @@ def _usage_from_dict(value, provider=None):
     usage = value.get("usage") if isinstance(value.get("usage"), dict) else value
     if not isinstance(usage, dict):
         return empty_usage()
+
+    if provider == "antigravity":
+        # agy reports thinking separately. Without a documented cache subset
+        # relationship, retain its input count and its measured total verbatim.
+        record = normalize_usage(
+            input_tokens=usage.get("input_tokens"), output_tokens=usage.get("output_tokens"),
+            cache_read_tokens=usage.get("cache_read_tokens"), reasoning_tokens=usage.get("thinking_tokens"),
+        )
+        record["total_tokens"] = _first_int(usage.get("total_tokens"))
+        return record
 
     cache_creation = _first_int(usage.get("cache_creation_input_tokens"))
     if cache_creation is None:
