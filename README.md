@@ -78,6 +78,10 @@ cdx run --continue-run RUN_ID --cwd /path/to/repo --prompt "Fix the remaining te
 
 `--continue-run` resumes the exact Claude session or Codex thread and pins the previous run's recorded model and effort, even if the profile settings changed. The profile is inferred from the parent; an explicit session or provider must match. An explicit model or effort must also match. Runs and history record `parent_run_id` and `conversation_id`. Detached continuations use the cdx child supervisor with the same pins. Codex continuation usage is measured between exact transcript snapshots before and after the run, since exec resume can report conversation totals. If either boundary is unavailable, per-run usage stays unknown with `usage_attribution: "continuation_usage_unavailable"` in history instead of counting earlier turns again.
 
+Headless runs, including detached, remote and continued runs, keep their
+conversation identity in run records and history without replacing the profile's
+interactive conversation.
+
 Conservative assumption: a continuation requires a finished Claude or Codex run, a locally available provider transcript, and recorded model and effort settings. Missing runs, profiles, expired sessions, and unavailable settings produce a clear error; the caller can retry without `--continue-run` for a cold run. `--failover` and `--isolate-workspace` cannot be combined with continuation. Capacity recovery and provider model fallback are disabled for continuations so they cannot silently switch model or account. Provider cache retention remains provider-controlled, so resuming does not guarantee a cache hit.
 
 ## Run costs and budgets
@@ -244,8 +248,13 @@ for a fresh credential, and that cleanup works after disconnect and SIGTERM.
 
 `cdx conversation <name> [--conversation ID] [--cursor CURSOR] [--limit N] --json`
 returns a read-only JSON page for the profile's current conversation. An explicit
-conversation ID uses an exact transcript lookup; a profile without a recorded ID
-uses the existing latest-transcript resolver. This fallback is best effort.
+conversation ID uses an exact transcript lookup and never falls back. When the
+profile's recorded ID has no transcript on this host (for example after a remote
+run on another host), or there is no recorded ID, the command uses the existing
+latest local transcript resolver under the profile's auth home. This fallback is
+best effort and does not rewrite the recorded ID. JSON `resolution_method` is
+`conversation_id` for an exact match, `recency` for a local fallback, or `null`
+when no transcript is resolved.
 
 The normal cdx JSON envelope includes `status`, `reason`, `provider`, `session`,
 `entries`, `next_cursor`, and `has_more`. Each entry has exactly `role`

@@ -763,10 +763,8 @@ def handle_run(rest, ctx):
             # since nothing else frees their slot.
             _reconcile_background_runs(ctx)
             _run_registry(ctx).check_capacity(max_parallel)
-        # Claude needs its conversation id before the spec is built; Codex
-        # records its own afterwards, from the rollout. Without this a headless
-        # Claude run left the session with no identity and `cdx resume` fell
-        # back to recency for Claude while working by id for Codex.
+        # Fresh runs carry their own identity; only interactive launches update
+        # the profile's current conversation. Continuations use the parent run.
         if not parsed.get("continue_run"):
             session = ctx["service"]["begin_conversation"](session["name"])
         run_session = {

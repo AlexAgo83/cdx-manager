@@ -1,5 +1,11 @@
 # Unreleased
 
+## Preserve interactive conversations across headless runs
+
+- Keep fresh Claude run identities in run records and history without changing the profile's interactive conversation. Skip interactive Codex identity observation when recording headless run history, including detached, remote and continued runs.
+- Let `cdx conversation` fall back to the latest local transcript when a profile's recorded ID has no transcript on this host. Explicit `--conversation` lookups remain exact and never fall back. Report `resolution_method` as `conversation_id`, `recency`, or `null`.
+- Cover a remote Claude run followed by local interactive conversation reading, local/continued run identity preservation, missing recorded IDs and missing explicit IDs.
+
 ## Antigravity quota and run usage
 
 - Install a local Antigravity statusLine command in new profiles and on interactive launch, merging settings and relaying the original stdin to any existing command so its output is preserved. Store only the reading time, plan tier and allowlisted quota fields in an atomic mode-600 profile file; never access Google internal endpoints or antigravity-oauth-token.
