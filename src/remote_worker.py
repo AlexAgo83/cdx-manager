@@ -35,8 +35,8 @@ def observation_runtime():
     return sys.modules[package.__name__ + '.run_usage'], sys.modules[package.__name__ + '.run_observation']
 
 
-def version():
-    return subprocess.check_output(["codex", "--version"], stderr=subprocess.DEVNULL, timeout=10).decode().strip()
+def version(provider="codex"):
+    return subprocess.check_output([provider, "--version"], stderr=subprocess.DEVNULL, timeout=10).decode().strip()
 
 
 def storage():
@@ -76,10 +76,12 @@ def isolation_probe_command(payload, home, env):
     # Execute exactly the local confinement implementation, shipped over stdin.
     namespace = {'__name__': 'cdx_workspace_sandbox'}
     exec(compile(SANDBOX_SOURCE, 'workspace_sandbox.py', 'exec'), namespace)
+    provider = payload.get('provider', 'codex')
     return namespace['sandbox_command'](
-        ['codex', '--version'], pathlib.Path(payload['cwd']), network=payload['network'],
-        writable=payload['writable'], source=env, auth_home=str(home), provider='codex',
-        observation_home=str(home / 'sessions'))
+        [provider, '--version'], pathlib.Path(payload['cwd']), network=payload['network'],
+        writable=payload['writable'], source=env, auth_home=str(home), provider=provider,
+        observation_home=str(home) if provider == 'claude' else str(home / 'sessions'),
+        claude_token_stdin=provider == 'claude')
 
 
 def probe(root, payload):
@@ -94,7 +96,7 @@ def probe(root, payload):
         os.chmod(home / 'auth.json', 0o600)
         (home / 'sessions').mkdir()
         command, env = isolation_probe_command(payload, home, dict(os.environ))
-        result = subprocess.run(command, env=env, stdin=subprocess.DEVNULL,
+        result = subprocess.run(command, env=env, input=b'"probe-only"\n' if payload.get('provider') == 'claude' else b'',
                                 capture_output=True, timeout=20)
         if result.returncode:
             raise RuntimeError('Remote workspace isolation unavailable')
@@ -111,10 +113,12 @@ def main():
     root = storage()
     if sys.argv[-1] == 'probe':
         return probe(root, payload)
-    auth = payload['auth']
-    if auth['tokens'].get('refresh_token') != '':
+    provider = payload.get('provider', 'codex')
+    claude = provider == 'claude'
+    auth = payload.get('auth')
+    if not claude and auth['tokens'].get('refresh_token') != '':
         raise RuntimeError('Refusing a rotating remote credential')
-    if version() != payload['version']:
+    if version(provider) != payload['version']:
         raise RuntimeError('Remote Codex CLI version mismatch')
     child = None
     stopped = threading.Event()
@@ -144,36 +148,52 @@ def main():
         if stopped.is_set():
             return 130
         os.umask(0o077)
-        (home / 'auth.json').write_text(json.dumps(auth))
-        os.chmod(home / 'auth.json', 0o600)
-        (home / 'config.toml').write_text('cli_auth_credentials_store = "file"\n' + payload['config'])
-        env = {key: value for key, value in os.environ.items()
-               if key not in ('OPENAI_API_KEY', 'OPENAI_ACCESS_TOKEN', 'CODEX_ACCESS_TOKEN', 'CODEX_API_KEY', 'CODEX_HOME')}
-        env['CODEX_HOME'] = str(home)
-        command = ['codex', *payload['args']]
-        if payload.get('isolate_workspace'):
-            (home / 'sessions').mkdir(mode=0o700)
-            args = payload['args'][:]
-            while '-s' in args:
-                index = args.index('-s')
-                del args[index:index + 2]
-            if '--dangerously-bypass-approvals-and-sandbox' not in args:
-                index = args.index('--') if '--' in args else len(args)
-                args[index:index] = ['--dangerously-bypass-approvals-and-sandbox']
+        if claude:
+            claude_home = home / 'claude-home'
+            claude_home.mkdir(mode=0o700)
+            if not payload.get('isolate_workspace') or '--bare' in payload['args']:
+                raise RuntimeError('Remote Claude requires isolated OAuth execution')
             namespace = {'__name__': 'cdx_workspace_sandbox'}
             exec(compile(SANDBOX_SOURCE, 'workspace_sandbox.py', 'exec'), namespace)
             command, env = namespace['sandbox_command'](
-                ['codex', *args], pathlib.Path(payload['cwd']), network=payload['network'],
-                writable=payload['writable'], source=env, auth_home=str(home), provider='codex',
-                observation_home=str(home / 'sessions'))
+                ['claude', *payload['args']], pathlib.Path(payload['cwd']), network=payload['network'],
+                writable=payload['writable'], source=dict(os.environ), provider='claude',
+                observation_home=str(claude_home), claude_token_stdin=True)
+        else:
+            (home / 'auth.json').write_text(json.dumps(auth))
+            os.chmod(home / 'auth.json', 0o600)
+            (home / 'config.toml').write_text('cli_auth_credentials_store = "file"\n' + payload['config'])
+            env = {key: value for key, value in os.environ.items()
+                   if key not in ('OPENAI_API_KEY', 'OPENAI_ACCESS_TOKEN', 'CODEX_ACCESS_TOKEN', 'CODEX_API_KEY', 'CODEX_HOME')}
+            env['CODEX_HOME'] = str(home)
+            command = ['codex', *payload['args']]
+            if payload.get('isolate_workspace'):
+                (home / 'sessions').mkdir(mode=0o700)
+                args = payload['args'][:]
+                while '-s' in args:
+                    index = args.index('-s')
+                    del args[index:index + 2]
+                if '--dangerously-bypass-approvals-and-sandbox' not in args:
+                    index = args.index('--') if '--' in args else len(args)
+                    args[index:index] = ['--dangerously-bypass-approvals-and-sandbox']
+                namespace = {'__name__': 'cdx_workspace_sandbox'}
+                exec(compile(SANDBOX_SOURCE, 'workspace_sandbox.py', 'exec'), namespace)
+                command, env = namespace['sandbox_command'](
+                    ['codex', *args], pathlib.Path(payload['cwd']), network=payload['network'],
+                    writable=payload['writable'], source=env, auth_home=str(home), provider='codex',
+                    observation_home=str(home / 'sessions'))
         started_at = datetime.now(timezone.utc).isoformat()
         child = subprocess.Popen(command, cwd=payload['cwd'], env=env,
-                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                 stdin=subprocess.PIPE if claude else subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                  start_new_session=True)
+        if claude:
+            child.stdin.write(json.dumps(payload['token']).encode() + b'\n')
+            child.stdin.close()
         if stopped.is_set():
             stop()
         threading.Thread(target=disconnected, daemon=True).start()
-        secrets = [value for value in auth['tokens'].values() if isinstance(value, str) and value]
+        secrets = ([payload['token']] if claude else
+                   [value for value in auth['tokens'].values() if isinstance(value, str) and value])
 
         output_lock = threading.Lock()
         usage_reader, observation_reader = observation_runtime()
@@ -181,6 +201,8 @@ def main():
         stdout_path.touch(mode=0o600)
 
         def snapshot():
+            if claude:
+                return
             # Read the same exact-thread evidence as the local supervisor before
             # volatile storage is removed. Only normalized metadata is exported.
             with output_lock:
@@ -234,7 +256,7 @@ def main():
         for thread in threads:
             thread.join()
         snapshot()
-        if time.time() >= payload['expires_at']:
+        if time.time() >= payload.get('expires_at', float('inf')):
             print('Remote temporary credential expired; start a new run from the controller.', file=sys.stderr)
             return 123
         return 130 if stopped.is_set() else result
@@ -249,5 +271,5 @@ if __name__ == '__main__':
         sys.exit(main())
     except Exception:
         # Never render exception values: input and provider errors may contain credentials.
-        print('Remote worker setup or execution failed; check Python, Codex, cwd, /dev/shm and isolation dependencies.', file=sys.stderr)
+        print('Remote worker setup or execution failed; check Python, provider CLI, cwd, /dev/shm and isolation dependencies.', file=sys.stderr)
         sys.exit(126)
