@@ -112,19 +112,22 @@ def ssh_command(target, mode, remote_prefix=None):
 
 def preflight(target, env=None, *, remote_prefix=None, isolate_workspace=False, cwd=None, network=False, writable=True, provider="codex", model=None):
     payload = {'isolate_workspace': isolate_workspace, 'cwd': cwd, 'network': network, 'writable': writable}
-    if provider in ('ollama', 'claude'):
+    if provider in ('ollama', 'claude', 'antigravity'):
         payload.update(provider=provider, model=model)
-    if provider == 'claude':
+    if provider in ('claude', 'antigravity'):
         payload['isolate_workspace'] = True
     try:
         local = ('ollama-http' if provider == 'ollama' else
-                 subprocess.check_output([provider, '--version'], env=env, stderr=subprocess.DEVNULL, timeout=10).decode().strip())
+                 subprocess.check_output(['agy' if provider == 'antigravity' else provider, '--version'], env=env, stderr=subprocess.DEVNULL, timeout=10).decode().strip())
         result = subprocess.run(ssh_command(target, 'probe', remote_prefix), env=env,
                                 input=worker_input() + json.dumps(payload).encode() + b'\n',
                                 capture_output=True, timeout=30)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise CdxError('Remote worker unreachable or provider unavailable.', code='remote_unavailable') from error
     if result.returncode:
+        if provider == 'antigravity' and result.returncode == 120:
+            raise CdxError('Antigravity worker is not signed in or its session file is unsafe; sign in once on the worker.',
+                           code='antigravity_not_signed_in')
         if provider == 'ollama':
             raise CdxError('Remote Ollama unavailable: check the installed local model, loopback API and isolation dependencies.',
                            code='remote_unavailable')
@@ -163,6 +166,11 @@ def run_remote(session, target, version, cwd=None, env_override=None, initial_pr
         spec = {'command': 'ollama-http', 'args': [], 'env': {}}
         payload = {'provider': 'ollama', 'model': launch.get('model'), 'prompt': initial_prompt,
                    'cwd': cwd, 'isolate_workspace': bool(launch.get('isolate_workspace'))}
+    elif session['provider'] == 'antigravity':
+        spec = _build_headless_launch_spec(session, cwd, env_override, initial_prompt)
+        payload = {'provider': 'antigravity', 'args': spec['args'], 'cwd': cwd,
+                   'version': version, 'isolate_workspace': True, 'network': False,
+                   'writable': (session.get('launch') or {}).get('permission') != 'review'}
     elif session['provider'] == 'claude':
         from .claude_remote_token import read_token
         token = read_token(session)
@@ -299,4 +307,10 @@ def run_remote(session, target, version, cwd=None, env_override=None, initial_pr
         raise error
     if timed_out or budget_exceeded:
         info['returncode'] = 125 if budget_exceeded else 124
+    if session['provider'] == 'antigravity':
+        from .run_usage import antigravity_outcome
+        info = antigravity_outcome(info)
+        if child.returncode in (120, 121):
+            info.update(returncode=1, provider_error='antigravity_not_signed_in' if child.returncode == 120 else 'antigravity_session_busy',
+                        provider_message='Antigravity worker is not signed in.' if child.returncode == 120 else 'Antigravity worker session is busy.')
     return info

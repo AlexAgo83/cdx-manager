@@ -741,3 +741,43 @@ def _int_value(*values):
 
 def _has_usage(usage):
     return isinstance(usage, dict) and any(usage.get(key) is not None for key in USAGE_KEYS)
+
+
+def antigravity_outcome(info):
+    """Fail closed on missing completion, authentication errors and refused tools."""
+    if info.get("timed_out") or info.get("budget_exceeded"):
+        return info
+    try:
+        with open(info["stdout_path"], encoding="utf-8") as handle:
+            records = _parse_json_records(handle.read())
+        with open(info["stderr_path"], encoding="utf-8") as handle:
+            error_text = handle.read().lower()
+    except OSError:
+        records, error_text = [], ""
+    def objects(value):
+        if isinstance(value, dict):
+            yield value
+            for child in value.values():
+                yield from objects(child)
+        elif isinstance(value, list):
+            for child in value:
+                yield from objects(child)
+
+    statuses = [record.get("status") for record in records if isinstance(record, dict) and "status" in record]
+    errors = [record.get("error") for record in objects(records) if record.get("error")]
+    text = json.dumps(errors if statuses and statuses[-1] == "SUCCESS" else records).lower() + error_text
+    expired = any(word in text for word in ("invalid_grant", "unauthenticated", "session expired", "token expired",
+                                          "login required", "sign in", "not authenticated", "authentication required"))
+    refused = any(record.get(key) for record in objects(records)
+                  for key in ("permission_denials", "refused_actions", "denied_actions"))
+    refused = refused or any(str(record.get("status", "")).upper() in ("REFUSED", "DENIED", "PERMISSION_DENIED")
+                             for record in objects(records))
+    if expired:
+        code, message = "antigravity_session_expired", "Antigravity worker session has expired; sign in again on the worker."
+    elif refused:
+        code, message = "antigravity_action_refused", "Antigravity refused one or more requested actions."
+    elif not statuses or statuses[-1] != "SUCCESS":
+        code, message = "antigravity_status_failed", "Antigravity did not report JSON status SUCCESS."
+    else:
+        return info
+    return {**info, "returncode": info.get("returncode") or 1, "provider_error": code, "provider_message": message}

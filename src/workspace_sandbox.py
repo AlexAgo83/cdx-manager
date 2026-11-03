@@ -5,10 +5,12 @@ Provider authentication is the only credential deliberately passed to the provid
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import shutil
 import socket
+import stat
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -79,6 +81,61 @@ def private_auth_home(auth):
         yield directory
 
 
+ANTIGRAVITY_TOKEN_PATH = ".gemini/antigravity-cli/antigravity-oauth-token"
+# Candidate endpoints extracted from agy 1.4.12; live acceptance is pending.
+ANTIGRAVITY_DESTINATIONS = ("oauth2.googleapis.com", "cloudcode-pa.googleapis.com",
+                            "daily-cloudcode-pa.googleapis.com")
+
+
+def antigravity_token():
+    path = Path.home() / ANTIGRAVITY_TOKEN_PATH
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        raise RuntimeError("Antigravity worker is not signed in; sign in once on the worker.") from None
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+            or stat.S_IMODE(info.st_mode) != 0o600 or not info.st_size
+            or any(parent.is_symlink() for parent in path.parents)):
+        raise RuntimeError("Antigravity worker session file is unsafe; restore an owner-only regular token file.")
+    return path
+
+
+def antigravity_secrets():
+    text = antigravity_token().read_text().strip()
+
+    def values(value):
+        if isinstance(value, dict):
+            return [item for child in value.values() for item in values(child)]
+        if isinstance(value, list):
+            return [item for child in value for item in values(child)]
+        return [value] if isinstance(value, str) and value else []
+
+    try:
+        return [text, *values(json.loads(text))]
+    except ValueError:
+        return [text]
+
+
+@contextmanager
+def antigravity_attempt(parent="/dev/shm"):
+    import fcntl
+
+    location = Path(parent).resolve()
+    mounts = [row.split() for row in Path('/proc/mounts').read_text().splitlines()]
+    enclosing = [row for row in mounts if Path(row[1]) == location or Path(row[1]) in location.parents]
+    if not enclosing or max(enclosing, key=lambda row: len(row[1]))[2] != 'tmpfs':
+        raise RuntimeError('Antigravity attempts require memory-backed storage')
+    token = antigravity_token()
+    # Lock the file itself without modifying it; every cdx attempt uses this inode.
+    with token.open("rb") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError("Antigravity worker session is busy with another attempt.") from None
+        with tempfile.TemporaryDirectory(prefix="cdx-agy-", dir=parent) as directory:
+            yield directory
+
+
 def clean_env(source: dict) -> dict:
     allowed = ("PATH", "LANG", "LC_ALL", "TERM", "TZ")
     env = {key: source[key] for key in allowed if key in source}
@@ -123,9 +180,9 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
              if online else ["--unshare-all"])
     args += ["--cap-drop", "ALL"]
     args += ["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--dir", "/home/agent"]
-    if provider == "claude" and claude_token_stdin:
+    if (provider == "claude" and claude_token_stdin) or provider == "antigravity":
         if not observation_home:
-            raise RuntimeError("Remote Claude requires a volatile attempt home")
+            raise RuntimeError("Provider requires a volatile attempt home")
         args += ["--bind", observation_home, "/home/agent"]
     # An allowlist avoids overlooking another secret file or a credential symlink.
     paths = [Path(p) for p in ("/usr", "/bin", "/sbin", "/lib", "/lib64")]
@@ -198,6 +255,11 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
             env["CLAUDE_CODE_OAUTH_TOKEN"] = token
         env.update(CLAUDE_CODE_SUBPROCESS_ENV_SCRUB="1",
                    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1")
+    elif provider == "antigravity":
+        token = antigravity_token()
+        args += ["--ro-bind", str(token), "/home/agent/" + ANTIGRAVITY_TOKEN_PATH]
+        env["AGY_CLI_DISABLE_AUTO_UPDATE"] = "true"
+        env["XDG_CACHE_HOME"] = "/home/agent/.cache"
     elif provider == "ollama":
         if not ollama_relay:
             raise RuntimeError("Isolated Ollama requires a supervisor-owned relay")
@@ -219,6 +281,20 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
                 raise RuntimeError("No Anthropic inference addresses")
             rules = rules.replace("policy accept", "policy drop").replace(
                 "        oif", "        ct state established,related accept\n        oif")
+            rules = rules.replace("    }\n}", "        ip daddr { 1.1.1.1, 9.9.9.9 } udp dport 53 accept\n"
+                                  "        ip daddr { 1.1.1.1, 9.9.9.9 } tcp dport 53 accept\n"
+                                  + "\n".join(inference) + "\n    }\n}")
+        if provider == "antigravity":
+            addresses = {entry[4][0] for host in ANTIGRAVITY_DESTINATIONS
+                         for entry in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)}
+            if not addresses or any(not ipaddress.ip_address(address).is_global for address in addresses):
+                raise RuntimeError("Antigravity destinations must resolve to public addresses")
+            rules = NETWORK_RULES.replace("policy accept", "policy drop")
+            inference = []
+            for family in ("ip", "ip6"):
+                values = sorted(a for a in addresses if (":" in a) == (family == "ip6"))
+                if values:
+                    inference.append(f"        {family} daddr {{ {', '.join(values)} }} tcp dport 443 accept")
             rules = rules.replace("    }\n}", "        ip daddr { 1.1.1.1, 9.9.9.9 } udp dport 53 accept\n"
                                   "        ip daddr { 1.1.1.1, 9.9.9.9 } tcp dport 53 accept\n"
                                   + "\n".join(inference) + "\n    }\n}")
