@@ -57,8 +57,6 @@ from .commands.backup import (  # noqa: F401
     handle_export,
     handle_import,
 )
-
-# Re-exported for cli.py and tests; see src/commands/__init__.py.
 from .commands.context_memory import (  # noqa: F401
     _list_memory_entries,
     _memory_payload,
@@ -67,6 +65,9 @@ from .commands.context_memory import (  # noqa: F401
     handle_context,
     handle_memory,
 )
+
+# Re-exported for cli.py and tests; see src/commands/__init__.py.
+from .commands.conversation import handle_conversation as handle_conversation
 from .commands.launch import (  # re-export for cli.py / tests
     _format_resume_capability as _format_resume_capability,
 )
