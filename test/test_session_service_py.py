@@ -30,6 +30,22 @@ class SessionServicePythonTests(unittest.TestCase):
     def make_temp_dir(self):
         return tempfile.mkdtemp(prefix="cdx-service-py-")
 
+    def test_run_history_does_not_observe_over_interactive_codex_identity(self):
+        directory = self.make_temp_dir()
+        store = create_session_store(directory)
+        service = create_session_service({"base_dir": directory, "store": store})
+        service["create_session"]("work", "codex")
+        interactive = {"id": "interactive-thread", "provenance": "observed"}
+        store["update_session"]("work", lambda session: {**session, "conversation": interactive})
+        with mock.patch("src.session_service.find_latest_codex_conversation_id", return_value="run-thread") as observe:
+            service["record_launch_history"]("work", {"action": "run", "conversation_id": "run-thread"})
+            observe.assert_not_called()
+            self.assertEqual(service["get_session"]("work")["conversation"], interactive)
+            self.assertEqual(service["get_launch_history"]("work")[0]["conversation_id"], "run-thread")
+            service["record_launch_history"]("work", {"action": "launch"})
+            observe.assert_called_once()
+            self.assertEqual(service["get_session"]("work")["conversation"]["id"], "run-thread")
+
     def test_create_list_and_remove_sessions(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

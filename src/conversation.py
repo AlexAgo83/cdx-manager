@@ -101,25 +101,31 @@ def _anchor(handle, offset):
 
 
 def read_conversation(provider, auth_home=None, *, conversation_id=None, started_at=None,
-                      terminal_transcript=None, cursor=None, limit=100):
+                      terminal_transcript=None, cursor=None, limit=100, fallback_to_recency=False):
     """Return a JSON-serializable page; pass next_cursor back unchanged to poll.
 
     Entries follow file/block order. Cursors bind a byte offset and block index
     to the resolved file; reset_required means discard the old cursor and page
     again from the beginning. Incomplete trailing lines are retried next time.
+    Only implicit session identities may opt into fallback_to_recency.
     Tool bodies and reasoning blocks are never returned. Ollama PTY captures
     cannot reliably distinguish roles and are explicitly unsupported.
     """
     if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 1000:
         raise CdxError("Conversation limit must be an integer between 1 and 1000.")
-    page = {"status": "ok", "reason": None, "provider": provider, "entries": [], "next_cursor": None, "has_more": False}
+    page = {"status": "ok", "reason": None, "provider": provider, "entries": [], "next_cursor": None, "has_more": False,
+            "resolution_method": None}
     if provider not in PROVIDERS or provider == "ollama":
         return {**page, "status": "unsupported", "reason": "no_structured_transcript_reader"}
     # An explicit conversation must never fall back to an unrelated recent file.
     if conversation_id:
         path = conversation_transcript(provider, auth_home, conversation_id)
+        if path:
+            page["resolution_method"] = "conversation_id"
+        elif fallback_to_recency:
+            path, page["resolution_method"] = resolve_transcript(provider, auth_home)
     else:
-        path, _match = resolve_transcript(provider, auth_home, started_at, terminal_transcript=terminal_transcript)
+        path, page["resolution_method"] = resolve_transcript(provider, auth_home, started_at, terminal_transcript=terminal_transcript)
     if not path:
         return {**page, "status": "unavailable", "reason": "transcript_not_found"}
     try:

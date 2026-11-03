@@ -141,7 +141,7 @@ class MarkRescuedTests(unittest.TestCase):
         from src.session_service import create_session_service
         service = create_session_service({"base_dir": tempfile.mkdtemp()})
         service["create_session"]("work", "claude")
-        conversation = service["begin_conversation"]("work")["conversation"]["id"]
+        conversation = service["launch_session"]("work")["conversation"]["id"]
         service["mark_conversation_rescued"]("work", "another")
         self.assertNotIn("rescuedAt", service["get_session"]("work")["conversation"])
         service["mark_conversation_rescued"]("work", conversation)

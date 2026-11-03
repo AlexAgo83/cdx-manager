@@ -527,15 +527,17 @@ class RunsCommandTests(CliTestBase):
                     self.assertEqual(result, 0, payload)
                     return payload
 
+                interactive = service["launch_session"]("work").get("conversation")
                 cold = invoke(["work", "--project", directory])
+                self.assertEqual(service["get_session"]("work").get("conversation"), interactive)
                 self.assertIsNone(cold["parent_run_id"])
                 self.assertIsNotNone(cold["conversation_id"])
                 service["set_launch_settings"]("work", {"model": "changed-model", "power": "low", "fallback_model": "other-model"})
-                # Changing the profile's latest identity must not change the parent run's identity.
-                if provider == "claude":
-                    service["begin_conversation"]("work")
+                # A later interactive launch must not change the parent run's identity.
+                interactive = service["launch_session"]("work").get("conversation")
                 continued = invoke(["--continue-run", cold["run_id"]])
                 chained = invoke(["--continue-run", continued["run_id"], "--provider", provider])
+                self.assertEqual(service["get_session"]("work").get("conversation"), interactive)
                 self.assertEqual(continued["parent_run_id"], cold["run_id"])
                 self.assertEqual(chained["parent_run_id"], continued["run_id"])
                 for record in (cold, continued, chained):
@@ -1660,6 +1662,23 @@ class RunsCommandTests(CliTestBase):
             "total_tokens": None,
             "cache_hit_ratio": None,
         })
+
+    def test_detached_claude_run_preserves_interactive_identity(self):
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": directory})
+        service["create_session"]("work", "claude")
+        interactive = service["launch_session"]("work")["conversation"]
+        auth = _AuthHarness(initial_auth={service["get_session"]("work")["authHome"]: True})
+        output = self.make_io()
+        with mock.patch("src.commands.runs.supports_native_background", return_value=False):
+            self.assertEqual(main([
+                "run", "work", "--cwd", directory, "--prompt", "Work", "--detach", "--json",
+            ], self.make_run_ctx(output, service, spawn_sync=auth.spawn_sync,
+                                 spawn_detached=lambda *_a, **_k: _HeadlessChild(0))), 0)
+        run = json.loads(output["stdout"].getvalue())
+        self.assertNotEqual(run["conversation_id"], interactive["id"])
+        self.assertEqual(RunRegistry(directory).get(run["run_id"])["conversation_id"], run["conversation_id"])
+        self.assertEqual(service["get_session"]("work")["conversation"], interactive)
 
     def test_run_detach_returns_run_id_without_waiting(self):
         target_dir = self.make_temp_dir()

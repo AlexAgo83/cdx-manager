@@ -16,7 +16,7 @@ from src.errors import CdxError
 from src.remote_run import preflight, run_remote
 from src.session_service import create_session_service
 
-TOKEN = 'synthetic-claude-setup-token-not-a-real-secret'
+TOKEN = 'fake-claude-setup-credential'
 
 
 @pytest.fixture
@@ -29,7 +29,7 @@ import json, os, sys
 from pathlib import Path
 args = sys.argv[1:]
 assert 'CLAUDE_CODE_OAUTH_TOKEN' not in os.environ
-assert 'synthetic-claude-setup-token-not-a-real-secret' not in str(args)
+assert 'fake-claude-setup-credential' not in str(args)
 for index, arg in enumerate(args):
     if arg == '--bind' and args[index+2] == '/home/agent':
         os.environ['HOME'] = args[index+1]
@@ -47,7 +47,7 @@ if '--version' in sys.argv:
     print('claude-code test-version')
     sys.exit(0)
 token = os.environ['CLAUDE_CODE_OAUTH_TOKEN']
-assert token == 'synthetic-claude-setup-token-not-a-real-secret'
+assert token == 'fake-claude-setup-credential'
 assert token not in str(sys.argv)
 assert '--bare' not in sys.argv
 assert sys.argv[sys.argv.index('--permission-mode') + 1] == 'bypassPermissions'
@@ -120,6 +120,30 @@ class RemoteClaudeTests(CliTestBase):
         assert '[REDACTED]' in persisted
         assert not list(self.worker_root.glob('run-*'))
         assert not Path((self.directory / 'home').read_text()).exists()
+
+    def test_remote_run_preserves_local_interactive_conversation(self):
+        session = self.service['launch_session']('claude-work')
+        conversation = session['conversation']
+        path = Path(session['authHome']) / '.claude/projects/repo' / (conversation['id'] + '.jsonl')
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({'type': 'assistant', 'message': {
+            'role': 'assistant', 'content': 'Local interactive reply',
+        }}) + '\n')
+        store_token(session, TOKEN)
+        out = self.make_io()
+        assert main(['run', 'claude-work', '--remote', 'worker', '--cwd', str(self.directory),
+                     '--prompt', 'Work', '--json'], self.make_run_ctx(out, self.service)) == 0
+        run = json.loads(out['stdout'].getvalue())
+        assert run['conversation_id'] != conversation['id']
+        assert self.service['get_session']('claude-work')['conversation'] == conversation
+        history = self.service['get_launch_history']('claude-work', limit=0)
+        assert history[0]['conversation_id'] == run['conversation_id']
+        out = self.make_io()
+        assert main(['conversation', 'claude-work', '--json'], self.make_run_ctx(out, self.service)) == 0
+        page = json.loads(out['stdout'].getvalue())
+        assert page['status'] == 'ok'
+        assert page['resolution_method'] == 'conversation_id'
+        assert page['entries'][0]['text'] == 'Local interactive reply'
 
     def test_missing_token_names_storage_command_before_ssh(self):
         out = self.make_io()

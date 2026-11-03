@@ -28,7 +28,7 @@ def handle_conversation(rest, ctx):
     page = read_conversation(
         session["provider"], _get_auth_home(session),
         conversation_id=parsed["conversation"] or (session.get("conversation") or {}).get("id"),
-        cursor=parsed["cursor"], limit=limit,
+        cursor=parsed["cursor"], limit=limit, fallback_to_recency=not parsed["conversation"],
     )
     _write_json(ctx, _json_success("conversation", "Conversation page loaded.", session=session["name"], **page))
     return 0

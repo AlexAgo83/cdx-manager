@@ -689,12 +689,13 @@ def record_launch_history(store, name, payload):
         **payload,
     }
     store["append_launch_history"](entry)
-    _observe_codex_conversation(store, session)
+    if entry.get("action") != "run":
+        _observe_codex_conversation(store, session)
     return entry
 
 
 def _observe_codex_conversation(store, session):
-    """Read Codex's conversation id back after a run, if it wrote one.
+    """Read Codex's conversation id back after an interactive launch.
 
     Codex mints the id itself, so unlike Claude this can only be observed once
     the rollout exists. Failing to find one is normal and leaves the session on
@@ -938,26 +939,14 @@ def _conversation_identity_for_launch(session):
 
 
 def begin_conversation(store, name):
-    """Mint the conversation id a Claude run is about to carry, and store it.
-
-    `launch_session` does this for interactive launches, but a headless run
-    never goes through it, so `cdx run` used to leave Claude sessions with no
-    identity at all - `cdx resume` then fell back to recency for Claude while
-    working by id for Codex, which records its own after the fact. Same shape
-    for both providers now: whatever ran last is what resume names.
-
-    Returns the updated session, or the unchanged one for providers that mint
-    nothing here.
-    """
+    """Return a run-local identity without changing the interactive session."""
     session = store["get_session"](name)
     if not session:
         raise CdxError(f"Unknown session: {name}")
     conversation = _conversation_identity_for_launch(session)
     if not conversation:
         return session
-    return store["update_session"](name, lambda s: {
-        **s, "conversation": conversation, "updatedAt": _local_now_iso(),
-    })
+    return {**session, "conversation": conversation}
 
 
 def mark_conversation_rescued(store, name, conversation_id):
