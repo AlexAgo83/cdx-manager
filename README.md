@@ -4,7 +4,7 @@
 
 <br clear="left"/>
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.26.1-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.26.2-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 
 **The right AI coding account, when you need it.** CDX Manager keeps your Codex and Claude accounts in separate profiles, shows which ones have quota, and helps you pick the next usable session from your terminal.
 
@@ -307,14 +307,18 @@ forward cursors, transcripts must be append-only: bounded boundary checks cannot
 detect every arbitrary edit elsewhere in a file that also grows.
 
 Codex response items and Claude-compatible JSONL transcripts (Claude and
-Antigravity) are supported through the existing transcript resolver. Missing or
+Antigravity) are supported through the existing transcript resolver. Only
+`response_item` records from Codex and `user`/`assistant` records with `message`
+from Claude-compatible transcripts are read, including their tool blocks. All
+other record types are ignored, even when they repeat conversation content. Missing or
 unreadable files return `status: "unavailable"` with a reason. Ollama's terminal
 capture does not reliably identify message roles and returns
 `status: "unsupported"`, including when no capture exists. A transcript record
-larger than 1 MiB is skipped with bounded reads through its newline. It produces
+larger than 1 MiB is skipped with bounded reads through its newline. For an allowed conversation record with readable type and message metadata, it produces
 one entry containing `[élément trop volumineux ignoré]`, with a stable ID and a
 role recovered from structural metadata in the readable prefix, or `tool` when
-unknown. Its body, images and attachments are never returned. The cursor advances
+unknown. Records whose type or message cannot be established from the bounded
+prefix are ignored. Its body, images and attachments are never returned. The cursor advances
 past that record so later messages remain accessible. An oversized final record
 without a newline produces no entry yet and is retried on the next call.
 A replaced/truncated file or invalid

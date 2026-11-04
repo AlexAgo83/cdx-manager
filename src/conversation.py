@@ -48,8 +48,15 @@ def _tool_name(message, names, result=False):
     return name
 
 
+def _conversation_record(provider, kind):
+    # Provider bookkeeping can carry the same text as real conversation records.
+    return kind == "response_item" if provider == "codex" else kind in ("user", "assistant")
+
+
 def _entries(provider, record, names):
     if not isinstance(record, dict):
+        return []
+    if not _conversation_record(provider, record.get("type")):
         return []
     stamp = record.get("timestamp")
     try:
@@ -57,9 +64,6 @@ def _entries(provider, record, names):
     except (AttributeError, TypeError, ValueError):
         stamp = None
     if provider == "codex":
-        # event_msg repeats response_item messages; consume only canonical items.
-        if record.get("type") != "response_item":
-            return []
         message = record.get("payload")
     else:
         message = record.get("message")
@@ -132,8 +136,17 @@ def _field_start(prefix, field, start=0):
 
 def _oversized_entry(provider, prefix):
     prefix = prefix.decode("utf-8", errors="replace")
+    kind = _field_start(prefix, "type")
+    try:
+        value, _ = json.JSONDecoder().raw_decode(prefix, kind) if kind is not None else (None, 0)
+    except (ValueError, RecursionError):
+        value = None
+    if not _conversation_record(provider, value):
+        return None
     message = _field_start(prefix, "payload" if provider == "codex" else "message")
-    role = _field_start(prefix, "role", message) if message is not None else None
+    if message is None or prefix[message:message + 1] != "{":
+        return None
+    role = _field_start(prefix, "role", message)
     if role is None and provider != "codex":
         role = _field_start(prefix, "type")
     try:
@@ -183,7 +196,8 @@ def _reverse_records(handle, end):
 
 def _record_entries(provider, prefix, length, names):
     if length > MAX_LINE_BYTES:
-        return [_oversized_entry(provider, prefix)]
+        entry = _oversized_entry(provider, prefix)
+        return [entry] if entry is not None else []
     try:
         return _entries(provider, json.loads(prefix), names)
     except (ValueError, UnicodeError, RecursionError):
@@ -367,7 +381,7 @@ def read_conversation(provider, auth_home=None, *, conversation_id=None, started
                         line = handle.readline(MAX_LINE_BYTES + 1)
                     if not line:
                         break
-                    entries = [entry]
+                    entries = [entry] if entry is not None else []
                 else:
                     if not line or not line.endswith(b"\n"):
                         break
