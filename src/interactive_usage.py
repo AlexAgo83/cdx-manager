@@ -14,6 +14,7 @@ import re
 import time
 
 from .run_usage import claude_usage_dedup_key, normalize_usage
+from .shared_memory import claude_project_name
 from .status_source import _normalize_terminal_transcript
 
 # Readers stream JSONL line-by-line.  A 16 MiB cap excluded ordinary long
@@ -84,7 +85,7 @@ def extract_interactive_usage(provider, auth_home, started_at=None, conversation
 
 
 def resolve_transcript(provider, auth_home, started_at=None, conversation_id=None,
-                       terminal_transcript=None):
+                       terminal_transcript=None, cwd=None):
     """The transcript belonging to this session, and how confidently."""
     if provider == "ollama":
         # No provider-native transcript exists to resolve. The run's own PTY
@@ -108,7 +109,7 @@ def resolve_transcript(provider, auth_home, started_at=None, conversation_id=Non
         # a Codex rollout lives under the session's own auth home, so the
         # newest one touched during this run is this session's current
         # conversation, not somebody else's file.
-    path = _latest_transcript(provider, auth_home, started_at)
+    path = _latest_transcript(provider, auth_home, started_at, cwd=cwd)
     return path, (MATCH_RECENCY if path else None)
 
 
@@ -166,10 +167,25 @@ def _codex_rollout_for(auth_home, conversation_id):
 _READERS = {}
 
 
-def _latest_transcript(provider, auth_home, started_at):
+def _codex_matches_cwd(path, cwd):
+    """Fail closed when the bounded session metadata cannot identify a project."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            record = json.loads(handle.readline(64 * 1024))
+        recorded = record["payload"]["cwd"] if record["type"] == "session_meta" else None
+        return isinstance(recorded, str) and os.path.isabs(recorded) and os.path.realpath(recorded) == cwd
+    except (OSError, ValueError, KeyError, TypeError, RecursionError):
+        return False
+
+
+def _latest_transcript(provider, auth_home, started_at, cwd=None):
     if not auth_home:
         return None
     root = os.path.join(auth_home, "sessions") if provider == "codex" else os.path.join(auth_home, ".claude", "projects")
+    if cwd is not None:
+        cwd = os.path.realpath(cwd)
+        if provider != "codex":
+            root = os.path.join(root, claude_project_name(cwd))
     if not os.path.isdir(root):
         return None
     cutoff = _timestamp(started_at)
@@ -181,9 +197,11 @@ def _latest_transcript(provider, auth_home, started_at):
             # reached". Returning a partial answer here is what made a wrong
             # attribution indistinguishable from a real measurement.
             return None
-        if provider == "claude":
+        if provider == "claude" or cwd is not None:
             subdirs[:] = [name for name in subdirs if name != "subagents"]
         for name in names:
+            if time.monotonic() >= deadline:
+                return None
             if not name.endswith(".jsonl"):
                 continue
             path = os.path.join(directory, name)
@@ -192,6 +210,8 @@ def _latest_transcript(provider, auth_home, started_at):
             except OSError:
                 continue
             if cutoff is None or modified >= cutoff:
+                if cwd is not None and provider == "codex" and not _codex_matches_cwd(path, cwd):
+                    continue
                 candidates.append((modified, path))
                 if len(candidates) > MAX_TRANSCRIPT_CANDIDATES:
                     return None

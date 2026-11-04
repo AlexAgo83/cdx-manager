@@ -2,6 +2,13 @@
 
 ## Fixes
 
+- Scope conversation recency fallback to `--cwd PATH` (the process working
+  directory by default), using Claude project folders or Codex `session_meta.cwd`.
+  Support `--since ISO` to exclude transcripts modified before session start.
+  Return `unavailable` / `no_conversation_yet` when no candidate matches instead
+  of showing another project. Add `resolution_scope` without changing
+  `resolution_method` or exact conversation ID lookup semantics.
+
 - Read only Claude-compatible `user` and `assistant` records with `message`,
   preserving their tool calls and results. Ignore all other record types,
   including Claude Code request blobs that repeat user prompts without dates.

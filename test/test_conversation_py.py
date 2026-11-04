@@ -127,7 +127,7 @@ def test_unavailable_and_ollama_fixture(tmp_path):
 def test_exact_conversation_does_not_read_another_file(transcript):
     provider, home, _ = transcript
     assert read_conversation(provider, str(home), conversation_id="missing")["status"] == "unavailable"
-    assert read_conversation(provider, str(home))["entries"]
+    assert read_conversation(provider, str(home))["reason"] == "no_conversation_yet"
 
 
 @pytest.mark.parametrize("limit", [0, -1, 1001, "2", True])
