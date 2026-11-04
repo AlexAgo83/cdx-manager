@@ -53,6 +53,38 @@ def _conversation_record(provider, kind):
     return kind == "response_item" if provider == "codex" else kind in ("user", "assistant")
 
 
+_CLAUDE_HARNESS = re.compile(
+    r"\s*(?:<(?P<tag>task-notification|local-command-stdout|local-command-stderr|command-name|command-message|command-args|system-reminder)>"
+    r"(?:(?!</(?P=tag)>).)*</(?P=tag)>\s*)+", re.S,
+)
+_CLAUDE_MID_TURN_START = "The user sent a new message while you were working:\n"
+_CLAUDE_MID_TURN_END = re.compile(
+    r"\n+This is how Claude Code surfaces messages the user sends mid-turn[^\n]*"
+    r"Address the message above as you continue this turn\.\s*\Z"
+)
+
+
+def _claude_user_content(content):
+    """Remove complete harness wrappers, preserving ordinary prose and images."""
+    blocks = [{"type": "text", "text": content}] if isinstance(content, str) else content
+    if not isinstance(blocks, list):
+        return content
+    blocks = [dict(block) if isinstance(block, dict) else block for block in blocks]
+    texts = [block for block in blocks if isinstance(block, dict)
+             and block.get("type") == "text" and isinstance(block.get("text"), str)]
+    # Require both anchored boundaries; a quoted sentence alone is user content.
+    if texts and texts[0]["text"].startswith(_CLAUDE_MID_TURN_START):
+        end = _CLAUDE_MID_TURN_END.search(texts[-1]["text"])
+        if end:
+            texts[-1]["text"] = texts[-1]["text"][:end.start()]
+            texts[0]["text"] = texts[0]["text"][len(_CLAUDE_MID_TURN_START):].strip("\n")
+    return [block for block in blocks if not (
+        isinstance(block, dict) and block.get("type") == "text"
+        and isinstance(block.get("text"), str)
+        and (not block["text"].strip() or _CLAUDE_HARNESS.fullmatch(block["text"]))
+    )]
+
+
 def _entries(provider, record, names):
     if not isinstance(record, dict):
         return []
@@ -83,6 +115,8 @@ def _entries(provider, record, names):
     if role == "tool":
         return [_entry("tool", name=_tool_name(message, names, True), summary="Result recorded", at=stamp)]
     content = message.get("content")
+    if provider == "claude" and role == "user":
+        content = _claude_user_content(content)
     if isinstance(content, str):
         return [_entry(role, content, at=stamp)]
     if not isinstance(content, list):
@@ -97,6 +131,9 @@ def _entries(provider, record, names):
         elif kind in ("tool_use", "tool_result"):
             name = _tool_name(block, names, kind == "tool_result")
             entries.append(_entry("tool", name=name, summary="Call recorded" if kind == "tool_use" else "Result recorded", at=stamp))
+    if provider == "claude" and role == "user" and not any(e["role"] == "user" for e in entries):
+        if any(isinstance(block, dict) and block.get("type") == "image" for block in content):
+            entries.append(_entry("user", at=stamp))
     return entries
 
 
