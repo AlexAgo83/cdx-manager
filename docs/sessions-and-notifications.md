@@ -172,6 +172,7 @@ Every interactive `cdx <name>` launch is recorded under `CDX_HOME`, including su
 cdx history
 cdx history work
 cdx history work --limit 5
+cdx history --interactive --cwd ~/projects/example --limit 50 --json
 cdx history work --json
 cdx history --summary
 cdx history --summary --since 7d

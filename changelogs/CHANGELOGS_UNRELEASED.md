@@ -1,5 +1,12 @@
 # Unreleased
 
+## Find and resume interactive sessions
+
+- Add exact resolved `cdx history --cwd PATH` and `--interactive` filters before the result limit, preserving the JSON envelope and period/summary support.
+- Record interactive launches immediately, update the same row on exit, expose active older runtimes and support `cdx start <name>` through the named launch path, including tmux.
+- Prefer exact Claude session IDs and unique project/time-scoped Codex transcript metadata; expose ambiguous recency as unverified. Recover clean, redacted `first_user_prompt` text past provider wrappers, reminders, tools and bare file paths.
+- Cover filter ordering, live history, completion/failure deduplication, legacy launch arguments, transcript identity ambiguity, missing evidence and prompt cleanup.
+
 ## Conversation tail pagination (planned for 0.26.2)
 
 - Add `cdx conversation --tail N` (1–1000), chronological backward pages via `before_cursor` and `--before`, and a compatible `next_cursor` for live polling. Read JSONL backwards in bounded 64 KiB blocks, preserve normalization, redaction, stable IDs and oversized-record skipping, and reject stale backward cursors.

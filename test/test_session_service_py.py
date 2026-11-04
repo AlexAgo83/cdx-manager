@@ -43,8 +43,13 @@ class SessionServicePythonTests(unittest.TestCase):
             self.assertEqual(service["get_session"]("work")["conversation"], interactive)
             self.assertEqual(service["get_launch_history"]("work")[0]["conversation_id"], "run-thread")
             service["record_launch_history"]("work", {"action": "launch"})
-            observe.assert_called_once()
-            self.assertEqual(service["get_session"]("work")["conversation"]["id"], "run-thread")
+            observe.assert_not_called()
+            self.assertEqual(service["get_session"]("work")["conversation"], interactive)
+            with mock.patch("src.history_content.enrich_history", side_effect=lambda entry, _session: {
+                **entry, "conversation_id": "verified-thread", "provider_transcript_match": "conversation_id",
+            }):
+                service["record_launch_history"]("work", {"action": "launch", "status": "success"})
+            self.assertEqual(service["get_session"]("work")["conversation"]["id"], "verified-thread")
 
     def test_create_list_and_remove_sessions(self):
         temp_dir = self.make_temp_dir()

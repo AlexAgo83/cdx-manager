@@ -38,6 +38,43 @@ from src.session_service import create_session_service
 
 class LaunchCommandTests(CliTestBase):
 
+    def test_start_records_live_tmux_launch_and_finishes_same_history_row(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main", "claude")
+        harness = _AuthHarness()
+
+        def run(session, action, **kwargs):
+            info = {"started_at": "2026-11-04T10:00:00Z", "pid": os.getpid()}
+            kwargs["lifecycle_callback"]("started", info)
+            identifier = session["conversation"]["id"]
+            path = os.path.join(session["authHome"], ".claude", "projects", "repo", identifier + ".jsonl")
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as handle:
+                handle.write(json.dumps({"type": "user", "message": {"content": "Repair interactive history"}}) + "\n")
+            io = self.make_io()
+            main(["history", "--interactive", "--cwd", temp_dir, "--json"], {**io, "service": service})
+            live = json.loads(io["stdout"].getvalue())["history"]
+            self.assertEqual(len(live), 1)
+            self.assertEqual(live[0]["status"], "running")
+            self.assertEqual(live[0]["conversation_id"], identifier)
+            self.assertEqual(live[0]["provider_transcript_match"], "conversation_id")
+            self.assertEqual(live[0]["first_user_prompt"], "Repair interactive history")
+            kwargs["lifecycle_callback"]("finished", {"returncode": 0})
+            return {**info, "ended_at": "2026-11-04T10:02:00Z", "returncode": 0}
+
+        with mock.patch("src.commands.launch._run_interactive_provider_command", side_effect=run), \
+                mock.patch("src.commands.launch._ensure_session_authentication"):
+            self.assertEqual(main(["start", "main", "--dir", temp_dir], {
+                **self.make_io(), "service": service, "env": {"TMUX": "fake-tmux"},
+                "spawn": harness.spawn, "spawn_sync": harness.spawn_sync,
+            }), 0)
+        history = service["get_launch_history"]("main", limit=0)
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0]["status"], "success")
+        self.assertEqual(history[0]["first_user_prompt"], "Repair interactive history")
+
+
     def test_busy_policy_is_parsed_for_named_and_task_launches(self):
         for args in ([], ["--task", "Fix CI"]):
             for spelling in (["--on-busy", "fail"], ["--on-busy=fail"]):
@@ -997,7 +1034,8 @@ class LaunchCommandTests(CliTestBase):
         }), 0)
         summary_payload = json.loads(summary_io["stdout"].getvalue())
         self.assertEqual(summary_payload["summary"][0]["session_name"], "main")
-        self.assertEqual(summary_payload["summary"][0]["launches"], 2)
+        self.assertEqual(summary_payload["summary"][0]["launches"], 3)
+        self.assertEqual(sum(row["status"] == "running" for row in summary_payload["history"]), 1)
         self.assertEqual(summary_payload["summary"][0]["successes"], 1)
         self.assertEqual(summary_payload["summary"][0]["failures"], 1)
         self.assertGreaterEqual(summary_payload["summary"][0]["duration_ms"], 0)

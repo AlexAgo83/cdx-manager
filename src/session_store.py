@@ -253,6 +253,24 @@ def create_session_store(base_dir):
     def append_launch_history(entry):
         with _file_lock(lock_file):
             _ensure_dir(state_dir)
+            if entry.get("run_id") and entry.get("action") in ("launch", "resume"):
+                try:
+                    with open(launch_history_file, encoding="utf-8") as handle:
+                        lines = handle.readlines()
+                except FileNotFoundError:
+                    lines = []
+                for index, line in enumerate(lines):
+                    try:
+                        previous = json.loads(line)
+                    except ValueError:
+                        continue
+                    if (previous.get("run_id") == entry["run_id"]
+                            and previous.get("session_name") == entry.get("session_name")
+                            and previous.get("action") in ("launch", "resume")):
+                        lines[index] = json.dumps({**previous, **entry}, separators=(",", ":")) + "\n"
+                        atomic_write(launch_history_file, "".join(lines))
+                        _fsync_directory(state_dir)
+                        return
             with open(launch_history_file, "a", encoding="utf-8") as handle:
                 handle.write(json.dumps(entry, separators=(",", ":")))
                 handle.write("\n")

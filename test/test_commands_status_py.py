@@ -40,6 +40,33 @@ from src.session_service import create_session_service
 
 class StatusCommandTests(CliTestBase):
 
+    def test_history_filters_resolved_cwd_and_interactive_before_limit(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        service["create_session"]("main", "codex")
+        target = os.path.join(temp_dir, "repo")
+        os.makedirs(target)
+        rows = [
+            {"cwd": target, "action": "launch", "marker": "wanted"},
+            {"cwd": temp_dir, "action": "launch"},
+            {"cwd": target, "action": "run"},
+            {"cwd": target, "label": "mission:fake-mission"},
+            {"cwd": target, "detached": True},
+            {"cwd": target, "args": ["--detach"]},
+        ]
+        for row in rows:
+            service["record_launch_history"]("main", row)
+        io = self.make_io()
+        self.assertEqual(main(["history", "main", "--cwd", os.path.join(target, "..", "repo"),
+                               "--interactive", "--limit", "1", "--json"], {**io, "service": service}), 0)
+        payload = json.loads(io["stdout"].getvalue())
+        self.assertEqual([row["marker"] for row in payload["history"]], ["wanted"])
+        self.assertNotIn("cwd", payload)
+        io = self.make_io()
+        main(["history", "--interactive", "--cwd", target, "--summary", "--json"], {**io, "service": service})
+        self.assertEqual(len(json.loads(io["stdout"].getvalue())["history"]), 1)
+
+
     def test_reset_time_formatting_uses_countdown(self):
         now = datetime.now().astimezone()
         future = now + timedelta(hours=2, minutes=30)

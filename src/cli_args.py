@@ -40,7 +40,7 @@ UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (-
 SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 CONFIGS_USAGE = "Usage: cdx configs [--json]"
-HISTORY_USAGE = "Usage: cdx history [name] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
+HISTORY_USAGE = "Usage: cdx history [name] [--cwd PATH] [--interactive] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]"
 STATS_USAGE = "Usage: cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--by session|project|model] [--json]"
 STATS_GROUPS = ("session", "project", "model")
 LAST_USAGE = "Usage: cdx last [--json]"
@@ -916,6 +916,8 @@ def _parse_history_args(args, now=None):
     now = now or datetime.now().astimezone()
     parsed = _parse_flag_args(args, {
         "--limit": {"key": "limit", "type": "str", "default": 20, "transform": _parse_positive_int},
+        "--cwd": {"key": "cwd", "type": "str", "default": None},
+        "--interactive": {"key": "interactive", "type": "bool", "default": False},
         "--summary": {"key": "summary", "type": "bool", "default": False},
         "--since": {"key": "since", "type": "str", "default": None},
         "--from": {"key": "from", "type": "str", "default": None},
@@ -926,6 +928,8 @@ def _parse_history_args(args, now=None):
     return {
         "name": parsed["names"][0] if parsed["names"] else None,
         "limit": parsed["limit"],
+        "cwd": parsed["cwd"],
+        "interactive": parsed["interactive"],
         "summary": parsed["summary"],
         "period": period,
         "json": parsed["json"],
