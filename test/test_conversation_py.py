@@ -295,6 +295,169 @@ def test_codex_builtin_tools_and_event_duplicates(tmp_path):
     assert "private" not in json.dumps(page)
 
 
+def test_tail_matches_forward_normalization_and_before_blocks(transcript):
+    expected = read(transcript)["entries"]
+    page = read(transcript, tail=1)
+    collected = page["entries"]
+    assert collected == expected[-1:]
+    while page["before_cursor"]:
+        page = read(transcript, before=page["before_cursor"], limit=1)
+        assert page["status"] == "ok"
+        collected = page["entries"] + collected
+    assert collected == expected
+    assert read(transcript, tail=1000)["entries"] == expected
+    assert read(transcript, tail=1000)["before_cursor"] is None
+
+
+def test_tail_large_transcript_measures_bounded_reads(transcript, record_property):
+    provider, _, path = transcript
+    path.write_text("".join(json.dumps(_message_record(provider, "assistant", f"Message {i} café")) + "\n"
+                            for i in range(6000)))
+    real_open = open
+    measured = {"bytes": 0, "max_read": 0}
+
+    class MeasuredReader:
+        def __enter__(self):
+            self.handle = real_open(path, "rb")
+            return self
+
+        def __exit__(self, *args):
+            self.handle.close()
+
+        def __getattr__(self, name):
+            return getattr(self.handle, name)
+
+        def read(self, size=-1):
+            assert 0 <= size <= MAX_LINE_BYTES + 1
+            data = self.handle.read(size)
+            measured["bytes"] += len(data)
+            measured["max_read"] = max(measured["max_read"], size)
+            return data
+
+        def readline(self, size=-1):
+            raise AssertionError("Initial tail must use reverse block reads")
+
+    with patch("src.conversation.open", return_value=MeasuredReader()):
+        page = read(transcript, tail=25)
+    record_property("tail_bytes_read", measured["bytes"])
+    record_property("transcript_bytes", path.stat().st_size)
+    assert measured["bytes"] < path.stat().st_size // 4
+    assert measured["max_read"] <= 64 * 1024
+    assert [e["text"] for e in page["entries"]] == [f"Message {i} café" for i in range(5975, 6000)]
+    entries = page["entries"]
+    for _ in range(61):
+        if page["before_cursor"] is None:
+            break
+        page = read(transcript, before=page["before_cursor"])
+        entries = page["entries"] + entries
+    assert page["before_cursor"] is None
+    assert len(entries) == 6000
+    assert len({e["id"] for e in entries}) == 6000
+    assert [e["text"] for e in entries] == [f"Message {i} café" for i in range(6000)]
+
+
+def test_tail_next_cursor_and_partial_append(transcript):
+    provider, _, path = transcript
+    page = read(transcript, tail=2)
+    with path.open("ab") as handle:
+        handle.write(json.dumps(_message_record(provider, "assistant", "New café")).encode())
+    partial = read(transcript, tail=2)
+    assert partial["entries"] == page["entries"]
+    with path.open("ab") as handle:
+        handle.write(b"\n")
+    assert [e["text"] for e in read(transcript, cursor=page["next_cursor"])["entries"]] == ["New café"]
+    assert [e["text"] for e in read(transcript, cursor=partial["next_cursor"])["entries"]] == ["New café"]
+    assert read(transcript, before=page["before_cursor"])["status"] == "ok"
+
+
+def test_tail_oversized_record_and_incomplete_tail(transcript):
+    provider, _, path = transcript
+    expected = read(transcript)["entries"]
+    _append_oversized_record(path, provider)
+    with path.open("ab") as handle:
+        handle.write((json.dumps(_message_record(provider, "assistant", "After")) + "\n").encode())
+    page = read(transcript, tail=3)
+    assert page["entries"][0] == expected[-1]
+    assert [e["text"] for e in page["entries"]][1:] == ["[élément trop volumineux ignoré]", "After"]
+    previous = read(transcript, before=page["before_cursor"], limit=100)
+    assert previous["entries"] == expected[:-1]
+    _append_oversized_record(path, provider, complete=False)
+    assert read(transcript, tail=3)["entries"] == page["entries"]
+    with path.open("ab") as handle:
+        handle.write(b'"}]}}\n')
+    assert len(read(transcript, cursor=page["next_cursor"])["entries"]) == 1
+
+
+def test_before_rejects_rewrite_and_wrong_cursor(transcript):
+    page = read(transcript, tail=1)
+    assert read(transcript, before=page["next_cursor"])["status"] == "reset_required"
+    assert read(transcript, before="invalid")["status"] == "reset_required"
+    _, _, path = transcript
+    original = path.read_bytes()
+    path.write_bytes(original.replace(b"Hello", b"Hallo"))
+    assert read(transcript, before=page["before_cursor"])["status"] == "reset_required"
+    path.write_bytes(b"")
+    assert read(transcript, before=page["before_cursor"])["status"] == "reset_required"
+
+
+@pytest.mark.parametrize("tail", [0, -1, 1001, True, "2"])
+def test_invalid_tail(tail):
+    with pytest.raises(CdxError):
+        read_conversation("codex", tail=tail)
+
+
+@pytest.mark.parametrize("kwargs", [{"tail": 2}, {"before": "invalid"}])
+def test_tail_rejects_forward_cursor_combination(kwargs):
+    with pytest.raises(CdxError):
+        read_conversation("codex", cursor="invalid", **kwargs)
+
+
+def test_tail_next_cursor_retains_preceding_tool_names(transcript):
+    provider, _, path = transcript
+    whole = read(transcript)
+    page = read(transcript, tail=1)
+    if provider == "codex":
+        record = {"type": "response_item", "payload": {"type": "function_call_output", "call_id": "call-1"}}
+    else:
+        record = {"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "call-1"}]}}
+    # Match the fixture's real call identifier without exposing tool bodies.
+    records = [json.loads(line) for line in path.read_text().splitlines()]
+    for original in records:
+        message = original.get("payload", {}) if provider == "codex" else original.get("message", {})
+        if provider == "codex" and message.get("type") == "function_call":
+            record["payload"]["call_id"] = message["call_id"]
+        for block in message.get("content", []) if isinstance(message.get("content"), list) else []:
+            if block.get("type") == "tool_use":
+                record["message"]["content"][0]["tool_use_id"] = block["id"]
+    with path.open("ab") as handle:
+        handle.write((json.dumps(record) + "\n").encode())
+    followed = read(transcript, cursor=page["next_cursor"])
+    assert followed["entries"][0]["tool_name"] == whole["entries"][1]["tool_name"]
+
+
+def test_before_rejects_invalid_block_index_and_replacement(transcript):
+    page = read(transcript, tail=1)
+    state = json.loads(base64.urlsafe_b64decode(page["before_cursor"]))
+    state["index"] = MAX_LINE_BYTES
+    invalid = base64.urlsafe_b64encode(json.dumps(state).encode()).decode()
+    assert read(transcript, before=invalid)["status"] == "reset_required"
+    _, _, path = transcript
+    replacement = path.with_suffix(".replacement")
+    replacement.write_bytes(path.read_bytes())
+    replacement.replace(path)
+    assert read(transcript, before=page["before_cursor"])["status"] == "reset_required"
+
+
+def test_tail_empty_and_non_message_records(transcript):
+    _, _, path = transcript
+    for body in (b"", b"{}\nnot json\n[]\n", b'{"unfinished":'):
+        path.write_bytes(body)
+        page = read(transcript, tail=10)
+        assert page["entries"] == []
+        assert page["before_cursor"] is None
+        assert read(transcript, cursor=page["next_cursor"])["entries"] == []
+
+
 def test_claude_request_blob_incident(transcript):
     provider, _, path = transcript
     if provider == "codex":
@@ -324,14 +487,23 @@ def test_claude_request_blob_incident(transcript):
     "last-prompt", "attachments", "system", "event_msg", "session_meta", "unknown", None,
 ])
 @pytest.mark.parametrize("oversized", [False, True])
-def test_only_conversation_record_types_are_read(transcript, kind, oversized):
+@pytest.mark.parametrize("mode", ["forward", "tail", "before"])
+def test_only_conversation_record_types_are_read(transcript, kind, oversized, mode):
     provider, _, path = transcript
     message = {"role": "user", "content": "x" * MAX_LINE_BYTES if oversized else "Duplicate"}
     record = {"type": kind, "message": message, "payload": message}
     after = _message_record(provider, "assistant", "After")
     after["timestamp"] = "2026-11-04T10:00:00Z"
     path.write_text(json.dumps(record) + "\n" + json.dumps(after) + "\n")
-    page = read(transcript, limit=1)
+    if mode == "before":
+        with path.open("a") as handle:
+            handle.write(json.dumps(_message_record(provider, "assistant", "Latest")) + "\n")
+        latest = read(transcript, tail=1)
+        page = read(transcript, before=latest["before_cursor"], limit=1000)
+        assert page["before_cursor"] is None
+        assert read(transcript, cursor=page["next_cursor"])["entries"] == latest["entries"]
+    else:
+        page = read(transcript, **({"tail": 1000} if mode == "tail" else {"limit": 1}))
+        assert read(transcript, cursor=page["next_cursor"])["entries"] == []
     assert [(e["text"], e["at"]) for e in page["entries"]] == [("After", after["timestamp"])]
-    assert not page["has_more"]
-    assert read(transcript, cursor=page["next_cursor"])["entries"] == []
+    assert page["has_more"] == (mode == "before")

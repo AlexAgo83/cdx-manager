@@ -78,3 +78,35 @@ def test_local_recency_only_for_implicit_conversations(tmp_path, recorded_id, ex
     else:
         assert page["entries"][0]["text"] == "Hello café"
     assert json.dumps(session) == before
+
+
+def test_cli_tail_before_and_follow(tmp_path):
+    path = tmp_path / ".claude" / "projects" / "example" / "example.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_bytes((Path(__file__).parent / "fixtures" / "conversation" / "claude.jsonl").read_bytes())
+    session = {"name": "work", "provider": "claude", "authHome": str(tmp_path), "conversation": {"id": "example"}}
+    output = io.StringIO()
+    ctx = {"service": {"get_session": lambda name: session}, "out": output.write}
+
+    def invoke(*args):
+        output.seek(0)
+        output.truncate()
+        assert handle_conversation(["work", "--json", *args], ctx) == 0
+        return json.loads(output.getvalue())
+
+    tail = invoke("--tail", "2")
+    assert len(tail["entries"]) == 2
+    previous = invoke("--before", tail["before_cursor"], "--limit", "3")
+    assert len(previous["entries"]) == 3
+    assert previous["before_cursor"] is None
+    assert invoke("--cursor", tail["next_cursor"])["entries"] == []
+
+
+@pytest.mark.parametrize("args", [
+    ["--tail", "bad"], ["--tail", "0"], ["--tail", "1001"],
+    ["--tail", "2", "--cursor", "invalid"], ["--before", "invalid", "--cursor", "invalid"],
+])
+def test_cli_invalid_tail_combinations(args):
+    ctx = {"service": {"get_session": lambda name: {"name": name, "provider": "codex"}}}
+    with pytest.raises(CdxError):
+        handle_conversation(["work", "--json", *args], ctx)

@@ -157,21 +157,178 @@ def _oversized_entry(provider, prefix):
                   "[élément trop volumineux ignoré]")
 
 
+REVERSE_BLOCK_BYTES = 64 * 1024
+
+
+def _encode_cursor(handle, identity, offset, index, names):
+    names = dict(names)
+    while len(json.dumps(names, separators=(",", ":")).encode()) > MAX_CURSOR_NAMES_BYTES:
+        names.pop(next(iter(names)))
+    state = {"v": 1, "file": identity, "offset": offset, "index": index,
+             "anchor": _anchor(handle, offset), "names": names}
+    return base64.urlsafe_b64encode(json.dumps(state, separators=(",", ":")).encode()).decode()
+
+
+def _reverse_records(handle, end):
+    """Yield line positions and bounded prefixes, including an incomplete tail."""
+    position, line_end, length, prefix = end, end, 0, b""
+    while position:
+        start = max(0, position - REVERSE_BLOCK_BYTES)
+        handle.seek(start)
+        block = handle.read(position - start)
+        right = len(block)
+        while right:
+            newline = block.rfind(b"\n", 0, right)
+            left = newline + 1
+            part = block[left:right]
+            length += len(part)
+            prefix = (part + prefix)[:MAX_LINE_BYTES + 1]
+            if newline < 0:
+                break
+            if length:
+                yield start + left, line_end, prefix, length
+            line_end = start + left
+            length, prefix, right = 1, b"\n", newline
+        position = start
+    if length:
+        yield 0, line_end, prefix, length
+
+
+def _record_entries(provider, prefix, length, names):
+    if length > MAX_LINE_BYTES:
+        entry = _oversized_entry(provider, prefix)
+        return [entry] if entry is not None else []
+    try:
+        return _entries(provider, json.loads(prefix), names)
+    except (ValueError, UnicodeError, RecursionError):
+        return []
+
+
+class _NameLookups(dict):
+    def __init__(self):
+        super().__init__()
+        self.missing = set()
+
+    def get(self, key, default=None):
+        if key not in self:
+            self.missing.add(key)
+        return super().get(key, default)
+
+
+def _read_tail(handle, stat, identity, provider, page, count, before):
+    end, stop_index = stat.st_size, None
+    snapshot = {"size": stat.st_size, "mtime": stat.st_mtime_ns,
+                "anchor": _anchor(handle, stat.st_size)}
+    if before is not None:
+        try:
+            if not isinstance(before, str) or len(before) > 4096:
+                raise ValueError
+            state = json.loads(base64.urlsafe_b64decode(before.encode("ascii")))
+            end, stop_index = state["offset"], state["index"]
+            snapshot = state["snapshot"]
+            size = snapshot["size"]
+            if (state["v"] != 2 or state["file"] != identity or state["direction"] != "before"
+                    or type(end) is not int or type(stop_index) is not int
+                    or type(size) is not int or not 0 <= end <= size <= stat.st_size
+                    or not 0 <= stop_index <= MAX_LINE_BYTES
+                    or state["anchor"] != _anchor(handle, end)
+                    or snapshot["anchor"] != _anchor(handle, size)
+                    or (size == stat.st_size and snapshot["mtime"] != stat.st_mtime_ns)):
+                raise ValueError
+        except (ValueError, TypeError, KeyError, AttributeError, UnicodeError):
+            return {**page, "status": "reset_required", "reason": "invalid_or_stale_cursor"}
+    # Include the boundary record when a page split its content blocks.
+    boundary_end = end
+    if stop_index:
+        handle.seek(end)
+        line = handle.readline(MAX_LINE_BYTES + 1)
+        if not line.endswith(b"\n") or len(line) > MAX_LINE_BYTES:
+            return {**page, "status": "reset_required", "reason": "invalid_or_stale_cursor"}
+        boundary_end = end + len(line)
+    selected, remaining, names = [], count, {}
+    earliest = (end, stop_index or 0)
+    forward_end = (end, stop_index or 0)
+    lookback_start = None
+    missing_names = set()
+    for start, record_end, prefix, length in _reverse_records(handle, boundary_end):
+        if not prefix.endswith(b"\n") and length <= MAX_LINE_BYTES:
+            # The first reverse record may be an unfinished provider write.
+            forward_end = (start, 0)
+            continue
+        if length > MAX_LINE_BYTES:
+            handle.seek(record_end - 1)
+            if handle.read(1) != b"\n":
+                forward_end = (start, 0)
+                continue
+        local_names = _NameLookups()
+        entries = _record_entries(provider, prefix, length, local_names)
+        if start == end and stop_index and stop_index >= len(entries):
+            return {**page, "status": "reset_required", "reason": "invalid_or_stale_cursor"}
+        if remaining:
+            upper = stop_index if start == end and stop_index is not None else len(entries)
+            lower = max(0, upper - remaining)
+            if upper > lower:
+                selected.append((start, prefix, length, lower, upper))
+                missing_names.update(local_names.missing)
+                missing_names.difference_update(local_names)
+                remaining -= upper - lower
+                earliest = (start, lower)
+                if len(selected) == 1:
+                    forward_end = (start, upper) if upper < len(entries) else (record_end, 0)
+            if not remaining:
+                lookback_start = start
+        else:
+            # Recover recent call names before normalizing the selected window.
+            for key, name in local_names.items():
+                names.setdefault(key, name)
+            missing_names.difference_update(local_names)
+            budget = MAX_PAGE_BYTES if missing_names else REVERSE_BLOCK_BYTES
+            if len(names) >= 100 or lookback_start - start >= budget:
+                break
+    if remaining:
+        earliest = (0, 0)
+    names = dict(reversed(list(names.items())))
+    for start, prefix, length, lower, upper in reversed(selected):
+        entries = _record_entries(provider, prefix, length, names)
+        for index in range(lower, upper):
+            entry = entries[index]
+            entry["id"] = f"{identity[:16]}:{start}:{index}"
+            page["entries"].append(entry)
+    offset, index = forward_end
+    page["next_cursor"] = _encode_cursor(handle, identity, offset, index, names)
+    page["has_more"] = offset < stat.st_size
+    offset, index = earliest
+    page["before_cursor"] = None
+    if offset or index:
+        state = {"v": 2, "direction": "before", "file": identity, "offset": offset,
+                 "index": index, "anchor": _anchor(handle, offset), "snapshot": snapshot}
+        page["before_cursor"] = base64.urlsafe_b64encode(json.dumps(state, separators=(",", ":")).encode()).decode()
+    return page
+
+
 def read_conversation(provider, auth_home=None, *, conversation_id=None, started_at=None,
-                      terminal_transcript=None, cursor=None, limit=100, fallback_to_recency=False):
+                      terminal_transcript=None, cursor=None, limit=100, fallback_to_recency=False, tail=None, before=None):
     """Return a JSON-serializable page; pass next_cursor back unchanged to poll.
 
     Entries follow file/block order. Cursors bind a byte offset and block index
     to the resolved file; reset_required means discard the old cursor and page
     again from the beginning. Incomplete trailing lines are retried next time.
+    tail selects the latest entries; before selects entries preceding an opaque
+    backward cursor. Both return before_cursor as well as a forward next_cursor.
     Only implicit session identities may opt into fallback_to_recency.
     Tool bodies and reasoning blocks are never returned. Ollama PTY captures
     cannot reliably distinguish roles and are explicitly unsupported.
     """
     if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 1000:
         raise CdxError("Conversation limit must be an integer between 1 and 1000.")
+    if tail is not None and (type(tail) is not int or not 1 <= tail <= 1000):
+        raise CdxError("Conversation tail must be an integer between 1 and 1000.")
+    if cursor is not None and (tail is not None or before is not None):
+        raise CdxError("Conversation --cursor cannot be combined with --tail or --before.")
     page = {"status": "ok", "reason": None, "provider": provider, "entries": [], "next_cursor": None, "has_more": False,
             "resolution_method": None}
+    if tail is not None or before is not None:
+        page["before_cursor"] = None
     if provider not in PROVIDERS or provider == "ollama":
         return {**page, "status": "unsupported", "reason": "no_structured_transcript_reader"}
     # An explicit conversation must never fall back to an unrelated recent file.
@@ -189,6 +346,8 @@ def read_conversation(provider, auth_home=None, *, conversation_id=None, started
         with open(path, "rb") as handle:
             stat = os.fstat(handle.fileno())
             identity = hashlib.sha256(f"{provider}:{os.path.realpath(path)}:{stat.st_dev}:{stat.st_ino}".encode()).hexdigest()
+            if tail is not None or before is not None:
+                return _read_tail(handle, stat, identity, provider, page, tail if tail is not None else limit, before)
             offset, index, names = 0, 0, {}
             if cursor is not None:
                 try:
@@ -245,10 +404,7 @@ def read_conversation(provider, auth_home=None, *, conversation_id=None, started
                     break
                 offset, index = handle.tell(), 0
             page["has_more"] = offset < stat.st_size
-            while len(json.dumps(names, separators=(",", ":")).encode()) > MAX_CURSOR_NAMES_BYTES:
-                names.pop(next(iter(names)))
-            state = {"v": 1, "file": identity, "offset": offset, "index": index, "anchor": _anchor(handle, offset), "names": names}
-            page["next_cursor"] = base64.urlsafe_b64encode(json.dumps(state, separators=(",", ":")).encode()).decode()
+            page["next_cursor"] = _encode_cursor(handle, identity, offset, index, names)
             return page
     except OSError:
         return {**page, "status": "unavailable", "reason": "transcript_unreadable", "entries": []}

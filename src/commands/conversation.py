@@ -6,13 +6,15 @@ from ..conversation import read_conversation
 from ..errors import CdxError
 from ..provider_runtime import _get_auth_home
 
-CONVERSATION_USAGE = "Usage: cdx conversation <name> [--conversation ID] [--cursor CURSOR] [--limit N] --json"
+CONVERSATION_USAGE = "Usage: cdx conversation <name> [--conversation ID] [--cursor CURSOR | --tail N | --before CURSOR] [--limit N] --json"
 
 
 def handle_conversation(rest, ctx):
     parsed = _parse_flag_args(rest, {
         "--json": {"key": "json", "type": "bool", "default": False},
         "--conversation": {"key": "conversation", "type": "str"},
+        "--tail": {"key": "tail", "type": "str"},
+        "--before": {"key": "before", "type": "str"},
         "--cursor": {"key": "cursor", "type": "str"},
         "--limit": {"key": "limit", "type": "str", "default": "100"},
     }, CONVERSATION_USAGE, positionals_key="names", max_positionals=1)
@@ -23,12 +25,13 @@ def handle_conversation(rest, ctx):
         raise CdxError(f"Unknown session: {parsed['names'][0]}")
     try:
         limit = int(parsed["limit"])
+        tail = int(parsed["tail"]) if parsed["tail"] is not None else None
     except ValueError:
         raise CdxError(CONVERSATION_USAGE) from None
     page = read_conversation(
         session["provider"], _get_auth_home(session),
         conversation_id=parsed["conversation"] or (session.get("conversation") or {}).get("id"),
-        cursor=parsed["cursor"], limit=limit, fallback_to_recency=not parsed["conversation"],
+        cursor=parsed["cursor"], limit=limit, tail=tail, before=parsed["before"], fallback_to_recency=not parsed["conversation"],
     )
     _write_json(ctx, _json_success("conversation", "Conversation page loaded.", session=session["name"], **page))
     return 0
