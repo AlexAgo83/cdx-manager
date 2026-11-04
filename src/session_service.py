@@ -688,9 +688,18 @@ def record_launch_history(store, name, payload):
         "launch": session.get("launch") or {},
         **payload,
     }
-    store["append_launch_history"](entry)
+    from .history_content import enrich_history
+
     if entry.get("action") != "run":
-        _observe_codex_conversation(store, session)
+        entry = enrich_history(entry, session)
+    store["append_launch_history"](entry)
+    if entry.get("action") != "run" and entry.get("status") != "running":
+        if session["provider"] == PROVIDER_CODEX and entry.get("provider_transcript_match") == "conversation_id":
+            store["update_session"](name, lambda s: {
+                **s, "conversation": {"id": entry["conversation_id"], "provenance": "observed", "recordedAt": _local_now_iso()},
+            })
+        elif entry.get("action") not in ("launch", "resume"):
+            _observe_codex_conversation(store, session)
     return entry
 
 
@@ -726,7 +735,25 @@ def _observe_codex_conversation(store, session):
 def get_launch_history(store, name=None, limit=20):
     if name and not store["get_session"](name):
         raise CdxError(f"Unknown session: {name}")
-    return store["list_launch_history"](session_name=name, limit=limit)
+    entries = store["list_launch_history"](session_name=name, limit=0)
+    known = {entry.get("run_id") for entry in entries if entry.get("run_id")}
+    # Older supervisors only wrote history on exit. Expose their active runtime
+    # without inventing completed history or duplicating newly recorded launches.
+    sessions = [store["get_session"](name)] if name else store["list_sessions"]()
+    for session in sessions:
+        runtime = _session_runtime(store, session["name"])
+        if not runtime or not runtime.get("runId") or runtime["runId"] in known:
+            continue
+        entries.insert(0, {
+            "schema_version": 1, "session_name": session["name"], "provider": session["provider"],
+            "launch": session.get("launch") or {}, "action": "launch", "status": "running",
+            "run_id": runtime["runId"], "started_at": runtime.get("startedAt"),
+            "cwd": runtime.get("cwd"), "pid": runtime.get("pid"), "label": runtime.get("label"),
+            "project": runtime.get("project"), "project_source": runtime.get("project_source", "unknown"),
+            "transcript_path": runtime.get("transcriptPath"),
+            "conversation_id": (session.get("conversation") or {}).get("id") if session["provider"] == PROVIDER_CLAUDE else None,
+        })
+    return entries[:limit] if limit else entries
 
 
 def backfill_interactive_usage(store, name=None, dry_run=True):

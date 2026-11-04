@@ -28,7 +28,7 @@
 | `cdx power\|perm\|fast\|model <name\|all\|provider:PROVIDER\|a,b> <value\|default> [--json]` | Shortcut commands for setting or clearing one launch setting |
 | `cdx set <name>\|--sessions all\|a,b\|--provider PROVIDER [--power minimal\|low\|medium\|high\|xhigh] [--permission review\|default\|auto\|full] [--fast on\|off] [--rtk on\|off] [--logics on\|off] [--notify on\|off] [--agent-state on\|off] [--notify-preview on\|off] [--scrub-env on\|off] [--shared-memory on\|off] [--retro on\|off] [--policy use\|ask-first\|never] [--model MODEL] [--fallback-model MODEL[,MODEL...]] [--budget USD] [--extra-args 'ARGS'] [--priority 0..100] [--json]` | Persist launch settings for one or more sessions |
 | `cdx unset <name>\|--sessions all\|a,b\|--provider PROVIDER (--power\|--reasoning-effort\|--permission\|--fast\|--rtk\|--logics\|--notify\|--agent-state\|--notify-preview\|--scrub-env\|--shared-memory\|--retro\|--policy\|--model\|--fallback-model\|--budget\|--extra-args\|--priority\|--all) [--json]` | Remove persisted launch settings and fall back to provider defaults |
-| `cdx history [name] [--limit N] [--summary] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Show recent launch history or aggregate total launch time per assistant, optionally filtered by period |
+| `cdx history [name] [--cwd PATH] [--interactive] [--limit N] [--summary] [--since 7d\|today\|DATE] [--from DATE] [--to DATE] [--json]` | Show recent launch history or aggregate total launch time per assistant, optionally filtered by period |
 | `cdx history backfill-projects [--mapping FILE] [--dry-run \| --apply] [--json]` | Recover source repository attribution from exact recorded run evidence or an operator mapping; defaults to a read-only preview |
 | `cdx history backfill-models [--dry-run \| --apply] [--json]` | Recover missing historical usage models from evidence tied to each run; defaults to a read-only preview |
 | `cdx last [--json]` | Launch the most recent existing session from launch history |
@@ -673,3 +673,13 @@ shows the before/after versions, including major upgrades. JSON keeps the
 pre-update plan and existing result fields; tool verification adds
 `version_before`, `version_after`, and `latest_version` to successful-command
 results, plus `reason` and a nonzero `returncode` if verification fails.
+
+## Find interactive conversations
+
+`cdx history --interactive --cwd /path/to/project --limit 50 --json` finds interactive launches without mission runs consuming the result window. `--cwd` compares resolved paths (including symlinks and `~`), exactly, without including child directories. Both filters apply before `--limit` and also work with profile names, period filters and `--summary`. `--interactive` excludes headless `run` entries, detached entries and labels starting with `mission:`; unlabelled legacy launches remain eligible.
+
+Interactive launches appear as `status: "running"` as soon as the provider starts, including `cdx start <name> --dir PATH` (an alias for `cdx <name> --dir PATH`) inside tmux. Completion or failure updates the same run ID. Active runtimes from older supervisors are included while their process remains alive; vanished unrecorded launches cannot be reconstructed.
+
+History entries expose `conversation_id` and `provider_transcript_match: "conversation_id"` when an exact provider transcript exists. Claude uses its launch session ID; Codex can recover a unique thread from transcript metadata matching the launch directory and time window. Ambiguous discovery remains `provider_transcript_match: "recency"`, an explicitly unverified fallback that must not be treated as a verified resume target. A known ID with no transcript does not borrow another conversation. Existing history is enriched on read without rewriting old rows.
+
+`first_user_prompt` contains the first real user text (up to 2,000 characters) from a bounded, redacted transcript read. Provider command wrappers, system reminders, tool results and bare absolute file paths are skipped. Missing, oversized or unavailable evidence leaves the prompt unknown; a supplied initial prompt is used when available.

@@ -695,16 +695,29 @@ def handle_history(rest, ctx):
     now = datetime.fromtimestamp(now_fn()).astimezone()
     parsed = _parse_history_args(rest, now=now)
     has_period = _has_history_period(parsed["period"])
-    limit = 0 if parsed["summary"] or has_period else parsed["limit"]
+    filtered = has_period or parsed["cwd"] is not None or parsed["interactive"]
+    limit = 0 if parsed["summary"] or filtered else parsed["limit"]
     entries = ctx["service"]["get_launch_history"](parsed["name"], limit=limit)
     entries = _filter_history_period(entries, parsed["period"])
+    if parsed["cwd"] is not None:
+        cwd = os.path.realpath(os.path.expanduser(parsed["cwd"]))
+        entries = [entry for entry in entries if entry.get("cwd")
+                   and os.path.realpath(os.path.expanduser(entry["cwd"])) == cwd]
+    if parsed["interactive"]:
+        entries = [entry for entry in entries if entry.get("action") != "run"
+                   and not entry.get("detached") and not entry.get("detach")
+                   and not str(entry.get("label") or "").startswith("mission:")
+                   and "--detach" not in (entry.get("args") or [])]
+    if filtered and not parsed["summary"]:
+        entries = entries[:parsed["limit"]]
+    from ..history_content import enrich_history
+
+    entries = [enrich_history(entry, ctx["service"]["get_session"](entry.get("session_name")) or {}) for entry in entries]
     entries = [{**entry, "parent_run_id": entry.get("parent_run_id"),
                 **cost_fields(entry.get("usage") if is_vouched(entry.get("usage")) else None, entry.get("usage_model"),
                               models=entry.get("usage_models", (entry.get("usage_evidence") or {}).get("models", [])), attribution=entry.get("usage_attribution")),
                 "usage": {**entry["usage"], "cache_hit_ratio": cache_hit_ratio(entry["usage"], provider=entry.get("provider")) if is_vouched(entry["usage"]) else None}
                 if isinstance(entry.get("usage"), dict) else entry.get("usage")} for entry in entries]
-    if has_period and not parsed["summary"]:
-        entries = entries[:parsed["limit"]]
     message = (
         f"Listed launch history for {parsed['name']}"
         if parsed["name"]

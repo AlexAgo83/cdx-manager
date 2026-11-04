@@ -334,8 +334,15 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
     def runtime_lifecycle(event, info):
         nonlocal runtime_run_id
         if event == "started":
-            runtime = ctx["service"]["start_session_runtime"](session["name"], {**info, "cwd": cwd, **project})
+            runtime = ctx["service"]["start_session_runtime"](session["name"], {**info, "cwd": cwd, **project, "runId": runtime_run_id})
             runtime_run_id = runtime.get("runId")
+            ctx["service"]["record_launch_history"](session["name"], {
+                **info, **project, "run_id": runtime_run_id, "cwd": cwd,
+                "action": "resume" if resume else "launch", "status": "running",
+                "ended_at": None, "duration_ms": None,
+                "conversation_id": _conversation_id(session) if resume or session["provider"] == PROVIDER_CLAUDE else None,
+                "first_user_prompt": initial_prompt,
+            })
         elif event == "finished" and runtime_run_id:
             ctx["service"]["finish_session_runtime"](
                 session["name"],
@@ -367,7 +374,7 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
     except CdxError as error:
         run_info = getattr(error, "run_info", {}) or {}
         run_info = _attach_interactive_usage(
-            session, run_info, ctx["service"]["get_launch_history"](session["name"], limit=None),
+            session, {**run_info, "cwd": cwd}, ctx["service"]["get_launch_history"](session["name"], limit=None),
             baseline=(baseline_path, baseline),
             uncertain_reason=overlap_reason(),
         )
@@ -382,6 +389,7 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         if run_info:
             ctx["service"]["record_launch_history"](session["name"], {
                 "status": "failed",
+                "action": "resume" if resume else "launch",
                 "cwd": cwd,
                 "error": str(error),
                 "exit_code": error.exit_code,
@@ -391,7 +399,7 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
             })
         raise
     success_run_info = _attach_interactive_usage(
-        session, run_info, ctx["service"]["get_launch_history"](session["name"], limit=None),
+        session, {**run_info, "cwd": cwd}, ctx["service"]["get_launch_history"](session["name"], limit=None),
         baseline=(baseline_path, baseline),
         uncertain_reason=overlap_reason(),
     )
@@ -452,9 +460,14 @@ def _attach_interactive_usage(session, run_info, history=None, baseline=None, un
     recorded nothing would break the chain for every run after it.
     """
     run_info = dict(run_info or {})
+    from ..history_content import enrich_history
+
+    if session.get("provider") == PROVIDER_CLAUDE:
+        run_info.setdefault("conversation_id", _conversation_id(session))
+    run_info = enrich_history({**run_info, "provider": session.get("provider")}, session)
     started_at = run_info.get("started_at")
     cumulative, provider_transcript, match, model = extract_interactive_usage(
-        session.get("provider"), _get_auth_home(session), started_at, _conversation_id(session),
+        session.get("provider"), _get_auth_home(session), started_at, run_info.get("conversation_id") or _conversation_id(session),
         # Ollama writes no provider transcript; its only record is the PTY
         # capture this run already took.
         run_info.get("transcript_path"),
