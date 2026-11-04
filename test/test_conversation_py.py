@@ -15,6 +15,62 @@ FIXTURES = Path(__file__).parent / "fixtures" / "conversation"
 CONVERSATION = "11111111-1111-4111-8111-111111111111"
 
 
+HARNESS_EXPECTED = [
+    [], [], [], [], [], [], [], [], [],
+    ["Please check the parser."], ["Please inspect this image."], [""], [""],
+    ["Please explain '<task-notification>' in this normal sentence."],
+    ["The user sent a new message while you were working:\nThis is my example without a closing wrapper."],
+    ["Please quote this line:\nThe user sent a new message while you were working:\n\nExample\n\n"
+     "This is how Claude Code surfaces messages the user sends mid-turn so you can respond without losing your place. "
+     "Address the message above as you continue this turn."],
+    ["<task-notification>Example</task-notification> is markup I want explained."],
+    ["Keep my actual message."], ["First paragraph.", "Second paragraph."],
+    ["<task-notification>First</task-notification> is followed by <task-notification>Second</task-notification>"],
+    [], [""], [""],
+]
+
+
+@pytest.mark.parametrize("index, expected", list(enumerate(HARNESS_EXPECTED)), ids=[
+    "background-task", "monitor", "stdout", "stderr", "command-blocks", "command-message", "command-args",
+    "reminder", "multiple-blocks", "mid-turn-text", "mid-turn-text-image", "mid-turn-image", "normal-image",
+    "quoted-tag", "incomplete-wrapper", "quoted-wrapper", "markup-with-prose", "reminder-with-user-text",
+    "mid-turn-split-text", "prose-between-tags",
+    "mid-turn-empty", "mid-turn-image-single-text", "reminder-with-image",
+])
+def test_claude_harness_records(tmp_path, index, expected):
+    path = tmp_path / ".claude" / "projects" / "example" / f"{CONVERSATION}.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_text((FIXTURES / "claude-harness.jsonl").read_text().splitlines()[index] + "\n")
+    page = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION)
+    assert [e["text"] for e in page["entries"]] == expected
+    assert all(e["role"] == "user" and e["at"] == "2026-11-04T10:00:00Z" for e in page["entries"])
+    assert "ZmFrZS1pbWFnZQ==" not in json.dumps(page)
+
+
+def test_claude_harness_paging(tmp_path):
+    path = tmp_path / ".claude" / "projects" / "example" / f"{CONVERSATION}.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_bytes((FIXTURES / "claude-harness.jsonl").read_bytes())
+    transcript = ("claude", tmp_path, path)
+    whole = read(transcript)["entries"]
+    assert [e["text"] for e in whole] == [text for texts in HARNESS_EXPECTED for text in texts]
+    cursor, forward = None, []
+    while True:
+        page = read(transcript, cursor=cursor, limit=1)
+        forward.extend(page["entries"])
+        cursor = page["next_cursor"]
+        if not page["has_more"]:
+            break
+    assert forward == whole
+    assert read(transcript, cursor=cursor)["entries"] == []
+    page = read(transcript, tail=1)
+    backward = page["entries"]
+    while page["before_cursor"]:
+        page = read(transcript, before=page["before_cursor"], limit=1)
+        backward = page["entries"] + backward
+    assert backward == whole
+
+
 @pytest.fixture(params=["codex", "claude", "antigravity"])
 def transcript(request, tmp_path):
     provider = request.param
