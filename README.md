@@ -246,15 +246,27 @@ for a fresh credential, and that cleanup works after disconnect and SIGTERM.
 
 ### Read an interactive conversation
 
-`cdx conversation <name> [--conversation ID] [--cursor CURSOR | --tail N | --before CURSOR] [--limit N] --json`
+`cdx conversation <name> [--conversation ID] [--cwd PATH] [--since ISO] [--cursor CURSOR | --tail N | --before CURSOR] [--limit N] --json`
 returns a read-only JSON page for the profile's current conversation. An explicit
 conversation ID uses an exact transcript lookup and never falls back. When the
 profile's recorded ID has no transcript on this host (for example after a remote
-run on another host), or there is no recorded ID, the command uses the existing
-latest local transcript resolver under the profile's auth home. This fallback is
-best effort and does not rewrite the recorded ID. JSON `resolution_method` is
+run on another host), or there is no recorded ID, the command selects the latest
+local transcript for `--cwd PATH`, defaulting to the process working directory.
+Claude-compatible providers use `.claude/projects/<path-slug>`; Codex requires
+a matching `cwd` in the rollout's initial `session_meta` record. Missing or
+unreadable Codex metadata is excluded. `--since ISO` further restricts fallback
+to transcripts modified at or after the session start timestamp (for example
+`--since 2026-11-04T00:39:00Z`). Callers should pass a timestamp with a timezone.
+Without a candidate, JSON reports `status: "unavailable"` and
+`reason: "no_conversation_yet"`, including while a new session awaits folder trust.
+This fallback is best effort and does not rewrite the recorded ID. Exact ID
+lookups remain independent of these fallback constraints. JSON `resolution_method` is
 `conversation_id` for an exact match, `recency` for a local fallback, or `null`
-when no transcript is resolved.
+when no transcript is resolved. JSON `resolution_scope` records the canonical
+absolute `cwd` and supplied `since` timestamp for fallback attempts, including
+unavailable results; `since` is `null` when omitted. Exact lookups and unsupported
+providers report a `null` scope. A missing explicit ID still reports
+`transcript_not_found`.
 
 The normal cdx JSON envelope includes `status`, `reason`, `provider`, `session`,
 `entries`, `next_cursor`, and `has_more`. Each entry has exactly `role`

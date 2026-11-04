@@ -6,13 +6,15 @@ from ..conversation import read_conversation
 from ..errors import CdxError
 from ..provider_runtime import _get_auth_home
 
-CONVERSATION_USAGE = "Usage: cdx conversation <name> [--conversation ID] [--cursor CURSOR | --tail N | --before CURSOR] [--limit N] --json"
+CONVERSATION_USAGE = "Usage: cdx conversation <name> [--conversation ID] [--cwd PATH] [--since ISO] [--cursor CURSOR | --tail N | --before CURSOR] [--limit N] --json"
 
 
 def handle_conversation(rest, ctx):
     parsed = _parse_flag_args(rest, {
         "--json": {"key": "json", "type": "bool", "default": False},
         "--conversation": {"key": "conversation", "type": "str"},
+        "--cwd": {"key": "cwd", "type": "str"},
+        "--since": {"key": "since", "type": "str"},
         "--tail": {"key": "tail", "type": "str"},
         "--before": {"key": "before", "type": "str"},
         "--cursor": {"key": "cursor", "type": "str"},
@@ -31,6 +33,7 @@ def handle_conversation(rest, ctx):
     page = read_conversation(
         session["provider"], _get_auth_home(session),
         conversation_id=parsed["conversation"] or (session.get("conversation") or {}).get("id"),
+        cwd=parsed["cwd"], started_at=parsed["since"],
         cursor=parsed["cursor"], limit=limit, tail=tail, before=parsed["before"], fallback_to_recency=not parsed["conversation"],
     )
     _write_json(ctx, _json_success("conversation", "Conversation page loaded.", session=session["name"], **page))

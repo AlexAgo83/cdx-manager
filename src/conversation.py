@@ -307,7 +307,7 @@ def _read_tail(handle, stat, identity, provider, page, count, before):
 
 
 def read_conversation(provider, auth_home=None, *, conversation_id=None, started_at=None,
-                      terminal_transcript=None, cursor=None, limit=100, fallback_to_recency=False, tail=None, before=None):
+                      terminal_transcript=None, cursor=None, limit=100, fallback_to_recency=False, tail=None, before=None, cwd=None):
     """Return a JSON-serializable page; pass next_cursor back unchanged to poll.
 
     Entries follow file/block order. Cursors bind a byte offset and block index
@@ -316,6 +316,8 @@ def read_conversation(provider, auth_home=None, *, conversation_id=None, started
     tail selects the latest entries; before selects entries preceding an opaque
     backward cursor. Both return before_cursor as well as a forward next_cursor.
     Only implicit session identities may opt into fallback_to_recency.
+    Recency is restricted to cwd (the process directory by default), and to
+    transcripts modified at or after started_at when supplied.
     Tool bodies and reasoning blocks are never returned. Ollama PTY captures
     cannot reliably distinguish roles and are explicitly unsupported.
     """
@@ -325,8 +327,14 @@ def read_conversation(provider, auth_home=None, *, conversation_id=None, started
         raise CdxError("Conversation tail must be an integer between 1 and 1000.")
     if cursor is not None and (tail is not None or before is not None):
         raise CdxError("Conversation --cursor cannot be combined with --tail or --before.")
+    if started_at is not None:
+        try:
+            datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+        except (ValueError, AttributeError, TypeError):
+            raise CdxError("Conversation --since must be an ISO timestamp.") from None
+    scope = {"cwd": os.path.realpath(os.path.expanduser(cwd or os.getcwd())), "since": started_at}
     page = {"status": "ok", "reason": None, "provider": provider, "entries": [], "next_cursor": None, "has_more": False,
-            "resolution_method": None}
+            "resolution_method": None, "resolution_scope": None}
     if tail is not None or before is not None:
         page["before_cursor"] = None
     if provider not in PROVIDERS or provider == "ollama":
@@ -337,11 +345,14 @@ def read_conversation(provider, auth_home=None, *, conversation_id=None, started
         if path:
             page["resolution_method"] = "conversation_id"
         elif fallback_to_recency:
-            path, page["resolution_method"] = resolve_transcript(provider, auth_home)
+            page["resolution_scope"] = scope
+            path, page["resolution_method"] = resolve_transcript(provider, auth_home, started_at, cwd=scope["cwd"])
     else:
-        path, page["resolution_method"] = resolve_transcript(provider, auth_home, started_at, terminal_transcript=terminal_transcript)
+        page["resolution_scope"] = scope
+        path, page["resolution_method"] = resolve_transcript(provider, auth_home, started_at, terminal_transcript=terminal_transcript, cwd=scope["cwd"])
     if not path:
-        return {**page, "status": "unavailable", "reason": "transcript_not_found"}
+        reason = "no_conversation_yet" if page["resolution_scope"] is not None else "transcript_not_found"
+        return {**page, "status": "unavailable", "reason": reason}
     try:
         with open(path, "rb") as handle:
             stat = os.fstat(handle.fileno())
