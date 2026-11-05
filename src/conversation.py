@@ -50,7 +50,16 @@ def _tool_name(message, names, result=False):
 
 def _conversation_record(provider, kind):
     # Provider bookkeeping can carry the same text as real conversation records.
-    return kind == "response_item" if provider == "codex" else kind in ("user", "assistant")
+    # Claude Code records messages typed while the agent works as queued_command attachments.
+    return kind == "response_item" if provider == "codex" else kind in ("user", "assistant", "attachment")
+
+
+def _queued_prompt(record):
+    attachment = record.get("attachment")
+    if (not isinstance(attachment, dict) or attachment.get("type") != "queued_command"
+            or (attachment.get("origin") or {}).get("kind") != "human"):
+        return None
+    return attachment.get("prompt")
 
 
 _CLAUDE_HARNESS = re.compile(
@@ -97,6 +106,9 @@ def _entries(provider, record, names):
         stamp = None
     if provider == "codex":
         message = record.get("payload")
+    elif record.get("type") == "attachment":
+        prompt = _queued_prompt(record)
+        message = {"role": "user", "content": prompt} if isinstance(prompt, (str, list)) else None
     else:
         message = record.get("message")
     if not isinstance(message, dict):
@@ -180,6 +192,18 @@ def _oversized_entry(provider, prefix):
         value = None
     if not _conversation_record(provider, value):
         return None
+    if value == "attachment":
+        # An oversized queued message carries a pasted image; keep its leading text when readable.
+        attachment = _field_start(prefix, "attachment")
+        if attachment is None or '"queued_command"' not in prefix[attachment:attachment + 200]:
+            return None
+        text = _field_start(prefix, "text", prefix.find("{", prefix.find('"prompt"', attachment)))
+        try:
+            text, _ = json.JSONDecoder().raw_decode(prefix, text) if text is not None else ("", 0)
+        except (ValueError, RecursionError):
+            text = ""
+        blocks = _claude_user_content([{"type": "text", "text": text}]) if isinstance(text, str) else []
+        return _entry("user", blocks[0]["text"] if blocks else "")
     message = _field_start(prefix, "payload" if provider == "codex" else "message")
     if message is None or prefix[message:message + 1] != "{":
         return None
