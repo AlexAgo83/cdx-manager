@@ -291,6 +291,7 @@ class CliContractTests(CliTestBase):
         root = pathlib.Path(".")
         declared = (root / "VERSION").read_text().strip()
         package_json = json.loads((root / "package.json").read_text())["version"]
+        package_lock = json.loads((root / "package-lock.json").read_text())
         pyproject = re.search(
             r'^version = "([^"]+)"', (root / "pyproject.toml").read_text(), re.M
         ).group(1)
@@ -300,6 +301,8 @@ class CliContractTests(CliTestBase):
         # release behind, so `cdx --version` reported a release it was not.
         self.assertEqual(VERSION, declared)
         self.assertEqual(package_json, declared)
+        self.assertEqual(package_lock["version"], declared)
+        self.assertEqual(package_lock["packages"][""]["version"], declared)
         self.assertEqual(pyproject, declared)
         self.assertEqual(badge, declared)
 
