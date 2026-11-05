@@ -563,3 +563,31 @@ def test_only_conversation_record_types_are_read(transcript, kind, oversized, mo
         assert read(transcript, cursor=page["next_cursor"])["entries"] == []
     assert [(e["text"], e["at"]) for e in page["entries"]] == [("After", after["timestamp"])]
     assert page["has_more"] == (mode == "before")
+
+
+def test_claude_queued_messages_typed_mid_turn_are_user_entries(tmp_path):
+    # Claude Code stores messages typed while the agent works only as queued_command attachments.
+    path = tmp_path / ".claude" / "projects" / "example" / f"{CONVERSATION}.jsonl"
+    path.parent.mkdir(parents=True)
+    at = "2026-11-05T19:55:18Z"
+    def queued(prompt, kind="human"):
+        return json.dumps({"type": "attachment", "timestamp": at, "attachment": {
+            "type": "queued_command", "prompt": prompt, "origin": {"kind": kind}, "humanTurn": True}})
+    image = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "ZmFrZS1pbWFnZQ=="}}
+    big = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "A" * (MAX_LINE_BYTES + 10)}}
+    path.write_text("\n".join([
+        queued("ah mais je ne vois plus aucun de mes messages"),
+        queued("<task-notification>done</task-notification>", kind="task"),
+        queued([{"type": "text", "text": "[Image #5] bloqué sur signaler"}, image]),
+        queued([{"type": "text", "text": "[Image #6] capture lourde"}, big]),
+        json.dumps({"type": "attachment", "timestamp": at, "attachment": {"type": "hook_success"}}),
+    ]) + "\n")
+    page = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION)
+    assert [(e["role"], e["text"]) for e in page["entries"]] == [
+        ("user", "ah mais je ne vois plus aucun de mes messages"),
+        ("user", "[Image #5] bloqué sur signaler"),
+        ("user", "[Image #6] capture lourde"),
+    ]
+    assert "ZmFrZS1pbWFnZQ==" not in json.dumps(page)
+    tail = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION, tail=10)
+    assert [e["text"] for e in tail["entries"]] == [e["text"] for e in page["entries"]]
