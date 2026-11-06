@@ -613,3 +613,14 @@ def test_claude_oversized_tool_result_is_a_tool_entry(tmp_path):
     path.write_bytes(prefix + b"x" * MAX_LINE_BYTES + b'"}}]}]}}\n')
     page = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION)
     assert [(e["role"], e["text"]) for e in page["entries"]] == [("tool", "")]
+
+
+def test_claude_pasted_content_wrapper_is_removed(tmp_path):
+    path = tmp_path / ".claude" / "projects" / "example" / f"{CONVERSATION}.jsonl"
+    path.parent.mkdir(parents=True)
+    text = '<pasted_content id="c1cc">\nOn est ok avec ces notifs ?\n/home/u/a.png\n</pasted_content id="c1cc">'
+    quoted = 'a literal <pasted_content id="x1"> without its closing tag'
+    path.write_text("\n".join(json.dumps({"type": "user", "timestamp": "2026-11-06T11:56:00Z",
+        "message": {"role": "user", "content": value}}) for value in (text, quoted)) + "\n")
+    page = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION)
+    assert [e["text"] for e in page["entries"]] == ["On est ok avec ces notifs ?\n/home/u/a.png", quoted]
