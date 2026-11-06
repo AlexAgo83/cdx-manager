@@ -217,6 +217,11 @@ def _oversized_entry(provider, prefix):
         value, _ = json.JSONDecoder().raw_decode(prefix, role) if role is not None else (None, 0)
     except (ValueError, RecursionError):
         value = None
+    if provider == "claude" and value == "user":
+        # A large tool result (an image read) is tool output, never an operator message.
+        content = _field_start(prefix, "content", message)
+        if content is not None and '"tool_result"' in prefix[content:content + 300]:
+            return _entry("tool", name="tool", summary="Result recorded")
     return _entry(value if value in ("user", "assistant", "tool") else "tool",
                   "[élément trop volumineux ignoré]")
 

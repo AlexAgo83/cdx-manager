@@ -604,3 +604,12 @@ def test_claude_meta_user_records_are_not_operator_messages(tmp_path):
     ]) + "\n")
     page = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION)
     assert [(e["role"], e["text"]) for e in page["entries"]] == [("user", "oula")]
+
+
+def test_claude_oversized_tool_result_is_a_tool_entry(tmp_path):
+    path = tmp_path / ".claude" / "projects" / "example" / f"{CONVERSATION}.jsonl"
+    path.parent.mkdir(parents=True)
+    prefix = b'{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_1","type":"tool_result","content":[{"type":"image","source":{"data":"'
+    path.write_bytes(prefix + b"x" * MAX_LINE_BYTES + b'"}}]}]}}\n')
+    page = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION)
+    assert [(e["role"], e["text"]) for e in page["entries"]] == [("tool", "")]
