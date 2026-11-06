@@ -9,7 +9,7 @@ resolution-markers = [
 
 [[package]]
 name = "cdx-manager"
-version = "0.26.5"
+version = "0.26.6"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
