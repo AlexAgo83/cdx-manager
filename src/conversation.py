@@ -99,6 +99,9 @@ def _entries(provider, record, names):
         return []
     if not _conversation_record(provider, record.get("type")):
         return []
+    # Claude Code marks its own user-role notes (image size hints, caveats) as isMeta.
+    if provider == "claude" and record.get("isMeta"):
+        return []
     stamp = record.get("timestamp")
     try:
         datetime.fromisoformat(stamp.replace("Z", "+00:00"))
@@ -214,6 +217,11 @@ def _oversized_entry(provider, prefix):
         value, _ = json.JSONDecoder().raw_decode(prefix, role) if role is not None else (None, 0)
     except (ValueError, RecursionError):
         value = None
+    if provider == "claude" and value == "user":
+        # A large tool result (an image read) is tool output, never an operator message.
+        content = _field_start(prefix, "content", message)
+        if content is not None and '"tool_result"' in prefix[content:content + 300]:
+            return _entry("tool", name="tool", summary="Result recorded")
     return _entry(value if value in ("user", "assistant", "tool") else "tool",
                   "[élément trop volumineux ignoré]")
 
