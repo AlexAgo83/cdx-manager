@@ -15,6 +15,7 @@ except ImportError:  # pragma: no cover - Windows
 
 from .claude_credentials import read_keychain_credentials
 from .errors import CdxError
+from .quota_provenance import quota_windows
 
 MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -368,7 +369,7 @@ def fetch_claude_rate_limit_headers(access_token):
     reset_week_at = _format_reset_date(_parse_reset_epoch(reset_7d)) if reset_7d else None
     reset_at = reset_week_at or reset_5h_at
 
-    return {
+    status = {
         "remaining_5h_pct": _remaining_from_utilization(utilization_5h),
         "remaining_week_pct": _remaining_from_utilization(utilization_7d),
         "reset_5h_at": reset_5h_at,
@@ -378,20 +379,22 @@ def fetch_claude_rate_limit_headers(access_token):
         "raw_status_text": None,
         "source_ref": "api:anthropic-ratelimit-headers",
     }
+    status["quota_windows"] = quota_windows(status, "claude")
+    return status
 
 
-def refresh_claude_session_status(session, auth_refresher=None):
+def refresh_claude_session_status(session, auth_refresher=None, diagnostic=False):
     auth_home = session.get("authHome", "")
     refresher = auth_refresher or _refresh_claude_cli_credentials
     refresher(auth_home)
     creds = _read_claude_credentials(auth_home)
     if not creds or not creds.get("accessToken"):
-        return None
+        return {"_quota_error": "login_required"} if diagnostic else None
     if _access_token_expired(creds):
         # ponytail: `claude auth status` doesn't refresh an expired access
         # token (verified no-op) and only a real Claude Code invocation does.
         # Probing anyway just reproduces a 401 we can already predict
-        # offline, so skip it like the "no credentials" case above and leave
-        # the cached quota as stale rather than raising a false alert.
-        return None
-    return fetch_claude_rate_limit_headers(creds["accessToken"])
+        # offline, so skip it and retain the cached observation time.
+        return {"_quota_error": "login_expired"} if diagnostic else None
+    status = fetch_claude_rate_limit_headers(creds["accessToken"])
+    return status or ({"_quota_error": "quota_read_failed"} if diagnostic else None)

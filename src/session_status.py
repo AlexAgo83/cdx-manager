@@ -13,6 +13,7 @@ from .claude_credentials import claude_auth_type, setup_token_days_left
 from .claude_usage import _decode_jwt_claims
 from .config import PROVIDER_CLAUDE, PROVIDER_CODEX, get_cdx_home
 from .errors import CdxError
+from .quota_provenance import quota_windows
 from .session_helpers import (
     _get_global_codex_home,
     _get_session_auth_home,
@@ -158,6 +159,7 @@ def _normalize_status_payload(payload=None):
         "raw_status_text": payload.get("raw_status_text"),
         "source_ref": payload.get("source_ref"),
         "structured": bool(payload.get("structured")),
+        "quota_windows": payload.get("quota_windows"),
     }
 
 def _parse_status_timestamp(value):
@@ -240,6 +242,11 @@ def _merge_status_payload(current, candidate):
         return current
 
     merged = dict(current)
+    merged["quota_windows"] = dict(current.get("quota_windows") or quota_windows(current, "unknown"))
+    candidate_windows = candidate.get("quota_windows") or quota_windows(candidate, "unknown")
+    for name, field in (("5h", "remaining_5h_pct"), ("weekly", "remaining_week_pct")):
+        if current.get(field) is None and candidate.get(field) is not None:
+            merged["quota_windows"][name] = candidate_windows[name]
     for field in [
         "usage_pct",
         "remaining_5h_pct",
@@ -336,7 +343,7 @@ def _fetch_codex_status(codex_status_fetcher, custom_codex_status_fetcher, defau
     if custom_codex_status_fetcher:
         return custom_codex_status_fetcher(session)
     timeout = timeout_seconds or default_status_timeout_seconds
-    return codex_status_fetcher(session, timeout=timeout)
+    return codex_status_fetcher(session, timeout=timeout, diagnostic=True)
 
 def session_paths(session):
     """Where a session's files live, so a caller never rebuilds cdx's layout.
@@ -415,6 +422,12 @@ def _status_row_from_session(store, s):
         )})
         if enabled and antigravity["quota_stale"]:
             row["status"] = "stale"
+    reason = s.get("_quota_error")
+    if not enabled:
+        reason = "profile_disabled"
+    elif row["auth_status"] == "logged_out":
+        reason = "login_required"
+    row["quota_windows"] = quota_windows(row_status, s["provider"], reason=reason)
     row["runs_out_at_iso"] = _runs_out(row)
     return row
 
@@ -465,9 +478,13 @@ def _resolve_session_status(store, base_dir, env, fetch_codex_status, session,
             {**session, "authHome": source_root},
             timeout_seconds=status_timeout_seconds,
         )
-        if live_status:
+        if live_status and live_status.get("_quota_error"):
+            session["_quota_error"] = live_status["_quota_error"]
+        elif live_status:
             record_status(store, session["name"], live_status)
             return live_status
+        else:
+            session["_quota_error"] = "quota_read_failed"
 
     expected_account_email = (
         _read_expected_account_email(source_root)
@@ -494,6 +511,12 @@ def _resolve_session_status(store, base_dir, env, fetch_codex_status, session,
                 # structured payloads there cannot be attributed to ours.
                 trust_unattributed_structured=False,
             )
+            if artifact and (artifact.get("structured") or not expected_account_email):
+                # Shared artifacts without verified identity cannot date this profile.
+                artifact["quota_windows"] = {
+                    name: {"source": "cache", "observed_at": None}
+                    for name in ("5h", "weekly")
+                }
     if not artifact:
         if _is_low_confidence_status_source(current_status):
             return None
@@ -511,6 +534,7 @@ def _resolve_session_status(store, base_dir, env, fetch_codex_status, session,
         "raw_status_text": artifact.get("raw_status_text"),
         "source_ref": artifact.get("source_ref"),
         "structured": artifact.get("structured"),
+        "quota_windows": artifact.get("quota_windows"),
     })
     if _is_low_confidence_status_source(current_status) and not _is_low_confidence_status_source(resolved):
         record_status(store, session["name"], resolved)

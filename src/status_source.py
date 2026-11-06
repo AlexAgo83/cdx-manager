@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timezone
 
 from .config import PROVIDER_CLAUDE, PROVIDER_CODEX
+from .quota_provenance import quota_windows
 
 _ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 _ANSI_TERMINAL_CONTROL = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
@@ -513,11 +514,6 @@ def extract_named_statuses_from_text(text):
         if "remaining_week_pct" not in result and week_used is not None:
             result["remaining_week_pct"] = max(0, 100 - week_used)
 
-    if re.search(r"No stats available yet\.?\s+Start using Claude Code", normalized, re.I):
-        result.setdefault("usage_pct", 0)
-        result.setdefault("remaining_5h_pct", 100)
-        result.setdefault("remaining_week_pct", 100)
-
     # Table header row
     header_idx = next(
         (i for i, l in enumerate(lines)
@@ -722,6 +718,9 @@ def _backfill_missing_fields(target, source):
             continue
         if target.get(field) is None and source.get(field) is not None:
             target[field] = source[field]
+            name = {"remaining_5h_pct": "5h", "remaining_week_pct": "weekly"}.get(field)
+            if name:
+                target.setdefault("quota_windows", {})[name] = (source.get("quota_windows") or quota_windows(source, "unknown"))[name]
 
 
 def _record_timestamp_epoch(value):
@@ -792,9 +791,9 @@ def find_latest_status_artifact(
             score = stat.st_mtime
         else:
             score = 0
-        # Each record producer stamps "trusted" where it knows the source kind.
-        # Untrusted records are text scraped from jsonl payloads: they can be
-        # conversational noise quoting an old status block.
+        parsed["updated_at"] = datetime.fromtimestamp(score, tz=timezone.utc).isoformat() if score else None
+        parsed["quota_windows"] = quota_windows(parsed, provider)
+        # Trust comes from the record producer, not conversational text.
         trusted = bool(candidate.get("trusted"))
         # Structured payloads carry no account identity, so the email guard
         # above cannot filter them. In roots shared by several accounts the
