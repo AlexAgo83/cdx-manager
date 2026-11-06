@@ -66,6 +66,8 @@ _CLAUDE_HARNESS = re.compile(
     r"\s*(?:<(?P<tag>task-notification|local-command-stdout|local-command-stderr|command-name|command-message|command-args|system-reminder)>"
     r"(?:(?!</(?P=tag)>).)*</(?P=tag)>\s*)+", re.S,
 )
+# Claude Code wraps long pasted text in matching tags; show only the pasted text.
+_CLAUDE_PASTED = re.compile(r'<pasted_content id="([0-9A-Za-z]{1,32})">\n?(.*?)\n?</pasted_content id="\1">', re.S)
 _CLAUDE_MID_TURN_START = "The user sent a new message while you were working:\n"
 _CLAUDE_MID_TURN_END = re.compile(
     r"\n+This is how Claude Code surfaces messages the user sends mid-turn[^\n]*"
@@ -81,6 +83,8 @@ def _claude_user_content(content):
     blocks = [dict(block) if isinstance(block, dict) else block for block in blocks]
     texts = [block for block in blocks if isinstance(block, dict)
              and block.get("type") == "text" and isinstance(block.get("text"), str)]
+    for block in texts:
+        block["text"] = _CLAUDE_PASTED.sub(r"\2", block["text"])
     # Require both anchored boundaries; a quoted sentence alone is user content.
     if texts and texts[0]["text"].startswith(_CLAUDE_MID_TURN_START):
         end = _CLAUDE_MID_TURN_END.search(texts[-1]["text"])
