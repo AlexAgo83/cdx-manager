@@ -7,6 +7,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
+from .quota_provenance import quota_windows
 from .status_source import _is_zero_credit_balance
 
 try:
@@ -139,7 +140,7 @@ def normalize_codex_rate_limit_snapshot(snapshot, reset_credits=None):
         })
 
     raw_status_text = json.dumps(snapshot, sort_keys=True)
-    return {
+    status = {
         "remaining_5h_pct": _remaining_from_used_percent(
             five_hour.get("usedPercent", five_hour.get("used_percent"))
         ),
@@ -156,6 +157,8 @@ def normalize_codex_rate_limit_snapshot(snapshot, reset_credits=None):
         "raw_status_text": raw_status_text,
         "source_ref": "api:codex-app-server-rate-limits",
     }
+    status["quota_windows"] = quota_windows(status, "codex")
+    return status
 
 
 def _reader_thread(stream, output):
@@ -305,13 +308,18 @@ def _request_codex_app_server(auth_home, method, params, failure_reason, timeout
                     pass
 
 
-def fetch_codex_rate_limits(session, timeout=5, popen_factory=None):
-    diagnostic = fetch_codex_rate_limit_diagnostic(
+def fetch_codex_rate_limits(session, timeout=5, popen_factory=None, diagnostic=False):
+    result = fetch_codex_rate_limit_diagnostic(
         session,
         timeout=timeout,
         popen_factory=popen_factory,
     )
-    return diagnostic.get("status") if diagnostic.get("ok") else None
+    if result.get("ok"):
+        return result.get("status")
+    if diagnostic:
+        reason = "login_expired" if diagnostic_needs_codex_login(result) else result.get("reason")
+        return {"_quota_error": reason or "probe_failed"}
+    return None
 
 
 def consume_codex_rate_limit_reset_credit(session, idempotency_key, credit_id=None, timeout=5, popen_factory=None):

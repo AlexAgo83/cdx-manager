@@ -2,7 +2,7 @@ import inspect
 import threading
 from datetime import datetime, timezone
 
-from .claude_usage import refresh_claude_session_status
+from .claude_usage import ClaudeAuthInvalidError, refresh_claude_session_status
 from .config import PROVIDER_CLAUDE
 from .errors import CdxError
 
@@ -48,6 +48,7 @@ def _refresh_claude_sessions(service, refresh_fn=None, target_names=None, force=
 
     errors = []
     results = {}
+    completed = set()
 
     threads = []
 
@@ -61,15 +62,22 @@ def _refresh_claude_sessions(service, refresh_fn=None, target_names=None, force=
             # refresh_fn is the real default, since a caller-injected
             # refresh_fn (tests, mocks) may not accept auth_refresher.
             if refresh_fn is refresh_claude_session_status and s["name"] in already_auth_refreshed:
-                usage = refresh_fn(s, auth_refresher=lambda _auth_home: None)
+                usage = refresh_fn(s, auth_refresher=lambda _auth_home: None, diagnostic=True)
+            elif refresh_fn is refresh_claude_session_status:
+                usage = refresh_fn(s, diagnostic=True)
             else:
                 usage = refresh_fn(s)
             if inspect.isawaitable(usage):
                 raise CdxError("Claude refresh function returned an awaitable from a sync callable.")
-            if usage:
+            if usage and usage.get("_quota_error"):
+                errors.append({"session": s["name"], "error": CdxError("Claude quota unavailable"), "reason": usage["_quota_error"]})
+            elif usage:
                 results[s["name"]] = usage
         except Exception as e:
-            errors.append({"session": s["name"], "error": e})
+            errors.append({"session": s["name"], "error": e,
+                           "reason": "login_expired" if isinstance(e, ClaudeAuthInvalidError) else "quota_read_failed"})
+        finally:
+            completed.add(s["name"])
 
     for s in claude_sessions:
         t = threading.Thread(target=fetch, args=(s,), daemon=True)
@@ -82,6 +90,11 @@ def _refresh_claude_sessions(service, refresh_fn=None, target_names=None, force=
     # snapshot both so late writes can't mutate what we iterate.
     results = dict(results)
     errors = list(errors)
+
+    completed = set(completed)
+    for session in claude_sessions:
+        if session["name"] not in completed:
+            errors.append({"session": session["name"], "error": CdxError("Claude quota read timed out"), "reason": "probe_timeout"})
 
     recorded = []
     for name, usage in results.items():

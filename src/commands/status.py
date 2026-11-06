@@ -51,6 +51,7 @@ from ..provider_runtime import (
     _has_local_claude_auth,
     _probe_provider_auth_status,
 )
+from ..quota_provenance import mark_quota_unavailable
 from ..rtk_savings import rtk_saved
 from ..run_usage import (
     TOKEN_USAGE_KEYS,
@@ -856,6 +857,8 @@ def handle_status(rest, ctx):
         }
         for item in refresh_result.get("errors", [])
     ]
+    quota_errors = {item["session"]: item.get("reason") or "quota_read_failed" for item in refresh_result.get("errors", [])}
+    quota_errors.update({item["session"]: "auth_probe_failed" for item in auth_refresh.get("errors", [])})
     status_progress = None if parsed["json"] else _make_status_progress(ctx)
     if len(args) == 1:
         row = ctx["service"]["get_status_row"](
@@ -865,6 +868,8 @@ def handle_status(rest, ctx):
             cache_only=parsed["cached"],
             status_timeout_seconds=parsed["timeout"],
         )
+        if row.get("session_name") in quota_errors:
+            mark_quota_unavailable(row, quota_errors[row["session_name"]])
         output_warnings = [
             *warnings,
             *_refresh_warning_payloads(refresh_errors, [row]),
@@ -885,6 +890,9 @@ def handle_status(rest, ctx):
         cache_only=parsed["cached"],
         status_timeout_seconds=parsed["timeout"],
     )
+    for row in rows:
+        if row.get("session_name") in quota_errors:
+            mark_quota_unavailable(row, quota_errors[row["session_name"]])
     output_warnings = [
         *warnings,
         *_refresh_warning_payloads(refresh_errors, rows),

@@ -1,5 +1,11 @@
 # Unreleased
 
+## Quota provenance and profile freshness
+
+- Add `quota_windows.5h` and `quota_windows.weekly` to status JSON with `source`, per-profile/window ISO `observed_at`, `availability` (`measured`, `stale`, `unavailable`) and a nullable unavailable `reason`. Keep existing fields and reset times compatible.
+- Reuse the existing Codex rate-limit reader and Claude one-token probe without adding requests; distinguish login/read failures and missing windows without inventing percentages. Preserve older window timestamps during backfill.
+- Mark Codex evidence stale at 300 seconds and Claude evidence at 600 seconds (60 seconds for generic other-provider windows); unknown measurement times are stale. Cached evidence retains known provenance and never receives a new observation time.
+
 ## Find and resume interactive sessions
 
 - Add exact resolved `cdx history --cwd PATH` and `--interactive` filters before the result limit, preserving the JSON envelope and period/summary support.
