@@ -266,7 +266,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx configs [--json]', '36', use_color)}",
         f"  {_style('cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]', '36', use_color)}",
         f"  {_style(SET_USAGE[len('Usage: '):], '36', use_color)}",
-        f"  {_style('cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--logics|--notify|--notify-preview|--model|--priority|--max-parallel|--all) [--json]', '36', use_color)}",
+        f"  {_style('cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--permission|--fast|--rtk|--logics|--notify|--status-line|--notify-preview|--model|--priority|--max-parallel|--all) [--json]', '36', use_color)}",
         f"  {_style('cdx start <name> [--dir PATH] [--resume] [--json]', '36', use_color)}",
         f"  {_style('cdx history backfill-projects [--mapping FILE] [--dry-run|--apply] [--json]', '36', use_color)}",
         f"  {_style('cdx history [name] [--cwd PATH] [--interactive] [--limit N] [--summary] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--json]', '36', use_color)}",

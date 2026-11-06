@@ -55,6 +55,9 @@ cdx = "cdx_manager.cli:cli_entry"
 # of which ship the source tree wholesale — worked fine.
 packages = ["cdx_manager", "cdx_manager.commands"]
 
+[tool.setuptools.package-data]
+cdx_manager = ["quota_gauge.txt"]
+
 [tool.setuptools.package-dir]
 cdx_manager = "src"
 "cdx_manager.commands" = "src/commands"

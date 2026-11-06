@@ -313,6 +313,7 @@ def _format_launch_config(session, use_color=False):
         ("logics", "Logics"),
         ("notify", "Agent alerts"),
         ("agent_state", "Agent state"),
+        ("status_line", "Claude quota status line"),
         ("notify_preview", "Response preview"),
         ("scrub_env", "Scrub agent env"),
         ("shared_memory", "Shared memory"),
@@ -325,6 +326,8 @@ def _format_launch_config(session, use_color=False):
         ("policy", "Policy"),
         ("max_parallel", "Max parallel"),
     ]:
+        if key == "status_line" and session["provider"] != "claude":
+            continue
         rows.append([
             _dim(label, use_color),
             _format_launch_setting_value(launch, key, use_color=use_color),
@@ -345,14 +348,16 @@ def _format_launch_settings_hint(name="<name>"):
     )
 
 def _format_launch_setting_value(launch, key, use_color=False):
-    if key in ("fast", "rtk", "logics", "notify", "agent_state", "notify_preview", "scrub_env", "shared_memory", "retro"):
+    if key in ("fast", "rtk", "logics", "notify", "agent_state", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro"):
         if launch.get(key) is True:
             return _style("on", "32", use_color)
         if launch.get(key) is False:
             return _style("off", "2", use_color)
+        if key == "status_line":
+            return _dim("on (Claude)", use_color)
         if key == "logics":
             return _dim("auto", use_color)
-        if key in ("notify", "agent_state", "notify_preview", "scrub_env", "shared_memory", "retro"):
+        if key in ("notify", "agent_state", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro"):
             return _style("off", "2", use_color)
         return _dim("default", use_color)
     value = launch.get(key)

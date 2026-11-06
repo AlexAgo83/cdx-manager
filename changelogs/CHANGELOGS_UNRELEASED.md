@@ -1,5 +1,11 @@
 # Unreleased
 
+## Claude profile quota status line
+
+- Install a fast cache-only status line for Claude profiles at creation, settings updates and interactive launch/resume. Show the shared launcher gauge, both remaining windows, profile name, low-quota resets and a stale marker; use `quota ?` when data is unavailable.
+- Preserve and report operator-defined status lines. Add `cdx set --status-line on|off` and `cdx unset --status-line` for reversible profile control; leave Codex settings unchanged and document its built-in footer equivalent.
+
+
 ## Quota provenance and profile freshness
 
 - Add `quota_windows.5h` and `quota_windows.weekly` to status JSON with `source`, per-profile/window ISO `observed_at`, `availability` (`measured`, `stale`, `unavailable`) and a nullable unavailable `reason`. Keep existing fields and reset times compatible.
