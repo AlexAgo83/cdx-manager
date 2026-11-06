@@ -591,3 +591,16 @@ def test_claude_queued_messages_typed_mid_turn_are_user_entries(tmp_path):
     assert "ZmFrZS1pbWFnZQ==" not in json.dumps(page)
     tail = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION, tail=10)
     assert [e["text"] for e in tail["entries"]] == [e["text"] for e in page["entries"]]
+
+
+def test_claude_meta_user_records_are_not_operator_messages(tmp_path):
+    path = tmp_path / ".claude" / "projects" / "example" / f"{CONVERSATION}.jsonl"
+    path.parent.mkdir(parents=True)
+    at = "2026-11-06T08:58:56Z"
+    path.write_text("\n".join([
+        json.dumps({"type": "user", "isMeta": True, "timestamp": at, "message": {"role": "user",
+            "content": "[Image: original 1366x3002, displayed at 1172x2576. Multiply coordinates by 1.17 to map to original image.]"}}),
+        json.dumps({"type": "user", "timestamp": at, "message": {"role": "user", "content": "oula"}}),
+    ]) + "\n")
+    page = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION)
+    assert [(e["role"], e["text"]) for e in page["entries"]] == [("user", "oula")]

@@ -99,6 +99,9 @@ def _entries(provider, record, names):
         return []
     if not _conversation_record(provider, record.get("type")):
         return []
+    # Claude Code marks its own user-role notes (image size hints, caveats) as isMeta.
+    if provider == "claude" and record.get("isMeta"):
+        return []
     stamp = record.get("timestamp")
     try:
         datetime.fromisoformat(stamp.replace("Z", "+00:00"))
