@@ -393,3 +393,41 @@ next_page = read_conversation(
     cursor=page["next_cursor"], limit=100,
 )
 ```
+
+### Claude quota status line
+
+cdx installs a cache-only `statusLine` command in each new Claude profile's
+`.claude/settings.json` and updates it on copy, rename, import, interactive launch/resume or `cdx set` /
+`cdx unset`. Existing profiles pick it up at their next interactive launch.
+The line uses the launcher's eight-cell remaining-capacity gauge, for example:
+
+```text
+█▁▁▁▁▁▁▁  5h 25% · wk 16% (reset Nov 07 09:30) · grif
+```
+
+The gauge follows the lowest known window. Each window below 20% includes its
+cached reset time when available. `stale` marks observations at least ten minutes
+old, missing an observation timestamp, or dated in the future. Missing, unreadable,
+malformed, or unknown quota data produces only `quota ?`, with no error output.
+The status command reads `sessions.json` directly without taking a store lock,
+refreshing authentication, starting a provider, or making a network call. Refresh
+quota separately with `cdx status --refresh` or the tray's normal refresh cycle.
+It targets less than 100 ms per render; Claude's input JSON is not used.
+
+The command pins the cdx store path and resolves the profile from the session's
+`HOME` / `USERPROFILE`, with `CDX_SESSION_NAME` as fallback when no home is set.
+It does not follow the launcher's currently selected account. Operator-defined
+`statusLine` values and unrelated settings are preserved; cdx reports a conflict
+in launch/settings output (also in JSON `warnings`). Invalid settings are skipped.
+
+```bash
+cdx set grif --status-line off  # Remove only cdx's command and keep it disabled.
+cdx set grif --status-line on   # Reinstall without replacing an operator command.
+cdx unset grif --status-line   # Return to the default (enabled for Claude).
+cdx set --provider claude --status-line on  # Update existing Claude profiles now.
+```
+
+Codex has a built-in status line configured with `tui.status_line`, an ordered list
+of built-in footer item identifiers, rather than Claude's shell-command setting
+([official configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)).
+cdx does not change Codex configuration for this feature.

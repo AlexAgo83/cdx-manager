@@ -441,7 +441,11 @@ def import_bundle(base_dir, store, file_path,
             if recovery_dir:
                 remove_tree(recovery_dir, ignore_errors=True)
 
+    from .claude_status_line import provision
+
+    status_line_warnings = [notice for name in names if (notice := provision(store["get_session"](name), base_dir))]
     return {
+        "status_line_warnings": status_line_warnings,
         "path": file_path,
         "session_names": names,
         "include_auth": bool(decoded["meta"].get("include_auth")),

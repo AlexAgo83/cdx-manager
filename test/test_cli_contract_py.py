@@ -248,7 +248,7 @@ class CliContractTests(CliTestBase):
         for path in sorted(pathlib.Path("src").rglob("*.py")):
             if path.name == "config.py":
                 continue
-            for number, line in enumerate(path.read_text().splitlines(), 1):
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
                 literal = re.match(r'^[A-Z_]{4,}\s*=\s*([\{\(].*[\}\)])\s*$', line.strip())
                 if not literal:
                     continue
@@ -271,7 +271,7 @@ class CliContractTests(CliTestBase):
         facade = importlib.import_module("src.cli_commands")
         missing = []
         for path in [pathlib.Path("src/cli.py"), *sorted(pathlib.Path("test").glob("test_*.py"))]:
-            tree = ast.parse(path.read_text())
+            tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
                 if not isinstance(node, ast.ImportFrom):
                     continue
@@ -289,13 +289,13 @@ class CliContractTests(CliTestBase):
         from src.cli import VERSION
 
         root = pathlib.Path(".")
-        declared = (root / "VERSION").read_text().strip()
-        package_json = json.loads((root / "package.json").read_text())["version"]
-        package_lock = json.loads((root / "package-lock.json").read_text())
+        declared = (root / "VERSION").read_text(encoding="utf-8").strip()
+        package_json = json.loads((root / "package.json").read_text(encoding="utf-8"))["version"]
+        package_lock = json.loads((root / "package-lock.json").read_text(encoding="utf-8"))
         pyproject = re.search(
-            r'^version = "([^"]+)"', (root / "pyproject.toml").read_text(), re.M
+            r'^version = "([^"]+)"', (root / "pyproject.toml").read_text(encoding="utf-8"), re.M
         ).group(1)
-        badge = re.search(r"badge/version-v([0-9][^-]*)-", (root / "README.md").read_text()).group(1)
+        badge = re.search(r"badge/version-v([0-9][^-]*)-", (root / "README.md").read_text(encoding="utf-8")).group(1)
 
         # cli.py used to restate the version as a fourth copy and drifted a
         # release behind, so `cdx --version` reported a release it was not.
@@ -310,7 +310,7 @@ class CliContractTests(CliTestBase):
         import pathlib
 
         root = pathlib.Path(".")
-        files = json.loads((root / "package.json").read_text())["files"]
+        files = json.loads((root / "package.json").read_text(encoding="utf-8"))["files"]
 
         # An npm install has no Python distribution metadata, so VERSION is the
         # only thing that tells it which release it is. Leaving it out of the

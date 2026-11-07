@@ -4,6 +4,7 @@ Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 """
 
 from ..agent_notify import supports_agent_alerts
+from ..claude_status_line import provision as provision_status_line
 from ..cli_args import _parse_launch_setting_alias_args, _parse_set_args, _parse_unset_args
 from ..cli_helpers import _format_launch_config, _json_success, _write_json
 from ..cli_render import _success
@@ -70,6 +71,7 @@ def _apply_launch_settings(parsed, ctx, action="set"):
         ctx["service"]["set_launch_settings"](session["name"], parsed["settings"])
         for session in targets
     ]
+    warnings = [notice for session in sessions if (notice := provision_status_line(session, ctx["service"]["base_dir"]))]
     if len(sessions) == 1:
         session = sessions[0]
         message = f"Updated launch settings for {session['name']}"
@@ -80,6 +82,7 @@ def _apply_launch_settings(parsed, ctx, action="set"):
             action,
             message,
             updated_count=len(sessions),
+            warnings=warnings,
             session=sessions[0] if len(sessions) == 1 else None,
             sessions=sessions,
             launch=sessions[0].get("launch") or {} if len(sessions) == 1 else None,
@@ -87,6 +90,8 @@ def _apply_launch_settings(parsed, ctx, action="set"):
         _write_json(ctx, payload)
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    for warning in warnings:
+        ctx["out"](f"{warning}\n")
     notice = _notification_setting_notice(parsed["settings"], sessions, action)
     if notice:
         ctx["out"](f"{notice}\n")
@@ -100,6 +105,7 @@ def _clear_launch_settings(parsed, ctx, action="unset"):
         ctx["service"]["unset_launch_settings"](session["name"], parsed["keys"])
         for session in targets
     ]
+    warnings = [notice for session in sessions if (notice := provision_status_line(session, ctx["service"]["base_dir"]))]
     if len(sessions) == 1:
         session = sessions[0]
         message = f"Cleared launch settings for {session['name']}"
@@ -110,6 +116,7 @@ def _clear_launch_settings(parsed, ctx, action="unset"):
             action,
             message,
             updated_count=len(sessions),
+            warnings=warnings,
             session=sessions[0] if len(sessions) == 1 else None,
             sessions=sessions,
             launch=sessions[0].get("launch") or {} if len(sessions) == 1 else None,
@@ -117,6 +124,8 @@ def _clear_launch_settings(parsed, ctx, action="unset"):
         _write_json(ctx, payload)
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    for warning in warnings:
+        ctx["out"](f"{warning}\n")
     notice = _notification_setting_notice({key: False for key in parsed["keys"]}, sessions, action)
     if notice:
         ctx["out"](f"{notice}\n")

@@ -149,7 +149,7 @@ def _seed_codex_auth_from_global(auth_home, env=None):
     return True
 
 
-_ON_OFF_SETTINGS = {"fast": "fast", "rtk": "rtk", "logics": "logics", "notify": "notify", "agent_state": "agent state", "notify_preview": "notify preview", "scrub_env": "scrub env", "shared_memory": "shared memory", "retro": "retro"}
+_ON_OFF_SETTINGS = {"fast": "fast", "rtk": "rtk", "logics": "logics", "notify": "notify", "agent_state": "agent state", "status_line": "status line", "notify_preview": "notify preview", "scrub_env": "scrub env", "shared_memory": "shared memory", "retro": "retro"}
 
 
 def _has_control_chars(text):
@@ -284,7 +284,7 @@ def _normalize_session_label(label):
     return text
 
 
-def set_launch_settings(store, name, settings):
+def set_launch_settings(store, name, settings, base_dir=None):
     session = store["get_session"](name)
     if not session:
         raise CdxError(f"Unknown session: {name}")
@@ -317,16 +317,21 @@ def set_launch_settings(store, name, settings):
             "updatedAt": now,
         }
 
-    return store["update_session"](name, updater)
+    updated = store["update_session"](name, updater)
+    if base_dir is not None:
+        from .claude_status_line import provision
 
-def unset_launch_settings(store, name, keys):
+        provision(updated, base_dir)
+    return updated
+
+def unset_launch_settings(store, name, keys, base_dir=None):
     session = store["get_session"](name)
     if not session:
         raise CdxError(f"Unknown session: {name}")
     if not keys:
         raise CdxError("At least one launch setting is required.")
     allowed = {
-        "power", "reasoning_effort", "reasoningEffort", "permission", "fast", "rtk", "logics", "notify", "agent_state", "notify_preview",
+        "power", "reasoning_effort", "reasoningEffort", "permission", "fast", "rtk", "logics", "notify", "agent_state", "status_line", "notify_preview",
         "scrub_env", "shared_memory", "retro", "model", "fallback_model", "budget", "extra_args", "priority", "policy", "max_parallel",
     }
     unknown = [key for key in keys if key not in allowed]
@@ -345,7 +350,12 @@ def unset_launch_settings(store, name, keys):
             updated.pop("launch", None)
         return updated
 
-    return store["update_session"](name, updater)
+    updated = store["update_session"](name, updater)
+    if base_dir is not None:
+        from .claude_status_line import provision
+
+        provision(updated, base_dir)
+    return updated
 
 def update_auth_state(store, name, updater):
     now = _local_now_iso()
@@ -555,6 +565,9 @@ def copy_session(base_dir, store, source_name, dest_name):
             remove_tree(backup_root, ignore_errors=True)
     finally:
         remove_tree(temp_parent, ignore_errors=True)
+    from .claude_status_line import provision
+
+    provision(result["session"], base_dir)
     return {"session": result["session"], "overwritten": overwritten}
 
 
@@ -604,6 +617,9 @@ def rename_session(base_dir, store, source_name, dest_name):
             delete_keychain_credentials(source_auth_home)
         except CdxError:
             raise CdxError(f"Renamed session to {dest_name}, but old keychain credential cleanup failed; the new session is usable and the old entry was retained.") from None
+    from .claude_status_line import provision
+
+    provision(result["session"], base_dir)
     return result["session"]
 
 
@@ -647,6 +663,9 @@ def create_session(base_dir, env, store, name, provider=DEFAULT_PROVIDER):
         _seed_codex_auth_from_global(auth_home, env=env)
     if normalized_provider == PROVIDER_CLAUDE:
         _ensure_claude_attribution_disabled(auth_home)
+        from .claude_status_line import provision
+
+        provision({"provider": normalized_provider, "authHome": auth_home, "name": name}, base_dir)
     if normalized_provider == "antigravity":
         from .antigravity_status import install
 
@@ -1034,8 +1053,8 @@ def create_session_service(options=None):
         "set_session_enabled": partial(set_session_enabled, store),
         "set_session_label": partial(set_session_label, store),
         "clear_session_label": partial(clear_session_label, store),
-        "set_launch_settings": partial(set_launch_settings, store),
-        "unset_launch_settings": partial(unset_launch_settings, store),
+        "set_launch_settings": partial(set_launch_settings, store, base_dir=base_dir),
+        "unset_launch_settings": partial(unset_launch_settings, store, base_dir=base_dir),
         "record_status": partial(record_status, store),
         "record_launch_history": partial(record_launch_history, store),
         "get_launch_history": partial(get_launch_history, store),

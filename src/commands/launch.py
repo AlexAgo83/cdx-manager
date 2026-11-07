@@ -308,6 +308,13 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
     if not json_flag:
         ctx["out"](f"{_info(message, ctx['use_color'])}\n")
         _write_update_notice(ctx)
+    from ..claude_status_line import provision as provision_status_line
+
+    status_line_notice = provision_status_line(session, ctx["service"]["base_dir"])
+    if status_line_notice:
+        warnings.append(status_line_notice)
+        if not json_flag:
+            ctx["out"](f"{status_line_notice}\n")
     alerts_allowed = _notification_provisioning_enabled(session, ctx, json_flag)
     keep_state = agent_state_enabled(session)
     installed = provision(

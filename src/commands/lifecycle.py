@@ -3,6 +3,7 @@
 Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 """
 
+from ..claude_status_line import provision as provision_status_line
 from ..cli_args import (
     _parse_add_args,
     _parse_copy_args,
@@ -70,6 +71,7 @@ def handle_copy(rest, ctx):
     json_flag, args = _parse_json_flag(rest)
     parsed = _parse_copy_args(args)
     result = ctx["service"]["copy_session"](parsed["source"], parsed["dest"])
+    warning = provision_status_line(result["session"], ctx["service"]["base_dir"])
     overwritten = " (overwritten)" if result["overwritten"] else ""
     message = f"Copied session {parsed['source']} to {parsed['dest']}{overwritten}"
     if json_flag:
@@ -78,20 +80,26 @@ def handle_copy(rest, ctx):
             message,
             session=result["session"],
             overwritten=result["overwritten"],
+            warnings=[warning] if warning else [],
         ))
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    if warning:
+        ctx["out"](f"{warning}\n")
     return 0
 
 def handle_rename(rest, ctx):
     json_flag, args = _parse_json_flag(rest)
     parsed = _parse_rename_args(args)
     session = ctx["service"]["rename_session"](parsed["source"], parsed["dest"])
+    warning = provision_status_line(session, ctx["service"]["base_dir"])
     message = f"Renamed session {parsed['source']} to {parsed['dest']}"
     if json_flag:
-        _write_json(ctx, _json_success("rename", message, session=session))
+        _write_json(ctx, _json_success("rename", message, session=session, warnings=[warning] if warning else []))
         return 0
     ctx["out"](f"{_success(message, ctx['use_color'])}\n")
+    if warning:
+        ctx["out"](f"{warning}\n")
     return 0
 
 def handle_label(rest, ctx):

@@ -2185,7 +2185,7 @@ class SessionServicePythonTests(unittest.TestCase):
         sources = [_pathlib.Path("src/__init__.py"), *sorted(_pathlib.Path("test").glob("*.py"))]
         missing = []
         for path in sources:
-            tree = ast.parse(path.read_text())
+            tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
                 if isinstance(node, ast.ImportFrom):
                     if (node.module or "").rsplit(".", 1)[-1] != "session_service":
@@ -2211,7 +2211,7 @@ class SessionServicePythonTests(unittest.TestCase):
         # is the failure this guards: the reason has to stay next to the code.
         import pathlib as _pathlib
 
-        doc = _pathlib.Path("src/session_service.py").read_text()
+        doc = _pathlib.Path("src/session_service.py").read_text(encoding="utf-8")
         self.assertIn("Why the split stops here", doc)
         for module in ("src/session_status.py", "src/session_backup.py"):
             self.assertTrue(_pathlib.Path(module).exists(), f"{module} is missing")

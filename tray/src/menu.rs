@@ -137,8 +137,7 @@ const GAUGE_WIDTH: usize = 8;
 ///
 /// None of this was visible from the machine it was written on: macOS draws its
 /// own cell and never renders these at all.
-const FILLED: &str = "█";
-const EMPTY: &str = "▁";
+const GAUGE_STRIPS: &str = include_str!("../../src/quota_gauge.txt");
 
 fn gauge(value: Option<f64>) -> String {
     let filled = match value {
@@ -147,10 +146,13 @@ fn gauge(value: Option<f64>) -> String {
         None => 0,
         Some(v) => ((v.clamp(0.0, 100.0) / 100.0) * GAUGE_WIDTH as f64).round() as usize,
     };
+    let mut strips = GAUGE_STRIPS.lines();
+    let full = strips.next().expect("filled gauge strip");
+    let empty = strips.next().expect("empty gauge strip");
     format!(
         "{}{}",
-        FILLED.repeat(filled),
-        EMPTY.repeat(GAUGE_WIDTH - filled.min(GAUGE_WIDTH))
+        full.chars().take(filled).collect::<String>(),
+        empty.chars().skip(filled.min(GAUGE_WIDTH)).collect::<String>()
     )
 }
 
