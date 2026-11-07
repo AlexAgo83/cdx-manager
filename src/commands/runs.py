@@ -209,6 +209,7 @@ def _detached_child_argv(parsed, prompt_path, session_name, cwd):
         ("--project", "project"),
         ("--budget", "budget"),
         ("--continue-run", "continue_run"),
+        ("--extra-args", "extra_args"),
         ("--model", "model"),
         ("--kind", "kind"),
         ("--permission", "permission"),
@@ -216,7 +217,8 @@ def _detached_child_argv(parsed, prompt_path, session_name, cwd):
     ):
         value = parsed.get(key)
         if value:
-            argv += [flag, str(value)]
+            # A literal provider flag may also be a cdx flag, so bind the value.
+            argv += [f"{flag}={value}"] if key == "extra_args" else [flag, str(value)]
     # reasoning_effort and power are normalized to the same value upstream;
     # passing one back is enough and avoids re-tripping the must-match check.
     if parsed.get("reasoning_effort"):
@@ -612,6 +614,14 @@ def _budget_observation(session, paths, baseline):
     return observation
 
 
+def _run_session(session, launch_updates, extra_args):
+    """Apply run-only settings without mutating the profile or its successors."""
+    launch = {**(session.get("launch") or {}), **launch_updates}
+    if extra_args is not None:
+        launch["extra_args"] = " ".join(value for value in (launch.get("extra_args"), extra_args) if value)
+    return {**session, "launch": launch}
+
+
 def _continue_run_session(parsed, ctx):
     """Resolve only the parent's profile and exact persisted conversation."""
     previous = _run_registry(ctx).get(parsed["continue_run"])
@@ -651,7 +661,7 @@ def _continue_run_session(parsed, ctx):
         pinned_options = {"--model", "--effort", "--fallback-model", "--resume", "--continue",
                           "--session-id", "--fork-session", "--resume-session-at", "--from-pr",
                           "--settings", "--agent", "--agents"}
-        for arg in split_extra_args((session.get("launch") or {}).get("extra_args")) or []:
+        for arg in split_extra_args(_run_session(session, {}, parsed.get("extra_args"))["launch"].get("extra_args")) or []:
             if arg.split("=", 1)[0] in pinned_options or arg.startswith(("-r", "-c")):
                 raise CdxError("--continue-run cannot use Claude extra_args that override model, effort, or conversation.",
                                code="continue_run_settings_mismatch")
@@ -767,13 +777,7 @@ def handle_run(rest, ctx):
         # the profile's current conversation. Continuations use the parent run.
         if not parsed.get("continue_run"):
             session = ctx["service"]["begin_conversation"](session["name"])
-        run_session = {
-            **session,
-            "launch": {
-                **(session.get("launch") or {}),
-                **launch_updates,
-            },
-        }
+        run_session = _run_session(session, launch_updates, parsed.get("extra_args"))
         if not parsed.get("remote"):
             _ensure_session_authentication(
                 run_session,
@@ -970,7 +974,7 @@ def handle_run(rest, ctx):
                     else:
                         selection_row = successor.get("row") or {}
                         next_session = successor["session"]
-                        run_session = {**next_session, "launch": {**(next_session.get("launch") or {}), **launch_updates}}
+                        run_session = _run_session(next_session, launch_updates, parsed.get("extra_args"))
                         # Each new profile starts with the requested model, or its own default.
                         models = capacity_models(run_session)
                         model_index = capacity_retries = 0
@@ -1025,10 +1029,7 @@ def handle_run(rest, ctx):
                 failover_error_code = "failover_exhausted"
                 break
             selection_row = successor.get("row") or {}
-            run_session = {
-                **successor["session"],
-                "launch": {**(successor["session"].get("launch") or {}), **launch_updates},
-            }
+            run_session = _run_session(successor["session"], launch_updates, parsed.get("extra_args"))
             attempted.append(run_session["name"])
             models = capacity_models(run_session)
             model_index = capacity_retries = 0
