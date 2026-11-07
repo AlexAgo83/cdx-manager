@@ -273,7 +273,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx stats [name] [--since 7d|today|DATE] [--from DATE] [--to DATE] [--by session|project|model] [--json]', '36', use_color)}",
         f"  {_style('cdx last [--json]', '36', use_color)}",
         f"  {_style('cdx resume <name> [--project PATH] [--conversation <id>] [--json]', '36', use_color)}",
-        f"  {_style('cdx conversation <name> [--conversation ID] [--cwd PATH] [--since ISO] [--cursor CURSOR | --tail N | --before CURSOR] [--limit N] --json', '36', use_color)}",
+        f"  {_style('cdx conversation <name> [--conversation ID | --pid PID | --process-identity ID] [--cwd PATH] [--since ISO] [--cursor CURSOR | --tail N | --before CURSOR] [--limit N] --json', '36', use_color)}",
         f"  {_style('cdx can-resume <name> [--conversation <id>] [--json]', '36', use_color)}",
         f"  {_style('cdx rescue [<session>] [--to <target>] [--yes] [--dry-run] [--json]', '36', use_color)}",
         f"  {_style('cdx retro [--limit N] [--json]', '36', use_color)}",
