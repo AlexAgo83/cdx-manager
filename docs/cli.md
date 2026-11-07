@@ -683,3 +683,75 @@ Interactive launches appear as `status: "running"` as soon as the provider start
 History entries expose `conversation_id` and `provider_transcript_match: "conversation_id"` when an exact provider transcript exists. Claude uses its launch session ID; Codex can recover a unique thread from transcript metadata matching the launch directory and time window. Ambiguous discovery remains `provider_transcript_match: "recency"`, an explicitly unverified fallback that must not be treated as a verified resume target. A known ID with no transcript does not borrow another conversation. Existing history is enriched on read without rewriting old rows.
 
 `first_user_prompt` contains the first real user text (up to 2,000 characters) from a bounded, redacted transcript read. Provider command wrappers, system reminders, tool results and bare absolute file paths are skipped. Missing, oversized or unavailable evidence leaves the prompt unknown; a supplied initial prompt is used when available.
+
+### Resolve the conversation of a live Codex process
+
+Consumers such as remote-ops can request process-scoped resolution without
+falling back to workspace/recency:
+
+```bash
+cdx conversation work2 --pid 12345 --tail 20 --json
+cdx conversation work2 --process-identity 'linux:12345:<opaque digest from response>' --json
+```
+
+Supply the native Codex PID, not the shell, tmux pane PID, Node launcher, or CDX
+supervisor. CDX does not traverse descendants or choose between processes.
+`work2` supplies the provider/profile boundary; its saved conversation is ignored
+in process mode. The selectors are mutually exclusive and cannot be combined with
+`--conversation`, `--cwd`, or `--since`.
+
+The Python API is `read_conversation("codex", auth_home, pid=12345, tail=20)` in
+`cdx_manager.conversation` (`src.conversation` in a source checkout). Retain
+`process_identity` and pass it instead of `pid` on later calls to reject PID reuse.
+A bare PID identifies its current occupant, not a previously observed process.
+The opaque identity is a lifetime guard, not an authorization grant.
+
+Process-selected pages expose:
+
+| Field | Current contract |
+| --- | --- |
+| `resolution_status` | `unknown` until native selected-conversation evidence is available |
+| `resolution_method` | `null`; kernel process identity alone is not a conversation resolution method |
+| `conversation_id` | `null`; no candidate or guessed ID is exposed |
+| `process_identity` | Opaque Linux lifetime guard when process validation succeeds |
+| `reason` | Explicit evidence boundary or process validation failure |
+
+**Current measured boundary:** process-to-selected-conversation resolution is not
+available. Even a sole open writable rollout proves only that a process owns a
+thread. During a TUI conversation switch it may belong to a retained thread while
+the selected thread has no rollout yet. Resume argv, session/profile state, cwd,
+mtime, a unique new transcript, and fuzzy text also cannot prove the current
+selection. This implementation deliberately returns
+`native_conversation_identity_unavailable` after validating a live Codex process;
+it does not claim that an open file establishes the selected conversation.
+Remote-ops must treat this as an explicit unknown, never retry via recency.
+
+Process mode returns `status: "unavailable"`, empty entries, null conversation ID
+and no cursors. With `--cursor` or `--before`, it returns `reset_required` and no
+entries: a cursor from an explicit-ID or recency lookup cannot cross into process
+mode. No process cursor is issued until it can be bound to both a verified process
+lifetime and a native conversation selection/generation. Existing explicit-ID,
+recency, forward, tail and backward pagination contracts remain unchanged.
+
+Only Linux `/proc` process identity is currently supported. Each validation reads
+at most 8 KiB each from process `stat`, `status` and kernel `boot_id`, twice, plus
+the executable symlink/stat. The guard includes PID, start ticks, boot ID, all
+four target UIDs and executable device/inode. Wrong user, a non-`codex` executable,
+dead/reused PID, inaccessible/oversized/malformed evidence, or unsupported
+provider/platform fails closed. Other reasons include `unrelated_user`,
+`unrelated_process`, `process_not_running`, `process_identity_changed`,
+`native_evidence_unavailable`, `evidence_limit`, and
+`unsupported_process_resolution`. No argv, environment, credential store,
+transcript file, directory scan or history database is read in process mode.
+A process identity does not prove profile ownership; missing native profile and
+thread association therefore remains unknown even for an existing profile.
+
+The smallest required launch-time tracking is a provider-native event containing
+the selected conversation ID on fresh start, resume and every selection change.
+The launcher must bind each event atomically to the child's boot ID/PID/start ticks,
+profile and a monotonic selection generation; invalidate it on exit. A future
+resolver can consume that bounded record and bind cursors to the same generation.
+An original resume ID or launch timestamp alone is insufficient. No launch/resume
+flags or dependencies are changed here; implementing this requires a verified
+provider lifecycle event source, which the inspected interactive interface does
+not supply. See the mission fragment for the local native probe and Tower checks.

@@ -199,3 +199,32 @@ def test_invalid_since_is_rejected():
     ctx = {"service": {"get_session": lambda name: session}}
     with pytest.raises(CdxError, match="ISO timestamp"):
         handle_conversation(["work", "--since", "yesterday", "--json"], ctx)
+
+
+@pytest.mark.parametrize("selection", [["--pid", "123"], ["--process-identity", "opaque-identity"]])
+def test_process_selection_ignores_saved_conversation(monkeypatch, selection):
+    from src.commands import conversation
+
+    session = {"name": "work2", "provider": "codex", "authHome": "/profile", "conversation": {"id": "old"}}
+    calls = []
+
+    def read(*args, **kwargs):
+        calls.append(kwargs)
+        return {"status": "unavailable", "resolution_status": "unknown", "conversation_id": None,
+                "resolution_method": None, "reason": "no_native_evidence", "entries": []}
+
+    monkeypatch.setattr(conversation, "read_conversation", read)
+    output = io.StringIO()
+    ctx = {"service": {"get_session": lambda name: session}, "out": output.write}
+    assert handle_conversation(["work2", *selection, "--json"], ctx) == 0
+    assert calls[0]["conversation_id"] is None and calls[0]["fallback_to_recency"] is False
+    assert calls[0]["pid"] == (123 if selection[0] == "--pid" else None)
+    assert json.loads(output.getvalue())["resolution_status"] == "unknown"
+
+
+@pytest.mark.parametrize("selection", [["--pid", "bad"], ["--pid", "123", "--process-identity", "opaque"],
+                                      ["--pid", "123", "--conversation", "old"], ["--pid", "123", "--cwd", "/repo"]])
+def test_process_selection_conflicts(selection):
+    ctx = {"service": {"get_session": lambda name: {"name": name, "provider": "codex"}}}
+    with pytest.raises(CdxError):
+        handle_conversation(["work2", *selection, "--json"], ctx)

@@ -379,7 +379,47 @@ def _read_tail(handle, stat, identity, provider, page, count, before):
     return page
 
 
+def _validate_page_options(limit, tail, cursor, before):
+    if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 1000:
+        raise CdxError("Conversation limit must be an integer between 1 and 1000.")
+    if tail is not None and (type(tail) is not int or not 1 <= tail <= 1000):
+        raise CdxError("Conversation tail must be an integer between 1 and 1000.")
+    if cursor is not None and (tail is not None or before is not None):
+        raise CdxError("Conversation --cursor cannot be combined with --tail or --before.")
+
+
 def read_conversation(provider, auth_home=None, *, conversation_id=None, started_at=None,
+                      terminal_transcript=None, cursor=None, limit=100, fallback_to_recency=False,
+                      tail=None, before=None, cwd=None, pid=None, process_identity=None):
+    """Read a conversation page, optionally bound to a live native process.
+
+    Process selection never uses saved session IDs or recency. Keep the returned
+    opaque process_identity for later polls to detect PID reuse. Unknown evidence
+    returns no entries. See docs/cli.md for platform and snapshot limitations.
+    """
+    _validate_page_options(limit, tail, cursor, before)
+    options = dict(conversation_id=conversation_id, started_at=started_at,
+                   terminal_transcript=terminal_transcript, cursor=cursor, limit=limit,
+                   fallback_to_recency=fallback_to_recency, tail=tail, before=before, cwd=cwd)
+    if pid is None and process_identity is None:
+        return _read_conversation_page(provider, auth_home, **options)
+    if conversation_id is not None or cwd is not None or started_at is not None or terminal_transcript is not None:
+        raise CdxError("Process selection cannot be combined with conversation, cwd, since or terminal transcript selection.")
+    from .process_conversation import resolve_process_conversation
+
+    resolution = resolve_process_conversation(provider, auth_home, pid=pid, process_identity=process_identity)
+    page = {"status": "unavailable", "provider": provider, "entries": [], "next_cursor": None,
+            "has_more": False, "resolution_scope": None, **resolution}
+    if tail is not None or before is not None:
+        page["before_cursor"] = None
+    # No process-bound cursor is issued until native selected-thread evidence
+    # exists. Never replay an explicit-ID or recency cursor through this mode.
+    if cursor is not None or before is not None:
+        page["status"] = "reset_required"
+    return page
+
+
+def _read_conversation_page(provider, auth_home=None, *, conversation_id=None, started_at=None,
                       terminal_transcript=None, cursor=None, limit=100, fallback_to_recency=False, tail=None, before=None, cwd=None):
     """Return a JSON-serializable page; pass next_cursor back unchanged to poll.
 
@@ -394,12 +434,7 @@ def read_conversation(provider, auth_home=None, *, conversation_id=None, started
     Tool bodies and reasoning blocks are never returned. Ollama PTY captures
     cannot reliably distinguish roles and are explicitly unsupported.
     """
-    if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 1000:
-        raise CdxError("Conversation limit must be an integer between 1 and 1000.")
-    if tail is not None and (type(tail) is not int or not 1 <= tail <= 1000):
-        raise CdxError("Conversation tail must be an integer between 1 and 1000.")
-    if cursor is not None and (tail is not None or before is not None):
-        raise CdxError("Conversation --cursor cannot be combined with --tail or --before.")
+    _validate_page_options(limit, tail, cursor, before)
     if started_at is not None:
         try:
             datetime.fromisoformat(started_at.replace("Z", "+00:00"))
