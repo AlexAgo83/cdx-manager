@@ -1,5 +1,10 @@
 # Unreleased
 
+## Per-run provider arguments (#120)
+
+- Add `cdx run --extra-args 'ARGS'` with the session setting's validation and POSIX splitting, appended after the selected profile's arguments without changing saved settings or interactive launches. Preserve existing provider permission and isolation handling.
+- Forward run arguments to detached supervisors and profile failover; reject Claude model, effort and conversation overrides during continuation. List the option under `cdx schema --json` unvalidated arguments and cover run-only Claude tool allowlists and strict MCP configuration.
+
 ## Claude profile quota status line
 
 - Install a fast cache-only status line for Claude profiles at creation, settings updates and interactive launch/resume. Show the shared launcher gauge, both remaining windows, profile name, low-quota resets and a stale marker; use `quota ?` when data is unavailable.

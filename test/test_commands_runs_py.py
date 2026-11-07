@@ -49,6 +49,149 @@ from src.session_service import create_session_service
 
 class RunsCommandTests(CliTestBase):
 
+    def test_run_extra_args_are_scoped_to_one_claude_run(self):
+        from src.provider_runtime import _build_launch_spec
+
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": directory})
+        session = service["create_session"]("work", "claude")
+        service["set_launch_settings"]("work", {"extra_args": "--allowedTools Read"})
+        before = service["get_session"]("work")["launch"]
+        auth = _AuthHarness(initial_auth={session["authHome"]: True})
+        commands = []
+
+        def spawn(argv, **kwargs):
+            commands.append(argv)
+            return _HeadlessChild(0)
+
+        extra = "--allowedTools 'Bash(touch t)' --strict-mcp-config"
+        for options in (["--extra-args", extra], []):
+            output = self.make_io()
+            result = main(["run", "work", "--cwd", directory, "--prompt", "Run: touch t",
+                           "--permission", "default", *options, "--json"],
+                          self.make_run_ctx(output, service, spawn_headless=spawn, spawn_sync=auth.spawn_sync))
+            self.assertEqual(result, 0, output["stdout"].getvalue())
+        first, second = commands
+        self.assertEqual(first[first.index("--permission-mode") + 1], "default")
+        self.assertEqual(first[first.index("--allowedTools"):first.index("--strict-mcp-config") + 1],
+                         ["--allowedTools", "Read", "--allowedTools", "Bash(touch t)", "--strict-mcp-config"])
+        self.assertNotIn("--strict-mcp-config", second)
+        self.assertNotIn("Bash(touch t)", second)
+        current = service["get_session"]("work")
+        self.assertEqual(current["launch"], before)
+        interactive = _build_launch_spec(current, cwd=directory, capture_transcript=False)["args"]
+        self.assertNotIn("--strict-mcp-config", interactive)
+        self.assertNotIn("Bash(touch t)", interactive)
+        self.assertIn("Read", interactive)
+
+    def test_run_extra_args_preserve_permission_and_isolation_handling(self):
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": directory})
+        session = service["create_session"]("work", "claude")
+        service["set_launch_settings"]("work", {"scrub_env": True})
+        auth = _AuthHarness(initial_auth={session["authHome"]: True})
+        output = self.make_io()
+        commands = []
+
+        def confine(command, checkout, **kwargs):
+            self.assertEqual(str(checkout), directory)
+            self.assertFalse(kwargs["network"])
+            self.assertFalse(kwargs["writable"])
+            return command, kwargs["source"]
+
+        def spawn(argv, **kwargs):
+            commands.append(argv)
+            self.assertEqual(kwargs["env"]["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"], "1")
+            return _HeadlessChild(0)
+
+        with mock.patch("src.workspace_sandbox.sandbox_command", side_effect=confine) as sandbox:
+            result = main(["run", "work", "--cwd", directory, "--prompt", "Review", "--permission", "review",
+                           "--isolate-workspace", "--extra-args", "--allowedTools Read --strict-mcp-config", "--json"],
+                          self.make_run_ctx(output, service, spawn_headless=spawn, spawn_sync=auth.spawn_sync))
+        self.assertEqual(result, 0, output["stdout"].getvalue())
+        sandbox.assert_called_once()
+        self.assertIn("--strict-mcp-config", commands[0])
+        self.assertEqual(service["get_session"]("work")["launch"]["scrub_env"], True)
+        self.assertNotIn("extra_args", service["get_session"]("work")["launch"])
+
+    def test_run_extra_args_follow_failover_after_each_profiles_arguments(self):
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": directory})
+        sessions = [service["create_session"](name, "claude") for name in ("first", "second")]
+        for session in sessions:
+            service["set_launch_settings"](session["name"], {"extra_args": "--allowedTools " + session["name"]})
+        auth = _AuthHarness(initial_auth={session["authHome"]: True for session in sessions})
+        commands = []
+
+        def spawn(argv, **kwargs):
+            commands.append(argv)
+            return _HeadlessChild(1 if len(commands) == 1 else 0)
+
+        output = self.make_io()
+        with mock.patch("src.commands.runs.failover_reason", return_value="rate_limit_reached"), \
+                mock.patch("src.commands.runs._status_row_for", return_value={}), \
+                mock.patch("src.commands.runs._select_headless_session",
+                           return_value={"session": service["get_session"]("second")}):
+            result = main(["run", "first", "--cwd", directory, "--prompt", "Work", "--failover",
+                           "--extra-args", "--allowedTools Read --strict-mcp-config", "--json"],
+                          self.make_run_ctx(output, service, spawn_headless=spawn, spawn_sync=auth.spawn_sync))
+        self.assertEqual(result, 0, output["stdout"].getvalue())
+        self.assertEqual(len(commands), 2)
+        for name, argv in zip(("first", "second"), commands):
+            self.assertEqual(argv[argv.index("--allowedTools"):argv.index("--strict-mcp-config") + 1],
+                             ["--allowedTools", name, "--allowedTools", "Read", "--strict-mcp-config"])
+            self.assertEqual(service["get_session"](name)["launch"]["extra_args"], "--allowedTools " + name)
+
+    def test_run_extra_args_keep_codex_headless_permission_mapping(self):
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": directory})
+        self._authenticated_codex_session(service)
+        commands = []
+
+        def spawn(argv, **kwargs):
+            commands.append(argv)
+            return _HeadlessChild(0)
+
+        output = self.make_io()
+        result = main(["run", "work", "--cwd", directory, "--prompt", "Review", "--permission", "review",
+                       "--extra-args", "--dangerously-bypass-approvals-and-sandbox", "--json"],
+                      self.make_run_ctx(output, service, spawn_headless=spawn))
+        self.assertEqual(result, 0, output["stdout"].getvalue())
+        self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", commands[0])
+        self.assertEqual(commands[0][commands[0].index("-s") + 1], "read-only")
+
+    def test_run_extra_args_share_session_validation(self):
+        from src.config import MAX_LAUNCH_EXTRA_ARGS_LENGTH, split_extra_args
+        from src.session_service import _normalize_launch_settings
+
+        base = ["work", "--cwd", ".", "--prompt", "Work", "--json"]
+        for value in ("", "   ", "--name 'unbalanced", "x" * (MAX_LAUNCH_EXTRA_ARGS_LENGTH + 1),
+                      "--name a\nb", "--name a\x00b", "--name a\x7fb"):
+            with self.subTest(value=value):
+                with self.assertRaises(CdxError) as setting:
+                    _normalize_launch_settings({"extra_args": value})
+                with self.assertRaises(CdxError) as run:
+                    _parse_run_args([*base, "--extra-args", value])
+                self.assertEqual(str(run.exception), str(setting.exception))
+        value = "  --add-dir '../shared dir' --name \"literal $(echo fake)\"  "
+        parsed = _parse_run_args([*base, "--extra-args=" + value])
+        self.assertEqual(parsed["extra_args"], _normalize_launch_settings({"extra_args": value})["extra_args"])
+        self.assertEqual(split_extra_args(parsed["extra_args"]),
+                         ["--add-dir", "../shared dir", "--name", "literal $(echo fake)"])
+
+    def test_run_extra_args_survive_detached_child_and_remain_unvalidated_in_schema(self):
+        from src.cli_args import cdx_schema
+        from src.commands.runs import _detached_child_argv
+
+        for extra in ("--allowedTools 'Bash(touch t)' --strict-mcp-config", "--json"):
+            parsed = _parse_run_args(["work", "--cwd", ".", "--prompt", "Work", "--json", "--detach",
+                                      "--extra-args=" + extra])
+            child = _parse_run_args(_detached_child_argv(parsed, "prompt.txt", "work", ".")[1:])
+            self.assertEqual(child["extra_args"], parsed["extra_args"])
+        schema = cdx_schema()["unvalidated"]["extra_args"]
+        self.assertIn("run", schema["commands"])
+        self.assertEqual(schema["option"], "--extra-args")
+
     def test_remote_option_keeps_existing_run_options(self):
         parsed = _parse_run_args(["work", "--remote", "agent@worker", "--cwd", "/remote/project", "--prompt", "Work",
                                   "--permission", "full", "--budget", "2", "--label", "checks", "--detach", "--json"])
@@ -601,28 +744,49 @@ class RunsCommandTests(CliTestBase):
                 self.assertEqual(service["get_session"]("work"), before)
                 spawn.assert_not_called()
 
+    def test_continue_run_accepts_run_only_claude_tool_arguments(self):
+        directory, service, session, _transcript = self._continuation_parent(provider="claude", model="claude-sonnet-5-5")
+        auth = _AuthHarness(initial_auth={session["authHome"]: True})
+        commands = []
+
+        def spawn(argv, **kwargs):
+            commands.append(argv)
+            return _HeadlessChild(0)
+
+        output = self.make_io()
+        result = main(["run", "--continue-run", "parent", "--cwd", directory, "--prompt", "Fix",
+                       "--extra-args", "--allowedTools 'Bash(touch t)' --strict-mcp-config", "--json"],
+                      self.make_run_ctx(output, service, spawn_headless=spawn, spawn_sync=auth.spawn_sync))
+        self.assertEqual(result, 0, output["stdout"].getvalue())
+        self.assertIn("--resume", commands[0])
+        self.assertIn("Bash(touch t)", commands[0])
+        self.assertNotIn("extra_args", service["get_session"]("work")["launch"])
+
     def test_continue_run_rejects_claude_passthrough_overrides_before_launch(self):
         options = ["--effort low --fallback-model other-model", "--effort=low", "--model other-model",
                    "--model=other-model", "--fallback-model=other-model", "--resume other-conversation",
                    "--resume=other-conversation", "-r other-conversation", "-rother-conversation",
                    "--continue", "-c", "--session-id other-conversation", "--session-id=other-conversation",
                    "--fork-session", "--resume-session-at message-id", "--from-pr 123", '--settings {"model":"other-model"}', "--agent other-agent"]
-        for extra_args in options:
-            with self.subTest(extra_args=extra_args):
-                directory, service, _session, _transcript = self._continuation_parent(
-                    provider="claude", model="claude-sonnet-5-5")
-                service["set_launch_settings"]("work", {"extra_args": extra_args})
-                before = service["get_session"]("work")
-                output = self.make_io()
-                spawn = mock.Mock(side_effect=AssertionError("A refused continuation must not launch a provider"))
-                result = main(["run", "--continue-run", "parent", "--cwd", directory, "--prompt", "Fix", "--json"],
-                              self.make_run_ctx(output, service, spawn_headless=spawn))
-                self.assertEqual(result, 1)
-                self.assertEqual(json.loads(output["stdout"].getvalue())["error"]["code"],
-                                 "continue_run_settings_mismatch")
-                spawn.assert_not_called()
-                self.assertEqual(service["get_session"]("work"), before)
-                self.assertEqual(len(RunRegistry(directory).list()), 1)
+        for source in ("session", "run"):
+            for extra_args in options:
+                with self.subTest(source=source, extra_args=extra_args):
+                    directory, service, _session, _transcript = self._continuation_parent(
+                        provider="claude", model="claude-sonnet-5-5")
+                    if source == "session":
+                        service["set_launch_settings"]("work", {"extra_args": extra_args})
+                    before = service["get_session"]("work")
+                    output = self.make_io()
+                    spawn = mock.Mock(side_effect=AssertionError("A refused continuation must not launch a provider"))
+                    result = main(["run", "--continue-run", "parent", "--cwd", directory, "--prompt", "Fix", "--json",
+                                   *(["--extra-args", extra_args] if source == "run" else [])],
+                                  self.make_run_ctx(output, service, spawn_headless=spawn))
+                    self.assertEqual(result, 1)
+                    self.assertEqual(json.loads(output["stdout"].getvalue())["error"]["code"],
+                                     "continue_run_settings_mismatch")
+                    spawn.assert_not_called()
+                    self.assertEqual(service["get_session"]("work"), before)
+                    self.assertEqual(len(RunRegistry(directory).list()), 1)
 
     def test_continue_run_uses_current_security_settings_and_pins_only_model_and_effort(self):
         from src.commands.runs import _continue_run_session

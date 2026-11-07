@@ -120,6 +120,14 @@ cdx run work --cwd /path/to/repo --prompt "Implement the change" --reasoning-eff
 cdx run --continue-run RUN_ID --cwd /path/to/repo --prompt "Fix the remaining test failure" --json
 ```
 
+Pass provider arguments for a single run with `--extra-args 'ARGS'`. They use the session setting's POSIX quoting and validation (nonempty, at most 512 characters, no control characters, balanced quotes), and are appended after the profile's `extra_args`. They do not change the profile or subsequent interactive launches. Provider flag semantics remain unvalidated, as listed under `unvalidated.extra_args` in `cdx schema --json`; existing provider permission and workspace isolation handling still applies. Codex headless launches retain their existing behavior of ignoring session and run extra arguments.
+
+```bash
+cdx run claude-work --cwd /path/to/repo --permission default --prompt 'Run: touch t' --extra-args '--allowedTools "Bash(touch t)" --strict-mcp-config' --json
+```
+
+This allows the requested Claude tool and restricts MCP configuration for this run only. The option also follows detached runs and profile failover. With `--continue-run`, Claude extra arguments that override model, effort or conversation are refused, whether supplied by the session or this run.
+
 `--continue-run` resumes the exact Claude session or Codex thread and pins the previous run's recorded model and effort, even if the profile settings changed. The profile is inferred from the parent; an explicit session or provider must match. An explicit model or effort must also match. Runs and history record `parent_run_id` and `conversation_id`. Detached continuations use the cdx child supervisor with the same pins. Codex continuation usage is measured between exact transcript snapshots before and after the run, since exec resume can report conversation totals. If either boundary is unavailable, per-run usage stays unknown with `usage_attribution: "continuation_usage_unavailable"` in history instead of counting earlier turns again.
 
 Headless runs, including detached, remote and continued runs, keep their

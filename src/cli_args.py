@@ -22,6 +22,7 @@ from .config import (
 )
 from .errors import CdxArgumentError, CdxError
 from .provider_runtime import _normalize_reasoning_effort
+from .session_service import _normalize_launch_settings
 
 STATUS_USAGE = "Usage: cdx status [--json] [--refresh|--cached] [--timeout SECONDS] | cdx status --small|-s [--refresh|--cached] [--timeout SECONDS] | cdx status <name> [--json] [--refresh|--cached] [--timeout SECONDS]"
 DOCTOR_USAGE = "Usage: cdx doctor [--severity OK|WARN|FAIL[,OK|WARN|FAIL...]] [--check-provider-flags] [--json]"
@@ -49,7 +50,7 @@ CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--conversation <id>] [--json]"
 SESSIONS_USAGE = "Usage: cdx sessions [--all] --json"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json"
 NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
-RUN_USAGE = "Usage: cdx run [session] [--remote SSH_TARGET] [--remote-prefix COMMAND] (--cwd|--dir) PATH [--project PATH] (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--network-access] [--isolate-workspace] [--timeout-seconds N] [--budget USD] [--label TEXT] [--max-parallel N] [--continue-run RUN_ID] [--detach] [--failover] [--refresh] --json"
+RUN_USAGE = "Usage: cdx run [session] [--remote SSH_TARGET] [--remote-prefix COMMAND] (--cwd|--dir) PATH [--project PATH] (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--network-access] [--isolate-workspace] [--timeout-seconds N] [--budget USD] [--extra-args 'ARGS'] [--label TEXT] [--max-parallel N] [--continue-run RUN_ID] [--detach] [--failover] [--refresh] --json"
 RUN_USAGE += "\nRemote Ollama generates text only; it is not an autonomous coding agent and does not edit the repository. Requires an installed worker model; no authentication."
 RUN_JSON_REQUIRED = "cdx run: --json is required."
 RUN_TARGET_REQUIRED = "cdx run: specify a session name or --provider PROVIDER."
@@ -505,13 +506,13 @@ def cdx_schema():
             "kind": {"accepted": list(RUN_KIND_VALUES)},
             "provider": {"accepted": list(PROVIDERS)},
         },
-        # Passthrough arguments are deliberately absent from this contract.
-        # `cdx set --extra-args` reaches the provider unchanged and cdx never
-        # validates it, so publishing it here would claim a guarantee that does
-        # not exist. A caller must treat it as opaque.
+        # Provider flag semantics remain opaque; only the argument string's
+        # syntax and size are checked by cdx.
         "unvalidated": {
             "extra_args": {
-                "reason": "Passed to the provider CLI unchanged; cdx neither parses nor verifies these arguments.",
+                "commands": ["set", "run"],
+                "option": "--extra-args",
+                "reason": "Split into literal argv entries; cdx does not verify provider flag semantics.",
                 "not_checked_by": ["cdx schema", "cdx doctor --check-provider-flags"],
             },
         },
@@ -697,6 +698,7 @@ def _parse_run_args(args):
         "--provider": {"key": "provider", "type": "str", "default": None, "transform": _parse_run_provider},
         "--model": {"key": "model", "type": "str", "default": None},
         "--continue-run": {"key": "continue_run", "type": "str", "default": None},
+        "--extra-args": {"key": "extra_args", "type": "str", "default": None},
         "--kind": {"key": "kind", "type": "str", "default": "assistant"},
         "--reasoning-effort": {"key": "reasoning_effort", "type": "str", "default": None},
         "--power": {"key": "power", "type": "str", "default": None},
@@ -755,6 +757,7 @@ def _parse_run_args(args):
         raise CdxArgumentError("cdx run: --remote-prefix requires --remote and a nonempty command.",
                                code=ARG_CODE_INVALID_VALUE, arguments=["--remote-prefix"])
     effort = _parse_run_effort(parsed["reasoning_effort"], parsed["power"])
+    extra = _normalize_launch_settings({"extra_args": parsed["extra_args"]}).get("extra_args")
     return {
         "name": name,
         "remote": parsed["remote"],
@@ -765,6 +768,7 @@ def _parse_run_args(args):
         "prompt_file": parsed["prompt_file"],
         "prompt": parsed["prompt"],
         "continue_run": parsed["continue_run"],
+        "extra_args": extra,
         "kind": parsed["kind"],
         "model": parsed["model"],
         "permission": parsed["permission"],
