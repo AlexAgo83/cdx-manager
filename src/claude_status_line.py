@@ -134,4 +134,6 @@ def main(argv=None, stdout=None, env=None):
 
 
 if __name__ == "__main__":
+    # Claude reads UTF-8 from a pipe; Windows otherwise uses its ANSI code page.
+    sys.stdout.reconfigure(encoding="utf-8")
     raise SystemExit(main())

@@ -130,13 +130,14 @@ def test_invalid_settings_and_codex_are_untouched(tmp_path):
     assert path.read_text() == "{"
 
 
-def test_installed_command_runs_with_spaces(profile):
+@pytest.mark.parametrize("output_encoding", ["utf-8", "cp1252", "ascii"])
+def test_installed_command_runs_with_spaces(profile, output_encoding):
     base, session, _ = profile
     assert line.provision(session, str(base)) is None
     settings = json.loads((Path(session["authHome"]) / ".claude/settings.json").read_text())
-    result = subprocess.run(settings["statusLine"]["command"], shell=True, capture_output=True, text=True,
-                            env={**os.environ, "HOME": session["authHome"]}, input="{}", check=True)
-    assert " · grif" in result.stdout
+    result = subprocess.run(settings["statusLine"]["command"], shell=True, capture_output=True, text=True, encoding="utf-8",
+                            env={**os.environ, "HOME": session["authHome"], "PYTHONIOENCODING": output_encoding}, input="{}", check=True)
+    assert result.stdout == line.render(base, {"HOME": session["authHome"]}) + "\n"
     assert result.stderr == ""
 
 

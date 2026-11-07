@@ -4,6 +4,7 @@
 
 - Install a fast cache-only status line for Claude profiles at creation, settings updates and interactive launch/resume. Show the shared launcher gauge, both remaining windows, profile name, low-quota resets and a stale marker; use `quota ?` when data is unavailable.
 - Preserve and report operator-defined status lines. Add `cdx set --status-line on|off` and `cdx unset --status-line` for reversible profile control; leave Codex settings unchanged and document its built-in footer equivalent.
+- Write the standalone status line as UTF-8 when piped, including on Windows, and read repository contract fixtures explicitly as UTF-8.
 
 
 ## Quota provenance and profile freshness
