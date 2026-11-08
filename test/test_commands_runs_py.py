@@ -49,6 +49,72 @@ from src.session_service import create_session_service
 
 class RunsCommandTests(CliTestBase):
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "bubblewrap isolation is Linux-only")
+    def test_isolated_claude_full_login_uses_only_stored_setup_token(self):
+        from src import provider_runtime, workspace_sandbox
+
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        session = service["create_session"]("work", "claude")
+        profile = pathlib.Path(session["authHome"])
+        (profile / ".claude").mkdir(exist_ok=True)
+        login_path = profile / ".claude" / ".credentials.json"
+        login = json.dumps({"claudeAiOauth": {"accessToken": "fake-access", "refreshToken": "fake-rotate"}})
+        login_path.write_text(login)
+        (profile / "credentials").mkdir(exist_ok=True)
+        setup_path = profile / "credentials" / "default.json"
+        setup_path.write_text(json.dumps({"access_token": "fake-setup", "refresh_token": "fake-unused"}))
+        auth = _AuthHarness(initial_auth={session["authHome"]: True})
+        output = self.make_io()
+
+        def spawn(argv, **kwargs):
+            self.assertEqual(kwargs["env"]["CLAUDE_CODE_OAUTH_TOKEN"], "fake-setup")
+            self.assertEqual(kwargs["env"]["HOME"], "/home/agent")
+            exposed = json.dumps([argv, kwargs["env"]])
+            for private in (str(profile), str(login_path), str(setup_path), "fake-access",
+                            "fake-rotate", "fake-unused"):
+                self.assertNotIn(private, exposed)
+            for index, arg in enumerate(argv):
+                if arg in ("--bind", "--ro-bind"):
+                    origin = pathlib.Path(argv[index + 1])
+                    self.assertFalse(profile.is_relative_to(origin) or origin.is_relative_to(profile))
+            self.assertNotIn("fake-setup", json.dumps(argv))
+            return _HeadlessChild(0)
+
+        with mock.patch.object(workspace_sandbox.shutil, "which", side_effect=lambda name, path=None: "/usr/bin/" + name), \
+                mock.patch.object(workspace_sandbox, "CACHE", pathlib.Path(self.make_temp_dir())), \
+                mock.patch.object(provider_runtime, "peek_keychain_credentials", return_value=None):
+            # Ordinary headless launches still let the full login load connectors.
+            spec = provider_runtime._build_headless_launch_spec(session, cwd=directory)
+            self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", spec["options"]["env"])
+            result = main(["run", "work", "--cwd", directory, "--prompt", "Work", "--isolate-workspace", "--json"],
+                          self.make_run_ctx(output, service, spawn_headless=spawn, spawn_sync=auth.spawn_sync))
+        self.assertEqual(result, 0, output["stdout"].getvalue())
+        self.assertEqual(login_path.read_text(), login)
+
+    def test_isolated_claude_full_login_without_setup_token_is_refused(self):
+        directory = self.make_temp_dir()
+        service = create_session_service({"base_dir": directory})
+        session = service["create_session"]("work", "claude")
+        profile = pathlib.Path(session["authHome"])
+        (profile / ".claude").mkdir(exist_ok=True)
+        (profile / ".claude" / ".credentials.json").write_text(json.dumps({
+            "claudeAiOauth": {"accessToken": "fake-access", "refreshToken": "fake-rotate"}}))
+        auth = _AuthHarness(initial_auth={session["authHome"]: True})
+        output = self.make_io()
+        spawn = mock.Mock(side_effect=AssertionError("Provider must not start"))
+        result = main(["run", "work", "--cwd", directory, "--prompt", "Work", "--isolate-workspace", "--json"],
+                      self.make_run_ctx(output, service, spawn_headless=spawn, spawn_sync=auth.spawn_sync,
+                                        env={"CLAUDE_CODE_OAUTH_TOKEN": "fake-other"}))
+        self.assertNotEqual(result, 0)
+        payload = output["stdout"].getvalue()
+        self.assertIn('"code": "isolated_claude_token_missing"', payload)
+        self.assertIn("cdx login <profile>", payload)
+        self.assertNotIn("fake-access", payload)
+        self.assertNotIn("fake-rotate", payload)
+        self.assertNotIn("fake-other", payload)
+        spawn.assert_not_called()
+
     def test_run_extra_args_are_scoped_to_one_claude_run(self):
         from src.provider_runtime import _build_launch_spec
 
@@ -88,6 +154,9 @@ class RunsCommandTests(CliTestBase):
         directory = self.make_temp_dir()
         service = create_session_service({"base_dir": directory})
         session = service["create_session"]("work", "claude")
+        credentials = pathlib.Path(session["authHome"]) / "credentials"
+        credentials.mkdir(exist_ok=True)
+        (credentials / "default.json").write_text(json.dumps({"access_token": "fake-setup"}))
         service["set_launch_settings"]("work", {"scrub_env": True})
         auth = _AuthHarness(initial_auth={session["authHome"]: True})
         output = self.make_io()

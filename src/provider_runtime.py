@@ -1272,6 +1272,16 @@ def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial
 
         from .workspace_sandbox import sandbox_command
         if session.get("provider") == PROVIDER_CLAUDE:
+            # The local sandbox receives only the stored setup token, even when
+            # /login owns interactive authentication. Never fall back to a full login.
+            oauth_token = _read_anthropic_oauth_token(_get_auth_home(session))
+            if not oauth_token:
+                raise CdxError(
+                    "Isolated Claude runs require a cdx OAuth setup token; "
+                    "run cdx login <profile> to store one, or use a setup-token profile.",
+                    code="isolated_claude_token_missing",
+                )
+            spec["options"]["env"]["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token
             # The outer OS sandbox is the permission boundary for unattended Bash.
             index = spec["args"].index("--") if "--" in spec["args"] else len(spec["args"])
             spec["args"][index:index] = ["--permission-mode", "bypassPermissions"]
