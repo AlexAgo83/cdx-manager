@@ -163,7 +163,7 @@ class RunsCommandTests(CliTestBase):
         commands = []
 
         def confine(command, checkout, **kwargs):
-            self.assertEqual(str(checkout), directory)
+            self.assertEqual(str(checkout), os.path.realpath(directory))
             self.assertFalse(kwargs["network"])
             self.assertFalse(kwargs["writable"])
             return command, kwargs["source"]
@@ -271,7 +271,7 @@ class RunsCommandTests(CliTestBase):
 
     @unittest.skipUnless(sys.platform.startswith("linux"), "Isolated Codex runs are Linux-only")
     def test_source_project_is_captured_before_worktree_isolation(self):
-        directory = pathlib.Path(self.make_temp_dir())
+        directory = pathlib.Path(self.make_temp_dir()).resolve()
         source = directory / "source" / "app"
         source.mkdir(parents=True)
         subprocess.run(["git", "init", str(source)], check=True, capture_output=True)
@@ -337,11 +337,12 @@ class RunsCommandTests(CliTestBase):
         session = self._authenticated_codex_session(service)
         from test_remote_run_py import credential
         pathlib.Path(session['authHome'], 'auth.json').write_text(json.dumps(credential()))
-        mounted = []
+        mounted, volatile = [], []
         counters = {"input_tokens": 100, "cached_input_tokens": 60, "output_tokens": 20}
 
         def confine(command, checkout, **kwargs):
-            mounted.append(pathlib.Path(kwargs["observation_home"]))
+            volatile.append(pathlib.Path(kwargs["observation_home"]))
+            mounted.append(pathlib.Path(kwargs["conversation_home"]) / "sessions")
             self.assertNotEqual(str(mounted[-1]), service["get_session"]("work")["authHome"])
             return command, kwargs["source"]
 
@@ -373,7 +374,8 @@ class RunsCommandTests(CliTestBase):
             self.assertGreater(payload["cost_usd"], 0)
             if budget:
                 self.assertEqual(payload["error"]["code"], "budget_exceeded")
-        self.assertFalse(mounted[0].exists())
+        self.assertFalse(volatile[0].exists())
+        self.assertTrue(mounted[0].exists())
         self.assertNotIn("PRIVATE", json.dumps(payload))
         stored = RunRegistry(directory).get(payload["run_id"])
         history = service["get_launch_history"]("work", limit=1)[0]
@@ -776,6 +778,139 @@ class RunsCommandTests(CliTestBase):
                 history = service["get_launch_history"]("work", limit=0)
                 self.assertEqual({h["parent_run_id"] for h in history}, {None, cold["run_id"], continued["run_id"]})
                 self.assertEqual(service["get_session"]("work")["launch"]["model"], "changed-model")
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Workspace isolation is Linux-only")
+    def test_continue_isolated_run_reopens_conversation_and_preserves_boundary(self):
+        from src import workspace_sandbox
+
+        for provider in ("codex", "claude"):
+            for network, permission in ((False, "review"), (True, "auto")):
+                with self.subTest(provider=provider, network=network):
+                    directory = self.make_temp_dir()
+                    service = create_session_service({"base_dir": self.make_temp_dir()})
+                    session = (self._authenticated_codex_session(service) if provider == "codex"
+                               else service["create_session"]("work", provider))
+                    model = "gpt-6.1-sol" if provider == "codex" else "claude-sonnet-5-5"
+                    service["set_launch_settings"]("work", {"model": model, "power": "high"})
+                    auth = _AuthHarness(initial_auth={session["authHome"]: True})
+                    boundaries, commands = [], []
+                    native_id = "12345678-1234-1234-1234-123456789abc"
+                    original = workspace_sandbox.sandbox_command
+
+                    def confine(command, tree, boundaries=boundaries, commands=commands, original=original, **kwargs):
+                        boundaries.append((str(tree), kwargs["network"], kwargs["writable"], kwargs["conversation_home"]))
+                        commands.append(command)
+                        return original(command, tree, **kwargs)
+
+                    def spawn(argv, boundaries=boundaries, native_id=native_id, provider=provider, commands=commands, session=session, **kwargs):
+                        home = pathlib.Path(boundaries[-1][3])
+                        identifier = native_id if provider == "codex" else commands[-1][
+                            commands[-1].index("--resume" if "--resume" in commands[-1] else "--session-id") + 1]
+                        relative = (f"sessions/rollout-test-{identifier}.jsonl" if provider == "codex"
+                                    else f".claude/projects/repo/{identifier}.jsonl")
+                        transcript = home / relative
+                        if len(commands) > 1:
+                            self.assertTrue(transcript.is_file())
+                        transcript.parent.mkdir(parents=True, exist_ok=True)
+                        transcript.write_text('{}\n', encoding="utf-8")
+                        event = ({"type": "thread.started", "thread_id": identifier} if provider == "codex"
+                                 else {"type": "result", "session_id": identifier})
+                        kwargs["stdout"].write(json.dumps(event) + "\n")
+                        destination = "/home/agent/.codex/sessions" if provider == "codex" else "/home/agent/.claude/projects"
+                        mount = argv.index(destination)
+                        self.assertEqual(argv[mount - 2], "--bind")
+                        self.assertEqual(argv[mount - 1], str(home / ("sessions" if provider == "codex" else ".claude/projects")))
+                        self.assertNotIn(session["authHome"], argv)
+                        return _HeadlessChild(0)
+
+                    with mock.patch.object(workspace_sandbox, "sandbox_command", confine), \
+                            mock.patch.object(workspace_sandbox.shutil, "which", side_effect=lambda name, path=None: "/usr/bin/" + name), \
+                            mock.patch.object(workspace_sandbox, "CACHE", pathlib.Path(self.make_temp_dir())), \
+                            mock.patch("src.remote_run.remote_auth_lock"), \
+                            mock.patch("src.remote_run.temporary_auth", return_value={"tokens": {"access_token": "fake-access", "refresh_token": ""}}), \
+                            mock.patch("src.remote_run.token_expiry", return_value=None), \
+                            mock.patch("src.provider_runtime._read_anthropic_oauth_token", return_value="fake-setup"):
+                        parent = None
+                        for count in range(3):
+                            output = self.make_io()
+                            extra = (["work", "--isolate-workspace", "--permission", permission,
+                                      *(["--network-access"] if network else [])] if parent is None
+                                     else ["--continue-run", parent["run_id"], *(["--isolate-workspace"] if count == 1 else [])])
+                            result = main(["run", "--cwd", directory, "--prompt", "Fix", "--json", *extra],
+                                          self.make_run_ctx(output, service, spawn_headless=spawn, spawn_sync=auth.spawn_sync))
+                            payload = json.loads(output["stdout"].getvalue())
+                            self.assertEqual(result, 0, payload)
+                            if parent:
+                                self.assertEqual(payload["parent_run_id"], parent["run_id"])
+                                self.assertEqual(payload["conversation_id"], parent["conversation_id"])
+                                self.assertEqual(payload["model"], model)
+                                self.assertEqual(payload["reasoning_effort"], "high")
+                            parent = payload
+                            service["set_launch_settings"]("work", {"permission": "full", "model": "changed-model", "power": "low"})
+                    self.assertEqual(boundaries, [boundaries[0]] * 3)
+                    self.assertEqual(boundaries[0][:3], (os.path.realpath(directory), network, permission != "review"))
+                    self.assertIn("resume" if provider == "codex" else "--resume", commands[-1])
+                    from src.commands.runs import _detached_child_argv
+
+                    output = self.make_io()
+                    with mock.patch("src.commands.runs._spawn_detached_run", return_value={}) as detached:
+                        result = main(["run", "--continue-run", parent["run_id"], "--cwd", directory,
+                                       "--prompt", "Fix", "--detach", "--json"],
+                                      self.make_run_ctx(output, service, spawn_sync=auth.spawn_sync))
+                    self.assertEqual(result, 0, output["stdout"].getvalue())
+                    parsed = detached.call_args.args[0]
+                    child = _parse_run_args(_detached_child_argv(parsed, "/prompt.txt", "work", directory)[1:])
+                    self.assertTrue(child["isolate_workspace"])
+                    self.assertEqual(child["network_access"], network)
+                    self.assertEqual(child["permission"], permission)
+                    self.assertEqual(child["continue_run"], parent["run_id"])
+
+    def test_continue_isolated_run_refuses_missing_workspace_storage_and_boundary_changes(self):
+        from src.commands.runs import _continue_run_session
+
+        for condition in ("workspace", "replaced", "storage", "legacy", "workspace-alias", "storage-alias",
+                          "cwd", "network", "permission", "expired"):
+            with self.subTest(condition=condition):
+                directory, service, _session, transcript = self._continuation_parent()
+                workspace = pathlib.Path(self.make_temp_dir()).resolve() / "checkout"
+                workspace.mkdir()
+                home = pathlib.Path(self.make_temp_dir()).resolve()
+                (home / "sessions").mkdir()
+                (home / "sessions" / transcript.name).write_text('{}\n')
+                parent = RunRegistry(directory).get("parent")
+                parent.update(cwd=str(workspace))
+                parent["launch"].update(isolate_workspace=True, network_access=False, permission="review",
+                                         isolated_conversation_home=str(home))
+                info = workspace.stat()
+                parent["launch"]["isolated_workspace_identity"] = [info.st_dev, info.st_ino]
+                parsed = {"continue_run": "parent", "cwd": str(workspace)}
+                if condition == "workspace":
+                    workspace.rmdir()
+                elif condition == "replaced":
+                    workspace.rename(workspace.parent / "previous")
+                    workspace.mkdir()
+                elif condition == "storage":
+                    (home / "sessions" / transcript.name).unlink()
+                    (home / "sessions").rmdir()
+                    home.rmdir()
+                elif condition == "legacy":
+                    parent["launch"].pop("isolated_conversation_home")
+                elif condition == "workspace-alias":
+                    parent["cwd"] = str(workspace / ".." / workspace.name)
+                elif condition == "storage-alias":
+                    parent["launch"]["isolated_conversation_home"] = str(home / ".." / home.name)
+                elif condition == "expired":
+                    (home / "sessions" / transcript.name).unlink()
+                else:
+                    parsed.update({"cwd": directory} if condition == "cwd" else
+                                  {"network_access": True} if condition == "network" else {"permission": "full"})
+                with mock.patch("src.commands.runs._run_registry") as registry:
+                    registry.return_value.get.return_value = parent
+                    with self.assertRaises(CdxError) as raised:
+                        _continue_run_session(parsed, {"service": service})
+                expected = ("continue_run_workspace_gone" if condition in ("workspace", "replaced", "storage", "legacy", "workspace-alias", "storage-alias") else
+                            "continue_run_unavailable" if condition == "expired" else "continue_run_settings_mismatch")
+                self.assertEqual(raised.exception.code, expected)
 
     def test_continue_run_refuses_missing_expired_wrong_profile_and_changed_settings(self):
         cases = [
