@@ -821,7 +821,8 @@ def _conversation_is_resumable(session, provider, conversation_id):
     try:
         from .interactive_usage import conversation_transcript
 
-        return bool(conversation_transcript(provider, _get_auth_home(session), conversation_id))
+        home = (session.get("launch") or {}).get("isolated_conversation_home") or _get_auth_home(session)
+        return bool(conversation_transcript(provider, home, conversation_id))
     except (OSError, ImportError):
         return False
 
@@ -1303,7 +1304,8 @@ def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial
                 writable=launch.get("permission") != "review",
                 source=spec["options"]["env"], auth_home=observation_home or _get_auth_home(session),
                 provider=session.get("provider"),
-                **({"observation_home": os.path.join(observation_home, "sessions")} if observation_home else {}))
+                **({"observation_home": os.path.join(observation_home, "sessions")} if observation_home else {}),
+                conversation_home=launch.get("isolated_conversation_home", ""))
         except (OSError, RuntimeError) as error:
             raise CdxError(str(error)) from error
         spec.update(command=argv[0], args=argv[1:])
@@ -1315,7 +1317,7 @@ def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial
         if observation_home:
             from .run_observation import codex_attempt_evidence
             paths["usage_evidence"] = codex_attempt_evidence(
-                observation_home, paths["stdout_path"], start_time.isoformat())
+                launch.get("isolated_conversation_home") or observation_home, paths["stdout_path"], start_time.isoformat())
             paths["usage_evidence"].update(run_id=paths["run_id"], attempt_id=paths.get("attempt_id"))
 
     command = spec["command"]

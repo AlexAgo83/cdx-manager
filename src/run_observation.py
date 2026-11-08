@@ -24,7 +24,7 @@ def _open_rollout(root, path):
 
 
 def codex_attempt_evidence(auth_home, stdout_path, started_at):
-    """Read only the exact thread in a fresh attempt's volatile sessions mount.
+    """Read only the exact thread from isolated transcript storage.
 
     Do not import claimed costs, requested models, messages, or arbitrary files
     from the workspace. The exported object is never writable by the sandbox.

@@ -1,6 +1,7 @@
 """Linux workspace confinement shared with the cdx-manager integration patch.
 
-Expose tools, caches and one checkout, never the operator's home or host processes.
+Expose tools, caches, one checkout and its isolated conversation transcripts.
+Never expose the operator's home or host processes.
 Provider authentication is the only credential deliberately passed to the provider.
 """
 from __future__ import annotations
@@ -153,7 +154,7 @@ def clean_env(source: dict) -> dict:
 
 
 def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: bool = True,
-                    source: dict | None = None, auth_home: str = "", provider: str = "", observation_home: str = "", ollama_relay: str = "", claude_token_stdin: bool = False) -> tuple[list[str], dict]:
+                    source: dict | None = None, auth_home: str = "", provider: str = "", observation_home: str = "", ollama_relay: str = "", claude_token_stdin: bool = False, conversation_home: str = "") -> tuple[list[str], dict]:
     source = os.environ if source is None else source
     env = clean_env(source)
     binary = shutil.which(command[0], path=env["PATH"])
@@ -231,12 +232,22 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
                    GIT_WORK_TREE=str(tree))
     elif marker.exists():
         raise RuntimeError("Expected an isolated git worktree")
+    if conversation_home:
+        storage = Path(conversation_home)
+        if storage.is_symlink() or not storage.is_dir() or str(storage.resolve()) != str(storage):
+            raise RuntimeError("Isolated conversation storage is unavailable")
+        relative = "sessions" if provider == "codex" else ".claude/projects"
+        destination = "/home/agent/.codex/sessions" if provider == "codex" else "/home/agent/.claude/projects"
+        mount = storage / relative
+        if not mount.is_dir() or mount.resolve() != mount:
+            raise RuntimeError("Isolated conversation mount is unavailable")
+        args += ["--bind", str(mount), destination]
     if provider == "codex":
         auth_path = Path(auth_home) / "auth.json"
         if json.loads(auth_path.read_text()).get('tokens', {}).get('refresh_token') != '':
             raise RuntimeError('Refusing a rotating sandbox credential')
         env["CODEX_HOME"] = "/home/agent/.codex"
-        if observation_home:
+        if observation_home and not conversation_home:
             # Fresh, volatile attempt storage; no host profile is exposed.
             args += ["--bind", observation_home, "/home/agent/.codex/sessions"]
         args += ["--ro-bind", str(Path(auth_home) / "auth.json"), "/home/agent/.codex/auth.json"]

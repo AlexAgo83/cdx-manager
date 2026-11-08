@@ -639,6 +639,31 @@ def _continue_run_session(parsed, ctx):
     if provider not in ("claude", "codex") or previous.get("status") not in ("succeeded", "failed", "timed_out", "cancelled"):
         raise CdxError("Only a finished Claude or Codex run can be continued. Start a normal run instead.",
                        code="continue_run_unavailable")
+    parent_launch = previous.get("launch") or {}
+    isolated = parent_launch.get("isolate_workspace")
+    if previous.get("remote"):
+        raise CdxError("Remote continuations are unavailable.", code="continue_run_unavailable")
+    if isolated:
+        workspace = previous.get("cwd")
+        home = parent_launch.get("isolated_conversation_home")
+        if (not workspace or not os.path.isdir(workspace) or os.path.realpath(workspace) != workspace
+                or not home or not os.path.isdir(home) or os.path.realpath(home) != home):
+            raise CdxError("The isolated workspace or conversation storage is gone. Start a normal run instead.",
+                           code="continue_run_workspace_gone")
+        identity = parent_launch.get("isolated_workspace_identity")
+        info = os.stat(workspace)
+        if identity and identity != [info.st_dev, info.st_ino]:
+            raise CdxError("The isolated workspace was replaced. Start a normal run instead.",
+                           code="continue_run_workspace_gone")
+        if ((parsed.get("cwd") and os.path.realpath(parsed["cwd"]) != workspace)
+                or (parsed.get("network_access") and not parent_launch.get("network_access", False))
+                or (parsed.get("permission") and parsed["permission"] != parent_launch.get("permission"))):
+            raise CdxError("--continue-run requires the parent's isolated workspace boundary.",
+                           code="continue_run_settings_mismatch")
+        parsed.update(cwd=workspace, isolate_workspace=True,
+                      network_access=parent_launch.get("network_access", False), permission=parent_launch.get("permission"))
+        session = _run_session(session, {key: parent_launch.get(key) for key in
+                               ("isolate_workspace", "network_access", "permission", "isolated_conversation_home", "isolated_workspace_identity")}, None)
     conversation = previous.get("conversation_id")
     resumed = with_requested_conversation(session, conversation)
     if not resumed:
@@ -653,7 +678,7 @@ def _continue_run_session(parsed, ctx):
             or (parsed.get("reasoning_effort") and parsed["reasoning_effort"] != effort)):
         raise CdxError("--continue-run requires the previous run's model and reasoning effort.",
                        code="continue_run_settings_mismatch")
-    if parsed.get("failover") or parsed.get("isolate_workspace"):
+    if parsed.get("failover") or (parsed.get("isolate_workspace") and not isolated):
         raise CdxError("--continue-run cannot be combined with --failover or --isolate-workspace.",
                        code="continue_run_settings_mismatch")
     if provider == "claude":
@@ -799,6 +824,16 @@ def handle_run(rest, ctx):
         # registry record and truncating its stdout/stderr/transcript files.
         artifacts = _headless_artifact_paths(run_session, run_id=detached_run_id)
         run_id = artifacts["run_id"]
+        if parsed.get("isolate_workspace") and not parsed.get("remote"):
+            cwd = os.path.realpath(cwd)
+            if not parsed.get("continue_run"):
+                home = os.path.realpath(os.path.join(ctx["service"]["base_dir"], "isolated-runs", run_id))
+                os.makedirs(home, mode=0o700, exist_ok=True)
+                os.makedirs(os.path.join(home, "sessions"), mode=0o700, exist_ok=True)
+                os.makedirs(os.path.join(home, ".claude", "projects"), mode=0o700, exist_ok=True)
+                info = os.stat(cwd)
+                run_session = _run_session(run_session, {"isolated_conversation_home": home,
+                                           "isolated_workspace_identity": [info.st_dev, info.st_ino]}, None)
         registry.start(
             run_id,
             kind=parsed.get("kind"),

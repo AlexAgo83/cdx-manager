@@ -6,6 +6,7 @@
 > Related backlog: `item_006_headless_cdx_run_json_execution_contract`, `item_007_automatic_headless_session_selection`, `item_008_provider_neutral_reasoning_effort_mapping`, `item_009_headless_run_artifacts_usage_and_error_reporting`, `item_010_populate_cdx_run_usage_and_launcher_payload`, `item_011_use_provider_native_headless_launch_modes_for_cdx_run`
 > Related task: `task_006_headless_cdx_run_json_execution_contract`, `task_007_automatic_headless_session_selection`, `task_008_provider_neutral_reasoning_effort_mapping`, `task_009_headless_run_artifacts_usage_and_error_reporting`, `task_010_implement_cdx_run_usage_extraction_and_launcher_payload`, `task_011_implement_provider_native_headless_cdx_run_launch_modes`
 > Reminder: Update status, linked refs, decision rationale, consequences, migration plan, and follow-up work when you edit this doc.
+> Indicators reviewed: 2026-11-08 08:35:34
 
 # Overview
 Headless `cdx run --json` uses provider-native non-interactive launch modes where available, while preserving the cdx-manager JSON contract and session isolation.
@@ -34,6 +35,8 @@ flowchart TD
 - Use Codex's native headless command (`codex exec --json` or the current verified equivalent) for Codex `cdx run --json`.
 - Use Claude's native print JSON mode (`claude --print --output-format json`) for Claude `cdx run --json`.
 - Continue applying cdx-manager session isolation, model, permission, and reasoning-effort mapping at the provider-runtime boundary.
+- Local isolated continuation reuses the parent's recorded workspace, network setting, mount permission, and exact provider conversation. Reject boundary changes before launch; never fall back to an unconfined launch. Account, provider, model, and effort remain pinned.
+- Persist only isolated conversation transcripts in a dedicated run store outside profile homes; bind only the provider's transcript directory into each new sandbox. Credentials remain subject to the existing per-attempt authentication transport. Missing/replaced workspaces or missing retained storage return `continue_run_workspace_gone`; legacy isolated runs without retained transcripts must start fresh. Remote continuation remains unsupported.
 - Capture provider stdout and stderr to artifact files and parse usage only from trusted JSON/JSONL shapes.
 - Return nullable usage fields when the provider shape is unknown, malformed, unsupported, or unavailable.
 

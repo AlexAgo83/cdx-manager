@@ -575,6 +575,7 @@ def cdx_schema():
                 "continue_run_not_found",
                 "continue_run_mismatch",
                 "continue_run_unavailable",
+                "continue_run_workspace_gone",
                 "continue_run_settings_mismatch",
                 "invalid_request",
                 "cdx_error",
