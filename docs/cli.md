@@ -710,48 +710,57 @@ Process-selected pages expose:
 
 | Field | Current contract |
 | --- | --- |
-| `resolution_status` | `unknown` until native selected-conversation evidence is available |
-| `resolution_method` | `null`; kernel process identity alone is not a conversation resolution method |
-| `conversation_id` | `null`; no candidate or guessed ID is exposed |
+| `resolution_status` | `resolved` for verified native rollout evidence, otherwise `unknown` |
+| `resolution_method` | `process_open_rollout` when resolved, otherwise `null` |
+| `conversation_id` | Native `session_meta.payload.id`, checked against the open rollout filename |
 | `process_identity` | Opaque Linux lifetime guard when process validation succeeds |
-| `reason` | Explicit evidence boundary or process validation failure |
+| `reason` | `null` on success; explicit evidence boundary or process validation failure otherwise |
 
-**Current measured boundary:** process-to-selected-conversation resolution is not
-available. Even a sole open writable rollout proves only that a process owns a
-thread. During a TUI conversation switch it may belong to a retained thread while
-the selected thread has no rollout yet. Resume argv, session/profile state, cwd,
-mtime, a unique new transcript, and fuzzy text also cannot prove the current
-selection. This implementation deliberately returns
-`native_conversation_identity_unavailable` after validating a live Codex process;
-it does not claim that an open file establishes the selected conversation.
-Remote-ops must treat this as an explicit unknown, never retry via recency.
+On Linux, CDX inspects only the supplied PID's open descriptors. A unique writable
+`rollout-…-UUID.jsonl` under the selected profile's `sessions/` directory supplies
+the native identity. Its first record must be a complete `session_meta` with a
+matching UUID and `source: "cli"`. Duplicate descriptors for the same file count
+once; read-only descriptors do not establish the active writer. Multiple distinct
+writable rollouts return `ambiguous_native_rollouts`, even if one is newer. A
+rollout outside the selected profile returns `profile_boundary_mismatch` before
+its contents are read. Resolved symlinks must remain inside the profile, including
+the `sessions/` root. No workspace, mtime, saved resume ID or recency fallback is
+used, even if `fallback_to_recency=True` is supplied through Python.
 
-Process mode returns `status: "unavailable"`, empty entries, null conversation ID
-and no cursors. With `--cursor` or `--before`, it returns `reset_required` and no
-entries: a cursor from an explicit-ID or recency lookup cannot cross into process
-mode. No process cursor is issued until it can be bound to both a verified process
-lifetime and a native conversation selection/generation. Existing explicit-ID,
-recency, forward, tail and backward pagination contracts remain unchanged.
+This is a snapshot of the process's sole native rollout writer. A rollout must
+already exist and remain open for writing; a fresh thread before its first
+rollout returns `native_conversation_identity_unavailable`. A retained writer
+and another open writer are ambiguous. The resolver does not infer TUI focus
+from file timestamps or claim to observe selection changes without a writer
+change. Consumers must treat unknown as unknown and must not retry via recency.
 
-Only Linux `/proc` process identity is currently supported. Each validation reads
-at most 8 KiB each from process `stat`, `status` and kernel `boot_id`, twice, plus
-the executable symlink/stat. The guard includes PID, start ticks, boot ID, all
+The exact open file's device/inode is checked against its profile path before
+reading. CDX rechecks the lifetime guard and native rollout evidence before and
+after the message read. A detected exit, PID reuse, switch, replacement or lost
+proof discards all entries. These checks are snapshots, not an atomic provider
+selection subscription; the process can change after the final check.
+
+Resolved requests return `status: "ok"` and normalized entries, including support
+for `--tail`. Unknown requests return `status: "unavailable"`, no entries and a
+null conversation ID. Process pagination remains disabled: no cursors are issued,
+`has_more` is false, and `--cursor` or `--before` returns `reset_required` without
+entries. Poll again using the retained process identity and `--tail`; an
+explicit-ID or recency cursor cannot cross into process mode. Existing explicit-ID
+and recency pagination contracts are unchanged.
+
+Only Linux `/proc` and interactive Codex are supported. Each evidence pass reads
+at most 8 KiB each from `stat`, `status`, kernel `boot_id` and each candidate's
+`fdinfo`, enumerates at most 512 descriptors, and reads at most 64 KiB of each
+candidate's metadata header. Message reads use the existing bounded conversation
+reader and redaction. The lifetime guard includes PID, start ticks, boot ID, all
 four target UIDs and executable device/inode. Wrong user, a non-`codex` executable,
 dead/reused PID, inaccessible/oversized/malformed evidence, or unsupported
-provider/platform fails closed. Other reasons include `unrelated_user`,
+provider/platform fails closed. Reasons include `unrelated_user`,
 `unrelated_process`, `process_not_running`, `process_identity_changed`,
-`native_evidence_unavailable`, `evidence_limit`, and
-`unsupported_process_resolution`. No argv, environment, credential store,
-transcript file, directory scan or history database is read in process mode.
-A process identity does not prove profile ownership; missing native profile and
-thread association therefore remains unknown even for an existing profile.
-
-The smallest required launch-time tracking is a provider-native event containing
-the selected conversation ID on fresh start, resume and every selection change.
-The launcher must bind each event atomically to the child's boot ID/PID/start ticks,
-profile and a monotonic selection generation; invalidate it on exit. A future
-resolver can consume that bounded record and bind cursors to the same generation.
-An original resume ID or launch timestamp alone is insufficient. No launch/resume
-flags or dependencies are changed here; implementing this requires a verified
-provider lifecycle event source, which the inspected interactive interface does
-not supply. See the mission fragment for the local native probe and Tower checks.
+`native_evidence_unavailable`, `invalid_native_rollout`, `evidence_changed`,
+`evidence_limit`, and `unsupported_process_resolution`. No argv, environment,
+credential store, descendant traversal, profile transcript search or history
+database participates in process resolution. No launch flags or dependencies
+change. Tower's authenticated TUI still requires a measured comparison of the
+returned UUID with its selected native conversation after launch, resume and
+switch, especially with concurrent sessions.
