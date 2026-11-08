@@ -534,6 +534,21 @@ Codex ties network access to its sandbox, so any permission below `full` leaves 
 
 Claude result records with nonempty `permission_denials` produce a warning with code `permission_denials`, the `provider`, and the structured `permission_denials` list. Exit code 0 still means `ok: true`: a denied tool may have been replaced successfully. Empty or absent denials add no warning. With `--scrub-env on`, Claude forces its default permission mode; allow tools needed by unattended runs explicitly using `--allowedTools` via `--extra-args` (see [operations](operations.md)).
 
+### Local isolated Claude authentication
+
+`cdx run <profile> --isolate-workspace` uses the setup token stored in
+`<profile-home>/credentials/default.json`, including when the profile also has a
+full claude.ai login. Only the setup token value enters the provider environment;
+the profile home, full-login credential file and refresh tokens are never mounted
+or passed into the sandbox. Interactive sessions and ordinary headless runs keep
+preferring the full login so claude.ai connectors remain available there.
+
+Without a stored setup token, the isolated run fails before starting the provider
+with JSON error code `isolated_claude_token_missing`. Run `cdx login <profile>` to
+store a setup token, or select a setup-token profile. An ambient OAuth token or a
+full login alone cannot satisfy this requirement. Remote Claude continues to use
+its separate dedicated token configured with `cdx auth claude-token <profile>`.
+
 ### Source repository attribution and external launchers
 
 CDX captures `project` (an absolute canonical source repository path) and
