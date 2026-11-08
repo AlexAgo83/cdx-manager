@@ -3,6 +3,9 @@
 import io
 import json
 import os
+import shutil
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -228,3 +231,36 @@ def test_process_selection_conflicts(selection):
     ctx = {"service": {"get_session": lambda name: {"name": name, "provider": "codex"}}}
     with pytest.raises(CdxError):
         handle_conversation(["work2", *selection, "--json"], ctx)
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux /proc evidence")
+def test_native_process_resolution_json(tmp_path):
+    identifier = "11111111-1111-4111-8111-111111111111"
+    home = tmp_path / "profile"
+    path = home / "sessions" / f"rollout-{identifier}.jsonl"
+    path.parent.mkdir(parents=True)
+    records = [
+        {"type": "session_meta", "payload": {"id": identifier, "source": "cli"}},
+        {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": "live reply"}},
+    ]
+    path.write_text("".join(json.dumps(record) + "\n" for record in records))
+    executable = tmp_path / "codex"
+    shutil.copyfile(sys.executable, executable)
+    executable.chmod(0o700)
+    script = "import sys; h=open(sys.argv[1], 'a'); print('ready', flush=True); sys.stdin.readline()"
+    with subprocess.Popen([str(executable), "-c", script, str(path)], stdin=subprocess.PIPE,
+                          stdout=subprocess.PIPE, text=True) as child:
+        try:
+            assert child.stdout.readline().strip() == "ready"
+            session = {"name": "work2", "provider": "codex", "authHome": str(home), "conversation": {"id": "old"}}
+            output = io.StringIO()
+            ctx = {"service": {"get_session": lambda name: session}, "out": output.write}
+            assert handle_conversation(["work2", "--pid", str(child.pid), "--tail", "1", "--json"], ctx) == 0
+            page = json.loads(output.getvalue())
+            assert page["ok"] and page["status"] == "ok"
+            assert page["resolution_status"] == "resolved" and page["conversation_id"] == identifier
+            assert page["resolution_method"] == "process_open_rollout"
+            assert [entry["text"] for entry in page["entries"]] == ["live reply"]
+        finally:
+            child.terminate()
+            child.wait(timeout=5)

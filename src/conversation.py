@@ -407,20 +407,33 @@ def read_conversation(provider, auth_home=None, *, conversation_id=None, started
         raise CdxError("Process selection cannot be combined with conversation, cwd, since or terminal transcript selection.")
     from .process_conversation import resolve_process_conversation
 
-    resolution = resolve_process_conversation(provider, auth_home, pid=pid, process_identity=process_identity)
+    resolution, evidence = resolve_process_conversation(provider, auth_home, pid=pid, process_identity=process_identity)
     page = {"status": "unavailable", "provider": provider, "entries": [], "next_cursor": None,
             "has_more": False, "resolution_scope": None, **resolution}
     if tail is not None or before is not None:
         page["before_cursor"] = None
-    # No process-bound cursor is issued until native selected-thread evidence
-    # exists. Never replay an explicit-ID or recency cursor through this mode.
+    # Process pagination remains disabled: an unbound explicit-ID or recency
+    # cursor must never cross into this mode.
     if cursor is not None or before is not None:
-        page["status"] = "reset_required"
-    return page
+        return {**page, "status": "reset_required"}
+    if evidence is None:
+        return page
+    selected = _read_conversation_page(provider, auth_home, limit=limit, tail=tail,
+                                       _transcript=evidence[1], _file_identity=evidence[2])
+    checked, current = resolve_process_conversation(provider, auth_home, process_identity=resolution["process_identity"])
+    if current != evidence or checked != resolution:
+        return {**page, **checked, "resolution_status": "unknown", "resolution_method": None,
+                "conversation_id": None, "reason": checked["reason"] or "evidence_changed"}
+    if selected["status"] != "ok":
+        return {**page, "resolution_status": "unknown", "resolution_method": None,
+                "conversation_id": None, "reason": selected["reason"]}
+    return {**selected, **resolution, "reason": None, "next_cursor": None, "before_cursor": None,
+            "has_more": False}
 
 
 def _read_conversation_page(provider, auth_home=None, *, conversation_id=None, started_at=None,
-                      terminal_transcript=None, cursor=None, limit=100, fallback_to_recency=False, tail=None, before=None, cwd=None):
+                      terminal_transcript=None, cursor=None, limit=100, fallback_to_recency=False, tail=None, before=None, cwd=None,
+                      _transcript=None, _file_identity=None):
     """Return a JSON-serializable page; pass next_cursor back unchanged to poll.
 
     Entries follow file/block order. Cursors bind a byte offset and block index
@@ -440,7 +453,7 @@ def _read_conversation_page(provider, auth_home=None, *, conversation_id=None, s
             datetime.fromisoformat(started_at.replace("Z", "+00:00"))
         except (ValueError, AttributeError, TypeError):
             raise CdxError("Conversation --since must be an ISO timestamp.") from None
-    scope = {"cwd": os.path.realpath(os.path.expanduser(cwd or os.getcwd())), "since": started_at}
+    scope = None if _transcript is not None else {"cwd": os.path.realpath(os.path.expanduser(cwd or os.getcwd())), "since": started_at}
     page = {"status": "ok", "reason": None, "provider": provider, "entries": [], "next_cursor": None, "has_more": False,
             "resolution_method": None, "resolution_scope": None}
     if tail is not None or before is not None:
@@ -448,7 +461,9 @@ def _read_conversation_page(provider, auth_home=None, *, conversation_id=None, s
     if provider not in PROVIDERS or provider == "ollama":
         return {**page, "status": "unsupported", "reason": "no_structured_transcript_reader"}
     # An explicit conversation must never fall back to an unrelated recent file.
-    if conversation_id:
+    if _transcript is not None:
+        path = _transcript
+    elif conversation_id:
         path = conversation_transcript(provider, auth_home, conversation_id)
         if path:
             page["resolution_method"] = "conversation_id"
@@ -464,6 +479,8 @@ def _read_conversation_page(provider, auth_home=None, *, conversation_id=None, s
     try:
         with open(path, "rb") as handle:
             stat = os.fstat(handle.fileno())
+            if _file_identity is not None and (stat.st_dev, stat.st_ino) != _file_identity:
+                return {**page, "status": "unavailable", "reason": "evidence_changed"}
             identity = hashlib.sha256(f"{provider}:{os.path.realpath(path)}:{stat.st_dev}:{stat.st_ino}".encode()).hexdigest()
             if tail is not None or before is not None:
                 return _read_tail(handle, stat, identity, provider, page, tail if tail is not None else limit, before)
