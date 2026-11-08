@@ -163,7 +163,7 @@ class RunsCommandTests(CliTestBase):
         commands = []
 
         def confine(command, checkout, **kwargs):
-            self.assertEqual(str(checkout), directory)
+            self.assertEqual(str(checkout), os.path.realpath(directory))
             self.assertFalse(kwargs["network"])
             self.assertFalse(kwargs["writable"])
             return command, kwargs["source"]
@@ -271,7 +271,7 @@ class RunsCommandTests(CliTestBase):
 
     @unittest.skipUnless(sys.platform.startswith("linux"), "Isolated Codex runs are Linux-only")
     def test_source_project_is_captured_before_worktree_isolation(self):
-        directory = pathlib.Path(self.make_temp_dir())
+        directory = pathlib.Path(self.make_temp_dir()).resolve()
         source = directory / "source" / "app"
         source.mkdir(parents=True)
         subprocess.run(["git", "init", str(source)], check=True, capture_output=True)
@@ -868,12 +868,13 @@ class RunsCommandTests(CliTestBase):
     def test_continue_isolated_run_refuses_missing_workspace_storage_and_boundary_changes(self):
         from src.commands.runs import _continue_run_session
 
-        for condition in ("workspace", "replaced", "storage", "legacy", "cwd", "network", "permission", "expired"):
+        for condition in ("workspace", "replaced", "storage", "legacy", "workspace-alias", "storage-alias",
+                          "cwd", "network", "permission", "expired"):
             with self.subTest(condition=condition):
                 directory, service, _session, transcript = self._continuation_parent()
-                workspace = pathlib.Path(self.make_temp_dir()) / "checkout"
+                workspace = pathlib.Path(self.make_temp_dir()).resolve() / "checkout"
                 workspace.mkdir()
-                home = pathlib.Path(self.make_temp_dir())
+                home = pathlib.Path(self.make_temp_dir()).resolve()
                 (home / "sessions").mkdir()
                 (home / "sessions" / transcript.name).write_text('{}\n')
                 parent = RunRegistry(directory).get("parent")
@@ -894,6 +895,10 @@ class RunsCommandTests(CliTestBase):
                     home.rmdir()
                 elif condition == "legacy":
                     parent["launch"].pop("isolated_conversation_home")
+                elif condition == "workspace-alias":
+                    parent["cwd"] = str(workspace / ".." / workspace.name)
+                elif condition == "storage-alias":
+                    parent["launch"]["isolated_conversation_home"] = str(home / ".." / home.name)
                 elif condition == "expired":
                     (home / "sessions" / transcript.name).unlink()
                 else:
@@ -903,7 +908,7 @@ class RunsCommandTests(CliTestBase):
                     registry.return_value.get.return_value = parent
                     with self.assertRaises(CdxError) as raised:
                         _continue_run_session(parsed, {"service": service})
-                expected = ("continue_run_workspace_gone" if condition in ("workspace", "replaced", "storage", "legacy") else
+                expected = ("continue_run_workspace_gone" if condition in ("workspace", "replaced", "storage", "legacy", "workspace-alias", "storage-alias") else
                             "continue_run_unavailable" if condition == "expired" else "continue_run_settings_mismatch")
                 self.assertEqual(raised.exception.code, expected)
 
