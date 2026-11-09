@@ -1,5 +1,10 @@
 # Unreleased
 
+## Claude continuation permissions (next patch, #129)
+
+- Accept permissions-only `--settings` in profile and per-run extra arguments during `--continue-run`, using either separate or equals syntax and inline JSON or a UTF-8 file. Forward the validated object inline to prevent file changes from altering the launch.
+- Reject every other settings key with its name and `continue_run_settings_mismatch`; reject unreadable files, invalid JSON and non-object values. Preserve all other pinned-option refusals.
+
 ## Per-run provider arguments (#120)
 
 - Add `cdx run --extra-args 'ARGS'` with the session setting's validation and POSIX splitting, appended after the selected profile's arguments without changing saved settings or interactive launches. Preserve existing provider permission and isolation handling.

@@ -8,6 +8,7 @@ import json
 import os
 import pathlib
 import re
+import shlex
 import signal
 import subprocess
 import sys
@@ -965,6 +966,80 @@ class RunsCommandTests(CliTestBase):
         self.assertIn("--resume", commands[0])
         self.assertIn("Bash(touch t)", commands[0])
         self.assertNotIn("extra_args", service["get_session"]("work")["launch"])
+
+    def test_continue_run_accepts_permissions_settings_and_forwards_inline(self):
+        settings = {"permissions": {"allow": ["Bash(touch t)"], "deny": ["Read(private)"]}}
+        for source in ("session", "run"):
+            for form in ("separate", "equals"):
+                for storage in ("inline", "file"):
+                    with self.subTest(source=source, form=form, storage=storage):
+                        directory, service, session, _transcript = self._continuation_parent(
+                            provider="claude", model="claude-sonnet-5-5")
+                        settings_path = pathlib.Path(directory) / "permissions settings.json"
+                        settings_path.write_text(json.dumps(settings), encoding="utf-8")
+                        value = str(settings_path) if storage == "file" else json.dumps(settings)
+                        args = (["--settings", value] if form == "separate" else ["--settings=" + value])
+                        extra_args = shlex.join(["--allowedTools", "Bash(touch t)", *args, "--strict-mcp-config"])
+                        if source == "session":
+                            service["set_launch_settings"]("work", {"extra_args": extra_args})
+                        before = service["get_session"]("work")
+                        auth = _AuthHarness(initial_auth={session["authHome"]: True})
+                        commands = []
+
+                        def authenticate(*args, settings_path=settings_path, auth=auth, **kwargs):
+                            settings_path.write_text('{"model":"changed"}', encoding="utf-8")
+                            return auth.spawn_sync(*args, **kwargs)
+
+                        def spawn(argv, commands=commands, **kwargs):
+                            commands.append(argv)
+                            return _HeadlessChild(0)
+
+                        output = self.make_io()
+                        result = main(["run", "--continue-run", "parent", "--cwd", directory,
+                                       "--prompt", "Fix", "--json",
+                                       *(["--extra-args", extra_args] if source == "run" else [])],
+                                      self.make_run_ctx(output, service, spawn_headless=spawn, spawn_sync=authenticate))
+                        self.assertEqual(result, 0, output["stdout"].getvalue())
+                        argv = commands[0]
+                        self.assertEqual(json.loads(argv[argv.index("--settings") + 1]), settings)
+                        self.assertNotIn(str(settings_path), argv)
+                        self.assertIn("--resume", argv)
+                        self.assertIn("Bash(touch t)", argv)
+                        self.assertIn("--strict-mcp-config", argv)
+                        self.assertEqual(service["get_session"]("work"), before)
+
+    def test_continue_run_refuses_unsafe_or_invalid_claude_settings(self):
+        cases = [(json.dumps({"permissions": {}, key: "fake"}), key)
+                 for key in ("model", "env", "effortLevel", "hooks", "apiKeyHelper", "fallback", "unknown")]
+        cases += [(value, None) for value in ('{"permissions":', '[]', 'null', '"text"', '42', 'true')]
+        cases += [(json.dumps({"model": "fake", "env": {}}), "env, model")]
+        for source in ("session", "run"):
+            for form in ("separate", "equals"):
+                for storage in ("inline", "file", "missing"):
+                    for content, refused in cases:
+                        with self.subTest(source=source, form=form, storage=storage, content=content):
+                            directory, service, _session, _transcript = self._continuation_parent(
+                                provider="claude", model="claude-sonnet-5-5")
+                            settings_path = pathlib.Path(directory) / "settings.json"
+                            if storage == "file":
+                                settings_path.write_text(content, encoding="utf-8")
+                            value = content if storage == "inline" else str(settings_path)
+                            args = (["--settings", value] if form == "separate" else ["--settings=" + value])
+                            extra_args = shlex.join(args)
+                            if source == "session":
+                                service["set_launch_settings"]("work", {"extra_args": extra_args})
+                            output = self.make_io()
+                            spawn = mock.Mock()
+                            result = main(["run", "--continue-run", "parent", "--cwd", directory,
+                                           "--prompt", "Fix", "--json",
+                                           *(["--extra-args", extra_args] if source == "run" else [])],
+                                          self.make_run_ctx(output, service, spawn_headless=spawn))
+                            self.assertEqual(result, 1)
+                            error = json.loads(output["stdout"].getvalue())["error"]
+                            self.assertEqual(error["code"], "continue_run_settings_mismatch")
+                            if refused and storage != "missing":
+                                self.assertIn(refused, error["message"])
+                            spawn.assert_not_called()
 
     def test_continue_run_rejects_claude_passthrough_overrides_before_launch(self):
         options = ["--effort low --fallback-model other-model", "--effort=low", "--model other-model",

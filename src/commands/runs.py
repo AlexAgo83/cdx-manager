@@ -4,7 +4,9 @@ Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 """
 
 import importlib.util
+import json
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -622,6 +624,45 @@ def _run_session(session, launch_updates, extra_args):
     return {**session, "launch": launch}
 
 
+def _continue_claude_extra_args(extra_args):
+    if not extra_args:
+        return extra_args
+    # Passthrough options are appended last and can override the pinned settings.
+    pinned_options = {"--model", "--effort", "--fallback-model", "--resume", "--continue",
+                      "--session-id", "--fork-session", "--resume-session-at", "--from-pr",
+                      "--agent", "--agents"}
+    args = iter(split_extra_args(extra_args) or [])
+    validated = []
+    for arg in args:
+        option, separator, value = arg.partition("=")
+        if option in pinned_options or arg.startswith(("-r", "-c")):
+            raise CdxError("--continue-run cannot use Claude extra_args that override model, effort, or conversation.",
+                           code="continue_run_settings_mismatch")
+        if option == "--settings":
+            value = value if separator else next(args, "")
+            try:
+                try:
+                    settings = json.loads(value)
+                except json.JSONDecodeError:
+                    with open(value, encoding="utf-8") as stream:
+                        settings = json.load(stream)
+            except (OSError, ValueError) as error:
+                raise CdxError("--continue-run refused --settings: unreadable file or invalid JSON.",
+                               code="continue_run_settings_mismatch") from error
+            if not isinstance(settings, dict):
+                raise CdxError("--continue-run refused --settings: expected a JSON object with only permissions.",
+                               code="continue_run_settings_mismatch")
+            refused = sorted(set(settings) - {"permissions"})
+            if refused:
+                raise CdxError(f"--continue-run refused --settings keys: {', '.join(refused)}. Only permissions is allowed.",
+                               code="continue_run_settings_mismatch")
+            # Snapshot file content so changes before provider launch cannot alter the settings.
+            validated.extend(["--settings", json.dumps(settings)])
+        else:
+            validated.append(arg)
+    return shlex.join(validated)
+
+
 def _continue_run_session(parsed, ctx):
     """Resolve only the parent's profile and exact persisted conversation."""
     previous = _run_registry(ctx).get(parsed["continue_run"])
@@ -682,14 +723,11 @@ def _continue_run_session(parsed, ctx):
         raise CdxError("--continue-run cannot be combined with --failover or --isolate-workspace.",
                        code="continue_run_settings_mismatch")
     if provider == "claude":
-        # Passthrough options are appended last and can override the pinned settings.
-        pinned_options = {"--model", "--effort", "--fallback-model", "--resume", "--continue",
-                          "--session-id", "--fork-session", "--resume-session-at", "--from-pr",
-                          "--settings", "--agent", "--agents"}
-        for arg in split_extra_args(_run_session(session, {}, parsed.get("extra_args"))["launch"].get("extra_args")) or []:
-            if arg.split("=", 1)[0] in pinned_options or arg.startswith(("-r", "-c")):
-                raise CdxError("--continue-run cannot use Claude extra_args that override model, effort, or conversation.",
-                               code="continue_run_settings_mismatch")
+        launch = dict(session.get("launch") or {})
+        if "extra_args" in launch:
+            launch["extra_args"] = _continue_claude_extra_args(launch["extra_args"])
+        session = {**session, "launch": launch}
+        parsed["extra_args"] = _continue_claude_extra_args(parsed.get("extra_args"))
     from ..project_identity import recorded_project
 
     project = recorded_project(previous)
