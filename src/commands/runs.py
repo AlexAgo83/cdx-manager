@@ -9,6 +9,7 @@ import os
 import shlex
 import subprocess
 import sys
+import tempfile
 import time
 
 from ..cli_args import (
@@ -26,6 +27,7 @@ from ..cli_args import (
 from ..cli_helpers import API_SCHEMA_VERSION, _json_failure, _json_success, _write_json
 from ..config import split_extra_args
 from ..errors import CdxError
+from ..fs_utils import atomic_write
 from ..interactive_usage import MATCH_CONVERSATION_ID, MEASURED_KEYS, extract_interactive_usage, usage_delta
 from ..provider_background import (
     BACKGROUND_PATH_CDX,
@@ -624,7 +626,7 @@ def _run_session(session, launch_updates, extra_args):
     return {**session, "launch": launch}
 
 
-def _continue_claude_extra_args(extra_args):
+def _continue_claude_extra_args(extra_args, artifacts):
     if not extra_args:
         return extra_args
     # Passthrough options are appended last and can override the pinned settings.
@@ -656,14 +658,22 @@ def _continue_claude_extra_args(extra_args):
             if refused:
                 raise CdxError(f"--continue-run refused --settings keys: {', '.join(refused)}. Only permissions is allowed.",
                                code="continue_run_settings_mismatch")
-            # Snapshot file content so changes before provider launch cannot alter the settings.
-            validated.extend(["--settings", json.dumps(settings)])
+            # Keep the snapshot beside this run's artifacts, never in argv.
+            # mkdtemp and atomic_write create private state without following
+            # a pre-existing destination symlink.
+            prefix = os.path.splitext(artifacts["transcript_path"])[0]
+            state_dir = tempfile.mkdtemp(prefix=os.path.basename(prefix) + "-", suffix=".state",
+                                         dir=os.path.dirname(prefix))
+            settings_path = os.path.join(state_dir, "settings.json")
+            atomic_write(settings_path, json.dumps(settings), mode=0o600)
+            artifacts.setdefault("settings_paths", []).append(settings_path)
+            validated.extend(["--settings", settings_path])
         else:
             validated.append(arg)
     return shlex.join(validated)
 
 
-def _continue_run_session(parsed, ctx):
+def _continue_run_session(parsed, ctx, run_id=None):
     """Resolve only the parent's profile and exact persisted conversation."""
     previous = _run_registry(ctx).get(parsed["continue_run"])
     if not previous:
@@ -723,11 +733,14 @@ def _continue_run_session(parsed, ctx):
         raise CdxError("--continue-run cannot be combined with --failover or --isolate-workspace.",
                        code="continue_run_settings_mismatch")
     if provider == "claude":
+        artifacts = _headless_artifact_paths(session, run_id=run_id)
+        parsed["_artifacts"] = artifacts
         launch = dict(session.get("launch") or {})
         if "extra_args" in launch:
-            launch["extra_args"] = _continue_claude_extra_args(launch["extra_args"])
+            launch["extra_args"] = _continue_claude_extra_args(launch["extra_args"], artifacts)
         session = {**session, "launch": launch}
-        parsed["extra_args"] = _continue_claude_extra_args(parsed.get("extra_args"))
+        parsed["extra_args"] = _continue_claude_extra_args(parsed.get("extra_args"), artifacts)
+        session["continue_settings_paths"] = artifacts.get("settings_paths", [])
     from ..project_identity import recorded_project
 
     project = recorded_project(previous)
@@ -738,7 +751,8 @@ def _continue_run_session(parsed, ctx):
     launch = {**(session.get("launch") or {}), "model": model, "reasoning_effort": effort, "power": effort}
     # A provider fallback would break the model pin even though cdx stayed on this profile.
     launch.pop("fallback_model", None)
-    return {**resumed, "launch": launch, "continue_run": parsed["continue_run"]}
+    return {**resumed, "launch": launch, "continue_run": parsed["continue_run"],
+            **({"continue_settings_paths": session["continue_settings_paths"]} if provider == "claude" else {})}
 
 
 def handle_run(rest, ctx):
@@ -753,7 +767,7 @@ def handle_run(rest, ctx):
     try:
         parsed = _parse_run_args(rest)
         budget_prices = token_prices()[0] if parsed.get("budget") is not None else None
-        session = _continue_run_session(parsed, ctx) if parsed.get("continue_run") else None
+        session = _continue_run_session(parsed, ctx, run_id=detached_run_id) if parsed.get("continue_run") else None
         if session:
             if session.get("enabled", True) is False:
                 raise CdxError(f"Session is disabled: {session['name']}", code="session_disabled")
@@ -860,7 +874,7 @@ def handle_run(rest, ctx):
         # it is inherited by the provider process, and any nested `cdx run` the
         # agent itself makes would claim this same run_id — deleting this run's
         # registry record and truncating its stdout/stderr/transcript files.
-        artifacts = _headless_artifact_paths(run_session, run_id=detached_run_id)
+        artifacts = parsed.pop("_artifacts", None) or _headless_artifact_paths(run_session, run_id=detached_run_id)
         run_id = artifacts["run_id"]
         if parsed.get("isolate_workspace") and not parsed.get("remote"):
             cwd = os.path.realpath(cwd)
