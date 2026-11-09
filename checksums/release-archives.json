@@ -928,7 +928,14 @@
     },
     "v0.26.12": {
       "github_tarball_sha256": "a355070cd623a40cf4e25782e77508c041f43ac0db89af701e4556f8f48c1ab6",
-      "github_zip_sha256": "b86f9add34846b2afdc9337b4887bbb80fedadc04ef3909198fc3b79a399b500"
+      "github_zip_sha256": "b86f9add34846b2afdc9337b4887bbb80fedadc04ef3909198fc3b79a399b500",
+      "tray_assets": {
+        "aarch64-apple-darwin": "7b52180b52d266d2880307ad71e81e8d99a926bbc34fd7403a834678bf579065",
+        "aarch64-unknown-linux-musl": "6330fd525b71ce8d15c222a50b6950c66fd48671be51d1054bffa0c86bd6a286",
+        "x86_64-apple-darwin": "62f4e7b560bcfb615d7a62f65f921ece2234553277c9291e10703a4ad7ee8ac5",
+        "x86_64-pc-windows-msvc": "1394c39f2aace528d883607b8af11bcbc9e1f03a4fa6c57c53be32bac3b7c307",
+        "x86_64-unknown-linux-musl": "876f94503d9a28ec1a69f27688473796f6e7aa1a82036f0bd1e0ba711999280e"
+      }
     }
   }
 }
