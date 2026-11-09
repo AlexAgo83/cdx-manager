@@ -1305,7 +1305,8 @@ def _run_headless_provider_attempt(session, cwd=None, env_override=None, initial
                 source=spec["options"]["env"], auth_home=observation_home or _get_auth_home(session),
                 provider=session.get("provider"),
                 **({"observation_home": os.path.join(observation_home, "sessions")} if observation_home else {}),
-                conversation_home=launch.get("isolated_conversation_home", ""))
+                conversation_home=launch.get("isolated_conversation_home", ""),
+                **({"settings_paths": session["continue_settings_paths"]} if session.get("continue_settings_paths") else {}))
         except (OSError, RuntimeError) as error:
             raise CdxError(str(error)) from error
         spec.update(command=argv[0], args=argv[1:])

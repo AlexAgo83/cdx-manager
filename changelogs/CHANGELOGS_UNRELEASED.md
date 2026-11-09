@@ -1,8 +1,13 @@
 # Unreleased
 
+## Claude continuation settings snapshots (next patch, #131)
+
+- Copy validated permissions-only settings into a private run-state file with mode 0600 using atomic writes, and pass its path to Claude. Large settings files no longer exceed the launch argument limit; user-supplied argument validation remains unchanged. Retain the continue-time content with the run state and mount snapshots read-only for isolated continuations.
+- Cover settings larger than 512 characters, recorded private paths, owner-only permissions, cleanup, isolated mounts and source changes before launch for profile and per-run settings.
+
 ## Claude continuation permissions (next patch, #129)
 
-- Accept permissions-only `--settings` in profile and per-run extra arguments during `--continue-run`, using either separate or equals syntax and inline JSON or a UTF-8 file. Forward the validated object inline to prevent file changes from altering the launch.
+- Accept permissions-only `--settings` in profile and per-run extra arguments during `--continue-run`, using either separate or equals syntax and inline JSON or a UTF-8 file. Snapshot the validated object to prevent file changes from altering the launch.
 - Reject every other settings key with its name and `continue_run_settings_mismatch`; reject unreadable files, invalid JSON and non-object values. Preserve all other pinned-option refusals.
 
 ## Per-run provider arguments (#120)

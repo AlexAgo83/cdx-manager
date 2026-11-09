@@ -154,7 +154,7 @@ def clean_env(source: dict) -> dict:
 
 
 def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: bool = True,
-                    source: dict | None = None, auth_home: str = "", provider: str = "", observation_home: str = "", ollama_relay: str = "", claude_token_stdin: bool = False, conversation_home: str = "") -> tuple[list[str], dict]:
+                    source: dict | None = None, auth_home: str = "", provider: str = "", observation_home: str = "", ollama_relay: str = "", claude_token_stdin: bool = False, conversation_home: str = "", settings_paths: tuple[str, ...] = ()) -> tuple[list[str], dict]:
     source = os.environ if source is None else source
     env = clean_env(source)
     binary = shutil.which(command[0], path=env["PATH"])
@@ -277,6 +277,11 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
         args += ["--ro-bind", ollama_relay, "/run/cdx-ollama"]
     elif provider:
         raise RuntimeError("Unsupported isolated provider: " + provider)
+    for settings_path in settings_paths:
+        snapshot = Path(settings_path)
+        if not snapshot.is_file() or snapshot.resolve() != snapshot:
+            raise RuntimeError("Continuation settings snapshot is unavailable")
+        args += ["--ro-bind", str(snapshot), str(snapshot)]
     args += ["--chdir", str(tree), "--", binary, *command[1:]]
     if online:
         rules = NETWORK_RULES

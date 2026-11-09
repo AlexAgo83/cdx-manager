@@ -793,6 +793,8 @@ class RunsCommandTests(CliTestBase):
                                else service["create_session"]("work", provider))
                     model = "gpt-6.1-sol" if provider == "codex" else "claude-sonnet-5-5"
                     service["set_launch_settings"]("work", {"model": model, "power": "high"})
+                    settings_path = pathlib.Path(directory) / "permissions.json"
+                    settings_path.write_text('{"permissions":{"allow":["Read"]}}', encoding="utf-8")
                     auth = _AuthHarness(initial_auth={session["authHome"]: True})
                     boundaries, commands = [], []
                     native_id = "12345678-1234-1234-1234-123456789abc"
@@ -822,6 +824,12 @@ class RunsCommandTests(CliTestBase):
                         self.assertEqual(argv[mount - 2], "--bind")
                         self.assertEqual(argv[mount - 1], str(home / ("sessions" if provider == "codex" else ".claude/projects")))
                         self.assertNotIn(session["authHome"], argv)
+                        if provider == "claude" and "--settings" in commands[-1]:
+                            snapshot = commands[-1][commands[-1].index("--settings") + 1]
+                            self.assertIn(["--ro-bind", snapshot, snapshot],
+                                          [argv[i:i + 3] for i in range(len(argv) - 2)])
+                            self.assertEqual(json.loads(pathlib.Path(snapshot).read_text(encoding="utf-8")),
+                                             {"permissions": {"allow": ["Read"]}})
                         return _HeadlessChild(0)
 
                     with mock.patch.object(workspace_sandbox, "sandbox_command", confine), \
@@ -837,6 +845,8 @@ class RunsCommandTests(CliTestBase):
                             extra = (["work", "--isolate-workspace", "--permission", permission,
                                       *(["--network-access"] if network else [])] if parent is None
                                      else ["--continue-run", parent["run_id"], *(["--isolate-workspace"] if count == 1 else [])])
+                            if parent and provider == "claude":
+                                extra += ["--extra-args", shlex.join(["--settings", str(settings_path)])]
                             result = main(["run", "--cwd", directory, "--prompt", "Fix", "--json", *extra],
                                           self.make_run_ctx(output, service, spawn_headless=spawn, spawn_sync=auth.spawn_sync))
                             payload = json.loads(output["stdout"].getvalue())
@@ -967,14 +977,18 @@ class RunsCommandTests(CliTestBase):
         self.assertIn("Bash(touch t)", commands[0])
         self.assertNotIn("extra_args", service["get_session"]("work")["launch"])
 
-    def test_continue_run_accepts_permissions_settings_and_forwards_inline(self):
-        settings = {"permissions": {"allow": ["Bash(touch t)"], "deny": ["Read(private)"]}}
+    def test_continue_run_accepts_permissions_settings_and_forwards_private_path(self):
         for source in ("session", "run"):
             for form in ("separate", "equals"):
                 for storage in ("inline", "file"):
                     with self.subTest(source=source, form=form, storage=storage):
                         directory, service, session, _transcript = self._continuation_parent(
                             provider="claude", model="claude-sonnet-5-5")
+                        settings = {"permissions": {"allow": ([f"Bash(touch file-{i})" for i in range(100)]
+                                                              if storage == "file" else ["Bash(touch t)"]),
+                                                    "deny": ["Read(private)"]}}
+                        if storage == "file":
+                            self.assertGreater(len(json.dumps(settings)), 512)
                         settings_path = pathlib.Path(directory) / "permissions settings.json"
                         settings_path.write_text(json.dumps(settings), encoding="utf-8")
                         value = str(settings_path) if storage == "file" else json.dumps(settings)
@@ -1001,12 +1015,51 @@ class RunsCommandTests(CliTestBase):
                                       self.make_run_ctx(output, service, spawn_headless=spawn, spawn_sync=authenticate))
                         self.assertEqual(result, 0, output["stdout"].getvalue())
                         argv = commands[0]
-                        self.assertEqual(json.loads(argv[argv.index("--settings") + 1]), settings)
+                        snapshot = pathlib.Path(argv[argv.index("--settings") + 1])
+                        self.assertEqual(json.loads(snapshot.read_text(encoding="utf-8")), settings)
+                        self.assertEqual(snapshot.name, "settings.json")
+                        self.assertEqual(snapshot.parent.parent, pathlib.Path(session["authHome"]) / "log")
+                        if os.name != "nt":
+                            self.assertEqual(snapshot.stat().st_mode & 0o777, 0o600)
+                            self.assertEqual(snapshot.parent.stat().st_mode & 0o777, 0o700)
+                        payload = json.loads(output["stdout"].getvalue())
+                        recorded = RunRegistry(directory).get(payload["run_id"])
+                        recorded_args = shlex.split(recorded["launch"]["extra_args"])
+                        self.assertEqual(recorded_args[recorded_args.index("--settings") + 1], str(snapshot))
+                        self.assertNotIn("permissions", recorded["launch"]["extra_args"])
+                        self.assertIn(payload["run_id"], snapshot.parent.name)
+                        self.assertEqual(recorded["status"], "succeeded")
                         self.assertNotIn(str(settings_path), argv)
                         self.assertIn("--resume", argv)
                         self.assertIn("Bash(touch t)", argv)
                         self.assertIn("--strict-mcp-config", argv)
                         self.assertEqual(service["get_session"]("work"), before)
+                        service["remove_session"]("work")
+                        self.assertFalse(snapshot.exists())
+                        self.assertFalse(snapshot.parent.exists())
+
+    @unittest.skipIf(os.name == "nt", "POSIX symlink permissions")
+    def test_continue_settings_snapshot_does_not_follow_destination_symlink(self):
+        from src.commands.runs import _continue_claude_extra_args
+
+        directory = pathlib.Path(self.make_temp_dir())
+        target = directory / "unrelated.json"
+        target.write_text("unchanged", encoding="utf-8")
+        mkdtemp = tempfile.mkdtemp
+
+        def preexisting_link(*args, **kwargs):
+            state_dir = mkdtemp(*args, **kwargs)
+            (pathlib.Path(state_dir) / "settings.json").symlink_to(target)
+            return state_dir
+
+        with mock.patch("src.commands.runs.tempfile.mkdtemp", side_effect=preexisting_link):
+            extra = _continue_claude_extra_args(shlex.join(["--settings", '{"permissions":{}}']),
+                                                {"transcript_path": str(directory / "cdx-run-test.log")})
+        snapshot = pathlib.Path(shlex.split(extra)[1])
+        self.assertFalse(snapshot.is_symlink())
+        self.assertEqual(json.loads(snapshot.read_text(encoding="utf-8")), {"permissions": {}})
+        self.assertEqual(snapshot.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(target.read_text(encoding="utf-8"), "unchanged")
 
     def test_continue_run_refuses_unsafe_or_invalid_claude_settings(self):
         cases = [(json.dumps({"permissions": {}, key: "fake"}), key)
