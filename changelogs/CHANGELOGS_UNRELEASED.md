@@ -1,5 +1,11 @@
 # Unreleased
 
+## Per-process session discovery (next patch, #132)
+
+- Preserve every existing `cdx sessions --json` profile field and add `processes` with actual agent PIDs, optional wrapper PIDs, live cwd, process start time, launch conversation IDs and explicit current-conversation provenance.
+- Read Claude's per-PID session file on every call so `/clear` and multiple agents on one profile are visible. Bound Linux discovery and file reads to the current user's processes; return unknown IDs for other providers rather than guessing.
+- Publish the additive schema and document platform limits, with fake proc/session fixtures covering wrappers, concurrent agents, missing evidence and ownership checks.
+
 ## Claude continuation settings snapshots (next patch, #131)
 
 - Copy validated permissions-only settings into a private run-state file with mode 0600 using atomic writes, and pass its path to Claude. Large settings files no longer exceed the launch argument limit; user-supplied argument validation remains unchanged. Retain the continue-time content with the run state and mount snapshots read-only for isolated continuations.
