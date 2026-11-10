@@ -495,6 +495,19 @@ def cdx_schema():
     # keys of that name in one payload would be one too many.
     return {
         "capabilities": {"workspace_isolation": 1, "workspace_network": 1},
+        "outputs": {
+            "sessions": {
+                "processes": {
+                    "type": "array",
+                    "items": {
+                        "agent_pid": "integer", "wrapper_pid": "integer|null", "provider": "string",
+                        "conversation_id": "string|null", "conversation_source": "string",
+                        "launch_conversation_id": "string|null", "cwd": "string|null", "started_at": "string|null",
+                    },
+                    "platform": "Linux /proc; empty on other platforms or when evidence is unavailable",
+                },
+            },
+        },
         "enums": {
             "permission": {
                 "accepted": list(RUN_PERMISSION_VALUES),
