@@ -140,7 +140,7 @@ def run(payload, sandbox_source, probe=False):
             command = ['python3', '-I', '-c', CLIENT, '/run/cdx-ollama/api.sock']
             command, env = namespace['sandbox_command'](
                 command, pathlib.Path(payload['cwd']), network=False, writable=False,
-                provider='ollama', ollama_relay=directory)
+                provider='ollama', ollama_relay=directory, ro_inputs=payload.get('ro_inputs'))
         child = subprocess.Popen(command, cwd=payload['cwd'], env=env, stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
 

@@ -50,6 +50,28 @@ from src.session_service import create_session_service
 
 class RunsCommandTests(CliTestBase):
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Workspace isolation is Linux-only")
+    def test_invalid_ro_input_refuses_before_provider_launch(self):
+        tree = self.make_temp_dir()
+        service = create_session_service({"base_dir": self.make_temp_dir()})
+        self._authenticated_codex_session(service)
+        inputs = pathlib.Path(self.make_temp_dir())
+        link = inputs.parent / (inputs.name + "-link")
+        link.symlink_to(inputs)
+        self.addCleanup(link.unlink)
+        for path in (inputs / "missing", link, pathlib.Path(tree), pathlib.Path(service["base_dir"])):
+            with self.subTest(path=path):
+                output = self.make_io()
+                spawn = mock.Mock(side_effect=AssertionError("Provider must not start"))
+                result = main(["run", "work", "--cwd", tree, "--prompt", "Work", "--isolate-workspace",
+                               "--ro-input", "EXAMPLE_ROOT=" + str(path), "--json"],
+                              self.make_run_ctx(output, service, spawn_headless=spawn))
+                self.assertEqual(result, 1)
+                error = json.loads(output["stdout"].getvalue())["error"]
+                self.assertEqual(error["code"], "invalid_ro_input")
+                self.assertIn("--ro-input", error["message"])
+                spawn.assert_not_called()
+
     @unittest.skipUnless(sys.platform.startswith("linux"), "bubblewrap isolation is Linux-only")
     def test_isolated_claude_full_login_uses_only_stored_setup_token(self):
         from src import provider_runtime, workspace_sandbox
@@ -796,6 +818,7 @@ class RunsCommandTests(CliTestBase):
                     settings_path = pathlib.Path(directory) / "permissions.json"
                     settings_path.write_text('{"permissions":{"allow":["Read"]}}', encoding="utf-8")
                     auth = _AuthHarness(initial_auth={session["authHome"]: True})
+                    input_path = self.make_temp_dir()
                     boundaries, commands = [], []
                     native_id = "12345678-1234-1234-1234-123456789abc"
                     original = workspace_sandbox.sandbox_command
@@ -805,7 +828,7 @@ class RunsCommandTests(CliTestBase):
                         commands.append(command)
                         return original(command, tree, **kwargs)
 
-                    def spawn(argv, boundaries=boundaries, native_id=native_id, provider=provider, commands=commands, session=session, **kwargs):
+                    def spawn(argv, boundaries=boundaries, native_id=native_id, provider=provider, commands=commands, session=session, input_path=input_path, **kwargs):
                         home = pathlib.Path(boundaries[-1][3])
                         identifier = native_id if provider == "codex" else commands[-1][
                             commands[-1].index("--resume" if "--resume" in commands[-1] else "--session-id") + 1]
@@ -824,6 +847,9 @@ class RunsCommandTests(CliTestBase):
                         self.assertEqual(argv[mount - 2], "--bind")
                         self.assertEqual(argv[mount - 1], str(home / ("sessions" if provider == "codex" else ".claude/projects")))
                         self.assertNotIn(session["authHome"], argv)
+                        self.assertIn(["--ro-bind", input_path, "/opt/inputs/example_root"],
+                                      [argv[i:i + 3] for i in range(len(argv) - 2)])
+                        self.assertEqual(kwargs["env"]["EXAMPLE_ROOT"], "/opt/inputs/example_root")
                         if provider == "claude" and "--settings" in commands[-1]:
                             snapshot = commands[-1][commands[-1].index("--settings") + 1]
                             self.assertIn(["--ro-bind", snapshot, snapshot],
@@ -842,7 +868,7 @@ class RunsCommandTests(CliTestBase):
                         parent = None
                         for count in range(3):
                             output = self.make_io()
-                            extra = (["work", "--isolate-workspace", "--permission", permission,
+                            extra = (["work", "--isolate-workspace", "--ro-input", "EXAMPLE_ROOT=" + input_path, "--permission", permission,
                                       *(["--network-access"] if network else [])] if parent is None
                                      else ["--continue-run", parent["run_id"], *(["--isolate-workspace"] if count == 1 else [])])
                             if parent and provider == "claude":
@@ -856,6 +882,8 @@ class RunsCommandTests(CliTestBase):
                                 self.assertEqual(payload["conversation_id"], parent["conversation_id"])
                                 self.assertEqual(payload["model"], model)
                                 self.assertEqual(payload["reasoning_effort"], "high")
+                            stored = RunRegistry(service["base_dir"]).get(payload["run_id"])
+                            self.assertEqual(stored["launch"]["ro_inputs"], {"EXAMPLE_ROOT": input_path})
                             parent = payload
                             service["set_launch_settings"]("work", {"permission": "full", "model": "changed-model", "power": "low"})
                     self.assertEqual(boundaries, [boundaries[0]] * 3)
@@ -875,6 +903,18 @@ class RunsCommandTests(CliTestBase):
                     self.assertEqual(child["network_access"], network)
                     self.assertEqual(child["permission"], permission)
                     self.assertEqual(child["continue_run"], parent["run_id"])
+                    self.assertEqual(child["ro_inputs"], {"EXAMPLE_ROOT": input_path})
+                    for replacement in (self.make_temp_dir(), None):
+                        output = self.make_io()
+                        if replacement is None:
+                            os.rmdir(input_path)
+                        result = main(["run", "--continue-run", parent["run_id"], "--cwd", directory,
+                                       "--prompt", "Fix", "--json",
+                                       *(["--ro-input", "EXAMPLE_ROOT=" + replacement] if replacement else [])],
+                                      self.make_run_ctx(output, service, spawn_sync=auth.spawn_sync))
+                        self.assertEqual(result, 1, output["stdout"].getvalue())
+                        self.assertEqual(json.loads(output["stdout"].getvalue())["error"]["code"],
+                                         "continue_run_settings_mismatch" if replacement else "invalid_ro_input")
 
     def test_continue_isolated_run_refuses_missing_workspace_storage_and_boundary_changes(self):
         from src.commands.runs import _continue_run_session
@@ -2879,6 +2919,7 @@ class RunsCommandTests(CliTestBase):
         service = create_session_service({"base_dir": self.make_temp_dir()})
         self.assertEqual(main(["schema", "--json"], self.make_run_ctx(io_obj, service)), 0)
         schema = json.loads(io_obj["stdout"].getvalue())
+        self.assertEqual(schema["capabilities"]["ro_inputs"], 1)
 
         target = self.make_temp_dir()
         base = ["main", "--cwd", target, "--prompt", "Do it", "--json"]

@@ -50,7 +50,7 @@ CAN_RESUME_USAGE = "Usage: cdx can-resume <name> [--conversation <id>] [--json]"
 SESSIONS_USAGE = "Usage: cdx sessions [--all] --json"
 SELECT_USAGE = "Usage: cdx select --provider PROVIDER [--min-reasoning-effort minimal|low|medium|high|xhigh] [--min-power minimal|low|medium|high|xhigh] [--require-ready] [--refresh] --json"
 NEXT_USAGE = "Usage: cdx next [--json] [--refresh]"
-RUN_USAGE = "Usage: cdx run [session] [--remote SSH_TARGET] [--remote-prefix COMMAND] (--cwd|--dir) PATH [--project PATH] (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--network-access] [--isolate-workspace] [--timeout-seconds N] [--budget USD] [--extra-args 'ARGS'] [--label TEXT] [--max-parallel N] [--continue-run RUN_ID] [--detach] [--failover] [--refresh] --json"
+RUN_USAGE = "Usage: cdx run [session] [--remote SSH_TARGET] [--remote-prefix COMMAND] (--cwd|--dir) PATH [--project PATH] (--prompt-file PATH|--prompt TEXT|--prompt-file -) [--provider PROVIDER] [--model MODEL] [--kind assistant|code-review|retro] [--reasoning-effort minimal|low|medium|high|xhigh] [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full|workspace-write|read-only|danger-full-access] [--network-access] [--isolate-workspace] [--ro-input NAME=PATH] [--timeout-seconds N] [--budget USD] [--extra-args 'ARGS'] [--label TEXT] [--max-parallel N] [--continue-run RUN_ID] [--detach] [--failover] [--refresh] --json"
 RUN_USAGE += "\nRemote Ollama generates text only; it is not an autonomous coding agent and does not edit the repository. Requires an installed worker model; no authentication."
 RUN_JSON_REQUIRED = "cdx run: --json is required."
 RUN_TARGET_REQUIRED = "cdx run: specify a session name or --provider PROVIDER."
@@ -158,14 +158,16 @@ def _parse_flag_args(args, schema, usage, positionals_key=None, max_positionals=
                 index += 1
                 continue
             value, index = _read_option_value(args, index, usage, schema=schema)
-            parsed[spec["key"]] = spec.get("transform", lambda item: item)(value)
+            value = spec.get("transform", lambda item: item)(value)
+            parsed[spec["key"]] = [*(parsed[spec["key"]] or []), value] if spec.get("repeat") else value
             continue
         if arg.startswith("--") and "=" in arg:
             flag, value = arg.split("=", 1)
             spec = schema.get(flag)
             if not spec or spec["type"] == "bool":
                 raise CdxError(usage)
-            parsed[spec["key"]] = spec.get("transform", lambda item: item)(value)
+            value = spec.get("transform", lambda item: item)(value)
+            parsed[spec["key"]] = [*(parsed[spec["key"]] or []), value] if spec.get("repeat") else value
             index += 1
             continue
         if arg.startswith("-"):
@@ -494,7 +496,7 @@ def cdx_schema():
     # No `schema_version` here: the JSON envelope already carries it, and two
     # keys of that name in one payload would be one too many.
     return {
-        "capabilities": {"workspace_isolation": 1, "workspace_network": 1},
+        "capabilities": {"workspace_isolation": 1, "workspace_network": 1, "ro_inputs": 1},
         "outputs": {
             "sessions": {
                 "processes": {
@@ -565,6 +567,7 @@ def cdx_schema():
             ],
             "run": [
                 "invalid_cwd",
+                "invalid_ro_input",
                 "session_disabled",
                 "session_busy",
                 "auth_lock_failed",
@@ -722,6 +725,7 @@ def _parse_run_args(args):
         "--detach": {"key": "detach", "type": "bool", "default": False},
         "--network-access": {"key": "network_access", "type": "bool", "default": False},
         "--isolate-workspace": {"key": "isolate_workspace", "type": "bool", "default": False},
+        "--ro-input": {"key": "ro_inputs", "type": "str", "default": None, "repeat": True},
         "--failover": {"key": "failover", "type": "bool", "default": False},
         "--refresh": {"key": "refresh", "type": "bool", "default": False},
         "--label": {"key": "label", "type": "str", "default": None},
@@ -770,6 +774,15 @@ def _parse_run_args(args):
     if parsed["remote_prefix"] is not None and (not parsed["remote"] or not parsed["remote_prefix"].strip()):
         raise CdxArgumentError("cdx run: --remote-prefix requires --remote and a nonempty command.",
                                code=ARG_CODE_INVALID_VALUE, arguments=["--remote-prefix"])
+    from .workspace_sandbox import parse_ro_inputs
+
+    try:
+        ro_inputs = parse_ro_inputs(parsed["ro_inputs"] or [])
+    except RuntimeError as error:
+        raise CdxArgumentError(str(error), code=ARG_CODE_INVALID_VALUE, arguments=["--ro-input"]) from error
+    if ro_inputs and not (parsed["isolate_workspace"] or parsed["continue_run"]):
+        raise CdxArgumentError("--ro-input requires --isolate-workspace.",
+                               code=ARG_CODE_INVALID_VALUE, arguments=["--ro-input", "--isolate-workspace"])
     effort = _parse_run_effort(parsed["reasoning_effort"], parsed["power"])
     extra = _normalize_launch_settings({"extra_args": parsed["extra_args"]}).get("extra_args")
     return {
@@ -791,6 +804,7 @@ def _parse_run_args(args):
         "detach": parsed["detach"],
         "network_access": parsed["network_access"],
         "isolate_workspace": parsed["isolate_workspace"],
+        "ro_inputs": ro_inputs,
         "failover": parsed["failover"],
         "label": parsed["label"],
         "max_parallel": parsed["max_parallel"],

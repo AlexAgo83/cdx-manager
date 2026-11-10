@@ -82,7 +82,7 @@ def isolation_probe_command(payload, home, env):
         ['agy' if provider == 'antigravity' else provider, '--version'], pathlib.Path(payload['cwd']), network=payload['network'],
         writable=payload['writable'], source=env, auth_home=str(home), provider=provider,
         observation_home=str(home) if provider in ('claude', 'antigravity') else str(home / 'sessions'),
-        claude_token_stdin=provider == 'claude')
+        claude_token_stdin=provider == 'claude', ro_inputs=payload.get('ro_inputs'))
 
 
 def probe(root, payload):
@@ -115,6 +115,17 @@ def probe(root, payload):
 
 def main():
     payload = json.loads(sys.stdin.buffer.readline())
+    if payload.get('ro_inputs'):
+        namespace = {'__name__': 'cdx_workspace_sandbox'}
+        exec(compile(SANDBOX_SOURCE, 'workspace_sandbox.py', 'exec'), namespace)
+        try:
+            payload['ro_inputs'] = namespace['validate_ro_inputs'](
+                payload['ro_inputs'], pathlib.Path(payload['cwd']), source=dict(os.environ))
+        except (OSError, RuntimeError):
+            # Keep user-controlled values out of worker diagnostics.
+            print('Invalid --ro-input: require existing user-owned directories without top-level symlinks or overlap '
+                  'with the workspace, configuration, state or credentials.', file=sys.stderr)
+            return 119
     if payload.get('provider') == 'ollama':
         namespace = {'__name__': 'cdx_ollama_remote'}
         exec(compile(OLLAMA_SOURCE, 'ollama_remote.py', 'exec'), namespace)
@@ -170,7 +181,7 @@ def main():
             command, env = namespace['sandbox_command'](
                 ['agy', *payload['args']], pathlib.Path(payload['cwd']), network=False,
                 writable=payload['writable'], source=dict(os.environ), provider='antigravity',
-                observation_home=attempt_home)
+                observation_home=attempt_home, ro_inputs=payload.get('ro_inputs'))
         elif claude:
             claude_home = home / 'claude-home'
             claude_home.mkdir(mode=0o700)
@@ -181,7 +192,7 @@ def main():
             command, env = namespace['sandbox_command'](
                 ['claude', *payload['args']], pathlib.Path(payload['cwd']), network=payload['network'],
                 writable=payload['writable'], source=dict(os.environ), provider='claude',
-                observation_home=str(claude_home), claude_token_stdin=True)
+                observation_home=str(claude_home), claude_token_stdin=True, ro_inputs=payload.get('ro_inputs'))
         else:
             (home / 'auth.json').write_text(json.dumps(auth))
             os.chmod(home / 'auth.json', 0o600)
@@ -204,7 +215,7 @@ def main():
                 command, env = namespace['sandbox_command'](
                     ['codex', *args], pathlib.Path(payload['cwd']), network=payload['network'],
                     writable=payload['writable'], source=env, auth_home=str(home), provider='codex',
-                    observation_home=str(home / 'sessions'))
+                    observation_home=str(home / 'sessions'), ro_inputs=payload.get('ro_inputs'))
         started_at = datetime.now(timezone.utc).isoformat()
         child = subprocess.Popen(command, cwd=payload['cwd'], env=env,
                                  stdin=subprocess.PIPE if claude else subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,

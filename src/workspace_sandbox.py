@@ -9,6 +9,7 @@ from __future__ import annotations
 import ipaddress
 import json
 import os
+import re
 import shutil
 import socket
 import stat
@@ -153,9 +154,68 @@ def clean_env(source: dict) -> dict:
     return env
 
 
-def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: bool = True,
-                    source: dict | None = None, auth_home: str = "", provider: str = "", observation_home: str = "", ollama_relay: str = "", claude_token_stdin: bool = False, conversation_home: str = "", settings_paths: tuple[str, ...] = ()) -> tuple[list[str], dict]:
+def parse_ro_inputs(values):
+    inputs = {}
+    reserved = set(clean_env({})) | {"HOMEDRIVE", "HOMEPATH", "USERPROFILE", "PWD", "OLDPWD", "LANG", "LC_ALL", "TERM", "TZ", "PYTHONPATH", "AGY_CLI_DISABLE_AUTO_UPDATE"}
+    for value in values:
+        name, separator, path = value.partition("=")
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]*", name):
+            raise RuntimeError("--ro-input requires an environment variable name matching [A-Z][A-Z0-9_]*.")
+        if (name in reserved or name.startswith(("CDX_", "CODEX_", "CLAUDE_", "ANTHROPIC_", "OPENAI_",
+                                                "AGY_", "GEMINI_", "GOOGLE_", "AWS_", "AZURE_", "GIT_", "XDG_"))
+                or re.search(r"(?:^|_)(?:TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIALS?)(?:_|$)", name)):
+            raise RuntimeError("--ro-input uses a reserved environment variable: " + name)
+        if not separator or not path or "\x00" in path:
+            raise RuntimeError("--ro-input requires NAME=PATH with a nonempty directory path.")
+        if name in inputs:
+            raise RuntimeError("--ro-input repeats an environment variable: " + name)
+        inputs[name] = os.path.abspath(os.path.expanduser(path))
+    return inputs
+
+
+def validate_ro_inputs(inputs, tree, *, source=None, protected_paths=()):
+    """Validate on the execution host without traversing input contents."""
+    if not inputs:
+        return {}
+    if not hasattr(os, "getuid"):
+        raise RuntimeError("--ro-input requires POSIX workspace isolation.")
     source = os.environ if source is None else source
+    inputs = parse_ro_inputs([name + "=" + path for name, path in inputs.items()])
+    home = Path.home()
+    protected = [Path(tree), CACHE, home / ".cdx", home / "Library", *map(Path, protected_paths)]
+    # Hidden home entries include provider configuration, SSH and cloud credentials.
+    protected += list(home.glob(".*"))
+    protected += [Path(path) for path in ("/proc", "/sys", "/dev", "/run", "/etc/shadow", "/etc/gshadow", "/etc/ssh", "/etc/ssl/private", "/etc/krb5.keytab")]
+    protected += [home / name for name in (".config", ".local", ".ssh", ".aws", ".azure", ".codex", ".claude", ".gemini", ".gnupg")]
+    for name, value in source.items():
+        if value and (name in ("CDX_HOME", "CODEX_HOME", "CLAUDE_CONFIG_DIR", "ANTHROPIC_CONFIG_DIR",
+                               "XDG_CONFIG_HOME", "XDG_DATA_HOME", "GH_CONFIG_DIR", "DOCKER_CONFIG",
+                               "KUBECONFIG", "SSH_AUTH_SOCK", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GOOGLE_APPLICATION_CREDENTIALS", "AWS_SHARED_CREDENTIALS_FILE", "AWS_CONFIG_FILE")
+                      or (name.endswith(("_PATH", "_FILE", "_DIR"))
+                          and re.search(r"TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH", name))):
+            protected.extend(Path(part).expanduser() for part in value.split(os.pathsep) if part)
+    protected = [path.resolve() for path in protected]
+    validated = {}
+    for name, value in inputs.items():
+        path = Path(value)
+        try:
+            info = path.lstat()
+        except OSError as error:
+            raise RuntimeError("--ro-input directory is unavailable: " + value) from error
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
+            raise RuntimeError("--ro-input must be a directory owned by the current user, not a symlink: " + value)
+        path = path.resolve()
+        if any(path == other or path in other.parents or other in path.parents for other in protected):
+            raise RuntimeError("--ro-input overlaps the workspace, configuration, state or credentials: " + value)
+        validated[name] = str(path)
+    return validated
+
+
+def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: bool = True,
+                    source: dict | None = None, auth_home: str = "", provider: str = "", observation_home: str = "", ollama_relay: str = "", claude_token_stdin: bool = False, conversation_home: str = "", settings_paths: tuple[str, ...] = (), ro_inputs: dict | None = None, protected_paths: tuple[str, ...] = ()) -> tuple[list[str], dict]:
+    source = os.environ if source is None else source
+    inputs = validate_ro_inputs(ro_inputs or {}, tree, source=source,
+                                protected_paths=(*protected_paths, *filter(None, (auth_home, observation_home, conversation_home))))
     env = clean_env(source)
     binary = shutil.which(command[0], path=env["PATH"])
     bwrap = shutil.which("bwrap", path=source.get("PATH"))
@@ -202,6 +262,10 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
     if not any(resolved.is_relative_to(p.resolve()) for p in paths if p.exists()):
         raise RuntimeError("Executable is outside the permitted toolchains: " + str(resolved))
     args += ["--bind", str(CACHE), "/cache", "--bind" if writable else "--ro-bind", str(tree), str(tree)]
+    for name, path in inputs.items():
+        destination = "/opt/inputs/" + name.lower()
+        args += ["--ro-bind", path, destination]
+        env[name] = destination
     marker = tree / ".git"
     if marker.is_file():
         text = marker.read_text().strip()

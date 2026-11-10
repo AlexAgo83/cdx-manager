@@ -167,6 +167,10 @@ sys.exit(7 if os.environ.get('FAKE_MODE') == 'failure' else 0)
         'nft': "import sys; sys.stdin.read()",
         'bwrap': """import os, sys
 args = sys.argv[1:]
+if 'EXAMPLE_ROOT' in os.environ:
+    mount = args.index('/opt/inputs/example_root')
+    assert args[mount - 2] == '--ro-bind'
+    assert os.environ['EXAMPLE_ROOT'] == '/opt/inputs/example_root'
 for index, arg in enumerate(args):
     if arg == '--ro-bind' and args[index+2] == '/home/agent/.codex/auth.json':
         os.environ['CODEX_HOME'] = str(__import__('pathlib').Path(args[index+1]).parent)
@@ -371,12 +375,28 @@ class RemoteCommandTests(CliTestBase):
         service, session, _ = self.setup_session()
         self.monkeypatch.setenv('FAKE_ISOLATE', '1')
         original = pathlib.Path(session['authHome'], 'auth.json').read_bytes()
+        inputs = self.make_temp_dir()
         output = self.make_io()
         assert main(['run', 'work', '--remote', 'worker', '--isolate-workspace', '--permission', 'full', '--cwd', str(self.directory),
-                     '--prompt', 'Work', '--json'], self.make_run_ctx(output, service)) == 0
+                     '--ro-input', 'EXAMPLE_ROOT=' + inputs, '--prompt', 'Work', '--json'], self.make_run_ctx(output, service)) == 0
         assert RunRegistry(service['base_dir']).get(json.loads(output['stdout'].getvalue())['run_id'])['status'] == 'succeeded'
+        stored = RunRegistry(service['base_dir']).get(json.loads(output['stdout'].getvalue())['run_id'])
+        assert stored['launch']['ro_inputs'] == {'EXAMPLE_ROOT': inputs}
         assert pathlib.Path(session['authHome'], 'auth.json').read_bytes() == original
         assert not list(self.worker_root.glob('run-*'))
+
+    def test_remote_invalid_ro_input_refuses_before_credentials(self):
+        service, _, _ = self.setup_session()
+        self.monkeypatch.setenv('FAKE_ISOLATE', '1')
+        with mock.patch('src.remote_run.temporary_auth', side_effect=AssertionError('Credential accessed')):
+            output = self.make_io()
+            assert main(['run', 'work', '--remote', 'worker', '--isolate-workspace', '--cwd', str(self.directory),
+                         '--ro-input', 'EXAMPLE_ROOT=' + str(self.directory / 'missing'), '--prompt', 'Work', '--json'],
+                        self.make_run_ctx(output, service)) == 1
+        error = json.loads(output['stdout'].getvalue())['error']
+        assert error['code'] == 'invalid_ro_input'
+        assert '--ro-input' in error['message']
+        assert 'existing user-owned directories' in error['message']
 
     def test_isolated_remote_snapshot_and_cleanup(self):
         for mode in ('success', 'failure', 'long'):

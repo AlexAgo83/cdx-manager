@@ -104,3 +104,18 @@ def test_preflight_namespace_failure_refuses_and_cleans_up(sandbox):
             remote_worker.probe(home.parent, payload)
     assert not list(home.parent.glob('probe-*'))
 
+
+
+def test_remote_probe_applies_and_revalidates_read_only_inputs(sandbox):
+    payload, home = sandbox
+    inputs = home.parent / 'example-input'
+    inputs.mkdir()
+    payload['ro_inputs'] = {'EXAMPLE_ROOT': str(inputs)}
+    with mock.patch('shutil.which', side_effect=lambda name, path=None: '/usr/bin/' + name):
+        command, env = remote_worker.isolation_probe_command(payload, home, {'PATH': '/usr/bin'})
+    mount = command.index('/opt/inputs/example_root')
+    assert command[mount - 2:mount] == ['--ro-bind', str(inputs)]
+    assert env['EXAMPLE_ROOT'] == '/opt/inputs/example_root'
+    inputs.rmdir()
+    with pytest.raises(RuntimeError, match='--ro-input directory is unavailable'):
+        remote_worker.isolation_probe_command(payload, home, {'PATH': '/usr/bin'})
