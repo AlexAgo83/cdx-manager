@@ -4,7 +4,7 @@
 
 <br clear="left"/>
 
-[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.26.12-4C8BF5) ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](LICENSE) ![Version](https://img.shields.io/badge/version-v0.26.12-4C8BF5) ![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)
 
 **The right AI coding account, when you need it.** CDX Manager keeps your Codex and Claude accounts in separate profiles, shows which ones have quota, and helps you pick the next usable session from your terminal.
 
@@ -14,7 +14,7 @@ When one account hits a limit mid-task, you should not have to guess which login
 
 ## Get started in a minute
 
-Install with npm (Node.js 18+ and Python 3.9+):
+Install with npm (Node.js 18+ and Python 3.10+):
 
 ```bash
 npm install -g cdx-manager

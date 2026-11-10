@@ -1,5 +1,10 @@
 # Unreleased
 
+## Python minimum version (next patch)
+
+- Python 3.10 or newer is now required. Drop support for Python 3.9, which reached end of life in October 2025, from packaging, installation guidance and CI.
+- Require pytest >=9.0.3 for all development environments and remove the vulnerable Python 3.9-only pytest 8.4.2 lock entry to address Dependabot alert #2 (tmpdir handling).
+
 ## Per-process session discovery (next patch, #132)
 
 - Preserve every existing `cdx sessions --json` profile field and add `processes` with actual agent PIDs, optional wrapper PIDs, live cwd, process start time, launch conversation IDs and explicit current-conversation provenance.
@@ -98,8 +103,8 @@
 
 ## Dependency security
 
-- Require cryptography >=50.0.0 for encrypted auth bundles and remove the vulnerable 47.0.0 lock entry. Python 3.9 remains supported from 3.9.2, as cryptography 50 excludes 3.9.0 and 3.9.1.
-- Require pytest >=9.0.3 in the development extra on Python >=3.10; retain the existing 9.2.0 lock entry. pytest is not a runtime dependency. Python 3.9 still uses 8.4.2, the last compatible release, and its medium-severity alert remains unresolved pending an upstream backport or a decision to drop Python 3.9 development support.
+- Require cryptography >=50.0.0 for encrypted auth bundles and remove the vulnerable 47.0.0 lock entry.
+- Require pytest >=9.0.3 in the development extra; retain the existing 9.2.0 lock entry. pytest is not a runtime dependency.
 - Check lock consistency and run the CI test matrix against locked development dependencies without upgrading unrelated packages.
 
 ## Run costs and budgets

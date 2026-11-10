@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const PYTHON_VERSION_CHECK = "import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)";
+const PYTHON_VERSION_CHECK = "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)";
 const PYTHON_CACHE_PREFIX = path.join(os.tmpdir(), "cdx-manager-pycache");
 const WINDOWS_CANDIDATES = [
   { command: "py", args: ["-3"], label: "py -3" },
@@ -120,8 +120,8 @@ function runPython(args, options = {}) {
 
   if (!candidate) {
     const tried = getCandidates(platform).map((item) => item.label).join(", ");
-    console.error(`cdx: no compatible Python 3 interpreter found. Tried: ${tried}.`);
-    console.error("Install Python 3 and make one of those commands available on PATH.");
+    console.error(`cdx: no compatible Python 3.10+ interpreter found. Tried: ${tried}.`);
+    console.error("Install Python 3.10 or newer and make one of those commands available on PATH.");
     return 127;
   }
 
