@@ -34,7 +34,7 @@
 | `cdx last [--json]` | Launch the most recent existing session from launch history |
 | `cdx resume <name> [--conversation <id>] [--json]` | Resume the provider-native conversation for a session using the named command form; `--conversation` reopens that exact conversation and refuses with `conversation_not_found` if the profile has no such transcript |
 | `cdx can-resume <name> [--conversation <id>] [--json]` | Check whether a session supports native resume without launching the provider; `--conversation` checks that exact conversation and reports `resumable: false` with `conversation_not_found` instead of falling back to the most recent one |
-| `cdx sessions [--all] --json` | Interactive sessions launched through cdx that are still running (`session`, `provider`, `pid`, `cwd`, `started_at`, `conversation_id`, `profile_dir`, `transcripts_dir`); `--all` adds idle enabled accounts so any account's directories can be resolved |
+| `cdx sessions [--all] --json` | Interactive sessions launched through cdx that are still running (`session`, `provider`, `pid`, `cwd`, `started_at`, `conversation_id`, `profile_dir`, `transcripts_dir`, `processes`); `--all` adds idle enabled accounts so any account's directories can be resolved |
 | `cdx context show\|path\|init\|edit\|clear\|set\|append [text...] [--json]` | Manage the shared Markdown context for the current workspace |
 | `cdx memory [--global\|--project NAME_OR_PATH] [show\|view\|path\|init\|edit\|clear\|set\|append\|list] [text...] [--json]` | Manage explicit user-controlled memory for the current workspace, global scope, or a named/path project |
 | `cdx handoff <name> [--json]` | Reuse the prepared entry for this target/workspace, or use explicitly labelled notes-only recovery if none exists; launch unless `--json` |
@@ -84,6 +84,35 @@
 | `cdx tray doctor [--json]` | Report companion, executable, version, running instance, autostart, and the two capabilities that fail silently — whether this desktop can draw a tray icon at all, and on Windows whether the Start Menu shortcut toasts depend on exists. Reads only; it never repairs |
 | `cdx --help` | Show usage |
 | `cdx --version` | Show version |
+
+`cdx sessions --json` preserves its existing per-profile rows and fields, including
+its recorded wrapper `pid`, launch `cwd`, and saved `conversation_id`. Each row
+also contains `processes`, one entry per running agent attributable to that
+profile. On Linux, this bounded, best-effort scan checks at most 8192 `/proc`
+entries, reads at most 256 KiB per process file (16 KiB per Claude session file),
+and follows at most 16 same-user ancestors to find a `script` wrapper. Only
+processes owned by the current user are inspected; unreadable, exited, ambiguous
+or unmatched processes are skipped. Profile attribution uses the provider and
+its `HOME`, `CODEX_HOME`, or profile `CLAUDE_CONFIG_DIR`, not a workspace guess.
+Other platforms return an empty list. `--all` retains its existing idle-profile
+behavior; discovery does not add or remove profile rows.
+
+Each process exposes `agent_pid`, nullable `wrapper_pid`, `provider`, nullable
+`conversation_id`, `conversation_source`, nullable `launch_conversation_id`,
+`cwd` (the live `/proc/<agent_pid>/cwd` link), and `started_at` (UTC ISO timestamp
+from kernel process timing, or null). Claude's current ID comes from `sessionId`
+in `<CLAUDE_CONFIG_DIR>/sessions/<agent_pid>.json`, defaulting to
+`<HOME>/.claude/sessions/<agent_pid>.json`, and is reread on each call so `/clear`
+is reflected. `conversation_source` is `claude_session_file` on success;
+`claude_session_file_missing`, `claude_session_file_invalid`,
+`claude_session_file_unavailable`, or `claude_config_dir_unavailable` explains a
+null ID. The separate launch ID comes only from that Claude process's explicit
+`--session-id` or `--resume` argument. Codex, Antigravity and Ollama currently
+report null conversation and launch IDs with
+`conversation_source: "current_conversation_unavailable"`; no saved ID or recent
+transcript is treated as proof of a process's current conversation. Missing cwd
+links yield null. `cdx schema --json` advertises the item fields under
+`outputs.sessions.processes`.
 
 ---
 

@@ -2,7 +2,7 @@
 
 ## Technical Overview
 
-- Python 3.9+.
+- Python 3.10+.
 - Environment isolation per session:
   - Codex sessions override `CODEX_HOME` to a dedicated profile directory.
   - Claude sessions override `HOME` to a dedicated profile directory and disable Claude Code commit co-author attribution by default.

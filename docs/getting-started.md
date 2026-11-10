@@ -3,10 +3,10 @@
 ## Prerequisites
 
 - Node.js 18+ with npm
-- Python 3.9+
+- Python 3.10+
 - `codex`, `claude`, `agy`, and/or `ollama` CLI installed and available in your PATH
 
-On Windows, the npm launcher looks for Python in this order: `py -3`, `python`, then `python3`. Make sure at least one of those commands resolves to Python 3.
+On Windows, the npm launcher looks for Python in this order: `py -3`, `python`, then `python3`. Make sure at least one of those commands resolves to Python 3.10 or newer.
 
 ## Install
 
