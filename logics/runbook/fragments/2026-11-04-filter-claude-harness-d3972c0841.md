@@ -25,9 +25,9 @@ design rule changes, UI edits, screenshots, or host measurements are required.
 
 ## Verification
 
-All local checks use `.jarvis-input/mission-test-runner.py` with each complete
+All local checks use `.mission-input/mission-test-runner.py` with each complete
 command supplied as one argument. Exact timings and exit codes are recorded in
-`.jarvis-artifacts/mission-tests.jsonl`; receipts are not edited.
+`.mission-artifacts/mission-tests.jsonl`; receipts are not edited.
 
 The baseline `npm test` encountered four failures and two setup errors caused by
 inherited Git overrides and RTK_DB_PATH in tests creating temporary repositories
@@ -45,7 +45,7 @@ the public Rustup distribution because Cargo was absent.
   with 1836 passed, five opt-in skips, and three existing deprecation warnings.
 - `cargo test --manifest-path tray/Cargo.toml`: passed, 99 tests; two existing
   dead-code warnings. Cargo uses its installed bin directory on PATH.
-- `uv build --out-dir .jarvis-artifacts/dist`: passed, source distribution and wheel.
+- `uv build --out-dir .mission-artifacts/dist`: passed, source distribution and wheel.
 - `npm pack --dry-run`: passed.
 - `logics-manager lint --require-status`: passed.
 - `logics-manager audit --group-by-doc`: passed with six existing warnings in

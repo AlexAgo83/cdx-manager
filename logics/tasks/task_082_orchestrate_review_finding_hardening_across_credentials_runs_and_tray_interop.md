@@ -13,7 +13,7 @@
 
 # AI Context
 - Summary: Orchestration task for implementing four linked slices that close all req_074 acceptance criteria derived from req_073 review findings.
-- Keywords: req_074, item_147, item_148, item_149, item_150, orchestration, ADR 009, Tower WSL validation
+- Keywords: req_074, item_147, item_148, item_149, item_150, orchestration, ADR 009, Host A WSL validation
 - Use when: Coordinating implementation order, evidence, and closeout for the review-finding hardening corpus.
 - Skip when: Implementing an unrelated request or a single slice without touching orchestration evidence.
 
@@ -24,8 +24,8 @@
 - [x] 1. Start with credential and backup fixes because they protect authentication and restore paths.
 - [x] 2. Then repair memory appends and headless run lifecycle so accepted work and child processes stay owned by CDX.
 - [x] 3. Then repair tray installation, shortcut, and macOS probe recovery without changing tray feature scope.
-- [x] 4. Finish with Windows-to-WSL tray argv and terminal interop, including Tower smoke checks.
-- [x] 5. For each slice, add the smallest focused regressions, run targeted tests first, then Python/Rust suites, lint, Logics validation, and scoped Tower verification before closeout.
+- [x] 4. Finish with Windows-to-WSL tray argv and terminal interop, including Host A smoke checks.
+- [x] 5. For each slice, add the smallest focused regressions, run targeted tests first, then Python/Rust suites, lint, Logics validation, and scoped Host A verification before closeout.
 - [x] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
 - [x] Keep commit creation under operator control; do not force one commit per micro-step.
 - [x] GATE: do not close until lint, audit, and scaffold validation pass.
@@ -61,17 +61,17 @@
 - request-AC8 -> This task. Proof: `test/test_tray_capability_py.py::test_an_update_points_the_shortcut_at_the_live_executable_and_keeps_owning_it` — wave 3.
 - request-AC9 -> `item_149_make_tray_installation_and_probes_recoverable`. Proof: `test/test_tray_capability_py.py::test_the_staged_probe_runs_the_companion_and_refuses_an_unusable_bundle` — wave 3.
 - request-AC9 -> This task. Proof: `test/test_tray_capability_py.py::test_the_staged_probe_runs_the_companion_and_refuses_an_unusable_bundle` — wave 3.
-- request-AC10 -> `item_150_repair_windows_to_wsl_tray_command_and_terminal_interop`. Proof: `tray/src/winterm.rs::tests::a_multi_argument_action_crosses_to_wsl_as_separate_arguments`, plus Tower Ubuntu WSL: `wsl.exe -d Ubuntu -- <cdx> config main` prints the settings, the old single-argument form does not — wave 4.
-- request-AC10 -> This task. Proof: `tray/src/winterm.rs::tests::a_multi_argument_action_crosses_to_wsl_as_separate_arguments`, plus Tower Ubuntu WSL: `wsl.exe -d Ubuntu -- <cdx> config main` prints the settings, the old single-argument form does not — wave 4.
-- request-AC11 -> `item_150_repair_windows_to_wsl_tray_command_and_terminal_interop`. Proof: `tray/src/winterm.rs::tests::a_wsl_produced_candidate_list_is_replaced_by_what_windows_can_open` and `::only_terminals_present_on_this_host_are_offered`, against the real Tower reading (`['x-terminal-emulator']` from WSL; wt/powershell/cmd and no pwsh on Windows) — wave 4.
-- request-AC11 -> This task. Proof: `tray/src/winterm.rs::tests::a_wsl_produced_candidate_list_is_replaced_by_what_windows_can_open` and `::only_terminals_present_on_this_host_are_offered`, against the real Tower reading (`['x-terminal-emulator']` from WSL; wt/powershell/cmd and no pwsh on Windows) — wave 4.
-- request-AC12 -> `item_150_repair_windows_to_wsl_tray_command_and_terminal_interop`. Proof: `tray/src/winterm.rs::tests::a_cmd_preference_runs_the_command_instead_of_opening_an_idle_shell`, plus Tower Windows: `cmd.exe /k "wsl.exe -d Ubuntu -- <cdx> config main"` runs it, `-NoExit -Command` does not — wave 4.
-- request-AC12 -> This task. Proof: `tray/src/winterm.rs::tests::a_cmd_preference_runs_the_command_instead_of_opening_an_idle_shell`, plus Tower Windows: `cmd.exe /k "wsl.exe -d Ubuntu -- <cdx> config main"` runs it, `-NoExit -Command` does not — wave 4.
-- request-AC13 -> This task. Proof: Final wave: `python3 -m pytest -q` 1,023 passed; `npm run lint` all checks passed; `cargo test --manifest-path tray/Cargo.toml` 104 passed; `cargo check --target x86_64-pc-windows-msvc` clean; `logics-manager lint`/`audit` OK; scoped Tower Windows and Ubuntu WSL checks recorded under Validation.
+- request-AC10 -> `item_150_repair_windows_to_wsl_tray_command_and_terminal_interop`. Proof: `tray/src/winterm.rs::tests::a_multi_argument_action_crosses_to_wsl_as_separate_arguments`, plus Host A Ubuntu WSL: `wsl.exe -d Ubuntu -- <cdx> config main` prints the settings, the old single-argument form does not — wave 4.
+- request-AC10 -> This task. Proof: `tray/src/winterm.rs::tests::a_multi_argument_action_crosses_to_wsl_as_separate_arguments`, plus Host A Ubuntu WSL: `wsl.exe -d Ubuntu -- <cdx> config main` prints the settings, the old single-argument form does not — wave 4.
+- request-AC11 -> `item_150_repair_windows_to_wsl_tray_command_and_terminal_interop`. Proof: `tray/src/winterm.rs::tests::a_wsl_produced_candidate_list_is_replaced_by_what_windows_can_open` and `::only_terminals_present_on_this_host_are_offered`, against the real Host A reading (`['x-terminal-emulator']` from WSL; wt/powershell/cmd and no pwsh on Windows) — wave 4.
+- request-AC11 -> This task. Proof: `tray/src/winterm.rs::tests::a_wsl_produced_candidate_list_is_replaced_by_what_windows_can_open` and `::only_terminals_present_on_this_host_are_offered`, against the real Host A reading (`['x-terminal-emulator']` from WSL; wt/powershell/cmd and no pwsh on Windows) — wave 4.
+- request-AC12 -> `item_150_repair_windows_to_wsl_tray_command_and_terminal_interop`. Proof: `tray/src/winterm.rs::tests::a_cmd_preference_runs_the_command_instead_of_opening_an_idle_shell`, plus Host A Windows: `cmd.exe /k "wsl.exe -d Ubuntu -- <cdx> config main"` runs it, `-NoExit -Command` does not — wave 4.
+- request-AC12 -> This task. Proof: `tray/src/winterm.rs::tests::a_cmd_preference_runs_the_command_instead_of_opening_an_idle_shell`, plus Host A Windows: `cmd.exe /k "wsl.exe -d Ubuntu -- <cdx> config main"` runs it, `-NoExit -Command` does not — wave 4.
+- request-AC13 -> This task. Proof: Final wave: `python3 -m pytest -q` 1,023 passed; `npm run lint` all checks passed; `cargo test --manifest-path tray/Cargo.toml` 104 passed; `cargo check --target x86_64-pc-windows-msvc` clean; `logics-manager lint`/`audit` OK; scoped Host A Windows and Ubuntu WSL checks recorded under Validation.
 
 # Validation
 - Wave 1 (item_147, credentials and portable backups): merge into a keychain-only profile now resolves the
-- Python 1,023 passed; npm run lint OK; cargo test 104 passed; cargo check --target x86_64-pc-windows-msvc clean; Logics lint/audit OK; scoped Tower Windows + Ubuntu WSL checks confirmed AC10-AC12 read-only.
+- Python 1,023 passed; npm run lint OK; cargo test 104 passed; cargo check --target x86_64-pc-windows-msvc clean; Logics lint/audit OK; scoped Host A Windows + Ubuntu WSL checks confirmed AC10-AC12 read-only.
 - Finish workflow executed on 2026-09-07.
 - Linked backlog/request close verification passed.
   bundle-credential collision at the credential backend and reports the retained local account; a force import that
@@ -124,7 +124,7 @@
   `cargo test --manifest-path tray/Cargo.toml` 104 passed; `cargo check --target x86_64-pc-windows-msvc` clean
   (the Windows-only loop compiles; its two dead-code warnings in `notify.rs` predate this work);
   `cargo clippy` reports nothing new for `win.rs` or `winterm.rs`; `logics-manager lint`/`audit` OK.
-- Scoped Tower verification (read-only, operator-authorized host `aagos@kdesktop`):
+- Scoped Host A verification (read-only, operator-authorized host `user@host-a`):
   `wsl.exe -d Ubuntu -- <cdx> config main` prints the launch settings, while the single-argument form the tray used
   to build still answers `Unknown session: config main` (AC10);
   `cmd.exe /k "wsl.exe -d Ubuntu -- <cdx> config main"` runs the command, while `cmd.exe -NoExit -Command ...`

@@ -21,7 +21,7 @@
 - Tray updates and Windows-to-WSL actions must leave the user with a valid companion, valid shortcuts, and commands that run the intended CDX action.
 
 # Context
-- Review request req_073 reproduced twelve defects on the current source snapshot across macOS, Tower native Windows, and Tower Ubuntu WSL2.
+- Review request req_073 reproduced twelve defects on the current source snapshot across macOS, Host A native Windows, and Host A Ubuntu WSL2.
 - Credential import findings are rooted in keychain/file precedence and rollback boundaries in src/session_backup.py plus KDF selection in src/backup_bundle.py.
 - Process findings are rooted in detached child module selection in src/commands/runs.py and interrupt cleanup in src/provider_runtime.py.
 - Tray findings are rooted in staging promotion, native shortcut ownership, macOS launch probing, and Windows-to-WSL argument and terminal selection paths.
@@ -40,7 +40,7 @@
 - AC10: Windows-to-WSL tray actions that need multiple CDX arguments, including session config, execute the intended subcommand in a real WSL distribution.
 - AC11: A Windows tray using WSL shows only terminal preferences the Windows companion can launch, and an unsupported stored preference falls back to a working default.
 - AC12: A cmd terminal preference with WSL transport executes the selected CDX command through cmd /k or an equivalent verified command form.
-- AC13: Focused regressions, Python tests, Rust tray tests, lint, Logics validation, and scoped Tower Windows plus Ubuntu WSL checks pass before closeout.
+- AC13: Focused regressions, Python tests, Rust tray tests, lint, Logics validation, and scoped Host A Windows plus Ubuntu WSL checks pass before closeout.
 
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.

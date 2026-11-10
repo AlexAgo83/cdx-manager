@@ -27,9 +27,9 @@ consume the smaller cursors; no compression format or runtime dependency is adde
 
 ## Validation and review
 
-Every local check attempt is timed by `.jarvis-input/mission-test-runner.py`.
+Every local check attempt is timed by `.mission-input/mission-test-runner.py`.
 Exact commands, durations and exit codes are in
-`.jarvis-artifacts/mission-tests.jsonl`. Initial checks exposed missing Ruff in the
+`.mission-artifacts/mission-tests.jsonl`. Initial checks exposed missing Ruff in the
 system interpreter and inherited Git/RTK environment settings affecting temporary
 test repositories and fake history data. Install frozen development dependencies
 with `uv sync --frozen --extra dev`, put `.venv/bin` on PATH, and unset `GIT_DIR`,
@@ -51,7 +51,7 @@ Final checks (all through the supplied timer):
 - `npm run lint`: passed with `.venv/bin` on PATH.
 - `cargo test --manifest-path tray/Cargo.toml`: 99 passed with the installed Cargo
   directory on PATH.
-- `uv build --wheel --out-dir .jarvis-artifacts/wheels`: passed.
+- `uv build --wheel --out-dir .mission-artifacts/wheels`: passed.
 - `npm pack --dry-run`: passed.
 - `logics-manager lint --require-status`: passed.
 - `logics-manager audit --group-by-doc`: passed with six pre-existing warnings in

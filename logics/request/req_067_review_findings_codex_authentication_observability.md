@@ -25,7 +25,7 @@
 # Context
 - `src/provider_runtime.py` now uses the app-server probe for `cdx doctor`, but reports every non-lock failure as the generic `rate_limits_read_failed`; `src/commands/auth.py` already safely recognizes `login_required` from that diagnostic.
 - `src/commands/auth.py` selects every Codex session for the `all` target, irrespective of the session's enabled state. An intentionally unavailable profile therefore keeps a user-owned scheduled check in failure.
-- `src/commands/auth.py` treats `locked` as non-failing. The observed user-owned Tower wrapper emits only on a non-zero exit, so it can be silent when no session was actually verified.
+- `src/commands/auth.py` treats `locked` as non-failing. The observed user-owned Host A wrapper emits only on a non-zero exit, so it can be silent when no session was actually verified.
 - `src/codex_usage.py` starts `codex app-server` with `stderr=subprocess.PIPE` but only has a reader for stdout. A sufficiently chatty provider process can block before returning the JSON-RPC response and be misreported as a timeout.
 - `.github/workflows/ci.yml` runs `cdx doctor --json` only in the source-install Windows smoke; the packed npm and wheel jobs invoke only `--version` and `schema --json`.
 - Review evidence: `npm test` passed 980 tests, `npm run lint` passed, and `npm audit --omit=dev --json` reported zero vulnerabilities.

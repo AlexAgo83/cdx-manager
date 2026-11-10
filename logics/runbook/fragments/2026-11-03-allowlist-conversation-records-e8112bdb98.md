@@ -31,9 +31,9 @@ supervisor's responsibility; no commits, pushes or PR creation were attempted.
 
 ## Validation
 
-Every local check runs through `.jarvis-input/mission-test-runner.py`; exact
+Every local check runs through `.mission-input/mission-test-runner.py`; exact
 commands, elapsed times and exit codes are in
-`.jarvis-artifacts/mission-tests.jsonl`.
+`.mission-artifacts/mission-tests.jsonl`.
 
 The initial `npm run lint` lacked Ruff, and the initial `npm test` inherited Git
 path variables and `RTK_DB_PATH` that interfered with synthetic test repositories
@@ -46,7 +46,7 @@ public Rust tooling and add its Cargo directory to PATH for tray validation.
 
 Checks include full `npm test`, `npm run lint`, targeted conversation tests,
 `cargo test --manifest-path tray/Cargo.toml`,
-`uv build --wheel --out-dir .jarvis-artifacts/wheels`, `npm pack --dry-run`,
+`uv build --wheel --out-dir .mission-artifacts/wheels`, `npm pack --dry-run`,
 `npm run release:validate`, `uv lock --check`, Logics lint/audit and
 `git diff --check`. No separate typecheck script exists; lint includes Python
 compilation. No UI changes or host measurements are required.

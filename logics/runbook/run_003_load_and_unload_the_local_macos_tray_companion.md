@@ -76,7 +76,7 @@ override instead of substituting its native checkout wrapper:
 ```powershell
 $env:CDX_TRAY_WSL = '1'
 $env:CDX_TRAY_WSL_DISTRO = 'Ubuntu'       # omit to use the WSL default
-$env:CDX_TRAY_CDX = '/home/aagos/.local/bin/cdx'
+$env:CDX_TRAY_CDX = '/home/user/.local/bin/cdx'
 .\scripts\tray-dev.ps1 load
 ```
 

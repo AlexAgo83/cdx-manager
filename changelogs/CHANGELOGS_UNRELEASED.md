@@ -129,7 +129,7 @@
 - Replace the local full-profile auth mount with a mode-600 run-private snapshot on verified memory-backed storage, containing an empty refresh token. Refresh on the controller under the auth lock at the existing seven-day/24-hour thresholds before launch.
 - Keep snapshots independent of controller refresh during long missions, prohibit authentication writeback, enforce their original expiry, and remove temporary storage after success, failure and stop. Non-isolated local authentication remains unchanged.
 - Reject rotating credentials at the sandbox boundary. Test snapshot contents, permissions, cleanup, refresh lock ownership, concurrent controller refresh, remote isolation through fake SSH and missing dependency refusal.
-- The separately maintained remote-ops `scripts/workspace_sandbox.py` requires the same credential guard and run-private lifecycle integration; it is not shipped by this repository.
+- The separately maintained example-project `scripts/workspace_sandbox.py` requires the same credential guard and run-private lifecycle integration; it is not shipped by this repository.
 
 ## Remote Ollama text generation
 

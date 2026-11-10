@@ -88,7 +88,7 @@
     "plan": [
       "State store and cdx agents first, behind its own setting.",
       "Detached failover second.",
-      "Release, then consumers (remote-ops Jarvis HQ) read cdx agents --json."
+      "Release, then consumers (example-project the dashboard) read cdx agents --json."
     ]
   },
   "context_pack": {

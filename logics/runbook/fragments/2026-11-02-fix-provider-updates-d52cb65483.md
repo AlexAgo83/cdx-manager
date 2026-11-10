@@ -20,7 +20,7 @@ If GitHub also fails or returns unusable data, retain `unknown`. Tests use the
 mission's measured versions: installed 0.32.5 and published v0.40.13.
 
 No safe unattended Linux installation path is established. The vendor installer
-writes system paths and can restart a service. Tower's `~/.local/bin/ollama`
+writes system paths and can restart a service. Host A's `~/.local/bin/ollama`
 location does not establish that the executable is unused by a running service.
 Therefore every Linux Ollama update stays `update_available`, with
 `update_command: null` and an explicit manual-maintenance reason. Do not replace
@@ -30,7 +30,7 @@ must arrange an appropriate maintenance window before updating Ollama manually.
 ## Evidence and validation
 
 The fixture `test/fixtures/agy-help.txt` is the complete actual stderr from
-`/home/aagos/.local/bin/agy --help` on Spire during this mission. It contains
+`/home/user/.local/bin/agy --help` on Host B during this mission. It contains
 40 lines and stdout was empty (the supplied earlier measurement had 34 lines).
 It retains `Available subcommands:` and the indented `update` / `Update CLI`
 entry. No host updater was executed. Tests exercise this fixture on both streams,
@@ -38,8 +38,8 @@ missing subcommands, a 1.1.11 to 2.0.0 transition, unchanged/missing/partial
 versions, CLI JSON failure propagation, Linux HTTP 204 fallback, GitHub failure,
 and the absence of any Linux Ollama installation action.
 
-All local validation attempts run through `.jarvis-input/mission-test-runner.py`;
-exact timings and exit codes remain in `.jarvis-artifacts/mission-tests.jsonl`.
+All local validation attempts run through `.mission-input/mission-test-runner.py`;
+exact timings and exit codes remain in `.mission-artifacts/mission-tests.jsonl`.
 Initial lint lacked ruff; `uv sync --frozen --extra dev` restored locked dev
 packages. Subsequent failures exposed test-fixture argument binding and stale
 expectations about the additional version probe; these were corrected. Cargo
@@ -57,7 +57,7 @@ Validation commands:
 
 No UI changed, no release was published, and no commit, push, or PR was made.
 Tests simulate update execution; they do not certify a real host upgrade.
-Human review should assess remote-ops compatibility with the additive result
+Human review should assess example-project compatibility with the additive result
 fields and the deliberate manual Linux Ollama policy.
 
 Final results: lint passed; the full Python suite passed 1,414 tests (three

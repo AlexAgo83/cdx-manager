@@ -2,7 +2,7 @@
 
 ## Scope and decision
 
-Apply local commit `9b8a84b` from `origin/jarvis/mission-44674fc58c` to
+Apply local commit `9b8a84b` from `origin/mission/44674fc58c` to
 current main without modifying Git history. Preserve its changelog entry,
 worker implementation, operator probe and original evidence fragment.
 
@@ -40,8 +40,8 @@ the sum of the other counters. No derived total is introduced.
 
 ## Verification environment
 
-Every local validation attempt uses `.jarvis-input/mission-test-runner.py`.
-The unmodified receipts are in `.jarvis-artifacts/mission-tests.jsonl`.
+Every local validation attempt uses `.mission-input/mission-test-runner.py`.
+The unmodified receipts are in `.mission-artifacts/mission-tests.jsonl`.
 Initial system-Python lint lacked Ruff; `uv sync --frozen --extra dev` supplies
 it through `uv run --no-sync`. A temporary minimal public Rust toolchain under
 `/tmp/mission-6cceecb079-cargo` and `/tmp/mission-6cceecb079-rustup` supplies Cargo.
@@ -59,7 +59,7 @@ and the fixture code remain unchanged. Earlier failures remain in timer receipts
 The original fragment's live worker acceptance and refresh observations remain
 pending. Fixtures establish code behavior only. This sandbox lacks strace and
 an authorized operator session; no login, credential search or live inference
-was attempted. On Spire as service user `aagos`, from this checkout, use the
+was attempted. On Host B as service user `user`, from this checkout, use the
 existing read-only agent-task probes:
 
 ```bash
@@ -89,7 +89,7 @@ the provider; they expose only sanitized measurements.
 | `logics-manager audit --group-by-doc` | Passed; six existing warnings | 0.387 |
 | `uv run --no-sync python -m scripts.probe_antigravity_worker --help` | Passed; no provider started | 0.073 |
 
-The complete final suite log is `.jarvis-artifacts/full-suite-isolated-env.log`.
+The complete final suite log is `.mission-artifacts/full-suite-isolated-env.log`.
 The four skipped cases are the existing real bubblewrap Git/RTK boundary tests
 (local and shipped-worker implementations, writable and read-only workspaces);
 this sandbox cannot create the required namespaces. No tests were excluded from

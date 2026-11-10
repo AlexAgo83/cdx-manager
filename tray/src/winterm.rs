@@ -262,7 +262,7 @@ mod tests {
 
     #[test]
     fn only_terminals_present_on_this_host_are_offered() {
-        // The real Tower host: wt and cmd and powershell, no pwsh.
+        // The real Host A host: wt and cmd and powershell, no pwsh.
         let present = ["wt.exe", "powershell.exe", "cmd.exe"];
         assert_eq!(
             options(|program| present.contains(&program)),

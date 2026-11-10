@@ -3,7 +3,7 @@
 ## Scope and evidence
 
 Repair PR #119 on its existing mission branch without committing, pushing or
-changing CI gates. The supplied GitHub and Tower context files were read as
+changing CI gates. The supplied GitHub and Host A context files were read as
 bounded evidence. The supplied Windows log reports one standalone status-line
 failure and three contract-test decoding failures. No Windows execution is
 available locally; green required GitHub CI remains mandatory before merge.
@@ -25,13 +25,13 @@ workflow chain. No shared operating or design rule changes.
 
 ## Validation
 
-Every local check runs through `.jarvis-input/mission-test-runner.py`; measured
-receipts live in `.jarvis-artifacts/mission-tests.jsonl`. Shared-lock waits are
+Every local check runs through `.mission-input/mission-test-runner.py`; measured
+receipts live in `.mission-artifacts/mission-tests.jsonl`. Shared-lock waits are
 included in the receipts. The CP1252 and ASCII regression cases failed before
 the production fix, confirming that a non-UTF-8 pipe could crash the command.
 
 The first full test attempt also inherited GIT_DIR, GIT_COMMON_DIR, GIT_WORK_TREE
-and RTK_DB_PATH from Spire. These interfere with temporary Git fixtures and
+and RTK_DB_PATH from Host B. These interfere with temporary Git fixtures and
 operator-history expectations. Final test processes unset only those variables.
 The prepared dependency environment lacked the dev extra and Rust: installed
 the existing locked dev dependencies with `uv sync --frozen --extra dev` and
@@ -55,7 +55,7 @@ Final checks:
 | `npm test` | Declared mission suite passed: 1,900 tests, 5 skipped, 3 warnings. |
 | `npm run lint` | Passed: JavaScript syntax, project docs, ruff and Python compilation. |
 | `cargo test --locked --manifest-path tray/Cargo.toml` | Passed: 99 tests. |
-| `npm pack --dry-run && uv build --wheel --out-dir .jarvis-artifacts/wheels` | Passed: npm package dry-run and wheel build. |
+| `npm pack --dry-run && uv build --wheel --out-dir .mission-artifacts/wheels` | Passed: npm package dry-run and wheel build. |
 | `logics-manager lint --require-status && logics-manager audit --group-by-doc && git diff --check` | Passed: zero blocking issues; six existing workflow audit warnings outside this fix. |
 
 No separate typecheck script is configured. No UI layout or appearance changes

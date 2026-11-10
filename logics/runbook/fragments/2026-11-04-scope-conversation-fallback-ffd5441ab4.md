@@ -4,7 +4,7 @@
 
 On 2026-11-04 at 00:39, a new grif interactive session in the cts project
 was awaiting folder trust. With no transcript yet, the conversation reader
-selected the newest transcript across the profile, from remote-ops.
+selected the newest transcript across the profile, from example-project.
 
 For release 0.26.2, conversation recency fallback now uses `--cwd PATH`, or the
 process working directory when omitted. Claude-compatible providers scan only
@@ -40,9 +40,9 @@ operating and design documents do not change. No UI or screenshots are needed.
 
 ## Validation
 
-Every local check runs through `.jarvis-input/mission-test-runner.py`; exact
+Every local check runs through `.mission-input/mission-test-runner.py`; exact
 commands, exit codes and measured durations are retained in
-`.jarvis-artifacts/mission-tests.jsonl` without editing the receipt.
+`.mission-artifacts/mission-tests.jsonl` without editing the receipt.
 
 The first baseline `npm test` inherited mission Git overrides and RTK_DB_PATH:
 four tests failed and two setup errors occurred in unrelated temporary-repo and
@@ -76,7 +76,7 @@ Verification results (all measured by the runner):
 - `PATH="$HOME/.cargo/bin:$PATH" cargo test --manifest-path tray/Cargo.toml`:
   99 passed, two existing dead-code warnings.
 - `npm pack --dry-run`: passed.
-- `uv build --out-dir .jarvis-artifacts/dist`: source distribution and wheel built.
+- `uv build --out-dir .mission-artifacts/dist`: source distribution and wheel built.
 - `logics-manager lint --require-status`: passed.
 - `logics-manager audit --group-by-doc`: passed with six existing warnings in
   unrelated agent-state and detached-failover documents.

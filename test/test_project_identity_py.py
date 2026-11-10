@@ -88,7 +88,7 @@ def test_mapping_preview_apply_idempotence_and_unchanged_totals(history, tmp_pat
     # Read valid rows directly; malformed historical bytes must also survive.
     before_rows = [json.loads(line) for line in original.splitlines()[:4]]
     before = _stats_totals(_summarize_stats(before_rows))
-    mapping = mapping_file(tmp_path, [{"run_id": run_id, "project": "/repos/remote-ops"}
+    mapping = mapping_file(tmp_path, [{"run_id": run_id, "project": "/repos/example-project"}
                                       for run_id in ("synthetic-run-1", "synthetic-run-2", "synthetic-run-3")])
     preview = service["backfill_history_projects"](mapping_path=mapping)
     assert (preview["recovered"], preview["unresolved"], preview["applied"]) == (3, 1, 0)
@@ -203,7 +203,7 @@ def test_history_command_defaults_to_preview_and_rejects_mixed_modes(history, tm
 def test_synthetic_tower_receipts_recover_84_attempts_without_changing_usage(history, tmp_path):
     service, _path = history
     projects = []
-    expected = {"remote-ops": 66, "cdx-manager": 10, "logics-manager": 6, "city-jump": 2}
+    expected = {"example-project": 66, "cdx-manager": 10, "logics-manager": 6, "city-jump": 2}
     for name, count in expected.items():
         for index in range(count):
             run_id = f"synthetic-cdx-{name}-{index}"

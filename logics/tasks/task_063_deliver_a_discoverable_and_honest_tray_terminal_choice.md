@@ -42,24 +42,24 @@
 - [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
-- request-AC3 -> `item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates`. Proof: `cdx tray terminal list --json` passed on macOS and Tower Windows.
-- request-AC4 -> `item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates`. Proof: macOS reported only Terminal/iTerm; Tower reported wt/powershell/cmd.
+- request-AC3 -> `item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates`. Proof: `cdx tray terminal list --json` passed on macOS and Host A Windows.
+- request-AC4 -> `item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates`. Proof: macOS reported only Terminal/iTerm; Host A reported wt/powershell/cmd.
 - request-AC6 -> `item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates`. Proof: snapshot parser and 40 Python tests passed.
 - request-AC7 -> `item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates`. Proof: invalid command-shaped preferences remain rejected.
 - request-AC8 -> `item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates`. Proof: older WSL v1.2 snapshot was consumed by the v1.3 companion.
-- request-AC4 -> `item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue`. Proof: Tower native candidate catalogue and preference write/read passed.
-- request-AC5 -> `item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue`. Proof: native and WSL transport branches compiled and passed 90 Rust tests on Tower.
-- request-AC6 -> `item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue`. Proof: declared candidates and companion branches are covered by Tower smoke tests.
+- request-AC4 -> `item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue`. Proof: Host A native candidate catalogue and preference write/read passed.
+- request-AC5 -> `item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue`. Proof: native and WSL transport branches compiled and passed 90 Rust tests on Host A.
+- request-AC6 -> `item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue`. Proof: declared candidates and companion branches are covered by Host A smoke tests.
 - request-AC1 -> `item_103_offer_the_terminal_choice_as_a_tray_submenu`. Proof: macOS live menu test passed with System default, Terminal and iTerm.
-- request-AC2 -> `item_103_offer_the_terminal_choice_as_a_tray_submenu`. Proof: Tower set powershell then clear passed through CDX.
-- request-AC4 -> `item_103_offer_the_terminal_choice_as_a_tray_submenu`. Proof: macOS and Tower native trays rendered from their platform snapshots.
+- request-AC2 -> `item_103_offer_the_terminal_choice_as_a_tray_submenu`. Proof: Host A set powershell then clear passed through CDX.
+- request-AC4 -> `item_103_offer_the_terminal_choice_as_a_tray_submenu`. Proof: macOS and Host A native trays rendered from their platform snapshots.
 - request-AC8 -> `item_103_offer_the_terminal_choice_as_a_tray_submenu`. Proof: old WSL snapshot without candidates stayed compatible.
 - request-AC9 -> `item_102_honour_powershell_pwsh_and_cmd_on_windows_and_prove_the_branches_match_the_catalogue`. Proof: `756ff0a` prevents named-terminal fallback.
-- request-AC10 -> `item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates`. Proof: Tower native and WSL smoke tests passed separately on 2026-08-13.
+- request-AC10 -> `item_101_declare_the_launchable_terminals_in_cdx_and_publish_the_candidates`. Proof: Host A native and WSL smoke tests passed separately on 2026-08-13.
 
 # Validation
 - (no validation recorded yet)
-- command: `macOS and Tower Windows/WSL smoke: terminal list, set/clear; 40 Python tests; 92 macOS Rust tests; 90 Tower Rust tests; npm run lint; Logics lint/audit` | result: passed | date: 2026-08-13
+- command: `macOS and Host A Windows/WSL smoke: terminal list, set/clear; 40 Python tests; 92 macOS Rust tests; 90 Host A Rust tests; npm run lint; Logics lint/audit` | result: passed | date: 2026-08-13
 - Finish workflow executed on 2026-08-13.
 - Linked backlog/request close verification passed.
 

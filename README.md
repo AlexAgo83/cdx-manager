@@ -171,7 +171,7 @@ Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). CDX Manager i
 ```sh
 cdx run work --remote agent@worker --cwd /srv/project --prompt 'Run the checks' --json
 cdx run work --remote worker --cwd /srv/project --prompt-file task.txt --detach --label checks --budget 2 --json
-cdx run work --remote Spire --remote-prefix 'wsl.exe -d Ubuntu --' --cwd /srv/project --prompt 'Run the checks' --json
+cdx run work --remote host-b --remote-prefix 'wsl.exe -d Ubuntu --' --cwd /srv/project --prompt 'Run the checks' --json
 ```
 
 The controller remains the authority for the profile, quota, history, costs and
@@ -192,7 +192,7 @@ profile. Remote continuation is refused because the temporary home
 does not preserve conversation rollouts. Codex's native permission sandbox still
 applies to ordinary remote runs.
 
-For SSH servers landing in Windows `cmd.exe` (including Spire and Citadel), pass
+For SSH servers landing in Windows `cmd.exe` (including Host B and Host C), pass
 `--remote-prefix 'wsl.exe -d Ubuntu --'` to enter Linux before starting Python.
 The prefix accepts plain command words, options and paths without spaces or shell
 metacharacters; it is forwarded to detached runs. POSIX targets need no prefix.
@@ -245,7 +245,7 @@ days. A read-only mount prevents modification, not disclosure. The rotating refr
 token never enters the sandbox or leaves the controller. Codex was measured to run
 with an empty refresh token on 2026-11-01.
 
-A long isolated Tower mission keeps its original credential snapshot even when
+A long isolated Host A mission keeps its original credential snapshot even when
 scheduled controller refresh updates the real profile. There is no authentication
 writeback or token renewal inside the sandbox. A run that outlives its access token
 fails with a clear temporary-credential expiry error and must start a new run.

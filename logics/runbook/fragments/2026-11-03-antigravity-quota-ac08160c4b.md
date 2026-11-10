@@ -39,8 +39,8 @@ metadata. Development tools come from the frozen dev extra.
 ## Final validation
 
 Every test/check command below was executed through
-`python3 .jarvis-input/mission-test-runner.py` as one unchanged quoted argument.
-The authoritative timing receipts are in `.jarvis-artifacts/mission-tests.jsonl`.
+`python3 .mission-input/mission-test-runner.py` as one unchanged quoted argument.
+The authoritative timing receipts are in `.mission-artifacts/mission-tests.jsonl`.
 
 - `PATH="$PWD/.venv/bin:$PATH" python -m pytest test/test_antigravity_usage_py.py -q`: 17 passed.
 - `env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 -u GIT_CONFIG_VALUE_0 -u RTK_DB_PATH PATH="$PWD/.venv/bin:$PATH" npm test`: 1457 passed, 4 skipped; three existing asyncio deprecation warnings.

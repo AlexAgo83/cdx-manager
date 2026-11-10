@@ -2,7 +2,7 @@
 
 ## Existing capability and consumer failure
 
-remote-ops on Tower runs `cdx work2` in an interactive terminal. Fresh Codex
+example-project on Host A runs `cdx work2` in an interactive terminal. Fresh Codex
 launches have no resume argument. Workspace/recency lookup returned an unrelated
 older transcript during a live exchange. Existing explicit-ID lookup and
 pagination are reusable once a native ID is known, but no existing process-scoped
@@ -32,13 +32,13 @@ home, a fake model provider at an unavailable loopback endpoint and an initial
 fake prompt. After eight seconds the process remained alive but exposed no usable
 open rollout evidence. The probe returned unknown and no ID/entries. This does
 not measure an authenticated exchange, resumed launch or conversation switch on
-Tower. Controlled kernel writer tests verify distinct process identities and safe
+Host A. Controlled kernel writer tests verify distinct process identities and safe
 absence; they are not proof of native selected-conversation attribution.
 
 Focused regressions cover fresh/resumed process evidence, concurrent same-profile
 writers, sole retained writers, switches, ambiguity, wrong profile/user/process,
 dead/reused PIDs, unavailable/oversized evidence, unsupported platforms, cursor
-isolation and unchanged explicit-ID pagination. The API lets remote-ops consume an
+isolation and unchanged explicit-ID pagination. The API lets example-project consume an
 honest unknown without parsing native formats; positive live native resolution
 remains unavailable.
 
@@ -53,7 +53,7 @@ A verified source of these lifecycle events is still required; no provider launc
 flags, dependencies or host installations are changed by this mission.
 
 For the real host measurement, the supervisor sets `CODEX_PID` to the native child
-in `jarvis-remote-ops`. As `aagos` on Tower, run this exact read-only probe after a
+in `example-session`. As `user` on Host A, run this exact read-only probe after a
 fresh launch, resume and switch, including concurrent same-profile/cwd sessions:
 
 ```bash
@@ -63,11 +63,11 @@ cdx conversation work2 --pid "$CODEX_PID" --tail 1 --json
 The current acceptance result is unknown with null ID and no entries. Positive
 attribution must not be claimed until a native event source exists and its returned
 ID is compared with the TUI's selected ID. Retain/resend process identity to test
-exit and PID reuse. No access to Tower or its authenticated TUI is available here.
+exit and PID reuse. No access to Host A or its authenticated TUI is available here.
 
-Jarvis owns commits, PR review, trusted secret scanning and automatic merge after
+the orchestrator owns commits, PR review, trusted secret scanning and automatic merge after
 required green CI on the merged commit. Supervising delivery must publish/install
-the resulting CDX version on Tower for remote-ops to use the explicit boundary;
+the resulting CDX version on Host A for example-project to use the explicit boundary;
 this isolated mission does not release or install CDX on a host.
 
 ## Final local validation
@@ -75,11 +75,11 @@ this isolated mission does not release or install CDX on a host.
 - `env -u GIT_DIR -u GIT_COMMON_DIR -u GIT_WORK_TREE -u RTK_DB_PATH uv run npm test`: 1,936 passed, 5 skipped.
 - `uv run npm run lint`: passed, including compilation and project documentation checks.
 - `cargo test --manifest-path tray/Cargo.toml` with a temporary workspace-local Rust toolchain on PATH: 99 passed.
-- `npm pack --dry-run` and `uv build --wheel --out-dir .jarvis-artifacts/wheels`: passed.
+- `npm pack --dry-run` and `uv build --wheel --out-dir .mission-artifacts/wheels`: passed.
 - Timed final native PTY probe: live Codex 0.167.0 returned `unknown`, `native_conversation_identity_unavailable`, null ID.
 - Logics lint passed; audit reported no blocking issues and six existing warnings outside this fragment.
 
 All attempts, including earlier dependency/environment failures and an execution
 that overlapped the conservative implementation revision, remain in the supplied
 timer receipts. Final checks supersede those attempts. GitHub CI, trusted secret
-scanning and independent PR review are publication obligations for Jarvis.
+scanning and independent PR review are publication obligations for the orchestrator.

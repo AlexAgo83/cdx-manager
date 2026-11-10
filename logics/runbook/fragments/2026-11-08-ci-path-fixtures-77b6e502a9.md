@@ -22,6 +22,6 @@ the sandbox database instead of their own histories.
 
 The supplied CodeQL initialization failure was an HTTP 504 downloading the
 CodeQL CLI, before source analysis. No workflow change is justified by this
-transient download failure. Tower must rerun CodeQL and all required GitHub CI
+transient download failure. Host A must rerun CodeQL and all required GitHub CI
 checks on the prepared commit. Local Linux results do not replace macOS or
 Windows CI, and no successful remote rerun is claimed here.

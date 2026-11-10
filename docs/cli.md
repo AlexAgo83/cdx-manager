@@ -566,13 +566,13 @@ null`, `project_source: "unknown"` in history; `project: "-"` in project stats).
 Old cwd-only history also stays unknown: stats never inspect today's filesystem
 or profile settings to guess yesterday's project.
 
-Trusted producers such as Jarvis/remote-ops must resolve the source repository
+Trusted producers such as an orchestrator must resolve the source repository
 **before** creating a disposable mission directory, worktree, or temporary clone,
 and pass it to the installed CDX launcher:
 
 ```bash
-cdx run work --cwd /temporary/mission --project /repos/remote-ops --prompt 'Fix the issue' --isolate-workspace --json
-cdx work --dir /temporary/mission --project /repos/remote-ops
+cdx run work --cwd /temporary/mission --project /repos/example-project --prompt 'Fix the issue' --isolate-workspace --json
+cdx work --dir /temporary/mission --project /repos/example-project
 ```
 
 `--project` is a trusted operator assertion, not provider output, a profile
@@ -590,7 +590,7 @@ configuration.
 
 Consumers should use stats `project` as the stable grouping key and
 `session_name` as the disambiguated display label. In particular, dependent
-remote-ops `scripts/cdx-stats.py` should not reduce `project` to `Path(...).name`:
+example-project `scripts/cdx-stats.py` should not reduce `project` to `Path(...).name`:
 that loses disambiguation between unrelated repositories named alike. Token,
 duration, cost, and attempt counts keep the existing accounting rules; the
 existing `totals.sessions` field counts groups for the chosen grouping.
@@ -607,15 +607,15 @@ The mapping format is deliberately generic, with exact CDX run IDs, not mission
 IDs, profile names, prefixes, or cwd values:
 
 ```json
-{"version":1,"projects":[{"run_id":"exact CDX run id","project":"/repos/remote-ops"}]}
+{"version":1,"projects":[{"run_id":"exact CDX run id","project":"/repos/example-project"}]}
 ```
 
 Operators must build this file from attributable external evidence, such as an
-exact launch receipt. CDX never imports Jarvis, scans its private state, guesses
+exact launch receipt. CDX never imports the orchestrator, scans its private state, guesses
 from disposable path prefixes, or resolves deleted worktrees. The supplied
-Tower observation (84 disposable groups attributed by receipts to remote-ops
+Host A observation (84 disposable groups attributed by receipts to example-project
 66, cdx-manager 10, logics-manager 6, city-jump 2) is diagnostic evidence, not a
-mapping: actual exact CDX run IDs must be obtained on Tower before repair.
+mapping: actual exact CDX run IDs must be obtained on Host A before repair.
 
 Without a mapping, the command can recover only from trusted project fields
 already preserved for the exact run in CDX history or its run registry. A cwd-only
@@ -676,7 +676,7 @@ also serve running models, so CDX neither replaces it nor restarts services.
 Arrange a manual maintenance window. Source uncertainty never schedules a guessed install.
 The text table shows `UNKNOWN` and the reason, and an empty action list makes
 no claim that all tools are current. JSON consumers, including external
-remote-ops auto-update scripts, should inspect statuses separately from successful
+example-project auto-update scripts, should inspect statuses separately from successful
 command execution: exit code zero means no attempted action failed, not that
 every installed tool was verified current. With `--yes`, the returned plan is the
 pre-update inventory; `results` records attempted actions and their exit codes.
@@ -705,7 +705,7 @@ History entries expose `conversation_id` and `provider_transcript_match: "conver
 
 ### Resolve the conversation of a live Codex process
 
-Consumers such as remote-ops can request process-scoped resolution without
+Consumers such as example-project can request process-scoped resolution without
 falling back to workspace/recency:
 
 ```bash
@@ -780,6 +780,6 @@ provider/platform fails closed. Reasons include `unrelated_user`,
 `evidence_limit`, and `unsupported_process_resolution`. No argv, environment,
 credential store, descendant traversal, profile transcript search or history
 database participates in process resolution. No launch flags or dependencies
-change. Tower's authenticated TUI still requires a measured comparison of the
+change. Host A's authenticated TUI still requires a measured comparison of the
 returned UUID with its selected native conversation after launch, resume and
 switch, especially with concurrent sessions.

@@ -95,19 +95,19 @@
 
 ## Finding 10: Windows-to-WSL tray configuration opens the session, not its config (P2)
 - Evidence: `tray/src/win.rs:182` passes `format!("config {name}")` as one `arg`. `open_terminal` and the Windows Terminal WSL path pass that string as a single argv element to `wsl.exe -- cdx`, so CDX receives one session name named `config work1` instead of the `config` subcommand plus `work1`.
-- Reproduction on Tower WSL: `wsl.exe -d Ubuntu -- cdx 'config work1'` reports `Unknown session: config work1`; `wsl.exe -d Ubuntu -- cdx config work1` prints the launch settings.
+- Reproduction on Host A WSL: `wsl.exe -d Ubuntu -- cdx 'config work1'` reports `Unknown session: config work1`; `wsl.exe -d Ubuntu -- cdx config work1` prints the launch settings.
 - Impact: clicking a session's "Launch settings" row from a Windows tray configured for WSL opens a failing command instead of the session configuration.
 - Coverage gap: existing menu tests assert the action id, but no Windows-to-WSL test executes or inspects the final argv shape for multi-word CDX subcommands.
 
 ## Finding 11: Windows tray using WSL offers Linux terminal choices that cannot open (P2)
 - Evidence: `src/commands/tray.py:143` serializes `terminal_candidates()` from the environment that runs `cdx tray status`. Under Windows-to-WSL transport that environment is Linux, so `src/tray_terminal.py:70` returns Linux candidates. The Windows handler in `tray/src/win.rs:341` recognizes only `powershell`, `pwsh`, and `cmd`, with a special `wt` path at line 320; any other selected preference logs unavailable and does not fall back.
-- Reproduction on Tower WSL: `cdx tray status --json` returned `terminal_candidates: ['x-terminal-emulator']`. Native Windows on the same host has `wt.exe`, PowerShell, and `cmd.exe`; `pwsh` is absent.
+- Reproduction on Host A WSL: `cdx tray status --json` returned `terminal_candidates: ['x-terminal-emulator']`. Native Windows on the same host has `wt.exe`, PowerShell, and `cmd.exe`; `pwsh` is absent.
 - Impact: the Windows tray can present a Linux terminal preference that the Windows companion cannot launch, and selecting it makes session/config clicks inert.
 - Coverage gap: tests cover Linux and Windows terminal candidate generation separately, not the cross-transport contract where a Windows UI consumes a WSL-produced snapshot.
 
 ## Finding 12: Windows `cmd` preference receives PowerShell flags for WSL commands (P2)
 - Evidence: `tray/src/win.rs:341` groups `cmd` with PowerShell-like terminals, then line 345 sends `-NoExit -Command ...` for WSL transport before the native `cmd /k` branch at line 347 can apply. `cmd.exe` does not run that command shape.
-- Reproduction on Tower Windows: `cmd.exe -NoExit -Command echo hi` opens a prompt without executing `echo hi`; `cmd.exe /k echo hi` prints `hi`. The same branch would be used for a `cmd` preference with `CDX_TRAY_WSL=1`.
+- Reproduction on Host A Windows: `cmd.exe -NoExit -Command echo hi` opens a prompt without executing `echo hi`; `cmd.exe /k echo hi` prints `hi`. The same branch would be used for a `cmd` preference with `CDX_TRAY_WSL=1`.
 - Impact: even if the user manually records `cmd` as a terminal preference, WSL-backed tray actions open an idle shell instead of running the selected CDX action.
 - Coverage gap: no Rust test covers preferred terminal command construction for Windows-to-WSL with `cmd`.
 
@@ -120,7 +120,7 @@
 - Continued review on the same commit reproduced findings 5-9 with a second temporary Python script. It used real detached Python children, actual SIGINT delivery, temporary tray archives, an injected promotion error, and the real macOS open utility. Synthetic subprocesses were terminated and reaped.
 - Native Windows verification used Python 3.10.4 over SSH on the operator-authorized desktop and the exact source snapshot transferred to a temporary directory. Both detached-child failure and the native .lnk target defect reproduced. Targeted pytest invocation: `python -m pytest -q test/test_commands_runs_py.py test/test_provider_runtime_helpers_py.py`; 92 passed, 1 skipped, and 10 subtests passed. This is not the full Windows suite or a packaged-install test.
 - The initial Windows harness completed its checks but failed during temporary-directory cleanup because its own cwd was inside the directory. The harness was corrected to leave that directory before cleanup; this was a review-script issue, not an application finding.
-- Tower WSL verification used Ubuntu WSL2 through the Windows SSH landing zone. `cdx tray status --json` returned Linux terminal candidates to the Windows tray path; direct interop commands reproduced the single-argument `config work1` failure; native Windows command checks confirmed the `cmd.exe -NoExit -Command` shape does not execute the requested command. `cdx configs --json` and `cdx tray status --json` were read-only.
+- Host A WSL verification used Ubuntu WSL2 through the Windows SSH landing zone. `cdx tray status --json` returned Linux terminal candidates to the Windows tray path; direct interop commands reproduced the single-argument `config work1` failure; native Windows command checks confirmed the `cmd.exe -NoExit -Command` shape does not execute the requested command. `cdx configs --json` and `cdx tray status --json` were read-only.
 - Linux execution was limited to WSL command paths and the prior Python test run reported in the source session; live keychain round trips and installation of built distribution packages were not performed. Dependency vulnerability scanning and release readiness are not claimed.
 - Application source and existing tests remain unchanged. Repository changes are confined to this review capture and any index output required by the workflow.
 
