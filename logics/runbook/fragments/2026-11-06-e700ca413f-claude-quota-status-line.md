@@ -21,8 +21,8 @@
 
 ## Verification environment
 
-All local check attempts run through `.jarvis-input/mission-test-runner.py`.
-Measured receipts are in `.jarvis-artifacts/mission-tests.jsonl`.
+All local check attempts run through `.mission-input/mission-test-runner.py`.
+Measured receipts are in `.mission-artifacts/mission-tests.jsonl`.
 The initial `npm test` inherited GIT_DIR, GIT_COMMON_DIR, GIT_WORK_TREE and
 RTK_DB_PATH from the mission environment. Six tests failed in temporary Git
 fixtures or RTK path expectations. Removing only GIT_DIR/GIT_WORK_TREE and
@@ -60,10 +60,10 @@ include shared-lock waiting where applicable.
 | `npm run lint` | 0 | 330.527 |
 | `cargo test --locked --manifest-path tray/Cargo.toml` | 0 | 29.88 |
 | `npm pack --dry-run` | 0 | 30.363 |
-| `uv build --wheel --out-dir .jarvis-artifacts/wheels` | 0 | 280.45 |
-| `python3 .jarvis-artifacts/check-status-line-wheel.py` | 0 | 40.054 |
-| `python3 .jarvis-artifacts/status-line-benchmark.py` | 0 | 330.468 |
-| `node .jarvis-artifacts/status-line-preview.cjs` | 0 | 280.744 |
+| `uv build --wheel --out-dir .mission-artifacts/wheels` | 0 | 280.45 |
+| `python3 .mission-artifacts/check-status-line-wheel.py` | 0 | 40.054 |
+| `python3 .mission-artifacts/status-line-benchmark.py` | 0 | 330.468 |
+| `node .mission-artifacts/status-line-preview.cjs` | 0 | 280.744 |
 | `logics-manager lint` | 0 | 230.285 |
 | `git diff --check` | 0 | 190.069 |
 
@@ -74,7 +74,7 @@ separate typecheck command; lint includes Python compilation.
 
 Preview PNG artifacts inspected in both themes and widths:
 
-- `.jarvis-artifacts/status-line-375-light.png`
-- `.jarvis-artifacts/status-line-375-dark.png`
-- `.jarvis-artifacts/status-line-1280-light.png`
-- `.jarvis-artifacts/status-line-1280-dark.png`
+- `.mission-artifacts/status-line-375-light.png`
+- `.mission-artifacts/status-line-375-dark.png`
+- `.mission-artifacts/status-line-1280-light.png`
+- `.mission-artifacts/status-line-1280-dark.png`

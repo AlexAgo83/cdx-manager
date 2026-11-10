@@ -19,9 +19,9 @@ The CLI schema publishes the warning code. Unreleased notes describe the change.
 
 ## Validation environment and attempts
 
-All test/check commands use `.jarvis-input/mission-test-runner.py`, with exact
+All test/check commands use `.mission-input/mission-test-runner.py`, with exact
 commands, exit codes and measured durations in
-`.jarvis-artifacts/mission-tests.jsonl`. No receipt is edited.
+`.mission-artifacts/mission-tests.jsonl`. No receipt is edited.
 
 The initial `npm test` run had four failures and two fixture errors because the
 sandbox exports repository-specific Git variables and `RTK_DB_PATH`. The retry

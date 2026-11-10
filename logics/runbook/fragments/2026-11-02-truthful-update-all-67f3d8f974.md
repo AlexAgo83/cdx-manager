@@ -1,6 +1,6 @@
 # Truthful workstation update inventory (mission 67f3d8f974)
 
-The supplied checkout is cdx-manager, not remote-ops. Neither
+The supplied checkout is cdx-manager, not example-project. Neither
 `scripts/auto-update.py` nor `macos-auto-update.zsh` is present. Keep their
 existing JSON consumption compatible: `installed`, `version`, `latest_version`,
 `update_command`, `up_to_date`, `not_installed`, and `update_available` remain;
@@ -30,8 +30,8 @@ without adding history to shared runbooks or design documents.
 ## Verification
 
 All local validation attempts are measured by
-`.jarvis-input/mission-test-runner.py`; receipts are in
-`.jarvis-artifacts/mission-tests.jsonl`. Initial lint found a missing development
+`.mission-input/mission-test-runner.py`; receipts are in
+`.mission-artifacts/mission-tests.jsonl`. Initial lint found a missing development
 ruff dependency; `uv sync --frozen --extra dev` restored it. A subsequent lint
 found an unbound loop variable in a new test, corrected before final validation.
 Faked source tests cover matching versions, outdated versions, unavailable or
@@ -39,9 +39,9 @@ malformed sources, absent tools, native application, JSON/text uncertainty,
 Ollama client version selection, and verified Homebrew paths.
 
 No release, commit, push, PR, or host mutation is performed. Host inventories
-and the external remote-ops callers are not available here. Review the original
+and the external example-project callers are not available here. Review the original
 Antigravity product assumption and external callers' handling of `unknown`;
-no real Citadel measurement is claimed from fixtures.
+no real Host C measurement is claimed from fixtures.
 
 Read-only public source probes on 2026-11-02 returned Claude 2.1.316, RTK 1.1.0,
 and original Antigravity 2.0.0. Ollama's update API returned HTTP 204 with no

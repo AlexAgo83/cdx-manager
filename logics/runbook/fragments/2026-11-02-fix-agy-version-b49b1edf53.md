@@ -17,14 +17,14 @@ the published release when known, and preserve nonzero updater exits.
 
 The decision is recorded beside the agy declaration, in regression tests, and
 in this mission fragment, as requested; no separate workflow chain is created.
-No shared runbook or Jarvis design history was changed.
+No shared runbook or the orchestrator design history was changed.
 
 ## Read-only evidence
 
-`agy` was initially outside PATH. Absolute probes on Spire succeeded:
+`agy` was initially outside PATH. Absolute probes on Host B succeeded:
 
-- `/home/aagos/.local/bin/agy --version`: exit 0, output `1.4.12`.
-- `/home/aagos/.local/bin/agy update --help`: exit 2, output
+- `/home/user/.local/bin/agy --version`: exit 0, output `1.4.12`.
+- `/home/user/.local/bin/agy update --help`: exit 2, output
   `Usage of update:`; no read-only check option is documented.
 
 The conservative assumption is that no reliable read-only latest-CLI source
@@ -34,8 +34,8 @@ supplied by the mission, not a newly measured updater run.
 
 ## Validation
 
-Every test/check/build attempt used `.jarvis-input/mission-test-runner.py`;
-its unmodified receipt is `.jarvis-artifacts/mission-tests.jsonl`.
+Every test/check/build attempt used `.mission-input/mission-test-runner.py`;
+its unmodified receipt is `.mission-artifacts/mission-tests.jsonl`.
 
 Final results:
 

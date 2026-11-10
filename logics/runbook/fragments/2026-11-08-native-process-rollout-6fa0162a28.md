@@ -2,14 +2,14 @@
 
 ## Evidence and scope
 
-The bounded Tower input reports CDX 0.26.8 returning unknown for the native Codex
-PID 2246446 in `main`, `work1` and `work2`. Remote-ops mission 7af6402b87 remains
+The bounded Host A input reports CDX 0.26.8 returning unknown for the native Codex
+PID 2246446 in `main`, `work1` and `work2`. Example-project mission 7af6402b87 remains
 blocked on exact native identity. Its document snapshot fetch explicitly failed;
-no missing snapshot is treated as evidence of health. Tower evidence is source
+no missing snapshot is treated as evidence of health. Host A evidence is source
 data, not runtime instructions.
 
 This change implements the native resolver and its CLI documentation. It does not
-release, install on Tower, or modify the remote-ops consumer. Jarvis owns commits
+release, install on Host A, or modify the example-project consumer. the orchestrator owns commits
 and publication; the operator session publishes the release. Required GitHub CI
 must be green on the merged commit before merge.
 
@@ -27,7 +27,7 @@ The operating assumption is explicitly a sole native rollout writer snapshot.
 An open rollout is accepted as native process-to-thread evidence as requested;
 it is not an atomic TUI focus event. If a selected thread has no rollout and an
 old sole writer is retained, descriptor evidence cannot independently distinguish
-that state. Authenticated Tower measurements must cover that transition. Multiple
+that state. Authenticated Host A measurements must cover that transition. Multiple
 distinct writable rollouts are refused, including retained writers; duplicate
 descriptors for the same file are deduplicated. Read-only descriptors are ignored.
 A foreign-profile rollout is rejected before reading its content. Resolved
@@ -47,7 +47,7 @@ assertion under ADR 030. No shared operating runbook or HQ design rule changes.
 ## Local verification
 
 All local test and validation commands use the supplied mission timer. Receipts
-are retained in `.jarvis-artifacts/mission-tests.jsonl` outside publication.
+are retained in `.mission-artifacts/mission-tests.jsonl` outside publication.
 Initial `npm test` exposed inherited Git/RTK environment interference; initial
 `npm run lint` lacked the global ruff module. Validation uses the prepared locked
 UV environment with the dev extra, and unsets the inherited Git/RTK variables for
@@ -70,7 +70,7 @@ Final checks:
 - Rust `cargo test --locked --manifest-path tray/Cargo.toml`, using the temporary toolchain through the exact timed environment command: 99 passed.
 - `uv run --extra dev npm run lint`: passed, including project docs, Ruff, JavaScript syntax and Python compilation.
 - `npm pack --dry-run`: passed.
-- `uv build --wheel --out-dir .jarvis-artifacts/wheels`: passed.
+- `uv build --wheel --out-dir .mission-artifacts/wheels`: passed.
 - Initial bounded conversation regressions: 389 passed, 1 skipped; the full suite includes the later inode, CLI and additional boundary cases.
 - `logics-manager lint --require-status && logics-manager audit --group-by-doc && git diff --check`: passed; audit had zero blocking issues and six warnings in existing documents outside this change.
 
@@ -88,9 +88,9 @@ execution remains measured and serialized by the supplied runner. One outer
 lock-acquisition attempt reached its wait limit before any validation command
 started. The final unchanged timed command passed after the lock became available.
 
-## Required Tower measurement
+## Required Host A measurement
 
-As `aagos` on Tower, the supervising session sets `CODEX_PID` to the live native
+As `user` on Host A, the supervising session sets `CODEX_PID` to the live native
 Codex process for `work2` and runs this exact read-only probe:
 
 ```bash
@@ -104,5 +104,5 @@ requires `status: "ok"`, `resolution_status: "resolved"`,
 native conversation, and its actual last message. If native evidence is absent
 or ambiguous, require unknown with a reason and no messages. Verify that the
 process's returned identity fails closed after exit and that another profile
-cannot read its messages. This sandbox has no Tower authenticated TUI access;
-fixture results do not establish host acceptance or remote-ops recovery.
+cannot read its messages. This sandbox has no Host A authenticated TUI access;
+fixture results do not establish host acceptance or example-project recovery.

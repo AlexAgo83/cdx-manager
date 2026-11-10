@@ -13,7 +13,7 @@ Read failures describe the current command and preserve cached measurements.
 The implementation and regression tests carry the reasoning at the affected
 status declarations; no new lifecycle chain or shared operating rule is needed.
 Validation results are recorded by the supplied mission test runner in
-`.jarvis-artifacts/mission-tests.jsonl`. Publication still requires green
+`.mission-artifacts/mission-tests.jsonl`. Publication still requires green
 required GitHub CI on the merged commit. No live authenticated provider
 measurement is claimed from synthetic tests.
 
@@ -26,7 +26,7 @@ The sandbox exports `GIT_DIR`, `GIT_COMMON_DIR`, `GIT_WORK_TREE`, and
 `RTK_DB_PATH`. Initial full-suite attempts exposed these variables leaking
 into temporary Git fixtures and mocked RTK histories. The successful full
 suite used `env -u RTK_DB_PATH -u GIT_DIR -u GIT_COMMON_DIR -u GIT_WORK_TREE
--u GIT_INDEX_FILE python3 .jarvis-input/mission-test-runner.py 'npm test'`.
+-u GIT_INDEX_FILE python3 .mission-input/mission-test-runner.py 'npm test'`.
 This confines fixture Git mutations to their temporary repositories; the
 mission repository stays read-only. An intermediate queued retry was
 cancelled before execution after discovering the remaining Git override.

@@ -21,7 +21,7 @@ that neither login credentials nor profile mounts reach the child, preserves
 ordinary headless login precedence, and refuses a full-login-only profile even
 when an ambient token exists. All credentials in new fixtures are fake.
 
-Validation commands are timed by `.jarvis-input/mission-test-runner.py`; receipts
+Validation commands are timed by `.mission-input/mission-test-runner.py`; receipts
 remain outside the published source. Authenticated inference requires operator
 credentials and is not established by synthetic child-process tests. Complete
 green required GitHub CI on the merged commit remains mandatory before merge.

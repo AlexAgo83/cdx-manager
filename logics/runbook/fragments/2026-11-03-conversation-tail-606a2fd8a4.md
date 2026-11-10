@@ -2,7 +2,7 @@
 
 ## Scope and conservative assumptions
 
-This checkout is cdx-manager, rather than the remote-ops hub repository suggested
+This checkout is cdx-manager, rather than the example-project hub repository suggested
 by the scheduling paths. Implement the requested provider-reader and CLI contract
 here; no hub UI or shared operating/design rule changes are needed. Keep the
 current release version unchanged and record this feature under Unreleased for
@@ -38,10 +38,10 @@ the file also grew. No complete-file hash or index is introduced.
 
 ## Measured verification
 
-Every local check attempt uses `.jarvis-input/mission-test-runner.py`. Its exact
+Every local check attempt uses `.mission-input/mission-test-runner.py`. Its exact
 commands, durations and exit codes are retained in
-`.jarvis-artifacts/mission-tests.jsonl`; the targeted JUnit report is
-`.jarvis-artifacts/conversation-tests.xml`.
+`.mission-artifacts/mission-tests.jsonl`; the targeted JUnit report is
+`.mission-artifacts/conversation-tests.xml`.
 
 For 6,000 normalized entries and `tail=25`, measured reads total 131,456 bytes:
 
@@ -68,9 +68,9 @@ Validation commands:
 
 - `env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u RTK_DB_PATH PATH="$PWD/.venv/bin:$PATH" npm test`
 - `env PATH="$PWD/.venv/bin:$PATH" npm run lint`
-- `env PATH="$PWD/.venv/bin:$PATH" python -m pytest test/test_conversation_py.py test/test_commands_conversation_py.py -o junit_family=xunit1 --junitxml=.jarvis-artifacts/conversation-tests.xml`
+- `env PATH="$PWD/.venv/bin:$PATH" python -m pytest test/test_conversation_py.py test/test_commands_conversation_py.py -o junit_family=xunit1 --junitxml=.mission-artifacts/conversation-tests.xml`
 - `env PATH="$HOME/.cargo/bin:$PATH" cargo test --manifest-path tray/Cargo.toml`
-- `uv build --wheel --out-dir .jarvis-artifacts/wheels`
+- `uv build --wheel --out-dir .mission-artifacts/wheels`
 - `npm pack --dry-run`
 - `logics-manager lint --require-status`
 - `logics-manager audit --group-by-doc`

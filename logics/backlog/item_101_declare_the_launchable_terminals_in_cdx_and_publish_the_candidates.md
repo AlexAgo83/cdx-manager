@@ -49,7 +49,7 @@
 - request-AC6 -> This backlog slice. Proof: AC3: The snapshot carries the candidates alongside `terminal`, with SCHEMA_MINOR bumped, and read_snapshot on a companion that predates the key is unaffected.
 - request-AC7 -> This backlog slice. Proof: AC4: `cdx tray terminal list` prints the candidates with the current choice marked and the platform default named, and `--json` returns the same data structurally.
 - request-AC8 -> This backlog slice. Proof: AC5: A name that fails valid_terminal() never reaches the snapshot or the listing, whatever detection returned.
-- request-AC10 -> This backlog slice. Proof: Tower Windows native and WSL smoke tests used their respective host transport and candidate discovery.
+- request-AC10 -> This backlog slice. Proof: Host A Windows native and WSL smoke tests used their respective host transport and candidate discovery.
 
 # Decision framing
 - Product framing: Not needed

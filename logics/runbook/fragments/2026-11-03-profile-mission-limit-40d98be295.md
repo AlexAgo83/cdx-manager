@@ -26,13 +26,13 @@ contract, and command regression tests contain its rationale and evidence.
 
 ## Validation environment
 
-Every check is timed by `.jarvis-input/mission-test-runner.py`; receipts live in
-`.jarvis-artifacts/mission-tests.jsonl` outside the published source changes.
+Every check is timed by `.mission-input/mission-test-runner.py`; receipts live in
+`.mission-artifacts/mission-tests.jsonl` outside the published source changes.
 
 The initial lint attempt lacked Ruff. Run `uv sync --extra dev --frozen`, then
 use `uv run --no-sync` to select the prepared development environment.
 
-The initial full suite inherited Spire's `GIT_DIR`, `GIT_WORK_TREE`,
+The initial full suite inherited Host B's `GIT_DIR`, `GIT_WORK_TREE`,
 `GIT_COMMON_DIR`, and `RTK_DB_PATH`. These affect temporary fixture repositories
 and RTK history assertions. Unset them for the test subprocess only; never
 change the mission repository's Git metadata. A retry that omitted
@@ -77,4 +77,4 @@ The timer receipt records 165.472 seconds for this attempt.
 
 Human review should confirm that the scheduling client consumes zero as
 exclusion and absence as its own default. No host measurement is needed for
-this CLI metadata change. All source edits remain uncommitted for Jarvis.
+this CLI metadata change. All source edits remain uncommitted for the orchestrator.

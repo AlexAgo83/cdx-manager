@@ -21,7 +21,7 @@ def layout(tmp_path):
 
 
 def test_project_name_matches_claude_code_folders():
-    assert shared_memory.claude_project_name("/Users/me/Documents/remote-ops") == "-Users-me-Documents-remote-ops"
+    assert shared_memory.claude_project_name("/Users/me/Documents/example-project") == "-Users-me-Documents-example-project"
 
 
 def test_two_profiles_end_up_on_one_store_and_nothing_is_deleted(layout):

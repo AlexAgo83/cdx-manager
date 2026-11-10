@@ -2,8 +2,8 @@
 
 ## Incident and delivery
 
-The reported 2026-11-03 remote test runs on Spire replaced the interactive
-conversation IDs for the claw/grif profiles. Tower could not read the remote-only
+The reported 2026-11-03 remote test runs on Host B replaced the interactive
+conversation IDs for the claw/grif profiles. Host A could not read the remote-only
 transcripts despite having a recent local Claude interactive transcript.
 
 Fresh Claude headless runs now receive a run-local conversation identity without
@@ -32,8 +32,8 @@ local interactive transcript; it is not a claim of production recovery.
 
 ## Validation
 
-Every check runs through `.jarvis-input/mission-test-runner.py`; its unmodified
-receipt in `.jarvis-artifacts/mission-tests.jsonl` records exact commands, exit
+Every check runs through `.mission-input/mission-test-runner.py`; its unmodified
+receipt in `.mission-artifacts/mission-tests.jsonl` records exact commands, exit
 codes and durations. No UI changes or screenshots are needed. There is no
 separate typecheck script; the project lint includes Python compilation.
 
@@ -58,7 +58,7 @@ Final verification results:
 - `cargo test --manifest-path tray/Cargo.toml`: 99 passed after public Rust setup;
   two existing dead-code warnings remain.
 - `npm pack --dry-run`: passed.
-- `uv build --out-dir .jarvis-artifacts/dist`: source distribution and wheel built.
+- `uv build --out-dir .mission-artifacts/dist`: source distribution and wheel built.
 - Targeted reader/run/remote/rescue checks: passed after the fixture correction.
 - `logics-manager lint --require-status`: passed.
 - `logics-manager audit --group-by-doc`: passed with six existing warnings in

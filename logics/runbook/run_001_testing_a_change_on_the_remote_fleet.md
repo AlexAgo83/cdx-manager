@@ -13,7 +13,7 @@
 - Whenever a defect is suspected to be platform-shaped: five of the defects found while preparing v0.18.5 were invisible from the machine the code was written on.
 
 # Prerequisites
-- Host addresses, users and access live in the operator's private `remote-ops` clone, never here. This runbook names roles — "the Windows host", "the WSL distribution" — because a repository that is public should not be an inventory of someone's machines.
+- Host addresses, users and access live in the operator's private `example-project` clone, never here. This runbook names roles — "the Windows host", "the WSL distribution" — because a repository that is public should not be an inventory of someone's machines.
 - SSH reachable non-interactively: `ssh -o BatchMode=yes -o ConnectTimeout=20 <host> ...`. A password prompt means the check is wrong, not that a password should be typed into a command.
 - On the Windows host: a Rust toolchain to build the companion natively, and a Python interpreter to run the suite the way CI does.
 - Nothing is installed on the fleet to make a test possible. If a test needs a tool that is not there, that is a finding about the host, not a step.

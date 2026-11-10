@@ -295,7 +295,7 @@ class UpdateRegressionTests(unittest.TestCase):
         from src.update_all import _fetch_json as fetch_json
         with mock.patch("src.update_all.urlopen") as urlopen, \
              mock.patch("src.update_all._fetch_json", wraps=fetch_json) as fetch, \
-             mock.patch("src.update_all._which", side_effect=lambda cmd, env: "/home/tower/.local/bin/ollama" if cmd == "ollama" else None):
+             mock.patch("src.update_all._which", side_effect=lambda cmd, env: "/home/host/.local/bin/ollama" if cmd == "ollama" else None):
             response = urlopen.return_value.__enter__.return_value
             response.status = 204
             response.read.side_effect = [b"", b'{"tag_name":"v0.40.13"}']

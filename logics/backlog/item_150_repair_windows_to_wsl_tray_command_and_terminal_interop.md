@@ -24,7 +24,7 @@
   - Represent tray-launched CDX commands as argv parts rather than single shell-like strings where WSL interop needs multiple arguments.
   - Ensure a Windows tray using WSL exposes only Windows-launchable terminal preferences and falls back from unsupported stored values.
   - Run cmd preferences through a verified cmd command form for WSL actions.
-  - Add Rust command-construction tests and Tower native Windows plus Ubuntu WSL smoke checks.
+  - Add Rust command-construction tests and Host A native Windows plus Ubuntu WSL smoke checks.
 - Out:
   - No support for arbitrary terminal commands, WSL GUI terminal discovery, multiple WSL distributions, or Linux desktop expansion.
 
@@ -34,10 +34,10 @@
 - AC3: cmd preference launches the selected WSL-backed CDX action instead of opening an idle shell.
 
 # AC Traceability
-- request-AC10 -> This backlog slice. Proof: `tray/src/winterm.rs::tests::a_multi_argument_action_crosses_to_wsl_as_separate_arguments` and `::windows_terminal_keeps_the_cdx_arguments_separate_across_wsl`, confirmed on Tower Ubuntu WSL: `wsl.exe -d Ubuntu -- <cdx> config main` prints the launch settings while the old single-argument form answers `Unknown session: config main`.
-- request-AC11 -> This backlog slice. Proof: `tray/src/winterm.rs::tests::a_wsl_produced_candidate_list_is_replaced_by_what_windows_can_open`, `::a_supported_stored_preference_survives_the_restriction` and `::only_terminals_present_on_this_host_are_offered`, against the real Tower reading: WSL advertises `['x-terminal-emulator']`, the Windows host has wt/powershell/cmd and no pwsh.
-- request-AC12 -> This backlog slice. Proof: `tray/src/winterm.rs::tests::a_cmd_preference_runs_the_command_instead_of_opening_an_idle_shell`, confirmed on Tower Windows: `cmd.exe /k "wsl.exe -d Ubuntu -- <cdx> config main"` runs the command; `cmd.exe -NoExit -Command ...` fails with `'dx' is not recognized`.
-- request-AC13 -> This backlog slice. Proof: `python3 -m pytest -q` (1,023 passed), `npm run lint` (all checks passed), `cargo test --manifest-path tray/Cargo.toml` (104 passed), `cargo check --target x86_64-pc-windows-msvc` (the Windows-only loop compiles), and the scoped Tower Windows plus Ubuntu WSL checks above.
+- request-AC10 -> This backlog slice. Proof: `tray/src/winterm.rs::tests::a_multi_argument_action_crosses_to_wsl_as_separate_arguments` and `::windows_terminal_keeps_the_cdx_arguments_separate_across_wsl`, confirmed on Host A Ubuntu WSL: `wsl.exe -d Ubuntu -- <cdx> config main` prints the launch settings while the old single-argument form answers `Unknown session: config main`.
+- request-AC11 -> This backlog slice. Proof: `tray/src/winterm.rs::tests::a_wsl_produced_candidate_list_is_replaced_by_what_windows_can_open`, `::a_supported_stored_preference_survives_the_restriction` and `::only_terminals_present_on_this_host_are_offered`, against the real Host A reading: WSL advertises `['x-terminal-emulator']`, the Windows host has wt/powershell/cmd and no pwsh.
+- request-AC12 -> This backlog slice. Proof: `tray/src/winterm.rs::tests::a_cmd_preference_runs_the_command_instead_of_opening_an_idle_shell`, confirmed on Host A Windows: `cmd.exe /k "wsl.exe -d Ubuntu -- <cdx> config main"` runs the command; `cmd.exe -NoExit -Command ...` fails with `'dx' is not recognized`.
+- request-AC13 -> This backlog slice. Proof: `python3 -m pytest -q` (1,023 passed), `npm run lint` (all checks passed), `cargo test --manifest-path tray/Cargo.toml` (104 passed), `cargo check --target x86_64-pc-windows-msvc` (the Windows-only loop compiles), and the scoped Host A Windows plus Ubuntu WSL checks above.
 > Shared proof: request-AC12 and request-AC13 share the same final validation wave for this slice.
 
 # Decision framing

@@ -11,4 +11,4 @@ Prepared locally on 2026-10-13. The checked-in release notes are `changelogs/CHA
 
 - `npm test`: 1079 passed. `npm run lint`: passed.
 - Checked on macOS with the repository build: under the `claw` profile environment, `claude --chrome` installed `com.anthropic.claude_code_browser_extension.json` into the real Chrome `NativeMessagingHosts` and its browser tools answered. Before the fix that manifest was never written and `/chrome` saw no extension.
-- Linux and Windows not exercised end to end: Tower's WSL has only snap Chromium (not linked by this change) and Tower's Windows Chrome has no Claude extension.
+- Linux and Windows not exercised end to end: Host A's WSL has only snap Chromium (not linked by this change) and Host A's Windows Chrome has no Claude extension.

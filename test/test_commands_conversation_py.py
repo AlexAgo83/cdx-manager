@@ -160,7 +160,7 @@ def test_recency_is_scoped_to_project_and_session_start(tmp_path, monkeypatch, p
         assert handle_conversation(["grif", "--json", *args], ctx) == 0
         return json.loads(output.getvalue())
 
-    write(tmp_path / "remote-ops", "other-project", cutoff + 100)
+    write(tmp_path / "example-project", "other-project", cutoff + 100)
     # A trust prompt has not produced a transcript in this project yet.
     page = invoke()
     assert page["status"] == "unavailable"
@@ -178,9 +178,9 @@ def test_recency_is_scoped_to_project_and_session_start(tmp_path, monkeypatch, p
     assert page["status"] == "ok" and page["resolution_method"] == "recency"
     assert [entry["text"] for entry in page["entries"]] == ["this-session"]
     # The explicit project wins over the process directory, including relative paths.
-    page = invoke("--cwd", "../remote-ops", "--since", since)
+    page = invoke("--cwd", "../example-project", "--since", since)
     assert page["entries"][0]["text"] == "other-project"
-    assert page["resolution_scope"] == {"cwd": str(tmp_path / "remote-ops"), "since": since}
+    assert page["resolution_scope"] == {"cwd": str(tmp_path / "example-project"), "since": since}
     assert invoke("--since", since, "--conversation", "absent")["reason"] == "transcript_not_found"
 
 

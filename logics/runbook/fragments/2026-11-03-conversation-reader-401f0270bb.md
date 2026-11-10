@@ -33,8 +33,8 @@ Arbitrary unlabelled sensitive prose cannot be detected reliably.
 
 ## Validation
 
-All local check attempts use `.jarvis-input/mission-test-runner.py`; authoritative
-durations and exit codes are in `.jarvis-artifacts/mission-tests.jsonl`.
+All local check attempts use `.mission-input/mission-test-runner.py`; authoritative
+durations and exit codes are in `.mission-artifacts/mission-tests.jsonl`.
 The initial environment lacked Ruff and Cargo, and inherited Git overrides and
 RTK history settings contaminated baseline tests. Development Python dependencies
 were installed from the frozen lockfile, and public Rust tooling was installed.
@@ -53,7 +53,7 @@ Verified commands (through the supplied timer):
 - Targeted reader and CLI suite: 39 passed, including the final regression.
 - `cargo test --manifest-path tray/Cargo.toml`: 99 passed after installing Rust.
 - `npm pack --dry-run`: passed.
-- `uv build --wheel --out-dir .jarvis-artifacts/wheels`: passed.
+- `uv build --wheel --out-dir .mission-artifacts/wheels`: passed.
 - `logics-manager lint --require-status`: passed.
 - `logics-manager audit --group-by-doc`: passed, with six existing warnings in
   unrelated agent-state/failover workflow documents.

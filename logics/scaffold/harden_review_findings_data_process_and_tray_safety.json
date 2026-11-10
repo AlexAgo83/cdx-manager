@@ -22,7 +22,7 @@
       "Tray updates and Windows-to-WSL actions must leave the user with a valid companion, valid shortcuts, and commands that run the intended CDX action."
     ],
     "context": [
-      "Review request req_073 reproduced twelve defects on the current source snapshot across macOS, Tower native Windows, and Tower Ubuntu WSL2.",
+      "Review request req_073 reproduced twelve defects on the current source snapshot across macOS, Host A native Windows, and Host A Ubuntu WSL2.",
       "Credential import findings are rooted in keychain/file precedence and rollback boundaries in src/session_backup.py plus KDF selection in src/backup_bundle.py.",
       "Process findings are rooted in detached child module selection in src/commands/runs.py and interrupt cleanup in src/provider_runtime.py.",
       "Tray findings are rooted in staging promotion, native shortcut ownership, macOS launch probing, and Windows-to-WSL argument and terminal selection paths.",
@@ -41,7 +41,7 @@
       "AC10: Windows-to-WSL tray actions that need multiple CDX arguments, including session config, execute the intended subcommand in a real WSL distribution.",
       "AC11: A Windows tray using WSL shows only terminal preferences the Windows companion can launch, and an unsupported stored preference falls back to a working default.",
       "AC12: A cmd terminal preference with WSL transport executes the selected CDX command through cmd /k or an equivalent verified command form.",
-      "AC13: Focused regressions, Python tests, Rust tray tests, lint, Logics validation, and scoped Tower Windows plus Ubuntu WSL checks pass before closeout."
+      "AC13: Focused regressions, Python tests, Rust tray tests, lint, Logics validation, and scoped Host A Windows plus Ubuntu WSL checks pass before closeout."
     ]
   },
   "product": {
@@ -145,7 +145,7 @@
         "Represent tray-launched CDX commands as argv parts rather than single shell-like strings where WSL interop needs multiple arguments.",
         "Ensure a Windows tray using WSL exposes only Windows-launchable terminal preferences and falls back from unsupported stored values.",
         "Run cmd preferences through a verified cmd command form for WSL actions.",
-        "Add Rust command-construction tests and Tower native Windows plus Ubuntu WSL smoke checks."
+        "Add Rust command-construction tests and Host A native Windows plus Ubuntu WSL smoke checks."
       ],
       "scope_out": [
         "No support for arbitrary terminal commands, WSL GUI terminal discovery, multiple WSL distributions, or Linux desktop expansion."
@@ -163,8 +163,8 @@
       "Start with credential and backup fixes because they protect authentication and restore paths.",
       "Then repair memory appends and headless run lifecycle so accepted work and child processes stay owned by CDX.",
       "Then repair tray installation, shortcut, and macOS probe recovery without changing tray feature scope.",
-      "Finish with Windows-to-WSL tray argv and terminal interop, including Tower smoke checks.",
-      "For each slice, add the smallest focused regressions, run targeted tests first, then Python/Rust suites, lint, Logics validation, and scoped Tower verification before closeout."
+      "Finish with Windows-to-WSL tray argv and terminal interop, including Host A smoke checks.",
+      "For each slice, add the smallest focused regressions, run targeted tests first, then Python/Rust suites, lint, Logics validation, and scoped Host A verification before closeout."
     ]
   },
   "context_pack": {
