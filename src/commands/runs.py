@@ -234,6 +234,8 @@ def _detached_child_argv(parsed, prompt_path, session_name, cwd):
     for key in ("network_access", "isolate_workspace", "failover"):
         if parsed.get(key):
             argv.append("--" + key.replace("_", "-"))
+    for name, path in (parsed.get("ro_inputs") or {}).items():
+        argv += ["--ro-input", name + "=" + path]
     argv.append("--json")
     return argv
 
@@ -711,10 +713,14 @@ def _continue_run_session(parsed, ctx, run_id=None):
                 or (parsed.get("permission") and parsed["permission"] != parent_launch.get("permission"))):
             raise CdxError("--continue-run requires the parent's isolated workspace boundary.",
                            code="continue_run_settings_mismatch")
+        inputs = parent_launch.get("ro_inputs") or {}
+        if parsed.get("ro_inputs") and parsed["ro_inputs"] != inputs:
+            raise CdxError("--continue-run requires the parent's read-only inputs.", code="continue_run_settings_mismatch")
+        parsed["ro_inputs"] = inputs
         parsed.update(cwd=workspace, isolate_workspace=True,
                       network_access=parent_launch.get("network_access", False), permission=parent_launch.get("permission"))
         session = _run_session(session, {key: parent_launch.get(key) for key in
-                               ("isolate_workspace", "network_access", "permission", "isolated_conversation_home", "isolated_workspace_identity")}, None)
+                               ("isolate_workspace", "network_access", "permission", "isolated_conversation_home", "isolated_workspace_identity", "ro_inputs")}, None)
     conversation = previous.get("conversation_id")
     resumed = with_requested_conversation(session, conversation)
     if not resumed:
@@ -802,6 +808,17 @@ def handle_run(rest, ctx):
 
         if parsed.get("remote") and session["provider"] == "antigravity":
             parsed["isolate_workspace"] = True
+        if parsed.get("ro_inputs") and not parsed.get("isolate_workspace"):
+            raise CdxError("--ro-input requires --isolate-workspace.")
+        if parsed.get("ro_inputs") and not parsed.get("remote"):
+            from ..workspace_sandbox import validate_ro_inputs
+
+            try:
+                parsed["ro_inputs"] = validate_ro_inputs(parsed["ro_inputs"], parsed["cwd"],
+                    source={**os.environ, **(ctx.get("env") or {})},
+                    protected_paths=(ctx["service"]["base_dir"], session["authHome"]))
+            except (OSError, RuntimeError) as error:
+                raise CdxError(str(error), code="invalid_ro_input") from error
         remote_version = None
         if parsed.get("remote"):
             if session["provider"] not in ("codex", "claude", "ollama", "antigravity"):
@@ -816,6 +833,7 @@ def handle_run(rest, ctx):
                 parsed["isolate_workspace"] = True
             remote_version = preflight(
                 parsed["remote"], {**os.environ, **(ctx.get("env") or {})},
+                **({"ro_inputs": parsed["ro_inputs"]} if parsed.get("ro_inputs") else {}),
                 remote_prefix=parsed.get("remote_prefix"), isolate_workspace=parsed.get("isolate_workspace", False),
                 cwd=parsed["cwd"], network=parsed.get("network_access", False), writable=parsed.get("permission") != "review",
                 **({"provider": "ollama", "model": parsed.get("model") or (session.get("launch") or {}).get("model")}
@@ -834,6 +852,8 @@ def handle_run(rest, ctx):
         prompt = read_run_prompt(parsed, stdin=ctx.get("prompt_stdin"))
         _consume_detached_prompt_file(parsed, detached_run_id)
         launch_updates = {key: parsed.get(key, False) for key in ("network_access", "isolate_workspace")}
+        if parsed.get("ro_inputs"):
+            launch_updates["ro_inputs"] = parsed["ro_inputs"]
         if parsed.get("model"):
             launch_updates["model"] = parsed["model"]
         if parsed.get("permission"):

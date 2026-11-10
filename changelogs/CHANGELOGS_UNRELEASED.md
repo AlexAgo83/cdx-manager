@@ -1,5 +1,10 @@
 # Unreleased
 
+## Read-only isolated inputs (next patch)
+
+- Add repeatable `cdx run --isolate-workspace --ro-input NAME=PATH` to mount owner-controlled directories read-only under `/opt/inputs/` and expose their sandbox paths through named environment variables. Refuse invalid or reserved names, duplicate names, missing directories, top-level symlinks, foreign ownership and paths overlapping the workspace, configuration, state or credentials.
+- Persist inputs through detached runs and continuations, revalidate before launch, and advertise `capabilities.ro_inputs = 1`. Cover local and shipped-worker mounts, validation, continuation and schema behaviour.
+
 ## Claude continuation settings snapshots (next patch, #131)
 
 - Copy validated permissions-only settings into a private run-state file with mode 0600 using atomic writes, and pass its path to Claude. Large settings files no longer exceed the launch argument limit; user-supplied argument validation remains unchanged. Retain the continue-time content with the run state and mount snapshots read-only for isolated continuations.

@@ -110,8 +110,10 @@ def ssh_command(target, mode, remote_prefix=None):
             '-o', 'ServerAliveInterval=5', '-o', 'ServerAliveCountMax=1', target, command]
 
 
-def preflight(target, env=None, *, remote_prefix=None, isolate_workspace=False, cwd=None, network=False, writable=True, provider="codex", model=None):
+def preflight(target, env=None, *, remote_prefix=None, isolate_workspace=False, cwd=None, network=False, writable=True, provider="codex", model=None, ro_inputs=None):
     payload = {'isolate_workspace': isolate_workspace, 'cwd': cwd, 'network': network, 'writable': writable}
+    if ro_inputs:
+        payload['ro_inputs'] = ro_inputs
     if provider in ('ollama', 'claude', 'antigravity'):
         payload.update(provider=provider, model=model)
     if provider in ('claude', 'antigravity'):
@@ -128,6 +130,9 @@ def preflight(target, env=None, *, remote_prefix=None, isolate_workspace=False, 
         if provider == 'antigravity' and result.returncode == 120:
             raise CdxError('Antigravity worker is not signed in or its session file is unsafe; sign in once on the worker.',
                            code='antigravity_not_signed_in')
+        if ro_inputs and result.returncode == 119:
+            raise CdxError('Invalid remote --ro-input: require existing user-owned directories without top-level symlinks '
+                           'or overlap with the workspace, configuration, state or credentials.', code='invalid_ro_input')
         if provider == 'ollama':
             raise CdxError('Remote Ollama unavailable: check the installed local model, loopback API and isolation dependencies.',
                            code='remote_unavailable')
@@ -208,6 +213,8 @@ def run_remote(session, target, version, cwd=None, env_override=None, initial_pr
             rotating = json.loads((pathlib.Path(home) / 'auth.json').read_text())['tokens'].get('refresh_token')
             if rotating and rotating in json.dumps(payload):
                 raise CdxError('Refusing to send a refresh token to a worker.')
+    if (session.get('launch') or {}).get('ro_inputs'):
+        payload['ro_inputs'] = session['launch']['ro_inputs']
     paths = _headless_artifact_paths(session, run_id, attempt)
     paths['remote'] = target
     start = datetime.now(timezone.utc)

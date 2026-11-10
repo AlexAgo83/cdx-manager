@@ -22,7 +22,7 @@ class WorkspaceNetworkArgsTests(unittest.TestCase):
         argv = _detached_child_argv(parsed, "/prompt.txt", "work1", "/checkout")
         for flag in ("--network-access", "--isolate-workspace", "--failover"):
             self.assertIn(flag, argv)
-        self.assertEqual(cdx_schema()["capabilities"], {"workspace_isolation": 1, "workspace_network": 1})
+        self.assertEqual(cdx_schema()["capabilities"], {"workspace_isolation": 1, "workspace_network": 1, "ro_inputs": 1})
 
 
 class WorkspaceSandboxTests(unittest.TestCase):
