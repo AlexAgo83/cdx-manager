@@ -1,14 +1,24 @@
 ## prod_057_agent_state_in_cdx - Agent state in cdx
 > Date: 2026-10-28
-> Status: Proposed
+> Status: Settled
 > Related request: `req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json`
 > Related backlog: `item_165_agent_state_store_and_cdx_agents`, `item_166_failover_for_detached_runs`
 > Related task: `task_086_deliver_agent_state_and_detached_failover_in_cdx`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-11-12 10:22:59
 
 # Overview
 cdx already sees every agent event through its hook; keep the latest state per session and expose it so other tools can orchestrate without scraping.
+
+# Delivery overview
+```mermaid
+flowchart LR
+    Hooks[Provider hook events] --> State[Atomic per-session agent state]
+    State --> Agents[cdx agents JSON and CLI]
+    Detached[Detached run supervisor] --> Failover[Two-signal failover decision]
+    Failover --> Registry[Run registry migration]
+```
 
 # Goals
 - One cheap, local answer to: which session needs me, which is busy, which hit a limit.
@@ -31,5 +41,5 @@ cdx already sees every agent event through its hook; keep the latest state per s
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json`
+- Product back-reference: `item_165_agent_state_store_and_cdx_agents`
 - Task back-reference: `task_086_deliver_agent_state_and_detached_failover_in_cdx`

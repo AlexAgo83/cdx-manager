@@ -1,12 +1,13 @@
 ## req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json - Keep each agent session's state and expose it as cdx agents --json
 > From version: 0.23.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
 > Theme: Agent state
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-11-12 10:22:58
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)
