@@ -69,6 +69,43 @@ class AgentStateHookTests(unittest.TestCase):
         # It survives the rest of the turn.
         self.assertTrue(self._notify({"hook_event_name": "Stop"})["prompt"].startswith("fix the"))
 
+    def test_tool_activity_resumes_waiting_without_alerting_or_losing_prompt(self):
+        for event in ("PreToolUse", "PostToolUse"):
+            for waiting in (
+                {"hook_event_name": "PermissionRequest", "tool_name": "Bash"},
+                {"hook_event_name": "Notification", "notification_type": "idle_prompt"},
+            ):
+                with self.subTest(event=event, waiting=waiting):
+                    self._notify({"hook_event_name": "UserPromptSubmit", "prompt": "fix the build"}, preview=True)
+                    self.assertEqual(self._notify(waiting)["state"], "waiting")
+                    self.calls.clear()
+                    record = self._notify({"hook_event_name": event})
+                    self.assertEqual((record["state"], record["reason"], record["reset_at"]), ("working", None, None))
+                    self.assertEqual(record["prompt"], "fix the build")
+                    self.assertEqual(self.calls, [])
+
+    def test_tool_activity_keeps_other_states_without_writing(self):
+        for event in ("PreToolUse", "PostToolUse"):
+            for state in (None, "working", "done", "failed", "limit"):
+                with self.subTest(event=event, state=state):
+                    current = {"state": state, "reason": "unchanged", "reset_at": "unchanged"} if state else None
+                    with (
+                        mock.patch.object(agent_state, "_read", return_value=current),
+                        mock.patch.object(agent_state, "atomic_write") as write,
+                    ):
+                        result = agent_state.record(
+                            {"service": self.service}, "work", {}, event.lower(), "", "/repos/project", {},
+                        )
+                    self.assertIsNone(result)
+                    write.assert_not_called()
+
+    def test_post_tool_use_while_working_keeps_the_record(self):
+        current = self._notify({"hook_event_name": "UserPromptSubmit", "prompt": "fix the build"}, preview=True)
+        with mock.patch.object(agent_state, "atomic_write") as write:
+            self.assertEqual(self._notify({"hook_event_name": "PostToolUse"}), current)
+        write.assert_not_called()
+        self.assertEqual(self.calls, [])
+
     def test_a_prompt_raises_no_alert(self):
         self._notify({"hook_event_name": "UserPromptSubmit", "prompt": "hi"})
         self.assertEqual(self.calls, [])

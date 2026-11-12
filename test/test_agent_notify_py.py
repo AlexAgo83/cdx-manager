@@ -355,11 +355,11 @@ class ProvisioningTests(unittest.TestCase):
     def test_both_providers_subscribe_the_same_core_events(self):
         # The contract Codex has always used and Claude Code now publishes too,
         # plus UserPromptSubmit for the agent state. Claude keeps Notification
-        # on top, for the waiting states nothing else reports, and StopFailure,
-        # which Codex documents no equivalent of.
+        # on top, for the waiting states nothing else reports, plus tool activity
+        # for resuming state and StopFailure, which Codex has no equivalent of.
         self.assertTrue(self._provision("claude"))
         claude = set(self._read("claude")["hooks"])
-        self.assertEqual(claude, {"UserPromptSubmit", "Stop", "StopFailure", "Notification", "PermissionRequest"})
+        self.assertEqual(claude, {"UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "StopFailure", "Notification", "PermissionRequest"})
 
         calls = []
         with mock.patch.object(agent_notify, "notification_channel", return_value="osascript"):
@@ -377,6 +377,28 @@ class ProvisioningTests(unittest.TestCase):
         first = self._read("claude")
         self.assertFalse(self._provision("claude"))
         self.assertEqual(first, self._read("claude"))
+
+    def test_adds_tool_hooks_once_alongside_operator_hooks(self):
+        self._provision("claude")
+        path = agent_notify.hook_config_path(self.home, "claude")
+        document = self._read("claude")
+        operator = {"matcher": "Bash", "hooks": [{"type": "command", "command": "echo operator"}]}
+        for event in ("PreToolUse", "PostToolUse"):
+            document["hooks"][event] = [operator]
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(document, handle)
+
+        self.assertTrue(self._provision("claude"))
+        installed = self._read("claude")
+        for event in ("PreToolUse", "PostToolUse"):
+            self.assertEqual(installed["hooks"][event], [operator, {
+                "hooks": [{"type": "command", "command": "/usr/local/bin/cdx notify"}],
+            }])
+        self.assertFalse(self._provision("claude"))
+        self.assertEqual(self._read("claude"), installed)
+        self._provision("claude", enabled=False)
+        for event in ("PreToolUse", "PostToolUse"):
+            self.assertEqual(self._read("claude")["hooks"][event], [operator])
 
     def test_preserves_unrelated_settings_and_user_hooks(self):
         path = agent_notify.hook_config_path(self.home, "claude")

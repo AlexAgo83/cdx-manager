@@ -40,7 +40,7 @@ def state_dir(base_dir):
 
 def classify(payload, event, error_class):
     """(state, reason) for this event, or None when it changes nothing."""
-    if event == "userpromptsubmit":
+    if event in ("userpromptsubmit", "pretooluse", "posttooluse"):
         return "working", None
     if event == "permissionrequest":
         tool = payload.get("tool_name")
@@ -86,7 +86,11 @@ def record(ctx, name, payload, event, error_class, cwd, env, prompt=None):
     state, reason = classified
     path = os.path.join(state_dir(base_dir), f"{name}.json")
     current = _read(path) or {}
-    if state == "working":
+    # Tool activity only clears a wait; it must not erase a failure or keep
+    # rewriting the record on every tool call in an otherwise working turn.
+    if event in ("pretooluse", "posttooluse") and current.get("state") != "waiting":
+        return None
+    if event == "userpromptsubmit":
         # Only under the preview opt-in, like any other free text a hook carries.
         current["prompt"] = prompt or None
     current.setdefault("prompt", None)

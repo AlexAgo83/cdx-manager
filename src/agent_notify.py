@@ -123,9 +123,8 @@ def _is_reportable(payload, event):
     reports exactly — `permission_prompt` duplicates PermissionRequest — or an
     internal state the user has no action to take on.
     """
-    if event == "userpromptsubmit":
-        # Subscribed for the agent state only; a prompt the user just typed is
-        # not news to them.
+    if event in ("userpromptsubmit", "pretooluse", "posttooluse"):
+        # Subscribed for the agent state only; resuming work raises no alert.
         return False
     if event != "notification":
         return True
@@ -555,9 +554,9 @@ def _apply_hooks(path, enabled, command):
     # StopFailure is Claude-only: Codex documents no equivalent, so a turn its
     # provider kills stays silent there and the documentation says so rather
     # than implying a parity that does not exist.
-    # UserPromptSubmit is there for the agent state only: it is what says a
-    # session went back to work, and `cdx notify` raises no alert for it.
-    for event in ("UserPromptSubmit", "Stop", "StopFailure", "Notification", "PermissionRequest"):
+    # Prompt and tool events feed state without alerts. PostToolUse clears a
+    # permission wait; PreToolUse also clears idle waits before a long tool runs.
+    for event in ("UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "StopFailure", "Notification", "PermissionRequest"):
         # Rebuilt from whatever is there minus our own entry, so user-authored
         # hooks on the same event survive both installing and removing.
         entries = [entry for entry in hooks.get(event, []) if not _is_ours(entry)]
