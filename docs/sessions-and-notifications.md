@@ -44,7 +44,9 @@ ends and `PermissionRequest` when one blocks on your approval, plus
 subscribed to `Notification`, for the "still waiting for you" states that no
 other hook reports; the permission notifications it also sends are dropped,
 because `PermissionRequest` already reported the same call immediately and by
-name.
+name. Claude also subscribes to `PreToolUse` and `PostToolUse` to clear a
+waiting state when tool activity resumes, without raising alerts. Other states,
+including failures and confirmed limits, stay unchanged on tool events.
 
 Claude Code additionally reports a turn that ended on a provider error rather
 than on an answer — a rate limit, an overload, an authentication or billing
@@ -94,7 +96,7 @@ headless WSL), since a remote dashboard is exactly what watches those.
 
 | State | Set by |
 | --- | --- |
-| `working` | a prompt was submitted (`UserPromptSubmit`) |
+| `working` | a prompt was submitted (`UserPromptSubmit`), or Claude tool activity resumed from `waiting` (`PreToolUse` / `PostToolUse`) |
 | `waiting` | a permission request, or Claude's idle or needs-input notification |
 | `done` | the turn ended (`Stop`) |
 | `failed` | the turn ended on a provider error (Claude's `StopFailure`); `reason` is the error class |
