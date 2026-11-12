@@ -1,10 +1,10 @@
 ## item_166_failover_for_detached_runs - Failover for detached runs
 > From version: 0.23.0
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 90%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Agent state
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -46,3 +46,9 @@
 # Priority
 - Priority: Medium - unattended runs die on a usage limit
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_086_deliver_agent_state_and_detached_failover_in_cdx`
+
+# Notes
+- Task `task_086_deliver_agent_state_and_detached_failover_in_cdx` was finished via `logics-manager flow finish task` on 2026-11-12.
