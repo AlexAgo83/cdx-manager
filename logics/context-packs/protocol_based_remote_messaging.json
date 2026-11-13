@@ -1,0 +1,500 @@
+{
+  "budgets": {
+    "max_docs": 24,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_083_protocol_based_remote_messaging_for_interactive_sessions item_168_add_a_private_per_session_control_endpoint_and_the_cdx_send_command item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run item_170_share_a_codex_app_server_between_the_tui_and_remote_clients item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows task_088_implement_protocol_based_remote_messaging_for_interactive_sessions --mode full --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_168_add_a_private_per_session_control_endpoint_and_the_cdx_send_command",
+          "item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run",
+          "item_170_share_a_codex_app_server_between_the_tui_and_remote_clients",
+          "item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows"
+        ],
+        "prod": [
+          "prod_058_remote_control_of_interactive_sessions_through_provider_protocols"
+        ],
+        "req": [
+          "req_083_protocol_based_remote_messaging_for_interactive_sessions"
+        ],
+        "task": [
+          "task_088_implement_protocol_based_remote_messaging_for_interactive_sessions"
+        ]
+      },
+      "path": "logics/product/prod_058_remote_control_of_interactive_sessions_through_provider_protocols.md",
+      "ref": "prod_058_remote_control_of_interactive_sessions_through_provider_protocols",
+      "sections": {
+        "Goals": [
+          "- Reliable message delivery and state for remote clients, with no terminal typing or screen parsing.",
+          "- One conversation shared between the terminal and the remote client, with the keyboard always able to take it back.",
+          "- Identical behaviour on Linux, macOS and Windows."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "cdx lets a remote chat client drive the same interactive session the operator sees in the terminal, using the providers' own programmatic interfaces."
+        ],
+        "References": [
+          "- Product back-reference: `req_083_protocol_based_remote_messaging_for_interactive_sessions`",
+          "- Task back-reference: `task_088_implement_protocol_based_remote_messaging_for_interactive_sessions`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Remote control of interactive sessions through provider protocols"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "protocol, based, remote, messaging, interactive, sessions",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "execution_table": "# Executions\n| When | Runner | Run id | Title | State | PR | Notes |\n| --- | --- | --- | --- | --- | --- | --- |\n\n",
+      "executions": {
+        "older_count": 0,
+        "rows": []
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_168_add_a_private_per_session_control_endpoint_and_the_cdx_send_command",
+          "item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run",
+          "item_170_share_a_codex_app_server_between_the_tui_and_remote_clients",
+          "item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows"
+        ],
+        "prod": [
+          "prod_058_remote_control_of_interactive_sessions_through_provider_protocols"
+        ],
+        "req": [
+          "req_083_protocol_based_remote_messaging_for_interactive_sessions"
+        ]
+      },
+      "path": "logics/request/req_083_protocol_based_remote_messaging_for_interactive_sessions.md",
+      "ref": "req_083_protocol_based_remote_messaging_for_interactive_sessions",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: `cdx send <session> <text>` delivers the text to a running interactive Claude or Codex session launched with the feature enabled, without writing to its terminal input.",
+          "- AC2: For Claude, the launcher switches from the TUI to a stream-json --resume run on the same conversation when a message arrives while the TUI is idle, queues it while a TUI turn is running, and returns to the TUI with --resume on a keypress; no turn or context is lost across switches.",
+          "- AC3: For Codex, the launcher starts an app-server bound to a private endpoint and attaches the TUI with --remote; `cdx send` starts a turn on the TUI's thread as a second client and the TUI renders it live.",
+          "- AC4: Each session writes an append-only event log (JSON lines) with turn states (working, done, waiting, permission, interrupted, failed) and assistant text taken from the provider protocol; `cdx send --interrupt` interrupts the current remote turn.",
+          "- AC5: The control endpoint accepts only the session owner: a private Unix socket in a 0700 directory on Linux and macOS, and a loopback endpoint guarded by a per-session secret on Windows; no secret appears in argv, logs or the event log.",
+          "- AC6: With the feature disabled, launch, resume and headless behaviour are byte-for-byte unchanged, and existing tests pass."
+        ],
+        "Needs": [
+          "- Let a remote chat client deliver a message to a running interactive cdx session through a supported provider protocol instead of typing into the terminal.",
+          "- Expose the session's turn state and replies from the provider protocol instead of hooks and screen scraping.",
+          "- Keep the interactive terminal usable: the operator can always take the session back from the keyboard."
+        ]
+      },
+      "status": "Draft",
+      "title": "Protocol-based remote messaging for interactive sessions"
+    },
+    {
+      "ai_context": {
+        "keywords": "add, private, per, session, control, endpoint, cdx, send, command",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "execution_table": "# Executions\n| When | Runner | Run id | Title | State | PR | Notes |\n| --- | --- | --- | --- | --- | --- | --- |\n\n",
+      "executions": {
+        "older_count": 0,
+        "rows": []
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_168_add_a_private_per_session_control_endpoint_and_the_cdx_send_command"
+        ],
+        "prod": [
+          "prod_058_remote_control_of_interactive_sessions_through_provider_protocols"
+        ],
+        "req": [
+          "req_083_protocol_based_remote_messaging_for_interactive_sessions"
+        ],
+        "task": [
+          "task_088_implement_protocol_based_remote_messaging_for_interactive_sessions"
+        ]
+      },
+      "path": "logics/backlog/item_168_add_a_private_per_session_control_endpoint_and_the_cdx_send_command.md",
+      "ref": "item_168_add_a_private_per_session_control_endpoint_and_the_cdx_send_command",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: `cdx send` reaches the launcher of a running enabled session and reports delivery or a precise error.",
+          "- AC5: The endpoint is owner-only on every platform and never exposes its secret.",
+          "- AC6: Disabled sessions launch exactly as before."
+        ],
+        "Problem": [
+          "- Remote clients have no supported way to reach a running interactive session.",
+          "- Unix sockets are not available on every Windows setup, and Codex rejects sockets in shared directories."
+        ]
+      },
+      "status": "Ready",
+      "title": "Add a private per-session control endpoint and the cdx send command"
+    },
+    {
+      "ai_context": {
+        "keywords": "switch, claude, sessions, between, tui, stream, json, resume, run",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "execution_table": "# Executions\n| When | Runner | Run id | Title | State | PR | Notes |\n| --- | --- | --- | --- | --- | --- | --- |\n\n",
+      "executions": {
+        "older_count": 0,
+        "rows": []
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run"
+        ],
+        "prod": [
+          "prod_058_remote_control_of_interactive_sessions_through_provider_protocols"
+        ],
+        "req": [
+          "req_083_protocol_based_remote_messaging_for_interactive_sessions"
+        ],
+        "task": [
+          "task_088_implement_protocol_based_remote_messaging_for_interactive_sessions"
+        ]
+      },
+      "path": "logics/backlog/item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run.md",
+      "ref": "item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC2: A conversation keeps its context across TUI -> remote -> TUI, on the same conversation id.",
+          "- AC4: The event log records working, done, interrupted and failed states and the assistant text of remote turns."
+        ],
+        "Problem": [
+          "- Claude Code has no attach mode: a second writer must continue the conversation with --resume while the TUI is closed."
+        ]
+      },
+      "status": "Ready",
+      "title": "Switch Claude sessions between the TUI and a stream-json resume run"
+    },
+    {
+      "ai_context": {
+        "keywords": "share, codex, app, server, between, tui, remote, clients",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "execution_table": "# Executions\n| When | Runner | Run id | Title | State | PR | Notes |\n| --- | --- | --- | --- | --- | --- | --- |\n\n",
+      "executions": {
+        "older_count": 0,
+        "rows": []
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_170_share_a_codex_app_server_between_the_tui_and_remote_clients"
+        ],
+        "prod": [
+          "prod_058_remote_control_of_interactive_sessions_through_provider_protocols"
+        ],
+        "req": [
+          "req_083_protocol_based_remote_messaging_for_interactive_sessions"
+        ],
+        "task": [
+          "task_088_implement_protocol_based_remote_messaging_for_interactive_sessions"
+        ]
+      },
+      "path": "logics/backlog/item_170_share_a_codex_app_server_between_the_tui_and_remote_clients.md",
+      "ref": "item_170_share_a_codex_app_server_between_the_tui_and_remote_clients",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC3: A message sent with cdx send runs on the TUI's thread and is rendered live in the TUI.",
+          "- AC4: The event log records turn states and agent text from notifications."
+        ],
+        "Problem": [
+          "- Codex can serve several clients on one thread, but cdx launches its TUI standalone."
+        ]
+      },
+      "status": "Ready",
+      "title": "Share a Codex app-server between the TUI and remote clients"
+    },
+    {
+      "ai_context": {
+        "keywords": "implement, protocol, based, remote, messaging, interactive, sessions",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "execution_table": "# Executions\n| When | Runner | Run id | Title | State | PR | Notes |\n| --- | --- | --- | --- | --- | --- | --- |\n\n",
+      "executions": {
+        "older_count": 0,
+        "rows": []
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_168_add_a_private_per_session_control_endpoint_and_the_cdx_send_command",
+          "item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run",
+          "item_170_share_a_codex_app_server_between_the_tui_and_remote_clients",
+          "item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows"
+        ],
+        "prod": [
+          "prod_058_remote_control_of_interactive_sessions_through_provider_protocols"
+        ],
+        "req": [
+          "req_083_protocol_based_remote_messaging_for_interactive_sessions"
+        ],
+        "task": [
+          "task_088_implement_protocol_based_remote_messaging_for_interactive_sessions"
+        ]
+      },
+      "path": "logics/tasks/task_088_implement_protocol_based_remote_messaging_for_interactive_sessions.md",
+      "ref": "task_088_implement_protocol_based_remote_messaging_for_interactive_sessions",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Implement protocol-based remote messaging for interactive sessions"
+    },
+    {
+      "ai_context": {},
+      "execution_table": "",
+      "executions": {
+        "older_count": 0,
+        "rows": []
+      },
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_168_add_a_private_per_session_control_endpoint_and_the_cdx_send_command",
+          "item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run",
+          "item_170_share_a_codex_app_server_between_the_tui_and_remote_clients",
+          "item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows"
+        ],
+        "prod": [
+          "prod_058_remote_control_of_interactive_sessions_through_provider_protocols"
+        ],
+        "req": [
+          "req_083_protocol_based_remote_messaging_for_interactive_sessions"
+        ],
+        "task": [
+          "task_088_implement_protocol_based_remote_messaging_for_interactive_sessions"
+        ]
+      },
+      "path": "logics/product/prod_058_remote_control_of_interactive_sessions_through_provider_protocols.md",
+      "ref": "prod_058_remote_control_of_interactive_sessions_through_provider_protocols",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Remote control of interactive sessions through provider protocols"
+    },
+    {
+      "ai_context": {
+        "keywords": "prove, remote, messaging, loop, linux, macos, windows",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "execution_table": "# Executions\n| When | Runner | Run id | Title | State | PR | Notes |\n| --- | --- | --- | --- | --- | --- | --- |\n\n",
+      "executions": {
+        "older_count": 0,
+        "rows": []
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows"
+        ],
+        "prod": [
+          "prod_058_remote_control_of_interactive_sessions_through_provider_protocols"
+        ],
+        "req": [
+          "req_083_protocol_based_remote_messaging_for_interactive_sessions"
+        ],
+        "task": [
+          "task_088_implement_protocol_based_remote_messaging_for_interactive_sessions"
+        ]
+      },
+      "path": "logics/backlog/item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows.md",
+      "ref": "item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC6: Existing suites stay green with the feature disabled.",
+          "- AC7: The new tests pass on the three platforms and the live check is recorded for each."
+        ],
+        "Problem": [
+          "- Process control, sockets and terminals differ per platform; a Linux-only proof would not hold."
+        ]
+      },
+      "status": "Ready",
+      "title": "Prove the remote messaging loop on Linux, macOS and Windows"
+    }
+  ],
+  "estimates": {
+    "char_count": 13345,
+    "companion_doc_count": 1,
+    "doc_count": 7
+  },
+  "generated_at": "2026-11-13T08:56:16Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_083_protocol_based_remote_messaging_for_interactive_sessions",
+      "item_168_add_a_private_per_session_control_endpoint_and_the_cdx_send_command",
+      "item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run",
+      "item_170_share_a_codex_app_server_between_the_tui_and_remote_clients",
+      "item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows",
+      "task_088_implement_protocol_based_remote_messaging_for_interactive_sessions"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "full",
+  "profile": "normal",
+  "ref": "req_083_protocol_based_remote_messaging_for_interactive_sessions,item_168_add_a_private_per_session_control_endpoint_and_the_cdx_send_command,item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run,item_170_share_a_codex_app_server_between_the_tui_and_remote_clients,item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows,task_088_implement_protocol_based_remote_messaging_for_interactive_sessions",
+  "refs": [
+    "req_083_protocol_based_remote_messaging_for_interactive_sessions",
+    "item_168_add_a_private_per_session_control_endpoint_and_the_cdx_send_command",
+    "item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run",
+    "item_170_share_a_codex_app_server_between_the_tui_and_remote_clients",
+    "item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows",
+    "task_088_implement_protocol_based_remote_messaging_for_interactive_sessions"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: missing required evidence",
+      "changelog: missing required evidence",
+      "release_checksums: missing required evidence",
+      "local_validation: missing required evidence",
+      "git_push: missing required evidence",
+      "ci: missing required evidence",
+      "github_release: missing required evidence",
+      "npm_publication: missing required evidence",
+      "pypi_publication: missing required evidence"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: missing required evidence",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "preparing",
+    "target_id": null,
+    "target_version": "0.26.14",
+    "targets": []
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_088_implement_protocol_based_remote_messaging_for_interactive_sessions.md",
+      "ref": "task_088_implement_protocol_based_remote_messaging_for_interactive_sessions"
+    }
+  ]
+}

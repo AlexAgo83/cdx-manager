@@ -77,6 +77,7 @@
 | [prod_055_reliable_transcript_first_handoff_recovery](product/prod_055_reliable_transcript_first_handoff_recovery.md) | Reliable transcript-first handoff recovery | Settled |  |  | product/prod_055_reliable_transcript_first_handoff_recovery.md |
 | [prod_056_trustworthy_local_recovery_and_usage_attribution](product/prod_056_trustworthy_local_recovery_and_usage_attribution.md) | Trustworthy local recovery and usage attribution | Settled |  |  | product/prod_056_trustworthy_local_recovery_and_usage_attribution.md |
 | [prod_057_agent_state_in_cdx](product/prod_057_agent_state_in_cdx.md) | Agent state in cdx | Settled |  |  | product/prod_057_agent_state_in_cdx.md |
+| [prod_058_remote_control_of_interactive_sessions_through_provider_protocols](product/prod_058_remote_control_of_interactive_sessions_through_provider_protocols.md) | Remote control of interactive sessions through provider protocols | Proposed |  |  | product/prod_058_remote_control_of_interactive_sessions_through_provider_protocols.md |
 
 ## Roadmaps
 
@@ -171,6 +172,7 @@ _None_
 | [req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery](request/req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery.md) | Harden reviewed data integrity, stats accounting and handoff recovery | Done |  |  | request/req_080_harden_reviewed_data_integrity_stats_accounting_and_handoff_recovery.md |
 | [req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json](request/req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json.md) | Keep each agent session's state and expose it as cdx agents --json | Done |  |  | request/req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json.md |
 | [req_082_resolve_live_codex_conversations_from_exact_native_rollout_writers](request/req_082_resolve_live_codex_conversations_from_exact_native_rollout_writers.md) | Resolve live Codex conversations from exact native rollout writers | Done | codex |  | request/req_082_resolve_live_codex_conversations_from_exact_native_rollout_writers.md |
+| [req_083_protocol_based_remote_messaging_for_interactive_sessions](request/req_083_protocol_based_remote_messaging_for_interactive_sessions.md) | Protocol-based remote messaging for interactive sessions | Draft |  |  | request/req_083_protocol_based_remote_messaging_for_interactive_sessions.md |
 
 ## Backlog
 
@@ -346,6 +348,10 @@ _None_
 | [item_165_agent_state_store_and_cdx_agents](backlog/item_165_agent_state_store_and_cdx_agents.md) | Agent state store and cdx agents | Done |  | 100% | backlog/item_165_agent_state_store_and_cdx_agents.md |
 | [item_166_failover_for_detached_runs](backlog/item_166_failover_for_detached_runs.md) | Failover for detached runs | Done |  | 100% | backlog/item_166_failover_for_detached_runs.md |
 | [item_167_resolve_live_codex_conversations_from_exact_native_rollout_writers](backlog/item_167_resolve_live_codex_conversations_from_exact_native_rollout_writers.md) | Resolve live Codex conversations from exact native rollout writers | Done |  | 100% | backlog/item_167_resolve_live_codex_conversations_from_exact_native_rollout_writers.md |
+| [item_168_add_a_private_per_session_control_endpoint_and_the_cdx_send_command](backlog/item_168_add_a_private_per_session_control_endpoint_and_the_cdx_send_command.md) | Add a private per-session control endpoint and the cdx send command | Ready |  | 0% | backlog/item_168_add_a_private_per_session_control_endpoint_and_the_cdx_send_command.md |
+| [item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run](backlog/item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run.md) | Switch Claude sessions between the TUI and a stream-json resume run | Ready |  | 0% | backlog/item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run.md |
+| [item_170_share_a_codex_app_server_between_the_tui_and_remote_clients](backlog/item_170_share_a_codex_app_server_between_the_tui_and_remote_clients.md) | Share a Codex app-server between the TUI and remote clients | Ready |  | 0% | backlog/item_170_share_a_codex_app_server_between_the_tui_and_remote_clients.md |
+| [item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows](backlog/item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows.md) | Prove the remote messaging loop on Linux, macOS and Windows | Ready |  | 0% | backlog/item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows.md |
 
 ## Tasks
 
@@ -443,6 +449,7 @@ _None_
 | [task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff](tasks/task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff.md) | Orchestrate review hardening across persistence, stats and handoff | Done | Codex | 100% | tasks/task_085_orchestrate_review_hardening_across_persistence_stats_and_handoff.md |
 | [task_086_deliver_agent_state_and_detached_failover_in_cdx](tasks/task_086_deliver_agent_state_and_detached_failover_in_cdx.md) | Deliver agent state and detached failover in cdx | Done | claude | 100% | tasks/task_086_deliver_agent_state_and_detached_failover_in_cdx.md |
 | [task_087_resolve_live_codex_conversations_from_exact_native_rollout_writers](tasks/task_087_resolve_live_codex_conversations_from_exact_native_rollout_writers.md) | Resolve live Codex conversations from exact native rollout writers | Done | codex | 100% | tasks/task_087_resolve_live_codex_conversations_from_exact_native_rollout_writers.md |
+| [task_088_implement_protocol_based_remote_messaging_for_interactive_sessions](tasks/task_088_implement_protocol_based_remote_messaging_for_interactive_sessions.md) | Implement protocol-based remote messaging for interactive sessions | Ready |  | 0% | tasks/task_088_implement_protocol_based_remote_messaging_for_interactive_sessions.md |
 
 ## Runbooks
 
