@@ -22,7 +22,7 @@ import sys
 import threading
 import time
 
-from .remote_control import Endpoint, EventLog
+from .remote_control import Endpoint, EventLog, state_dir
 
 IDLE_STATES = ("done", "waiting", "limit", "failed")
 INTERRUPTED_MARKER = "[Request interrupted by user"
@@ -120,18 +120,38 @@ class KeyWatcher:
 class RemoteRun:
     """One `claude -p` stream-json process fed with user messages."""
 
-    def __init__(self, argv, options, log, out):
+    def __init__(self, argv, options, log, out, stderr_path=None):
         self.log, self.out = log, out
         self.turns = 0
         self.lock = threading.Lock()
+        self.stderr_path = stderr_path
+        # stderr goes to a private file: it is the only trace of a run that dies
+        # before writing any stream-json event.
+        stderr = open(stderr_path, "w", encoding="utf-8") if stderr_path else subprocess.DEVNULL
+        if stderr_path:
+            stderr.write("cdx remote run: " + " ".join(argv) + "\n")
+            stderr.flush()
+        # On Windows a child sharing the console can read its input and swallow the
+        # keypress that returns the session to the terminal; give it its own.
+        flags = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
         self.proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                     stderr=subprocess.DEVNULL, text=True, encoding="utf-8", **options)
+                                     stderr=stderr, text=True, encoding="utf-8", **flags, **options)
+        if stderr_path:
+            stderr.close()
         self.reader = threading.Thread(target=self._read, daemon=True)
         self.reader.start()
 
     def busy(self):
         with self.lock:
             return self.turns > 0
+
+    def last_error(self):
+        try:
+            with open(self.stderr_path, encoding="utf-8", errors="replace") as handle:
+                lines = [line.strip() for line in handle if line.strip()]
+            return lines[-1][:500] if lines else "no error output"
+        except (OSError, TypeError):
+            return "no error output"
 
     def send(self, text):
         with self.lock:
@@ -185,6 +205,12 @@ class RemoteRun:
 def _stop_tui(child):
     if child.poll() is not None:
         return
+    if os.name == "nt":
+        # The TUI often runs behind an npm .cmd shim: terminating the shim leaves
+        # claude.exe alive, still reading the console. Stop the whole tree; the
+        # turn is idle, so the transcript is already written.
+        subprocess.run(["taskkill", "/PID", str(child.pid), "/T", "/F"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     child.terminate()
     try:
         child.wait(timeout=TUI_STOP_GRACE_SECONDS)
@@ -236,7 +262,8 @@ def run_loop(*, base_dir, name, conversation_id, auth_home, start_tui, remote_ar
             out("\n[cdx] Remote control: this session is driven by `cdx send`. "
                 "Press any key to return to the terminal.\n")
             resumed = transcript_path(auth_home, conversation_id) is not None
-            run = RemoteRun(remote_argv(resumed), remote_options, log, out)
+            run = RemoteRun(remote_argv(resumed), remote_options, log, out,
+                            stderr_path=os.path.join(state_dir(base_dir), f"{name}.remote.err"))
             for text in pending:
                 run.send(text)
             pending.clear()

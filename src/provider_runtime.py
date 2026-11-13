@@ -1777,9 +1777,17 @@ def _remote_claude_plan(session, action, spec, cwd, env_override, base_dir):
         index = args.index("--session-id")
         args = args[:index] + args[index + 2:]
 
+    env = raw.get("options", {}).get("env")
+    command = _resolve_command(raw["command"], env)
+    if os.name == "nt" and command.lower().endswith((".cmd", ".bat")):
+        # cmd.exe cuts a batch file's command line at the first newline, and the
+        # appended system prompt is multi-line: a remote run through the npm shim
+        # never starts its turn. Prefer a real executable when one is on PATH.
+        command = shutil.which(raw["command"] + ".exe", path=(env or os.environ).get("PATH")) or command
+
     def argv(resumed):
         target = ["--resume", conversation_id] if resumed else ["--session-id", conversation_id]
-        return [_resolve_command(raw["command"], raw.get("options", {}).get("env")), "-p", *target, *args,
+        return [command, "-p", *target, *args,
                 "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"]
 
     def agent_record():
@@ -1888,7 +1896,11 @@ def _run_interactive_provider_process(session, action, spawn=None, cwd=None,
                 resumable = with_requested_conversation(session, remote["conversation_id"])
                 if resumable is not None:
                     current = _build_resume_spec(resumable, cwd=cwd, env_override=env_override)
-            return start_child(current)
+            try:
+                return start_child(current)
+            except FileNotFoundError as error:
+                # Same fallback as a plain launch: no transcript wrapper (e.g. on Windows).
+                return start_child(_fallback_launch_spec_or_raise(current, error))
 
         returncode = remote_claude.run_loop(
             base_dir=remote_base_dir, name=session["name"], conversation_id=remote["conversation_id"],
