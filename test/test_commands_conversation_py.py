@@ -305,6 +305,12 @@ def test_remote_controlled_tui_pid_resolves_through_the_app_server(tmp_path):
         assert page["status"] == "ok" and page["conversation_id"] == identifier
         assert page["resolution_method"] == "app_server_open_rollout"
         assert [entry["text"] for entry in page["entries"]] == ["remote reply"]
+        # A later launch of the same session took the pointer: the TUI is still
+        # found through its own launch's endpoint file.
+        launch = endpoint.with_name(f"work2@{os.getpid()}.endpoint.json")
+        launch.write_text(endpoint.read_text())
+        endpoint.write_text(json.dumps({"pid": os.getpid(), "tui_pid": 1, "server_pid": 1}))
+        assert run()["conversation_id"] == identifier
     finally:
         for child in children:
             child.terminate()

@@ -354,6 +354,15 @@ def test_exact_file_inode_is_checked_before_read(evidence, monkeypatch):
     assert_unknown(read_conversation("codex", home, pid=123), "evidence_changed")
 
 
+# Context Codex injects ahead of the first turn, shaped like real rollouts.
+CODEX_CONTEXT = [json.dumps({"type": "response_item", "payload": {"type": "message", "role": role, "content": [
+    {"type": "input_text", "text": text} for text in texts]}}) for role, texts in (
+    ("developer", ["You are Codex.", "<permissions instructions>sandbox</permissions instructions>"]),
+    ("user", ["# AGENTS.md instructions for /repo\n\n<INSTRUCTIONS>\nbe brief\n</INSTRUCTIONS>",
+              "<environment_context>\n  <cwd>/repo</cwd>\n</environment_context>"]),
+)]
+
+
 def remote_session(tmp_path, home, root, *, launcher=99, source="vscode"):
     """A remote-controlled launch: TUI 123 holds no rollout, app-server 124 writes it."""
     server = root.parent / "124"
@@ -369,7 +378,7 @@ def remote_session(tmp_path, home, root, *, launcher=99, source="vscode"):
     meta = json.loads(path.read_text().splitlines()[0])
     meta["payload"]["source"] = source
     lines = path.read_text().splitlines()
-    path.write_text("\n".join([json.dumps(meta), *lines[1:]]) + "\n")
+    path.write_text("\n".join([json.dumps(meta), *CODEX_CONTEXT, *lines[1:]]) + "\n")
     open_rollout(server, path)
     endpoint = tmp_path / "work.endpoint.json"
     endpoint.write_text(json.dumps({"port": 1, "secret": "s", "pid": launcher, "tui_pid": 123, "server_pid": 124}))
@@ -383,7 +392,7 @@ def test_remote_controlled_tui_resolves_through_its_app_server(tmp_path, evidenc
     # rollout is not a TUI one: both stay refused.
     assert_unknown(read_conversation("codex", home, pid=123, tail=1))
     assert_unknown(read_conversation("codex", home, pid=124, tail=1), "invalid_native_rollout")
-    page = read_conversation("codex", home, pid=123, tail=1, remote_endpoint=endpoint)
+    page = read_conversation("codex", home, pid=123, remote_endpoint=endpoint)
     assert page["status"] == "ok" and page["conversation_id"] == SECOND
     assert page["resolution_method"] == "app_server_open_rollout"
     assert [entry["text"] for entry in page["entries"]] == [SECOND]

@@ -624,3 +624,27 @@ def test_claude_pasted_content_wrapper_is_removed(tmp_path):
         "message": {"role": "user", "content": value}}) for value in (text, quoted)) + "\n")
     page = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION)
     assert [e["text"] for e in page["entries"]] == ["On est ok avec ces notifs ?\n/home/u/a.png", quoted]
+
+
+def test_codex_injected_context_is_not_a_user_turn(tmp_path):
+    path = tmp_path / "sessions" / "2026" / f"rollout-2026-11-03-{CONVERSATION}.jsonl"
+    path.parent.mkdir(parents=True)
+
+    def message(role, *texts):
+        kind = "output_text" if role == "assistant" else "input_text"
+        return {"type": "response_item", "timestamp": "2026-11-03T10:00:00Z", "payload": {
+            "type": "message", "role": role, "content": [{"type": kind, "text": text} for text in texts]}}
+
+    records = [
+        {"type": "session_meta", "payload": {"id": CONVERSATION, "source": "cli"}},
+        message("developer", "You are Codex.", "<collaboration_mode>Default</collaboration_mode>"),
+        message("user", "# AGENTS.md instructions for /repo\n\n<INSTRUCTIONS>\nrules\n</INSTRUCTIONS>",
+                "<environment_context>\n  <cwd>/repo</cwd>\n</environment_context>"),
+        message("user", "<user_instructions>\nolder layout\n</user_instructions>"),
+        message("user", "Fix the build"),
+        message("assistant", "Done."),
+        message("user", "<turn_aborted>\ninterrupted\n</turn_aborted>"),
+    ]
+    path.write_text("".join(json.dumps(record) + "\n" for record in records))
+    page = read_conversation("codex", str(tmp_path), conversation_id=CONVERSATION)
+    assert [(e["role"], e["text"]) for e in page["entries"]] == [("user", "Fix the build"), ("assistant", "Done.")]

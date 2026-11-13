@@ -48,6 +48,14 @@ def _tool_name(message, names, result=False):
     return name
 
 
+# Codex injects instructions and turn context as user-role messages; these
+# prefixes mirror its contextual-user-message markers.
+_CODEX_CONTEXT_PREFIXES = (
+    "# AGENTS.md instructions", "<user_instructions>", "<environment_context>", "<skill>",
+    "<turn_aborted>", "<subagent_notification>",
+)
+
+
 def _conversation_record(provider, kind):
     # Provider bookkeeping can carry the same text as real conversation records.
     # Claude Code records messages typed while the agent works as queued_command attachments.
@@ -146,6 +154,8 @@ def _entries(provider, record, names):
             continue
         kind = block.get("type")
         if kind in ("text", "input_text", "output_text") and isinstance(block.get("text"), str):
+            if provider == "codex" and role == "user" and block["text"].lstrip().startswith(_CODEX_CONTEXT_PREFIXES):
+                continue
             entries.append(_entry(role, block["text"], at=stamp))
         elif kind in ("tool_use", "tool_result"):
             name = _tool_name(block, names, kind == "tool_result")

@@ -182,7 +182,7 @@ def run(*, base_dir, name, cwd, codex_command, server_env, start_tui):
     """
     log = EventLog(base_dir, name)
     token = secrets.token_urlsafe(32)
-    token_file = os.path.join(state_dir(base_dir), f"{name}.codex-token")
+    token_file = os.path.join(state_dir(base_dir), f"{name}@{os.getpid()}.codex-token")
     _write_private(token_file, token)
     port = free_port()
     server = subprocess.Popen(server_argv(codex_command, port, token_file), env=server_env, cwd=cwd,

@@ -883,11 +883,16 @@ def start_session_runtime(store, name, payload=None):
     def updater(state):
         if not state:
             raise CdxError(f"Session state missing for {name}. Reconnect required.")
-        return {
-            **state,
-            "status": "running",
-            "runtime": runtime,
-        }
+        # A second launch on a busy profile becomes the current runtime; the
+        # older live ones are kept so the record falls back to them when it ends.
+        previous = [entry for entry in [state.get("runtime"), *(state.get("previousRuntimes") or [])]
+                    if _runtime_is_active(entry)]
+        updated = {**state, "status": "running", "runtime": runtime}
+        if previous:
+            updated["previousRuntimes"] = previous
+        else:
+            updated.pop("previousRuntimes", None)
+        return updated
 
     store["update_session_state"](name, updater)
     return runtime
@@ -904,9 +909,15 @@ def finish_session_runtime(store, name, run_id=None, payload=None):
         if not state:
             return None
         runtime = state.get("runtime") or {}
+        previous = [entry for entry in state.get("previousRuntimes") or []
+                    if entry.get("runId") != run_id and _runtime_is_active(entry)]
         if run_id and runtime.get("runId") != run_id:
             outcome["runtime"] = runtime
-            return None
+            if previous == (state.get("previousRuntimes") or []):
+                return None
+            # An older concurrent launch ended: forget it, keep the current one.
+            return {**state, "previousRuntimes": previous} if previous else {
+                key: value for key, value in state.items() if key != "previousRuntimes"}
         updated_runtime = {
             **runtime,
             "status": payload.get("status") or "stopped",
@@ -915,8 +926,13 @@ def finish_session_runtime(store, name, run_id=None, payload=None):
         if "returncode" in payload:
             updated_runtime["returncode"] = payload["returncode"]
         outcome["runtime"] = updated_runtime
+        rest = {key: value for key, value in state.items() if key != "previousRuntimes"}
+        if previous:
+            # The most recent launch ended while an older one still runs: point back at it.
+            return {**rest, "status": "running", "runtime": previous[0],
+                    **({"previousRuntimes": previous[1:]} if previous[1:] else {})}
         return {
-            **state,
+            **rest,
             "status": "ready",
             "runtime": updated_runtime,
         }
