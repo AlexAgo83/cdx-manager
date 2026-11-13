@@ -194,11 +194,17 @@ class Endpoint:
         self._thread = threading.Thread(target=self._serve, name=f"cdx-remote-{name}", daemon=True)
 
     def __enter__(self):
-        record = json.dumps({**self.extra, "port": self.port, "secret": self.secret, "pid": self.pid})
-        _write_private(endpoint_file(self.base_dir, self.name, self.pid), record)
-        _write_private(endpoint_file(self.base_dir, self.name), record)
-        self._thread.start()
+        # Handlers first: a SIGHUP between writing the files and installing them
+        # killed the launcher with its endpoint left behind (macOS CI, 2026-11-13).
         self._handlers = _terminate_handlers()
+        try:
+            record = json.dumps({**self.extra, "port": self.port, "secret": self.secret, "pid": self.pid})
+            _write_private(endpoint_file(self.base_dir, self.name, self.pid), record)
+            _write_private(endpoint_file(self.base_dir, self.name), record)
+            self._thread.start()
+        except BaseException:
+            self.__exit__(None, None, None)
+            raise
         return self
 
     def __exit__(self, *exc):
