@@ -38,3 +38,13 @@ def _no_real_launch_agents(tmp_path):
     with mock.patch("src.notify._operator_home", return_value=str(tmp_path / "operator-home")), \
             mock.patch("src.tray_autostart._operator_home", return_value=None):
         yield
+
+
+@pytest.fixture(autouse=True)
+def _no_caller_rtk_history(monkeypatch):
+    """Ignore the RTK_DB_PATH a cdx profile shell exports.
+
+    An explicit RTK_DB_PATH deliberately wins over the operator's shared rtk
+    history, so a caller that set one changed what those tests observe.
+    """
+    monkeypatch.delenv("RTK_DB_PATH", raising=False)
