@@ -24,7 +24,6 @@ import queue
 import subprocess
 import sys
 import threading
-import time
 
 from .remote_control import Endpoint, EventLog, LaunchTerminated, remote_err_file
 
@@ -103,9 +102,13 @@ class ClaudeAdapter:
     def user_message(self, text):
         return {"type": "user", "message": {"role": "user", "content": text}}
 
-    def interrupt(self, _proc, write):
-        write({"type": "control_request", "request_id": f"cdx-{time.time_ns()}",
-               "request": {"subtype": "interrupt"}})
+    # The CLI ignored the stream-json interrupt control request in a live test
+    # (2026-11-13, Claude Code 2.1.323). Like Happy, whose SDK abort ends the
+    # child process, stop the run; the next message resumes the conversation.
+    interrupt_ends_run = True
+
+    def interrupt(self, proc, _write):
+        proc.terminate()
 
 
 class KeyWatcher:
@@ -200,6 +203,16 @@ class RemoteRun:
                 return
             self.thinking = True
         self._write(self.adapter.user_message(text))
+
+    def carry(self, texts):
+        """Deliver messages a stopped run had not written yet, already logged and shown."""
+        texts = list(texts)
+        if not texts:
+            return
+        with self.lock:
+            self.waiting.extend(texts[1:])
+            self.thinking = True
+        self._write(self.adapter.user_message(texts[0]))
 
     def interrupt(self):
         self.interrupted = True
@@ -319,10 +332,12 @@ def run_loop(*, base_dir, name, adapter, start_tui, remote_options, out=None, ke
                     except subprocess.TimeoutExpired:
                         old.proc.kill()
                     old.reader.join(5)
-                    if old.busy():  # killed before it could report the turn (Windows)
+                    if old.thinking:  # killed before it could report the turn
                         log.append("interrupted", source="remote")
                     old.close()
-                    return start_run()
+                    new = start_run()
+                    new.carry(old.waiting)
+                    return new
 
                 ends_on_interrupt = getattr(adapter, "interrupt_ends_run", False)
                 run = start_run()
@@ -338,7 +353,7 @@ def run_loop(*, base_dir, name, adapter, start_tui, remote_options, out=None, ke
                         if leaving:
                             break
                         run = restart(run)
-                    if watcher.pressed():
+                    if watcher.pressed() and not leaving:
                         leaving = True
                         out("[cdx] Returning to the terminal after the current turn.\n")
                     try:
