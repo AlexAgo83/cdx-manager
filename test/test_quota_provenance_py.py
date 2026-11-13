@@ -74,7 +74,9 @@ def test_codex_failure_keeps_cached_measurement_unavailable(tmp_path, failure, r
         row = service["get_status_row"]("work", force_refresh=True)
     assert probe.call_count == 1
     assert row["remaining_5h_pct"] == 45
-    assert row["quota_windows"]["5h"]["observed_at"] == measured_at
+    # Status timestamps are stored in local time; the instant is what must survive.
+    observed = datetime.fromisoformat(row["quota_windows"]["5h"]["observed_at"])
+    assert observed == datetime.fromisoformat(measured_at)
     assert row["quota_windows"]["5h"]["availability"] == "unavailable"
     assert row["quota_windows"]["5h"]["reason"] == reason
 

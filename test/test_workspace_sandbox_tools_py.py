@@ -130,9 +130,13 @@ def test_real_sandbox_git_rtk_and_secret_boundary(repository, tmp_path, implemen
     if probe.returncode and ('Operation not permitted' in probe.stderr or 'No permissions' in probe.stderr):
         unavailable('bubblewrap namespaces unavailable: ' + probe.stderr.strip())
     assert probe.returncode == 0, probe.stderr
-    rtk = shutil.which('rtk') or str(Path.home() / '.local/bin/rtk')
-    if not Path(rtk).is_file():
+    rtk = Path(shutil.which('rtk') or Path.home() / '.local/bin/rtk')
+    if not rtk.is_file():
         unavailable('install real rtk in ~/.local/bin or PATH')
+    # The sandbox mounts ~/.local/bin of HOME only; a cdx profile shell has its own
+    # HOME, so point HOME at the home that holds the rtk found on PATH.
+    if rtk.parent.name == 'bin' and rtk.parent.parent.name == '.local':
+        monkeypatch.setenv('HOME', str(rtk.parent.parent.parent))
     # PATH deliberately omits ~/.local/bin, as on noninteractive SSH launches.
     tool_env = {'PATH': os.defpath, 'GH_TOKEN': 'synthetic-secret', 'GIT_CONFIG_GLOBAL': str(key)}
     script = r'''

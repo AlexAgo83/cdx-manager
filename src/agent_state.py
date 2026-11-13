@@ -31,7 +31,12 @@ _WAITING_NOTIFICATIONS = {"", "idle_prompt", "agent_needs_input", "permission_pr
 
 def agent_state_enabled(session):
     """Whether this session asked for its hooks to keep state, alerts or not."""
-    return ((session or {}).get("launch") or {}).get("agent_state") is True
+    launch = (session or {}).get("launch") or {}
+    # Remote control waits for an idle turn before taking a Claude session over,
+    # and only the hook state says when that is. Codex reports turns through its
+    # app-server, so it does not need hooks (which it would ask to review first).
+    remote_claude = launch.get("remote_control") is True and (session or {}).get("provider") == "claude"
+    return launch.get("agent_state") is True or remote_claude
 
 
 def state_dir(base_dir):
