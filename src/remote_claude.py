@@ -26,7 +26,7 @@ import sys
 import threading
 import time
 
-from .remote_control import Endpoint, EventLog, state_dir
+from .remote_control import Endpoint, EventLog, LaunchTerminated, remote_err_file
 
 IDLE_STATES = ("done", "waiting", "limit", "failed")
 INTERRUPTED_MARKER = "[Request interrupted by user"
@@ -127,7 +127,10 @@ class KeyWatcher:
     def __exit__(self, *exc):
         if self._saved is not None:
             import termios
-            termios.tcsetattr(self.stream.fileno(), termios.TCSADRAIN, self._saved)
+            try:
+                termios.tcsetattr(self.stream.fileno(), termios.TCSADRAIN, self._saved)
+            except (termios.error, OSError):  # the terminal is gone (hangup)
+                pass
         return False
 
     def pressed(self):
@@ -266,80 +269,90 @@ def run_loop(*, base_dir, name, adapter, start_tui, remote_options, out=None, ke
     def status():
         return {"mode": mode["value"], "pending": len(pending), "conversation_id": adapter.conversation_id}
 
-    with Endpoint(base_dir, name, status_fn=status) as endpoint, (keys or KeyWatcher()) as watcher:
-        log.append("ready", conversation_id=adapter.conversation_id)
-        resume = False
-        while True:
-            # Local: the TUI owns the terminal until a message can take over.
-            mode["value"] = "local"
-            child = start_tui(resume)
+    child = run = None
+    try:
+        with Endpoint(base_dir, name, status_fn=status) as endpoint, (keys or KeyWatcher()) as watcher:
+            log.append("ready", conversation_id=adapter.conversation_id)
+            resume = False
             while True:
-                code = child.poll()
-                if code is not None and not pending:
-                    log.append("ended", returncode=code)
-                    return code
-                try:
-                    request = endpoint.requests.get(timeout=POLL_SECONDS)
-                except queue.Empty:
-                    request = None
-                if request and request["op"] == "send":
-                    pending.append(request["text"])
-                    log.append("queued", source="remote", prompt=request["text"])
-                if pending and (code is not None or adapter.tui_idle()):
-                    _stop_tui(child)
-                    break
-            # Remote: stream-json on the same conversation until a key is pressed.
-            mode["value"] = "remote"
-            out("\n[cdx] Remote control: this session is driven by `cdx send`. "
-                "Press any key to return to the terminal.\n")
-
-            def start_run():
-                return RemoteRun(adapter.argv(), remote_options, log, out, adapter,
-                                 stderr_path=os.path.join(state_dir(base_dir), f"{name}.remote.err"))
-
-            def restart(old):
-                # A provider that stops a turn by ending its run (Antigravity)
-                # stays remote: the next message goes to a new run.
-                try:
-                    old.proc.wait(timeout=TUI_STOP_GRACE_SECONDS)
-                except subprocess.TimeoutExpired:
-                    old.proc.kill()
-                old.reader.join(5)
-                if old.busy():  # killed before it could report the turn (Windows)
-                    log.append("interrupted", source="remote")
-                old.close()
-                return start_run()
-
-            ends_on_interrupt = getattr(adapter, "interrupt_ends_run", False)
-            run = start_run()
-            for text in pending:
-                run.send(text)
-            pending.clear()
-            leaving = False
-            while True:
-                if run.proc.poll() is not None:
-                    if not (run.interrupted and ends_on_interrupt):
-                        log.append("failed", source="remote", reason=f"exit {run.proc.returncode}")
+                # Local: the TUI owns the terminal until a message can take over.
+                mode["value"] = "local"
+                child = start_tui(resume)
+                while True:
+                    code = child.poll()
+                    if code is not None and not pending:
+                        log.append("ended", returncode=code)
+                        return code
+                    try:
+                        request = endpoint.requests.get(timeout=POLL_SECONDS)
+                    except queue.Empty:
+                        request = None
+                    if request and request["op"] == "send":
+                        pending.append(request["text"])
+                        log.append("queued", source="remote", prompt=request["text"])
+                    if pending and (code is not None or adapter.tui_idle()):
+                        _stop_tui(child)
                         break
-                    if leaving:
-                        break
-                    run = restart(run)
-                if watcher.pressed():
-                    leaving = True
-                    out("[cdx] Returning to the terminal after the current turn.\n")
-                try:
-                    request = endpoint.requests.get(timeout=POLL_SECONDS)
-                except queue.Empty:
-                    request = None
-                if request and request["op"] == "send":
-                    if run.interrupted and ends_on_interrupt:
+                # Remote: stream-json on the same conversation until a key is pressed.
+                mode["value"] = "remote"
+                out("\n[cdx] Remote control: this session is driven by `cdx send`. "
+                    "Press any key to return to the terminal.\n")
+
+                def start_run():
+                    return RemoteRun(adapter.argv(), remote_options, log, out, adapter,
+                                     stderr_path=remote_err_file(base_dir, name, os.getpid()))
+
+                def restart(old):
+                    # A provider that stops a turn by ending its run (Antigravity)
+                    # stays remote: the next message goes to a new run.
+                    try:
+                        old.proc.wait(timeout=TUI_STOP_GRACE_SECONDS)
+                    except subprocess.TimeoutExpired:
+                        old.proc.kill()
+                    old.reader.join(5)
+                    if old.busy():  # killed before it could report the turn (Windows)
+                        log.append("interrupted", source="remote")
+                    old.close()
+                    return start_run()
+
+                ends_on_interrupt = getattr(adapter, "interrupt_ends_run", False)
+                run = start_run()
+                for text in pending:
+                    run.send(text)
+                pending.clear()
+                leaving = False
+                while True:
+                    if run.proc.poll() is not None:
+                        if not (run.interrupted and ends_on_interrupt):
+                            log.append("failed", source="remote", reason=f"exit {run.proc.returncode}")
+                            break
+                        if leaving:
+                            break
                         run = restart(run)
-                    run.send(request["text"])
-                elif request and request["op"] == "interrupt":
-                    run.interrupt()
-                    log.append("interrupt_requested", source="remote")
-                if leaving and not run.busy():
-                    break
-            run.close()
-            resume = True
-            log.append("local")
+                    if watcher.pressed():
+                        leaving = True
+                        out("[cdx] Returning to the terminal after the current turn.\n")
+                    try:
+                        request = endpoint.requests.get(timeout=POLL_SECONDS)
+                    except queue.Empty:
+                        request = None
+                    if request and request["op"] == "send":
+                        if run.interrupted and ends_on_interrupt:
+                            run = restart(run)
+                        run.send(request["text"])
+                    elif request and request["op"] == "interrupt":
+                        run.interrupt()
+                        log.append("interrupt_requested", source="remote")
+                    if leaving and not run.busy():
+                        break
+                run.close()
+                resume = True
+                log.append("local")
+    except LaunchTerminated as stop:
+        # The terminal closed (SIGHUP) or the launcher was asked to stop: the
+        # endpoint has removed its files; stop what is still running and say so.
+        for proc in (child, run and run.proc):
+            if proc is not None:
+                _stop_tui(proc)
+        log.append("ended", returncode=stop.returncode, signal=stop.signal)
+        return stop.returncode

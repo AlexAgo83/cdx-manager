@@ -165,6 +165,32 @@ class EndpointTests(unittest.TestCase):
         with self.assertRaises(CdxError):
             remote_control.handle_send(["work", "--pid", "x", "hi"], ctx)
 
+    def test_concurrent_launches_tag_their_events_and_keep_their_own_logs(self):
+        from unittest import mock
+
+        logs = {}
+        for pid in (101, 202):
+            with mock.patch("os.getpid", return_value=pid):
+                logs[pid] = remote_control.EventLog(self.base_dir, "work")
+        logs[101].append("ready")
+        logs[202].append("ready")
+        logs[101].append("ended", returncode=0)
+
+        def read(path):
+            with open(path, encoding="utf-8") as handle:
+                return [(entry["event"], entry["pid"]) for entry in map(json.loads, handle)]
+
+        self.assertEqual(read(remote_control.events_file(self.base_dir, "work")),
+                         [("ready", 101), ("ready", 202), ("ended", 101)])
+        self.assertEqual(read(remote_control.events_file(self.base_dir, "work", 101)), [("ready", 101), ("ended", 101)])
+        self.assertEqual(read(remote_control.events_file(self.base_dir, "work", 202)), [("ready", 202)])
+        # A later launch that reuses a pid starts its own log afresh.
+        with mock.patch("os.getpid", return_value=101):
+            remote_control.EventLog(self.base_dir, "work").append("ready")
+        self.assertEqual(read(remote_control.events_file(self.base_dir, "work", 101)), [("ready", 101)])
+        if os.name != "nt":
+            self.assertEqual(os.stat(remote_control.events_file(self.base_dir, "work", 202)).st_mode & 0o077, 0)
+
     def test_send_to_a_session_without_endpoint_names_the_setting(self):
         with self.assertRaises(CdxError) as caught:
             remote_control.request(self.base_dir, "work", "send", "x")
@@ -405,8 +431,105 @@ class AntigravityLoopTests(ClaudeLoopTests):
         events = [e["event"] for e in self._events()]
         self.assertNotIn("failed", events)
         self.assertEqual([e.get("text") for e in self._events() if e["event"] == "assistant"], ["echo:again"])
-        with open(os.path.join(remote_control.state_dir(self.base_dir), "work.remote.err"), encoding="utf-8") as handle:
+        with open(remote_control.remote_err_file(self.base_dir, "work", os.getpid()), encoding="utf-8") as handle:
             self.assertIn("--conversation agy-new", handle.readline(), "the new run continues the conversation")
+
+
+SIGNAL_LAUNCHER = textwrap.dedent("""
+    import os, subprocess, sys
+    sys.path.insert(0, sys.argv[1])
+    from src import remote_claude, remote_codex
+    provider, base_dir, tui, child_pids, fake = sys.argv[2:]
+
+    class Keys:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def pressed(self):
+            return False
+
+    def spawn(*_):
+        child = subprocess.Popen([sys.executable, tui, "run"])
+        with open(child_pids, "a", encoding="utf-8") as handle:
+            handle.write(f"{child.pid}\\n")
+        return child
+
+    if provider == "claude":
+        adapter = remote_claude.ClaudeAdapter("conv-1", base_dir, lambda resumed: [sys.executable, fake],
+                                              lambda: {"state": "working"})
+        code = remote_claude.run_loop(base_dir=base_dir, name="work", adapter=adapter, start_tui=spawn,
+                                      remote_options={}, out=lambda text: None, keys=Keys())
+    else:
+        code = remote_codex.run(base_dir=base_dir, name="work", cwd=base_dir, codex_command=fake,
+                                server_env=None, start_tui=spawn)
+    sys.exit(code)
+""")
+
+FAKE_APP_SERVER = textwrap.dedent("""\
+    #!/usr/bin/env python3
+    import socket, sys, time
+    # Stands in for `codex app-server --listen ws://127.0.0.1:PORT`: accepts and idles.
+    port = int(sys.argv[sys.argv.index("--listen") + 1].rsplit(":", 1)[1])
+    server = socket.create_server(("127.0.0.1", port))
+    while True:
+        time.sleep(0.1)
+""")
+
+
+@unittest.skipIf(os.name == "nt", "closing the hosting terminal is a POSIX signal (SIGHUP/SIGTERM)")
+class LauncherSignalTests(unittest.TestCase):
+    def _launch_and_signal(self, provider, sig):
+        import signal
+
+        base_dir, work = tempfile.mkdtemp(), tempfile.mkdtemp()
+        tui = _script(work, "tui.py", FAKE_TUI)
+        child_pids = os.path.join(work, "children")
+        fake = _script(work, "app-server", FAKE_APP_SERVER)
+        os.chmod(fake, 0o755)
+        launcher = _script(work, "launcher.py", SIGNAL_LAUNCHER)
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # This test process is the other live launch the pointer must return to.
+        with remote_control.Endpoint(base_dir, "work"):
+            proc = subprocess.Popen([sys.executable, launcher, repo, provider, base_dir, tui, child_pids, fake])
+            try:
+                own = remote_control.endpoint_file(base_dir, "work", proc.pid)
+                end = time.time() + 20
+                while not (os.path.exists(own) and os.path.exists(child_pids)) and time.time() < end:
+                    time.sleep(0.1)
+                with open(remote_control.endpoint_file(base_dir, "work"), encoding="utf-8") as handle:
+                    self.assertEqual(json.load(handle)["pid"], proc.pid, "the new launch owns the pointer")
+                proc.send_signal(sig)
+                self.assertEqual(proc.wait(30), 128 + sig)
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+            self.assertFalse(os.path.exists(own))
+            self.assertFalse(any(path.endswith((".codex-token", ".tmp")) for path in os.listdir(remote_control.state_dir(base_dir))))
+            with open(remote_control.endpoint_file(base_dir, "work"), encoding="utf-8") as handle:
+                self.assertEqual(json.load(handle)["pid"], os.getpid(), "the pointer goes back to the live launch")
+        with open(remote_control.events_file(base_dir, "work", proc.pid), encoding="utf-8") as handle:
+            last = json.loads(handle.readlines()[-1])
+        self.assertEqual((last["event"], last["pid"], last["signal"], last["returncode"]),
+                         ("ended", proc.pid, signal.Signals(sig).name, 128 + sig))
+        with open(child_pids, encoding="utf-8") as handle:
+            for pid in map(int, handle.read().split()):
+                with self.assertRaises(ProcessLookupError, msg="the launch's TUI is stopped"):
+                    os.kill(pid, 0)
+
+    def test_claude_launch_cleans_up_on_hangup_and_terminate(self):
+        import signal
+
+        for sig in (signal.SIGHUP, signal.SIGTERM):
+            with self.subTest(sig=sig):
+                self._launch_and_signal("claude", sig)
+
+    def test_codex_launch_cleans_up_on_hangup(self):
+        import signal
+
+        self._launch_and_signal("codex", signal.SIGHUP)
 
 
 class CodexMappingTests(unittest.TestCase):
