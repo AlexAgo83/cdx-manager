@@ -156,7 +156,10 @@ class RemoteRun:
 
     def __init__(self, argv, options, log, out, adapter, stderr_path=None):
         self.log, self.out, self.adapter = log, out, adapter
-        self.turns = 0
+        # As in Happy (slopus/happy claudeRemote.ts): one message per turn, the
+        # next one is written only after the `result` that ends the current turn.
+        self.thinking = False
+        self.waiting = []
         self.interrupted = False
         self.lock = threading.Lock()
         self.stderr_path = stderr_path
@@ -178,7 +181,7 @@ class RemoteRun:
 
     def busy(self):
         with self.lock:
-            return self.turns > 0
+            return self.thinking or bool(self.waiting)
 
     def last_error(self):
         try:
@@ -189,10 +192,13 @@ class RemoteRun:
             return "no error output"
 
     def send(self, text):
-        with self.lock:
-            self.turns += 1
         self.log.append("working", source="remote", prompt=text)
         self.out(f"\n› {text}\n")
+        with self.lock:
+            if self.thinking:
+                self.waiting.append(text)
+                return
+            self.thinking = True
         self._write(self.adapter.user_message(text))
 
     def interrupt(self):
@@ -221,7 +227,10 @@ class RemoteRun:
                 self.out(f"● {fields['text']}\n")
             elif kind in ("done", "interrupted", "failed"):
                 with self.lock:
-                    self.turns = max(0, self.turns - 1)
+                    nxt = self.waiting.pop(0) if self.waiting else None
+                    self.thinking = nxt is not None
+                if nxt is not None:
+                    self._write(self.adapter.user_message(nxt))
                 if kind != "done":
                     self.out(f"[cdx] remote turn {kind}\n")
 

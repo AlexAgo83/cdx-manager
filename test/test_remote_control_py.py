@@ -39,6 +39,30 @@ FAKE_STREAM = textwrap.dedent("""
         print(json.dumps({"type": "result", "subtype": "success", "result": "echo:" + text}), flush=True)
 """)
 
+FAKE_MERGING_STREAM = textwrap.dedent("""
+    import json, os, select, sys, time
+    # Like the real CLI: user lines that arrive while a turn runs join that turn,
+    # so several sends can end with a single result.
+    print(json.dumps({"type": "system", "subtype": "init"}), flush=True)
+    pending = b""
+    while True:
+        chunk = os.read(0, 65536)
+        if not chunk:
+            break
+        pending += chunk
+        time.sleep(0.5)  # the turn is running
+        while select.select([0], [], [], 0)[0]:
+            more = os.read(0, 65536)
+            if not more:
+                break
+            pending += more
+        lines, _, pending = pending.rpartition(b"\\n")
+        texts = [json.loads(l)["message"]["content"] for l in lines.split(b"\\n") if l.strip()]
+        reply = "echo:" + "+".join(texts)
+        print(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": reply}]}}), flush=True)
+        print(json.dumps({"type": "result", "subtype": "success", "result": reply}), flush=True)
+""")
+
 
 FAKE_AGY_STREAM = textwrap.dedent("""
     import json, signal, sys
@@ -303,6 +327,21 @@ class ClaudeLoopTests(unittest.TestCase):
         self.assertEqual(replies, ["echo:ping"])
         self.assertTrue(any("› ping" in line for line in self.output))
 
+    def test_messages_sent_during_a_turn_still_return_to_the_tui(self):
+        # 2026-11-13: two messages sent mid-turn were folded into one result, the
+        # turn counter never reached zero and the session never left remote mode.
+        self.stream = _script(self.dir, "merging.py", FAKE_MERGING_STREAM)
+        thread, result = self._run()
+        self._wait(lambda: os.path.exists(remote_control.endpoint_file(self.base_dir, "work")))
+        for text in ("one", "two", "three"):
+            remote_control.request(self.base_dir, "work", "send", text)
+        self._wait(lambda: sum(e["event"] == "queued" for e in self._events()) == 3)
+        self.record = {"state": "done"}
+        thread.join(30)
+        self.assertEqual(result.get("code"), 0, "the key press returns to the TUI")
+        replies = [e.get("text") for e in self._events() if e["event"] == "assistant"]
+        self.assertEqual(replies, ["echo:one", "echo:two", "echo:three"], "one message per turn, as in Happy")
+
     def test_the_tui_exiting_without_messages_ends_the_launch(self):
         thread, result = self._run(exit_after=1)
         thread.join(15)
@@ -364,6 +403,9 @@ class AntigravitySignalTests(unittest.TestCase):
 
 
 class AntigravityLoopTests(ClaudeLoopTests):
+    def test_messages_sent_during_a_turn_still_return_to_the_tui(self):
+        self.skipTest("Claude stream-json behaviour")
+
     """The same switch loop with the Antigravity adapter and a fake agy."""
 
     def setUp(self):
