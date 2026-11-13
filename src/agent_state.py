@@ -121,7 +121,16 @@ def record(ctx, name, payload, event, error_class, cwd, env, prompt=None):
         "updated_at": datetime.now(timezone.utc).isoformat(),
     })
     atomic_write(path, json.dumps(current, indent=2) + "\n", mode=0o600)
+    if isinstance(current.get("pid"), int):
+        # Two launches of one profile share the record above; each launcher reads
+        # its own copy to know whether its TUI is idle.
+        atomic_write(launch_state_file(base_dir, name, current["pid"]), json.dumps(current, indent=2) + "\n", mode=0o600)
     return current
+
+
+def launch_state_file(base_dir, name, pid):
+    """Outside state_dir's top level, so `cdx agents` still lists one row per session."""
+    return os.path.join(state_dir(base_dir), "launches", f"{name}@{pid}.json")
 
 
 def _read(path):

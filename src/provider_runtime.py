@@ -1802,12 +1802,18 @@ def _remote_claude_plan(session, action, spec, cwd, env_override, base_dir):
                 "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"]
 
     def agent_record():
-        from .agent_state import state_dir
-        try:
-            with open(os.path.join(state_dir(base_dir), f"{session['name']}.json"), encoding="utf-8") as handle:
-                return json.load(handle)
-        except (OSError, ValueError):
-            return None
+        from .agent_state import launch_state_file, state_dir
+        # This launch's own record first: another launch of the profile may be busy.
+        for path in (launch_state_file(base_dir, session["name"], os.getpid()),
+                     os.path.join(state_dir(base_dir), f"{session['name']}.json")):
+            try:
+                with open(path, encoding="utf-8") as handle:
+                    record = json.load(handle)
+            except (OSError, ValueError):
+                continue
+            if isinstance(record, dict) and record.get("pid") in (None, os.getpid()):
+                return record
+        return None
 
     options = {key: value for key, value in raw.get("options", {}).items() if key in ("cwd", "env")}
     options.setdefault("cwd", cwd)
@@ -1948,10 +1954,17 @@ def _run_interactive_provider_process(session, action, spawn=None, cwd=None,
                 # Same fallback as a plain launch: no transcript wrapper (e.g. on Windows).
                 return start_child(_fallback_launch_spec_or_raise(current, error))
 
-        returncode = remote_claude.run_loop(
-            base_dir=remote_base_dir, name=session["name"], adapter=adapter, start_tui=start_tui,
-            remote_options=remote["options"],
-        )
+        try:
+            returncode = remote_claude.run_loop(
+                base_dir=remote_base_dir, name=session["name"], adapter=adapter, start_tui=start_tui,
+                remote_options=remote["options"],
+            )
+        finally:
+            from .agent_state import launch_state_file
+            try:
+                os.unlink(launch_state_file(remote_base_dir, session["name"], os.getpid()))
+            except OSError:
+                pass
         info = run_info(spec, returncode=returncode)
         if lifecycle_callback:
             lifecycle_callback("finished", info)

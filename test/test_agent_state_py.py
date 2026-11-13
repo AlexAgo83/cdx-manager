@@ -106,6 +106,16 @@ class AgentStateHookTests(unittest.TestCase):
         write.assert_not_called()
         self.assertEqual(self.calls, [])
 
+    def test_each_launch_keeps_its_own_copy_and_agents_lists_one_row(self):
+        # Two launches of one profile: the second one's turn must not make the first look busy.
+        for pid, event in ((111, "stop"), (222, "userpromptsubmit")):
+            agent_state.record({"service": self.service}, "work", {}, event, "", "/repos/project",
+                               {agent_state.PID_ENV: str(pid)})
+        launch = lambda pid: agent_state._read(agent_state.launch_state_file(self.base_dir, "work", pid))
+        self.assertEqual((launch(111)["state"], launch(111)["pid"]), ("done", 111))
+        self.assertEqual((launch(222)["state"], launch(222)["pid"]), ("working", 222))
+        self.assertEqual([row["pid"] for row in agent_state.list_agents(self.base_dir, is_running=lambda pid: True)], [222])
+
     def test_a_prompt_raises_no_alert(self):
         self._notify({"hook_event_name": "UserPromptSubmit", "prompt": "hi"})
         self.assertEqual(self.calls, [])
