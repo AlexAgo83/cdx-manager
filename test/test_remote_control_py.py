@@ -279,7 +279,7 @@ class ClaudeLoopTests(unittest.TestCase):
         except OSError:
             return []
 
-    def _run(self, exit_after=2):
+    def _run(self, exit_after=2, keys_when=None):
         def start_tui(resume):
             self.tui_starts.append(resume)
             # The second TUI (back from remote mode) exits on its own: the operator quit.
@@ -294,7 +294,7 @@ class ClaudeLoopTests(unittest.TestCase):
             result["code"] = remote_claude.run_loop(
                 base_dir=self.base_dir, name="work", adapter=adapter,
                 start_tui=start_tui, remote_options={}, out=self.output.append,
-                keys=FakeKeys(lambda: any(e["event"] == "done" for e in self._events())),
+                keys=FakeKeys(keys_when or (lambda: any(e["event"] == "done" for e in self._events()))),
             )
 
         thread = threading.Thread(target=target, daemon=True)
@@ -326,6 +326,18 @@ class ClaudeLoopTests(unittest.TestCase):
         replies = [e.get("text") for e in self._events() if e["event"] == "assistant"]
         self.assertEqual(replies, ["echo:ping"])
         self.assertTrue(any("› ping" in line for line in self.output))
+
+    def test_the_tui_comes_back_after_a_remote_turn_without_a_key_press(self):
+        # 2026-11-13: the terminal stayed on the stream view after an HQ message
+        # until the operator pressed a key in it.
+        self.record = {"state": "done"}
+        thread, result = self._run(keys_when=lambda: False)
+        self._wait(lambda: os.path.exists(remote_control.endpoint_file(self.base_dir, "work")))
+        remote_control.request(self.base_dir, "work", "send", "ping")
+        thread.join(30)
+        self.assertEqual(result.get("code"), 0)
+        self.assertEqual(len(self.tui_starts), 2)
+        self.assertTrue(self.tui_starts[1], "the TUI comes back on the conversation")
 
     @unittest.skipIf(os.name == "nt", "the merging fake polls a pipe with select, POSIX only")
     def test_messages_sent_during_a_turn_still_return_to_the_tui(self):

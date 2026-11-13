@@ -7,8 +7,9 @@ The launcher therefore owns the conversation and moves it between two modes:
   idle, then the TUI is stopped;
 - remote: `claude -p --resume <id> --input-format stream-json
   --output-format stream-json` on the same conversation, fed from the control
-  endpoint. Any key in the terminal returns to the TUI with `--resume` once the
-  current remote turn has finished.
+  endpoint. Once the remote turn has finished and nothing is queued, the TUI
+  comes back with `--resume`, so the terminal only shows the stream while a
+  `cdx send` turn runs. A key press asks for the same return.
 
 Both modes write the same transcript file, so nothing is lost across switches.
 
@@ -326,10 +327,10 @@ def run_loop(*, base_dir, name, adapter, start_tui, remote_options, out=None, ke
                     if pending and (code is not None or adapter.tui_idle()):
                         _stop_tui(child)
                         break
-                # Remote: stream-json on the same conversation until a key is pressed.
+                # Remote: stream-json on the same conversation until its turns are done.
                 mode["value"] = "remote"
-                out("\n[cdx] Remote control: this session is driven by `cdx send`. "
-                    "Press any key to return to the terminal.\n")
+                out("\n[cdx] Remote control: a `cdx send` turn is running; "
+                    "the terminal comes back when it ends.\n")
 
                 def start_run():
                     return RemoteRun(adapter.argv(), remote_options, log, out, adapter,
@@ -378,7 +379,7 @@ def run_loop(*, base_dir, name, adapter, start_tui, remote_options, out=None, ke
                     elif request and request["op"] == "interrupt":
                         run.interrupt()
                         log.append("interrupt_requested", source="remote")
-                    if leaving and not run.busy():
+                    if not run.busy():  # turn over and nothing queued: back to the TUI
                         break
                 run.close()
                 resume = True
