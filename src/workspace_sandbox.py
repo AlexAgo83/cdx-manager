@@ -141,7 +141,15 @@ def antigravity_attempt(parent="/dev/shm"):
 def clean_env(source: dict) -> dict:
     allowed = ("PATH", "LANG", "LC_ALL", "TERM", "TZ")
     env = {key: source[key] for key in allowed if key in source}
-    env["PATH"] = source.get("PATH", os.defpath) + os.pathsep + str(Path.home() / ".local/bin")
+    home = Path.home()
+    # The box HOME is empty: expose installed tool bins and user site-packages (pip), read-only.
+    nodes = sorted(home.glob(".nvm/versions/node/*/bin"),
+                   key=lambda p: [int(n) for n in re.findall(r"\d+", p.parent.name)])
+    tools = [str(p) for p in (home / ".cargo/bin", *nodes[-1:]) if p.is_dir()]
+    env["PATH"] = os.pathsep.join([source.get("PATH", os.defpath), *tools, str(home / ".local/bin")])
+    sites = sorted((home / ".local/lib").glob("python*/site-packages"))
+    if sites:
+        env["PYTHONPATH"] = os.pathsep.join(map(str, sites))
     env.update(HOME="/home/agent", XDG_CONFIG_HOME="/home/agent/.config",
                XDG_CACHE_HOME="/cache", GIT_CONFIG_NOSYSTEM="1",
                GIT_CONFIG_GLOBAL="/dev/null", GIT_TERMINAL_PROMPT="0", GIT_OPTIONAL_LOCKS="0",
@@ -249,7 +257,8 @@ def sandbox_command(command: list[str], tree: Path, *, network: bool, writable: 
     paths = [Path(p) for p in ("/usr", "/bin", "/sbin", "/lib", "/lib64")]
     home = Path.home()
     paths += [home / ".nvm", home / ".local/bin", home / ".local/share/claude",
-              home / ".local/share/uv"]
+              home / ".local/share/uv", home / ".local/share/pipx", home / ".local/pipx",
+              home / ".local/lib", home / ".cargo/bin"]
     for path in paths:
         if path.exists():
             args += ["--ro-bind", str(path), str(path)]

@@ -189,3 +189,25 @@ with sqlite3.connect(db) as connection:
     result = subprocess.run(args, env=env, capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr
     assert (cache / 'rtk/history.db').is_file()
+
+
+def test_user_toolchains_are_mounted_read_only_and_discoverable(tmp_path, implementation, monkeypatch):
+    home = tmp_path / 'operator'
+    for name in ('.local/bin', '.local/lib/python3.12/site-packages', '.local/share/pipx', '.local/pipx',
+                 '.cargo/bin', '.nvm/versions/node/v9.11.2/bin', '.nvm/versions/node/v22.1.0/bin', '.ssh'):
+        (home / name).mkdir(parents=True)
+    monkeypatch.setenv('HOME', str(home))
+    tree = tmp_path / 'checkout'
+    tree.mkdir()
+    cache = tmp_path / 'cache'
+    monkeypatch.setattr(workspace_sandbox, 'CACHE', cache)
+    implementation.sandbox_command.__globals__['CACHE'] = cache
+    monkeypatch.setattr(shutil, 'which', lambda name, path=None: '/usr/bin/' + name)
+    args, env = implementation.sandbox_command(['python3'], tree, network=False, source={'PATH': '/usr/bin'})
+    for name in ('.local/lib', '.local/share/pipx', '.local/pipx', '.cargo/bin'):
+        index = args.index(str(home / name))
+        assert args[index - 1:index + 2] == ['--ro-bind', str(home / name), str(home / name)]
+    assert str(home) not in args and str(home / '.ssh') not in args
+    assert env['PYTHONPATH'] == str(home / '.local/lib/python3.12/site-packages')
+    assert env['PATH'].split(os.pathsep) == ['/usr/bin', str(home / '.cargo/bin'),
+                                             str(home / '.nvm/versions/node/v22.1.0/bin'), str(home / '.local/bin')]
