@@ -1755,6 +1755,19 @@ def _run_interactive_provider_command_impl(session, action, spawn=None, cwd=None
             title_keeper.stop()
 
 
+def _native_command(command, env=None):
+    """The command to spawn directly, preferring a real executable over an npm shim on Windows.
+
+    cmd.exe parses a .cmd/.bat command line: it cuts it at a newline and treats
+    "|" or "&" as operators, and cdx passes multi-line instructions containing
+    both, so a provider started through the npm shim gets mangled arguments.
+    """
+    resolved = _resolve_command(command, env)
+    if os.name == "nt" and resolved.lower().endswith((".cmd", ".bat")):
+        return shutil.which(command + ".exe", path=(env or os.environ).get("PATH")) or resolved
+    return resolved
+
+
 def _remote_claude_plan(session, action, spec, cwd, env_override, base_dir):
     """What remote control needs for this launch, or None to launch as usual.
 
@@ -1777,13 +1790,7 @@ def _remote_claude_plan(session, action, spec, cwd, env_override, base_dir):
         index = args.index("--session-id")
         args = args[:index] + args[index + 2:]
 
-    env = raw.get("options", {}).get("env")
-    command = _resolve_command(raw["command"], env)
-    if os.name == "nt" and command.lower().endswith((".cmd", ".bat")):
-        # cmd.exe cuts a batch file's command line at the first newline, and the
-        # appended system prompt is multi-line: a remote run through the npm shim
-        # never starts its turn. Prefer a real executable when one is on PATH.
-        command = shutil.which(raw["command"] + ".exe", path=(env or os.environ).get("PATH")) or command
+    command = _native_command(raw["command"], raw.get("options", {}).get("env"))
 
     def argv(resumed):
         target = ["--resume", conversation_id] if resumed else ["--session-id", conversation_id]
@@ -1813,7 +1820,7 @@ def _remote_codex_plan(session, action, cwd, env_override, base_dir):
     build = _build_resume_spec if action == "resume" else _build_launch_spec
     raw = build(session, cwd=cwd, env_override=env_override, capture_transcript=False)
     options = {key: value for key, value in raw.get("options", {}).items() if key in ("cwd", "env")}
-    return {"command": _resolve_command(raw["command"], options.get("env")), "args": list(raw["args"]),
+    return {"command": _native_command(raw["command"], options.get("env")), "args": list(raw["args"]),
             "options": options}
 
 
