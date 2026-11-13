@@ -701,3 +701,19 @@ class AntigravityLaunchTests(unittest.TestCase):
         self.assertIsInstance(seen["adapter"], remote_antigravity.AntigravityAdapter)
         self.assertNotIn("--conversation", " ".join(spawned[0]))
         self.assertIn("--conversation conv-agy", " ".join(spawned[1]))
+
+
+class KeyWatcherTests(unittest.TestCase):
+    def test_terminal_replies_are_not_keypresses(self):
+        # Focus-in plus a colour-scheme report, as the HQ terminal sent on 2026-11-13.
+        self.assertFalse(remote_claude.typed(b"\x1b[I\x1b[?997;1n"))
+        self.assertFalse(remote_claude.typed(b"\x1b[O\x1b[12;40R"))
+        self.assertFalse(remote_claude.typed(b"\x1b]11;rgb:1414/1414/1414\x1b\\"))
+        self.assertFalse(remote_claude.typed(b"\x1b]10;rgb:eeee/eeee/eeee\x07"))
+        self.assertFalse(remote_claude.typed(b""))
+
+    def test_real_keys_still_return_to_the_terminal(self):
+        self.assertTrue(remote_claude.typed(b"a"))
+        self.assertTrue(remote_claude.typed(b"\r"))
+        self.assertTrue(remote_claude.typed(b"\x1b"))
+        self.assertTrue(remote_claude.typed(b"\x1b[Ix"))

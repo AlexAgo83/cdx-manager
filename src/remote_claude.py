@@ -21,6 +21,7 @@ import glob
 import json
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -111,6 +112,17 @@ class ClaudeAdapter:
         proc.terminate()
 
 
+# Replies a terminal sends on its own (focus in/out, colour-scheme and cursor
+# reports, OSC/DCS answers) are not keypresses: an HQ xterm emits them when the
+# operator merely opens the terminal view.
+_TERMINAL_REPLY = re.compile(rb"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|P[^\x1b]*\x1b\\)")
+
+
+def typed(data):
+    """Whether raw terminal input holds a real keypress, not only terminal replies."""
+    return bool(_TERMINAL_REPLY.sub(b"", data))
+
+
 class KeyWatcher:
     """Report a keypress on the controlling terminal, on POSIX and Windows."""
 
@@ -149,8 +161,7 @@ class KeyWatcher:
         import select
         ready, _, _ = select.select([self.stream], [], [], 0)
         if ready:
-            os.read(self.stream.fileno(), 1024)
-            return True
+            return typed(os.read(self.stream.fileno(), 1024))
         return False
 
 
