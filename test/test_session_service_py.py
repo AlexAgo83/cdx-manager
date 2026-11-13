@@ -495,6 +495,27 @@ class SessionServicePythonTests(unittest.TestCase):
         service["finish_session_runtime"]("main", runtime["runId"], {"returncode": 0})
         self.assertFalse(service["get_status_rows"]()[0]["active"])
 
+    def test_concurrent_launch_runtime_falls_back_to_the_older_live_one(self):
+        temp_dir = self.make_temp_dir()
+        service = create_session_service({"base_dir": temp_dir})
+        read = create_session_store(temp_dir)["read_session_state"]
+
+        service["create_session"]("main")
+        first = service["start_session_runtime"]("main", {"pid": os.getpid()})
+        second = service["start_session_runtime"]("main", {"pid": os.getpid()})
+        self.assertEqual(read("main")["runtime"]["runId"], second["runId"])
+        service["finish_session_runtime"]("main", second["runId"], {"returncode": 0})
+        state = read("main")
+        self.assertEqual((state["status"], state["runtime"]["runId"]), ("running", first["runId"]))
+        self.assertNotIn("previousRuntimes", state)
+        # The older launch ending first leaves the newer one current.
+        third = service["start_session_runtime"]("main", {"pid": os.getpid()})
+        service["finish_session_runtime"]("main", first["runId"], {"returncode": 0})
+        state = read("main")
+        self.assertEqual((state["runtime"]["runId"], state.get("previousRuntimes")), (third["runId"], None))
+        service["finish_session_runtime"]("main", third["runId"], {"returncode": 0})
+        self.assertEqual(read("main")["status"], "ready")
+
     def test_runtime_state_cleans_stale_pid(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})

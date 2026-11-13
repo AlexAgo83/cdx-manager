@@ -15,6 +15,7 @@ transport keeps the three platforms on the same code path. The secret lives in
 an owner-only file and never travels in argv or in the event log.
 """
 
+import glob
 import hmac
 import json
 import os
@@ -26,8 +27,9 @@ import threading
 from datetime import datetime, timezone
 
 from .errors import CdxError
+from .session_helpers import _process_is_running
 
-SEND_USAGE = "Usage: cdx send <name> <text> | cdx send <name> - | cdx send <name> --stdin | cdx send <name> --interrupt | cdx send <name> --status [--json]"
+SEND_USAGE = "Usage: cdx send <name> [--pid PID] <text> | - | --stdin | --interrupt | --status [--json]"
 MAX_REQUEST_BYTES = 256 * 1024
 EVENT_TEXT_LIMIT = 20000
 
@@ -44,8 +46,51 @@ def state_dir(base_dir):
     return path
 
 
-def endpoint_file(base_dir, name):
-    return os.path.join(state_dir(base_dir), f"{name}.endpoint.json")
+def endpoint_file(base_dir, name, pid=None):
+    """`<name>.endpoint.json` points at the most recent live launch; each launch
+    also owns `<name>@<launcher pid>.endpoint.json` ('@' never occurs in a name)."""
+    return os.path.join(state_dir(base_dir), f"{name}@{pid}.endpoint.json" if pid else f"{name}.endpoint.json")
+
+
+def _read_endpoint(path):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            info = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    return info if isinstance(info, dict) else None
+
+
+def live_endpoints(base_dir, name):
+    """Endpoint records of this session's live launches, most recent first."""
+    found = []
+    for path in glob.glob(os.path.join(glob.escape(os.path.join(base_dir, "state", "remote")), f"{glob.escape(name)}@*.endpoint.json")):
+        info = _read_endpoint(path)
+        if info and os.path.basename(path) == f"{name}@{info.get('pid')}.endpoint.json" and _process_is_running(info.get("pid")):
+            try:
+                found.append((os.path.getmtime(path), path, info))
+            except OSError:
+                continue  # The launch ended while it was listed.
+    return [(path, info) for _, path, info in sorted(found, key=lambda item: item[0], reverse=True)]
+
+
+def resolve_endpoint(base_dir, name, pid=None):
+    """(path, info) of the launch to reach: launcher (or TUI) `pid`'s, else the most recent live one."""
+    if pid is not None:
+        path = endpoint_file(base_dir, name, pid)
+        info = _read_endpoint(path)
+        if info:
+            return path, info
+        # Runtime records list the provider process: accept a Codex TUI pid too.
+        return next(((path, info) for path, info in live_endpoints(base_dir, name)
+                     if info.get("tui_pid") == pid), (None, None))
+    # The last launch to start wrote the pointer; it wins while it lives.
+    path = endpoint_file(base_dir, name)
+    info = _read_endpoint(path)
+    live = live_endpoints(base_dir, name)
+    if info and (_process_is_running(info.get("pid")) or not live):
+        return path, info
+    return live[0] if live else (None, None)
 
 
 def events_file(base_dir, name):
@@ -91,6 +136,7 @@ class Endpoint:
 
     def __init__(self, base_dir, name, status_fn=None, extra=None):
         self.base_dir, self.name = base_dir, name
+        self.pid = os.getpid()
         self.extra = extra or {}
         self.secret = secrets.token_urlsafe(32)
         self.requests = queue.Queue()
@@ -103,8 +149,9 @@ class Endpoint:
         self._thread = threading.Thread(target=self._serve, name=f"cdx-remote-{name}", daemon=True)
 
     def __enter__(self):
-        _write_private(endpoint_file(self.base_dir, self.name),
-                       json.dumps({**self.extra, "port": self.port, "secret": self.secret, "pid": os.getpid()}))
+        record = json.dumps({**self.extra, "port": self.port, "secret": self.secret, "pid": self.pid})
+        _write_private(endpoint_file(self.base_dir, self.name, self.pid), record)
+        _write_private(endpoint_file(self.base_dir, self.name), record)
         self._thread.start()
         return self
 
@@ -115,12 +162,21 @@ class Endpoint:
         except OSError:
             pass
         try:
-            with open(endpoint_file(self.base_dir, self.name), encoding="utf-8") as handle:
-                mine = json.load(handle).get("pid") == os.getpid()
-            if mine:
-                os.unlink(endpoint_file(self.base_dir, self.name))
-        except (OSError, ValueError):
+            os.unlink(endpoint_file(self.base_dir, self.name, self.pid))
+        except OSError:
             pass
+        # Only touch the pointer while it is ours: hand it to the most recent
+        # other live launch, or remove it when none is left.
+        pointer = endpoint_file(self.base_dir, self.name)
+        if (_read_endpoint(pointer) or {}).get("pid") == self.pid:
+            others = [info for _, info in live_endpoints(self.base_dir, self.name) if info.get("pid") != self.pid]
+            try:
+                if others:
+                    _write_private(pointer, json.dumps(others[0]))
+                else:
+                    os.unlink(pointer)
+            except OSError:
+                pass
         return False
 
     def _serve(self):
@@ -174,14 +230,14 @@ def _reply(conn, payload):
         pass
 
 
-def request(base_dir, name, op, text=None, timeout=10):
+def request(base_dir, name, op, text=None, timeout=10, pid=None):
     """The client side used by `cdx send`."""
-    try:
-        with open(endpoint_file(base_dir, name), encoding="utf-8") as handle:
-            info = json.load(handle)
-    except (OSError, ValueError):
+    _, info = resolve_endpoint(base_dir, name, pid)
+    if not info:
+        if pid is not None:
+            raise CdxError(f"No remote-control launch of {name} with launcher pid {pid}.")
         raise CdxError(f"Session {name} is not running with remote control. "
-                       f"Turn it on with: cdx set {name} --remote-control on, then relaunch it.") from None
+                       f"Turn it on with: cdx set {name} --remote-control on, then relaunch it.")
     payload = {"op": op, "secret": info.get("secret")}
     if text is not None:
         payload["text"] = text
@@ -204,19 +260,27 @@ def handle_send(rest, ctx):
     if not args:
         raise CdxError(SEND_USAGE)
     name, tail = args[0], args[1:]
+    pid = None
+    if tail[:1] == ["--pid"]:
+        try:
+            pid = int(tail[1])
+        except (IndexError, ValueError):
+            raise CdxError(SEND_USAGE) from None
+        tail = tail[2:]
     base_dir = ctx["service"]["base_dir"]
+
     if tail == ["--interrupt"]:
-        answer, message = request(base_dir, name, "interrupt"), f"Interrupt sent to {name}."
+        answer, message = request(base_dir, name, "interrupt", pid=pid), f"Interrupt sent to {name}."
     elif tail == ["--status"]:
-        answer, message = request(base_dir, name, "status"), f"Status of {name}."
+        answer, message = request(base_dir, name, "status", pid=pid), f"Status of {name}."
     elif tail in (["-"], ["--stdin"]):
         # Keeps the message out of argv, which other local users can read.
         text = (ctx.get("prompt_stdin") or sys.stdin).read()
         if not text.strip():
             raise CdxError("cdx send: stdin was empty.")
-        answer, message = request(base_dir, name, "send", text), f"Message queued for {name}."
+        answer, message = request(base_dir, name, "send", text, pid=pid), f"Message queued for {name}."
     elif tail and not tail[0].startswith("--"):
-        answer, message = request(base_dir, name, "send", " ".join(tail)), f"Message queued for {name}."
+        answer, message = request(base_dir, name, "send", " ".join(tail), pid=pid), f"Message queued for {name}."
     else:
         raise CdxError(SEND_USAGE)
     if json_flag:

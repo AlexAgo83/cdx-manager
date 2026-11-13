@@ -132,6 +132,39 @@ class EndpointTests(unittest.TestCase):
                 info = json.load(handle)
         self.assertEqual((info["tui_pid"], info["server_pid"], info["pid"]), (5, 6, os.getpid()))
 
+    def test_concurrent_launches_keep_their_own_endpoints(self):
+        from unittest import mock
+
+        alive = {101, 202}
+        first = remote_control.Endpoint(self.base_dir, "work", status_fn=lambda: {"who": "first"})
+        second = remote_control.Endpoint(self.base_dir, "work", status_fn=lambda: {"who": "second"}, extra={"tui_pid": 7})
+        first.pid, second.pid = 101, 202
+        out = []
+        ctx = {"service": {"base_dir": self.base_dir}, "out": out.append}
+        with mock.patch.object(remote_control, "_process_is_running", side_effect=lambda pid: pid in alive):
+            with first:
+                with second:
+                    self.assertEqual(remote_control.request(self.base_dir, "work", "status")["who"], "second")
+                    self.assertEqual(remote_control.request(self.base_dir, "work", "status", pid=101)["who"], "first")
+                    self.assertEqual(remote_control.request(self.base_dir, "work", "status", pid=7)["who"], "second")
+                    remote_control.handle_send(["work", "--pid", "101", "hi"], ctx)
+                    self.assertEqual(first.requests.get(timeout=2), {"op": "send", "text": "hi"})
+                    self.assertTrue(second.requests.empty())
+                # The pointer goes back to the launch that is still running.
+                self.assertEqual(remote_control.request(self.base_dir, "work", "status")["who"], "first")
+                with open(remote_control.endpoint_file(self.base_dir, "work"), encoding="utf-8") as handle:
+                    self.assertEqual(json.load(handle)["pid"], 101)
+                self.assertFalse(os.path.exists(remote_control.endpoint_file(self.base_dir, "work", 202)))
+                # A crashed newest launch leaves a stale pointer: the live one is still reached.
+                remote_control._write_private(remote_control.endpoint_file(self.base_dir, "work"),
+                                              json.dumps({"pid": 303, "port": 1, "secret": "x"}))
+                self.assertEqual(remote_control.request(self.base_dir, "work", "status")["who"], "first")
+            self.assertEqual(os.listdir(remote_control.state_dir(self.base_dir)), ["work.endpoint.json"])
+        with self.assertRaises(CdxError):
+            remote_control.request(self.base_dir, "work", "status", pid=101)
+        with self.assertRaises(CdxError):
+            remote_control.handle_send(["work", "--pid", "x", "hi"], ctx)
+
     def test_send_to_a_session_without_endpoint_names_the_setting(self):
         with self.assertRaises(CdxError) as caught:
             remote_control.request(self.base_dir, "work", "send", "x")
