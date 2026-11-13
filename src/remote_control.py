@@ -21,12 +21,13 @@ import os
 import queue
 import secrets
 import socket
+import sys
 import threading
 from datetime import datetime, timezone
 
 from .errors import CdxError
 
-SEND_USAGE = "Usage: cdx send <name> <text> | cdx send <name> --interrupt | cdx send <name> --status [--json]"
+SEND_USAGE = "Usage: cdx send <name> <text> | cdx send <name> - | cdx send <name> --stdin | cdx send <name> --interrupt | cdx send <name> --status [--json]"
 MAX_REQUEST_BYTES = 256 * 1024
 EVENT_TEXT_LIMIT = 20000
 
@@ -88,8 +89,9 @@ class EventLog:
 class Endpoint:
     """The launcher side: accept authenticated requests and queue them."""
 
-    def __init__(self, base_dir, name, status_fn=None):
+    def __init__(self, base_dir, name, status_fn=None, extra=None):
         self.base_dir, self.name = base_dir, name
+        self.extra = extra or {}
         self.secret = secrets.token_urlsafe(32)
         self.requests = queue.Queue()
         self.status_fn = status_fn or (lambda: {})
@@ -102,7 +104,7 @@ class Endpoint:
 
     def __enter__(self):
         _write_private(endpoint_file(self.base_dir, self.name),
-                       json.dumps({"port": self.port, "secret": self.secret, "pid": os.getpid()}))
+                       json.dumps({**self.extra, "port": self.port, "secret": self.secret, "pid": os.getpid()}))
         self._thread.start()
         return self
 
@@ -207,6 +209,12 @@ def handle_send(rest, ctx):
         answer, message = request(base_dir, name, "interrupt"), f"Interrupt sent to {name}."
     elif tail == ["--status"]:
         answer, message = request(base_dir, name, "status"), f"Status of {name}."
+    elif tail in (["-"], ["--stdin"]):
+        # Keeps the message out of argv, which other local users can read.
+        text = (ctx.get("prompt_stdin") or sys.stdin).read()
+        if not text.strip():
+            raise CdxError("cdx send: stdin was empty.")
+        answer, message = request(base_dir, name, "send", text), f"Message queued for {name}."
     elif tail and not tail[0].startswith("--"):
         answer, message = request(base_dir, name, "send", " ".join(tail)), f"Message queued for {name}."
     else:

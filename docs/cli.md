@@ -33,6 +33,7 @@
 | `cdx history backfill-models [--dry-run \| --apply] [--json]` | Recover missing historical usage models from evidence tied to each run; defaults to a read-only preview |
 | `cdx last [--json]` | Launch the most recent existing session from launch history |
 | `cdx resume <name> [--conversation <id>] [--json]` | Resume the provider-native conversation for a session using the named command form; `--conversation` reopens that exact conversation and refuses with `conversation_not_found` if the profile has no such transcript |
+| `cdx send <name> <text>\|-\|--stdin\|--interrupt\|--status [--json]` | Deliver a message to a live session launched with remote control on; `-` or `--stdin` reads the message from stdin so it never appears in the process list |
 | `cdx can-resume <name> [--conversation <id>] [--json]` | Check whether a session supports native resume without launching the provider; `--conversation` checks that exact conversation and reports `resumable: false` with `conversation_not_found` instead of falling back to the most recent one |
 | `cdx sessions [--all] --json` | Interactive sessions launched through cdx that are still running (`session`, `provider`, `pid`, `cwd`, `started_at`, `conversation_id`, `profile_dir`, `transcripts_dir`, `processes`); `--all` adds idle enabled accounts so any account's directories can be resolved |
 | `cdx context show\|path\|init\|edit\|clear\|set\|append [text...] [--json]` | Manage the shared Markdown context for the current workspace |
@@ -771,7 +772,7 @@ Process-selected pages expose:
 | Field | Current contract |
 | --- | --- |
 | `resolution_status` | `resolved` for verified native rollout evidence, otherwise `unknown` |
-| `resolution_method` | `process_open_rollout` when resolved, otherwise `null` |
+| `resolution_method` | `process_open_rollout` when resolved, `app_server_open_rollout` for a remote-controlled Codex TUI, otherwise `null` |
 | `conversation_id` | Native `session_meta.payload.id`, checked against the open rollout filename |
 | `process_identity` | Opaque Linux lifetime guard when process validation succeeds |
 | `reason` | `null` on success; explicit evidence boundary or process validation failure otherwise |
@@ -786,6 +787,17 @@ rollout outside the selected profile returns `profile_boundary_mismatch` before
 its contents are read. Resolved symlinks must remain inside the profile, including
 the `sessions/` root. No workspace, mtime, saved resume ID or recency fallback is
 used, even if `fallback_to_recency=True` is supplied through Python.
+
+With remote control on, the Codex TUI (`codex --remote`) writes no rollout: the
+`codex app-server` cdx started beside it does, with `source: "vscode"`. For that
+case only, pass the TUI PID: CDX reads the session's own remote-control endpoint
+file, which its launcher writes with the TUI and app-server PIDs, checks that both
+are still children of that launcher and that the app-server is a `codex` process
+of the same user, then applies the same descriptor, profile and header checks to
+the app-server, accepting `source` `cli` or `vscode`. The returned
+`process_identity` still guards the TUI PID. Without that endpoint file, a
+non-remote PID is resolved exactly as before and an app-server PID passed
+directly stays refused.
 
 This is a snapshot of the process's sole native rollout writer. A rollout must
 already exist and remain open for writing; a fresh thread before its first

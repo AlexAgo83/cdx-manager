@@ -352,3 +352,64 @@ def test_exact_file_inode_is_checked_before_read(evidence, monkeypatch):
 
     monkeypatch.setattr(conversation, "_read_conversation_page", replaced)
     assert_unknown(read_conversation("codex", home, pid=123), "evidence_changed")
+
+
+def remote_session(tmp_path, home, root, *, launcher=99, source="vscode"):
+    """A remote-controlled launch: TUI 123 holds no rollout, app-server 124 writes it."""
+    server = root.parent / "124"
+    shutil.copytree(root, server, symlinks=True, ignore=shutil.ignore_patterns("fd", "fdinfo"))
+    (server / "fd").mkdir()
+    (server / "fdinfo").mkdir()
+    for process in (root, server):
+        name, rest = (process / "stat").read_text().rsplit(")", 1)
+        values = rest.split()
+        values[1] = str(launcher)
+        (process / "stat").write_text(name + ") " + " ".join(values))
+    path = rollout(home, SECOND)
+    meta = json.loads(path.read_text().splitlines()[0])
+    meta["payload"]["source"] = source
+    lines = path.read_text().splitlines()
+    path.write_text("\n".join([json.dumps(meta), *lines[1:]]) + "\n")
+    open_rollout(server, path)
+    endpoint = tmp_path / "work.endpoint.json"
+    endpoint.write_text(json.dumps({"port": 1, "secret": "s", "pid": launcher, "tui_pid": 123, "server_pid": 124}))
+    return endpoint
+
+
+def test_remote_controlled_tui_resolves_through_its_app_server(tmp_path, evidence):
+    home, root = evidence
+    endpoint = remote_session(tmp_path, home, root)
+    # Without the session's endpoint the TUI holds no rollout and the app-server's
+    # rollout is not a TUI one: both stay refused.
+    assert_unknown(read_conversation("codex", home, pid=123, tail=1))
+    assert_unknown(read_conversation("codex", home, pid=124, tail=1), "invalid_native_rollout")
+    page = read_conversation("codex", home, pid=123, tail=1, remote_endpoint=endpoint)
+    assert page["status"] == "ok" and page["conversation_id"] == SECOND
+    assert page["resolution_method"] == "app_server_open_rollout"
+    assert [entry["text"] for entry in page["entries"]] == [SECOND]
+    assert page["process_identity"].startswith("linux:123:")
+    again = read_conversation("codex", home, process_identity=page["process_identity"], remote_endpoint=endpoint)
+    assert again["conversation_id"] == SECOND
+
+
+@pytest.mark.parametrize("change, reason", [
+    (lambda endpoint, root: endpoint.write_text(json.dumps({"pid": 99, "tui_pid": 555, "server_pid": 124})),
+     "native_conversation_identity_unavailable"),
+    (lambda endpoint, root: endpoint.unlink(), "native_conversation_identity_unavailable"),
+    (lambda endpoint, root: endpoint.write_text("{"), "native_evidence_unavailable"),
+    (lambda endpoint, root: endpoint.write_text(json.dumps({"pid": 98, "tui_pid": 123, "server_pid": 124})),
+     "unrelated_process"),
+    (lambda endpoint, root: (root.parent / "124" / "exe").unlink() or (root.parent / "124" / "exe").symlink_to("/bin/sh"),
+     "unrelated_process"),
+])
+def test_remote_mapping_fails_closed(tmp_path, evidence, change, reason):
+    home, root = evidence
+    endpoint = remote_session(tmp_path, home, root)
+    change(endpoint, root)
+    assert_unknown(read_conversation("codex", home, pid=123, remote_endpoint=endpoint), reason)
+
+
+def test_app_server_rollout_source_is_still_checked(tmp_path, evidence):
+    home, root = evidence
+    endpoint = remote_session(tmp_path, home, root, source="exec")
+    assert_unknown(read_conversation("codex", home, pid=123, remote_endpoint=endpoint), "invalid_native_rollout")
