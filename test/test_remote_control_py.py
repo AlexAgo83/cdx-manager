@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import json
+import pathlib
 import os
 import socket
 import struct
@@ -265,7 +266,7 @@ class AntigravitySignalTests(unittest.TestCase):
         self.assertTrue(adapter.tui_idle())
         self.assertEqual(adapter.argv(), ["agy", "--sandbox", "--input-format", "stream-json",
                                           "--output-format", "stream-json", "-p="])
-        uri = json.dumps(["file://" + work])
+        uri = json.dumps([pathlib.Path(work).as_uri()])
         _agy_index(home, [
             ("older", "2026-11-13 09:59:59.9+00:00", uri, remote_antigravity.IDLE_STATUS, 0),
             ("elsewhere", "2026-11-13 10:05:00.1+00:00", json.dumps(["file:///other"]), "", 0),
@@ -308,7 +309,7 @@ class AntigravityLoopTests(ClaudeLoopTests):
         return thread, result
 
     def test_a_message_waits_for_an_idle_turn_runs_remotely_then_returns_to_the_tui(self):
-        uri = json.dumps(["file://" + self.dir])
+        uri = json.dumps([pathlib.Path(self.dir).as_uri()])
         stamp = time.strftime("%Y-%m-%d %H:%M:%S+00:00", time.gmtime(time.time() + 5))
         _agy_index(self.dir, [("agy-tui", stamp, uri, "CASCADE_RUN_STATUS_RUNNING", 0)])
         thread, result = self._run()

@@ -16,7 +16,8 @@ import os
 import signal
 import sqlite3
 from datetime import datetime, timezone
-from urllib.parse import unquote, urlparse
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 IDLE_STATUS = "CASCADE_RUN_STATUS_IDLE"
 
@@ -45,9 +46,11 @@ def _in_workspace(uris, cwd):
         listed = json.loads(uris or "[]")
     except ValueError:
         return False
-    target = os.path.realpath(cwd)
-    return any(os.path.realpath(unquote(urlparse(uri).path)) == target
-               for uri in listed if isinstance(uri, str) and uri.startswith("file://"))
+    def local(uri):
+        # url2pathname maps "/C:/Users/x" to a Windows path and decodes it; normcase ignores drive case.
+        return os.path.normcase(os.path.realpath(url2pathname(urlparse(uri).path)))
+    target = os.path.normcase(os.path.realpath(cwd))
+    return any(local(uri) == target for uri in listed if isinstance(uri, str) and uri.startswith("file://"))
 
 
 def find_conversation(auth_home, cwd, since):
