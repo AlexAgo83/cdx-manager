@@ -9,8 +9,8 @@
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
 
 # AI Context
-- Summary: cdx send drives a live interactive session through stream-json --resume (Claude) or a shared app-server (Codex), never through terminal input.
-- Keywords: cdx send, stream-json, resume, app-server, --remote, control endpoint, event log
+- Summary: cdx send drives a live interactive session through stream-json --resume (Claude), stream-json --conversation (Antigravity) or a shared app-server (Codex), never through terminal input.
+- Keywords: cdx send, stream-json, resume, app-server, --remote, --conversation, agy, control endpoint, event log
 - Use when: changing how remote clients deliver messages to or read state from interactive sessions.
 - Skip when: working on headless runs, quotas or the tray.
 
@@ -26,10 +26,11 @@
 - Codex spike: `codex app-server --listen ws://127.0.0.1:<port>` served the TUI started with `codex --remote` and a second JSON-RPC client; the client listed the loaded thread, resumed it, started a turn, received turn/started, item/* and turn/completed, and the TUI rendered the remote turn live.
 - Codex refuses a Unix socket whose parent directory is writable by other users; its WebSocket transport is marked experimental.
 - Claude Code fires no Stop hook on an Esc interrupt, so hook-derived state can stay 'working' after an interrupt.
+- Antigravity spike (agy 1.5.8): `agy --input-format stream-json --output-format stream-json -p=` runs one turn per `{"event":"user",...}` line and `--conversation <id>` continues a conversation; the TUI's conversation id and idle state are read from agy's conversation_summaries.db, and SIGINT is its only interrupt. Details in item_169.
 
 # Acceptance criteria
-- AC1: `cdx send <session> <text>` delivers the text to a running interactive Claude or Codex session launched with the feature enabled, without writing to its terminal input.
-- AC2: For Claude, the launcher switches from the TUI to a stream-json --resume run on the same conversation when a message arrives while the TUI is idle, queues it while a TUI turn is running, and returns to the TUI with --resume on a keypress; no turn or context is lost across switches.
+- AC1: `cdx send <session> <text>` delivers the text to a running interactive Claude, Codex or Antigravity session launched with the feature enabled, without writing to its terminal input.
+- AC2: For Claude and Antigravity (one switch loop, one small adapter per provider), the launcher switches from the TUI to a stream-json --resume run on the same conversation when a message arrives while the TUI is idle, queues it while a TUI turn is running, and returns to the TUI with --resume on a keypress; no turn or context is lost across switches.
 - AC3: For Codex, the launcher starts an app-server bound to a private endpoint and attaches the TUI with --remote; `cdx send` starts a turn on the TUI's thread as a second client and the TUI renders it live.
 - AC4: Each session writes an append-only event log (JSON lines) with turn states (working, done, waiting, permission, interrupted, failed) and assistant text taken from the provider protocol; `cdx send --interrupt` interrupts the current remote turn.
 - AC5: The control endpoint accepts only the session owner: a private Unix socket in a 0700 directory on Linux and macOS, and a loopback endpoint guarded by a per-session secret on Windows; no secret appears in argv, logs or the event log.

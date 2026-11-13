@@ -11,6 +11,10 @@ The launcher therefore owns the conversation and moves it between two modes:
   current remote turn has finished.
 
 Both modes write the same transcript file, so nothing is lost across switches.
+
+The loop itself is provider-agnostic: a small adapter says when the TUI is idle,
+which piloted command to run, and how to read and write its stream. Claude's
+adapter is below; Antigravity's is in remote_antigravity.
 """
 
 import glob
@@ -77,6 +81,33 @@ def map_stream_event(event):
     return None
 
 
+class ClaudeAdapter:
+    """What the switch loop needs to know about Claude Code."""
+
+    def __init__(self, conversation_id, auth_home, remote_argv, agent_record):
+        self.conversation_id = conversation_id
+        self.auth_home, self.remote_argv, self.agent_record = auth_home, remote_argv, agent_record
+
+    def _transcript(self):
+        return transcript_path(self.auth_home, self.conversation_id)
+
+    def tui_idle(self):
+        return tui_idle(self.agent_record(), self._transcript())
+
+    def argv(self):
+        return self.remote_argv(self._transcript() is not None)
+
+    def map_event(self, event):
+        return map_stream_event(event)
+
+    def user_message(self, text):
+        return {"type": "user", "message": {"role": "user", "content": text}}
+
+    def interrupt(self, _proc, write):
+        write({"type": "control_request", "request_id": f"cdx-{time.time_ns()}",
+               "request": {"subtype": "interrupt"}})
+
+
 class KeyWatcher:
     """Report a keypress on the controlling terminal, on POSIX and Windows."""
 
@@ -118,11 +149,12 @@ class KeyWatcher:
 
 
 class RemoteRun:
-    """One `claude -p` stream-json process fed with user messages."""
+    """One piloted stream-json process fed with user messages."""
 
-    def __init__(self, argv, options, log, out, stderr_path=None):
-        self.log, self.out = log, out
+    def __init__(self, argv, options, log, out, adapter, stderr_path=None):
+        self.log, self.out, self.adapter = log, out, adapter
         self.turns = 0
+        self.interrupted = False
         self.lock = threading.Lock()
         self.stderr_path = stderr_path
         # stderr goes to a private file: it is the only trace of a run that dies
@@ -158,11 +190,11 @@ class RemoteRun:
             self.turns += 1
         self.log.append("working", source="remote", prompt=text)
         self.out(f"\n› {text}\n")
-        self._write({"type": "user", "message": {"role": "user", "content": text}})
+        self._write(self.adapter.user_message(text))
 
     def interrupt(self):
-        self._write({"type": "control_request", "request_id": f"cdx-{time.time_ns()}",
-                     "request": {"subtype": "interrupt"}})
+        self.interrupted = True
+        self.adapter.interrupt(self.proc, self._write)
 
     def _write(self, payload):
         try:
@@ -177,7 +209,7 @@ class RemoteRun:
                 event = json.loads(line)
             except ValueError:
                 continue
-            mapped = map_stream_event(event)
+            mapped = self.adapter.map_event(event)
             if not mapped:
                 continue
             kind, fields = mapped
@@ -219,12 +251,12 @@ def _stop_tui(child):
         child.wait()
 
 
-def run_loop(*, base_dir, name, conversation_id, auth_home, start_tui, remote_argv,
-             remote_options, agent_record, out=None, keys=None):
+def run_loop(*, base_dir, name, adapter, start_tui, remote_options, out=None, keys=None):
     """Drive the conversation until the TUI exits on its own. Returns its returncode.
 
-    start_tui(resume: bool) -> Popen; remote_argv(resume: bool) -> argv list;
-    agent_record() -> the session's hook record (or None).
+    start_tui(resume: bool) -> Popen; adapter: ClaudeAdapter or another provider's
+    (tui_idle(), argv(), map_event(), user_message(), interrupt() and a
+    conversation_id attribute that may stay None until the provider names it).
     """
     out = out or (lambda text: (sys.stdout.write(text), sys.stdout.flush()))
     log = EventLog(base_dir, name)
@@ -232,10 +264,10 @@ def run_loop(*, base_dir, name, conversation_id, auth_home, start_tui, remote_ar
     pending = []
 
     def status():
-        return {"mode": mode["value"], "pending": len(pending), "conversation_id": conversation_id}
+        return {"mode": mode["value"], "pending": len(pending), "conversation_id": adapter.conversation_id}
 
     with Endpoint(base_dir, name, status_fn=status) as endpoint, (keys or KeyWatcher()) as watcher:
-        log.append("ready", conversation_id=conversation_id)
+        log.append("ready", conversation_id=adapter.conversation_id)
         resume = False
         while True:
             # Local: the TUI owns the terminal until a message can take over.
@@ -253,25 +285,45 @@ def run_loop(*, base_dir, name, conversation_id, auth_home, start_tui, remote_ar
                 if request and request["op"] == "send":
                     pending.append(request["text"])
                     log.append("queued", source="remote", prompt=request["text"])
-                if pending and (code is not None or tui_idle(
-                        agent_record(), transcript_path(auth_home, conversation_id))):
+                if pending and (code is not None or adapter.tui_idle()):
                     _stop_tui(child)
                     break
             # Remote: stream-json on the same conversation until a key is pressed.
             mode["value"] = "remote"
             out("\n[cdx] Remote control: this session is driven by `cdx send`. "
                 "Press any key to return to the terminal.\n")
-            resumed = transcript_path(auth_home, conversation_id) is not None
-            run = RemoteRun(remote_argv(resumed), remote_options, log, out,
-                            stderr_path=os.path.join(state_dir(base_dir), f"{name}.remote.err"))
+
+            def start_run():
+                return RemoteRun(adapter.argv(), remote_options, log, out, adapter,
+                                 stderr_path=os.path.join(state_dir(base_dir), f"{name}.remote.err"))
+
+            def restart(old):
+                # A provider that stops a turn by ending its run (Antigravity)
+                # stays remote: the next message goes to a new run.
+                try:
+                    old.proc.wait(timeout=TUI_STOP_GRACE_SECONDS)
+                except subprocess.TimeoutExpired:
+                    old.proc.kill()
+                old.reader.join(5)
+                if old.busy():  # killed before it could report the turn (Windows)
+                    log.append("interrupted", source="remote")
+                old.close()
+                return start_run()
+
+            ends_on_interrupt = getattr(adapter, "interrupt_ends_run", False)
+            run = start_run()
             for text in pending:
                 run.send(text)
             pending.clear()
             leaving = False
             while True:
                 if run.proc.poll() is not None:
-                    log.append("failed", source="remote", reason=f"exit {run.proc.returncode}")
-                    break
+                    if not (run.interrupted and ends_on_interrupt):
+                        log.append("failed", source="remote", reason=f"exit {run.proc.returncode}")
+                        break
+                    if leaving:
+                        break
+                    run = restart(run)
                 if watcher.pressed():
                     leaving = True
                     out("[cdx] Returning to the terminal after the current turn.\n")
@@ -280,6 +332,8 @@ def run_loop(*, base_dir, name, conversation_id, auth_home, start_tui, remote_ar
                 except queue.Empty:
                     request = None
                 if request and request["op"] == "send":
+                    if run.interrupted and ends_on_interrupt:
+                        run = restart(run)
                     run.send(request["text"])
                 elif request and request["op"] == "interrupt":
                     run.interrupt()

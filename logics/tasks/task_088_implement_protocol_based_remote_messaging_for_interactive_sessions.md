@@ -55,7 +55,8 @@
 - (no validation recorded yet)
 
 # Report
-- Not started.
+- Antigravity joins the Claude switch loop through AntigravityAdapter (src/remote_antigravity.py); protocol facts and limits are in item_169, "Antigravity".
+- Live check 2026-11-13, Linux, agy 1.5.8, an existing logged-in profile, no login: a fresh agy TUI under cdx, `cdx send` stopped it and ran the turn piloted (id fa2b0312-... taken from the run's `init`), a long turn was interrupted (SIGINT, event `interrupted` 8 ms after the request), the next message ran on a new `--conversation` run (reply BACK), and a keypress brought the TUI back as `agy --conversation fa2b0312-...`; no `failed` event. Not yet proven live: finding a conversation the TUI itself started (the typed prompt went to agy's workspace trust dialog), which unit tests cover against agy's index schema.
 
 # Links
 - Request: `req_083_protocol_based_remote_messaging_for_interactive_sessions`

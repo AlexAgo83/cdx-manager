@@ -4,8 +4,9 @@ A remote chat client used to type into the session's terminal and read its
 screen. Here the cdx launcher that owns the provider process listens on a
 private per-session endpoint instead: `cdx send` hands it a message, and the
 launcher delivers it through the provider's own programmatic interface
-(Claude: a stream-json `--resume` run on the same conversation; Codex: a turn
-on the thread its TUI shares through `codex app-server`). Every turn state and
+(Claude: a stream-json `--resume` run on the same conversation; Antigravity: a
+stream-json `--conversation` run; Codex: a turn on the thread its TUI shares
+through `codex app-server`). Every turn state and
 reply it observes is appended to a per-session event log.
 
 The endpoint is a loopback TCP listener guarded by a per-session secret on

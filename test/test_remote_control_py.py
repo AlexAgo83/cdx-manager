@@ -12,7 +12,7 @@ import threading
 import time
 import unittest
 
-from src import remote_claude, remote_codex, remote_control, ws_client
+from src import remote_antigravity, remote_claude, remote_codex, remote_control, ws_client
 from src.errors import CdxError
 
 FAKE_TUI = textwrap.dedent("""
@@ -37,6 +37,37 @@ FAKE_STREAM = textwrap.dedent("""
         print(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "echo:" + text}]}}), flush=True)
         print(json.dumps({"type": "result", "subtype": "success", "result": "echo:" + text}), flush=True)
 """)
+
+
+FAKE_AGY_STREAM = textwrap.dedent("""
+    import json, signal, sys
+    # Stands in for `agy --input-format stream-json --output-format stream-json -p=`.
+    # A runner may start the suite with SIGINT ignored; agy (Go) handles it regardless.
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+    args = sys.argv[1:]
+    conversation = args[args.index("--conversation") + 1] if "--conversation" in args else "agy-new"
+    def emit(kind, **body):
+        print(json.dumps({"event": kind, "conversation_id": conversation, kind: {"conversation_id": conversation, **body}}), flush=True)
+    emit("init", argv=args)
+    step = 0
+    try:
+        for line in sys.stdin:
+            message = json.loads(line)
+            assert message["event"] == "user"
+            text = message["message"]["content"]
+            if text == "slow":
+                import time
+                time.sleep(60)
+            emit("step_update", step_index=step + 1, state="ACTIVE", step_type="agent_response", text_delta="echo:")
+            emit("step_update", step_index=step + 1, state="DONE", step_type="agent_response", text_delta=text + "\\n")
+            emit("result", status="SUCCESS", response="echo:" + text + "\\n")
+            step += 2
+    except KeyboardInterrupt:
+        emit("result", status="ERROR", error="interrupted", finished_reason="interrupted")
+        sys.exit(1)
+""")
+
+FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 
 
 def _script(directory, name, body):
@@ -151,10 +182,11 @@ class ClaudeLoopTests(unittest.TestCase):
         result = {}
 
         def target():
+            adapter = remote_claude.ClaudeAdapter(
+                "conv-1", self.dir, lambda resumed: [sys.executable, self.stream, str(resumed)], lambda: self.record)
             result["code"] = remote_claude.run_loop(
-                base_dir=self.base_dir, name="work", conversation_id="conv-1", auth_home=self.dir,
-                start_tui=start_tui, remote_argv=lambda resumed: [sys.executable, self.stream, str(resumed)],
-                remote_options={}, agent_record=lambda: self.record, out=self.output.append,
+                base_dir=self.base_dir, name="work", adapter=adapter,
+                start_tui=start_tui, remote_options={}, out=self.output.append,
                 keys=FakeKeys(lambda: any(e["event"] == "done" for e in self._events())),
             )
 
@@ -193,6 +225,131 @@ class ClaudeLoopTests(unittest.TestCase):
         thread.join(15)
         self.assertEqual(result.get("code"), 0)
         self.assertEqual([e["event"] for e in self._events()], ["ready", "ended"])
+
+
+def _agy_index(auth_home, rows):
+    """A conversation_summaries.db with agy 1.5.8's columns that the adapter reads."""
+    import sqlite3
+
+    path = remote_antigravity.summaries_path(auth_home)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with sqlite3.connect(path) as connection:
+        connection.execute("CREATE TABLE IF NOT EXISTS conversation_summaries (conversation_id text PRIMARY KEY, "
+                           "last_modified_time datetime NOT NULL, workspace_uris text NOT NULL, "
+                           "status text NOT NULL DEFAULT '', not_fully_idle numeric NOT NULL DEFAULT false)")
+        connection.executemany("INSERT OR REPLACE INTO conversation_summaries VALUES (?, ?, ?, ?, ?)", rows)
+
+
+class AntigravitySignalTests(unittest.TestCase):
+    def test_recorded_stream_maps_to_turn_states(self):
+        adapter = remote_antigravity.AntigravityAdapter("/nowhere", "/work/project", "agy", [])
+        with open(os.path.join(FIXTURES, "antigravity_stream_json.jsonl"), encoding="utf-8") as handle:
+            mapped = [m for m in (adapter.map_event(json.loads(line)) for line in handle) if m]
+        self.assertEqual(mapped, [
+            ("assistant", {"text": "OK"}), ("done", {"text": "OK"}),
+            ("assistant", {"text": "KIWI7"}), ("done", {"text": "KIWI7"}),
+            ("interrupted", {}),
+        ])
+        self.assertEqual(adapter.conversation_id, "181c9c61-e8d6-40e1-b37a-71da1ca669f9", "the first id sticks")
+        self.assertEqual(adapter.map_event({"event": "result", "result": {"status": "ERROR", "error": "quota",
+                                                                           "finished_reason": "error"}}),
+                         ("failed", {"reason": "error", "text": "quota"}))
+
+    def test_the_tui_conversation_is_the_newest_in_its_directory_since_launch(self):
+        from datetime import datetime, timezone
+
+        home, work = tempfile.mkdtemp(), tempfile.mkdtemp()
+        adapter = remote_antigravity.AntigravityAdapter(home, work, "agy", ["--sandbox"],
+                                                        since=datetime(2026, 11, 13, 10, 0, tzinfo=timezone.utc))
+        self.assertIsNone(adapter.discover(), "no index yet: agy has not written a conversation")
+        self.assertTrue(adapter.tui_idle())
+        self.assertEqual(adapter.argv(), ["agy", "--sandbox", "--input-format", "stream-json",
+                                          "--output-format", "stream-json", "-p="])
+        uri = json.dumps(["file://" + work])
+        _agy_index(home, [
+            ("older", "2026-11-13 09:59:59.9+00:00", uri, remote_antigravity.IDLE_STATUS, 0),
+            ("elsewhere", "2026-11-13 10:05:00.1+00:00", json.dumps(["file:///other"]), "", 0),
+            ("mine", "2026-11-13 10:01:00.5+00:00", uri, "CASCADE_RUN_STATUS_RUNNING", 0),
+        ])
+        self.assertEqual(adapter.discover(), "mine")
+        self.assertFalse(adapter.tui_idle(), "a running turn is never cut")
+        _agy_index(home, [("mine", "2026-11-13 10:02:00+00:00", uri, remote_antigravity.IDLE_STATUS, 1)])
+        self.assertFalse(adapter.tui_idle(), "not fully idle yet")
+        _agy_index(home, [("mine", "2026-11-13 10:02:00+00:00", uri, remote_antigravity.IDLE_STATUS, 0)])
+        self.assertTrue(adapter.tui_idle())
+        self.assertEqual(adapter.argv()[:4], ["agy", "--sandbox", "--conversation", "mine"])
+
+
+class AntigravityLoopTests(ClaudeLoopTests):
+    """The same switch loop with the Antigravity adapter and a fake agy."""
+
+    def setUp(self):
+        super().setUp()
+        self.stream = _script(self.dir, "agy.py", FAKE_AGY_STREAM)
+        self.adapter = remote_antigravity.AntigravityAdapter(self.dir, self.dir, sys.executable, [self.stream])
+
+    def _run(self, exit_after=2, keys_when=None):
+        def start_tui(resume):
+            self.tui_starts.append(self.adapter.conversation_id if resume else None)
+            mode = "exit" if len(self.tui_starts) >= exit_after else "run"
+            return subprocess.Popen([sys.executable, self.tui, mode])
+
+        result = {}
+
+        def target():
+            result["code"] = remote_claude.run_loop(
+                base_dir=self.base_dir, name="work", adapter=self.adapter, start_tui=start_tui,
+                remote_options={}, out=self.output.append,
+                keys=FakeKeys(keys_when or (lambda: any(e["event"] == "done" for e in self._events()))),
+            )
+
+        thread = threading.Thread(target=target, daemon=True)
+        thread.start()
+        return thread, result
+
+    def test_a_message_waits_for_an_idle_turn_runs_remotely_then_returns_to_the_tui(self):
+        uri = json.dumps(["file://" + self.dir])
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S+00:00", time.gmtime(time.time() + 5))
+        _agy_index(self.dir, [("agy-tui", stamp, uri, "CASCADE_RUN_STATUS_RUNNING", 0)])
+        thread, result = self._run()
+        self._wait(lambda: os.path.exists(remote_control.endpoint_file(self.base_dir, "work")))
+        remote_control.request(self.base_dir, "work", "send", "ping")
+        self._wait(lambda: any(e["event"] == "queued" for e in self._events()))
+        time.sleep(0.6)
+        self.assertNotIn("working", [e["event"] for e in self._events()], "a busy TUI turn is never cut")
+        _agy_index(self.dir, [("agy-tui", stamp, uri, remote_antigravity.IDLE_STATUS, 0)])
+        thread.join(30)
+        self.assertEqual(result.get("code"), 0)
+        events = self._events()
+        self.assertEqual([e["event"] for e in events][:3], ["ready", "queued", "working"])
+        self.assertEqual([e.get("text") for e in events if e["event"] == "assistant"], ["echo:ping"])
+        self.assertEqual(self.tui_starts, [None, "agy-tui"], "the TUI comes back on the same conversation")
+
+    def test_a_message_to_a_fresh_tui_names_the_conversation_from_the_run(self):
+        thread, result = self._run()
+        self._wait(lambda: os.path.exists(remote_control.endpoint_file(self.base_dir, "work")))
+        remote_control.request(self.base_dir, "work", "send", "ping")
+        thread.join(30)
+        self.assertEqual(result.get("code"), 0)
+        self.assertEqual(self.tui_starts, [None, "agy-new"])
+
+    @unittest.skipIf(os.name == "nt", "SIGINT delivery to a child differs on Windows")
+    def test_an_interrupt_ends_the_turn_and_the_next_message_reaches_a_new_run(self):
+        thread, result = self._run(keys_when=lambda: [e["event"] for e in self._events()].count("done") == 1)
+        self._wait(lambda: os.path.exists(remote_control.endpoint_file(self.base_dir, "work")))
+        remote_control.request(self.base_dir, "work", "send", "slow")
+        self._wait(lambda: any(e["event"] == "working" for e in self._events()))
+        time.sleep(1)
+        remote_control.request(self.base_dir, "work", "interrupt")
+        self._wait(lambda: any(e["event"] == "interrupted" for e in self._events()))
+        remote_control.request(self.base_dir, "work", "send", "again")
+        thread.join(30)
+        self.assertEqual(result.get("code"), 0)
+        events = [e["event"] for e in self._events()]
+        self.assertNotIn("failed", events)
+        self.assertEqual([e.get("text") for e in self._events() if e["event"] == "assistant"], ["echo:again"])
+        with open(os.path.join(remote_control.state_dir(self.base_dir), "work.remote.err"), encoding="utf-8") as handle:
+            self.assertIn("--conversation agy-new", handle.readline(), "the new run continues the conversation")
 
 
 class CodexMappingTests(unittest.TestCase):
@@ -272,3 +429,52 @@ class WebSocketClientTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AntigravityLaunchTests(unittest.TestCase):
+    """provider_runtime hands an opted-in Antigravity launch to the switch loop."""
+
+    def _session(self, home, remote=True):
+        return {"name": "agy-demo", "provider": "antigravity", "authHome": home,
+                "launch": {"remote_control": remote, "permission": "review"}}
+
+    def test_only_an_opted_in_terminal_launch_is_taken_over(self):
+        from unittest import mock
+
+        from src import provider_runtime
+
+        home, base = tempfile.mkdtemp(), tempfile.mkdtemp()
+        with mock.patch.object(provider_runtime, "_stream_is_tty", return_value=True):
+            plan = provider_runtime._remote_antigravity_plan(self._session(home), "launch", home, {}, base)
+            self.assertIsNone(provider_runtime._remote_antigravity_plan(self._session(home, False), "launch", home, {}, base))
+            self.assertIsNone(provider_runtime._remote_antigravity_plan(self._session(home), "login", home, {}, base))
+        self.assertTrue(plan["command"].endswith("agy") or plan["command"] == "agy")
+        self.assertEqual(plan["args"], ["--sandbox"])
+        self.assertEqual(plan["options"]["cwd"], home)
+        self.assertEqual(plan["options"]["env"]["HOME"], home)
+
+    def test_the_tui_returns_on_the_conversation_the_loop_found(self):
+        from unittest import mock
+
+        from src import provider_runtime
+
+        home, base = tempfile.mkdtemp(), tempfile.mkdtemp()
+        spawned, seen = [], {}
+
+        def fake_loop(**kwargs):
+            adapter = kwargs["adapter"]
+            seen["adapter"] = adapter
+            kwargs["start_tui"](False)
+            adapter.conversation_id = "conv-agy"
+            kwargs["start_tui"](True)
+            return 0
+
+        with mock.patch.object(provider_runtime, "_stream_is_tty", return_value=True), \
+                mock.patch.object(remote_claude, "run_loop", side_effect=fake_loop), \
+                mock.patch.dict(os.environ, {"CDX_SCRIPT_ARGS": "", "CDX_SCRIPT_BIN": "script"}):
+            provider_runtime._run_interactive_provider_process(
+                self._session(home), "launch", spawn=lambda argv, **options: spawned.append(argv) or mock.Mock(pid=1),
+                cwd=home, remote_base_dir=base)
+        self.assertIsInstance(seen["adapter"], remote_antigravity.AntigravityAdapter)
+        self.assertNotIn("--conversation", " ".join(spawned[0]))
+        self.assertIn("--conversation conv-agy", " ".join(spawned[1]))

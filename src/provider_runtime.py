@@ -1810,6 +1810,24 @@ def _remote_claude_plan(session, action, spec, cwd, env_override, base_dir):
     return {"conversation_id": conversation_id, "argv": argv, "options": options, "agent_record": agent_record}
 
 
+def _remote_antigravity_plan(session, action, cwd, env_override, base_dir):
+    """The unwrapped Antigravity launch for remote control, or None to launch as usual.
+
+    Only a launch is taken over: cdx has no Antigravity resume, and the
+    conversation id is only known once agy has written it.
+    """
+    from .remote_control import remote_control_enabled
+
+    if not (base_dir and remote_control_enabled(session) and session.get("provider") == PROVIDER_ANTIGRAVITY
+            and action == "launch" and _stream_is_tty(sys.stdin)):
+        return None
+    raw = _build_launch_spec(session, cwd=cwd, env_override=env_override, capture_transcript=False)
+    options = {key: value for key, value in raw.get("options", {}).items() if key in ("cwd", "env")}
+    options.setdefault("cwd", cwd or os.getcwd())
+    return {"command": _native_command(raw["command"], options.get("env")),
+            "args": _launch_config_args(session), "options": options}
+
+
 def _remote_codex_plan(session, action, cwd, env_override, base_dir):
     """The unwrapped Codex TUI command for remote control, or None to launch as usual."""
     from .remote_control import remote_control_enabled
@@ -1891,18 +1909,35 @@ def _run_interactive_provider_process(session, action, spawn=None, cwd=None,
         return info
 
     remote = _remote_claude_plan(session, action, spec, cwd, env_override, remote_base_dir)
-    if remote is not None:
+    agy_remote = None if remote else _remote_antigravity_plan(session, action, cwd, env_override, remote_base_dir)
+    if remote is not None or agy_remote is not None:
         from . import remote_claude
 
         if lifecycle_callback:
             lifecycle_callback("started", run_info(spec))
+        if remote is not None:
+            adapter = remote_claude.ClaudeAdapter(remote["conversation_id"], _get_auth_home(session),
+                                                  remote["argv"], remote["agent_record"])
+        else:
+            from .remote_antigravity import AntigravityAdapter
+
+            remote = agy_remote
+            adapter = AntigravityAdapter(_get_auth_home(session), remote["options"]["cwd"],
+                                         remote["command"], remote["args"])
+
+        def resume_spec():
+            if agy_remote is None:
+                resumable = with_requested_conversation(session, adapter.conversation_id)
+                return resumable and _build_resume_spec(resumable, cwd=cwd, env_override=env_override)
+            if not adapter.conversation_id:
+                return None
+            return _wrap_launch_with_transcript(session, {
+                "command": "agy", "args": ["--conversation", adapter.conversation_id, *agy_remote["args"]],
+                "options": spec["options"], "label": spec["label"],
+            }, env={**os.environ, **(env_override or {})})
 
         def start_tui(resume):
-            current = spec
-            if resume:
-                resumable = with_requested_conversation(session, remote["conversation_id"])
-                if resumable is not None:
-                    current = _build_resume_spec(resumable, cwd=cwd, env_override=env_override)
+            current = (resume and resume_spec()) or spec
             try:
                 return start_child(current)
             except FileNotFoundError as error:
@@ -1910,9 +1945,8 @@ def _run_interactive_provider_process(session, action, spawn=None, cwd=None,
                 return start_child(_fallback_launch_spec_or_raise(current, error))
 
         returncode = remote_claude.run_loop(
-            base_dir=remote_base_dir, name=session["name"], conversation_id=remote["conversation_id"],
-            auth_home=_get_auth_home(session), start_tui=start_tui, remote_argv=remote["argv"],
-            remote_options=remote["options"], agent_record=remote["agent_record"],
+            base_dir=remote_base_dir, name=session["name"], adapter=adapter, start_tui=start_tui,
+            remote_options=remote["options"],
         )
         info = run_info(spec, returncode=returncode)
         if lifecycle_callback:
