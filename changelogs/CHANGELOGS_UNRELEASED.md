@@ -1,5 +1,9 @@
 # Unreleased
 
+## Isolated user toolchains (next patch)
+
+- Mount `~/.local/lib`, pipx (`~/.local/share/pipx`, `~/.local/pipx`) and `~/.cargo/bin` read-only in isolated workspaces, add cargo and the newest nvm Node bin to PATH, and set PYTHONPATH to the user site-packages, so pip, pipx, cargo and nvm tools work with the empty sandbox HOME.
+
 ## Read-only isolated inputs (next patch)
 
 - Add repeatable `cdx run --isolate-workspace --ro-input NAME=PATH` to mount owner-controlled directories read-only under `/opt/inputs/` and expose their sandbox paths through named environment variables. Refuse invalid or reserved names, duplicate names, missing directories, top-level symlinks, foreign ownership and paths overlapping the workspace, configuration, state or credentials.

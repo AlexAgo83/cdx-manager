@@ -268,6 +268,14 @@ across isolated attempts; the operator's normal RTK history is not mounted.
 Inspect them with `RTK_DB_PATH="$HOME/.cdx/shared-cache/rtk/history.db" rtk gain`
 on that host. Non-isolated launches keep their normal history selection.
 
+Installed user toolchains stay usable although the box HOME is empty. The
+sandbox mounts `~/.local/lib`, `~/.local/share/pipx`, `~/.local/pipx` and
+`~/.cargo/bin` read-only, beside the existing `~/.nvm`, `~/.local/bin` and
+`~/.local/share/uv` mounts. PATH also gains `~/.cargo/bin` and the newest
+`~/.nvm/versions/node/*/bin`, after the launch PATH, and PYTHONPATH lists the
+user `~/.local/lib/python*/site-packages` directories so `python3 -m pip` and
+user-installed packages resolve. No configuration or credential directory is added.
+
 Run the real confinement acceptance check on a Linux host with bubblewrap and
 RTK installed (it uses disposable fixtures and synthetic secrets):
 
