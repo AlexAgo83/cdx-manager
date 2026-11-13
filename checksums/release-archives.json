@@ -1013,6 +1013,10 @@
         "x86_64-pc-windows-msvc": "e6f527a1f7119d328d634d12eedce77fb22277c614067191c6547f28d49ffbd4",
         "x86_64-unknown-linux-musl": "9a77f89bba4fa4bf385c8b96880b50ef3f7a675c3f9bb6ad762fff8c61a89bdd"
       }
+    },
+    "v0.27.5": {
+      "github_tarball_sha256": "9eeb0e1be2916be7c8518614e8c338b8b39843e1e1c1cef058b844a1685322c6",
+      "github_zip_sha256": "a226173214a520654b4608f3b5d4c2319358ef735856cf46dc0ac3261511f080"
     }
   }
 }
