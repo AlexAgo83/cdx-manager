@@ -21,6 +21,7 @@ import json
 import os
 import queue
 import secrets
+import signal
 import socket
 import sys
 import threading
@@ -93,8 +94,14 @@ def resolve_endpoint(base_dir, name, pid=None):
     return live[0] if live else (None, None)
 
 
-def events_file(base_dir, name):
-    return os.path.join(state_dir(base_dir), f"{name}.events.jsonl")
+def events_file(base_dir, name, pid=None):
+    """`<name>.events.jsonl` is shared by every launch of the session; each launch
+    also writes the same lines to its own `<name>@<launcher pid>.events.jsonl`."""
+    return os.path.join(state_dir(base_dir), f"{name}@{pid}.events.jsonl" if pid else f"{name}.events.jsonl")
+
+
+def remote_err_file(base_dir, name, pid):
+    return os.path.join(state_dir(base_dir), f"{name}@{pid}.remote.err")
 
 
 def _now():
@@ -110,14 +117,22 @@ def _write_private(path, text):
 
 
 class EventLog:
-    """Append-only JSON lines; one writer (the launcher), many readers."""
+    """Append-only JSON lines; one writer per launch (its launcher), many readers.
+
+    Every line carries the launcher `pid`, so lines of concurrent launches in the
+    shared log can be told apart; the per-launch log holds only this launch's.
+    """
 
     def __init__(self, base_dir, name):
+        self.pid = os.getpid()
         self.path = events_file(base_dir, name)
+        self.launch_path = events_file(base_dir, name, self.pid)
         self.lock = threading.Lock()
+        # A reused pid starts a fresh per-launch log rather than extending a dead launch's.
+        _write_private(self.launch_path, "")
 
     def append(self, kind, **fields):
-        entry = {"at": _now(), "event": kind}
+        entry = {"at": _now(), "event": kind, "pid": self.pid}
         for key, value in fields.items():
             if isinstance(value, str) and len(value) > EVENT_TEXT_LIMIT:
                 value = value[:EVENT_TEXT_LIMIT]
@@ -125,10 +140,40 @@ class EventLog:
                 entry[key] = value
         line = json.dumps(entry, ensure_ascii=False) + "\n"
         with self.lock:
-            fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-            with os.fdopen(fd, "a", encoding="utf-8") as handle:
-                handle.write(line)
+            for path in (self.path, self.launch_path):
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+                with os.fdopen(fd, "a", encoding="utf-8") as handle:
+                    handle.write(line)
         return entry
+
+
+class LaunchTerminated(BaseException):
+    """SIGHUP (terminal closed) or SIGTERM reached the launcher while its endpoint was up.
+
+    A BaseException so provider loops' `except Exception` cannot swallow it; the
+    launcher stops its children, logs `ended`, and the endpoint removes its files.
+    """
+
+    def __init__(self, signum):
+        super().__init__(signum)
+        self.signal = signal.Signals(signum).name
+        self.returncode = 128 + signum
+
+
+def _terminate_handlers():
+    def stop(signum, _frame):
+        # Ignore repeats so the cleanup this starts is not cut short by a second signal.
+        for sig in previous:
+            signal.signal(sig, signal.SIG_IGN)
+        raise LaunchTerminated(signum)
+
+    previous = {}
+    for sig in filter(None, (getattr(signal, "SIGHUP", None), signal.SIGTERM)):
+        try:
+            previous[sig] = signal.signal(sig, stop)
+        except (ValueError, OSError):  # not the main thread
+            pass
+    return previous
 
 
 class Endpoint:
@@ -153,9 +198,15 @@ class Endpoint:
         _write_private(endpoint_file(self.base_dir, self.name, self.pid), record)
         _write_private(endpoint_file(self.base_dir, self.name), record)
         self._thread.start()
+        self._handlers = _terminate_handlers()
         return self
 
     def __exit__(self, *exc):
+        for sig, handler in self._handlers.items():
+            try:
+                signal.signal(sig, handler)
+            except (ValueError, OSError, TypeError):  # TypeError: a handler set outside Python
+                pass
         self._stopped.set()
         try:
             self._server.close()

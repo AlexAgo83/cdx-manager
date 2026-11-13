@@ -836,3 +836,35 @@ database participates in process resolution. No launch flags or dependencies
 change. Host A's authenticated TUI still requires a measured comparison of the
 returned UUID with its selected native conversation after launch, resume and
 switch, especially with concurrent sessions.
+
+## Remote-control state files
+
+A launch with remote control on keeps its files under
+`<CDX_HOME>/state/remote/`, all owner-only. `@` never occurs in a session
+name, so `<name>@<pid>` always names one launch, `<pid>` being the cdx
+launcher's process id.
+
+| File | Content |
+|------|---------|
+| `<name>@<pid>.endpoint.json` | The launch's loopback port, secret and pids (`pid`, and for Codex `tui_pid`, `server_pid`) |
+| `<name>.endpoint.json` | A copy of the newest live launch's endpoint; handed to another live launch, or removed, when that launch ends |
+| `<name>.events.jsonl` | Event lines of every launch of the session, interleaved |
+| `<name>@<pid>.events.jsonl` | The same lines for this launch only; started empty by the launch and kept after it ends |
+| `<name>@<pid>.remote.err` | The command line and stderr of the launch's latest remote run (Claude, Antigravity) |
+| `<name>@<pid>.codex-token` | The Codex app-server token, removed when the launch ends |
+
+Each event line is one JSON object:
+
+```json
+{"at": "2026-11-13T09:12:30.512Z", "event": "assistant", "pid": 4242, "text": "..."}
+```
+
+`at` is UTC, `event` the kind (`ready`, `queued`, `working`, `assistant`,
+`done`, `interrupted`, `failed`, `local`, `ended`, ...), `pid` the launcher
+that wrote it; the other fields depend on the kind and texts are cut at 20,000
+characters. Filter the shared log on `pid`, or read the per-launch log, to
+follow one launch. A launch always ends with `ended`: `returncode` is the
+provider's exit code, or `128 + signal` with `signal` (`SIGHUP`, `SIGTERM`)
+when the launcher was stopped, for instance because its terminal was closed. A
+launcher that is killed (`SIGKILL`) writes nothing; readers treat a launch whose
+`pid` no longer runs as ended.

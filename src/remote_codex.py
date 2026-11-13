@@ -17,7 +17,7 @@ import subprocess
 import threading
 import time
 
-from .remote_control import Endpoint, EventLog, _write_private, state_dir
+from .remote_control import Endpoint, EventLog, LaunchTerminated, _write_private, state_dir
 from .ws_client import WebSocket, WebSocketClosed
 
 TOKEN_ENV = "CDX_CODEX_REMOTE_TOKEN"
@@ -187,7 +187,7 @@ def run(*, base_dir, name, cwd, codex_command, server_env, start_tui):
     port = free_port()
     server = subprocess.Popen(server_argv(codex_command, port, token_file), env=server_env, cwd=cwd,
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    client, pending = None, []
+    client, pending, tui = None, [], None
     try:
         deadline = time.time() + STARTUP_SECONDS
         while True:
@@ -233,6 +233,15 @@ def run(*, base_dir, name, cwd, codex_command, server_env, start_tui):
                     pending.pop(0)
             log.append("ended", returncode=tui.returncode)
             return tui.returncode
+    except LaunchTerminated as stop:
+        if tui is not None and tui.poll() is None:
+            tui.terminate()
+            try:
+                tui.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                tui.kill()
+        log.append("ended", returncode=stop.returncode, signal=stop.signal)
+        return stop.returncode
     finally:
         if client:
             client.close()
