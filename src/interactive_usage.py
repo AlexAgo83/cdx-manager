@@ -139,6 +139,12 @@ def conversation_transcript(provider, auth_home, conversation_id):
 
 
 def _transcript_for_conversation(provider, auth_home, conversation_id):
+    if provider == "antigravity" and re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", conversation_id):
+        # agy 1.5's plain transcript holds TUI and piloted turns alike.
+        path = os.path.join(auth_home, ".gemini", "antigravity-cli", "brain", conversation_id,
+                            ".system_generated", "logs", "transcript_full.jsonl")
+        if os.path.isfile(path):
+            return path
     if provider == "codex":
         return _codex_rollout_for(auth_home, conversation_id)
     # Reuse, not reimplement: the background path already resolved a Claude

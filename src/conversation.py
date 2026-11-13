@@ -59,7 +59,26 @@ _CODEX_CONTEXT_PREFIXES = (
 def _conversation_record(provider, kind):
     # Provider bookkeeping can carry the same text as real conversation records.
     # Claude Code records messages typed while the agent works as queued_command attachments.
+    if provider == "antigravity" and kind in AGY_STEPS:
+        return True
     return kind == "response_item" if provider == "codex" else kind in ("user", "assistant", "attachment")
+
+
+AGY_STEPS = ("USER_INPUT", "PLANNER_RESPONSE")
+
+
+def _antigravity_entries(record, stamp):
+    """agy's plain transcript (brain/<id>/.system_generated/logs/transcript_full.jsonl):
+    one step per line, typed in the TUI or sent through stream-json alike."""
+    content = record.get("content") if isinstance(record.get("content"), str) else ""
+    if record.get("type") == "USER_INPUT":
+        # The prompt is wrapped with agy's own context blocks; keep only the request.
+        match = re.search(r"<USER_REQUEST>\n?(.*?)\n?</USER_REQUEST>", content, re.S)
+        return [_entry("user", match.group(1) if match else content, at=stamp)]
+    entries = [_entry("assistant", content, at=stamp)] if content.strip() else []
+    calls = record.get("tool_calls") if isinstance(record.get("tool_calls"), list) else []
+    return entries + [_entry("tool", name=_tool_name(call, {}) if isinstance(call, dict) else "tool",
+                             summary="Call recorded", at=stamp) for call in calls]
 
 
 def _queued_prompt(record):
@@ -117,11 +136,14 @@ def _entries(provider, record, names):
     # Claude Code marks its own user-role notes (image size hints, caveats) as isMeta.
     if provider == "claude" and record.get("isMeta"):
         return []
-    stamp = record.get("timestamp")
+    agy_step = provider == "antigravity" and record.get("type") in AGY_STEPS
+    stamp = record.get("created_at") if agy_step else record.get("timestamp")
     try:
         datetime.fromisoformat(stamp.replace("Z", "+00:00"))
     except (AttributeError, TypeError, ValueError):
         stamp = None
+    if agy_step:
+        return _antigravity_entries(record, stamp)
     if provider == "codex":
         message = record.get("payload")
     elif record.get("type") == "attachment":

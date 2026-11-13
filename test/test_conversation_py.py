@@ -654,3 +654,27 @@ def test_codex_injected_context_is_not_a_user_turn(tmp_path):
     path.write_text("".join(json.dumps(record) + "\n" for record in records))
     page = read_conversation("codex", str(tmp_path), conversation_id=CONVERSATION)
     assert [(e["role"], e["text"]) for e in page["entries"]] == [("user", "Fix the build"), ("assistant", "Done.")]
+
+
+def test_antigravity_transcript_holds_tui_and_piloted_turns(tmp_path):
+    # Shape of agy 1.5.8's brain/<id>/.system_generated/logs/transcript_full.jsonl.
+    logs = tmp_path / ".gemini" / "antigravity-cli" / "brain" / CONVERSATION / ".system_generated" / "logs"
+    logs.mkdir(parents=True)
+    steps = [
+        {"step_index": 0, "source": "USER_EXPLICIT", "type": "USER_INPUT", "status": "DONE",
+         "created_at": "2026-11-13T15:04:23Z",
+         "content": "<USER_REQUEST>\nTyped in the TUI\n</USER_REQUEST>\n<ADDITIONAL_METADATA>cwd</ADDITIONAL_METADATA>"},
+        {"step_index": 1, "source": "SYSTEM", "type": "SYSTEM_MESSAGE", "content": "not for the reader"},
+        {"step_index": 2, "source": "MODEL", "type": "PLANNER_RESPONSE", "created_at": "2026-11-13T15:04:24Z",
+         "tool_calls": [{"name": "run_command", "args": {"CommandLine": "secret"}}]},
+        {"step_index": 3, "source": "MODEL", "type": "GENERIC", "content": "tool output"},
+        {"step_index": 4, "source": "MODEL", "type": "PLANNER_RESPONSE", "created_at": "2026-11-13T15:04:30Z",
+         "content": "Done."},
+    ]
+    (logs / "transcript_full.jsonl").write_text("".join(json.dumps(step) + "\n" for step in steps))
+    page = read_conversation("antigravity", str(tmp_path), conversation_id=CONVERSATION)
+    assert page["status"] == "ok"
+    assert [(e["role"], e["text"], e["tool_name"]) for e in page["entries"]] == [
+        ("user", "Typed in the TUI", None), ("tool", "", "run_command"), ("assistant", "Done.", None)]
+    assert "secret" not in json.dumps(page)
+    assert read_conversation("antigravity", str(tmp_path), conversation_id="../../etc")["entries"] == []
