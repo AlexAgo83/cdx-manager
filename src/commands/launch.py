@@ -373,7 +373,7 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
         run_info = _run_interactive_provider_command(
             session, "resume" if resume else "launch", spawn=ctx.get("spawn"), cwd=cwd, env_override=ctx.get("env"),
             signal_emitter=ctx.get("signal_emitter"), initial_prompt=initial_prompt,
-            lifecycle_callback=runtime_lifecycle,
+            lifecycle_callback=runtime_lifecycle, remote_base_dir=ctx["service"]["base_dir"],
             # A JSON run owns stdout: a terminal title sequence would land in
             # the middle of the document its caller has to parse.
             title_enabled=not json_flag,

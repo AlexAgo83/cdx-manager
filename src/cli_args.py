@@ -281,6 +281,7 @@ def _parse_set_args(args):
         "--logics": {"key": "logics", "type": "str", "default": None, "transform": _on_off("logics")},
         "--notify": {"key": "notify", "type": "str", "default": None, "transform": _on_off("notify")},
         "--agent-state": {"key": "agent_state", "type": "str", "default": None, "transform": _on_off("agent state")},
+        "--remote-control": {"key": "remote_control", "type": "str", "default": None, "transform": _on_off("remote control")},
         "--status-line": {"key": "status_line", "type": "str", "default": None, "transform": _on_off("status line")},
         "--notify-preview": {"key": "notify_preview", "type": "str", "default": None, "transform": _on_off("notify preview")},
         "--scrub-env": {"key": "scrub_env", "type": "str", "default": None, "transform": _on_off("scrub env")},
@@ -309,7 +310,7 @@ def _parse_set_args(args):
         raise CdxError(SET_USAGE)
     settings = {
         key: parsed[key]
-        for key in ("power", "permission", "fast", "rtk", "logics", "notify", "agent_state", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro", "model", "fallback_model", "budget", "extra_args", "priority", "policy", "max_parallel")
+        for key in ("power", "permission", "fast", "rtk", "logics", "notify", "agent_state", "remote_control", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro", "model", "fallback_model", "budget", "extra_args", "priority", "policy", "max_parallel")
         if parsed[key] is not None
     }
     if not settings:
@@ -333,6 +334,7 @@ def _parse_unset_args(args):
         "--logics": {"key": "logics", "type": "bool", "default": False},
         "--notify": {"key": "notify", "type": "bool", "default": False},
         "--agent-state": {"key": "agent_state", "type": "bool", "default": False},
+        "--remote-control": {"key": "remote_control", "type": "bool", "default": False},
         "--status-line": {"key": "status_line", "type": "bool", "default": False},
         "--notify-preview": {"key": "notify_preview", "type": "bool", "default": False},
         "--scrub-env": {"key": "scrub_env", "type": "bool", "default": False},
@@ -361,7 +363,7 @@ def _parse_unset_args(args):
     if not parsed["names"] and not parsed["sessions"] and not parsed["provider"]:
         raise CdxError(UNSET_USAGE)
     _UNSET_KEYS = (
-        "power", "reasoning_effort", "permission", "fast", "rtk", "logics", "notify", "agent_state", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro",
+        "power", "reasoning_effort", "permission", "fast", "rtk", "logics", "notify", "agent_state", "remote_control", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro",
         "model", "fallback_model", "budget", "extra_args", "priority", "policy", "max_parallel",
     )
     keys = list(_UNSET_KEYS) if parsed["all"] else [key for key in _UNSET_KEYS if parsed[key]]

@@ -77,6 +77,7 @@ from .cli_render import (
 from .commands.rescue import handle_rescue
 from .config import PROVIDER_OLLAMA
 from .errors import CdxError
+from .remote_control import handle_send
 from .retro import handle_retro
 from .session_service import create_session_service
 from .status_view import (
@@ -156,6 +157,7 @@ _COMMAND_HANDLERS = {
     "auth": handle_auth,
     "add": handle_add,
     "agents": handle_agents,
+    "send": handle_send,
     "cp": handle_copy,
     "clean": handle_clean,
     "config": handle_config,

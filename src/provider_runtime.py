@@ -1715,11 +1715,11 @@ def _start_terminal_title(session, action, cwd=None, stream=None, enabled=True):
 def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
                                       env_override=None, signal_emitter=None,
                                       initial_prompt=None, lifecycle_callback=None,
-                                      title_stream=None, title_enabled=True):
+                                      title_stream=None, title_enabled=True, remote_base_dir=None):
     kwargs = dict(spawn=spawn, cwd=cwd, env_override=env_override,
                   signal_emitter=signal_emitter, initial_prompt=initial_prompt,
                   lifecycle_callback=lifecycle_callback, title_stream=title_stream,
-                  title_enabled=title_enabled)
+                  title_enabled=title_enabled, remote_base_dir=remote_base_dir)
     if session.get("provider") != PROVIDER_CODEX:
         return _run_interactive_provider_command_impl(session, action, **kwargs)
     # Hold the per-CODEX_HOME lock for the whole session so concurrent Codex
@@ -1737,7 +1737,7 @@ def _run_interactive_provider_command(session, action, spawn=None, cwd=None,
 def _run_interactive_provider_command_impl(session, action, spawn=None, cwd=None,
                                            env_override=None, signal_emitter=None,
                                            initial_prompt=None, lifecycle_callback=None,
-                                           title_stream=None, title_enabled=True):
+                                           title_stream=None, title_enabled=True, remote_base_dir=None):
     # The title lives exactly as long as the provider process, including the
     # error and signal paths below, which is why it is held here rather than
     # inside the run itself.
@@ -1748,16 +1748,71 @@ def _run_interactive_provider_command_impl(session, action, spawn=None, cwd=None
         return _run_interactive_provider_process(
             session, action, spawn=spawn, cwd=cwd, env_override=env_override,
             signal_emitter=signal_emitter, initial_prompt=initial_prompt,
-            lifecycle_callback=lifecycle_callback,
+            lifecycle_callback=lifecycle_callback, remote_base_dir=remote_base_dir,
         )
     finally:
         if title_keeper is not None:
             title_keeper.stop()
 
 
+def _remote_claude_plan(session, action, spec, cwd, env_override, base_dir):
+    """What remote control needs for this launch, or None to launch as usual.
+
+    Only an interactive Claude launch or resume on a terminal, with the session
+    opted in and a known conversation id, is taken over; anything else keeps the
+    exact launch path it had before the feature existed.
+    """
+    from .remote_control import remote_control_enabled
+
+    if not (base_dir and remote_control_enabled(session) and session.get("provider") == PROVIDER_CLAUDE
+            and action in ("launch", "resume") and _stream_is_tty(sys.stdin)):
+        return None
+    conversation_id = _conversation_id(session)
+    if not conversation_id:
+        return None
+    raw = _build_launch_spec(with_requested_conversation(session, conversation_id) or session,
+                             cwd=cwd, env_override=env_override, capture_transcript=False)
+    args = [arg for arg in raw["args"] if arg != "--"]
+    if "--session-id" in args:
+        index = args.index("--session-id")
+        args = args[:index] + args[index + 2:]
+
+    def argv(resumed):
+        target = ["--resume", conversation_id] if resumed else ["--session-id", conversation_id]
+        return [_resolve_command(raw["command"], raw.get("options", {}).get("env")), "-p", *target, *args,
+                "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"]
+
+    def agent_record():
+        from .agent_state import state_dir
+        try:
+            with open(os.path.join(state_dir(base_dir), f"{session['name']}.json"), encoding="utf-8") as handle:
+                return json.load(handle)
+        except (OSError, ValueError):
+            return None
+
+    options = {key: value for key, value in raw.get("options", {}).items() if key in ("cwd", "env")}
+    options.setdefault("cwd", cwd)
+    return {"conversation_id": conversation_id, "argv": argv, "options": options, "agent_record": agent_record}
+
+
+def _remote_codex_plan(session, action, cwd, env_override, base_dir):
+    """The unwrapped Codex TUI command for remote control, or None to launch as usual."""
+    from .remote_control import remote_control_enabled
+
+    if not (base_dir and remote_control_enabled(session) and session.get("provider") == PROVIDER_CODEX
+            and action in ("launch", "resume") and _stream_is_tty(sys.stdin)):
+        return None
+    build = _build_resume_spec if action == "resume" else _build_launch_spec
+    raw = build(session, cwd=cwd, env_override=env_override, capture_transcript=False)
+    options = {key: value for key, value in raw.get("options", {}).items() if key in ("cwd", "env")}
+    return {"command": _resolve_command(raw["command"], options.get("env")), "args": list(raw["args"]),
+            "options": options}
+
+
 def _run_interactive_provider_process(session, action, spawn=None, cwd=None,
                                       env_override=None, signal_emitter=None,
-                                      initial_prompt=None, lifecycle_callback=None):
+                                      initial_prompt=None, lifecycle_callback=None,
+                                      remote_base_dir=None):
     spawn = spawn or subprocess.Popen
     if action == "launch":
         spec = _build_launch_spec(session, cwd=cwd, env_override=env_override, initial_prompt=initial_prompt)
@@ -1793,6 +1848,61 @@ def _run_interactive_provider_process(session, action, spawn=None, cwd=None,
             "pid": child_pid,
             "returncode": returncode,
         }
+
+    codex_remote = _remote_codex_plan(session, action, cwd, env_override, remote_base_dir)
+    if codex_remote is not None:
+        from . import remote_codex
+
+        if lifecycle_callback:
+            lifecycle_callback("started", run_info(spec))
+        raw = codex_remote
+
+        def start_codex_tui(port, token):
+            env = {**raw["options"].get("env", {}), remote_codex.TOKEN_ENV: token}
+            options = {**raw["options"], "env": env}
+            return spawn([raw["command"], *remote_codex.tui_args(raw["args"], port)], **options)
+
+        returncode = remote_codex.run(
+            base_dir=remote_base_dir, name=session["name"], cwd=cwd or os.getcwd(),
+            codex_command=raw["command"], server_env=raw["options"].get("env"), start_tui=start_codex_tui,
+        )
+        info = run_info(spec, returncode=returncode)
+        if lifecycle_callback:
+            lifecycle_callback("finished", info)
+        if returncode != 0:
+            error = CdxError(f"{spec['label']} exited with code {returncode} for session {session['name']}")
+            error.run_info = info
+            raise error
+        return info
+
+    remote = _remote_claude_plan(session, action, spec, cwd, env_override, remote_base_dir)
+    if remote is not None:
+        from . import remote_claude
+
+        if lifecycle_callback:
+            lifecycle_callback("started", run_info(spec))
+
+        def start_tui(resume):
+            current = spec
+            if resume:
+                resumable = with_requested_conversation(session, remote["conversation_id"])
+                if resumable is not None:
+                    current = _build_resume_spec(resumable, cwd=cwd, env_override=env_override)
+            return start_child(current)
+
+        returncode = remote_claude.run_loop(
+            base_dir=remote_base_dir, name=session["name"], conversation_id=remote["conversation_id"],
+            auth_home=_get_auth_home(session), start_tui=start_tui, remote_argv=remote["argv"],
+            remote_options=remote["options"], agent_record=remote["agent_record"],
+        )
+        info = run_info(spec, returncode=returncode)
+        if lifecycle_callback:
+            lifecycle_callback("finished", info)
+        if returncode != 0:
+            error = CdxError(f"{spec['label']} exited with code {returncode} for session {session['name']}")
+            error.run_info = info
+            raise error
+        return info
 
     try:
         child = start_child(spec)
