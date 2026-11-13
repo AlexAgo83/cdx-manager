@@ -15,8 +15,3 @@ Release date: 2026-11-13
 - Isolated workspaces mount the user's Python libraries, pipx and cargo
   read-only, add cargo and the newest nvm Node to PATH after the launch PATH,
   and list the user site-packages in PYTHONPATH (#141).
-
-## Fixes
-
-- Antigravity sessions on Windows find the terminal's conversation: workspace
-  URIs are converted to Windows paths before comparison.
