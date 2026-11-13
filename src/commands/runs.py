@@ -29,6 +29,7 @@ from ..config import split_extra_args
 from ..errors import CdxError
 from ..fs_utils import atomic_write
 from ..interactive_usage import MATCH_CONVERSATION_ID, MEASURED_KEYS, extract_interactive_usage, usage_delta
+from ..launch_trust import ensure_trusted
 from ..provider_background import (
     BACKGROUND_PATH_CDX,
     BACKGROUND_PATH_PROVIDER,
@@ -320,6 +321,7 @@ def _spawn_provider_background_run(run_session, prompt, artifacts, ctx, cwd):
     # `--max-budget-usd`, `--fallback-model`. Reusing it and stripping `--print`
     # would hand the CLI print-only flags without `--print` and have the launch
     # rejected.
+    ensure_trusted(run_session, cwd, env=ctx.get("env"))
     spec = _build_launch_spec(
         run_session, cwd=cwd, env_override=ctx.get("env"),
         initial_prompt=prompt, capture_transcript=False,

@@ -1244,6 +1244,10 @@ def _run_headless_provider_command(session, cwd=None, env_override=None, initial
             raise CdxError(str(error)) from error
         finally:
             _restore_signal_handlers(handlers)
+    from .launch_trust import ensure_trusted
+
+    # Isolated runs get a fresh sandbox home, so only this shared-home path needs it.
+    ensure_trusted(session, cwd, env=env_override)
     return _run_headless_provider_attempt(session, cwd, env_override, initial_prompt,
                                           timeout_seconds, spawn, run_id, budget_check, attempt=attempt)
 

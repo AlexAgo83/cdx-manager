@@ -149,7 +149,7 @@ def _seed_codex_auth_from_global(auth_home, env=None):
     return True
 
 
-_ON_OFF_SETTINGS = {"fast": "fast", "rtk": "rtk", "logics": "logics", "notify": "notify", "agent_state": "agent state", "remote_control": "remote control", "status_line": "status line", "notify_preview": "notify preview", "scrub_env": "scrub env", "shared_memory": "shared memory", "retro": "retro"}
+_ON_OFF_SETTINGS = {"fast": "fast", "rtk": "rtk", "logics": "logics", "notify": "notify", "agent_state": "agent state", "remote_control": "remote control", "status_line": "status line", "notify_preview": "notify preview", "scrub_env": "scrub env", "shared_memory": "shared memory", "retro": "retro", "auto_trust_folder": "auto trust folder", "auto_trust_hooks": "auto trust hooks", "codex_update_prompt": "codex update prompt"}
 
 
 def _has_control_chars(text):
@@ -332,7 +332,7 @@ def unset_launch_settings(store, name, keys, base_dir=None):
         raise CdxError("At least one launch setting is required.")
     allowed = {
         "power", "reasoning_effort", "reasoningEffort", "permission", "fast", "rtk", "logics", "notify", "agent_state", "remote_control", "status_line", "notify_preview",
-        "scrub_env", "shared_memory", "retro", "model", "fallback_model", "budget", "extra_args", "priority", "policy", "max_parallel",
+        "scrub_env", "shared_memory", "retro", "auto_trust_folder", "auto_trust_hooks", "codex_update_prompt", "model", "fallback_model", "budget", "extra_args", "priority", "policy", "max_parallel",
     }
     unknown = [key for key in keys if key not in allowed]
     if unknown:
