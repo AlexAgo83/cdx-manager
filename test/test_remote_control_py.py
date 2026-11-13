@@ -327,6 +327,7 @@ class ClaudeLoopTests(unittest.TestCase):
         self.assertEqual(replies, ["echo:ping"])
         self.assertTrue(any("› ping" in line for line in self.output))
 
+    @unittest.skipIf(os.name == "nt", "the merging fake polls a pipe with select, POSIX only")
     def test_messages_sent_during_a_turn_still_return_to_the_tui(self):
         # 2026-11-13: two messages sent mid-turn were folded into one result, the
         # turn counter never reached zero and the session never left remote mode.
