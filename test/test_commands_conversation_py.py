@@ -218,9 +218,10 @@ def test_process_selection_ignores_saved_conversation(monkeypatch, selection):
 
     monkeypatch.setattr(conversation, "read_conversation", read)
     output = io.StringIO()
-    ctx = {"service": {"get_session": lambda name: session}, "out": output.write}
+    ctx = {"service": {"get_session": lambda name: session, "base_dir": "/cdx"}, "out": output.write}
     assert handle_conversation(["work2", *selection, "--json"], ctx) == 0
     assert calls[0]["conversation_id"] is None and calls[0]["fallback_to_recency"] is False
+    assert calls[0]["remote_endpoint"] == os.path.join("/cdx", "state", "remote", "work2.endpoint.json")
     assert calls[0]["pid"] == (123 if selection[0] == "--pid" else None)
     assert json.loads(output.getvalue())["resolution_status"] == "unknown"
 
@@ -262,5 +263,49 @@ def test_native_process_resolution_json(tmp_path):
             assert page["resolution_method"] == "process_open_rollout"
             assert [entry["text"] for entry in page["entries"]] == ["live reply"]
         finally:
+            child.terminate()
+            child.wait(timeout=5)
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux /proc evidence")
+def test_remote_controlled_tui_pid_resolves_through_the_app_server(tmp_path):
+    """With remote control on, the app-server writes the rollout and the TUI holds none."""
+    identifier = "22222222-2222-4222-8222-222222222222"
+    home = tmp_path / "profile"
+    path = home / "sessions" / f"rollout-{identifier}.jsonl"
+    path.parent.mkdir(parents=True)
+    records = [
+        {"type": "session_meta", "payload": {"id": identifier, "source": "vscode"}},
+        {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": "remote reply"}},
+    ]
+    path.write_text("".join(json.dumps(record) + "\n" for record in records))
+    executable = tmp_path / "codex"
+    shutil.copyfile(sys.executable, executable)
+    executable.chmod(0o700)
+    script = "import sys; h=sys.argv[1:] and open(sys.argv[1], 'a'); print('ready', flush=True); sys.stdin.readline()"
+    children = [subprocess.Popen([str(executable), "-c", script, *extra], stdin=subprocess.PIPE,
+                                 stdout=subprocess.PIPE, text=True) for extra in ([], [str(path)])]
+    try:
+        tui, server = children
+        assert all(child.stdout.readline().strip() == "ready" for child in children)
+        session = {"name": "work2", "provider": "codex", "authHome": str(home)}
+        base_dir = tmp_path / "cdx"
+
+        def run():
+            output = io.StringIO()
+            ctx = {"service": {"get_session": lambda name: session, "base_dir": str(base_dir)}, "out": output.write}
+            assert handle_conversation(["work2", "--pid", str(tui.pid), "--tail", "1", "--json"], ctx) == 0
+            return json.loads(output.getvalue())
+
+        assert run()["reason"] == "native_conversation_identity_unavailable"
+        endpoint = base_dir / "state" / "remote" / "work2.endpoint.json"
+        endpoint.parent.mkdir(parents=True)
+        endpoint.write_text(json.dumps({"pid": os.getpid(), "tui_pid": tui.pid, "server_pid": server.pid}))
+        page = run()
+        assert page["status"] == "ok" and page["conversation_id"] == identifier
+        assert page["resolution_method"] == "app_server_open_rollout"
+        assert [entry["text"] for entry in page["entries"]] == ["remote reply"]
+    finally:
+        for child in children:
             child.terminate()
             child.wait(timeout=5)

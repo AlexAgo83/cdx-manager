@@ -36,6 +36,8 @@
 - AC5: The control endpoint accepts only the session owner: a private Unix socket in a 0700 directory on Linux and macOS, and a loopback endpoint guarded by a per-session secret on Windows; no secret appears in argv, logs or the event log.
 - AC6: With the feature disabled, launch, resume and headless behaviour are byte-for-byte unchanged, and existing tests pass.
 - AC7: Automated tests cover the switch loop, queueing, interrupt, endpoint access control and event mapping with fake providers on Linux, macOS and Windows, plus a documented live check against the real CLIs on each platform.
+- AC8: `cdx send <session> -` (or `--stdin`) reads the message from stdin so callers never put it in argv, where the process list exposes it; the positional form keeps working.
+- AC9: `cdx conversation <session> --pid <tui pid> --json` resolves a remote-controlled Codex session: the app-server, not the TUI, writes the rollout, so cdx maps the TUI PID to the app-server through the endpoint file its launcher writes (both PIDs must still be its children) and validates the rollout there; non-remote resolution is unchanged.
 
 # Definition of Ready (DoR)
 - [x] Problem statement is explicit and user impact is clear.

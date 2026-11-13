@@ -390,7 +390,8 @@ def _validate_page_options(limit, tail, cursor, before):
 
 def read_conversation(provider, auth_home=None, *, conversation_id=None, started_at=None,
                       terminal_transcript=None, cursor=None, limit=100, fallback_to_recency=False,
-                      tail=None, before=None, cwd=None, pid=None, process_identity=None):
+                      tail=None, before=None, cwd=None, pid=None, process_identity=None,
+                      remote_endpoint=None):
     """Read a conversation page, optionally bound to a live native process.
 
     Process selection never uses saved session IDs or recency. Keep the returned
@@ -407,7 +408,8 @@ def read_conversation(provider, auth_home=None, *, conversation_id=None, started
         raise CdxError("Process selection cannot be combined with conversation, cwd, since or terminal transcript selection.")
     from .process_conversation import resolve_process_conversation
 
-    resolution, evidence = resolve_process_conversation(provider, auth_home, pid=pid, process_identity=process_identity)
+    resolution, evidence = resolve_process_conversation(provider, auth_home, pid=pid, process_identity=process_identity,
+                                                        remote_endpoint=remote_endpoint)
     page = {"status": "unavailable", "provider": provider, "entries": [], "next_cursor": None,
             "has_more": False, "resolution_scope": None, **resolution}
     if tail is not None or before is not None:
@@ -420,7 +422,8 @@ def read_conversation(provider, auth_home=None, *, conversation_id=None, started
         return page
     selected = _read_conversation_page(provider, auth_home, limit=limit, tail=tail,
                                        _transcript=evidence[1], _file_identity=evidence[2])
-    checked, current = resolve_process_conversation(provider, auth_home, process_identity=resolution["process_identity"])
+    checked, current = resolve_process_conversation(provider, auth_home, process_identity=resolution["process_identity"],
+                                                    remote_endpoint=remote_endpoint)
     if current != evidence or checked != resolution:
         return {**page, **checked, "resolution_status": "unknown", "resolution_method": None,
                 "conversation_id": None, "reason": checked["reason"] or "evidence_changed"}

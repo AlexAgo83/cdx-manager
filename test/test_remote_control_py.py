@@ -109,6 +109,29 @@ class EndpointTests(unittest.TestCase):
             with open(remote_control.events_file(self.base_dir, "work"), encoding="utf-8") as handle:
                 self.assertNotIn(endpoint.secret, handle.read())
 
+    def test_send_reads_the_message_from_stdin(self):
+        import io
+        out = []
+        with remote_control.Endpoint(self.base_dir, "work") as endpoint:
+            for flag in ("-", "--stdin"):
+                ctx = {"service": {"base_dir": self.base_dir}, "out": out.append,
+                       "prompt_stdin": io.StringIO("line one\n--not a flag\n")}
+                self.assertEqual(remote_control.handle_send(["work", flag], ctx), 0)
+                self.assertEqual(endpoint.requests.get(timeout=2),
+                                 {"op": "send", "text": "line one\n--not a flag\n"})
+            with self.assertRaises(CdxError):
+                remote_control.handle_send(["work", "-"], {"service": {"base_dir": self.base_dir},
+                                                           "out": out.append, "prompt_stdin": io.StringIO(" \n")})
+            remote_control.handle_send(["work", "hello", "there"], {"service": {"base_dir": self.base_dir}, "out": out.append})
+            self.assertEqual(endpoint.requests.get(timeout=2), {"op": "send", "text": "hello there"})
+        self.assertEqual(out, ["Message queued for work.\n"] * 3)
+
+    def test_endpoint_file_carries_the_launch_pids(self):
+        with remote_control.Endpoint(self.base_dir, "work", extra={"tui_pid": 5, "server_pid": 6}):
+            with open(remote_control.endpoint_file(self.base_dir, "work"), encoding="utf-8") as handle:
+                info = json.load(handle)
+        self.assertEqual((info["tui_pid"], info["server_pid"], info["pid"]), (5, 6, os.getpid()))
+
     def test_send_to_a_session_without_endpoint_names_the_setting(self):
         with self.assertRaises(CdxError) as caught:
             remote_control.request(self.base_dir, "work", "send", "x")

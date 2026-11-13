@@ -48,7 +48,7 @@ def _process(pid):
     return f"linux:{pid}:{digest}"
 
 
-def _rollout(pid, auth_home):
+def _rollout(pid, auth_home, sources=("cli",)):
     """Identify a sole writable rollout; multiple native writers are ambiguous."""
     home = Path(auth_home).resolve()
     sessions = (home / "sessions").resolve()
@@ -96,7 +96,7 @@ def _rollout(pid, auth_home):
             metadata = json.loads(header)
             payload = metadata.get("payload")
             if (metadata.get("type") != "session_meta" or not isinstance(payload, dict)
-                    or payload.get("id") != match[1] or payload.get("source") != "cli"):
+                    or payload.get("id") != match[1] or payload.get("source") not in sources):
                 raise _Unknown("invalid_native_rollout")
             candidates.add((match[1], path, file_identity))
     if len(candidates) > 1:
@@ -106,7 +106,34 @@ def _rollout(pid, auth_home):
     return candidates.pop()
 
 
-def resolve_process_conversation(provider, auth_home, *, pid=None, process_identity=None):
+def _app_server(pid, remote_endpoint):
+    """The app-server cdx started beside a remote-controlled TUI, or None.
+
+    With remote control on, the TUI (`codex --remote`) holds no rollout: the
+    app-server writes it. Only the session's own endpoint file maps the TUI to
+    its server, and both must still be children of the launcher that wrote it.
+    """
+    if not remote_endpoint:
+        return None
+    try:
+        info = json.loads(_bounded(remote_endpoint))
+    except FileNotFoundError:
+        return None
+    launcher, tui, server = info.get("pid"), info.get("tui_pid"), info.get("server_pid")
+    if pid != tui or not all(type(value) is int and 0 < value < 2**31 for value in (launcher, tui, server)):
+        return None
+    for child in (tui, server):
+        if int(_bounded(PROC_ROOT / str(child) / "stat").rsplit(")", 1)[1].split()[1]) != launcher:
+            raise _Unknown("unrelated_process")
+    _process(server)
+    return server
+
+
+# The app-server records its threads with its own client source.
+_APP_SERVER_SOURCES = ("cli", "vscode")
+
+
+def resolve_process_conversation(provider, auth_home, *, pid=None, process_identity=None, remote_endpoint=None):
     """Return public resolution fields and private exact-file evidence, if present.
 
     A bare PID means the process alive *now*. Persist process_identity to reject
@@ -129,10 +156,18 @@ def resolve_process_conversation(provider, auth_home, *, pid=None, process_ident
         if process_identity is not None and identity != process_identity:
             raise _Unknown("process_identity_changed")
         result["process_identity"] = identity
-        evidence = _rollout(pid, auth_home)
-        if _process(pid) != identity or _rollout(pid, auth_home) != evidence:
+
+        def snapshot():
+            server = _app_server(pid, remote_endpoint)
+            if server is None:
+                return None, _rollout(pid, auth_home)
+            return server, _rollout(server, auth_home, _APP_SERVER_SOURCES)
+
+        server, evidence = snapshot()
+        if _process(pid) != identity or snapshot() != (server, evidence):
             raise _Unknown("evidence_changed")
-        return {**result, "resolution_status": "resolved", "resolution_method": "process_open_rollout",
+        method = "process_open_rollout" if server is None else "app_server_open_rollout"
+        return {**result, "resolution_status": "resolved", "resolution_method": method,
                 "conversation_id": evidence[0]}, evidence
     except _Unknown as exc:
         return {**result, "reason": str(exc)}, None

@@ -199,7 +199,9 @@ def run(*, base_dir, name, cwd, codex_command, server_env, start_tui):
                     raise RuntimeError("codex app-server did not start") from None
                 time.sleep(POLL_SECONDS)
         tui = start_tui(port, token)
-        with Endpoint(base_dir, name, status_fn=lambda: {"mode": "shared", "pending": len(pending)}) as endpoint:
+        # The pids let `cdx conversation --pid <tui>` find the rollout the server writes.
+        with Endpoint(base_dir, name, status_fn=lambda: {"mode": "shared", "pending": len(pending)},
+                      extra={"tui_pid": tui.pid, "server_pid": server.pid}) as endpoint:
             log.append("ready")
             while tui.poll() is None:
                 try:

@@ -1,5 +1,7 @@
 """JSON conversation pages for interactive sessions."""
 
+import os
+
 from ..cli_args import _parse_flag_args
 from ..cli_helpers import _json_success, _write_json
 from ..conversation import read_conversation
@@ -7,6 +9,12 @@ from ..errors import CdxError
 from ..provider_runtime import _get_auth_home
 
 CONVERSATION_USAGE = "Usage: cdx conversation <name> [--conversation ID | --pid PID | --process-identity ID] [--cwd PATH] [--since ISO] [--cursor CURSOR | --tail N | --before CURSOR] [--limit N] --json"
+
+
+def _remote_endpoint(ctx, session):
+    """The session's remote-control endpoint file (read only, never created here)."""
+    base_dir = ctx["service"].get("base_dir")
+    return os.path.join(base_dir, "state", "remote", f"{session['name']}.endpoint.json") if base_dir else None
 
 
 def handle_conversation(rest, ctx):
@@ -40,6 +48,7 @@ def handle_conversation(rest, ctx):
         session["provider"], _get_auth_home(session),
         conversation_id=parsed["conversation"] or (None if process_selected else (session.get("conversation") or {}).get("id")),
         pid=pid, process_identity=parsed["process_identity"],
+        remote_endpoint=_remote_endpoint(ctx, session) if process_selected else None,
         cwd=parsed["cwd"], started_at=parsed["since"],
         cursor=parsed["cursor"], limit=limit, tail=tail, before=parsed["before"], fallback_to_recency=not process_selected and not parsed["conversation"],
     )
