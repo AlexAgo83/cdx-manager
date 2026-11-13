@@ -173,6 +173,7 @@ _None_
 | [req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json](request/req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json.md) | Keep each agent session's state and expose it as cdx agents --json | Done |  |  | request/req_081_keep_each_agent_session_s_state_and_expose_it_as_cdx_agents_json.md |
 | [req_082_resolve_live_codex_conversations_from_exact_native_rollout_writers](request/req_082_resolve_live_codex_conversations_from_exact_native_rollout_writers.md) | Resolve live Codex conversations from exact native rollout writers | Done | codex |  | request/req_082_resolve_live_codex_conversations_from_exact_native_rollout_writers.md |
 | [req_083_protocol_based_remote_messaging_for_interactive_sessions](request/req_083_protocol_based_remote_messaging_for_interactive_sessions.md) | Protocol-based remote messaging for interactive sessions | Draft |  |  | request/req_083_protocol_based_remote_messaging_for_interactive_sessions.md |
+| [req_084_record_folder_trust_and_hook_approvals_before_every_cdx_launch](request/req_084_record_folder_trust_and_hook_approvals_before_every_cdx_launch.md) | Record folder trust and hook approvals before every cdx launch | Ready |  |  | request/req_084_record_folder_trust_and_hook_approvals_before_every_cdx_launch.md |
 
 ## Backlog
 

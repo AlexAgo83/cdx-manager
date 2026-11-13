@@ -2,6 +2,7 @@ import contextlib
 import json
 import os
 import queue
+import shutil
 import subprocess
 import threading
 import time
@@ -241,71 +242,79 @@ def _probe_codex_rate_limit_diagnostic(session, auth_home, timeout=5, popen_fact
     return {"ok": True, "reason": None, "status": status, "response": response}
 
 
-def _request_codex_app_server(auth_home, method, params, failure_reason, timeout=5, popen_factory=None):
-    env = os.environ.copy()
-    env["CODEX_HOME"] = auth_home
-    popen_factory = popen_factory or subprocess.Popen
-    process = None
+@contextlib.contextmanager
+def codex_app_server(auth_home, timeout=5, popen_factory=None, env=None):
+    """A fresh stdio `codex app-server` for this home, as `request(method, params)`.
+
+    Each call returns the matching response, or None after `timeout` seconds.
+    The server is stopped on exit; spawning errors reach the caller.
+    """
+    env = {**(env or os.environ), "CODEX_HOME": auth_home}
     output = queue.Queue()
+    # Resolved like a launch, so an npm `codex.cmd` shim is found on Windows.
+    command = "codex" if popen_factory else shutil.which("codex", path=env.get("PATH")) or "codex"
+    process = (popen_factory or subprocess.Popen)(
+        [command, "app-server", "--listen", "stdio://"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        env=env,
+        text=True, encoding="utf-8", errors="replace",
+        bufsize=1,
+    )
+    next_id = iter(range(1, 1 << 30))
+
+    def request(method, params):
+        request_id = next(next_id)
+        _write_json_line(process, {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
+        return _read_response(output, request_id, timeout)
+
     try:
-        process = popen_factory(
-            ["codex", "app-server", "--listen", "stdio://"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            env=env,
-            text=True, encoding="utf-8", errors="replace",
-            bufsize=1,
-        )
         thread = threading.Thread(target=_reader_thread, args=(process.stdout, output), daemon=True)
         thread.start()
-        _write_json_line(process, {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "clientInfo": {"name": "cdx-manager", "version": "0"},
-                "capabilities": {"experimentalApi": True},
-            },
-        })
-        initialized = _read_response(output, 1, timeout)
-        if not initialized or initialized.get("error"):
-            return {
-                "ok": False,
-                "reason": "initialize_failed",
-                "status": None,
-                "response": initialized,
-            }
+        yield request
+    finally:
+        try:
+            process.terminate()
+            process.wait(timeout=1)
+        except (OSError, subprocess.TimeoutExpired):
+            try:
+                process.kill()
+            except OSError:
+                pass
 
-        _write_json_line(process, {
-            "jsonrpc": "2.0",
-            "id": 2,
-            "method": method,
-            "params": params,
-        })
-        response = _read_response(output, 2, timeout)
-        if not response or response.get("error"):
-            return {
-                "ok": False,
-                "reason": failure_reason,
-                "status": None,
-                "response": response,
-            }
-        return {"ok": True, "reason": None, "status": None, "response": response}
+
+def codex_initialize_params():
+    return {
+        "clientInfo": {"name": "cdx-manager", "version": "0"},
+        "capabilities": {"experimentalApi": True},
+    }
+
+
+def _request_codex_app_server(auth_home, method, params, failure_reason, timeout=5, popen_factory=None):
+    try:
+        with codex_app_server(auth_home, timeout=timeout, popen_factory=popen_factory) as request:
+            initialized = request("initialize", codex_initialize_params())
+            if not initialized or initialized.get("error"):
+                return {
+                    "ok": False,
+                    "reason": "initialize_failed",
+                    "status": None,
+                    "response": initialized,
+                }
+            response = request(method, params)
+            if not response or response.get("error"):
+                return {
+                    "ok": False,
+                    "reason": failure_reason,
+                    "status": None,
+                    "response": response,
+                }
+            return {"ok": True, "reason": None, "status": None, "response": response}
     except FileNotFoundError as error:
         return {"ok": False, "reason": "codex_cli_not_found", "status": None, "error": str(error)}
     except (OSError, ValueError, BrokenPipeError) as error:
         return {"ok": False, "reason": "probe_failed", "status": None, "error": str(error)}
-    finally:
-        if process is not None:
-            try:
-                process.terminate()
-                process.wait(timeout=1)
-            except (OSError, subprocess.TimeoutExpired):
-                try:
-                    process.kill()
-                except OSError:
-                    pass
 
 
 def fetch_codex_rate_limits(session, timeout=5, popen_factory=None, diagnostic=False):

@@ -319,6 +319,8 @@ def _format_launch_config(session, use_color=False):
         ("scrub_env", "Scrub agent env"),
         ("shared_memory", "Shared memory"),
         ("retro", "Session retro"),
+        ("auto_trust_folder", "Auto-trust folder"),
+        ("auto_trust_hooks", "Auto-trust hooks"),
         ("model", "Model"),
         ("fallback_model", "Fallback"),
         ("budget", "Budget"),
@@ -349,13 +351,15 @@ def _format_launch_settings_hint(name="<name>"):
     )
 
 def _format_launch_setting_value(launch, key, use_color=False):
-    if key in ("fast", "rtk", "logics", "notify", "agent_state", "remote_control", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro"):
+    if key in ("fast", "rtk", "logics", "notify", "agent_state", "remote_control", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro", "auto_trust_folder", "auto_trust_hooks"):
         if launch.get(key) is True:
             return _style("on", "32", use_color)
         if launch.get(key) is False:
             return _style("off", "2", use_color)
         if key == "status_line":
             return _dim("on (Claude)", use_color)
+        if key in ("auto_trust_folder", "auto_trust_hooks"):
+            return _dim("on", use_color)
         if key == "logics":
             return _dim("auto", use_color)
         if key in ("notify", "agent_state", "remote_control", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro"):

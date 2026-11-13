@@ -48,3 +48,14 @@ def _no_caller_rtk_history(monkeypatch):
     history, so a caller that set one changed what those tests observe.
     """
     monkeypatch.delenv("RTK_DB_PATH", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _no_real_codex_app_server():
+    """Never spawn the developer's real `codex app-server` to record folder trust.
+
+    Every Codex launch and run records trust through it; the tests that cover
+    that path call `_trust_codex` with a fake app-server.
+    """
+    with mock.patch("src.launch_trust._trust_codex", return_value=None):
+        yield

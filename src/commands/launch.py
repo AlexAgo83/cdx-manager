@@ -25,6 +25,7 @@ from ..config import PROVIDER_CLAUDE, PROVIDER_CODEX
 from ..errors import CdxError
 from ..handoff import HandoffSourceError, launch_prompt, load_entry, prepare_entry, resolve_source
 from ..interactive_usage import extract_interactive_usage, transcript_predates_run, usage_delta
+from ..launch_trust import auto_trust_hooks, ensure_trusted
 from ..provider_runtime import (
     INTERRUPT_EXIT_CODES,
     _conversation_id,
@@ -333,9 +334,14 @@ def handle_launch(command, ctx, initial_prompt=None, resume=False, force_json=No
             # silence here would leave the user with a feature that quietly does
             # nothing. Claude Code honours them straight away — verified against
             # a real turn — so it gets no instruction it does not need.
-            notice += " — approve them once in Codex to enable"
+            if not auto_trust_hooks(session):
+                notice += " — approve them once in Codex to enable"
         ctx["out"](f"{_info(notice, ctx['use_color'])}\n")
     _link_shared_memory(session, ctx, cwd, json_flag)
+    # After hook provisioning, so cdx's own Codex hooks are approved with the rest.
+    trust_failure = ensure_trusted(session, cwd, env=ctx.get("env"))
+    if trust_failure and not json_flag:
+        ctx["out"](f"{_warn('Trust not recorded for ' + session['name'], ctx['use_color'])} {trust_failure}\n")
     runtime_run_id = None
 
     def runtime_lifecycle(event, info):

@@ -36,8 +36,8 @@ CONTEXT_USAGE = "Usage: cdx context show|path|init|edit|clear|set|append [text..
 MEMORY_USAGE = "Usage: cdx memory [--global|--project NAME_OR_PATH] [show|view|path|init|edit|clear|set|append|list] [text...] [--json]"
 HANDOFF_USAGE = "Usage: cdx handoff <name> [--json] | cdx handoff <source> <target> [--source-conversation ID | --source-native-transcript PATH | --source-transcript PATH] [--json]"
 LABEL_USAGE = "Usage: cdx label <name> <label> [--json] | cdx label <name> --clear [--json]"
-SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--notify on|off] [--agent-state on|off] [--status-line on|off] [--notify-preview on|off] [--scrub-env on|off] [--shared-memory on|off] [--retro on|off] [--policy use|ask-first|never] [--model MODEL] [--fallback-model MODEL[,MODEL...]] [--budget USD] [--extra-args 'ARGS'] [--priority 0..100] [--max-parallel 0..5] [--json]"
-UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--reasoning-effort|--permission|--fast|--rtk|--logics|--notify|--agent-state|--status-line|--notify-preview|--scrub-env|--shared-memory|--retro|--policy|--model|--fallback-model|--budget|--extra-args|--priority|--max-parallel|--all) [--json]"
+SET_USAGE = "Usage: cdx set <name>|--sessions all|a,b|--provider PROVIDER [--power minimal|low|medium|high|xhigh] [--permission review|default|auto|full] [--fast on|off] [--rtk on|off] [--logics on|off] [--notify on|off] [--agent-state on|off] [--status-line on|off] [--notify-preview on|off] [--scrub-env on|off] [--shared-memory on|off] [--retro on|off] [--auto-trust-folder on|off] [--auto-trust-hooks on|off] [--policy use|ask-first|never] [--model MODEL] [--fallback-model MODEL[,MODEL...]] [--budget USD] [--extra-args 'ARGS'] [--priority 0..100] [--max-parallel 0..5] [--json]"
+UNSET_USAGE = "Usage: cdx unset <name>|--sessions all|a,b|--provider PROVIDER (--power|--reasoning-effort|--permission|--fast|--rtk|--logics|--notify|--agent-state|--status-line|--notify-preview|--scrub-env|--shared-memory|--retro|--auto-trust-folder|--auto-trust-hooks|--policy|--model|--fallback-model|--budget|--extra-args|--priority|--max-parallel|--all) [--json]"
 SETTING_ALIAS_USAGE = "Usage: cdx power|perm|fast|model <name|all|provider:PROVIDER|a,b> <value|default> [--json]"
 CONFIG_USAGE = "Usage: cdx config <name> [--json]"
 CONFIGS_USAGE = "Usage: cdx configs [--json]"
@@ -287,6 +287,8 @@ def _parse_set_args(args):
         "--scrub-env": {"key": "scrub_env", "type": "str", "default": None, "transform": _on_off("scrub env")},
         "--shared-memory": {"key": "shared_memory", "type": "str", "default": None, "transform": _on_off("shared memory")},
         "--retro": {"key": "retro", "type": "str", "default": None, "transform": _on_off("retro")},
+        "--auto-trust-folder": {"key": "auto_trust_folder", "type": "str", "default": None, "transform": _on_off("auto trust folder")},
+        "--auto-trust-hooks": {"key": "auto_trust_hooks", "type": "str", "default": None, "transform": _on_off("auto trust hooks")},
         "--model": {"key": "model", "type": "str", "default": None},
         "--fallback-model": {"key": "fallback_model", "type": "str", "default": None},
         "--budget": {"key": "budget", "type": "str", "default": None, "transform": _parse_budget_value},
@@ -310,7 +312,7 @@ def _parse_set_args(args):
         raise CdxError(SET_USAGE)
     settings = {
         key: parsed[key]
-        for key in ("power", "permission", "fast", "rtk", "logics", "notify", "agent_state", "remote_control", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro", "model", "fallback_model", "budget", "extra_args", "priority", "policy", "max_parallel")
+        for key in ("power", "permission", "fast", "rtk", "logics", "notify", "agent_state", "remote_control", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro", "auto_trust_folder", "auto_trust_hooks", "model", "fallback_model", "budget", "extra_args", "priority", "policy", "max_parallel")
         if parsed[key] is not None
     }
     if not settings:
@@ -340,6 +342,8 @@ def _parse_unset_args(args):
         "--scrub-env": {"key": "scrub_env", "type": "bool", "default": False},
         "--shared-memory": {"key": "shared_memory", "type": "bool", "default": False},
         "--retro": {"key": "retro", "type": "bool", "default": False},
+        "--auto-trust-folder": {"key": "auto_trust_folder", "type": "bool", "default": False},
+        "--auto-trust-hooks": {"key": "auto_trust_hooks", "type": "bool", "default": False},
         "--model": {"key": "model", "type": "bool", "default": False},
         "--fallback-model": {"key": "fallback_model", "type": "bool", "default": False},
         "--budget": {"key": "budget", "type": "bool", "default": False},
@@ -363,7 +367,7 @@ def _parse_unset_args(args):
     if not parsed["names"] and not parsed["sessions"] and not parsed["provider"]:
         raise CdxError(UNSET_USAGE)
     _UNSET_KEYS = (
-        "power", "reasoning_effort", "permission", "fast", "rtk", "logics", "notify", "agent_state", "remote_control", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro",
+        "power", "reasoning_effort", "permission", "fast", "rtk", "logics", "notify", "agent_state", "remote_control", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro", "auto_trust_folder", "auto_trust_hooks",
         "model", "fallback_model", "budget", "extra_args", "priority", "policy", "max_parallel",
     )
     keys = list(_UNSET_KEYS) if parsed["all"] else [key for key in _UNSET_KEYS if parsed[key]]
