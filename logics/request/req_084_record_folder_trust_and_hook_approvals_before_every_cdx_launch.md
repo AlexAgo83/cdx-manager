@@ -10,7 +10,7 @@
 
 # AI Context
 - Summary: Before a launch, resume, handoff or shared-home headless run, cdx records the provider's folder trust (and, for Codex, approval of pending hooks) in that profile's own config, so an unattended agent never stops on a trust or hook-review prompt.
-- Keywords: auto-trust-folder, auto-trust-hooks, folder trust, hasTrustDialogAccepted, trust_level, trustedWorkspaces, hooks.state, trusted_hash, hooks/list, config/batchWrite
+- Keywords: auto-trust-folder, auto-trust-hooks, codex-update-prompt, check_for_update_on_startup, folder trust, hasTrustDialogAccepted, trust_level, trustedWorkspaces, hooks.state, trusted_hash, hooks/list, config/batchWrite
 - Use when: changing what cdx writes into a provider config before it starts, or a provider changes how it stores trust.
 - Skip when: working on credentials, quotas or remote workers.
 
@@ -32,6 +32,7 @@
 - AC3: With `auto_trust_hooks` on, Codex approves every hook its app-server reports as untrusted or modified for that folder, after the folder trust so the project's own hooks are listed; cdx's own notification hooks are therefore approved too. Claude Code and Antigravity have no separate hook review (their hooks follow folder trust), so the setting changes nothing for them.
 - AC4: Writes merge into the existing file (every other key and project is kept), happen only when something is missing, go through an atomic rename or the provider's own writer, and touch only the launched session's home; an unreadable file is left untouched and reported as a warning.
 - AC5: Tests use fixture homes and a fake app-server: preservation of unrelated config, idempotence, each setting turned off on its own and both together, symlinked folders and per-profile isolation.
+- AC7: `cdx set <name> --codex-update-prompt on|off` (key `codex_update_prompt`, default off) keeps `check_for_update_on_startup` in the Codex profile's `config.toml` equal to the setting before every Codex launch and run, through the same app-server write, so Codex's startup "Update available" screen does not stop an unattended agent; cdx updates Codex itself with `cdx update all`.
 - AC6: A live check on Linux launches a Codex and an Antigravity profile in a new empty folder and sees no trust or hook prompt.
 
 # Definition of Ready (DoR)

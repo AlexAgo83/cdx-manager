@@ -321,6 +321,7 @@ def _format_launch_config(session, use_color=False):
         ("retro", "Session retro"),
         ("auto_trust_folder", "Auto-trust folder"),
         ("auto_trust_hooks", "Auto-trust hooks"),
+        ("codex_update_prompt", "Codex update prompt"),
         ("model", "Model"),
         ("fallback_model", "Fallback"),
         ("budget", "Budget"),
@@ -330,6 +331,8 @@ def _format_launch_config(session, use_color=False):
         ("max_parallel", "Max parallel"),
     ]:
         if key == "status_line" and session["provider"] != "claude":
+            continue
+        if key == "codex_update_prompt" and session["provider"] != "codex":
             continue
         rows.append([
             _dim(label, use_color),
@@ -351,7 +354,7 @@ def _format_launch_settings_hint(name="<name>"):
     )
 
 def _format_launch_setting_value(launch, key, use_color=False):
-    if key in ("fast", "rtk", "logics", "notify", "agent_state", "remote_control", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro", "auto_trust_folder", "auto_trust_hooks"):
+    if key in ("fast", "rtk", "logics", "notify", "agent_state", "remote_control", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro", "auto_trust_folder", "auto_trust_hooks", "codex_update_prompt"):
         if launch.get(key) is True:
             return _style("on", "32", use_color)
         if launch.get(key) is False:
@@ -362,7 +365,7 @@ def _format_launch_setting_value(launch, key, use_color=False):
             return _dim("on", use_color)
         if key == "logics":
             return _dim("auto", use_color)
-        if key in ("notify", "agent_state", "remote_control", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro"):
+        if key in ("notify", "agent_state", "remote_control", "status_line", "notify_preview", "scrub_env", "shared_memory", "retro", "codex_update_prompt"):
             return _style("off", "2", use_color)
         return _dim("default", use_color)
     value = launch.get(key)

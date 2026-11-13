@@ -1,4 +1,4 @@
-"""Pre-accept the folder-trust and hook-review prompts of a cdx launch.
+"""Pre-accept the folder-trust, hook-review and Codex update prompts of a cdx launch.
 
 An agent started through cdx must not stop on "Do you trust this folder?" or on
 Codex's "Hooks need review" screen: nobody may be at the terminal. Two launch
@@ -15,6 +15,10 @@ reports as untrusted or modified, `[hooks.state."<key>"] trusted_hash` in
 `<home>/config.toml`. Codex computes those hashes itself, so cdx asks its
 app-server (`hooks/list`) and writes through it (`config/batchWrite`). Claude
 Code and Antigravity have no separate hook review: their hooks follow folder trust.
+
+`codex_update_prompt` (off unless set on): cdx updates Codex itself (`cdx update
+all`), so its startup "Update available" screen is one more stop. cdx keeps
+`check_for_update_on_startup` in `<home>/config.toml` equal to this setting.
 
 Each write is a merge (other settings are kept), happens only when something is
 missing, and goes through the provider's writer or an atomic rename.
@@ -36,6 +40,10 @@ def auto_trust_hooks(session):
     return (session.get("launch") or {}).get("auto_trust_hooks") is not False
 
 
+def codex_update_prompt(session):
+    return (session.get("launch") or {}).get("codex_update_prompt") is True
+
+
 def trust_paths(cwd=None):
     """The folder as given and as resolved: a provider may key it either way."""
     path = os.path.abspath(cwd or os.getcwd())
@@ -49,8 +57,6 @@ def ensure_trusted(session, cwd=None, env=None, popen_factory=None):
     trust could not be recorded (the launch goes on either way).
     """
     folder, hooks = auto_trust_folder(session), auto_trust_hooks(session)
-    if not (folder or hooks):
-        return None
     home = session.get("authHome") or session.get("sessionRoot") or session.get("codexHome")
     if not home:
         return None
@@ -61,7 +67,8 @@ def ensure_trusted(session, cwd=None, env=None, popen_factory=None):
     if provider == "antigravity" and folder:
         return _trust_antigravity(home, paths)
     if provider == "codex":
-        return _trust_codex(home, paths, {**os.environ, **(env or {})}, popen_factory, folder=folder, hooks=hooks)
+        return _trust_codex(home, paths, {**os.environ, **(env or {})}, popen_factory, folder=folder, hooks=hooks,
+                            update_prompt=codex_update_prompt(session))
     return None
 
 
@@ -103,22 +110,37 @@ def _trust_antigravity(home, paths):
     return None if _write_json(path, settings) else "cannot write Antigravity settings.json"
 
 
-def _codex_untrusted_projects(home, paths):
-    """Folders not yet trusted; all of them when the config cannot be parsed here."""
+def _codex_config(home):
+    """The profile's config.toml ({} when absent), or None when it cannot be parsed here."""
     try:
         import tomllib
     except ImportError:
         try:
             import tomli as tomllib
         except ImportError:
-            return paths
+            return None
     try:
         with open(os.path.join(home, "config.toml"), "rb") as handle:
-            projects = tomllib.load(handle).get("projects") or {}
+            return tomllib.load(handle)
+    except FileNotFoundError:
+        return {}
     except (OSError, ValueError):
-        return paths
-    return [folder for folder in paths
-            if not isinstance(projects.get(folder), dict) or projects[folder].get("trust_level") != "trusted"]
+        return None
+
+
+def _codex_config_edits(config, paths, folder, update_prompt):
+    """The edits still missing; every one of them when the config is unknown."""
+    projects = (config or {}).get("projects") or {}
+    untrusted = [path for path in paths if config is None or not isinstance(projects.get(path), dict)
+                 or projects[path].get("trust_level") != "trusted"] if folder else []
+    edits = []
+    if untrusted:
+        edits.append({"keyPath": "projects", "mergeStrategy": "upsert",
+                      "value": {path: {"trust_level": "trusted"} for path in untrusted}})
+    # Codex checks for updates unless the key says otherwise.
+    if config is None or config.get("check_for_update_on_startup", True) is not update_prompt:
+        edits.append({"keyPath": "check_for_update_on_startup", "mergeStrategy": "replace", "value": update_prompt})
+    return edits
 
 
 def _pending_hook_state(listed):
@@ -136,24 +158,22 @@ def _pending_hook_state(listed):
     return state
 
 
-def _trust_codex(home, paths, env=None, popen_factory=None, timeout=10, folder=True, hooks=True):
+def _trust_codex(home, paths, env=None, popen_factory=None, timeout=10, folder=True, hooks=True, update_prompt=False):
     from .codex_usage import codex_app_server, codex_initialize_params
 
     def written(response):
         return bool(response) and not response.get("error")
 
-    untrusted = _codex_untrusted_projects(home, paths) if folder else []
-    if not (untrusted or hooks):
+    edits = _codex_config_edits(_codex_config(home), paths, folder, update_prompt)
+    if not (edits or hooks):
         return None
     try:
         with codex_app_server(home, timeout=timeout, popen_factory=popen_factory, env=env) as request:
             if not written(request("initialize", codex_initialize_params())):
                 return "codex app-server did not start"
             # Folder first: Codex lists a project's own hooks only once it is trusted.
-            if untrusted and not written(request("config/batchWrite", {"edits": [{
-                    "keyPath": "projects", "mergeStrategy": "upsert",
-                    "value": {folder: {"trust_level": "trusted"} for folder in untrusted}}]})):
-                return "codex refused the folder trust"
+            if edits and not written(request("config/batchWrite", {"edits": edits})):
+                return "codex refused the config write"
             if not hooks:
                 return None
             # A Codex without `hooks/list` has no hook review to answer.
