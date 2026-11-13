@@ -729,3 +729,71 @@ class KeyWatcherTests(unittest.TestCase):
         self.assertTrue(remote_claude.typed(b"\r"))
         self.assertTrue(remote_claude.typed(b"\x1b"))
         self.assertTrue(remote_claude.typed(b"\x1b[Ix"))
+
+
+class ClaudeChannelTests(unittest.TestCase):
+    """2026-11-13: messages enter the live TUI through a channel; nothing stops it."""
+
+    LINES = [
+        json.dumps({"type": "user", "message": {"role": "user", "content": "typed at the keyboard"}}),
+        json.dumps({"type": "user", "isMeta": True, "origin": {"kind": "channel", "server": "cdx"},
+                    "message": {"role": "user", "content": "<channel source=\"cdx\">\nping\n</channel>"}}),
+        json.dumps({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash"}]}}),
+        json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "pong"}]}}),
+        json.dumps({"type": "system", "subtype": "turn_duration"}),
+        json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "keyboard turn"}]}}),
+    ]
+
+    def test_channel_turns_become_events_and_keyboard_turns_do_not(self):
+        events = remote_claude.channel_events(self.LINES, {})
+        self.assertEqual(events, [("working", {"prompt": "ping"}), ("assistant", {"text": "pong"}), ("done", {})])
+
+    def test_the_server_answers_initialize_and_forwards_inbox_lines(self):
+        from src import claude_channel
+        inbox = os.path.join(tempfile.mkdtemp(), "inbox")
+        open(inbox, "w").close()
+        server = subprocess.Popen([sys.executable, claude_channel.__file__], stdin=subprocess.PIPE,
+                                  stdout=subprocess.PIPE, text=True, env={**os.environ, claude_channel.INBOX_ENV: inbox})
+        self.addCleanup(server.kill)
+        server.stdin.write(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                                       "params": {"protocolVersion": "2025-06-18"}}) + "\n")
+        server.stdin.flush()
+        init = json.loads(server.stdout.readline())
+        self.assertIn("claude/channel", init["result"]["capabilities"]["experimental"])
+        with open(inbox, "a") as handle:
+            handle.write(json.dumps({"text": "hello"}) + "\n")
+        self.assertEqual(json.loads(server.stdout.readline()),
+                         {"jsonrpc": "2.0", "method": "notifications/claude/channel", "params": {"content": "hello"}})
+
+    def test_the_loop_keeps_one_tui_and_logs_the_channel_turn(self):
+        base_dir, work = tempfile.mkdtemp(), tempfile.mkdtemp()
+        transcript, inbox = os.path.join(work, "t.jsonl"), os.path.join(work, "inbox")
+        adapter = type("Adapter", (), {"conversation_id": "conv-1", "_transcript": lambda self: transcript})()
+        starts, result = [], {}
+
+        def start_tui(resume):
+            starts.append(resume)
+            return subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+
+        def target():
+            result["code"] = remote_claude.run_channel_loop(
+                base_dir=base_dir, name="work", adapter=adapter, start_tui=start_tui, inbox=inbox)
+
+        thread = threading.Thread(target=target, daemon=True)
+        thread.start()
+        deadline = time.time() + 10
+        while not os.path.exists(remote_control.endpoint_file(base_dir, "work")) and time.time() < deadline:
+            time.sleep(0.1)
+        remote_control.request(base_dir, "work", "send", "ping")
+        while not os.path.exists(inbox) and time.time() < deadline:
+            time.sleep(0.1)
+        with open(inbox) as handle:
+            self.assertEqual(json.loads(handle.readline()), {"text": "ping"})
+        with open(transcript, "a") as handle:
+            handle.write("\n".join(self.LINES[1:5]) + "\n")
+        log = remote_control.events_file(base_dir, "work")
+        read = lambda: [json.loads(l)["event"] for l in open(log)] if os.path.exists(log) else []
+        while "done" not in read() and time.time() < deadline:
+            time.sleep(0.1)
+        self.assertEqual(read(), ["ready", "queued", "working", "assistant", "done"])
+        self.assertEqual(starts, [False], "one TUI for the whole launch")

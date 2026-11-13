@@ -26,6 +26,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 
 from .remote_control import Endpoint, EventLog, LaunchTerminated, remote_err_file
 
@@ -392,3 +393,117 @@ def run_loop(*, base_dir, name, adapter, start_tui, remote_options, out=None, ke
                 _stop_tui(proc)
         log.append("ended", returncode=stop.returncode, signal=stop.signal)
         return stop.returncode
+
+
+# --- Channel mode: messages enter the live TUI, which is never stopped ---------
+
+CHANNEL_SERVER = "cdx"
+DEV_CHANNEL_WARNING = "Loading development channels"
+
+
+def _text(content):
+    if isinstance(content, str):
+        return content
+    return "".join(part.get("text", "") for part in content or [] if isinstance(part, dict))
+
+
+def _channel_body(text):
+    """The message inside Claude Code's <channel source="cdx" ...> wrapper."""
+    start, end = text.find(">"), text.rfind("</channel>")
+    return text[start + 1:end].strip() if text.lstrip().startswith("<channel") and start >= 0 and end > start else text
+
+
+def channel_events(lines, state):
+    """Event-log entries for new transcript lines of a TUI driven through the channel.
+
+    A channel message opens a turn (`working`); its replies are `assistant`; the
+    turn ends with Claude Code's turn_duration line (`done`) or an interrupt.
+    Turns typed at the keyboard are left to the TUI, as before.
+    """
+    events = []
+    for line in lines:
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        kind, origin = row.get("type"), row.get("origin") or {}
+        content = (row.get("message") or {}).get("content")
+        if kind == "user" and origin.get("kind") == "channel" and origin.get("server") == CHANNEL_SERVER:
+            events.append(("working", {"prompt": _channel_body(_text(content))}))
+            state["turn"] = True
+        elif not state.get("turn"):
+            continue
+        elif kind == "assistant":
+            text = _text([p for p in content or [] if isinstance(p, dict) and p.get("type") == "text"])
+            if text:
+                events.append(("assistant", {"text": text}))
+        elif kind == "user" and INTERRUPTED_MARKER in _text(content):
+            events.append(("interrupted", {}))
+            state["turn"] = False
+        elif kind == "system" and row.get("subtype") == "turn_duration":
+            events.append(("done", {}))
+            state["turn"] = False
+    return events
+
+
+def _tmux(*args):
+    try:
+        return subprocess.run(["tmux", *args], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def confirm_dev_channel(pane, seconds=60):
+    """Accept Claude Code's development-channel warning (its default choice) in a tmux pane.
+
+    Claude Code shows it at every launch of a channel outside Anthropic's allowlist;
+    outside tmux the operator presses Enter once.
+    """
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if DEV_CHANNEL_WARNING in _tmux("capture-pane", "-p", "-t", pane):
+            _tmux("send-keys", "-t", pane, "Enter")
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def run_channel_loop(*, base_dir, name, adapter, start_tui, inbox, pane=None):
+    """Run the TUI once and deliver every `cdx send` through the channel inbox."""
+    log = EventLog(base_dir, name)
+    path = adapter._transcript()
+    offset = os.path.getsize(path) if path and os.path.exists(path) else 0
+    state = {}
+
+    def status():
+        return {"mode": "channel", "pending": 0, "conversation_id": adapter.conversation_id}
+
+    with Endpoint(base_dir, name, status_fn=status) as endpoint:
+        log.append("ready", conversation_id=adapter.conversation_id)
+        child = start_tui(False)
+        if pane:
+            threading.Thread(target=confirm_dev_channel, args=(pane,), daemon=True).start()
+        while True:
+            code = child.poll()
+            path = path or adapter._transcript()
+            if path and os.path.exists(path):
+                with open(path, "rb") as handle:
+                    handle.seek(offset)
+                    chunk = handle.read()
+                complete = chunk[:chunk.rfind(b"\n") + 1]
+                offset += len(complete)
+                for kind, fields in channel_events(complete.decode("utf-8", "replace").splitlines(), state):
+                    log.append(kind, source="remote", **fields)
+            if code is not None:
+                log.append("ended", returncode=code)
+                return code
+            try:
+                request = endpoint.requests.get(timeout=POLL_SECONDS)
+            except queue.Empty:
+                continue
+            if request["op"] == "send":
+                log.append("queued", source="remote", prompt=request["text"])
+                with open(inbox, "a", encoding="utf-8") as handle:
+                    handle.write(json.dumps({"text": request["text"]}, ensure_ascii=False) + "\n")
+            elif request["op"] == "interrupt" and pane:
+                _tmux("send-keys", "-t", pane, "Escape")

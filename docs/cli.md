@@ -837,6 +837,22 @@ change. Host A's authenticated TUI still requires a measured comparison of the
 returned UUID with its selected native conversation after launch, resume and
 switch, especially with concurrent sessions.
 
+## Claude remote control: the cdx channel
+
+A Claude launch with remote control on loads cdx's own channel, a stdio MCP server
+(`src/claude_channel.py`), with `--mcp-config` and
+`--dangerously-load-development-channels server:cdx`. Each `cdx send` message is
+appended to the launch's inbox and pushed into the running TUI, which shows it as
+`← cdx: ...` and answers like a typed message. The TUI is never stopped: background
+tasks, permission prompts, slash commands and `/remote-control` keep working. cdx
+follows the session transcript to log `working`, `assistant` and `done` for each
+channel turn; keyboard turns are not logged. `cdx send --interrupt` sends Escape to
+the TUI's tmux pane.
+
+Claude Code shows a development-channel warning at every such launch (channels
+outside Anthropic's allowlist always ask). In tmux, cdx accepts it, the default
+choice; elsewhere press Enter once. Antigravity keeps the TUI and stream-json switch.
+
 ## Remote-control state files
 
 A launch with remote control on keeps its files under
@@ -852,6 +868,7 @@ launcher's process id.
 | `<name>@<pid>.events.jsonl` | The same lines for this launch only; started empty by the launch and kept after it ends |
 | `<name>@<pid>.remote.err` | The command line and stderr of the launch's latest remote run (Claude, Antigravity) |
 | `<name>@<pid>.codex-token` | The Codex app-server token, removed when the launch ends |
+| `<name>@<pid>.inbox`, `<name>@<pid>.channel.json` | Claude: the channel inbox (one JSON message per line) and the MCP config that loads it, removed when the launch ends |
 
 Each event line is one JSON object:
 

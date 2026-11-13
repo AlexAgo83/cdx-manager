@@ -1954,17 +1954,44 @@ def _run_interactive_provider_process(session, action, spawn=None, cwd=None,
                 # Same fallback as a plain launch: no transcript wrapper (e.g. on Windows).
                 return start_child(_fallback_launch_spec_or_raise(current, error))
 
+        channel_files = []
         try:
-            returncode = remote_claude.run_loop(
-                base_dir=remote_base_dir, name=session["name"], adapter=adapter, start_tui=start_tui,
-                remote_options=remote["options"],
-            )
+            if agy_remote is None:
+                # Claude: messages enter the live TUI through a channel; the TUI is never stopped.
+                from .remote_control import state_dir
+                stem = os.path.join(state_dir(remote_base_dir), f"{session['name']}@{os.getpid()}")
+                inbox, config = stem + ".inbox", stem + ".channel.json"
+                channel_files = [inbox, config]
+                server = os.path.join(os.path.dirname(os.path.abspath(__file__)), "claude_channel.py")
+                with open(config, "w", encoding="utf-8") as handle:
+                    json.dump({"mcpServers": {remote_claude.CHANNEL_SERVER: {
+                        "command": sys.executable, "args": [server], "env": {"CDX_CHANNEL_INBOX": inbox}}}}, handle)
+                # Through extra_args, so they land before a `--` prompt and inside the transcript wrapper.
+                launch = dict(session.get("launch") or {})
+                launch["extra_args"] = " ".join(filter(None, [launch.get("extra_args"), shlex.join([
+                    "--mcp-config", config, "--dangerously-load-development-channels",
+                    "server:" + remote_claude.CHANNEL_SERVER])]))
+                channel_session = {**session, "launch": launch}
+                channel_spec = (_build_launch_spec(channel_session, cwd=cwd, env_override=env_override,
+                                                   initial_prompt=initial_prompt) if action == "launch"
+                                else _build_resume_spec(channel_session, cwd=cwd, env_override=env_override))
+                returncode = remote_claude.run_channel_loop(
+                    base_dir=remote_base_dir, name=session["name"], adapter=adapter,
+                    start_tui=lambda _resume: start_child(channel_spec), inbox=inbox,
+                    pane=os.environ.get("TMUX_PANE"),
+                )
+            else:
+                returncode = remote_claude.run_loop(
+                    base_dir=remote_base_dir, name=session["name"], adapter=adapter, start_tui=start_tui,
+                    remote_options=remote["options"],
+                )
         finally:
             from .agent_state import launch_state_file
-            try:
-                os.unlink(launch_state_file(remote_base_dir, session["name"], os.getpid()))
-            except OSError:
-                pass
+            for path in [launch_state_file(remote_base_dir, session["name"], os.getpid()), *channel_files]:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
         info = run_info(spec, returncode=returncode)
         if lifecycle_callback:
             lifecycle_callback("finished", info)
