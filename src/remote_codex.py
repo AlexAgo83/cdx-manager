@@ -23,6 +23,11 @@ from .ws_client import WebSocket, WebSocketClosed
 TOKEN_ENV = "CDX_CODEX_REMOTE_TOKEN"
 STARTUP_SECONDS = 20
 POLL_SECONDS = 0.25
+THREAD_WAIT_SECONDS = 120
+
+
+class NoThreadYet(RuntimeError):
+    """The TUI has not opened its thread yet (still on a startup screen)."""
 
 
 def free_port():
@@ -37,7 +42,10 @@ def server_argv(command, port, token_file):
 
 
 def tui_args(args, port):
-    return [*args, "--remote", f"ws://127.0.0.1:{port}", "--remote-auth-token-env", TOKEN_ENV]
+    # The update prompt would hold the TUI on a startup screen with no thread for
+    # remote turns to land in; cdx updates Codex on its own schedule.
+    return [*args, "-c", "check_for_update_on_startup=false",
+            "--remote", f"ws://127.0.0.1:{port}", "--remote-auth-token-env", TOKEN_ENV]
 
 
 def map_notification(message, buffers):
@@ -119,29 +127,45 @@ class Client:
         return reply.get("result") or {}
 
     def tui_thread(self, cwd):
-        """The thread the TUI has loaded; the one rooted at the session cwd wins."""
+        """(thread id, subscribed) for the thread the TUI has loaded.
+
+        A thread rooted at the session cwd wins. A fresh TUI thread has no
+        rollout until its first turn, so it cannot be resumed (subscribed to)
+        yet; it still accepts turn/start, and send() subscribes right after.
+        """
         ids = [entry if isinstance(entry, str) else entry.get("id")
                for entry in self.call("thread/loaded/list", {}).get("data") or []]
-        best = None
+        best, unresumed = None, None
         for thread_id in ids:
             try:
                 thread = self.call("thread/resume", {"threadId": thread_id}).get("thread") or {}
             except RuntimeError:
+                unresumed = unresumed or thread_id
                 continue
             roots = [env.get("cwd") for env in thread.get("environments") or []] + [thread.get("cwd")]
             if best is None or cwd in roots:
                 best = thread_id
                 if cwd in roots:
                     break
-        return best
+        return (best, True) if best else (unresumed, False)
 
     def send(self, text, cwd):
+        subscribed = True
         if not self.thread_id:
-            self.thread_id = self.tui_thread(cwd)
+            self.thread_id, subscribed = self.tui_thread(cwd)
         if not self.thread_id:
-            raise RuntimeError("the TUI has no thread loaded yet")
+            raise NoThreadYet("the TUI has no thread loaded yet (still on a startup screen?)")
         self.log.append("queued", source="remote", prompt=text)
         self.call("turn/start", {"threadId": self.thread_id, "input": [{"type": "text", "text": text}]})
+        if not subscribed:
+            self.log.append("working", source="remote")
+            deadline = time.time() + 15
+            while time.time() < deadline:
+                try:
+                    self.call("thread/resume", {"threadId": self.thread_id}, timeout=5)
+                    break
+                except RuntimeError:
+                    time.sleep(POLL_SECONDS)
 
     def interrupt(self):
         if self.thread_id and self.turn_id:
@@ -183,17 +207,25 @@ def run(*, base_dir, name, cwd, codex_command, server_env, start_tui):
                 except queue.Empty:
                     request = None
                 if request:
-                    pending.append(request)
+                    pending.append({**request, "since": time.time()})
                 if not pending:
                     continue
+                current = pending[0]
                 try:
                     client = client or Client(port, token, log)
-                    current = pending[0]
                     if current["op"] == "send":
                         client.send(current["text"], cwd)
                     else:
                         client.interrupt()
                     pending.pop(0)
+                except NoThreadYet as error:
+                    # The TUI is still on a startup screen (trust, update, hooks):
+                    # keep the message until it opens its thread, within a bound.
+                    if time.time() - current["since"] > THREAD_WAIT_SECONDS:
+                        log.append("failed", source="remote", reason=str(error))
+                        pending.pop(0)
+                    else:
+                        time.sleep(1)
                 except (RuntimeError, OSError, WebSocketClosed) as error:
                     log.append("failed", source="remote", reason=str(error))
                     pending.pop(0)
