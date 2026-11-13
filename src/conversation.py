@@ -64,8 +64,11 @@ def _conversation_record(provider, kind):
 
 def _queued_prompt(record):
     attachment = record.get("attachment")
-    if (not isinstance(attachment, dict) or attachment.get("type") != "queued_command"
-            or (attachment.get("origin") or {}).get("kind") != "human"):
+    if not isinstance(attachment, dict) or attachment.get("type") != "queued_command":
+        return None
+    # Print mode (cdx remote control) records an operator prompt without an origin.
+    origin = attachment.get("origin")
+    if (origin or {}).get("kind") != "human" and not (origin is None and attachment.get("commandMode") == "prompt"):
         return None
     return attachment.get("prompt")
 

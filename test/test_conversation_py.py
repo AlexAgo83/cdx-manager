@@ -581,12 +581,18 @@ def test_claude_queued_messages_typed_mid_turn_are_user_entries(tmp_path):
         queued([{"type": "text", "text": "[Image #5] bloqué sur signaler"}, image]),
         queued([{"type": "text", "text": "[Image #6] capture lourde"}, big]),
         json.dumps({"type": "attachment", "timestamp": at, "attachment": {"type": "hook_success"}}),
+        # Print mode (cdx remote control) leaves the origin out of an operator prompt.
+        json.dumps({"type": "attachment", "timestamp": at, "attachment": {
+            "type": "queued_command", "prompt": "je test le msg queue", "commandMode": "prompt", "hostsOwnTurn": True}}),
+        json.dumps({"type": "attachment", "timestamp": at, "attachment": {
+            "type": "queued_command", "prompt": "<task-notification>x</task-notification>", "commandMode": "task-notification"}}),
     ]) + "\n")
     page = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION)
     assert [(e["role"], e["text"]) for e in page["entries"]] == [
         ("user", "ah mais je ne vois plus aucun de mes messages"),
         ("user", "[Image #5] bloqué sur signaler"),
         ("user", "[Image #6] capture lourde"),
+        ("user", "je test le msg queue"),
     ]
     assert "ZmFrZS1pbWFnZQ==" not in json.dumps(page)
     tail = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION, tail=10)
