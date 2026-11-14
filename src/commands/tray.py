@@ -1,6 +1,6 @@
 """Tray domain commands: the `cdx tray` surface a companion talks to.
 
-`status` is what the native companion reads. `install`, `launch`, `uninstall`
+`status` is what the native companion reads. `install`, `launch`, `stop`, `uninstall`
 and `autostart` act on recorded state and say plainly when there is none, and
 `doctor` reads all of it without changing any of it.
 """
@@ -45,11 +45,12 @@ from ..tray_install import (
 )
 from ..tray_instance import companion_instance
 from ..tray_plugins import ADAPTERS, collect_cards, enabled_plugins, set_plugin_enabled
+from ..tray_restart import stop_running_companion
 from ..tray_terminal import REFUSAL as TERMINAL_REFUSAL
 from ..tray_terminal import clear_terminal, set_sort, set_terminal, sort_preference, terminal_candidates, terminal_preference
 
 TRAY_ACTIONS = (
-    "status", "install", "launch", "uninstall", "autostart", "doctor",
+    "status", "install", "launch", "stop", "uninstall", "autostart", "doctor",
     "events", "ack", "heartbeat", "alerts", "plugin", "terminal", "sort",
 )
 
@@ -77,6 +78,8 @@ def handle_tray(rest, ctx):
         return _tray_status(args, ctx)
     if action == "launch":
         return _tray_launch(args, ctx)
+    if action == "stop":
+        return _tray_stop(args, ctx)
     if action == "uninstall":
         return _tray_uninstall(args, ctx)
     if action == "autostart":
@@ -201,6 +204,28 @@ def _tray_launch(args, ctx):
     if parsed["json"]:
         _write_json(ctx, _json_success(
             "tray.launch", message, executable=executable, source=source, command=command,
+        ))
+        return 0
+    ctx["out"](f"{message}\n")
+    return 0
+
+
+def _tray_stop(args, ctx):
+    parsed = _parse_flag_args(args, {
+        "--json": {"key": "json", "type": "bool", "default": False},
+    }, TRAY_USAGE, positionals_key="args", max_positionals=0)
+    result = stop_running_companion(env=ctx.get("env"))
+    warnings = []
+    if result["stopped"]:
+        message = f"Stopped the tray companion (pid {result['pid']})"
+    elif not result["was_running"]:
+        message = "No running tray companion was found"
+    else:
+        message = f"Could not stop the tray companion (pid {result['pid']}): {result['reason']}"
+        warnings.append({"code": "tray_companion_stop_pending", "message": message})
+    if parsed["json"]:
+        _write_json(ctx, _json_success(
+            "tray.stop", message, warnings=warnings, applied=result["stopped"], **result,
         ))
         return 0
     ctx["out"](f"{message}\n")

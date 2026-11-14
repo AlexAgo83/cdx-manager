@@ -1,6 +1,8 @@
 """`cdx tray` subcommands that write state: install, terminal, sort, plugin,
 alerts, and the event spool a companion reads through `cdx`."""
 import json
+import os
+from pathlib import Path
 from unittest import mock
 
 from cli_test_support import CliTestBase
@@ -10,6 +12,8 @@ from src.errors import CdxError
 from src.session_service import create_session_service
 from src.tray_events import publish
 from src.tray_install import TrayInstallError
+from src.tray_instance import lock_path
+from src.tray_restart import stop_path
 
 INSTALLED = {"target": "darwin-arm64", "cdx_version": "0.0.0", "executable": "/opt/cdx-tray", "sha256": "0" * 64}
 
@@ -32,6 +36,93 @@ class TrayCommandsTest(CliTestBase):
                 mock.patch("src.commands.tray.install", return_value=INSTALLED), \
                 mock.patch("src.commands.tray.autostart_enable", autostart or mock.Mock()):
             return self.run_tray("install", "--json", *argv, spawn_detached=spawn or mock.Mock())
+
+    def stop_env(self):
+        return {
+            "CDX_HOME": self.temp_dir,
+            "TMPDIR": self.temp_dir,
+            "LOCALAPPDATA": self.temp_dir,
+            "XDG_RUNTIME_DIR": self.temp_dir,
+        }
+
+    def write_companion_pid(self, env, pid):
+        path = Path(lock_path(env=env))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(str(pid), encoding="utf-8")
+
+    def test_stop_running_companion(self):
+        env = self.stop_env()
+        self.write_companion_pid(env, os.getpid())
+
+        def exit_after_request(pid, **kwargs):
+            self.assertEqual(pid, os.getpid())
+            self.assertEqual(Path(stop_path(env=env)).read_text(encoding="utf-8"), "stop")
+            Path(lock_path(env=env)).unlink()
+            return True
+
+        with mock.patch("src.tray_restart.wait_for_exit", side_effect=exit_after_request):
+            code, payload = self.run_tray("stop", "--json", env=env)
+        self.assertEqual(code, 0)
+        self.assertEqual(payload["action"], "tray.stop")
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["was_running"])
+        self.assertTrue(payload["stopped"])
+        self.assertTrue(payload["applied"])
+        self.assertEqual(payload["pid"], os.getpid())
+        self.assertFalse(Path(stop_path(env=env)).exists())
+        self.assertFalse(self.run_tray("stop", "--json", env=env)[1]["was_running"])
+
+    def test_stop_already_stopped_companion(self):
+        env = self.stop_env()
+        code, payload = self.run_tray("stop", "--json", env=env)
+        self.assertEqual(code, 0)
+        self.assertFalse(payload["was_running"])
+        self.assertFalse(payload["stopped"])
+        self.assertFalse(payload["applied"])
+        self.assertIn("No running", self.run_tray("stop", env=env)[1])
+        self.assertFalse(Path(stop_path(env=env)).exists())
+
+    def test_stop_stale_pid(self):
+        env = self.stop_env()
+        self.write_companion_pid(env, 999999999)
+        Path(stop_path(env=env)).write_text("stop", encoding="utf-8")
+        with mock.patch("src.tray_instance._is_alive", return_value=False), \
+                mock.patch("src.tray_restart.request_stop") as request:
+            code, payload = self.run_tray("stop", "--json", env=env)
+        self.assertEqual(code, 0)
+        self.assertFalse(payload["was_running"])
+        self.assertFalse(payload["stopped"])
+        request.assert_not_called()
+        self.assertFalse(Path(stop_path(env=env)).exists())
+
+    def test_stop_timeout_reports_running_companion(self):
+        env = self.stop_env()
+        self.write_companion_pid(env, os.getpid())
+        with mock.patch("src.tray_restart.wait_for_exit", return_value=False):
+            code, payload = self.run_tray("stop", "--json", env=env)
+        self.assertEqual(code, 0)
+        self.assertTrue(payload["was_running"])
+        self.assertFalse(payload["stopped"])
+        self.assertIn("did not stop", payload["reason"])
+        self.assertEqual(payload["warnings"][0]["code"], "tray_companion_stop_pending")
+        self.assertFalse(Path(stop_path(env=env)).exists())
+
+    def test_stop_text_reports_success(self):
+        with mock.patch("src.commands.tray.stop_running_companion", return_value={
+            "was_running": True, "stopped": True, "pid": 123,
+        }) as stop:
+            code, output = self.run_tray("stop")
+        self.assertEqual(code, 0)
+        self.assertIn("Stopped the tray companion (pid 123)", output)
+        stop.assert_called_once_with(env={"CDX_HOME": self.temp_dir})
+
+    def test_stop_rejects_extra_arguments(self):
+        for args in (("extra",), ("--unknown",)):
+            with self.subTest(args=args), \
+                    mock.patch("src.commands.tray.stop_running_companion") as stop, \
+                    self.assertRaises(CdxError):
+                self.run_tray("stop", *args)
+            stop.assert_not_called()
 
     def test_install_refuses_without_a_published_companion(self):
         with mock.patch("src.commands.tray.current_target", return_value=None):

@@ -70,7 +70,7 @@ RUN_STATUS_USAGE = "Usage: cdx run-status <run_id> --json"
 RUN_REPORT_USAGE = "Usage: cdx run-report <run_id> --json"
 RUN_TAIL_USAGE = "Usage: cdx run-tail <run_id> [--lines N] --json"
 SCHEMA_USAGE = "Usage: cdx schema --json"
-TRAY_USAGE = "Usage: cdx tray status [--json] [--refresh] [--beat] | cdx tray install [--json] [--yes] [--autostart|--no-autostart] [--alerts|--no-alerts] | cdx tray launch|uninstall|doctor [--json] | cdx tray autostart [on|off|status] [--json] | cdx tray events [--json] | cdx tray ack <id>... [--json] | cdx tray heartbeat [--json] | cdx tray alerts [on|off|status] [--json] | cdx tray plugin [status|enable <name>|disable <name>|run <action>] [--json] | cdx tray terminal [status|list|set <app>|clear] [--json] | cdx tray sort [status|set <capacity|reset|recent>] [--json]"
+TRAY_USAGE = "Usage: cdx tray status [--json] [--refresh] [--beat] | cdx tray install [--json] [--yes] [--autostart|--no-autostart] [--alerts|--no-alerts] | cdx tray launch|stop|uninstall|doctor [--json] | cdx tray autostart [on|off|status] [--json] | cdx tray events [--json] | cdx tray ack <id>... [--json] | cdx tray heartbeat [--json] | cdx tray alerts [on|off|status] [--json] | cdx tray plugin [status|enable <name>|disable <name>|run <action>] [--json] | cdx tray terminal [status|list|set <app>|clear] [--json] | cdx tray sort [status|set <capacity|reset|recent>] [--json]"
 
 RUN_TAIL_DEFAULT_LINES = 50
 RUN_TAIL_MAX_LINES = 2000
@@ -635,6 +635,7 @@ def cdx_schema():
             "tray_companion_not_available",
             "tray_companion_not_installed",
             "tray_companion_restart_pending",
+            "tray_companion_stop_pending",
             "tray_companion_updated",
             "tray_plugin_action_unknown",
             "tray_plugin_unknown",
