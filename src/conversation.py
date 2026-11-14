@@ -98,6 +98,17 @@ _CLAUDE_HARNESS = re.compile(
 )
 # Claude Code wraps long pasted text in matching tags; show only the pasted text.
 _CLAUDE_PASTED = re.compile(r'<pasted_content id="([0-9A-Za-z]{1,32})">\n?(.*?)\n?</pasted_content id="\1">', re.S)
+# A whole message delivered through cdx's Claude Code channel (claude_channel.py).
+_CLAUDE_CHANNEL = re.compile(r'\A\s*<channel source="cdx"[^>]*>\n?(.*?)\n?</channel>\s*\Z', re.S)
+
+
+def _channel_message(record):
+    content = (record.get("message") or {}).get("content")
+    text = content if isinstance(content, str) else "".join(
+        block.get("text", "") for block in content or [] if isinstance(block, dict) and block.get("type") == "text")
+    return bool(_CLAUDE_CHANNEL.match(text))
+
+
 _CLAUDE_MID_TURN_START = "The user sent a new message while you were working:\n"
 _CLAUDE_MID_TURN_END = re.compile(
     r"\n+This is how Claude Code surfaces messages the user sends mid-turn[^\n]*"
@@ -115,6 +126,9 @@ def _claude_user_content(content):
              and block.get("type") == "text" and isinstance(block.get("text"), str)]
     for block in texts:
         block["text"] = _CLAUDE_PASTED.sub(r"\2", block["text"])
+        channel = _CLAUDE_CHANNEL.match(block["text"])
+        if channel:
+            block["text"] = channel.group(1)
     # Require both anchored boundaries; a quoted sentence alone is user content.
     if texts and texts[0]["text"].startswith(_CLAUDE_MID_TURN_START):
         end = _CLAUDE_MID_TURN_END.search(texts[-1]["text"])
@@ -133,8 +147,9 @@ def _entries(provider, record, names):
         return []
     if not _conversation_record(provider, record.get("type")):
         return []
-    # Claude Code marks its own user-role notes (image size hints, caveats) as isMeta.
-    if provider == "claude" and record.get("isMeta"):
+    # Claude Code marks its own user-role notes (image size hints, caveats) as isMeta, and
+    # also the operator's messages delivered through cdx's channel: keep only those.
+    if provider == "claude" and record.get("isMeta") and not _channel_message(record):
         return []
     agy_step = provider == "antigravity" and record.get("type") in AGY_STEPS
     stamp = record.get("created_at") if agy_step else record.get("timestamp")

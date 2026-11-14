@@ -632,6 +632,20 @@ def test_claude_pasted_content_wrapper_is_removed(tmp_path):
     assert [e["text"] for e in page["entries"]] == ["On est ok avec ces notifs ?\n/home/u/a.png", quoted]
 
 
+def test_claude_channel_wrapper_is_removed(tmp_path):
+    path = tmp_path / ".claude" / "projects" / "example" / f"{CONVERSATION}.jsonl"
+    path.parent.mkdir(parents=True)
+    text = '<channel source="cdx">\nEt là on est bon ?\n</channel>'
+    quoted = 'a literal <channel source="cdx"> mention'
+    meta_note = "[Image: original 1200x800, displayed at 600x400]"
+    # Claude Code records channel deliveries as isMeta, like its own notes; only the former are kept.
+    rows = [(text, True), (quoted, False), (meta_note, True)]
+    path.write_text("\n".join(json.dumps({"type": "user", "timestamp": "2026-11-14T00:40:00Z", "isMeta": meta,
+        "message": {"role": "user", "content": value}}) for value, meta in rows) + "\n")
+    page = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION)
+    assert [e["text"] for e in page["entries"]] == ["Et là on est bon ?", quoted]
+
+
 def test_codex_injected_context_is_not_a_user_turn(tmp_path):
     path = tmp_path / "sessions" / "2026" / f"rollout-2026-11-03-{CONVERSATION}.jsonl"
     path.parent.mkdir(parents=True)
