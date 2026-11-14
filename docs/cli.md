@@ -55,6 +55,7 @@
 | `cdx update [--check] [--yes] [--json] [--version TAG]` | Update cdx-manager using the installer that matches how it was installed |
 | `cdx update all [--yes] [--json]` | Check installed providers, RTK, and Ponytail across Codex profiles; show the plan and ask once before applying supported native/Homebrew updates and missing RTK/Ponytail setup |
 | `cdx ready [--refresh] [--json]` | Schedule an OS notification for the next cooling-down assistant that becomes ready, then return immediately |
+| `cdx mcp serve [--project-root DIR]` | Run cdx as a stdio MCP server with read and run tools only; see [MCP server](#mcp-server) |
 | `cdx notify` | Internal provider hook target for agent alerts and agent state; use `cdx set <name> --notify on` or `--agent-state on` to enable it |
 | `cdx agents [--max-age-hours N] [--json]` | Each session's last known agent state (working, waiting, done, failed, limit, ended), waiting first; records older than N hours (default 24) are dropped. See [Agent state](sessions-and-notifications.md#agent-state) |
 | `cdx next [--json] [--refresh]` | Select the best next assistant using the same priority logic as `cdx status` |
@@ -853,6 +854,33 @@ the TUI's tmux pane.
 Claude Code shows a development-channel warning at every such launch (channels
 outside Anthropic's allowlist always ask). In tmux, cdx accepts it, the default
 choice; elsewhere press Enter once. Antigravity keeps the TUI and stream-json switch.
+
+## MCP server
+
+`cdx mcp serve [--project-root DIR]` runs cdx as a stdio MCP server, with no extra
+dependency. Its 14 tools read and run only: `cdx_status`, `cdx_configs`, `cdx_run`
+(blocks until the run ends), `cdx_run_background` (detached, returns the `run_id`),
+`cdx_runs`, `cdx_run_status`, `cdx_run_report`, `cdx_run_tail`, `cdx_history`,
+`cdx_stats`, `cdx_disk`, `cdx_ready`, `cdx_last` and `cdx_doctor`. Each one runs the
+matching `cdx ... --json` command of the same install and returns its JSON. Commands
+that delete, touch credentials or change settings have no tool, `reset` included:
+it spends a banked Codex rate-limit reset credit, it does not clear a context.
+
+A run names its project by a short name, resolved to `<project root>/<name>`. The
+root comes from `--project-root` or `CDX_MCP_PROJECT_ROOT`; without one, the run
+tools answer with an error and the other tools still work. Names are limited to
+letters, digits, `.`, `_` and `-`, and a name made only of dots is refused. The
+prompt reaches `cdx run` on standard input, never on a command line. `session` and
+`provider` are mutually exclusive: name a session, or name only a provider to let
+cdx pick a ready session of it. `permission` defaults to `full`, since lower
+levels cut network access inside Codex sandboxes.
+
+```bash
+claude mcp add cdx --scope user -- cdx mcp serve --project-root "$HOME/code"
+```
+
+Another machine: make the client's command an SSH call that runs `cdx mcp serve`
+there, with `-o BatchMode=yes`; stdio passes through SSH unchanged.
 
 ## Remote-control state files
 

@@ -77,6 +77,7 @@ from .cli_render import (
 from .commands.rescue import handle_rescue
 from .config import PROVIDER_OLLAMA
 from .errors import CdxError
+from .mcp_server import handle_mcp
 from .remote_control import handle_send
 from .retro import handle_retro
 from .session_service import create_session_service
@@ -176,6 +177,7 @@ _COMMAND_HANDLERS = {
     "last": handle_last,
     "login": handle_login,
     "logout": handle_logout,
+    "mcp": handle_mcp,
     "memory": handle_memory,
     "next": handle_next,
     "notify": handle_notify,
@@ -303,6 +305,7 @@ def _print_help(use_color=False):
         f"  {_style('cdx tray autostart [on|off|status] [--json]', '36', use_color)}",
         f"  {_style('cdx update [all] [--check] [--yes] [--json] [--version TAG]', '36', use_color)}",
         f"  {_style('cdx ready [--refresh] [--json]', '36', use_color)}",
+        f"  {_style('cdx mcp serve [--project-root DIR]', '36', use_color)}  # stdio MCP server for read and run tools",
         "",
         _style("Notifications:", "1", use_color),
         f"  {_style('cdx set <name> --notify on', '36', use_color)}  # agent finishes or needs attention",

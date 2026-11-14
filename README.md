@@ -41,6 +41,7 @@ cdx work
 | See which agents wait for you | `cdx agents --json` | [Agent state](docs/sessions-and-notifications.md#agent-state) |
 | Run on an SSH worker | `cdx run NAME --remote HOST` | [Remote workers](docs/operations.md#run-codex-or-ollama-on-an-ssh-worker) |
 | Read a session's conversation | `cdx conversation NAME --json` | [Conversations](docs/sessions-and-notifications.md#read-an-interactive-conversation) |
+| Drive cdx from an MCP client | `cdx mcp serve` | [MCP server](docs/cli.md#mcp-server) |
 | Budget, continue or recover runs | `cdx run --budget`, `--continue-run` | [Costs, fix rounds and recovery](docs/features.md#run-costs-and-budgets) |
 
 CDX checks authentication before interactive launches. Handoff keeps the source transcript in place and asks the receiving agent to verify the conversation and workspace before acting. No account switch or prompt submission happens just because you run `cdx next`.
