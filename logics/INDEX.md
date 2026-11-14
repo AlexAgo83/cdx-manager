@@ -78,6 +78,7 @@
 | [prod_056_trustworthy_local_recovery_and_usage_attribution](product/prod_056_trustworthy_local_recovery_and_usage_attribution.md) | Trustworthy local recovery and usage attribution | Settled |  |  | product/prod_056_trustworthy_local_recovery_and_usage_attribution.md |
 | [prod_057_agent_state_in_cdx](product/prod_057_agent_state_in_cdx.md) | Agent state in cdx | Settled |  |  | product/prod_057_agent_state_in_cdx.md |
 | [prod_058_remote_control_of_interactive_sessions_through_provider_protocols](product/prod_058_remote_control_of_interactive_sessions_through_provider_protocols.md) | Remote control of interactive sessions through provider protocols | Proposed |  |  | product/prod_058_remote_control_of_interactive_sessions_through_provider_protocols.md |
+| [prod_059_cdx_tray_the_tray_companion_released_on_its_own](product/prod_059_cdx_tray_the_tray_companion_released_on_its_own.md) | cdx-tray, the tray companion released on its own | Proposed |  |  | product/prod_059_cdx_tray_the_tray_companion_released_on_its_own.md |
 
 ## Roadmaps
 
@@ -174,6 +175,7 @@ _None_
 | [req_082_resolve_live_codex_conversations_from_exact_native_rollout_writers](request/req_082_resolve_live_codex_conversations_from_exact_native_rollout_writers.md) | Resolve live Codex conversations from exact native rollout writers | Done | codex |  | request/req_082_resolve_live_codex_conversations_from_exact_native_rollout_writers.md |
 | [req_083_protocol_based_remote_messaging_for_interactive_sessions](request/req_083_protocol_based_remote_messaging_for_interactive_sessions.md) | Protocol-based remote messaging for interactive sessions | Draft |  |  | request/req_083_protocol_based_remote_messaging_for_interactive_sessions.md |
 | [req_084_record_folder_trust_and_hook_approvals_before_every_cdx_launch](request/req_084_record_folder_trust_and_hook_approvals_before_every_cdx_launch.md) | Record folder trust and hook approvals before every cdx launch | Ready |  |  | request/req_084_record_folder_trust_and_hook_approvals_before_every_cdx_launch.md |
+| [req_085_move_the_tray_companion_into_its_own_cdx_tray_repository](request/req_085_move_the_tray_companion_into_its_own_cdx_tray_repository.md) | Move the tray companion into its own cdx-tray repository | Draft |  |  | request/req_085_move_the_tray_companion_into_its_own_cdx_tray_repository.md |
 
 ## Backlog
 
@@ -353,6 +355,10 @@ _None_
 | [item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run](backlog/item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run.md) | Switch Claude sessions between the TUI and a stream-json resume run | Ready |  | 0% | backlog/item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run.md |
 | [item_170_share_a_codex_app_server_between_the_tui_and_remote_clients](backlog/item_170_share_a_codex_app_server_between_the_tui_and_remote_clients.md) | Share a Codex app-server between the TUI and remote clients | Ready |  | 0% | backlog/item_170_share_a_codex_app_server_between_the_tui_and_remote_clients.md |
 | [item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows](backlog/item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows.md) | Prove the remote messaging loop on Linux, macOS and Windows | Ready |  | 0% | backlog/item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows.md |
+| [item_172_version_the_tray_contract_and_pin_its_json_shape](backlog/item_172_version_the_tray_contract_and_pin_its_json_shape.md) | Version the tray contract and pin its JSON shape | Ready |  | 0% | backlog/item_172_version_the_tray_contract_and_pin_its_json_shape.md |
+| [item_173_create_the_public_cdx_tray_repository_with_its_ci_and_releases](backlog/item_173_create_the_public_cdx_tray_repository_with_its_ci_and_releases.md) | Create the public cdx-tray repository with its CI and releases | Ready |  | 0% | backlog/item_173_create_the_public_cdx_tray_repository_with_its_ci_and_releases.md |
+| [item_174_install_the_tray_from_cdx_tray_releases](backlog/item_174_install_the_tray_from_cdx_tray_releases.md) | Install the tray from cdx-tray releases | Ready |  | 0% | backlog/item_174_install_the_tray_from_cdx_tray_releases.md |
+| [item_175_remove_the_tray_from_cdx_manager_and_announce_contract_changes](backlog/item_175_remove_the_tray_from_cdx_manager_and_announce_contract_changes.md) | Remove the tray from cdx-manager and announce contract changes | Ready |  | 0% | backlog/item_175_remove_the_tray_from_cdx_manager_and_announce_contract_changes.md |
 
 ## Tasks
 
@@ -451,6 +457,7 @@ _None_
 | [task_086_deliver_agent_state_and_detached_failover_in_cdx](tasks/task_086_deliver_agent_state_and_detached_failover_in_cdx.md) | Deliver agent state and detached failover in cdx | Done | claude | 100% | tasks/task_086_deliver_agent_state_and_detached_failover_in_cdx.md |
 | [task_087_resolve_live_codex_conversations_from_exact_native_rollout_writers](tasks/task_087_resolve_live_codex_conversations_from_exact_native_rollout_writers.md) | Resolve live Codex conversations from exact native rollout writers | Done | codex | 100% | tasks/task_087_resolve_live_codex_conversations_from_exact_native_rollout_writers.md |
 | [task_088_implement_protocol_based_remote_messaging_for_interactive_sessions](tasks/task_088_implement_protocol_based_remote_messaging_for_interactive_sessions.md) | Implement protocol-based remote messaging for interactive sessions | Ready |  | 0% | tasks/task_088_implement_protocol_based_remote_messaging_for_interactive_sessions.md |
+| [task_089_orchestrate_the_cdx_tray_split](tasks/task_089_orchestrate_the_cdx_tray_split.md) | Orchestrate the cdx-tray split | Ready |  | 0% | tasks/task_089_orchestrate_the_cdx_tray_split.md |
 
 ## Runbooks
 

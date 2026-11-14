@@ -1,0 +1,7 @@
+{
+  "1.3": {
+    "snapshot": ["actions", "cdx_version", "generated_at", "icon", "plugins", "refreshable", "schema", "sessions", "sort", "terminal", "terminal_candidates"],
+    "icon": ["reason", "session_count", "state", "tooltip"],
+    "session": ["active", "age_seconds", "available_pct", "freshness", "label", "last_launched_at", "name", "provider", "remaining_5h_pct", "remaining_week_pct", "reset_at", "reset_in", "state", "updated_ago", "updated_at"]
+  }
+}

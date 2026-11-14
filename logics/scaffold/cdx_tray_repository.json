@@ -1,0 +1,124 @@
+{
+  "title": "Move the tray companion into its own cdx-tray repository",
+  "references": [
+    "tray/Cargo.toml",
+    "tray/src/snapshot.rs",
+    "src/tray_install.py",
+    "src/cli_commands.py",
+    ".github/workflows/build-tray-assets.yml",
+    ".github/workflows/publish-npm.yml",
+    ".github/workflows/publish-pypi.yml",
+    "checksums/release-archives.json",
+    "docs/tray-local-testing.md"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Tray companion",
+    "needs": [
+      "The tray companion (Rust, tray/) lives in its own public repository, cdx-tray, with its own CI and releases.",
+      "A cdx release no longer rebuilds the tray assets nor waits for them before publishing to npm and PyPI.",
+      "The tray CI and releases only run when the tray changes or when cdx publishes a breaking change of the tray contract."
+    ],
+    "context": [
+      "Maintainer decision (2026-11-14): repository name cdx-tray; implemented directly, not delegated.",
+      "Today the tray only talks to cdx through `cdx tray status --json`; it imports no cdx code. Every cdx release rebuilds every tray target (about 3 minutes) and the npm/PyPI publish jobs wait for that build, even when the tray did not change.",
+      "`cdx tray install` downloads `cdx-tray-{version}-{target}.tar.gz` from the cdx release of the same version and verifies it against the release-archives.json checksum ledger. After the move it must pick the newest cdx-tray release that supports the installed cdx schema major.",
+      "cdx-tray is public: copy clean files without importing this repository's history, and keep every value generic (no host, account or path specific to one installation)."
+    ],
+    "acceptance_criteria": [
+      "AC1: `cdx tray status --json` keeps its existing `schema` (name, major, minor); a test pins the JSON shape per version, so a change fails until the minor (added keys) or major (removed or renamed keys) is bumped.",
+      "AC2: The public cdx-tray repository builds, tests and releases the tray assets with their checksum ledger, on its own changes or when cdx announces a new schema major.",
+      "AC3: `cdx tray install` installs the newest cdx-tray release that supports the installed contract, verified against that release's checksum ledger; an unsupported contract is refused with a clear update message.",
+      "AC4: cdx-manager no longer contains tray/ nor the tray asset workflow; its publish jobs no longer wait for tray assets; earlier cdx releases keep their published tray assets.",
+      "AC5: The tray shows an update message instead of failing when cdx reports a contract it does not know."
+    ]
+  },
+  "product": {
+    "title": "cdx-tray, the tray companion released on its own",
+    "overview": "The menu-bar/tray companion becomes its own small public project with a versioned JSON contract to cdx, so each side releases at its own pace.",
+    "goals": [
+      "Faster cdx releases: no tray rebuild and no publish wait.",
+      "A tray that only rebuilds when it changes or when the contract does.",
+      "A safe install path that never pairs an incompatible tray and cdx."
+    ],
+    "non_goals": [
+      "New tray features.",
+      "Changing the checksum verification model."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Version the tray contract and pin its JSON shape",
+      "priority": "High",
+      "complexity": "Low",
+      "theme": "Tray companion",
+      "request_acs": ["AC1"],
+      "problem": ["The tray depends on `cdx tray status --json` but nothing marks a breaking change of that output."],
+      "scope_in": [
+        "Reuse the existing `schema` {name, major, minor} of the tray snapshot (1.3 today); a major bump is the breaking change.",
+        "A test pins the shape (keys and types) and fails on change unless the contract version is bumped in the same change."
+      ],
+      "scope_out": ["Moving files."],
+      "acceptance_criteria": ["AC1: the field exists and the shape test guards it."]
+    },
+    {
+      "title": "Create the public cdx-tray repository with its CI and releases",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Tray companion",
+      "request_acs": ["AC2", "AC5"],
+      "problem": ["The tray has no home of its own."],
+      "scope_in": [
+        "Clean copy of tray/ (no history), licence, README in the shared short shape, CI building and testing on its own changes.",
+        "Release workflow: one asset per OS and architecture plus a checksum ledger, triggered by a tray tag or by a cdx contract announcement (repository_dispatch).",
+        "The tray keeps its existing update hint for an unknown schema major.",
+        "Privacy scan of every file and commit before the first push."
+      ],
+      "scope_out": ["New tray features."],
+      "acceptance_criteria": ["AC2: a cdx-tray release publishes every asset with its ledger.", "AC5: an unknown contract shows an update message."]
+    },
+    {
+      "title": "Install the tray from cdx-tray releases",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Tray companion",
+      "request_acs": ["AC3"],
+      "problem": ["`cdx tray install` only knows the cdx release of the same version."],
+      "scope_in": [
+        "Pick the newest cdx-tray release whose supported contract range includes the installed cdx schema major; verify against its ledger; refuse otherwise with an update message.",
+        "Keep installing from the matching cdx-manager release for versions published before the move."
+      ],
+      "scope_out": ["Autostart and shortcut behaviour changes."],
+      "acceptance_criteria": ["AC3: install picks a compatible cdx-tray release and refuses an incompatible one."]
+    },
+    {
+      "title": "Remove the tray from cdx-manager and announce contract changes",
+      "priority": "Medium",
+      "complexity": "Low",
+      "theme": "Tray companion",
+      "request_acs": ["AC4"],
+      "problem": ["Every cdx release still rebuilds and waits for the tray."],
+      "scope_in": [
+        "Delete tray/ and the tray asset workflow; drop the publish wait in the npm and PyPI workflows.",
+        "When a release bumps `tray_contract`, notify cdx-tray (repository_dispatch).",
+        "Update the README table, docs and tray testing guide to point to cdx-tray."
+      ],
+      "scope_out": ["Rewriting earlier releases."],
+      "acceptance_criteria": ["AC4: a cdx release publishes without tray jobs, and earlier releases keep their assets."]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Orchestrate the cdx-tray split",
+    "plan": [
+      "Contract first (item 1), released in a cdx version so cdx-tray can rely on it.",
+      "Create cdx-tray (item 2) and publish its first release built from the same sources.",
+      "Switch `cdx tray install` (item 3), then remove the tray from cdx-manager (item 4) in the next cdx release.",
+      "Verify on a real machine: install, launch, menu refresh, and a cdx release that publishes without tray jobs."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/cdx_tray_repository.json",
+    "mode": "full",
+    "profile": "normal"
+  }
+}

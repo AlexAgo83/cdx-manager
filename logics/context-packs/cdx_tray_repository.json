@@ -1,0 +1,494 @@
+{
+  "budgets": {
+    "max_docs": 24,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_085_move_the_tray_companion_into_its_own_cdx_tray_repository item_172_version_the_tray_contract_and_pin_its_json_shape item_173_create_the_public_cdx_tray_repository_with_its_ci_and_releases item_174_install_the_tray_from_cdx_tray_releases item_175_remove_the_tray_from_cdx_manager_and_announce_contract_changes task_089_orchestrate_the_cdx_tray_split --mode full --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_172_version_the_tray_contract_and_pin_its_json_shape",
+          "item_173_create_the_public_cdx_tray_repository_with_its_ci_and_releases",
+          "item_174_install_the_tray_from_cdx_tray_releases",
+          "item_175_remove_the_tray_from_cdx_manager_and_announce_contract_changes"
+        ],
+        "prod": [
+          "prod_059_cdx_tray_the_tray_companion_released_on_its_own"
+        ],
+        "req": [
+          "req_085_move_the_tray_companion_into_its_own_cdx_tray_repository"
+        ],
+        "task": [
+          "task_089_orchestrate_the_cdx_tray_split"
+        ]
+      },
+      "path": "logics/product/prod_059_cdx_tray_the_tray_companion_released_on_its_own.md",
+      "ref": "prod_059_cdx_tray_the_tray_companion_released_on_its_own",
+      "sections": {
+        "Goals": [
+          "- Faster cdx releases: no tray rebuild and no publish wait.",
+          "- A tray that only rebuilds when it changes or when the contract does.",
+          "- A safe install path that never pairs an incompatible tray and cdx."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "The menu-bar/tray companion becomes its own small public project with a versioned JSON contract to cdx, so each side releases at its own pace."
+        ],
+        "References": [
+          "- Product back-reference: `req_085_move_the_tray_companion_into_its_own_cdx_tray_repository`",
+          "- Task back-reference: `task_089_orchestrate_the_cdx_tray_split`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "cdx-tray, the tray companion released on its own"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "move, tray, companion, own, cdx, repository",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "execution_table": "# Executions\n| When | Runner | Run id | Title | State | PR | Notes |\n| --- | --- | --- | --- | --- | --- | --- |\n\n",
+      "executions": {
+        "older_count": 0,
+        "rows": []
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_172_version_the_tray_contract_and_pin_its_json_shape",
+          "item_173_create_the_public_cdx_tray_repository_with_its_ci_and_releases",
+          "item_174_install_the_tray_from_cdx_tray_releases",
+          "item_175_remove_the_tray_from_cdx_manager_and_announce_contract_changes"
+        ],
+        "prod": [
+          "prod_059_cdx_tray_the_tray_companion_released_on_its_own"
+        ],
+        "req": [
+          "req_085_move_the_tray_companion_into_its_own_cdx_tray_repository"
+        ]
+      },
+      "path": "logics/request/req_085_move_the_tray_companion_into_its_own_cdx_tray_repository.md",
+      "ref": "req_085_move_the_tray_companion_into_its_own_cdx_tray_repository",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: `cdx tray status --json` carries an integer `tray_contract`; a test pins the JSON shape, so changing it fails until the contract version is bumped.",
+          "- AC2: The public cdx-tray repository builds, tests and releases the tray assets with their checksum ledger, on its own changes or when cdx announces a new contract version.",
+          "- AC3: `cdx tray install` installs the newest cdx-tray release that supports the installed contract, verified against that release's checksum ledger; an unsupported contract is refused with a clear update message.",
+          "- AC4: cdx-manager no longer contains tray/ nor the tray asset workflow; its publish jobs no longer wait for tray assets; earlier cdx releases keep their published tray assets.",
+          "- AC5: The tray shows an update message instead of failing when cdx reports a contract it does not know."
+        ],
+        "Needs": [
+          "- The tray companion (Rust, tray/) lives in its own public repository, cdx-tray, with its own CI and releases.",
+          "- A cdx release no longer rebuilds the tray assets nor waits for them before publishing to npm and PyPI.",
+          "- The tray CI and releases only run when the tray changes or when cdx publishes a breaking change of the tray contract."
+        ]
+      },
+      "status": "Draft",
+      "title": "Move the tray companion into its own cdx-tray repository"
+    },
+    {
+      "ai_context": {
+        "keywords": "version, tray, contract, pin, json, shape",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "execution_table": "# Executions\n| When | Runner | Run id | Title | State | PR | Notes |\n| --- | --- | --- | --- | --- | --- | --- |\n\n",
+      "executions": {
+        "older_count": 0,
+        "rows": []
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_172_version_the_tray_contract_and_pin_its_json_shape"
+        ],
+        "prod": [
+          "prod_059_cdx_tray_the_tray_companion_released_on_its_own"
+        ],
+        "req": [
+          "req_085_move_the_tray_companion_into_its_own_cdx_tray_repository"
+        ],
+        "task": [
+          "task_089_orchestrate_the_cdx_tray_split"
+        ]
+      },
+      "path": "logics/backlog/item_172_version_the_tray_contract_and_pin_its_json_shape.md",
+      "ref": "item_172_version_the_tray_contract_and_pin_its_json_shape",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC1: the field exists and the shape test guards it."
+        ],
+        "Problem": [
+          "- The tray depends on `cdx tray status --json` but nothing marks a breaking change of that output."
+        ]
+      },
+      "status": "Ready",
+      "title": "Version the tray contract and pin its JSON shape"
+    },
+    {
+      "ai_context": {
+        "keywords": "create, public, cdx, tray, repository, releases",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "execution_table": "# Executions\n| When | Runner | Run id | Title | State | PR | Notes |\n| --- | --- | --- | --- | --- | --- | --- |\n\n",
+      "executions": {
+        "older_count": 0,
+        "rows": []
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_173_create_the_public_cdx_tray_repository_with_its_ci_and_releases"
+        ],
+        "prod": [
+          "prod_059_cdx_tray_the_tray_companion_released_on_its_own"
+        ],
+        "req": [
+          "req_085_move_the_tray_companion_into_its_own_cdx_tray_repository"
+        ],
+        "task": [
+          "task_089_orchestrate_the_cdx_tray_split"
+        ]
+      },
+      "path": "logics/backlog/item_173_create_the_public_cdx_tray_repository_with_its_ci_and_releases.md",
+      "ref": "item_173_create_the_public_cdx_tray_repository_with_its_ci_and_releases",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC2: a cdx-tray release publishes every asset with its ledger.",
+          "- AC5: an unknown contract shows an update message."
+        ],
+        "Problem": [
+          "- The tray has no home of its own."
+        ]
+      },
+      "status": "Ready",
+      "title": "Create the public cdx-tray repository with its CI and releases"
+    },
+    {
+      "ai_context": {
+        "keywords": "install, tray, cdx, releases",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "execution_table": "# Executions\n| When | Runner | Run id | Title | State | PR | Notes |\n| --- | --- | --- | --- | --- | --- | --- |\n\n",
+      "executions": {
+        "older_count": 0,
+        "rows": []
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_174_install_the_tray_from_cdx_tray_releases"
+        ],
+        "prod": [
+          "prod_059_cdx_tray_the_tray_companion_released_on_its_own"
+        ],
+        "req": [
+          "req_085_move_the_tray_companion_into_its_own_cdx_tray_repository"
+        ],
+        "task": [
+          "task_089_orchestrate_the_cdx_tray_split"
+        ]
+      },
+      "path": "logics/backlog/item_174_install_the_tray_from_cdx_tray_releases.md",
+      "ref": "item_174_install_the_tray_from_cdx_tray_releases",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC3: install picks a compatible cdx-tray release and refuses an incompatible one."
+        ],
+        "Problem": [
+          "- `cdx tray install` only knows the cdx release of the same version."
+        ]
+      },
+      "status": "Ready",
+      "title": "Install the tray from cdx-tray releases"
+    },
+    {
+      "ai_context": {
+        "keywords": "orchestrate, cdx, tray, split",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "execution_table": "# Executions\n| When | Runner | Run id | Title | State | PR | Notes |\n| --- | --- | --- | --- | --- | --- | --- |\n\n",
+      "executions": {
+        "older_count": 0,
+        "rows": []
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_172_version_the_tray_contract_and_pin_its_json_shape",
+          "item_173_create_the_public_cdx_tray_repository_with_its_ci_and_releases",
+          "item_174_install_the_tray_from_cdx_tray_releases",
+          "item_175_remove_the_tray_from_cdx_manager_and_announce_contract_changes"
+        ],
+        "prod": [
+          "prod_059_cdx_tray_the_tray_companion_released_on_its_own"
+        ],
+        "req": [
+          "req_085_move_the_tray_companion_into_its_own_cdx_tray_repository"
+        ],
+        "task": [
+          "task_089_orchestrate_the_cdx_tray_split"
+        ]
+      },
+      "path": "logics/tasks/task_089_orchestrate_the_cdx_tray_split.md",
+      "ref": "task_089_orchestrate_the_cdx_tray_split",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Orchestrate the cdx-tray split"
+    },
+    {
+      "ai_context": {},
+      "execution_table": "",
+      "executions": {
+        "older_count": 0,
+        "rows": []
+      },
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_172_version_the_tray_contract_and_pin_its_json_shape",
+          "item_173_create_the_public_cdx_tray_repository_with_its_ci_and_releases",
+          "item_174_install_the_tray_from_cdx_tray_releases",
+          "item_175_remove_the_tray_from_cdx_manager_and_announce_contract_changes"
+        ],
+        "prod": [
+          "prod_059_cdx_tray_the_tray_companion_released_on_its_own"
+        ],
+        "req": [
+          "req_085_move_the_tray_companion_into_its_own_cdx_tray_repository"
+        ],
+        "task": [
+          "task_089_orchestrate_the_cdx_tray_split"
+        ]
+      },
+      "path": "logics/product/prod_059_cdx_tray_the_tray_companion_released_on_its_own.md",
+      "ref": "prod_059_cdx_tray_the_tray_companion_released_on_its_own",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "cdx-tray, the tray companion released on its own"
+    },
+    {
+      "ai_context": {
+        "keywords": "remove, tray, cdx, manager, announce, contract, changes",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "execution_table": "# Executions\n| When | Runner | Run id | Title | State | PR | Notes |\n| --- | --- | --- | --- | --- | --- | --- |\n\n",
+      "executions": {
+        "older_count": 0,
+        "rows": []
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_175_remove_the_tray_from_cdx_manager_and_announce_contract_changes"
+        ],
+        "prod": [
+          "prod_059_cdx_tray_the_tray_companion_released_on_its_own"
+        ],
+        "req": [
+          "req_085_move_the_tray_companion_into_its_own_cdx_tray_repository"
+        ],
+        "task": [
+          "task_089_orchestrate_the_cdx_tray_split"
+        ]
+      },
+      "path": "logics/backlog/item_175_remove_the_tray_from_cdx_manager_and_announce_contract_changes.md",
+      "ref": "item_175_remove_the_tray_from_cdx_manager_and_announce_contract_changes",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- AC4: a cdx release publishes without tray jobs, and earlier releases keep their assets."
+        ],
+        "Problem": [
+          "- Every cdx release still rebuilds and waits for the tray."
+        ]
+      },
+      "status": "Ready",
+      "title": "Remove the tray from cdx-manager and announce contract changes"
+    }
+  ],
+  "estimates": {
+    "char_count": 11002,
+    "companion_doc_count": 1,
+    "doc_count": 7
+  },
+  "generated_at": "2026-11-14T14:00:05Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_085_move_the_tray_companion_into_its_own_cdx_tray_repository",
+      "item_172_version_the_tray_contract_and_pin_its_json_shape",
+      "item_173_create_the_public_cdx_tray_repository_with_its_ci_and_releases",
+      "item_174_install_the_tray_from_cdx_tray_releases",
+      "item_175_remove_the_tray_from_cdx_manager_and_announce_contract_changes",
+      "task_089_orchestrate_the_cdx_tray_split"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "full",
+  "profile": "normal",
+  "ref": "req_085_move_the_tray_companion_into_its_own_cdx_tray_repository,item_172_version_the_tray_contract_and_pin_its_json_shape,item_173_create_the_public_cdx_tray_repository_with_its_ci_and_releases,item_174_install_the_tray_from_cdx_tray_releases,item_175_remove_the_tray_from_cdx_manager_and_announce_contract_changes,task_089_orchestrate_the_cdx_tray_split",
+  "refs": [
+    "req_085_move_the_tray_companion_into_its_own_cdx_tray_repository",
+    "item_172_version_the_tray_contract_and_pin_its_json_shape",
+    "item_173_create_the_public_cdx_tray_repository_with_its_ci_and_releases",
+    "item_174_install_the_tray_from_cdx_tray_releases",
+    "item_175_remove_the_tray_from_cdx_manager_and_announce_contract_changes",
+    "task_089_orchestrate_the_cdx_tray_split"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: missing required evidence",
+      "changelog: missing required evidence",
+      "release_checksums: missing required evidence",
+      "local_validation: missing required evidence",
+      "git_push: missing required evidence",
+      "ci: missing required evidence",
+      "github_release: missing required evidence",
+      "npm_publication: missing required evidence",
+      "pypi_publication: missing required evidence"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: missing required evidence",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "release_checksums",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "github_release",
+        "required": true,
+        "state": "github_release",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "npm_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      },
+      {
+        "blocking_reason": "missing required evidence",
+        "id": "pypi_publication",
+        "required": true,
+        "state": "external_publication",
+        "status": "pending"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "preparing",
+    "target_id": null,
+    "target_version": "0.27.12",
+    "targets": []
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_089_orchestrate_the_cdx_tray_split.md",
+      "ref": "task_089_orchestrate_the_cdx_tray_split"
+    }
+  ]
+}
