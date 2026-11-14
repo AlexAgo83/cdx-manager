@@ -646,6 +646,20 @@ def test_claude_channel_wrapper_is_removed(tmp_path):
     assert [e["text"] for e in page["entries"]] == ["Et là on est bon ?", quoted]
 
 
+def test_claude_channel_message_absorbed_mid_turn_is_a_user_entry(tmp_path):
+    path = tmp_path / ".claude" / "projects" / "example" / f"{CONVERSATION}.jsonl"
+    path.parent.mkdir(parents=True)
+    # The real shape Claude Code wrote on 2026-11-14 for a channel message received mid-turn.
+    absorbed = {"type": "attachment", "timestamp": "2026-11-14T02:09:32.944Z", "attachment": {
+        "type": "queued_command", "prompt": '<channel source="cdx">\non en fait quoi ? \n</channel>',
+        "commandMode": "prompt", "origin": {"kind": "channel", "server": "cdx"}, "isMeta": True}}
+    other = {"type": "attachment", "timestamp": "2026-11-14T02:09:33Z", "attachment": {
+        "type": "queued_command", "prompt": "from elsewhere", "origin": {"kind": "channel", "server": "other"}}}
+    path.write_text("\n".join(json.dumps(row) for row in (absorbed, other)) + "\n")
+    page = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION)
+    assert [(e["role"], e["text"]) for e in page["entries"]] == [("user", "on en fait quoi ? ")]
+
+
 def test_codex_injected_context_is_not_a_user_turn(tmp_path):
     path = tmp_path / "sessions" / "2026" / f"rollout-2026-11-03-{CONVERSATION}.jsonl"
     path.parent.mkdir(parents=True)

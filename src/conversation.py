@@ -87,7 +87,9 @@ def _queued_prompt(record):
         return None
     # Print mode (cdx remote control) records an operator prompt without an origin.
     origin = attachment.get("origin")
-    if (origin or {}).get("kind") != "human" and not (origin is None and attachment.get("commandMode") == "prompt"):
+    # A cdx channel message that arrives mid-turn is absorbed as a queued command too.
+    channel = (origin or {}).get("kind") == "channel" and origin.get("server") == "cdx"
+    if (origin or {}).get("kind") != "human" and not channel and not (origin is None and attachment.get("commandMode") == "prompt"):
         return None
     return attachment.get("prompt")
 
