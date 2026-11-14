@@ -16,6 +16,14 @@ npm test
 npm run lint
 ```
 
+## README and documentation
+
+The README keeps one short shape, shared with logics-manager: title and badges, the one-line
+promise, "Get started in a minute", "What you can do" (a table), and "Documentation" (the docs
+index and the closing licence line). A new feature adds at most one row to the "What you can do"
+table, linking to its section in `docs/`; its detail goes in the matching page of `docs/`, never in
+the README. `test/test_readme_structure_py.py` enforces the shape.
+
 ## Workflow
 
 1. Create a branch from `main`.

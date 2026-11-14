@@ -182,3 +182,147 @@ cdx history --summary --from 2026-05-01 --to 2026-05-28
 ```
 
 `cdx history --summary` aggregates total time per assistant. Add `--since`, `--from`, or `--to` to focus on a period.
+
+## Read an interactive conversation
+
+`cdx conversation <name> [--conversation ID] [--cwd PATH] [--since ISO] [--cursor CURSOR | --tail N | --before CURSOR] [--limit N] --json`
+returns a read-only JSON page for the profile's current conversation. An explicit
+conversation ID uses an exact transcript lookup and never falls back. When the
+profile's recorded ID has no transcript on this host (for example after a remote
+run on another host), or there is no recorded ID, the command selects the latest
+local transcript for `--cwd PATH`, defaulting to the process working directory.
+Claude-compatible providers use `.claude/projects/<path-slug>`; Codex requires
+a matching `cwd` in the rollout's initial `session_meta` record. Missing or
+unreadable Codex metadata is excluded. `--since ISO` further restricts fallback
+to transcripts modified at or after the session start timestamp (for example
+`--since 2026-11-04T00:39:00Z`). Callers should pass a timestamp with a timezone.
+Without a candidate, JSON reports `status: "unavailable"` and
+`reason: "no_conversation_yet"`, including while a new session awaits folder trust.
+This fallback is best effort and does not rewrite the recorded ID. Exact ID
+lookups remain independent of these fallback constraints. JSON `resolution_method` is
+`conversation_id` for an exact match, `recency` for a local fallback, or `null`
+when no transcript is resolved. JSON `resolution_scope` records the canonical
+absolute `cwd` and supplied `since` timestamp for fallback attempts, including
+unavailable results; `since` is `null` when omitted. Exact lookups and unsupported
+providers report a `null` scope. A missing explicit ID still reports
+`transcript_not_found`.
+
+The normal cdx JSON envelope includes `status`, `reason`, `provider`, `session`,
+`entries`, `next_cursor`, and `has_more`. Each entry has exactly `role`
+(`user`, `assistant`, or `tool`), `text`, `tool_name`, `tool_summary`, `at`, and
+`id`. Missing values are `null`; normal tool text is empty. Entries follow file and
+content-block order, with stable IDs for the same file position. Timestamps are
+provider timestamps when valid. Tool calls/results have a name and a short
+summary; arguments, results, attachments, and reasoning blocks are omitted.
+Result names are recovered from recent calls, otherwise `tool`. The cache holds
+up to 100 names and is trimmed oldest first to 2 KiB of compact JSON when saved
+in a cursor. Existing version-1 cursors with larger caches remain readable.
+Common credential patterns and secret assignments in text are redacted without
+opening credential stores. Review conversation text before sharing: arbitrary
+unlabelled sensitive prose cannot be identified automatically.
+
+Pass `next_cursor` unchanged as `--cursor` to fetch the next page or poll for new
+entries. `--limit` bounds entries (default 100, range 1–1000). Reading seeks to
+the saved byte position rather than replaying history, and stops scanning after
+8 MiB per call, finishing the current record when it crosses that budget.
+A page may be empty while still returning a usable cursor. Poll on a
+timer: `has_more` means unread bytes, which can include an incomplete final line
+that will only become readable after the provider appends its newline.
+
+Start near the present with `cdx conversation work --tail 100 --json`.
+`--tail N` returns the last N normalized entries (1–1000) in chronological order.
+It reads backwards in 64 KiB blocks, retaining at most a 1 MiB record prefix;
+it does not replay the transcript from the beginning. Records that produce
+multiple entries can split across pages. The same redaction, tool summaries,
+oversized-record placeholders and file-position IDs apply. Recent tool names are
+recovered from a 64 KiB lookback (extended to 8 MiB when resolving a result in the selected window), with the usual `tool`
+fallback. Finding N entries can require scanning more bytes when records
+are oversized or contain no visible entries. Incomplete trailing records are
+excluded until their newline arrives.
+
+Tail and backward pages add `before_cursor`: pass it unchanged as
+`--before CURSOR --limit N` to load the preceding entries, also in chronological
+order. `before_cursor: null` means the beginning has been reached. You can also
+use `--before CURSOR --tail N`; `--tail` sets the count when both count options
+are present. `next_cursor` still works with `--cursor` to follow entries after
+the returned page, including messages appended after an initial tail read.
+`has_more` continues to describe unread bytes **after** that page; use
+`before_cursor` to decide whether older pages remain. `--cursor` cannot be
+combined with `--tail` or `--before`. Without either new option, the existing
+forward page contract is unchanged.
+
+Backward cursors retain the original file size, modification time and boundary
+anchors. Replacement, truncation or a detected in-place rewrite returns
+`reset_required`; appending new messages preserves backward pagination. As with
+forward cursors, transcripts must be append-only: bounded boundary checks cannot
+detect every arbitrary edit elsewhere in a file that also grows.
+
+Codex response items and Claude-compatible JSONL transcripts (Claude and
+Antigravity) are supported through the existing transcript resolver. Only
+`response_item` records from Codex and `user`/`assistant` records with `message`
+from Claude-compatible transcripts are read, including their tool blocks. All
+other record types are ignored, even when they repeat conversation content. Missing or
+unreadable files return `status: "unavailable"` with a reason. Ollama's terminal
+capture does not reliably identify message roles and returns
+`status: "unsupported"`, including when no capture exists. A transcript record
+larger than 1 MiB is skipped with bounded reads through its newline. For an allowed conversation record with readable type and message metadata, it produces
+one entry containing `[élément trop volumineux ignoré]`, with a stable ID and a
+role recovered from structural metadata in the readable prefix, or `tool` when
+unknown. Records whose type or message cannot be established from the bounded
+prefix are ignored. Its body, images and attachments are never returned. The cursor advances
+past that record so later messages remain accessible. An oversized final record
+without a newline produces no entry yet and is retried on the next call.
+A replaced/truncated file or invalid
+cursor returns `reset_required`; discard the cursor and reload the conversation.
+Cursors are opaque, versioned, and bound to a provider and file. Treat transcripts
+as append-only; reset the client if a provider rewrites earlier history.
+
+Python callers can use the same page contract:
+
+```python
+from cdx_manager.conversation import read_conversation
+
+page = read_conversation("claude", "/path/to/profile/home", conversation_id="session-id", limit=100)
+next_page = read_conversation(
+    "claude", "/path/to/profile/home", conversation_id="session-id",
+    cursor=page["next_cursor"], limit=100,
+)
+```
+
+## Claude quota status line
+
+cdx installs a cache-only `statusLine` command in each new Claude profile's
+`.claude/settings.json` and updates it on copy, rename, import, interactive launch/resume or `cdx set` /
+`cdx unset`. Existing profiles pick it up at their next interactive launch.
+The line uses the launcher's eight-cell remaining-capacity gauge, for example:
+
+```text
+█▁▁▁▁▁▁▁  5h 25% · wk 16% (reset Nov 07 09:30) · grif
+```
+
+The gauge follows the lowest known window. Each window below 20% includes its
+cached reset time when available. `stale` marks observations at least ten minutes
+old, missing an observation timestamp, or dated in the future. Missing, unreadable,
+malformed, or unknown quota data produces only `quota ?`, with no error output.
+The status command reads `sessions.json` directly without taking a store lock,
+refreshing authentication, starting a provider, or making a network call. Refresh
+quota separately with `cdx status --refresh` or the tray's normal refresh cycle.
+It targets less than 100 ms per render; Claude's input JSON is not used.
+
+The command pins the cdx store path and resolves the profile from the session's
+`HOME` / `USERPROFILE`, with `CDX_SESSION_NAME` as fallback when no home is set.
+It does not follow the launcher's currently selected account. Operator-defined
+`statusLine` values and unrelated settings are preserved; cdx reports a conflict
+in launch/settings output (also in JSON `warnings`). Invalid settings are skipped.
+
+```bash
+cdx set grif --status-line off  # Remove only cdx's command and keep it disabled.
+cdx set grif --status-line on   # Reinstall without replacing an operator command.
+cdx unset grif --status-line   # Return to the default (enabled for Claude).
+cdx set --provider claude --status-line on  # Update existing Claude profiles now.
+```
+
+Codex has a built-in status line configured with `tui.status_line`, an ordered list
+of built-in footer item identifiers, rather than Claude's shell-command setting
+([official configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)).
+cdx does not change Codex configuration for this feature.

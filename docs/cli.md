@@ -885,3 +885,38 @@ provider's exit code, or `128 + signal` with `signal` (`SIGHUP`, `SIGTERM`)
 when the launcher was stopped, for instance because its terminal was closed. A
 launcher that is killed (`SIGKILL`) writes nothing; readers treat a launch whose
 `pid` no longer runs as ended.
+
+## Quota provenance in status JSON
+
+Every profile in `cdx status --json` (including `--cached` and a named profile)
+includes `quota_windows.5h` and `quota_windows.weekly` alongside the existing
+percentage, reset and timestamp fields. Each window contains:
+
+- `source`: `codex_rate_limits` for the existing `account/rateLimits/read`
+  reader, `claude_probe` for the existing one-token Claude probe,
+  `claude_statusline` for explicitly identified Claude statusline evidence,
+  `cache` for legacy/local evidence without a known provider origin, or
+  `unknown` when the window has no measurement. A cached reading retains its
+  known original source; no extra probe is performed for this metadata.
+- `observed_at`: the ISO 8601 measurement time for this profile and window,
+  or `null` when absent or unknown. Reading a cache never advances this time.
+- `availability`: `measured` below the freshness threshold, `stale` at or
+  beyond it (or when a value has no valid observation time), or `unavailable`
+  when no value exists or the current read/authentication attempt failed.
+- `reason`: `null` unless unavailable; otherwise a stable explanation such
+  as `missing_window`, `login_required`, `login_expired`, `quota_read_failed`,
+  `probe_timeout`, `auth_probe_failed`, `profile_disabled`, or the Codex
+  diagnostic reason (`auth_locked`, `initialize_failed`,
+  `rate_limits_read_failed`, `missing_rate_limits`, `codex_cli_not_found`,
+  `missing_auth_home`, `probe_failed`). Provider error bodies are not copied.
+
+Freshness thresholds match the existing cache TTLs: Codex **300 seconds**,
+Claude **600 seconds**, and other providers **60 seconds** for these generic
+window fields. Provider-specific fields such as Antigravity's quota freshness
+retain their existing semantics. Missing windows remain `null`, never an
+assumed 0% or 100%. On a failed refresh, existing cached percentages and reset
+times remain available for compatibility, but the new availability is
+`unavailable` with the failure reason and the original observation time.
+Transient read errors describe the current command; `--cached` evaluates the
+stored evidence and authentication state without making a new read attempt.
+Reset times describe the quota window, not when it was measured.

@@ -100,3 +100,80 @@ or turn historical tool output into new authorization.
 - **Portable bundles.** `cdx export` / `cdx import` move sessions between machines, with passphrase-encrypted auth data when you ask for it.
 - **Update prompts.** Periodic update checks surface `cdx update` directly in the `cdx`, `cdx status`, and launch output when a newer release is available. When `logics-manager` is installed, `cdx` can also suggest `logics-manager update`.
 - **Logics viewer shortcut.** `cdx view` opens the Logics browser/focus viewer through `logics-manager view` when the companion CLI is installed. All viewer flags are forwarded: `--lan`, `--lan-rw`, `--focus <ref>`, `--read`, `--port`, `--host`, `--refresh-interval`, `--tls`, `--tls-cert`, `--tls-key`, `--open`, `--no-open`. `cdx view --json` reports availability and update diagnostics without opening the viewer.
+
+## Automatic mission concurrency per profile
+
+```bash
+cdx set work --max-parallel 2
+cdx show work
+cdx unset work --max-parallel
+```
+
+`--max-parallel` accepts an integer from 0 to 5 and stores `launch.max_parallel`
+next to `priority` and `policy`. Zero excludes the profile from automatic
+missions. An absent value adds no profile-specific ceiling: the scheduling
+client applies its own rule. Existing configurations need no migration.
+`cdx unset work --all` also removes the limit.
+
+The scheduling client is responsible for enforcing this metadata. It is
+separate from the existing per-command `cdx run --max-parallel` limit.
+`cdx --json` (also `cdx ls --json`) includes the optional field in each
+session's `launch` object; `cdx status --json` exposes `max_parallel` on each
+row (`null` when absent). `cdx show` is an alias for `cdx config` and displays
+`Max parallel` as `default` when unset.
+
+## Cache efficiency and fix rounds
+
+
+`cdx history --interactive --cwd /path/to/project --limit 50 --json` finds interactive launches without mission runs consuming the result window. `--cwd` compares resolved paths (including symlinks and `~`), exactly, without including child directories. Both filters apply before `--limit` and also work with profile names, period filters and `--summary`. `--interactive` excludes headless `run` entries, detached entries and labels starting with `mission:`; unlabelled legacy launches remain eligible.
+
+Interactive launches appear as `status: "running"` as soon as the provider starts, including `cdx start <name> --dir PATH` (an alias for `cdx <name> --dir PATH`) inside tmux. Completion or failure updates the same run ID. Active runtimes from older supervisors are included while their process remains alive; vanished unrecorded launches cannot be reconstructed.
+
+History entries expose `conversation_id` and `provider_transcript_match: "conversation_id"` when an exact provider transcript exists. Claude uses its launch session ID; Codex can recover a unique thread from transcript metadata matching the launch directory and time window. Ambiguous discovery remains `provider_transcript_match: "recency"`, an explicitly unverified fallback that must not be treated as a verified resume target. A known ID with no transcript does not borrow another conversation. Existing history is enriched on read without rewriting old rows.
+
+`first_user_prompt` contains the first real user text (up to 2,000 characters) from a bounded, redacted transcript read. Provider command wrappers, system reminders, tool results and bare absolute file paths are skipped. Missing, oversized or unavailable evidence leaves the prompt unknown; a supplied initial prompt is used when available.
+
+`cdx history --json` records uncached input, cache reads, cache writes, output tokens, and `usage.cache_hit_ratio` beside the existing token totals. The ratio is cache reads divided by all input tokens, excluding output. Missing provider splits stay `null`, and text views show `cache n/d` instead of claiming a zero hit rate.
+
+`cdx stats --json` adds `cache_usage` sums and an input-weighted `cache_hit_ratio` to each session, project (`--by project`), model (`--by model`), and total. `cache_usage` preserves unknown sums as `null`; existing numeric aggregate fields keep their previous behavior. Ratios include only runs with measured input and cache reads. Coverage is explicit in `measured_runs` and `measured_input_tokens`. `run_types.cold` and `run_types.continued` expose counts, sums, and ratios for comparison. Text views show values such as `cache 72 %` next to tokens.
+
+Reuse a completed run's provider conversation for another fix round:
+
+```bash
+cdx run work --cwd /path/to/repo --prompt "Implement the change" --reasoning-effort high --json
+cdx run --continue-run RUN_ID --cwd /path/to/repo --prompt "Fix the remaining test failure" --json
+```
+
+Pass provider arguments for a single run with `--extra-args 'ARGS'`. They use the session setting's POSIX quoting and validation (nonempty, at most 512 characters, no control characters, balanced quotes), and are appended after the profile's `extra_args`. They do not change the profile or subsequent interactive launches. Provider flag semantics remain unvalidated, as listed under `unvalidated.extra_args` in `cdx schema --json`; existing provider permission and workspace isolation handling still applies. Codex headless launches retain their existing behavior of ignoring session and run extra arguments.
+
+```bash
+cdx run claude-work --cwd /path/to/repo --permission default --prompt 'Run: touch t' --extra-args '--allowedTools "Bash(touch t)" --strict-mcp-config' --json
+```
+
+This allows the requested Claude tool and restricts MCP configuration for this run only. The option also follows detached runs and profile failover. With `--continue-run`, Claude extra arguments that override model, effort or conversation are refused, whether supplied by the session or this run.
+
+`--continue-run` resumes the exact Claude session or Codex thread and pins the previous run's recorded model and effort, even if the profile settings changed. The profile is inferred from the parent; an explicit session or provider must match. An explicit model or effort must also match. Runs and history record `parent_run_id` and `conversation_id`. Detached continuations use the cdx child supervisor with the same pins. Codex continuation usage is measured between exact transcript snapshots before and after the run, since exec resume can report conversation totals. If either boundary is unavailable, per-run usage stays unknown with `usage_attribution: "continuation_usage_unavailable"` in history instead of counting earlier turns again.
+
+Headless runs, including detached, remote and continued runs, keep their
+conversation identity in run records and history without replacing the profile's
+interactive conversation.
+
+Conservative assumption: a continuation requires a finished Claude or Codex run, a locally available provider transcript, and recorded model and effort settings. Missing runs, profiles, expired sessions, and unavailable settings produce a clear error; the caller can retry without `--continue-run` for a cold run. `--failover` and `--isolate-workspace` cannot be combined with continuation. Capacity recovery and provider model fallback are disabled for continuations so they cannot silently switch model or account. Provider cache retention remains provider-controlled, so resuming does not guarantee a cache hit.
+
+## Run costs and budgets
+
+`cdx history --json` includes nullable `cost_usd` for each entry, estimated from its observed usage and serving model using the same table and `CDX_TOKEN_PRICES` overrides as `cdx stats`. Unknown prices or usage stay `null`.
+
+```bash
+cdx run work --cwd /path/to/repo --prompt "Fix the tests" --budget 2.50 --json
+```
+
+`--budget` stops a run once its measured estimated cost reaches the USD amount, including with `--detach` and `--continue-run`. A budget stop exits with code 125 and reports `error.code: "budget_exceeded"` and `error.spent_usd`. Detached callers read the final result through `cdx run-status` or `cdx run-report`. Usage arrives in provider updates, so the estimate can overshoot; unknown usage or prices cannot trigger a budget stop. See the [budget contract](cli.md#run-budgets) for details.
+
+## Codex model capacity recovery
+
+`cdx run` (including `--detach`) automatically recovers from Codex's "Selected model is at capacity" failure. It retries the same prompt, profile, and model after 1 and 2 seconds, then tries the profile's `fallback_model` list in configured order, removing duplicates. Configure alternatives with `cdx set work --fallback-model MODEL_A,MODEL_B`.
+
+After exhausting those models, CDX selects another ready Codex profile using the normal ranking, including profile priority. Disabled, logged-out, `never`, and `ask-first` profiles are excluded from automatic selection. To choose an `ask-first` profile explicitly, name it in a new command (`cdx run NAME ...`). Each successor uses `--model` if supplied, otherwise its own configured/default model, followed by its own fallback list. Each model gets at most three attempts; at most four profile switches are allowed. Settings are not changed. Each attempt retains the command's timeout; the backoff adds at most three seconds per model.
+
+Recovery does not require `--failover`, which still controls account quota exhaustion separately. Other provider failures and timeouts do not trigger capacity recovery. Attempts restart the prompt in the same workspace; files from earlier attempts remain there. Each retry, model fallback, profile fallback, and exhausted budget is logged to stderr and persisted in `recovery_events` in the run registry and final JSON (`cdx run-status` / `cdx run-report`). Events include archived attempt output paths. Recovery keeps one run ID and reports the final effective model. If no eligible alternative remains or the profile switch budget is reached, the run fails with `capacity_recovery_exhausted`.

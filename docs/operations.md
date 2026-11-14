@@ -298,3 +298,133 @@ The browser cache is shared with host services, but package paths differ inside
 `/cache` and on the host. Playwright garbage collection cannot see every user's
 package references and must not delete other users' browser revisions. Browser
 installation remains available; cache cleanup is an explicit operator operation.
+
+## Run Codex or Ollama on an SSH worker
+
+```sh
+cdx run work --remote agent@worker --cwd /srv/project --prompt 'Run the checks' --json
+cdx run work --remote worker --cwd /srv/project --prompt-file task.txt --detach --label checks --budget 2 --json
+cdx run work --remote host-b --remote-prefix 'wsl.exe -d Ubuntu --' --cwd /srv/project --prompt 'Run the checks' --json
+```
+
+The controller remains the authority for the profile, quota, history, costs and
+run registry. Use `run-status`, `run-report` and `run-tail` on the controller with
+the returned run ID. Permission, model, reasoning effort, prompt, timeout, budget,
+label and detached execution use the existing run options. `--cwd` names an
+absolute directory on the worker; it need not exist on the controller. Files are
+not synchronized. Use `--project` to explicitly attribute a remote checkout to a
+project. Remote runs do not retry or fail over automatically, including when
+`--failover` is supplied.
+
+For Codex: a POSIX controller with `ssh` and Codex on PATH, and a Linux worker
+with Python 3, memory-backed `/dev/shm`, and exactly the same `codex --version`.
+Configure SSH keys, host trust and aliases in advance; the connection uses batch
+mode and bounded connection/keepalive timeouts. Provider refusal, unreachable
+workers and version mismatches fail before sending credentials. Codex requires an OAuth
+profile. Remote continuation is refused because the temporary home
+does not preserve conversation rollouts. Codex's native permission sandbox still
+applies to ordinary remote runs.
+
+For SSH servers landing in Windows `cmd.exe` (including Host B and Host C), pass
+`--remote-prefix 'wsl.exe -d Ubuntu --'` to enter Linux before starting Python.
+The prefix accepts plain command words, options and paths without spaces or shell
+metacharacters; it is forwarded to detached runs. POSIX targets need no prefix.
+Only a short, double-quoted Python bootstrap is sent in the SSH command line;
+the worker and shared sandbox source are framed on stdin before the payload.
+Neither source size nor prompt size consumes cmd.exe's 8191-character command limit.
+
+Remote Ollama profiles also support headless text generation:
+
+```bash
+cdx run local --remote worker --cwd /srv/project --model qwen3:8b --prompt-file question.txt --isolate-workspace --json
+```
+
+Here `local` is an existing Ollama profile. The named model must already be
+installed on the worker's unauthenticated `127.0.0.1:11434` Ollama API; CDX
+never downloads a missing model and rejects cloud-backed models. The prompt
+file is read on the launching host and sent as content over SSH. This path
+uses `/api/show` and `/api/chat` with `stream: false`, without an Ollama CLI or
+Codex installation. Results identify `execution_mode: "text_generation"` and
+include generated text in `result`, plus `prompt_eval_count` / `eval_count`
+and normalized input/output token counts in `usage`.
+
+Ollama is not an autonomous coding agent and does not edit the repository.
+With `--isolate-workspace`, the checkout is read-only and the client has its
+own network namespace without network access, including when `--network-access`
+is supplied. A private Unix socket connects it to a supervisor-owned relay
+with the fixed loopback destination and only the selected model's capability
+and non-streaming inference calls allowed. Pull, delete, push, arbitrary URLs,
+proxying and redirects are refused. No `~/.ollama` directory or model files
+are mounted. The relay is removed on completion or cancellation. Remote
+continuation remains unsupported; an explicit model or profile model is required.
+
+Codex `--remote` supports `--isolate-workspace` using the same local isolation mechanism:
+bubblewrap, pasta (passt), nftables, Python, the checkout/toolchain allowlist,
+and an actual namespace/network setup using a dummy credential. Missing dependencies,
+namespace denial or invalid checkouts fail before sending real credentials, without
+an unisolated fallback.
+
+For **every isolated Codex run**, local or remote, the sandbox mounts only a
+run-private, mode-600 `auth.json` on verified memory-backed storage, with an empty
+`refresh_token`. It never mounts the controller profile's full authentication file.
+The controller refreshes under the authentication lock at the thresholds below
+before preparing the snapshot, then releases the lock for the run. The temporary
+home is removed after success, failure, launch errors and stop. Non-isolated local
+runs and interactive login/refresh retain their normal profile authentication.
+
+**Accepted residual risk (operator decision, 2026-11-01):** agent tools inside the
+sandbox can read the copied access token, which can remain valid for up to ten
+days. A read-only mount prevents modification, not disclosure. The rotating refresh
+token never enters the sandbox or leaves the controller. Codex was measured to run
+with an empty refresh token on 2026-11-01.
+
+A long isolated Host A mission keeps its original credential snapshot even when
+scheduled controller refresh updates the real profile. There is no authentication
+writeback or token renewal inside the sandbox. A run that outlives its access token
+fails with a clear temporary-credential expiry error and must start a new run.
+
+The controller takes the profile's authentication lock and refreshes through its
+local [Codex app-server](https://learn.chatgpt.com/docs/app-server) when `last_refresh` is older than seven days or the access
+token has less than 24 hours left. It verifies freshness after refreshing and
+fails closed if freshness or expiration cannot be established. Only
+`access_token`, `id_token`, `account_id` and `last_refresh` travel, with an empty
+`refresh_token`. The rotating refresh token never leaves the controller. The
+credential travels exclusively over SSH stdin, and is absent from command
+arguments, environment variables, run records and output. The agent receives
+`/dev/null` as stdin, not the bootstrap script or credential transport.
+
+Each worker run gets a private mode-700 home under
+`/dev/shm/cdx-remote-<uid>/run-*`, with mode-600 `auth.json` and file-only credential storage. Only non-secret scalar
+preferences (`model`, `model_reasoning_effort`, `service_tier`, `personality`,
+`model_context_window`, `model_auto_compact_token_limit`) from the top level of
+`config.toml` are copied. Hooks, custom providers, environment settings and other
+controller-local configuration are not copied. The home is removed on completion,
+failure, cancellation and SSH stdin closure. Stop a detached run by sending
+SIGTERM to the controller PID returned at launch. Uncatchable worker termination
+can leave a home behind; the next launch sweeps homes whose worker lock is no
+longer held. No persistent worker authentication is installed or refreshed.
+
+A profile occupied by a remote run is busy for local and remote runs using the
+same controller through the run registry. The authentication lock is held only
+while refreshing and validating the credential snapshot, then released before SSH
+launch. Scheduled `cdx auth refresh` and quota probes can acquire it during a long
+mission; they no longer see a mission-long `locked`/`auth_refresh_indeterminate`
+result. A probe overlapping the short snapshot can still report contention.
+Controller renewal does not extend the worker's copied access token; quota remains
+one controller-side account snapshot, never a worker copy. Multiple independent controllers sharing copied OAuth profiles are not
+supported. Costs and budget checks use measured worker usage and observed rollout
+models, using the same exact-thread reader and 128 MiB rollout limit as local
+isolated runs. Content-free evidence travels in supervisor frames separated from
+provider stdout; raw rollouts and credentials are never returned. Live rollout
+counters can stop an over-budget run before `turn.completed`. Unknown prices and
+delayed provider reporting retain the usual budget limitations. With `--budget`,
+measured but unpriceable usage still fails with `budget_unverifiable` (exit 125),
+even after the provider finishes, preserving the documented fail-closed guarantee.
+Provider output remains in the run artifacts; without a budget, a completed run
+keeps its provider status and unknown cost. A run that outlives the access credential fails with
+`remote_credential_expired`, requiring a new controller launch.
+
+The empty-refresh-token behavior was measured with Codex CLI 0.166.0. Real-host
+acceptance should verify that the installed matching CLI does not attempt a
+refresh with the temporary home, that the controller token chain stays unchanged
+for a fresh credential, and that cleanup works after disconnect and SIGTERM.
