@@ -781,11 +781,13 @@ class ClaudeChannelTests(unittest.TestCase):
 
         thread = threading.Thread(target=target, daemon=True)
         thread.start()
-        deadline = time.time() + 10
+        deadline = time.time() + 30
         while not os.path.exists(remote_control.endpoint_file(base_dir, "work")) and time.time() < deadline:
             time.sleep(0.1)
         remote_control.request(base_dir, "work", "send", "ping")
-        while not os.path.exists(inbox) and time.time() < deadline:
+        # The loop opens the inbox before writing its line: under load the file exists empty.
+        complete = lambda: os.path.exists(inbox) and open(inbox).read().endswith("\n")
+        while not complete() and time.time() < deadline:
             time.sleep(0.1)
         with open(inbox) as handle:
             self.assertEqual(json.loads(handle.readline()), {"text": "ping"})
