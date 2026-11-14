@@ -16,6 +16,7 @@ import tarfile
 import tempfile
 import urllib.request
 
+from .tray_contract import SCHEMA_MAJOR
 from .tray_shortcut import create as create_shortcut
 
 STATE_VERSION = 1
@@ -58,6 +59,49 @@ def current_target(system=None, machine=None):
 
 def asset_name(version, target):
     return f"cdx-tray-{version}-{target}.tar.gz"
+
+
+# Since the tray moved to its own repository, its releases carry their own ledger,
+# each entry naming the snapshot schema major that build reads.
+TRAY_ASSET_URL = "https://github.com/AlexAgo83/cdx-tray/releases/download/v{version}/{asset}"
+TRAY_LEDGER_URL = "https://raw.githubusercontent.com/AlexAgo83/cdx-tray/main/checksums/release-archives.json"
+
+
+def _version_key(tag):
+    try:
+        return tuple(int(part) for part in tag.lstrip("v").split("."))
+    except ValueError:
+        return ()
+
+
+def tray_release(target, download=None, major=SCHEMA_MAJOR):
+    """(tray version, sha256) of the newest cdx-tray build that reads this snapshot major.
+
+    None when the cdx-tray ledger is unreachable or lists nothing for this target:
+    the caller then falls back to the tray assets published with CDX itself.
+    Raises when cdx-tray publishes releases but none reads this major yet.
+    """
+    fetch = download or _download
+    with tempfile.TemporaryDirectory(prefix="cdx-tray-ledger-") as scratch:
+        destination = os.path.join(scratch, "release-archives.json")
+        try:
+            fetch(TRAY_LEDGER_URL, destination)
+            with open(destination, encoding="utf-8") as handle:
+                releases = (json.load(handle).get("releases") or {})
+        except (OSError, ValueError, AttributeError):
+            return None
+    built = {tag: entry for tag, entry in releases.items()
+             if isinstance(entry, dict) and (entry.get("tray_assets") or {}).get(target)}
+    if not built:
+        return None
+    compatible = [tag for tag, entry in built.items() if entry.get("schema_major") == major]
+    if not compatible:
+        raise TrayInstallError(
+            f"No cdx-tray release reads tray snapshot v{major} yet. "
+            "Keep the installed companion, or update CDX and cdx-tray once one is published."
+        )
+    tag = max(compatible, key=_version_key)
+    return tag.lstrip("v"), built[tag]["tray_assets"][target]
 
 
 RELEASE_LEDGER_URL = (
@@ -189,15 +233,22 @@ def install(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, targe
         raise TrayInstallError(
             f"No tray companion is published for {platform.system()} {platform.machine()}."
         )
-    expected = expected_checksum(version, target, ledger_path=ledger_path, download=download)
-    if not expected:
-        raise TrayInstallError(
-            f"No published checksum for the {target} tray companion of CDX {version}. "
-            "Refusing to install an asset nothing vouches for."
-        )
-
-    asset = asset_name(version, target)
-    url = RELEASE_ASSET_URL.format(version=version, asset=asset)
+    tray = tray_release(target, download=download)
+    if tray:
+        tray_version, expected = tray
+        asset = asset_name(tray_version, target)
+        url = TRAY_ASSET_URL.format(version=tray_version, asset=asset)
+    else:
+        # Before the move, each CDX release carried its own tray assets.
+        tray_version = version
+        expected = expected_checksum(version, target, ledger_path=ledger_path, download=download)
+        if not expected:
+            raise TrayInstallError(
+                f"No published checksum for the {target} tray companion of CDX {version}. "
+                "Refusing to install an asset nothing vouches for."
+            )
+        asset = asset_name(version, target)
+        url = RELEASE_ASSET_URL.format(version=version, asset=asset)
     fetch = download or _download
     with tempfile.TemporaryDirectory(prefix="cdx-tray-") as scratch:
         archive = os.path.join(scratch, asset)
@@ -239,6 +290,7 @@ def install(base_dir, version, download=None, ledger_path=CHECKSUM_LEDGER, targe
     state = {
         "version": STATE_VERSION,
         "cdx_version": version,
+        "tray_version": tray_version,
         "target": target,
         "asset": asset,
         "sha256": expected,

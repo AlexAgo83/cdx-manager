@@ -53,6 +53,6 @@ CDX checks authentication before interactive launches. Handoff keeps the source 
 - [Command and JSON reference](docs/cli.md) — commands, selection, usage fields, programmatic contracts.
 - [Operations](docs/operations.md) — backup, disk cleanup, Windows notes, troubleshooting, release procedure.
 - [Technical overview](docs/technical-overview.md) — isolation, status sources, project and data layout.
-- [Tray companion testing](docs/tray-local-testing.md) — local development loops.
+- [Tray companion](docs/tray-local-testing.md): where the tray lives and how CDX pairs with it.
 
 Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). CDX Manager is [MIT licensed](LICENSE).

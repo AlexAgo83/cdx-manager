@@ -210,34 +210,6 @@ class WindowsAutostartTest(CliTestBase):
         self.assertTrue(artifact.endswith("CDXTray"))
 
 
-class ReleaseTargetAgreementTest(CliTestBase):
-    """The targets CDX asks for must be the ones the release actually builds.
-
-    This is the test that would have caught it: CDX asked for
-    x86_64-pc-windows-gnu while the workflow builds on windows-latest with the
-    default MSVC toolchain, so no checksum was ever published under the name
-    CDX looked for. Every Windows install refused, correctly and uselessly —
-    the guard worked, the name was wrong.
-    """
-
-    def _workflow_targets(self):
-        import re
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        text = open(
-            os.path.join(root, ".github", "workflows", "build-tray-assets.yml"),
-            encoding="utf-8",
-        ).read()
-        return set(re.findall(r"^\s*-\s*target:\s*(\S+)", text, re.MULTILINE))
-
-    def test_every_target_cdx_installs_is_one_the_release_builds(self):
-        from src.tray_install import TARGETS
-        built = self._workflow_targets()
-        self.assertTrue(built, "the workflow should declare a target matrix")
-        for key, target in TARGETS.items():
-            with self.subTest(platform=key):
-                self.assertIn(target, built, f"{target} is asked for but never built")
-
-
 class ArchiveShapeTest(CliTestBase):
     """Archives written as `tar -C dir .` carry a `.` member for the directory.
 
@@ -342,6 +314,55 @@ class PublishedLedgerFallbackTest(CliTestBase):
         self.assertIsNone(
             expected_checksum("9.9.9", "t", ledger_path=local, download=download)
         )
+
+
+class TrayRepositoryInstallTest(CliTestBase):
+    """Since the tray has its own repository, install picks the newest cdx-tray
+    release that reads this CDX's snapshot major (req_085, AC3)."""
+
+    def _serve(self, ledger, archive):
+        import json
+        import shutil
+        fetched = []
+
+        def download(url, destination):
+            fetched.append(url)
+            if url.endswith("release-archives.json"):
+                with open(destination, "w", encoding="utf-8") as handle:
+                    json.dump({"releases": ledger}, handle)
+            else:
+                shutil.copyfile(archive, destination)
+        return download, fetched
+
+    def test_installs_the_newest_compatible_cdx_tray_release(self):
+        from src.tray_install import install
+        base, scratch = self.make_temp_dir(), self.make_temp_dir()
+        archive, digest = CompanionAlignmentTest._asset(None, scratch)
+        download, fetched = self._serve({
+            "v0.17.1": {"schema_major": 1, "tray_assets": {"t": "older"}},
+            "v0.18.0": {"schema_major": 1, "tray_assets": {"t": digest}},
+            "v1.0.0": {"schema_major": 2, "tray_assets": {"t": "newer major"}},
+        }, archive)
+        state = install(base, "0.28.0", target="t", download=download)
+        self.assertEqual(state["tray_version"], "0.18.0")
+        self.assertEqual(state["cdx_version"], "0.28.0")
+        self.assertIn("cdx-tray/releases/download/v0.18.0/cdx-tray-0.18.0-t.tar.gz", fetched[-1])
+
+    def test_refuses_when_no_cdx_tray_release_reads_this_major(self):
+        from src.tray_install import TrayInstallError, install
+        base, scratch = self.make_temp_dir(), self.make_temp_dir()
+        archive, _digest = CompanionAlignmentTest._asset(None, scratch)
+        download, _fetched = self._serve({"v1.0.0": {"schema_major": 2, "tray_assets": {"t": "x"}}}, archive)
+        with self.assertRaisesRegex(TrayInstallError, "reads tray snapshot v1"):
+            install(base, "0.28.0", target="t", download=download)
+
+    def test_a_checksum_mismatch_from_cdx_tray_installs_nothing(self):
+        from src.tray_install import TrayInstallError, install
+        base, scratch = self.make_temp_dir(), self.make_temp_dir()
+        archive, _digest = CompanionAlignmentTest._asset(None, scratch)
+        download, _fetched = self._serve({"v0.18.0": {"schema_major": 1, "tray_assets": {"t": "0" * 64}}}, archive)
+        with self.assertRaisesRegex(TrayInstallError, "Checksum mismatch"):
+            install(base, "0.28.0", target="t", download=download)
 
 
 class CompanionAlignmentTest(CliTestBase):

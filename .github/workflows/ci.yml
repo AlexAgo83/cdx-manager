@@ -58,9 +58,6 @@ jobs:
         env:
           PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
 
-      - name: Test tray companion
-        run: cargo test --locked --manifest-path tray/Cargo.toml
-
       - name: Package dry-run
         run: npm pack --dry-run
         env:

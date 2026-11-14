@@ -40,10 +40,9 @@ Run before every commit:
 ```bash
 npm run lint
 npm test
-cargo test --manifest-path tray/Cargo.toml
 ```
 
-All three commands must pass with no errors before opening a pull request.
+Both commands must pass with no errors before opening a pull request.
 
 ## Code Style
 
