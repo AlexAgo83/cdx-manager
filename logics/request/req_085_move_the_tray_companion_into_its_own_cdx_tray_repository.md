@@ -1,13 +1,13 @@
 ## req_085_move_the_tray_companion_into_its_own_cdx_tray_repository - Move the tray companion into its own cdx-tray repository
 > From version: 0.27.12
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
 > Theme: Tray companion
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
-> Indicators reviewed: 2026-11-14 15:01:07
+> Indicators reviewed: 2026-11-15 02:31:51
 
 # AI Context
 - Summary: Split the Rust tray companion into the public cdx-tray repository with a versioned `cdx tray status --json` contract, so cdx releases stop rebuilding and waiting for tray assets.

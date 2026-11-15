@@ -1,14 +1,14 @@
 ## item_172_version_the_tray_contract_and_pin_its_json_shape - Version the tray contract and pin its JSON shape
 > From version: 0.27.12
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Low
 > Theme: Tray companion
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-11-14 15:01:07
+> Indicators reviewed: 2026-11-15 02:31:50
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)
@@ -49,3 +49,9 @@
 # Executions
 | When | Runner | Run id | Title | State | PR | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
+
+# Tasks
+- `task_089_orchestrate_the_cdx_tray_split`
+
+# Notes
+- Task `task_089_orchestrate_the_cdx_tray_split` was finished via `logics-manager flow finish task` on 2026-11-15.

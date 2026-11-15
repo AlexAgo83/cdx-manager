@@ -1,12 +1,12 @@
 ## prod_059_cdx_tray_the_tray_companion_released_on_its_own - cdx-tray, the tray companion released on its own
 > Date: 2026-11-14
-> Status: Proposed
+> Status: Settled
 > Related request: `req_085_move_the_tray_companion_into_its_own_cdx_tray_repository`
-> Related backlog: `item_172_version_the_tray_contract_and_pin_its_json_shape`, `item_173_create_the_public_cdx_tray_repository_with_its_ci_and_releases`, `item_174_install_the_tray_from_cdx_tray_releases`, `item_175_remove_the_tray_from_cdx_manager_and_announce_contract_changes`
+> Related backlog: `item_172_version_the_tray_contract_and_pin_its_json_shape`
 > Related task: `task_089_orchestrate_the_cdx_tray_split`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
-> Indicators reviewed: 2026-11-14 15:01:08
+> Indicators reviewed: 2026-11-15 02:30:54
 
 # Overview
 The menu-bar/tray companion becomes its own small public project with a versioned JSON contract to cdx, so each side releases at its own pace.
@@ -33,5 +33,5 @@ The menu-bar/tray companion becomes its own small public project with a versione
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_085_move_the_tray_companion_into_its_own_cdx_tray_repository`
+- Product back-reference: `item_172_version_the_tray_contract_and_pin_its_json_shape`
 - Task back-reference: `task_089_orchestrate_the_cdx_tray_split`
