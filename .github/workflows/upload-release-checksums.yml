@@ -40,10 +40,8 @@ jobs:
       - name: Generate release checksums
         run: python3 scripts/update_release_checksums.py --tag "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"
 
-      # The tray-asset workflow uploads this ledger after it has added its
-      # companion checksums. This workflow records only the Git archive hashes,
-      # so it cannot overwrite that complete release asset with the tag's older
-      # ledger.
+      # Record the Git archive hashes in the ledger on main, then attach that
+      # ledger to the release for the publish workflows.
       - name: Record the checksum in the ledger on main
         env:
           GH_TOKEN: ${{ github.token }}
@@ -59,3 +57,10 @@ jobs:
           git add checksums/release-archives.json
           git commit -m "chore: record release archive checksums for $RELEASE_TAG"
           git push origin HEAD:main
+
+      # Since the tray moved to cdx-tray, this workflow is the only one that
+      # attaches the ledger the publish workflows validate against.
+      - name: Attach the ledger to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" checksums/release-archives.json --clobber --repo "$GITHUB_REPOSITORY"
