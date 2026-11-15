@@ -1,12 +1,13 @@
 ## req_084_record_folder_trust_and_hook_approvals_before_every_cdx_launch - Record folder trust and hook approvals before every cdx launch
 > From version: 0.27.1
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 95%
 > Confidence: 90%
 > Complexity: Medium
 > Theme: launch-settings
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-11-15 02:35:53
 
 # AI Context
 - Summary: Before a launch, resume, handoff or shared-home headless run, cdx records the provider's folder trust (and, for Codex, approval of pending hooks) in that profile's own config, so an unattended agent never stops on a trust or hook-review prompt.
@@ -61,3 +62,6 @@
 # Executions
 | When | Runner | Run id | Title | State | PR | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
+
+# Validation
+- Delivered by a68cd24 (PR 143, merged 2026-11-13): src/launch_trust.py with auto_trust_folder, auto_trust_hooks and codex_update_prompt (AC1-AC5, AC7); PR 143 records the Linux live check of Codex 0.168.0 and Antigravity 1.5.8 in new empty folders with no trust or hook prompt (AC6). node bin/python-runner.js -m pytest -q test/test_launch_trust_py.py test/test_remote_control_py.py passed on 2026-11-15: 52 passed, 1 skipped.

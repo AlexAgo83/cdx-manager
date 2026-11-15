@@ -1,10 +1,10 @@
 ## item_168_add_a_private_per_session_control_endpoint_and_the_cdx_send_command - Add a private per-session control endpoint and the cdx send command
 > From version: 0.26.14
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: remote-session-control
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -56,3 +56,6 @@
 | When | Runner | Run id | Title | State | PR | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 
+
+# Validation
+- Delivered by 22b98cc (PR 140) and bbca429: src/remote_control.py loopback endpoint guarded by a per-session secret in a 0700 owner-only file on every platform (design choice recorded in the module docstring, replacing the Unix socket), cdx send with --interrupt, --status and stdin; tests cover secret refusal, secret absent from events and opt-in only takeover (AC1, AC5, AC6). node bin/python-runner.js -m pytest -q test/test_launch_trust_py.py test/test_remote_control_py.py passed on 2026-11-15: 52 passed, 1 skipped.

@@ -1,10 +1,10 @@
 ## item_169_switch_claude_sessions_between_the_tui_and_a_stream_json_resume_run - Switch Claude sessions between the TUI and a stream-json resume run
 > From version: 0.26.14
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: High
 > Theme: remote-session-control
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -63,3 +63,6 @@
 | When | Runner | Run id | Title | State | PR | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 
+
+# Validation
+- Delivered: Antigravity keeps the TUI and stream-json switch loop (22b98cc, PR 140; live check on Linux recorded in task_088). For Claude, e03a966 replaced the switch with the cdx channel into the live TUI (docs/cli.md, 'Claude remote control: the cdx channel'), so the conversation never leaves the TUI and channel turns are logged as working, assistant and done (AC2, AC4); 23f6a34 sends one message per turn. node bin/python-runner.js -m pytest -q test/test_launch_trust_py.py test/test_remote_control_py.py passed on 2026-11-15: 52 passed, 1 skipped.
