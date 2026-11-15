@@ -772,7 +772,45 @@ def get_launch_history(store, name=None, limit=20):
             "transcript_path": runtime.get("transcriptPath"),
             "conversation_id": (session.get("conversation") or {}).get("id") if session["provider"] == PROVIDER_CLAUDE else None,
         })
+    _close_orphaned_launches(store, entries)
     return entries[:limit] if limit else entries
+
+
+def _close_orphaned_launches(store, entries):
+    """Give an interactive launch whose supervisor was killed the end it never wrote.
+
+    A closed terminal or a SIGKILL ends cdx before it records the exit, so the
+    launch stays "running" with no `ended_at`. Period reports then treated it as
+    over at launch and filed days of usage on the launch day. The transcript's
+    last write is when the session really ended. Derived on read and never
+    stored: a supervisor that does exit still writes the real record.
+    """
+    from datetime import datetime, timezone
+
+    from .interactive_usage import conversation_transcript
+
+    live, homes = {}, {}
+    for entry in entries:
+        if entry.get("status") != "running" or entry.get("ended_at") or entry.get("action") == "run":
+            continue
+        name = entry.get("session_name")
+        if name not in live:
+            live[name] = (_session_runtime(store, name) or {}).get("runId")
+            homes[name] = (store["get_session"](name) or {}).get("authHome")
+        if not entry.get("run_id") or entry["run_id"] == live[name]:
+            continue
+        path = entry.get("provider_transcript_path") or conversation_transcript(
+            entry.get("provider"), homes[name], entry.get("conversation_id"))
+        try:
+            ended = datetime.fromtimestamp(os.path.getmtime(path), timezone.utc)
+            started = datetime.fromisoformat(str(entry.get("started_at")).replace("Z", "+00:00"))
+        except (OSError, TypeError, ValueError):
+            continue
+        if ended < started:
+            continue
+        entry.update(status="interrupted", ended_at=ended.isoformat().replace("+00:00", "Z"),
+                     duration_ms=int((ended - started).total_seconds() * 1000),
+                     ended_at_source="transcript_mtime")
 
 
 def backfill_interactive_usage(store, name=None, dry_run=True):

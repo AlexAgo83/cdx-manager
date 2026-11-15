@@ -51,6 +51,31 @@ class SessionServicePythonTests(unittest.TestCase):
                 service["record_launch_history"]("work", {"action": "launch", "status": "success"})
             self.assertEqual(service["get_session"]("work")["conversation"]["id"], "verified-thread")
 
+    def test_killed_interactive_launch_ends_at_its_transcript_last_write(self):
+        directory = self.make_temp_dir()
+        store = create_session_store(directory)
+        service = create_session_service({"base_dir": directory, "store": store})
+        service["create_session"]("work", "claude")
+        transcript = os.path.join(directory, "conversation.jsonl")
+        with open(transcript, "w", encoding="utf-8") as handle:
+            handle.write("{}\n")
+        os.utime(transcript, (1_800_000_000, 1_800_000_000))
+        started = "2027-01-13T08:00:00Z"  # two days before the transcript's last write
+        base = {"session_name": "work", "provider": "claude", "action": "launch", "status": "running",
+                "ended_at": None, "started_at": started, "provider_transcript_path": transcript}
+        store["append_launch_history"]({**base, "run_id": "killed"})
+        store["append_launch_history"]({**base, "run_id": "no-transcript", "provider_transcript_path": None})
+
+        entries = {entry["run_id"]: entry for entry in service["get_launch_history"]("work", limit=0)}
+
+        self.assertEqual(entries["killed"]["status"], "interrupted")
+        self.assertEqual(entries["killed"]["ended_at"], "2027-01-15T08:00:00Z")
+        self.assertEqual(entries["killed"]["duration_ms"], 2 * 86400 * 1000)
+        self.assertEqual(entries["no-transcript"]["status"], "running")
+        self.assertIsNone(entries["no-transcript"]["ended_at"])
+        stored = {entry["run_id"]: entry for entry in store["list_launch_history"](limit=0)}
+        self.assertEqual(stored["killed"]["status"], "running")
+
     def test_create_list_and_remove_sessions(self):
         temp_dir = self.make_temp_dir()
         service = create_session_service({"base_dir": temp_dir})
