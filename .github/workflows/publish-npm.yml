@@ -52,7 +52,12 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
         run: |
-          curl -fsSL "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/release-archives.json" -o /tmp/release-archives.json
+          # The checksum workflow starts on the same release event; wait for its ledger asset.
+          for attempt in $(seq 1 40); do
+            curl -fsSL "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/release-archives.json" -o /tmp/release-archives.json && break
+            [ "$attempt" = 40 ] && exit 1
+            sleep 15
+          done
           node bin/python-runner.js scripts/verify_release_checksums.py --tag "$RELEASE_TAG" --checksums-file /tmp/release-archives.json
 
       - name: Lint
