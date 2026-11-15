@@ -1,10 +1,10 @@
 ## item_170_share_a_codex_app_server_between_the_tui_and_remote_clients - Share a Codex app-server between the TUI and remote clients
 > From version: 0.26.14
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: High
 > Theme: remote-session-control
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -52,3 +52,6 @@
 | When | Runner | Run id | Title | State | PR | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 
+
+# Validation
+- Delivered by 22b98cc (PR 140): src/remote_codex.py attaches the TUI to a codex app-server with a token from the environment and maps notifications to turn states and text (tests test_notifications_map_to_turn_states_and_text, test_tui_args_attach_with_a_token_from_the_environment); PR 140 records the live check on Linux, macOS and Windows (AC3, AC4). node bin/python-runner.js -m pytest -q test/test_launch_trust_py.py test/test_remote_control_py.py passed on 2026-11-15: 52 passed, 1 skipped.

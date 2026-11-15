@@ -4,7 +4,7 @@
 > Status: Ready
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 75%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -57,6 +57,7 @@
 # Report
 - Antigravity joins the Claude switch loop through AntigravityAdapter (src/remote_antigravity.py); protocol facts and limits are in item_169, "Antigravity".
 - Live check 2026-11-13, Linux, agy 1.5.8, an existing logged-in profile, no login: a fresh agy TUI under cdx, `cdx send` stopped it and ran the turn piloted (id fa2b0312-... taken from the run's `init`), a long turn was interrupted (SIGINT, event `interrupted` 8 ms after the request), the next message ran on a new `--conversation` run (reply BACK), and a keypress brought the TUI back as `agy --conversation fa2b0312-...`; no `failed` event. Not yet proven live: finding a conversation the TUI itself started (the typed prompt went to agy's workspace trust dialog), which unit tests cover against agy's index schema.
+- Audit 2026-11-15: items 168, 169 and 170 closed on their recorded evidence. Kept open for item_171: PR 140 states a live check on Linux, macOS and Windows for the earlier Claude switch loop and Codex, but the Claude channel (e03a966) has no recorded macOS or Windows live check and Antigravity only Linux.
 
 # Links
 - Request: `req_083_protocol_based_remote_messaging_for_interactive_sessions`
@@ -66,4 +67,3 @@
 # Executions
 | When | Runner | Run id | Title | State | PR | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-
