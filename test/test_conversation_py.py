@@ -706,3 +706,18 @@ def test_antigravity_transcript_holds_tui_and_piloted_turns(tmp_path):
         ("user", "Typed in the TUI", None), ("tool", "", "run_command"), ("assistant", "Done.", None)]
     assert "secret" not in json.dumps(page)
     assert read_conversation("antigravity", str(tmp_path), conversation_id="../../etc")["entries"] == []
+
+
+def test_claude_sent_images_are_reported_as_paths_only(tmp_path):
+    """A SendUserFile call lists its images (absolute paths, images only); nothing else gains a field."""
+    path = tmp_path / ".claude" / "projects" / "example" / f"{CONVERSATION}.jsonl"
+    path.parent.mkdir(parents=True)
+    record = {"type": "assistant", "timestamp": "2026-11-18T08:00:00Z", "message": {"role": "assistant", "content": [
+        {"type": "tool_use", "id": "toolu_send", "name": "SendUserFile",
+         "input": {"files": ["/tmp/shot.png", "relative.png", "/tmp/notes.md", "/tmp/b.JPG"], "status": "normal"}},
+        {"type": "tool_use", "id": "toolu_bash", "name": "Bash", "input": {"command": "ls /tmp/x.png"}}]}}
+    path.write_text(json.dumps(record) + "\n")
+    page = read_conversation("claude", str(tmp_path), conversation_id=CONVERSATION)
+    sent, bash = page["entries"]
+    assert sent["tool_name"] == "SendUserFile" and sent["files"] == ["/tmp/shot.png", "/tmp/b.JPG"]
+    assert bash["tool_name"] == "Bash" and "files" not in bash
