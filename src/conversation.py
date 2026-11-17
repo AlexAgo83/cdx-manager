@@ -34,6 +34,20 @@ def _entry(role, text="", name=None, summary=None, at=None):
             "tool_summary": summary, "at": at, "id": None}
 
 
+_IMAGE = re.compile(r"\.(?:png|jpe?g|webp|gif)$", re.I)
+
+
+def _sent_files(block):
+    """Images a Claude session sent to its user (SendUserFile): absolute paths only, at most 8. A reader such
+    as Jarvis HQ shows them in place of the bare tool line; the files themselves are never read here."""
+    if block.get("type") != "tool_use" or block.get("name") != "SendUserFile":
+        return []
+    files = (block.get("input") or {}).get("files") if isinstance(block.get("input"), dict) else None
+    if not isinstance(files, list):
+        return []
+    return [f for f in files if isinstance(f, str) and f.startswith("/") and len(f) < 1024 and _IMAGE.search(f)][:8]
+
+
 def _tool_name(message, names, result=False):
     identifier = message.get("call_id") or message.get("tool_use_id") or message.get("id")
     key = hashlib.sha256(identifier.encode()).hexdigest() if isinstance(identifier, str) else None
@@ -201,7 +215,10 @@ def _entries(provider, record, names):
             entries.append(_entry(role, block["text"], at=stamp))
         elif kind in ("tool_use", "tool_result"):
             name = _tool_name(block, names, kind == "tool_result")
-            entries.append(_entry("tool", name=name, summary="Call recorded" if kind == "tool_use" else "Result recorded", at=stamp))
+            entry = _entry("tool", name=name, summary="Call recorded" if kind == "tool_use" else "Result recorded", at=stamp)
+            if provider == "claude" and (files := _sent_files(block)):
+                entry["files"] = files
+            entries.append(entry)
     if provider == "claude" and role == "user" and not any(e["role"] == "user" for e in entries):
         if any(isinstance(block, dict) and block.get("type") == "image" for block in content):
             entries.append(_entry("user", at=stamp))
