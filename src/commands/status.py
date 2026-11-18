@@ -3,6 +3,7 @@
 Split out of cli_commands.py. Moved verbatim; re-exported by cli_commands.
 """
 
+import json
 import os
 import re
 import threading
@@ -292,6 +293,7 @@ def _summarize_stats(entries):
             "unpriced_models": set(),
             "unpriced_reasons": {},
             "unvouched_runs": 0,
+            "subscription_runs": 0,
             "input_tokens": 0,
             "cached_input_tokens": 0,
             "cache_creation_tokens": 0,
@@ -328,6 +330,8 @@ def _summarize_stats(entries):
         }
         if any(value is not None for value in parsed_usage.values()):
             row["usage_runs"] += 1
+            if entry.get("plan") == "subscription":
+                row["subscription_runs"] += 1
             for key, value in parsed_usage.items():
                 row[key] += value or 0
             # Priced per run, against the model that served it. A run whose
@@ -392,6 +396,9 @@ def _summarize_stats(entries):
             output_tokens=row["output_tokens"],
         )
         row["total_tokens"] = derived["total_tokens"] or 0
+        # What a person reads as "tokens used": every cache read re-reads the whole context on each turn, so on a
+        # long session it was 99.9 % of the total and hid what was actually sent and written.
+        row["working_tokens"] = row["total_tokens"] - row["cache_read_tokens"] - legacy_cache
         row["unpriced_models"] = sorted(row["unpriced_models"])
     return sorted(
         rows.values(),
@@ -438,6 +445,8 @@ def _stats_totals(rows):
         "priced_runs": sum(row["priced_runs"] for row in rows),
         "unpriced_models": sorted({m for row in rows for m in row["unpriced_models"]}),
         "unvouched_runs": sum(row["unvouched_runs"] for row in rows),
+        "subscription_runs": sum(row["subscription_runs"] for row in rows),
+        "working_tokens": sum(row["working_tokens"] for row in rows),
     }
 
 def _format_history_period(period):
@@ -579,11 +588,14 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
                    "96" if row["cached_input_tokens"] else "2", use_color),
             _style(_format_token_count(row["output_tokens"]), "96" if row["output_tokens"] else "2", use_color),
             _style(_format_token_count(row["reasoning_tokens"]), "95" if row["reasoning_tokens"] else "2", use_color),
-            _style(f"{_format_token_count(row['total_tokens'])} {format_cache_ratio(row.get('cache_hit_ratio'))}", "96" if row["total_tokens"] else "2", use_color),
+            _style(_format_token_count(row["working_tokens"]), "96" if row["working_tokens"] else "2", use_color),
             _style(_format_token_count(row["weighted_tokens"]) if row["weighted_runs"] else "-",
                    "1;95" if row["weighted_runs"] else "2", use_color),
-            _style(_format_usd(row["cost_usd"]) if row["priced_runs"] else "-",
-                   "1;33" if row["priced_runs"] else "2", use_color),
+            # A plan is not billed per token: the list price stays in --json and in the totals line.
+            _style("plan" if row["usage_runs"] and row["subscription_runs"] == row["usage_runs"]
+                   else _format_usd(row["cost_usd"]) if row["priced_runs"] else "-",
+                   "2" if row["usage_runs"] and row["subscription_runs"] == row["usage_runs"]
+                   else "1;33" if row["priced_runs"] else "2", use_color),
             _style(_format_duration_ms(row["duration_ms"]), "33" if row["duration_ms"] else "2", use_color),
             _dim(_format_relative_age(row.get("last_started_at")), use_color),
         ])
@@ -597,11 +609,14 @@ def _format_stats(rows, totals, period=None, use_color=False, active_sessions=No
         _dim(
             "Totals: "
             f"{totals['launches']} runs, {totals['usage_runs']} with usage, "
-            f"{_format_token_count(totals['total_tokens'])} tokens {format_cache_ratio(totals.get('cache_hit_ratio'))} "
+            f"{_format_token_count(totals['working_tokens'])} tokens + {_format_token_count(totals['cache_read_tokens'])} cache reads "
+            f"{format_cache_ratio(totals.get('cache_hit_ratio'))} "
             f"({_format_token_count(totals['weighted_tokens']) if totals['weighted_runs'] else '-'} cost-equivalent"
             + (f" on {totals['weighted_runs']}/{totals['usage_runs']} measured runs"
                if totals["usage_runs"] else "")
-            + (f", {_format_usd(totals['cost_usd'])} at list on {totals['priced_runs']} priced run"
+            + (f", {_format_usd(totals['cost_usd'])} at list"
+               + (f" ({totals['subscription_runs']} on a plan, not billed per token)" if totals["subscription_runs"] else "")
+               + f" on {totals['priced_runs']} priced run"
                f"{'s' if totals['priced_runs'] != 1 else ''} [{token_prices()[1]}]"
                if totals["priced_runs"] else ", no run priced")
             + (f"; no price for {', '.join(totals['unpriced_models'])}"
@@ -738,12 +753,90 @@ def handle_history(rest, ctx):
     ctx["out"](f"{_format_history(entries, use_color=ctx['use_color'], active_sessions=active_sessions)}\n")
     return 0
 
+def _sum_usage(days):
+    from ..run_usage import normalize_usage
+    keys = ("input_tokens", "cache_creation_tokens", "cache_read_tokens", "output_tokens", "reasoning_tokens")
+    return normalize_usage(**{k: sum((d.get(k) or 0) for d in days) if any(d.get(k) is not None for d in days) else None
+                              for k in keys})
+
+
+def _split_by_day(entries, period, ctx, now):
+    """Count a long or still-running session on the days it actually worked.
+
+    Usage used to be filed whole on the launch day, and a session still running
+    had none at all, so `--today` missed a two-day session's work today. For a
+    run that spans several days, or has not ended, the transcript is read again
+    and split by the time of each record (interactive_usage.daily_usage). With a
+    period, only the days inside it count; without one, a live run gets its
+    usage so far. Derived on read, never stored. Runs of one day are unchanged.
+    """
+    from ..interactive_usage import conversation_transcript, daily_usage
+
+    def stamp(value):
+        try:
+            return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            return None
+
+    lo = datetime.fromtimestamp(period["from_ts"]).strftime("%Y-%m-%d") if period.get("from_ts") is not None else None
+    hi = datetime.fromtimestamp(period["to_ts"]).strftime("%Y-%m-%d") if period.get("to_ts") is not None else None
+    homes, out = {}, []
+    for entry in entries:
+        started = stamp(entry.get("started_at")) if entry.get("started_at") else None
+        ended = stamp(entry.get("ended_at")) if entry.get("ended_at") else None
+        live = ended is None and not entry.get("usage")
+        provider = entry.get("provider")
+        if started is None or provider not in ("claude", "codex") or entry.get("action") == "run":
+            out.append(entry)
+            continue
+        one_day = ended is not None and datetime.fromtimestamp(started).date() == datetime.fromtimestamp(ended).date()
+        if one_day or not (live or lo or hi):
+            out.append(entry)
+            continue
+        name = entry.get("session_name")
+        if name not in homes:
+            homes[name] = (ctx["service"]["get_session"](name) or {}).get("authHome")
+        path = entry.get("provider_transcript_path") or conversation_transcript(provider, homes[name], entry.get("conversation_id"))
+        days = daily_usage(provider, path, since=started, until=ended)
+        if not days:
+            out.append(entry)
+            continue
+        kept = [usage for day, usage in days.items() if (lo is None or day >= lo) and (hi is None or day <= hi)]
+        # shortcut: a period is clipped to whole local days, so --since 3h counts all of today; per-record bounds if that matters.
+        extra = {"duration_ms": int((now.timestamp() - started) * 1000)} if live and not entry.get("duration_ms") else {}
+        out.append({**entry, **extra, "usage": _sum_usage(kept) if kept else {}, "usage_days": days, "usage_split": "by_day"})
+    return out
+
+
+def _subscriptions(names, ctx):
+    """Profiles paid by a plan rather than per token: a Claude login (Max or Pro) or a ChatGPT-signed Codex."""
+    from ..claude_credentials import claude_auth_type
+
+    plans = set()
+    for name in names:
+        session = ctx["service"]["get_session"](name) or {}
+        home = session.get("authHome")
+        try:
+            if session.get("provider") == "claude" and home and claude_auth_type(home):
+                plans.add(name)
+            elif session.get("provider") == "codex" and home:
+                with open(os.path.join(home, "auth.json"), encoding="utf-8") as handle:
+                    if json.load(handle).get("auth_mode") == "chatgpt":
+                        plans.add(name)
+        except (OSError, ValueError, AttributeError):
+            continue
+    return plans
+
+
 def handle_stats(rest, ctx):
     now_fn = ctx["options"].get("now") or time.time
     now = datetime.fromtimestamp(now_fn()).astimezone()
     parsed = _parse_stats_args(rest, now=now)
     entries = ctx["service"]["get_launch_history"](parsed["name"], limit=0)
     entries = _filter_history_period(entries, parsed["period"])
+    entries = _split_by_day(entries, parsed["period"], ctx, now)
+    plans = _subscriptions({e.get("session_name") for e in entries if e.get("session_name")}, ctx)
+    entries = [{**e, "plan": "subscription" if e.get("session_name") in plans else None} for e in entries]
     if parsed["by"] != "session":
         # Same accounting, another key: each run is regrouped, never re-priced.
         entries = [{**entry, "session_name": _stats_group(entry, parsed["by"])} for entry in entries]
@@ -772,7 +865,7 @@ def handle_stats(rest, ctx):
             rtk=rtk,
             accounting={
                 "launches_unit": "history_attempts",
-                "period_policy": "whole_run_overlap",
+                "period_policy": "per_day_split",
                 "weighted_coverage": "weighted_runs/usage_runs",
                 "price_coverage": "priced_runs/usage_runs",
                 "price_basis": token_prices()[1],

@@ -3,9 +3,10 @@ import os
 import tempfile
 import unittest
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 from src import interactive_usage
-from src.interactive_usage import MAX_TRANSCRIPT_BYTES, extract_interactive_usage
+from src.interactive_usage import extract_interactive_usage
 
 
 class InteractiveUsageTests(unittest.TestCase):
@@ -107,8 +108,10 @@ class InteractiveUsageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as home:
             path = self._write(home, "sessions/large.jsonl", [])
             with open(path, "wb") as handle:
-                handle.truncate(MAX_TRANSCRIPT_BYTES + 1)
-            usage, selected, _match, _model = extract_interactive_usage("codex", home)
+                handle.write(b"x" * 11)
+            # The real bound is 2 GiB; a small one keeps the test from writing a file that size.
+            with patch("src.interactive_usage.MAX_USAGE_STREAM_BYTES", 10):
+                usage, selected, _match, _model = extract_interactive_usage("codex", home)
             self.assertIsNone(usage)
             self.assertEqual(os.path.normpath(selected), os.path.normpath(path))
 
@@ -436,3 +439,61 @@ class CodexNewConversationTests(unittest.TestCase):
 
             self.assertIsNone(usage)
             self.assertIsNone(path)
+
+
+class DailyUsageTest(unittest.TestCase):
+    """A session spanning days is split by each record's own time (cdx stats --today)."""
+
+    def _file(self, home, lines):
+        path = os.path.join(home, "t.jsonl")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("\n".join(json.dumps(line) for line in lines) + "\n")
+        return path
+
+    def test_claude_days_and_window(self):
+        def turn(ident, stamp, out):
+            return {"type": "assistant", "timestamp": stamp, "message": {"id": ident, "usage": {
+                "input_tokens": 1, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 100, "output_tokens": out}}}
+        with tempfile.TemporaryDirectory() as home:
+            path = self._file(home, [turn("a", "2026-11-16T10:00:00", 5), turn("a", "2026-11-16T10:00:00", 5),
+                                     turn("b", "2026-11-17T10:00:00", 7), turn("c", "2026-11-18T10:00:00", 9)])
+            days = interactive_usage.daily_usage("claude", path)
+            self.assertEqual({d: u["output_tokens"] for d, u in days.items()},
+                             {"2026-11-16": 5, "2026-11-17": 7, "2026-11-18": 9})
+            since = datetime(2026, 11, 17).timestamp()
+            self.assertEqual(list(interactive_usage.daily_usage("claude", path, since=since)), ["2026-11-17", "2026-11-18"])
+
+    def test_codex_days_are_differences_of_running_totals(self):
+        def count(stamp, out):
+            return {"timestamp": stamp, "type": "event_msg", "payload": {"type": "token_count", "info": {"total_token_usage": {
+                "input_tokens": out * 2, "cached_input_tokens": 0, "output_tokens": out}}}}
+        with tempfile.TemporaryDirectory() as home:
+            path = self._file(home, [count("2026-11-16T09:00:00", 10), count("2026-11-16T18:00:00", 30),
+                                     count("2026-11-17T09:00:00", 45)])
+            days = interactive_usage.daily_usage("codex", path, since=datetime(2026, 11, 16, 12).timestamp())
+            # 10 was spent before the window; the window's first day keeps the remaining 20.
+            self.assertEqual({d: u["output_tokens"] for d, u in days.items()}, {"2026-11-16": 20, "2026-11-17": 15})
+
+
+class SplitByDayTest(unittest.TestCase):
+    """cdx stats counts a long run on the days inside the period, and a live run so far."""
+
+    def test_period_keeps_only_its_days(self):
+        from src.commands.status import _split_by_day
+        with tempfile.TemporaryDirectory() as home:
+            path = os.path.join(home, "t.jsonl")
+            with open(path, "w", encoding="utf-8") as handle:
+                for ident, stamp, out in (("a", "2026-11-16T10:00:00", 5), ("b", "2026-11-18T10:00:00", 9)):
+                    handle.write(json.dumps({"type": "assistant", "timestamp": stamp, "message": {"id": ident, "usage": {
+                        "input_tokens": 1, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 50, "output_tokens": out}}}) + "\n")
+            ctx = {"service": {"get_session": lambda name: {"authHome": home}}}
+            entry = {"session_name": "p", "provider": "claude", "status": "running", "started_at": "2026-11-16T09:00:00",
+                     "provider_transcript_path": path}
+            now = datetime(2026, 11, 18, 12)
+            today = {"from_ts": datetime(2026, 11, 18).timestamp(), "to_ts": now.timestamp()}
+            [split] = _split_by_day([entry], today, ctx, now)
+            self.assertEqual(split["usage"]["output_tokens"], 9)
+            [whole] = _split_by_day([entry], {}, ctx, now)
+            self.assertEqual(whole["usage"]["output_tokens"], 14)
+            one_day = {**entry, "status": "success", "ended_at": "2026-11-16T11:00:00", "usage": {"output_tokens": 5}}
+            self.assertIs(_split_by_day([one_day], today, ctx, now)[0], one_day)
