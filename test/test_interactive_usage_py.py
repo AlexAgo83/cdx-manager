@@ -497,3 +497,14 @@ class SplitByDayTest(unittest.TestCase):
             self.assertEqual(whole["usage"]["output_tokens"], 14)
             one_day = {**entry, "status": "success", "ended_at": "2026-11-16T11:00:00", "usage": {"output_tokens": 5}}
             self.assertIs(_split_by_day([one_day], today, ctx, now)[0], one_day)
+
+
+class DayPiecesTest(unittest.TestCase):
+    def test_split_run_gives_one_row_per_day_and_others_their_start_day(self):
+        from src.commands.status import _day_pieces
+        split = {"session_name": "p", "started_at": "2026-11-16T09:00:00", "duration_ms": 50,
+                 "usage_days": {"2026-11-16": {"output_tokens": 5}, "2026-11-18": {"output_tokens": 9}}}
+        plain = {"session_name": "q", "started_at": "2026-11-17T09:00:00", "usage": {"output_tokens": 1}}
+        pieces = _day_pieces([split, plain], {})
+        self.assertEqual([(p["session_name"], p["usage"]["output_tokens"], p.get("duration_ms")) for p in pieces],
+                         [("2026-11-16", 5, 50), ("2026-11-18", 9, 0), ("2026-11-17", 1, None)])
