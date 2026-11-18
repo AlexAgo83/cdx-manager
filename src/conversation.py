@@ -468,6 +468,41 @@ def read_conversation(provider, auth_home=None, *, conversation_id=None, started
     returns no entries. See docs/cli.md for platform and snapshot limitations.
     """
     _validate_page_options(limit, tail, cursor, before)
+    page = _read_conversation_any(provider, auth_home, conversation_id=conversation_id, started_at=started_at,
+                                  terminal_transcript=terminal_transcript, cursor=cursor, limit=limit,
+                                  fallback_to_recency=fallback_to_recency, tail=tail, before=before, cwd=cwd, pid=pid,
+                                  process_identity=process_identity, remote_endpoint=remote_endpoint)
+    context = _context_use(provider, auth_home)
+    return {**page, "context": context} if context and isinstance(page, dict) else page
+
+
+def _context_use(provider, auth_home):
+    """How full the profile's live Claude context is, as its status line last reported it (claude_status_line).
+
+    shortcut: one figure per profile home, the latest refresh; two sessions on one profile share it.
+    """
+    from datetime import datetime, timezone
+
+    if provider != "claude" or not auth_home:
+        return None
+    try:
+        from pathlib import Path
+
+        # Not this module's bounded open(): a small fixed-size record, read whole.
+        record = json.loads(Path(auth_home, ".cdx-context.json").read_text(encoding="utf-8")[:4096])
+        at = datetime.fromisoformat(str(record["at"]).replace("Z", "+00:00"))
+        used = float(record["used_pct"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if not 0 <= used <= 100 or (datetime.now(timezone.utc) - at).total_seconds() > 1800:
+        return None
+    return {"used_pct": used, "size": record.get("size"), "session_id": record.get("session_id"), "at": record["at"]}
+
+
+def _read_conversation_any(provider, auth_home=None, *, conversation_id=None, started_at=None,
+                           terminal_transcript=None, cursor=None, limit=100, fallback_to_recency=False,
+                           tail=None, before=None, cwd=None, pid=None, process_identity=None,
+                           remote_endpoint=None):
     options = dict(conversation_id=conversation_id, started_at=started_at,
                    terminal_transcript=terminal_transcript, cursor=cursor, limit=limit,
                    fallback_to_recency=fallback_to_recency, tail=tail, before=before, cwd=cwd)
