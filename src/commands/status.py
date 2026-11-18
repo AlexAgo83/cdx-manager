@@ -760,7 +760,7 @@ def _sum_usage(days):
                               for k in keys})
 
 
-def _split_by_day(entries, period, ctx, now):
+def _split_by_day(entries, period, ctx, now, every=False):
     """Count a long or still-running session on the days it actually worked.
 
     Usage used to be filed whole on the launch day, and a session still running
@@ -790,7 +790,7 @@ def _split_by_day(entries, period, ctx, now):
             out.append(entry)
             continue
         one_day = ended is not None and datetime.fromtimestamp(started).date() == datetime.fromtimestamp(ended).date()
-        if one_day or not (live or lo or hi):
+        if one_day or not (live or lo or hi or every):
             out.append(entry)
             continue
         name = entry.get("session_name")
@@ -806,6 +806,28 @@ def _split_by_day(entries, period, ctx, now):
         extra = {"duration_ms": int((now.timestamp() - started) * 1000)} if live and not entry.get("duration_ms") else {}
         out.append({**entry, **extra, "usage": _sum_usage(kept) if kept else {}, "usage_days": days, "usage_split": "by_day"})
     return out
+
+
+def _day_pieces(entries, period):
+    """`--by day`: one row per local day. A run split by day (see _split_by_day) gives one piece per day it worked,
+    each counted as a run active that day; any other run counts on the day it started."""
+    lo = datetime.fromtimestamp(period["from_ts"]).strftime("%Y-%m-%d") if period.get("from_ts") is not None else None
+    hi = datetime.fromtimestamp(period["to_ts"]).strftime("%Y-%m-%d") if period.get("to_ts") is not None else None
+    pieces = []
+    for entry in entries:
+        days = entry.get("usage_days")
+        if days:
+            first = min(days)
+            # The run's time stays on its first day so the period's TIME is not counted once per day.
+            pieces.extend({**entry, "session_name": day, "usage": usage, **({} if day == first else {"duration_ms": 0})}
+                          for day, usage in days.items() if (lo is None or day >= lo) and (hi is None or day <= hi))
+            continue
+        try:
+            day = datetime.fromisoformat(str(entry.get("started_at")).replace("Z", "+00:00")).astimezone().strftime("%Y-%m-%d")
+        except ValueError:
+            day = "-"
+        pieces.append({**entry, "session_name": day})
+    return pieces
 
 
 def _subscriptions(names, ctx):
@@ -834,13 +856,17 @@ def handle_stats(rest, ctx):
     parsed = _parse_stats_args(rest, now=now)
     entries = ctx["service"]["get_launch_history"](parsed["name"], limit=0)
     entries = _filter_history_period(entries, parsed["period"])
-    entries = _split_by_day(entries, parsed["period"], ctx, now)
+    entries = _split_by_day(entries, parsed["period"], ctx, now, every=parsed["by"] == "day")
     plans = _subscriptions({e.get("session_name") for e in entries if e.get("session_name")}, ctx)
     entries = [{**e, "plan": "subscription" if e.get("session_name") in plans else None} for e in entries]
-    if parsed["by"] != "session":
+    if parsed["by"] == "day":
+        entries = _day_pieces(entries, parsed["period"])
+    elif parsed["by"] != "session":
         # Same accounting, another key: each run is regrouped, never re-priced.
         entries = [{**entry, "session_name": _stats_group(entry, parsed["by"])} for entry in entries]
     rows = _summarize_stats(entries)
+    if parsed["by"] == "day":
+        rows.sort(key=lambda row: row["session_name"])
     if parsed["by"] == "project":
         labels = _project_labels([row["session_name"] for row in rows])
         for row in rows:
