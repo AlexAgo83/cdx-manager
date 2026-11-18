@@ -721,3 +721,27 @@ def test_claude_sent_images_are_reported_as_paths_only(tmp_path):
     sent, bash = page["entries"]
     assert sent["tool_name"] == "SendUserFile" and sent["files"] == ["/tmp/shot.png", "/tmp/b.JPG"]
     assert bash["tool_name"] == "Bash" and "files" not in bash
+
+
+def test_status_line_context_reaches_the_conversation_page(tmp_path):
+    """Claude's status line input records how full the context is; the page shows it while fresh."""
+    from io import StringIO
+
+    from src.claude_status_line import main, record_context
+
+    home = tmp_path / "home"
+    home.mkdir()
+    raw = json.dumps({"session_id": CONVERSATION, "context_window": {"context_window_size": 200000, "used_percentage": 42.5}})
+    assert main(["--cdx-claude-status", str(tmp_path)], stdout=StringIO(), env={"HOME": str(home)}, stdin=StringIO(raw)) == 0
+    path = home / ".claude" / "projects" / "example" / f"{CONVERSATION}.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_text((FIXTURES / "claude-harness.jsonl").read_text().splitlines()[9] + "\n")
+    page = read_conversation("claude", str(home), conversation_id=CONVERSATION)
+    assert page["context"]["used_pct"] == 42.5 and page["context"]["size"] == 200000
+    # Derived from the current usage when Claude gives no percentage; nothing written without a figure.
+    assert record_context(json.dumps({"context_window": {"context_window_size": 1000, "current_usage": {
+        "input_tokens": 100, "cache_read_input_tokens": 150, "cache_creation_input_tokens": 0, "output_tokens": 9}}}),
+        env={"HOME": str(home)})
+    assert read_conversation("claude", str(home), conversation_id=CONVERSATION)["context"]["used_pct"] == 25.0
+    assert not record_context("{}", env={"HOME": str(home)})
+    assert "context" not in read_conversation("codex", str(home))

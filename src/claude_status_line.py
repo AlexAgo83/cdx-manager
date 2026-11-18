@@ -122,9 +122,58 @@ def provision(session, base_dir):
     return None
 
 
-def main(argv=None, stdout=None, env=None):
+CONTEXT_FILE = ".cdx-context.json"
+
+
+def record_context(raw, env=None):
+    """Keep the context use Claude Code passes to its status line, for readers such as Jarvis HQ.
+
+    Claude sends a JSON document on stdin at each refresh; its `context_window`
+    says how full the conversation's context is. Only the figures are kept, in
+    the profile home (HOME), beside the session that produced them. Unknown or
+    missing fields write nothing: an absent gauge is better than a wrong one.
+    """
+    env = os.environ if env is None else env
+    home = env.get("HOME") or env.get("USERPROFILE")
+    try:
+        data = json.loads(raw)
+    except (TypeError, ValueError):
+        return False
+    window = data.get("context_window") if isinstance(data, dict) else None
+    if not home or not isinstance(window, dict):
+        return False
+    size = window.get("context_window_size")
+    used = _pct(window.get("used_percentage"))
+    if used is None and isinstance(window.get("current_usage"), dict) and isinstance(size, int) and size > 0:
+        usage = window["current_usage"]
+        tokens = sum(v for k, v in usage.items() if k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
+                     and isinstance(v, int) and v >= 0)
+        used = _pct(round(100 * tokens / size, 1))
+    if used is None:
+        return False
+    record = {"session_id": str(data.get("session_id") or "")[:80], "used_pct": used,
+              "size": size if isinstance(size, int) and size > 0 else None,
+              "at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")}
+    path = os.path.join(home, CONTEXT_FILE)
+    try:
+        temporary = f"{path}.{os.getpid()}.tmp"
+        with open(temporary, "w", encoding="utf-8") as handle:
+            json.dump(record, handle)
+        os.replace(temporary, path)
+    except OSError:
+        return False
+    return True
+
+
+def main(argv=None, stdout=None, env=None, stdin=None):
     argv = sys.argv[1:] if argv is None else argv
     stdout = sys.stdout if stdout is None else stdout
+    stdin = sys.stdin if stdin is None else stdin
+    try:
+        if stdin is not None and not stdin.isatty():
+            record_context(stdin.read(256 * 1024), env=env)
+    except (OSError, ValueError, AttributeError):
+        pass
     try:
         text = render(argv[1], env=env) if len(argv) == 2 and argv[0] == MARKER else "quota ?"
     except (OSError, ValueError, TypeError, AttributeError):
