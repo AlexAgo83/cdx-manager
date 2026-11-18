@@ -939,7 +939,9 @@ def _filter_history_period(entries, period):
         # A long run belongs to a period it overlaps, not only the day it was
         # launched. Usage is recorded per run, so include its whole measured
         # total rather than inventing a time-proportional split.
-        ended = _parse_entry_timestamp(entry, "ended_at") or started
+        # A run still going reaches now: a two-day session belongs to today too.
+        ended = _parse_entry_timestamp(entry, "ended_at") or (
+            datetime.now().timestamp() if entry.get("status") == "running" else started)
         if start is not None and ended < start:
             continue
         if end is not None and started > end:

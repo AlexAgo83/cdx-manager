@@ -21,6 +21,9 @@ from .status_source import _normalize_terminal_transcript
 # Claude sessions (for example a five-hour session at 26 MiB) without saving
 # meaningful memory; keep a bounded ceiling for genuinely pathological files.
 MAX_TRANSCRIPT_BYTES = 128 * 1024 * 1024
+#: The usage readers stream line by line and parse only lines that carry usage, so a long session's transcript
+#: (a two-day Claude session reached 236 MB) is still counted; the whole-file readers keep the smaller bound.
+MAX_USAGE_STREAM_BYTES = 2 * 1024 * 1024 * 1024
 MAX_TRANSCRIPT_CANDIDATES = 1000
 MAX_TRANSCRIPT_SCAN_SECONDS = 1
 
@@ -75,7 +78,7 @@ def extract_interactive_usage(provider, auth_home, started_at=None, conversation
     if not path:
         return None, None, None, None
     try:
-        if os.path.getsize(path) > MAX_TRANSCRIPT_BYTES:
+        if os.path.getsize(path) > MAX_USAGE_STREAM_BYTES:
             return None, path, match, None
         with open(path, encoding="utf-8", errors="replace") as handle:
             usage, model = _READERS.get(provider, _claude_usage)(handle)
@@ -315,6 +318,8 @@ def _claude_usage(handle):
     seen = set()
     model = None
     for line in handle:
+        if '"usage"' not in line:
+            continue
         try:
             record = json.loads(line)
             message = record.get("message") or {}
@@ -430,3 +435,94 @@ def transcript_predates_run(path, started_at):
     if created is None:
         created = stat.st_ctime
     return created < cutoff
+
+
+_USAGE_PARTS = ("input_tokens", "cache_creation_tokens", "cache_read_tokens", "output_tokens", "reasoning_tokens")
+
+
+def daily_usage(provider, path, since=None, until=None):
+    """This transcript's usage split by local calendar day, between two epoch seconds.
+
+    A session that runs for days used to be counted whole on its launch day, so
+    `cdx stats --today` missed a long session's work today and filed it days
+    back. Claude records usage per message, Codex as a running total: either
+    way each record carries its own time, so the day it belongs to is read,
+    never estimated. Returns {"YYYY-MM-DD": usage} or None when unreadable.
+    """
+    try:
+        if not path or os.path.getsize(path) > MAX_USAGE_STREAM_BYTES:
+            return None
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            if provider == "codex":
+                return _codex_days(handle, since, until)
+            if provider == "claude":
+                return _claude_days(handle, since, until)
+    except OSError:
+        return None
+    return None
+
+
+def _day(stamp):
+    from datetime import datetime
+    return datetime.fromtimestamp(stamp).strftime("%Y-%m-%d")
+
+
+def _claude_days(handle, since, until):
+    days, seen = {}, set()
+    for line in handle:
+        if '"usage"' not in line:
+            continue
+        try:
+            record = json.loads(line)
+            usage = (record.get("message") or {}).get("usage") or {}
+            if record.get("type") != "assistant" or not usage:
+                continue
+            stamp = _timestamp(record.get("timestamp"))
+            if stamp is None or (since is not None and stamp < since) or (until is not None and stamp > until):
+                continue
+            identifier = claude_usage_dedup_key(record)
+            if identifier is not None:
+                if identifier in seen:
+                    continue
+                seen.add(identifier)
+            day = days.setdefault(_day(stamp), dict.fromkeys(_USAGE_PARTS, 0))
+            day["input_tokens"] += _number(usage.get("input_tokens"))
+            day["cache_creation_tokens"] += _number(usage.get("cache_creation_input_tokens"))
+            day["cache_read_tokens"] += _number(usage.get("cache_read_input_tokens"))
+            day["output_tokens"] += _number(usage.get("output_tokens"))
+        except (AttributeError, TypeError, ValueError):
+            continue
+    return {day: normalize_usage(**{**parts, "reasoning_tokens": None}) for day, parts in sorted(days.items())}
+
+
+def _codex_days(handle, since, until):
+    # Running totals: a day's usage is its last total minus the last total before it.
+    before, last = None, {}
+    for line in handle:
+        if '"token_count"' not in line:
+            continue
+        try:
+            record = json.loads(line)
+            payload = record.get("payload") or {}
+            usage = ((payload.get("info") or {}).get("total_token_usage") or {}) if payload.get("type") == "token_count" else {}
+            stamp = _timestamp(record.get("timestamp"))
+            if not isinstance(usage, dict) or not usage or stamp is None or (until is not None and stamp > until):
+                continue
+            reported = _number(usage.get("input_tokens"))
+            read, write = _number(usage.get("cached_input_tokens")), _number(usage.get("cache_write_input_tokens"))
+            total = {"input_tokens": reported - read - write if read + write <= reported else reported,
+                     "cache_creation_tokens": write, "cache_read_tokens": read,
+                     "output_tokens": _number(usage.get("output_tokens")),
+                     "reasoning_tokens": _number(usage.get("reasoning_output_tokens"))}
+            if since is not None and stamp < since:
+                before = total
+            else:
+                last[_day(stamp)] = total
+        except (AttributeError, TypeError, ValueError):
+            continue
+    days, previous = {}, before or dict.fromkeys(_USAGE_PARTS, 0)
+    for day in sorted(last):
+        current = last[day]
+        days[day] = normalize_usage(provider="codex", **{k: max(0, current[k] - previous[k]) for k in _USAGE_PARTS})
+        previous = current
+    return days
