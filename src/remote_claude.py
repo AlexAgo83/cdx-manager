@@ -418,7 +418,11 @@ def channel_events(lines, state):
 
     A channel message opens a turn (`working`); its replies are `assistant`; the
     turn ends with Claude Code's turn_duration line (`done`) or an interrupt.
-    Turns typed at the keyboard are left to the TUI, as before.
+    A message typed at the keyboard (origin `human`) opens a turn too, with its text
+    as the prompt, and so does a background task's notification (`working` marked
+    `background`, no prompt): the remote chat then shows every reply, not only the
+    ones to channel messages. A user line without an origin (older Claude Code) is
+    still left to the TUI.
     """
     events = []
     for line in lines:
@@ -430,6 +434,16 @@ def channel_events(lines, state):
         content = (row.get("message") or {}).get("content")
         if kind == "user" and origin.get("kind") == "channel" and origin.get("server") == CHANNEL_SERVER:
             events.append(("working", {"prompt": _channel_body(_text(content))}))
+            state["turn"] = True
+        elif kind == "user" and origin.get("kind") == "human" and not row.get("isMeta"):
+            typed = _text([p for p in content if isinstance(p, dict) and p.get("type") == "text"]) \
+                if isinstance(content, list) else _text(content)
+            if typed.strip():
+                events.append(("working", {"prompt": typed}))
+                state["turn"] = True
+        elif kind == "user" and origin.get("kind") == "task-notification":
+            if not state.get("turn"):
+                events.append(("working", {"background": True}))
             state["turn"] = True
         elif not state.get("turn"):
             continue
