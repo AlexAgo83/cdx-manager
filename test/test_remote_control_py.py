@@ -748,6 +748,23 @@ class ClaudeChannelTests(unittest.TestCase):
         events = remote_claude.channel_events(self.LINES, {})
         self.assertEqual(events, [("working", {"prompt": "ping"}), ("assistant", {"text": "pong"}), ("done", {})])
 
+    def test_typed_and_background_turns_reach_the_remote_chat(self):
+        lines = [
+            json.dumps({"type": "user", "origin": {"kind": "human"}, "message": {"content": "typed here"}}),
+            json.dumps({"type": "user", "origin": {"kind": "human"}, "isMeta": True, "message": {"content": [{"type": "text", "text": "[Image]"}]}}),
+            json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "answer"}]}}),
+            json.dumps({"type": "system", "subtype": "turn_duration"}),
+            json.dumps({"type": "user", "origin": {"kind": "task-notification"}, "message": {"content": "<task-notification>done</task-notification>"}}),
+            json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "the job finished"}]}}),
+            json.dumps({"type": "system", "subtype": "turn_duration"}),
+        ]
+        self.assertEqual(remote_claude.channel_events(lines, {}), [
+            ("working", {"prompt": "typed here"}), ("assistant", {"text": "answer"}), ("done", {}),
+            ("working", {"background": True}), ("assistant", {"text": "the job finished"}), ("done", {})])
+        # A notification inside a running turn opens nothing new.
+        state = {"turn": True}
+        self.assertEqual(remote_claude.channel_events(lines[4:6], state), [("assistant", {"text": "the job finished"})])
+
     def test_the_server_answers_initialize_and_forwards_inbox_lines(self):
         from src import claude_channel
         inbox = os.path.join(tempfile.mkdtemp(), "inbox")
