@@ -224,6 +224,32 @@ class HookTargetTests(unittest.TestCase):
             self.assertEqual(agent_notify.handle_notify([], ctx), 0)
         self.assertEqual(written, [])
 
+    def test_an_oversized_prompt_is_blocked_and_saved(self):
+        with tempfile.TemporaryDirectory() as home:
+            prompt = "é" * (agent_notify.PROMPT_LIMIT_BYTES // 2 + 1)
+            payload = json.dumps({"hook_event_name": "UserPromptSubmit", "prompt": prompt})
+            written = []
+            ctx = self._ctx(payload, {"CDX_HOME": home})
+            ctx["out"] = written.append
+            self.assertEqual(agent_notify.handle_notify([], ctx), 0)
+            decision = json.loads("".join(written))
+            self.assertEqual(decision["decision"], "block")
+            saved = os.path.join(home, "oversized-prompts", os.listdir(os.path.join(home, "oversized-prompts"))[0])
+            self.assertIn(saved, decision["reason"])
+            with open(saved, encoding="utf-8") as handle:
+                self.assertEqual(handle.read(), prompt)
+            if os.name == "posix":
+                self.assertEqual(os.stat(saved).st_mode & 0o777, 0o600)
+
+    def test_a_normal_prompt_passes_silently(self):
+        with tempfile.TemporaryDirectory() as home:
+            written = []
+            ctx = self._ctx(json.dumps({"hook_event_name": "UserPromptSubmit", "prompt": "x" * 1000}), {"CDX_HOME": home})
+            ctx["out"] = written.append
+            self.assertEqual(agent_notify.handle_notify([], ctx), 0)
+            self.assertEqual(written, [])
+            self.assertFalse(os.path.exists(os.path.join(home, "oversized-prompts")))
+
     def test_permission_tool_name_is_sanitized_and_bounded(self):
         tool_name = "Bash\nwith\x00control " + "x" * 100
         _, message = agent_notify.compose_notification(

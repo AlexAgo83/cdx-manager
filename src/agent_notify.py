@@ -291,6 +291,8 @@ def handle_notify(rest, ctx):
         if reader is not None and not ctx.get("stdin_is_tty"):
             stdin_text = reader.read()
         payload = read_hook_payload(rest, stdin_text)
+        if _refuse_oversized_prompt(ctx, payload, env):
+            return 0
         # From here on nothing may be written to stdout. On a PermissionRequest
         # Claude Code reads this process's stdout as the decision for the tool
         # call being asked about, so a stray line would allow or deny it. The
@@ -317,6 +319,33 @@ def handle_notify(rest, ctx):
     except Exception:  # noqa: BLE001 - deliberate: the caller is an agent turn
         pass
     return 0
+
+
+# The API refuses a request over 32 MB of text, and a prompt that big stays in
+# the history: every retry and /compact then fails until the turn is rewound.
+PROMPT_LIMIT_BYTES = 1_000_000
+
+
+def _refuse_oversized_prompt(ctx, payload, env):
+    """Block a huge pasted prompt, keeping its text in a file the agent can read."""
+    if hook_event(payload) != "userpromptsubmit" or not isinstance(payload.get("prompt"), str):
+        return False
+    data = payload["prompt"].encode("utf-8", errors="replace")
+    if len(data) <= PROMPT_LIMIT_BYTES:
+        return False
+    import time
+    directory = os.path.abspath(os.path.join(get_cdx_home(env), "oversized-prompts"))
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    path = os.path.join(directory, f"prompt-{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}.txt")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(data)
+    reason = (f"Prompt refused: {len(data) / 1e6:.1f} MB is over the {PROMPT_LIMIT_BYTES / 1e6:.0f} MB limit "
+              f"(a request over 32 MB breaks the session). Its text is saved in {path}; "
+              "send a short message that references that file instead.")
+    # UserPromptSubmit reads a JSON decision on stdout: block erases the prompt from the context.
+    (ctx.get("out") or print)(json.dumps({"decision": "block", "reason": reason}) + "\n")
+    return True
 
 
 def _record_state(ctx, payload, env):

@@ -74,6 +74,14 @@ disabled — cdx installs no hooks at all rather than asking you to approve
 something that could show you nothing. Headless `cdx run` never notifies: its
 caller already learns of completion from the return value.
 
+### Oversized prompts
+
+The same `UserPromptSubmit` hook refuses a prompt larger than 1 MB, such as a pasted browser console
+log. The API rejects a request over 32 MB of text, and a prompt that size stays in the history, so
+every retry and `/compact` fails until the turn is rewound. The refused text is saved, readable only
+by you, under `~/.cdx/oversized-prompts/`; the refusal names the file, so the next message can ask
+the agent to read or search it instead.
+
 ## Agent state
 
 Every hook event `cdx notify` receives also rewrites one small record for that
