@@ -209,6 +209,9 @@ def _shared_tool_cache_overrides(env):
     shared_cache = os.path.join(get_cdx_home(env), "shared-cache")
     return {
         "PLAYWRIGHT_BROWSERS_PATH": os.path.join(shared_cache, "playwright"),
+        # Projects pin different Playwright versions: an install from one must not
+        # garbage-collect the builds another project still needs.
+        "PLAYWRIGHT_SKIP_BROWSER_GC": "1",
         "NPM_CONFIG_CACHE": os.path.join(shared_cache, "npm"),
         "PIP_CACHE_DIR": os.path.join(shared_cache, "pip"),
         "UV_CACHE_DIR": os.path.join(shared_cache, "uv"),

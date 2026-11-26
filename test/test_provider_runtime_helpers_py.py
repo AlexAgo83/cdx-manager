@@ -13,6 +13,7 @@ from src.provider_runtime import (
     _normalize_reasoning_effort,
     _redact_sensitive_args,
     _sanitize_terminal_title_component,
+    _shared_tool_cache_overrides,
     _start_terminal_title,
     _TerminalTitleKeeper,
     format_terminal_title,
@@ -301,6 +302,13 @@ class StartTerminalTitleTests(unittest.TestCase):
             _start_terminal_title(self.session(PROVIDER_OLLAMA), "launch", stream=stream)
         )
         self.assertEqual(stream.writes, [])
+
+
+class SharedToolCacheTests(unittest.TestCase):
+    def test_shared_playwright_cache_skips_browser_gc(self):
+        overrides = _shared_tool_cache_overrides({"CDX_HOME": "/tmp/cdx-home"})
+        self.assertTrue(overrides["PLAYWRIGHT_BROWSERS_PATH"].endswith(os.path.join("shared-cache", "playwright")))
+        self.assertEqual(overrides["PLAYWRIGHT_SKIP_BROWSER_GC"], "1")
 
 
 if __name__ == "__main__":
