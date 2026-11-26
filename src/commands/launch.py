@@ -37,7 +37,7 @@ from ..provider_runtime import (
 from ..run_command import PROMPT_STDIN, read_run_prompt
 from ..run_usage import estimate_cost, format_cache_ratio
 
-LAUNCH_USAGE = "Usage: cdx <name> [--dir PATH] [--project PATH] [--prompt TEXT|--prompt-file PATH|--task TEXT [--end-state TEXT]] [--resume] [--on-busy fail|ask] [--json]"
+LAUNCH_USAGE = "Usage: cdx <name> [--dir PATH] [--project PATH] [--prompt TEXT|--prompt-file PATH|--task TEXT [--end-state TEXT]] [--resume] [--on-busy fail|ask|allow] [--json]"
 
 #: The first message of a session started with --task. The end state is what the
 #: user's go-ahead covers: a bare "show me first" made sessions stop after a commit
@@ -74,8 +74,8 @@ def _parse_launch_args(args):
             raise CdxError(LAUNCH_USAGE)
         values[flag] = value
     on_busy = values["--on-busy"] or "ask"
-    if on_busy not in ("fail", "ask"):
-        raise CdxError("cdx <name>: --on-busy must be fail or ask.")
+    if on_busy not in ("fail", "ask", "allow"):
+        raise CdxError("cdx <name>: --on-busy must be fail, ask or allow.")
     if values["--prompt"] is not None and values["--prompt-file"] is not None:
         raise CdxError("cdx <name>: --prompt and --prompt-file are mutually exclusive.")
     if values["--end-state"] is not None and values["--task"] is None:
