@@ -36,6 +36,7 @@ cdx work
 | See quota and choose an account | `cdx status`, `cdx next` | [Quota-aware routing](docs/features.md#quota-aware-routing) |
 | Keep logins and settings separate | `cdx add`, `cdx <name>`, `cdx set` | [Isolated sessions](docs/features.md#isolated-multi-account-sessions) |
 | Continue work in another session | `cdx handoff source target` | [Context handoff](docs/features.md#context-handoff) |
+| Start another session on a busy profile | `cdx <name> --on-busy allow` | [Launch policies](docs/cli.md) |
 | Run a prompt from a script | `cdx run --prompt "..." --json` | [Headless automation](docs/features.md#headless-automation) |
 | Inspect usage or get an alert | `cdx stats`, `cdx ready` | [Maintenance and notifications](docs/sessions-and-notifications.md) |
 | See which agents wait for you | `cdx agents --json` | [Agent state](docs/sessions-and-notifications.md#agent-state) |

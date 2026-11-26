@@ -1,5 +1,9 @@
 # Unreleased
 
+## Explicit busy-profile launches (#161)
+
+- Add `--on-busy allow` (also `--on-busy=allow`) to launch a second session without confirmation, including without a terminal and with `--json`. Print the existing shared-login warning to stderr. Support task, directory, prompt and resume launches; keep `ask` as the default and preserve `fail`.
+
 ## Isolated user toolchains (next patch)
 
 - Mount `~/.local/lib`, pipx (`~/.local/share/pipx`, `~/.local/pipx`) and `~/.cargo/bin` read-only in isolated workspaces, add cargo and the newest nvm Node bin to PATH, and set PYTHONPATH to the user site-packages, so pip, pipx, cargo and nvm tools work with the empty sandbox HOME.

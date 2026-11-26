@@ -34,6 +34,7 @@ from src.cli_helpers import _warn_if_session_already_running
 from src.commands.launch import _launch_directory, _parse_launch_args
 from src.errors import CdxError
 from src.session_service import create_session_service
+from src.tray_defaults import set_alerts_default
 
 
 class LaunchCommandTests(CliTestBase):
@@ -77,9 +78,10 @@ class LaunchCommandTests(CliTestBase):
 
     def test_busy_policy_is_parsed_for_named_and_task_launches(self):
         for args in ([], ["--task", "Fix CI"]):
-            for spelling in (["--on-busy", "fail"], ["--on-busy=fail"]):
-                with self.subTest(args=args, spelling=spelling):
-                    self.assertEqual(_parse_launch_args([*args, *spelling])[3], "fail")
+            for policy in ("fail", "ask", "allow"):
+                for spelling in (["--on-busy", policy], [f"--on-busy={policy}"]):
+                    with self.subTest(args=args, spelling=spelling):
+                        self.assertEqual(_parse_launch_args([*args, *spelling])[3], policy)
         self.assertEqual(_parse_launch_args([])[3], "ask")
         for args in (["--on-busy"], ["--on-busy="], ["--on-busy", "next"],
                      ["--on-busy", "fail", "--on-busy", "ask"]):
@@ -124,6 +126,56 @@ class LaunchCommandTests(CliTestBase):
         service["launch_session"].assert_not_called()
         self.assertEqual(service["get_launch_history"]("main"), [])
 
+    def test_busy_allow_launches_without_prompting_and_warns_on_stderr(self):
+        temp_dir = self.make_temp_dir()
+        prompt_file = os.path.join(temp_dir, "prompt.txt")
+        with open(prompt_file, "w") as handle:
+            handle.write("Fix CI from file")
+        cases = [
+            (["main"], None, False),
+            (["main", "--task", "Fix CI"], "Task: Fix CI", False),
+            (["main", "--prompt", "Fix CI directly"], "Fix CI directly", False),
+            (["main", "--prompt-file", prompt_file], "Fix CI from file", False),
+            (["main", "--resume"], None, True),
+            (["resume", "main"], None, True),
+        ]
+        for tty in (False, True):
+            for json_flag in (False, True):
+                for spelling in (["--on-busy", "allow"], ["--on-busy=allow"]):
+                    for args, prompt, resume in cases:
+                        with self.subTest(tty=tty, json=json_flag, spelling=spelling, args=args):
+                            service = create_session_service({"base_dir": self.make_temp_dir()})
+                            service["create_session"]("main", "codex")
+                            set_alerts_default(service["base_dir"], True)
+                            service["active_session_runtime"] = mock.Mock(return_value={"pid": 1234})
+                            harness = _AuthHarness()
+                            io = self.make_io()
+                            ask = mock.Mock(side_effect=AssertionError("must not prompt"))
+                            argv = [*args, *spelling, "--dir", temp_dir, *(["--json"] if json_flag else [])]
+                            self.assertEqual(main(argv, {
+                                **io, "stdin": {"isTTY": tty}, "input": ask, "service": service,
+                                "cwd": temp_dir, "env": {"CDX_HOME": service["base_dir"]},
+                                "spawn": harness.spawn, "spawn_sync": harness.spawn_sync,
+                            }), 0)
+                            ask.assert_not_called()
+                            warning = io["stderr"].getvalue()
+                            self.assertIn("A session named main is already running (pid 1234).", warning)
+                            self.assertIn("Two sessions on one profile share its login and can log each other out.", warning)
+                            self.assertNotIn("already running", io["stdout"].getvalue())
+                            launch = [call for call in harness.calls if call["kind"] == "spawn" and call["command"] == "script"][-1]
+                            launch_args = _script_launch_args(launch)
+                            self.assertEqual(launch_args[launch_args.index("--cd") + 1], os.path.realpath(temp_dir))
+                            self.assertNotIn("--on-busy", launch_args)
+                            self.assertNotIn("--on-busy=allow", launch_args)
+                            if prompt:
+                                self.assertTrue(launch_args[-1].startswith(prompt))
+                            if resume:
+                                self.assertEqual(launch_args[:2], ["resume", "--last"])
+                            if json_flag:
+                                payload = json.loads(io["stdout"].getvalue())
+                                self.assertTrue(payload["ok"])
+                                self.assertEqual(payload["action"], "resume" if resume else "launch")
+
     def test_busy_terminal_ask_preserves_confirmation_and_cancellation(self):
         for answer in ("y", "yes", "n", ""):
             with self.subTest(answer=answer):
@@ -146,8 +198,8 @@ class LaunchCommandTests(CliTestBase):
             _warn_if_session_already_running("main", ctx)
         self.assertEqual(caught.exception.code, "session_busy")
 
-    def test_idle_profile_does_not_prompt_under_either_policy(self):
-        for policy in ("ask", "fail"):
+    def test_idle_profile_does_not_prompt_under_any_policy(self):
+        for policy in ("ask", "fail", "allow"):
             ctx = {"service": {"active_session_runtime": lambda _name: None}}
             _warn_if_session_already_running("main", ctx, on_busy=policy)
 
