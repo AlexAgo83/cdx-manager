@@ -145,10 +145,10 @@ class LaunchCommandTests(CliTestBase):
                     for args, prompt, resume in cases:
                         with self.subTest(tty=tty, json=json_flag, spelling=spelling, args=args):
                             service = create_session_service({"base_dir": self.make_temp_dir()})
-                            service["create_session"]("main", "codex")
+                            session = service["create_session"]("main", "codex")
                             set_alerts_default(service["base_dir"], True)
                             service["active_session_runtime"] = mock.Mock(return_value={"pid": 1234})
-                            harness = _AuthHarness()
+                            harness = _AuthHarness(initial_auth={session["authHome"]: True})
                             io = self.make_io()
                             ask = mock.Mock(side_effect=AssertionError("must not prompt"))
                             argv = [*args, *spelling, "--dir", temp_dir, *(["--json"] if json_flag else [])]
