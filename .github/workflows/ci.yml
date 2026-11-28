@@ -13,6 +13,7 @@ jobs:
   test:
     name: Lint and test (${{ matrix.os }}${{ matrix.python != '3.11' && format(', py{0}', matrix.python) || '' }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -54,9 +55,17 @@ jobs:
           PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
 
       - name: Test
-        run: python -m pytest --cov=src --cov-report=term-missing
+        run: python -m pytest --cov=src --cov-report=term-missing --junitxml=test-results/pytest.xml
         env:
           PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pytest-${{ matrix.os }}-py${{ matrix.python }}
+          path: test-results/pytest.xml
+          if-no-files-found: warn
 
       - name: Package dry-run
         run: npm pack --dry-run

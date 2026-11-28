@@ -40,24 +40,28 @@ FAKE_STREAM = textwrap.dedent("""
 """)
 
 FAKE_MERGING_STREAM = textwrap.dedent("""
-    import json, os, select, sys, time
-    # Like the real CLI: user lines that arrive while a turn runs join that turn,
-    # so several sends can end with a single result.
+    import json, queue, sys, threading, time
+    # Drain stdin in a reader thread because Windows select only supports sockets.
+    messages = queue.Queue()
+    def read():
+        for line in sys.stdin:
+            messages.put(json.loads(line)["message"]["content"])
+        messages.put(None)
+    threading.Thread(target=read, daemon=True).start()
     print(json.dumps({"type": "system", "subtype": "init"}), flush=True)
-    pending = b""
     while True:
-        chunk = os.read(0, 65536)
-        if not chunk:
+        text = messages.get()
+        if text is None:
             break
-        pending += chunk
-        time.sleep(0.5)  # the turn is running
-        while select.select([0], [], [], 0)[0]:
-            more = os.read(0, 65536)
-            if not more:
+        texts = [text]
+        time.sleep(0.5)
+        while True:
+            try:
+                extra = messages.get_nowait()
+            except queue.Empty:
                 break
-            pending += more
-        lines, _, pending = pending.rpartition(b"\\n")
-        texts = [json.loads(l)["message"]["content"] for l in lines.split(b"\\n") if l.strip()]
+            if extra is not None:
+                texts.append(extra)
         reply = "echo:" + "+".join(texts)
         print(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": reply}]}}), flush=True)
         print(json.dumps({"type": "result", "subtype": "success", "result": reply}), flush=True)
@@ -339,7 +343,6 @@ class ClaudeLoopTests(unittest.TestCase):
         self.assertEqual(len(self.tui_starts), 2)
         self.assertTrue(self.tui_starts[1], "the TUI comes back on the conversation")
 
-    @unittest.skipIf(os.name == "nt", "the merging fake polls a pipe with select, POSIX only")
     def test_messages_sent_during_a_turn_still_return_to_the_tui(self):
         # 2026-11-13: two messages sent mid-turn were folded into one result, the
         # turn counter never reached zero and the session never left remote mode.
@@ -360,6 +363,32 @@ class ClaudeLoopTests(unittest.TestCase):
         thread.join(15)
         self.assertEqual(result.get("code"), 0)
         self.assertEqual([e["event"] for e in self._events()], ["ready", "ended"])
+
+
+class ClaudeInterruptTests(unittest.TestCase):
+    setUp = ClaudeLoopTests.setUp
+    _events = ClaudeLoopTests._events
+    _run = ClaudeLoopTests._run
+    _wait = ClaudeLoopTests._wait
+
+    def test_interrupt_stops_the_stream_and_resumes_the_same_conversation(self):
+        self.record = {"state": "done"}
+        self.stream = _script(self.dir, "slow.py", FAKE_STREAM.replace(
+            'text = message["message"]["content"]',
+            'text = message["message"]["content"]\n    if text == "slow":\n        import time; time.sleep(60)'))
+        thread, result = self._run(keys_when=lambda: False)
+        self._wait(lambda: os.path.exists(remote_control.endpoint_file(self.base_dir, "work")))
+        remote_control.request(self.base_dir, "work", "send", "slow")
+        self._wait(lambda: any(e["event"] == "working" for e in self._events()))
+        remote_control.request(self.base_dir, "work", "interrupt")
+        thread.join(30)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(result.get("code"), 0)
+        events = [e["event"] for e in self._events()]
+        self.assertIn("interrupt_requested", events)
+        self.assertIn("interrupted", events)
+        self.assertNotIn("failed", events)
+        self.assertEqual(self.tui_starts, [False, True])
 
 
 def _agy_index(auth_home, rows):
@@ -612,6 +641,64 @@ class CodexMappingTests(unittest.TestCase):
         self.assertIn("capability-token", remote_codex.server_argv("codex", 4242, "/t"))
 
 
+class CodexDialogueTests(unittest.TestCase):
+    def test_client_initializes_resumes_sends_and_interrupts(self):
+        import queue
+        from unittest import mock
+
+        messages, calls = queue.Queue(), []
+        log = mock.Mock()
+
+        def send(raw):
+            request = json.loads(raw)
+            calls.append(request)
+            method = request["method"]
+            if "id" not in request:
+                return
+            result = {}
+            if method == "thread/loaded/list":
+                result = {"data": ["fake-thread"]}
+            elif method == "thread/resume":
+                result = {"thread": {"id": "fake-thread", "cwd": "/work"}}
+            elif method == "turn/start":
+                messages.put(json.dumps({"method": "turn/started", "params": {"turn": {"id": "fake-turn"}}}))
+                messages.put(json.dumps({"method": "item/completed", "params": {
+                    "item": {"id": "fake-item", "type": "agentMessage", "text": "fake reply"}}}))
+            elif method == "turn/interrupt":
+                messages.put(json.dumps({"method": "turn/completed", "params": {
+                    "turn": {"id": "fake-turn", "status": "interrupted"}}}))
+            messages.put(json.dumps({"id": request["id"], "result": result}))
+
+        def receive():
+            value = messages.get(timeout=5)
+            if value is None:
+                raise ws_client.WebSocketClosed("fake closed")
+            return value
+
+        with mock.patch.object(remote_codex, "WebSocket") as transport:
+            transport.return_value.send_text.side_effect = send
+            transport.return_value.recv_text.side_effect = receive
+            transport.return_value.close.side_effect = lambda: messages.put(None)
+            client = remote_codex.Client(4242, "fake-capability", log)
+            try:
+                client.send("fake prompt", "/work")
+                client.interrupt()
+                deadline = time.monotonic() + 5
+                while not any(c.args[0] == "interrupted" for c in log.append.call_args_list):
+                    self.assertLess(time.monotonic(), deadline)
+                    time.sleep(0.01)
+            finally:
+                client.close()
+        self.assertEqual([c["method"] for c in calls], [
+            "initialize", "initialized", "thread/loaded/list", "thread/resume", "turn/start", "turn/interrupt"])
+        self.assertEqual(calls[-2]["params"], {
+            "threadId": "fake-thread", "input": [{"type": "text", "text": "fake prompt"}]})
+        self.assertEqual(calls[-1]["params"], {"threadId": "fake-thread", "turnId": "fake-turn"})
+        self.assertEqual([c.args[0] for c in log.append.call_args_list],
+                         ["queued", "working", "assistant", "interrupted"])
+        self.assertEqual(log.append.call_args_list[2].kwargs["text"], "fake reply")
+
+
 def _ws_echo_server():
     """A one-connection WebSocket server that checks the bearer token and echoes one message."""
     server = socket.socket()
@@ -816,3 +903,37 @@ class ClaudeChannelTests(unittest.TestCase):
             time.sleep(0.1)
         self.assertEqual(read(), ["ready", "queued", "working", "assistant", "done"])
         self.assertEqual(starts, [False], "one TUI for the whole launch")
+
+    def test_channel_interrupt_sends_escape_and_cleans_up_the_endpoint(self):
+        from unittest import mock
+
+        base_dir, work = tempfile.mkdtemp(), tempfile.mkdtemp()
+        adapter = type("Adapter", (), {"conversation_id": "fake-channel", "_transcript": lambda self: None})()
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+        result = {}
+
+        def target():
+            result["code"] = remote_claude.run_channel_loop(
+                base_dir=base_dir, name="work", adapter=adapter, start_tui=lambda resume: child,
+                inbox=os.path.join(work, "inbox"), pane="fake-pane")
+
+        with mock.patch.object(remote_claude, "confirm_dev_channel"), mock.patch.object(remote_claude, "_tmux") as tmux:
+            thread = threading.Thread(target=target, daemon=True)
+            thread.start()
+            try:
+                deadline = time.monotonic() + 10
+                while not os.path.exists(remote_control.endpoint_file(base_dir, "work")):
+                    self.assertLess(time.monotonic(), deadline)
+                    time.sleep(0.01)
+                remote_control.request(base_dir, "work", "interrupt")
+                while not tmux.called:
+                    self.assertLess(time.monotonic(), deadline)
+                    time.sleep(0.01)
+                tmux.assert_called_once_with("send-keys", "-t", "fake-pane", "Escape")
+            finally:
+                child.terminate()
+                child.wait(timeout=5)
+                thread.join(5)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(result.get("code"), child.returncode)
+        self.assertFalse(os.path.exists(remote_control.endpoint_file(base_dir, "work")))
