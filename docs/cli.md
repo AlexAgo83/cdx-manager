@@ -856,6 +856,9 @@ Claude Code shows a development-channel warning at every such launch (channels
 outside Anthropic's allowlist always ask). In tmux, cdx accepts it, the default
 choice; elsewhere press Enter once. Antigravity keeps the TUI and stream-json switch.
 
+See [remote control validation](remote-control-validation.md) for CI evidence
+and exact authenticated live-check commands on Linux, macOS and Windows.
+
 ## MCP server
 
 `cdx mcp serve [--project-root DIR]` runs cdx as a stdio MCP server, with no extra

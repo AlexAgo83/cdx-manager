@@ -1,28 +1,30 @@
 ## task_088_implement_protocol_based_remote_messaging_for_interactive_sessions - Implement protocol-based remote messaging for interactive sessions
 > From version: 0.26.14
 > Schema version: 1.0
-> Status: Ready
+> Status: In progress
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 75%
+> Progress: 90%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
+> Owner: Codex
+> Indicators reviewed: 2026-11-28 09:59:46
 
 # AI Context
-- Summary: (unfilled: replace before this doc is used)
+- Summary: Coordinate the delivered endpoint and provider adapters with remaining platform validation.
 - Keywords: implement, protocol, based, remote, messaging, interactive, sessions
-- Use when: (unfilled: replace before this doc is used)
-- Skip when: (unfilled: replace before this doc is used)
+- Use when: assessing remote-control delivery evidence and outstanding live checks.
+- Skip when: changing unrelated session or tray behavior.
 
 # Context
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
 
 # Plan
-- [ ] 1. Read provider_runtime launch paths, agent_state and conversation readers; confirm the invariants the feature must not change when disabled.
-- [ ] 2. Build the control endpoint, request protocol and cdx send command with owner-only access per platform.
-- [ ] 3. Add the Claude local/remote switch loop with queueing, interrupt and event mapping.
-- [ ] 4. Add the Codex shared app-server launch and JSON-RPC client with event mapping.
+- [x] 1. Read provider_runtime launch paths, agent_state and conversation readers; confirm the invariants the feature must not change when disabled.
+- [x] 2. Build the control endpoint, request protocol and cdx send command with owner-only access per platform.
+- [x] 3. Add the Claude local/remote switch loop with queueing, interrupt and event mapping.
+- [x] 4. Add the Codex shared app-server launch and JSON-RPC client with event mapping.
 - [ ] 5. Write fake-provider tests, run them on Linux, macOS and Windows, run the live check per platform, and document usage and limits.
 - [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
 - [ ] Keep commit creation under operator control; do not force one commit per micro-step.
@@ -52,7 +54,7 @@
 - request-AC7 -> `item_171_prove_the_remote_messaging_loop_on_linux_macos_and_windows`. Proof deferred to slice closeout.
 
 # Validation
-- (no validation recorded yet)
+- Recovery wave 2026-11-28: see item_171 for local results, CI configuration and the open authenticated platform checklist. Global audit blockers outside this slice do not prevent publication; no closeout is claimed.
 
 # Report
 - Antigravity joins the Claude switch loop through AntigravityAdapter (src/remote_antigravity.py); protocol facts and limits are in item_169, "Antigravity".
